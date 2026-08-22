@@ -692,7 +692,10 @@ function paintFinder() {
       tf('Label', 'bl' + n, b.label, 'Under \u20b910L') +
       tf('Ceiling, \u20b9 (blank = no ceiling)', 'bc' + n,
         b.ceilInr == null ? '' : b.ceilInr, '1000000') +
-    '</div>').join('');
+    '</div>' +
+    '<p class="bandRange" data-n="' + n + '" style="margin:-4px 0 14px;font:600 12.2px/1.5 ' +
+      'var(--sans);color:var(--muted)"></p>').join('');
+  paintBandRanges();
 
   $('#fxRows').innerHTML = FX_ORDER.map(code =>
     tf(code + ' \u2192 \u20b9', 'fx' + code, (f.fx || {})[code] || '')).join('');
@@ -818,6 +821,56 @@ function paintAi() {
   $('#aiWhen').textContent = meta
     ? 'Last changed by ' + meta.who + ' ' + timeAgo(meta.updated_at) : '';
 }
+
+/*
+ * The band each row actually produces, written under it.
+ *
+ * The labels are written as floors — "₹20L+" — and the field is a ceiling, so
+ * the first person to read this screen asked why the band called ₹20L+ had
+ * 40,00,000 in it. It is the top of the band, and the band starts where the one
+ * above it stopped. Rather than explain that in a paragraph nobody reads, the
+ * screen now says the range back as you type it.
+ */
+function paintBandRanges() {
+  const lakh = v => {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return null;
+    if (n === 0) return '\u20b90';          /* "₹0L" is not a thing anybody writes */
+    return '\u20b9' + (n / 100000).toFixed(n % 100000 ? 2 : 0) + 'L';
+  };
+  let floor = 0;
+  $$('#bandRows .bandRange').forEach(el => {
+    const n = el.dataset.n;
+    const raw = $('#bc' + n) ? $('#bc' + n).value.trim() : '';
+    const top = lakh(raw);
+    const from = lakh(floor);
+    /* Unreachable is checked FIRST. A second blank ceiling below a blank one
+       fell through to the "everything above" line with nothing to put in it,
+       and printed "Holds everything above null". */
+    if (floor === null) {
+      el.textContent = 'Never matches \u2014 a band above it has no ceiling, '
+        + 'so everything is caught before it gets here.';
+      return;
+    }
+    if (!top) {
+      el.textContent = 'Holds everything above ' + from + '.';
+      floor = null;
+      return;
+    }
+    /* A ceiling at or below the band above it can never be reached: the row
+       above takes everything first. Printing "holds ₹25L to ₹20L" would be the
+       screen repeating a mistake back as though it were a fact. */
+    el.textContent = Number(raw) <= floor
+      ? 'Never matches \u2014 this ceiling is not above the band before it.'
+      : 'Holds ' + from + ' to ' + top + '.';
+    floor = Math.max(floor, Number(raw));
+  });
+}
+
+document.addEventListener('input', e => {
+  if (e.target && /^bc\d+$/.test(e.target.id)) paintBandRanges();
+});
 
 /* What is on the screen, as the block the server stores. Read out of the DOM
    rather than tracked in a variable, so what you see is what saves. */

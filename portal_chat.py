@@ -174,6 +174,16 @@ document.addEventListener('click', e => {
   $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
 });
 
+/* Arriving from the Enquiries counter on the Organisation screen. The hash is
+   how one screen hands off to a tab on another without inventing a router. */
+if (location.hash === '#enquiries') {
+  const tab = $('.tab[data-t="enq"]');
+  if (tab) {
+    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === tab)));
+    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-enq'));
+  }
+}
+
 loadList();
 loadEnquiries();
 }
@@ -237,6 +247,16 @@ document.addEventListener('click', e => {
   $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
 });
 
+/* Arriving from the Enquiries counter on the Organisation screen. The hash is
+   how one screen hands off to a tab on another without inventing a router. */
+if (location.hash === '#enquiries') {
+  const tab = $('.tab[data-t="enq"]');
+  if (tab) {
+    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === tab)));
+    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-enq'));
+  }
+}
+
 loadList();
 loadEnquiries();
   } catch (err) { toast(err.message); box.value = body; }
@@ -282,6 +302,16 @@ document.addEventListener('click', e => {
   $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
 });
 
+/* Arriving from the Enquiries counter on the Organisation screen. The hash is
+   how one screen hands off to a tab on another without inventing a router. */
+if (location.hash === '#enquiries') {
+  const tab = $('.tab[data-t="enq"]');
+  if (tab) {
+    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === tab)));
+    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-enq'));
+  }
+}
+
 loadList();
 loadEnquiries();
     if (openId) {
@@ -318,6 +348,16 @@ document.addEventListener('click', e => {
   $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
   $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
 });
+
+/* Arriving from the Enquiries counter on the Organisation screen. The hash is
+   how one screen hands off to a tab on another without inventing a router. */
+if (location.hash === '#enquiries') {
+  const tab = $('.tab[data-t="enq"]');
+  if (tab) {
+    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === tab)));
+    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-enq'));
+  }
+}
 
 loadList();
 loadEnquiries();

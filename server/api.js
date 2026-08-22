@@ -1327,9 +1327,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (role === 'student') perms = [];
     if (role !== 'admin') db.setPerms(person.id, perms);
 
-    /* A student made here is assigned to whoever made them, so they do not
-       land in the unassigned pile the moment they are created. */
-    if (role === 'student' && s.role === 'admin') {
+    /* A student made by a COUNSELLOR is theirs — they are sitting with the
+       person. One made by an administrator is left unassigned on purpose: an
+       admin is not a caseload, the row's dropdown can only offer counsellors,
+       and an unassigned student is visible in the Unassigned counter, which is
+       where somebody will pick them up. */
+    if (role === 'student' && s.role === 'counsellor') {
       try { db.assignCounsellor(person.id, s.id); } catch (e) { /* not fatal */ }
     }
 

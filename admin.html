@@ -518,13 +518,31 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
       <div><h1>Organisation</h1><p>Every student, who is looking after them, and what is waiting on someone.</p></div>
     </div>
 
+    <!-- A count with somewhere to go is a button and looks like one. "Orders
+         placed" has no screen behind it yet, so it stays a plain number rather
+         than a control that does nothing when pressed. -->
     <div class="out" style="grid-template-columns:repeat(5,1fr);margin:0 0 20px">
-      <div><b id="kStudents">—</b><span>Students</span></div>
-      <div><b id="kUnassigned">—</b><span>Unassigned</span></div>
-      <div><b id="kDocs">—</b><span>Docs to review</span></div>
-      <div><b id="kEnq">—</b><span>Enquiries</span></div>
+      <button type="button" class="outgo" data-go="all">
+        <b id="kStudents">—</b><span>Students</span></button>
+      <button type="button" class="outgo" data-go="unassigned">
+        <b id="kUnassigned">—</b><span>Unassigned</span></button>
+      <button type="button" class="outgo" data-go="docs">
+        <b id="kDocs">—</b><span>Docs to review</span></button>
+      <button type="button" class="outgo" data-go="enquiries">
+        <b id="kEnq">—</b><span>Enquiries</span></button>
       <div><b id="kRev">—</b><span>Recorded</span></div>
     </div>
+
+    <style>
+      .out .outgo{appearance:none;font:inherit;text-align:center;cursor:pointer;
+        transition:border-color .12s, background .12s, transform .12s}
+      .out .outgo:hover{border-color:var(--navy-600);background:var(--paper);
+        transform:translateY(-1px)}
+      .out .outgo:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+      .out .outgo span{text-decoration:underline;text-decoration-color:transparent;
+        text-underline-offset:3px;transition:text-decoration-color .12s}
+      .out .outgo:hover span{text-decoration-color:currentColor}
+    </style>
 
     <div class="p-cols" style="margin-bottom:20px;align-items:start">
       <div class="p-card">
@@ -565,14 +583,16 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
               <option value="counsellor">Counsellor — their own students, and the chat</option>
               <option value="editor">Website editor — the site only, no student records</option>
               <option value="admin">Administrator — everything, including this screen</option>
-              <option value="student">Student — a real student account, assigned to you</option>
+              <option value="student">Student — a real student account on this site</option>
             </select></div>
           <p id="pStudentNote" style="display:none;margin:0 0 10px;padding:11px 13px;
             border-radius:10px;background:#f1f6fb;border:1px solid #cfe0f2;
             font:600 12.4px/1.55 var(--sans);color:var(--navy-800)">
             A real student account &mdash; their own dashboard, shortlist, documents and
-            messages &mdash; assigned to you. Give them the password below and they can change
-            it themselves. Use this for a walk-in, or to make yourself a test login.</p>
+            messages. Give them the password below and they can change it themselves. Use this
+            for a walk-in, or to make yourself a test login. A counsellor creating one keeps it;
+            one you create as an administrator is left unassigned, so somebody picks it up from
+            the Unassigned counter above.</p>
           <div id="pPermBox" style="padding:12px 14px;border-radius:11px;background:var(--paper);
             border:1px solid var(--line,#e6e9ee);margin-bottom:4px">
             <span style="display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;
@@ -606,7 +626,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
     </div>
 
     <div class="p-sec">
-      <div class="p-sec-head"><h2>Every student</h2>
+      <div class="p-sec-head"><h2 id="everyStudent">Every student</h2>
+        <span id="onlyChip" hidden class="st wait" style="text-transform:none;letter-spacing:0;
+          cursor:pointer" title="Show everybody again"></span>
         <input id="findStudent" placeholder="Search" style="margin-left:auto;padding:8px 11px;
           font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;min-width:220px"></div>
       <div class="p-card" style="padding:0;overflow-x:auto">
@@ -748,12 +770,47 @@ function row(s) {
     '</tr>';
 }
 
+/* Which subset the counters asked for: '' (everybody), 'unassigned', 'docs'. */
+let only = '';
+
 function paint() {
   const q = filter.toLowerCase();
-  const list = STUDENTS.filter(s => !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q));
+  const list = STUDENTS
+    .filter(s => only !== 'unassigned' || !s.counsellor)
+    .filter(s => only !== 'docs' || s.docsWaiting > 0)
+    .filter(s => !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q));
+
+  const chip = $('#onlyChip');
+  chip.hidden = !only;
+  chip.textContent = only === 'unassigned' ? 'Unassigned only \u00d7'
+    : only === 'docs' ? 'Waiting on documents \u00d7' : '';
+
   $('#rows').innerHTML = list.map(row).join('') ||
-    '<tr><td colspan="6" style="color:var(--muted);padding:22px">Nobody matches that search.</td></tr>';
+    '<tr><td colspan="6" style="color:var(--muted);padding:22px">' +
+    (only === 'unassigned' ? 'Everybody has a counsellor.'
+      : only === 'docs' ? 'No documents are waiting for review.'
+      : 'Nobody matches that search.') + '</td></tr>';
 }
+
+/* The counters are shortcuts into this table, or out to another screen. A
+   number nobody can click through to is a dead end — which is exactly what the
+   first person to use this screen said about it. */
+document.addEventListener('click', e => {
+  const chip = e.target.closest('#onlyChip');
+  if (chip) { only = ''; paint(); return; }
+
+  const go = e.target.closest('[data-go]');
+  if (!go) return;
+  const what = go.dataset.go;
+
+  if (what === 'enquiries') { location.href = 'chat.html#enquiries'; return; }
+
+  only = what === 'all' ? '' : what;
+  filter = '';
+  $('#findStudent').value = '';
+  paint();
+  $('#everyStudent').scrollIntoView({behavior: 'smooth', block: 'start'});
+});
 
 staffBoot(async me => {
   if (me.user.role !== 'admin') {
