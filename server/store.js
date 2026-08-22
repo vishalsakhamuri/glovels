@@ -245,6 +245,12 @@ function sqliteDriver(file) {
       back to cheapest-first, which is what it always did. */
    'ALTER TABLE programmes ADD COLUMN featured INTEGER NOT NULL DEFAULT 0',
    'ALTER TABLE programmes ADD COLUMN feature_sort INTEGER NOT NULL DEFAULT 0',
+   /* The entry requirements a visitor reads before deciding to pay: minimum
+      CGPA, the funds to show, accepted tests, work rights, the document list.
+      One JSON column rather than thirteen, because the list of facts a country
+      cares about changes and a migration per fact is how it stops being kept
+      up to date. */
+   "ALTER TABLE countries ADD COLUMN facts TEXT NOT NULL DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -620,10 +626,17 @@ function open(dir) {
     },
     country: code => db.one('SELECT * FROM countries WHERE code = ?', String(code).toUpperCase()),
     saveCountry(c) {
-      db.run(`INSERT OR REPLACE INTO countries (code, name, flag, region, active, sort, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      /* `facts` is left alone when the caller does not mention it. The
+         Destinations form edits the name and the flag; the requirements editor
+         edits the facts; neither should wipe the other's work by omission. */
+      const had = this.country(c.code);
+      const facts = c.facts === undefined
+        ? (had ? had.facts || '' : '')
+        : JSON.stringify(c.facts || {});
+      db.run(`INSERT OR REPLACE INTO countries (code, name, flag, region, active, sort, updated_at, facts)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         String(c.code).toUpperCase(), c.name, c.flag || '', c.region || '',
-        c.active === false ? 0 : 1, Number(c.sort || 100), now());
+        c.active === false ? 0 : 1, Number(c.sort || 100), now(), facts);
       return this.country(c.code);
     },
     deleteCountry: code => db.run('DELETE FROM countries WHERE code = ?', String(code).toUpperCase()),

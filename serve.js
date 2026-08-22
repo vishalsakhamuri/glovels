@@ -93,7 +93,16 @@ function liveCatalogue() {
 }
 function liveCountries() {
   const out = {};
-  db.countries().forEach(c => { out[c.code] = { code: c.code, name: c.name, flag: c.flag }; });
+  db.countries().forEach(c => {
+    let facts = {};
+    /* Stored as JSON in one column. A country whose facts are unreadable gets
+       an empty set rather than taking the whole catalogue endpoint down with
+       it — the finder then shows the destination with no requirements panel,
+       which is recoverable; a 500 on /api/catalogue is not. */
+    try { facts = JSON.parse(c.facts || '{}') || {}; } catch (e) { facts = {}; }
+    out[c.code] = Object.assign({}, facts,
+      { code: c.code, name: c.name, flag: c.flag, region: c.region || '' });
+  });
   return out;
 }
 const SITE_URL = CFG.siteUrl || ('http://localhost:' + PORT);

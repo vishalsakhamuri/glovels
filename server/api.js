@@ -1504,11 +1504,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       featured: !!r.featured, featureSort: r.feature_sort || 0,
       intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
     })),
-    countries: db.countries(true).map(c => ({
-      code: c.code, name: c.name, flag: c.flag || '', region: c.region || '',
-      active: !!c.active, sort: c.sort,
-      programmes: db.programmes(true).filter(p => p.country === c.code).length,
-    })),
+    countries: db.countries(true).map(c => {
+      let facts = {};
+      try { facts = JSON.parse(c.facts || '{}') || {}; } catch (e) {}
+      return {
+        code: c.code, name: c.name, flag: c.flag || '', region: c.region || '',
+        active: !!c.active, sort: c.sort, facts,
+        programmes: db.programmes(true).filter(p => p.country === c.code).length,
+      };
+    }),
     audit: db.auditTrail(25).map(a => ({ who: a.who, what: a.what, detail: a.detail, at: a.created_at })),
   })));
 
@@ -1561,10 +1565,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (code.length !== 2) return json(res, 422, { error: 'A destination needs a two-letter code, like AU' });
     if (!name) return json(res, 422, { error: 'A destination needs a name' });
     const existed = db.country(code);
-    db.saveCountry({ code, name, flag: String(b.flag || '').slice(0, 8),
-      region: String(b.region || '').slice(0, 80), active: b.active !== false, sort: b.sort });
-    db.log(s.name, existed ? 'destination updated' : 'destination added', name + ' (' + code + ')');
-    return json(res, 200, { country: db.country(code) });
+    const draft = { code, name, flag: String(b.flag || '').slice(0, 8),
+      region: String(b.region || '').slice(0, 80), active: b.active !== false, sort: b.sort };
+    /* Only when the caller sent them. saveCountry keeps whatever is stored
+       otherwise, so the Destinations form cannot wipe the requirements and the
+       requirements editor cannot wipe the flag. */
+    if (b.facts !== undefined) draft.facts = cleanFacts(b.facts);
+    db.saveCountry(draft);
+    db.log(s.name, existed ? 'destination updated' : 'destination added',
+      name + ' (' + code + ')' + (b.facts !== undefined ? ' — entry requirements' : ''));
+    let facts = {};
+    try { facts = JSON.parse((db.country(code) || {}).facts || '{}') || {}; } catch (e) {}
+    return json(res, 200, { country: Object.assign({}, db.country(code), { facts }) });
   }));
 
   route('DELETE', /^\/api\/staff\/country\/([A-Za-z]{2})$/, needs('catalogue', async (req, res, s, m) => {
@@ -1637,6 +1649,44 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     return json(res, 200, out);
   }));
+
+  /*
+   * What a destination is allowed to say about itself.
+   *
+   * These are read by a student deciding whether they qualify and how much
+   * money they need to show a visa officer, so they are bounded and typed here
+   * rather than trusted from a form. A CGPA of 47 or a funds figure with an
+   * extra zero is not a typo anyone catches on the way past.
+   */
+  const cleanFacts = f => {
+    const o = f && typeof f === 'object' ? f : {};
+    const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+    const money = v => Math.max(0, Math.min(99999999,
+      Math.round(Number(String(v == null ? '' : v).replace(/[^0-9.]/g, '')) || 0)));
+    const cgpa = v => {
+      const n = Number(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+      return Number.isFinite(n) && n > 0 ? Math.min(10, Math.round(n * 10) / 10) : 0;
+    };
+    const lines = v => (Array.isArray(v) ? v : String(v || '').split(/\n|\s*\|\s*/))
+      .map(x => str(x, 160)).filter(Boolean).slice(0, 20);
+    return {
+      minCgpaPublic: cgpa(o.minCgpaPublic),
+      minCgpaPrivate: cgpa(o.minCgpaPrivate),
+      degreeRule: str(o.degreeRule, 400),
+      backlogRule: str(o.backlogRule, 400),
+      extraNote: str(o.extraNote, 400),
+      tests: lines(o.tests),
+      fundsLabel: str(o.fundsLabel, 60),
+      fundsInr: money(o.fundsInr),
+      fundsNote: str(o.fundsNote, 200),
+      livingInr: money(o.livingInr),
+      workRights: str(o.workRights, 300),
+      deadlineNote: str(o.deadlineNote, 300),
+      documents: lines(o.documents),
+      hasPublicTrack: !!o.hasPublicTrack,
+      tuitionFree: !!o.tuitionFree,
+    };
+  };
 
   /* ------------------------------------------------ the catalogue as a sheet */
   /*

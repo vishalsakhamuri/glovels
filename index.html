@@ -1238,6 +1238,25 @@ window.__glovelsSetPackages = function (list) {
   if (Array.isArray(list) && list.length) D.packages = list;
 };
 
+/* The entry requirements. `C` on the line below is this same object, so
+   mutating it in place is what makes the Requirements panel, the CGPA scoring
+   and the destination cards all read the edited figures. Replacing
+   `D.countries` with a new object would leave `C` pointing at the old one. */
+window.__glovelsSetCountryFacts = function (map) {
+  if (!map || typeof map !== 'object') return;
+  Object.keys(map).forEach(function (code) {
+    var here = D.countries[code];
+    if (!here) return;
+    var live = map[code];
+    Object.keys(live).forEach(function (k) {
+      /* null and undefined mean "the server has nothing to say about this",
+         which is not "empty" — copying them would blank a line the page
+         shipped with. */
+      if (live[k] !== undefined && live[k] !== null) here[k] = live[k];
+    });
+  });
+};
+
 /* --------------------------------------------------------- sending a form ---
    One place that actually sends. Every form on the site posts JSON here.
    With no endpoint configured it falls back to the visitor's mail app, which is
@@ -2336,6 +2355,32 @@ function shape(p){
 /* Handed out for the same reason the price list is: this block is an IIFE,
    so `P` is unreachable from the content loader at the end of the page. The
    loader replaces the list and asks for a repaint; it can do nothing else. */
+window.__glovelsSetCountries = function (map) {
+  if (!map || typeof map !== 'object') return;
+  Object.keys(map).forEach(function (code) {
+    if (!C[code]) return;              /* a destination this page never had */
+    var live = map[code];
+    Object.keys(live).forEach(function (k) {
+      /* Undefined means "the server has nothing to say about this", which is
+         not the same as "empty". Copying it would blank a line the page shipped
+         with, and the first anyone would know is a student asking why the
+         requirements panel is missing the funds figure. */
+      if (live[k] !== undefined && live[k] !== null) C[code][k] = live[k];
+    });
+  });
+  render();
+};
+
+window.__glovelsSetCatalogue = function (list) {
+  if (!Array.isArray(list) || !list.length) return;
+  P.length = 0;
+  list.forEach(function (p) { P.push(p); });
+  render();
+};
+
+/* Handed out for the same reason the price list is: this block is an IIFE,
+   so `P` is unreachable from the content loader at the end of the page. The
+   loader replaces the list and asks for a repaint; it can do nothing else. */
 window.__glovelsSetCatalogue = function (list) {
   if (!Array.isArray(list) || !list.length) return;
   P.length = 0;
@@ -2881,6 +2926,16 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (c) {
             if (!c || !c.programmes || !c.programmes.length) return;
+            if (c.countries) {
+              try {
+                if (typeof window.__glovelsSetCountryFacts === 'function') {
+                  window.__glovelsSetCountryFacts(c.countries);
+                }
+                if (typeof window.__glovelsSetCountries === 'function') {
+                  window.__glovelsSetCountries(c.countries);
+                }
+              } catch (e) { console.warn('destinations', e); }
+            }
             setCat(c.programmes.map(function (p) {
               return {
                 id: p.id, country: p.country, level: p.level || '',

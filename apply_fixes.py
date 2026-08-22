@@ -1255,3 +1255,100 @@ def hidden_means_hidden():
 
 
 hidden_means_hidden()
+
+
+# ---------------------------------------------------------------- index.html
+#
+# The entry requirements come from the server.
+#
+# `C` is the country map the finder reads: the CGPA bar it scores against, and
+# every line in the Requirements panel a student opens before deciding whether
+# they qualify. It was baked into the page, so the funds figure a visa officer
+# wants — which changes every year, and differs per country — could only be
+# corrected by a developer editing index.html and redeploying.
+#
+# The same escape-hatch shape as the packages and the showcase: the IIFE hands
+# out one named setter, and the loader that already fetches /api/catalogue calls
+# it with the destinations that came back.
+# There are two country maps on this page, in two IIFEs that cannot see each
+# other. `D.countries` is the one the Requirements panel and the CGPA scoring
+# read — it is aliased as `C` on line 1268 — and the second block has its own
+# `C` for the showcase. Patching only the second one made the panel keep showing
+# the numbers the page shipped with while the site reported the edit as saved,
+# which is the worst of both.
+patch(
+    "index.html",
+    "the Requirements panel's own country map can be replaced too",
+    "window.__glovelsSetPackages = function (list) {\n  if (Array.isArray(list) && list.length) D.packages = list;\n};",
+    """window.__glovelsSetPackages = function (list) {
+  if (Array.isArray(list) && list.length) D.packages = list;
+};
+
+/* The entry requirements. `C` on the line below is this same object, so
+   mutating it in place is what makes the Requirements panel, the CGPA scoring
+   and the destination cards all read the edited figures. Replacing
+   `D.countries` with a new object would leave `C` pointing at the old one. */
+window.__glovelsSetCountryFacts = function (map) {
+  if (!map || typeof map !== 'object') return;
+  Object.keys(map).forEach(function (code) {
+    var here = D.countries[code];
+    if (!here) return;
+    var live = map[code];
+    Object.keys(live).forEach(function (k) {
+      /* null and undefined mean "the server has nothing to say about this",
+         which is not "empty" — copying them would blank a line the page
+         shipped with. */
+      if (live[k] !== undefined && live[k] !== null) here[k] = live[k];
+    });
+  });
+};""",
+    # A marker unique to the DEFINITION. The obvious one — the function's own
+    # name — is also in the loader ten lines below, so once the loader had been
+    # patched this one reported itself as already applied and silently did
+    # nothing, while the site went on showing the numbers it shipped with.
+    marker="mutating it in place is what makes the Requirements panel",
+)
+
+patch(
+    "index.html",
+    "the finder's country facts can be replaced from the server",
+    "window.__glovelsSetCatalogue = function (list) {",
+    """window.__glovelsSetCountries = function (map) {
+  if (!map || typeof map !== 'object') return;
+  Object.keys(map).forEach(function (code) {
+    if (!C[code]) return;              /* a destination this page never had */
+    var live = map[code];
+    Object.keys(live).forEach(function (k) {
+      /* Undefined means "the server has nothing to say about this", which is
+         not the same as "empty". Copying it would blank a line the page shipped
+         with, and the first anyone would know is a student asking why the
+         requirements panel is missing the funds figure. */
+      if (live[k] !== undefined && live[k] !== null) C[code][k] = live[k];
+    });
+  });
+  render();
+};
+
+window.__glovelsSetCatalogue = function (list) {""",
+    marker="__glovelsSetCountries",
+)
+
+patch(
+    "index.html",
+    "the loader passes the destinations through",
+    """            if (!c || !c.programmes || !c.programmes.length) return;
+            setCat(c.programmes.map(function (p) {""",
+    """            if (!c || !c.programmes || !c.programmes.length) return;
+            if (c.countries) {
+              try {
+                if (typeof window.__glovelsSetCountryFacts === 'function') {
+                  window.__glovelsSetCountryFacts(c.countries);
+                }
+                if (typeof window.__glovelsSetCountries === 'function') {
+                  window.__glovelsSetCountries(c.countries);
+                }
+              } catch (e) { console.warn('destinations', e); }
+            }
+            setCat(c.programmes.map(function (p) {""",
+    marker="__glovelsSetCountries(c.countries)",
+)

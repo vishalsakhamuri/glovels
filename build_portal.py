@@ -570,8 +570,21 @@ def catalogue():
             "intakes": p.get("intakes", []),
         })
 
-    slim = {c: {"code": v["code"], "name": v["name"], "flag": v["flag"]}
-            for c, v in countries.items()}
+    # The entry requirements travel with the destination now. They used to be
+    # dropped here — the seed carried a code, a name and a flag — which is why
+    # the CGPA minimums, the funds to show and the document list were editable
+    # only by a developer editing index.html, while the finder's Requirements
+    # panel showed them to every visitor deciding whether to pay.
+    FACTS = ["minCgpaPublic", "minCgpaPrivate", "degreeRule", "backlogRule", "extraNote",
+             "tests", "fundsLabel", "fundsInr", "fundsNote", "livingInr", "workRights",
+             "deadlineNote", "documents", "hasPublicTrack", "tuitionFree", "region"]
+    slim = {}
+    for c, v in countries.items():
+        row = {"code": v["code"], "name": v["name"], "flag": v["flag"]}
+        for f in FACTS:
+            if f in v:
+                row[f] = v[f]
+        slim[c] = row
     return cat, slim
 
 

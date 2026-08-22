@@ -85,7 +85,8 @@ BODY = """
       </div>
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
-          <thead><tr><th>Destination</th><th>Code</th><th>Programmes</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Destination</th><th>Code</th><th>Programmes</th><th>Status</th>
+            <th>Entry requirements</th><th></th></tr></thead>
           <tbody id="destRows"></tbody>
         </table>
       </div>
@@ -241,6 +242,17 @@ function paintDests() {
     '<td><code>' + esc(d.code) + '</code></td>' +
     '<td>' + d.programmes + '</td>' +
     '<td>' + (d.active ? '<span class="st ok">Shown</span>' : '<span class="st wait">Hidden</span>') + '</td>' +
+    /* How complete the requirements are, as a count. A destination showing 0 of
+       8 is one where the finder's Requirements panel is nearly empty, and that
+       is a thing to notice from the list rather than by opening each one. */
+    '<td>' + (() => {
+      const f = d.facts || {};
+      const filled = [f.minCgpaPublic, f.minCgpaPrivate, f.degreeRule, f.fundsInr,
+        f.livingInr, f.workRights, (f.tests || []).length, (f.documents || []).length]
+        .filter(Boolean).length;
+      return '<button type="button" class="btn btn-ghost btn-sm" data-dreq="' + esc(d.code) + '">' +
+        (filled === 8 ? 'All 8 filled in' : filled + ' of 8 filled in') + '</button>';
+    })() + '</td>' +
     '<td><button type="button" class="btn btn-ghost btn-sm" data-dtoggle="' + esc(d.code) + '">' +
       (d.active ? 'Hide' : 'Show') + '</button>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-ddel="' + esc(d.code) +
@@ -534,6 +546,91 @@ async function reload() {
   paintDests(); paintProgs(); paintLog();
 }
 
+/* ------------------------------------------------- entry requirements */
+/*
+ * What a student reads before deciding whether they qualify, and how much money
+ * they have to show. It changes every year and differs per country, which is
+ * exactly the kind of thing that must not need a developer.
+ */
+function openReqEditor(code) {
+  const d = DESTS.find(x => x.code === code);
+  if (!d) return;
+  const f = d.facts || {};
+  const num = (label, id, v, hint, step) =>
+    '<div class="field" style="margin-bottom:11px"><label for="' + id + '">' + esc(label) + '</label>' +
+    '<input id="' + id + '" type="number" min="0" step="' + (step || '1') + '" value="' +
+    esc(v || '') + '">' +
+    (hint ? '<span style="display:block;margin-top:4px;font-size:11.6px;color:var(--muted);' +
+      'line-height:1.5">' + hint + '</span>' : '') + '</div>';
+  const txt = (label, id, v, hint, rows) =>
+    '<div class="field" style="margin-bottom:11px"><label for="' + id + '">' + esc(label) + '</label>' +
+    '<textarea id="' + id + '" rows="' + (rows || 2) + '" style="width:100%;padding:9px 11px;' +
+    'font:400 13px/1.55 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;resize:vertical">' +
+    esc(v || '') + '</textarea>' +
+    (hint ? '<span style="display:block;margin-top:4px;font-size:11.6px;color:var(--muted);' +
+      'line-height:1.5">' + hint + '</span>' : '') + '</div>';
+
+  $('#pmTitle').textContent = 'Entry requirements — ' + d.name;
+  $('#pmLead').textContent = 'This is the Requirements panel a student opens in the finder. '
+    + 'Anything left blank is left off that panel rather than shown empty.';
+  $('#pmBody').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
+      num('Minimum CGPA — public universities', 'rCgP', f.minCgpaPublic,
+        'On 10. Leave 0 if there is no public track here.', '0.1') +
+      num('Minimum CGPA — private universities', 'rCgV', f.minCgpaPrivate, 'On 10.', '0.1') +
+    '</div>' +
+    txt('The degree rule', 'rDeg', f.degreeRule,
+      'e.g. 4-year Bachelor. A 3-year degree needs a recognised bridge.') +
+    txt('Backlogs', 'rBack', f.backlogRule) +
+    txt('Tests accepted', 'rTests', (f.tests || []).join('\n'),
+      'One per line. These are shown as their own lines in the panel.', 3) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
+      '<div class="field" style="margin-bottom:11px"><label for="rFundsL">What the funds are called' +
+        '</label><input id="rFundsL" value="' + esc(f.fundsLabel || '') +
+        '" placeholder="Blocked account"></div>' +
+      num('Funds to show, \u20b9', 'rFunds', f.fundsInr, 'In rupees. The whole figure.') +
+    '</div>' +
+    txt('A note about the funds', 'rFundsN', f.fundsNote) +
+    num('Living costs a month, \u20b9', 'rLiving', f.livingInr) +
+    txt('Work rights', 'rWork', f.workRights) +
+    txt('Deadlines', 'rDead', f.deadlineNote) +
+    txt('Anything else', 'rExtra', f.extraNote,
+      'The one thing people get caught out by. Germany\u2019s is the APS certificate.') +
+    txt('Documents', 'rDocs', (f.documents || []).join('\n'), 'One per line.', 4) +
+    '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:4px">' +
+      '<label style="display:flex;gap:8px;align-items:center;font:600 12.8px/1.4 var(--sans)">' +
+        '<input type="checkbox" id="rPublic"' + (f.hasPublicTrack ? ' checked' : '') +
+        '> Has a public-university track</label>' +
+      '<label style="display:flex;gap:8px;align-items:center;font:600 12.8px/1.4 var(--sans)">' +
+        '<input type="checkbox" id="rFree"' + (f.tuitionFree ? ' checked' : '') +
+        '> Public tuition is free</label>' +
+    '</div>' +
+    '<p style="margin:14px 0 0;font-size:11.8px;color:var(--muted);line-height:1.6">' +
+      'Requirements move every intake. What you save here is what a student reads before ' +
+      'deciding to pay, so it is worth checking against the official source rather than ' +
+      'against last year\u2019s page.</p>';
+
+  editing = {reqFor: code};
+  $('#pmDelete').style.display = 'none';
+  $('#pmErr').style.display = 'none';
+  $('#progModal').classList.add('on');
+}
+
+function reqFromForm() {
+  const v = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+  return {
+    minCgpaPublic: v('rCgP'), minCgpaPrivate: v('rCgV'),
+    degreeRule: v('rDeg'), backlogRule: v('rBack'),
+    tests: v('rTests').split('\n').map(x => x.trim()).filter(Boolean),
+    fundsLabel: v('rFundsL'), fundsInr: v('rFunds'), fundsNote: v('rFundsN'),
+    livingInr: v('rLiving'), workRights: v('rWork'), deadlineNote: v('rDead'),
+    extraNote: v('rExtra'),
+    documents: v('rDocs').split('\n').map(x => x.trim()).filter(Boolean),
+    hasPublicTrack: $('#rPublic') ? $('#rPublic').checked : false,
+    tuitionFree: $('#rFree') ? $('#rFree').checked : false,
+  };
+}
+
 /* --------------------------------------------------------------- behaviour */
 
 document.addEventListener('change', e => {
@@ -565,13 +662,38 @@ document.addEventListener('click', async e => {
   }
   if (e.target.closest('[data-close]') || e.target === $('#progModal')) {
     $('#progModal').classList.remove('on');
+    $('#pmDelete').style.display = '';
+    editing = null;
     return;
   }
   const ed = e.target.closest('[data-edit]');
   if (ed) return openEditor(PROGS.find(p => p.id === ed.dataset.edit));
   if (e.target.closest('#addProg')) return openEditor(null);
 
+  const req = e.target.closest('[data-dreq]');
+  if (req) return openReqEditor(req.dataset.dreq);
+
   if (e.target.closest('#pmSave')) {
+    /* The same sheet is used for a programme and for a destination's entry
+       requirements, so the save has to know which one it is looking at. */
+    if (editing && editing.reqFor) {
+      const d = DESTS.find(x => x.code === editing.reqFor);
+      $('#pmErr').style.display = 'none';
+      try {
+        await api('PUT', '/api/staff/country', {
+          code: d.code, name: d.name, flag: d.flag, region: d.region,
+          active: d.active, sort: d.sort, facts: reqFromForm(),
+        });
+        $('#progModal').classList.remove('on');
+        $('#pmDelete').style.display = '';
+        await reload();
+        toast('Saved — the finder shows this to the next visitor.');
+      } catch (err) {
+        $('#pmErr').textContent = err.message;
+        $('#pmErr').style.display = 'block';
+      }
+      return;
+    }
     const body = readEditor();
     $('#pmErr').style.display = 'none';
     try {
@@ -615,7 +737,13 @@ document.addEventListener('click', async e => {
   if (dt) {
     const d = DESTS.find(x => x.code === dt.dataset.dtoggle);
     try {
-      await api('PUT', '/api/staff/country', Object.assign({}, d, {active: !d.active}));
+      /* Deliberately without `facts`: hiding a destination must not rewrite its
+         requirements, and sending them back is how a round trip loses a field
+         the form did not know about. */
+      await api('PUT', '/api/staff/country', {
+        code: d.code, name: d.name, flag: d.flag, region: d.region,
+        sort: d.sort, active: !d.active,
+      });
       await reload();
     } catch (err) { toast(err.message); }
     return;
