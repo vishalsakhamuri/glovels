@@ -38,6 +38,25 @@ const home = async (ctx, expect) => {
   return out;
 };
 
+/* Open a service's editor, and mean it.
+   The table repaints after every save, so an element found a moment ago can be
+   detached by the time it is clicked — the click then lands on nothing, quietly,
+   and the failure shows up as a timeout on a modal that was never asked to
+   open. Clicking through a locator re-resolves the element, and the retry covers
+   a repaint that lands between resolving and clicking. */
+const openService = async (page, id) => {
+  const row = page.locator('[data-sedit="' + id + '"]').first();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await row.waitFor({ state: 'visible', timeout: 10000 });
+    await row.click();
+    try {
+      await page.waitForSelector('#sName', { state: 'visible', timeout: 3000 });
+      return true;
+    } catch (e) { await page.waitForTimeout(500); }
+  }
+  return false;
+};
+
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
@@ -62,9 +81,7 @@ const home = async (ctx, expect) => {
     && (await page.textContent('#svcCats')).includes('Test Prep'));
 
   /* ------------------------------------------------------- edit a price */
-  await page.waitForSelector('[data-sedit="sop"]', { timeout: 10000 });
-  await page.click('[data-sedit="sop"]');
-  await page.waitForSelector('#sName', { timeout: 10000 });
+  check('the SOP editor opens', await openService(page, 'sop'));
   check('the editor opens with the service in it',
     (await page.inputValue('#sName')).includes('SOP'), await page.inputValue('#sName'));
 
@@ -105,11 +122,7 @@ const home = async (ctx, expect) => {
     pub.services.items.map(x => x.id).slice(-3).join(','));
 
   /* --------------------------------------------------------- hide it */
-  /* Wait for the row before clicking it. The table repaints after the save,
-     and clicking into the gap where the row is about to be produces a timeout
-     three lines later on a selector that was never going to appear. */
-  await page.waitForSelector('[data-sedit="accommodation-search"]', { timeout: 10000 });
-  await page.click('[data-sedit="accommodation-search"]');
+  check('the new service can be reopened', await openService(page, 'accommodation-search'));
   await page.waitForSelector('#sActive', { timeout: 10000 });
   await page.uncheck('#sActive');
   await page.click('#smSave');
@@ -118,7 +131,7 @@ const home = async (ctx, expect) => {
   check('hiding takes it off the home page', !h.names.includes('Accommodation Search'));
 
   /* ------------------------------------ a category decides where it shows */
-  await page.click('[data-sedit="ielts"]').catch(() => {});
+  await openService(page, 'ielts').catch(() => false);
   if (await page.isVisible('#sName')) {
     const before = await page.isChecked('#sCat_top');
     await page.setChecked('#sCat_top', !before);
