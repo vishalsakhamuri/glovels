@@ -34,9 +34,26 @@ BODY = """
         <button type="button" class="btn btn-primary btn-sm" id="addProg">+ Add a programme</button>
       </div>
 
+      <!-- The action bar sits above the table and only exists when something is
+           ticked. A permanently visible row of destructive buttons invites the
+           accident it is trying to prevent. -->
+      <div class="p-card" id="bulkBar" style="display:none;margin-bottom:14px;gap:11px;
+        flex-wrap:wrap;align-items:center;border-color:var(--navy-700)">
+        <b id="bulkCount" style="font:700 13.4px/1.4 var(--sans);color:var(--navy-900)">
+          0 selected</b>
+        <button type="button" class="btn btn-ghost btn-sm" id="bulkShow">Put on the site</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="bulkHide">Take off the site</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="bulkDelete"
+          style="margin-left:auto;color:#a5311f;border-color:#e8c3bc">Remove from the catalogue</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="bulkClear">Clear</button>
+      </div>
+
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
-          <thead><tr><th>Programme</th><th>Where</th><th>Type</th><th>Tuition</th>
+          <thead><tr>
+            <th style="width:38px"><input type="checkbox" id="selAll"
+              aria-label="Select everything this search found"></th>
+            <th>Programme</th><th>Where</th><th>Type</th><th>Tuition</th>
             <th>Next intake</th><th>Status</th><th></th></tr></thead>
           <tbody id="progRows"></tbody>
         </table>
@@ -141,6 +158,12 @@ BODY = """
 SCRIPT = r"""
 let PROGS = [], DESTS = [], LOG = [], editing = null;
 
+/* PICKED survives a repaint and a change of search: a counsellor filters to
+   Poland, ticks four, filters to Spain, ticks two, and expects six. SHOWN is
+   what the current search matched — every one of them, not the 400 drawn. */
+const PICKED = new Set();
+let SHOWN = [];
+
 const inr = n => n === 0 ? '₹0'
   : '₹' + (n / 100000).toFixed(n % 100000 ? 1 : 0) + 'L';
 
@@ -174,9 +197,14 @@ function paintProgs() {
     (!q || (p.university + ' ' + p.program + ' ' + (p.field || '')).toLowerCase().includes(q)));
 
   $('#nProg').textContent = PROGS.length;
+  /* What the tick boxes cover is what the search found, not the 400 drawn —
+     "select everything" that quietly means "the first 400" is a trap. */
+  SHOWN = list.map(p => p.id);
   $('#progRows').innerHTML = list.slice(0, 400).map(p => {
     const d = destOf(p.country);
-    return '<tr>' +
+    return '<tr' + (PICKED.has(p.id) ? ' style="background:#f4f7fb"' : '') + '>' +
+      '<td><input type="checkbox" data-pick="' + esc(p.id) + '"' +
+        (PICKED.has(p.id) ? ' checked' : '') + ' aria-label="Select ' + esc(p.university) + '"></td>' +
       '<td><b>' + esc(p.program) + '</b>' +
         (p.field ? '<br><span style="font-size:11.6px;color:var(--muted)">' + esc(p.field) + '</span>' : '') + '</td>' +
       '<td>' + (d.flag || '') + ' ' + esc(p.university) +
@@ -189,14 +217,16 @@ function paintProgs() {
           '\u2605 Showcase' + (p.featureSort ? ' #' + p.featureSort : '') + '</span>' : '') + '</td>' +
       '<td><button type="button" class="btn btn-ghost btn-sm" data-edit="' + esc(p.id) + '">Edit</button></td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="7" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
+  }).join('') || '<tr><td colspan="8" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
 
   if (list.length > 400) {
     $('#progRows').insertAdjacentHTML('beforeend',
-      '<tr><td colspan="7" style="padding:14px;color:var(--muted);font-size:12.4px">' +
-      'Showing the first 400 of ' + list.length + ' — narrow the search to see the rest.</td></tr>');
+      '<tr><td colspan="8" style="padding:14px;color:var(--muted);font-size:12.4px">' +
+      'Showing the first 400 of ' + list.length + ' — they are all still covered by the ' +
+      'tick box at the top of this column.</td></tr>');
   }
 
+  paintBulk();
   $('#kLive').textContent = PROGS.filter(p => p.active).length;
   $('#kHidden').textContent = PROGS.filter(p => !p.active).length;
   $('#kFree').textContent = PROGS.filter(p => p.active && p.totalInr === 0).length;
@@ -448,6 +478,54 @@ function paintPlan(d) {
   $('#sOut').innerHTML = html;
 }
 
+/* ------------------------------------------------------------------ bulk */
+
+function paintBulk() {
+  const n = PICKED.size;
+  /* Not the `hidden` attribute: this card carries an inline display, and an
+     inline display beats the stylesheet rule behind `hidden`, so the bar would
+     sit there permanently offering to delete things. */
+  $('#bulkBar').style.display = n ? 'flex' : 'none';
+  $('#bulkCount').textContent = n + (n === 1 ? ' selected' : ' selected');
+  const all = $('#selAll');
+  const shownPicked = SHOWN.filter(id => PICKED.has(id)).length;
+  all.checked = SHOWN.length > 0 && shownPicked === SHOWN.length;
+  /* Part of the search is ticked: neither box nor blank, which is the honest
+     state and the one that stops "select all" reading as "you have them all". */
+  all.indeterminate = shownPicked > 0 && shownPicked < SHOWN.length;
+}
+
+async function bulkDo(action, verb) {
+  const ids = [...PICKED];
+  if (!ids.length) return;
+
+  /* The confirmation names the number and the action. Removal is the only one
+     that cannot be undone from this screen, so it is the only one that asks. */
+  if (action === 'delete') {
+    const msg = ids.length + (ids.length === 1 ? ' programme' : ' programmes')
+      + ' will be removed from the catalogue.\n\nAnything a student has shortlisted or '
+      + 'applied to is taken off the site instead of removed, so their application does not '
+      + 'blank out. This cannot be undone from here.';
+    if (!confirm(msg)) return;
+  }
+
+  try {
+    const r = await api('POST', '/api/staff/programmes/bulk', {ids, action});
+    PICKED.clear();
+    await reload();
+    const bits = [];
+    if (r.deleted) bits.push(r.deleted + ' removed');
+    if (r.hidden) bits.push(r.hidden + ' taken off the site');
+    if (r.shown) bits.push(r.shown + ' put back on the site');
+    if (r.missing) bits.push(r.missing + ' already gone');
+    toast(bits.join(', ') || 'Nothing to do.');
+    if (action === 'delete' && r.keptNames && r.keptNames.length) {
+      alert('Kept, because a student has these shortlisted or has applied — they were taken '
+        + 'off the site instead:\n\n' + r.keptNames.join('\n'));
+    }
+  } catch (err) { toast(err.message); }
+}
+
 async function reload() {
   const r = await api('GET', '/api/staff/catalogue');
   PROGS = r.programmes;
@@ -458,7 +536,27 @@ async function reload() {
 
 /* --------------------------------------------------------------- behaviour */
 
+document.addEventListener('change', e => {
+  const box = e.target.closest('[data-pick]');
+  if (box) {
+    box.checked ? PICKED.add(box.dataset.pick) : PICKED.delete(box.dataset.pick);
+    const row = box.closest('tr');
+    if (row) row.style.background = box.checked ? '#f4f7fb' : '';
+    paintBulk();
+    return;
+  }
+  if (e.target.id === 'selAll') {
+    SHOWN.forEach(id => e.target.checked ? PICKED.add(id) : PICKED.delete(id));
+    paintProgs();
+  }
+});
+
 document.addEventListener('click', async e => {
+  if (e.target.closest('#bulkClear')) { PICKED.clear(); paintProgs(); return; }
+  if (e.target.closest('#bulkHide')) return bulkDo('hide');
+  if (e.target.closest('#bulkShow')) return bulkDo('show');
+  if (e.target.closest('#bulkDelete')) return bulkDo('delete');
+
   const t = e.target.closest('.tab[data-t]');
   if (t) {
     $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));

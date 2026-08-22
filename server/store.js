@@ -414,6 +414,18 @@ function open(dir) {
     removeShortlist: (studentId, progId) =>
       db.run('DELETE FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
 
+    /* Every programme id any student has shortlisted or applied to, as one set.
+       Deleting one of these blanks out that student's shortlist card and their
+       application, so it is hidden instead. Asking per programme meant reading
+       every student's shortlist once per row — fine for one delete, useless for
+       two hundred. */
+    programmesInUse() {
+      const s = new Set();
+      db.all('SELECT DISTINCT prog_id FROM shortlist').forEach(r => s.add(String(r.prog_id)));
+      db.all('SELECT DISTINCT prog_id FROM applications').forEach(r => s.add(String(r.prog_id)));
+      return s;
+    },
+
     /* ---- applications ---- */
     getApplications: id => db.all('SELECT * FROM applications WHERE student_id = ?', Number(id)),
     putApplication(studentId, progId, stage, outcome) {

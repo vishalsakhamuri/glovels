@@ -1227,6 +1227,65 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     return json(res, 200, { deleted: true });
   }));
 
+  /*
+   * Many at once.
+   *
+   * A partner list goes out of date in blocks, not one row at a time, and
+   * clicking Edit → Remove → confirm two hundred times is how a catalogue stops
+   * being maintained. The rules are the same as the single delete, deliberately:
+   * a programme a student has shortlisted or applied to is hidden, never
+   * removed, because deleting it blanks out their shortlist card mid-application.
+   * The reply says which ones that happened to, by name, so nobody is left
+   * wondering why the count came back smaller than the tick boxes.
+   */
+  route('POST', '/api/staff/programmes/bulk', needs('catalogue', async (req, res, s) => {
+    const b = await readJson(req);
+    const ids = Array.isArray(b.ids) ? b.ids.map(String).slice(0, 2000) : [];
+    const action = String(b.action || '');
+    if (!ids.length) return json(res, 422, { error: 'Nothing was selected.' });
+    if (!['delete', 'hide', 'show'].includes(action)) {
+      return json(res, 422, { error: 'That is not something this can do.' });
+    }
+
+    const inUse = action === 'delete' ? db.programmesInUse() : null;
+    const out = { deleted: 0, hidden: 0, shown: 0, missing: 0, keptNames: [] };
+
+    ids.forEach(id => {
+      const p = db.programme(id);
+      if (!p) { out.missing++; return; }
+
+      const asDraft = extra => Object.assign({
+        id: p.id, program: p.program, university: p.university, city: p.city,
+        country: p.country, level: p.level, field: p.field, band: p.band,
+        isPublic: !!p.is_public, fit: p.fit, totalInr: p.total_inr, url: p.url,
+        featured: !!p.featured, featureSort: p.feature_sort || 0,
+        intakes: (() => { try { return JSON.parse(p.intakes) || []; } catch (e) { return []; } })(),
+        active: !!p.active,
+      }, extra);
+
+      if (action === 'delete') {
+        if (inUse.has(String(id))) {
+          db.saveProgramme(asDraft({ active: false }), s.name);
+          out.hidden++;
+          if (out.keptNames.length < 12) out.keptNames.push(p.university + ' — ' + p.program);
+          return;
+        }
+        db.deleteProgramme(id);
+        out.deleted++;
+        return;
+      }
+      db.saveProgramme(asDraft({ active: action === 'show' }), s.name);
+      action === 'show' ? out.shown++ : out.hidden++;
+    });
+
+    db.log(s.name, 'catalogue — ' + ids.length + ' selected',
+      [out.deleted && out.deleted + ' removed', out.hidden && out.hidden + ' hidden',
+        out.shown && out.shown + ' put back on the site',
+        out.missing && out.missing + ' already gone'].filter(Boolean).join(', '));
+
+    return json(res, 200, out);
+  }));
+
   /* ------------------------------------------------ the catalogue as a sheet */
   /*
    * Download it, edit it in Excel, upload it back.
