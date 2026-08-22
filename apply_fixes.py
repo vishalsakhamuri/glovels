@@ -620,6 +620,34 @@ patch("login.html", "the demo box describes what actually happens now",
 
 
 # ---------------------------------------------------------------------------
+# The services grid — LOR, SOP, CV, visa, test prep, language, loan.
+#
+# 26 cards with prices, categories, badges and turnaround times, all frozen in
+# the page. Handed out the same way the checkout price list is: one named
+# setter, because `SERVICES` lives inside this block's IIFE and is reachable
+# from nowhere else.
+# ---------------------------------------------------------------------------
+
+patch("index.html", "the services grid takes its list from the server",
+      """render(); plan();
+})();""",
+      """window.__glovelsSetServices = function (list) {
+  if (!Array.isArray(list) || !list.length) return;
+  SERVICES.length = 0;
+  list.forEach(function (s) { SERVICES.push(s); });
+  /* A service that was in the plan and has since been taken off the site would
+     otherwise sit in the total, priced, with no card to remove it from. */
+  [...chosen].forEach(function (id) {
+    if (!SERVICES.some(function (s) { return s.id === id; })) chosen.delete(id);
+  });
+  render(); plan();
+};
+
+render(); plan();
+})();""")
+
+
+# ---------------------------------------------------------------------------
 # A note to developers, on the customer's home page.
 #
 # Under "Real universities, matched to what you're looking for" there is a blue

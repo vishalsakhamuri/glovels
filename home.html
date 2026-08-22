@@ -531,6 +531,8 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
         <span class="n" id="nFaq">0</span></button>
       <button class="tab" data-t="sto" aria-selected="false">Stories
         <span class="n" id="nSto">0</span></button>
+      <button class="tab" data-t="svc" aria-selected="false">Services
+        <span class="n" id="nSvc">0</span></button>
       <button class="tab" data-t="txt" aria-selected="false">Page text
         <span class="n" id="nTxt">0</span></button>
       <button class="tab" data-t="sheet" aria-selected="false">Spreadsheet</button>
@@ -594,6 +596,22 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
       </div>
     </section>
 
+    <!-- -------------------------------------------------------- services -->
+    <section class="pane" id="t-svc">
+      <div class="p-card" style="margin-bottom:14px;display:flex;gap:11px;flex-wrap:wrap;
+        align-items:center">
+        <b style="font:700 13.4px/1.4 var(--sans);color:var(--navy-900)">Everything sold on its
+          own &mdash; SOP, LOR, CV, visa, test prep, language, loan</b>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-primary btn-sm" id="addSvc">+ Add a service</button>
+      </div>
+      <div id="svcCats"></div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        A service can sit in more than one category &mdash; that is how the same card appears
+        under <b>Most Booked</b> and under <b>Test Prep</b>. The price here is what the student
+        adds to their plan.</p>
+    </section>
+
     <!-- ------------------------------------------------------- page text -->
     <section class="pane" id="t-txt">
       <div class="p-card" style="margin-bottom:14px;display:flex;gap:11px;flex-wrap:wrap;
@@ -641,6 +659,23 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
         <div id="sOut" style="margin-top:18px"></div>
       </div>
     </section>
+
+    <div class="modal" id="svcModal" role="dialog" aria-modal="true">
+      <div class="sheet" style="width:min(720px,100%)">
+        <button class="sheet-close" data-sclose aria-label="Close">✕</button>
+        <h3 id="smTitle">Add a service</h3>
+        <p class="lead">It is on the home page as soon as you save.</p>
+        <div id="smBody"></div>
+        <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="smSave">Save</button>
+          <button type="button" class="btn btn-ghost" data-sclose>Cancel</button>
+          <button type="button" class="btn btn-ghost" id="smDelete" style="margin-left:auto">Remove</button>
+        </div>
+        <p id="smErr" role="alert" style="display:none;margin:14px 0 0;padding:11px 13px;
+          border-radius:10px;font:600 12.8px/1.5 var(--sans);background:#fdf3f2;
+          border:1px solid #f0c8c4;color:#7a2118"></p>
+      </div>
+    </div>
 
     <!-- ------------------------------------------------------ the editor -->
     <div class="modal" id="pkgModal" role="dialog" aria-modal="true">
@@ -765,8 +800,12 @@ async function staffBoot(run) {
 let C = null, TEXT = null, editing = null;
 
 const inr = n => '₹' + new Intl.NumberFormat('en-IN').format(Number(n || 0));
-const BLOCKS = [['packages', 'Packages'], ['stats', 'Numbers'], ['faq', 'FAQ'],
-  ['testimonials', 'Stories'], ['text', 'Page text']];
+const BLOCKS = [['packages', 'Packages'], ['services', 'Services'],
+  ['stats', 'Numbers'], ['faq', 'FAQ'], ['testimonials', 'Stories'],
+  ['text', 'Page text']];
+
+const BADGES = [['', 'No badge'], ['best', 'Bestseller'], ['start', 'Start here'],
+  ['fast', 'Fast'], ['value', 'Best value']];
 
 /* ---------------------------------------------------------------- painting */
 
@@ -877,6 +916,135 @@ function paintStories() {
     C.testimonials.length)).join('');
 }
 
+/* ------------------------------------------------------------------ services */
+
+let editingSvc = null;
+
+function paintServices() {
+  const sv = C.services || {tabs: [], items: []};
+  $('#nSvc').textContent = sv.items.length;
+
+  /* Grouped by the chips the visitor sees. A service in two categories is
+     listed twice on purpose — that is what it does on the page, and hiding
+     the duplication here would make "why is this under Test Prep?" unanswerable. */
+  $('#svcCats').innerHTML = sv.tabs.map(t => {
+    const rows = sv.items.filter(x => (x.cats || []).indexOf(t.key) >= 0);
+    return '<div class="p-card" style="padding:0;margin-bottom:14px;overflow-x:auto">' +
+      '<div style="padding:14px 16px 0"><b style="font:700 13.4px/1.4 var(--sans)">' +
+        esc(t.label) + '</b> <span style="font-size:12px;color:var(--muted)">' +
+        rows.length + '</span></div>' +
+      '<table class="tbl" style="margin:8px 0 0"><thead><tr><th>Service</th><th>Price</th>' +
+        '<th>How long</th><th>Status</th><th></th></tr></thead><tbody>' +
+      (rows.map(x =>
+        '<tr><td><b>' + esc(x.name) + '</b>' +
+          (x.badge ? ' <span class="st ok">' +
+            esc((BADGES.find(b => b[0] === x.badge) || ['', ''])[1]) + '</span>' : '') +
+          (x.ai ? ' <span class="st none">AI draft</span>' : '') +
+          '<br><span style="font-size:11.6px;color:var(--muted)">' +
+          esc((x.desc || '').slice(0, 90)) + '</span></td>' +
+        '<td>' + (x.isFree ? '<span class="st ok">Free</span>'
+          : x.priceLabel ? esc(x.priceLabel)
+          : '<b>' + inr(x.priceInr) + '</b>') + '</td>' +
+        '<td style="font-size:12px;color:var(--muted)">' + esc(x.meta || '—') + '</td>' +
+        '<td>' + (x.active === false ? '<span class="st wait">Hidden</span>'
+                                     : '<span class="st ok">On the site</span>') + '</td>' +
+        '<td style="white-space:nowrap">' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-sedit="' + esc(x.id) +
+            '">Edit</button></td></tr>').join('') ||
+        '<tr><td colspan="5" style="padding:18px;color:var(--muted)">Nothing in this ' +
+        'category yet.</td></tr>') +
+      '</tbody></table></div>';
+  }).join('');
+
+  /* A service in no category at all never renders on the page. Silently
+     dropping it from this screen too would make it unfindable. */
+  const orphans = sv.items.filter(x => !(x.cats || []).length);
+  if (orphans.length) {
+    $('#svcCats').insertAdjacentHTML('beforeend',
+      '<div class="p-card" style="padding:0;overflow-x:auto;border-color:#f0dcb4">' +
+      '<div style="padding:14px 16px 0;color:#7a5510"><b style="font:700 13.4px/1.4 var(--sans)">' +
+      'In no category &mdash; not shown anywhere on the page</b></div>' +
+      '<table class="tbl" style="margin:8px 0 0"><tbody>' +
+      orphans.map(x => '<tr><td><b>' + esc(x.name) + '</b></td>' +
+        '<td style="white-space:nowrap"><button type="button" class="btn btn-ghost btn-sm" ' +
+        'data-sedit="' + esc(x.id) + '">Edit</button></td></tr>').join('') +
+      '</tbody></table></div>');
+  }
+}
+
+function openService(x) {
+  editingSvc = x || null;
+  const v = x || {active: true, cats: ['top'], isFree: false, priceInr: 599};
+  const sv = C.services || {tabs: []};
+  $('#smTitle').textContent = x ? 'Edit service' : 'Add a service';
+  $('#smDelete').style.display = x ? '' : 'none';
+  $('#smErr').style.display = 'none';
+
+  const sel = (label, id, value, opts, help) =>
+    '<div class="field" style="margin-bottom:10px"><label for="' + id + '">' + esc(label) +
+    '</label><select id="' + id + '">' + opts.map(([o, t]) =>
+      '<option value="' + esc(o) + '"' + (String(o) === String(value) ? ' selected' : '') +
+      '>' + esc(t) + '</option>').join('') + '</select>' +
+    (help ? '<p style="margin:6px 0 0;font-size:11.6px;color:var(--muted);line-height:1.5">' +
+      help + '</p>' : '') + '</div>';
+
+  $('#smBody').innerHTML =
+    tf('Name', 'sName', v.name, 'SOP Development & Editing') +
+    ta('The line under the name', 'sDesc', v.desc, true) +
+    tf('How long it takes', 'sMeta', v.meta, 'AI draft in ~60s · final in 1 business day') +
+    '<h3 style="font-size:14px;margin:14px 0 4px">Where it appears</h3>' +
+    '<p style="margin:0 0 10px;font-size:11.8px;color:var(--muted);line-height:1.5">' +
+      'Tick every category it belongs in. A service with none is not shown at all.</p>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;margin-bottom:10px">' +
+    (sv.tabs || []).map(t =>
+      '<label style="display:flex;gap:8px;align-items:center;font:600 12.8px/1.4 var(--sans);' +
+      'color:var(--navy-800);margin-bottom:7px"><input type="checkbox" id="sCat_' + t.key + '"' +
+      ((v.cats || []).indexOf(t.key) >= 0 ? ' checked' : '') + '> ' + esc(t.label) +
+      '</label>').join('') +
+    '</div>' +
+    '<h3 style="font-size:14px;margin:14px 0 10px">Price</h3>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
+      sel('How it is priced', 'sFree', v.isFree ? '1' : '0',
+        [['0', 'A price'], ['1', 'Free']]) +
+      tf('Price, ₹', 'sPrice', v.priceInr || 0, '599') +
+      tf('Instead of a price', 'sPriceLabel', v.priceLabel, 'Priced per case') +
+      sel('Badge', 'sBadge', v.badge, BADGES) +
+      tf('Button label', 'sCta', v.ctaLabel, 'Book my free session') +
+      tf('Button link', 'sHref', v.ctaHref, '#counsel') +
+    '</div>' +
+    '<p style="margin:2px 0 10px;font-size:11.6px;color:var(--muted);line-height:1.5">' +
+      'Leave the button label empty and the card gets the ordinary ' +
+      '<b>Add to plan</b> button. Fill it in and it becomes a link instead &mdash; that is ' +
+      'how &ldquo;Book my free session&rdquo; sends people to the enquiry form.</p>' +
+    tick('Show this on the website', 'sActive', v.active !== false);
+
+  $('#svcModal').classList.add('on');
+  setTimeout(() => $('#sName').focus(), 50);
+}
+
+function readService() {
+  const sv = C.services || {tabs: []};
+  const free = $('#sFree').value === '1';
+  return Object.assign({}, editingSvc || {}, {
+    id: editingSvc ? editingSvc.id : '',
+    name: $('#sName').value,
+    desc: $('#sDesc').value,
+    meta: $('#sMeta').value,
+    cats: (sv.tabs || []).map(t => t.key).filter(k => $('#sCat_' + k).checked),
+    isFree: free,
+    priceInr: free ? 0 : Number($('#sPrice').value || 0),
+    priceLabel: $('#sPriceLabel').value,
+    badge: $('#sBadge').value,
+    ctaLabel: $('#sCta').value,
+    ctaHref: $('#sHref').value,
+    active: $('#sActive').checked,
+  });
+}
+
+const saveServices = items =>
+  api('PUT', '/api/staff/content/services',
+    {value: Object.assign({}, C.services, {items})});
+
 function paintText() {
   const lines = TEXT.lines;
   $('#nTxt').textContent = lines.length;
@@ -984,7 +1152,8 @@ function paintSheet() {
 }
 
 function paintAll() {
-  paintPackages(); paintStats(); paintFaq(); paintStories(); paintText(); paintSheet();
+  paintPackages(); paintServices(); paintStats(); paintFaq(); paintStories();
+  paintText(); paintSheet();
 }
 
 async function reload() {
@@ -1143,6 +1312,58 @@ document.addEventListener('click', async e => {
   }
   if (e.target.closest('[data-close]') || e.target === $('#pkgModal')) {
     $('#pkgModal').classList.remove('on');
+    return;
+  }
+
+  /* ---- services ---- */
+  if (e.target.closest('#addSvc')) return openService(null);
+  const se = e.target.closest('[data-sedit]');
+  if (se) return openService((C.services.items || []).find(x => x.id === se.dataset.sedit));
+  if (e.target.closest('[data-sclose]') || e.target === $('#svcModal')) {
+    $('#svcModal').classList.remove('on');
+    return;
+  }
+  if (e.target.closest('#smSave')) {
+    const btn = e.target.closest('#smSave');
+    const body = readService();
+    $('#smErr').style.display = 'none';
+    if (!body.name.trim()) {
+      $('#smErr').textContent = 'A service needs a name.';
+      $('#smErr').style.display = 'block';
+      return;
+    }
+    const items = (C.services.items || []).slice();
+    if (editingSvc) {
+      items[items.findIndex(x => x.id === editingSvc.id)] = body;
+    } else {
+      body.id = body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        || ('svc-' + (items.length + 1));
+      items.push(body);
+    }
+    btn.disabled = true;
+    try {
+      const r = await saveServices(items);
+      C.services = r.saved;
+      $('#svcModal').classList.remove('on');
+      paintServices();
+      toast(editingSvc ? 'Saved — it is live on the home page.'
+                       : 'Added — it is live on the home page.');
+    } catch (err) {
+      $('#smErr').textContent = err.message;
+      $('#smErr').style.display = 'block';
+    } finally { btn.disabled = false; }
+    return;
+  }
+  if (e.target.closest('#smDelete') && editingSvc) {
+    const items = (C.services.items || []).filter(x => x.id !== editingSvc.id);
+    if (!items.length) return toast('That is the last service. Hide it instead of removing it.');
+    try {
+      const r = await saveServices(items);
+      C.services = r.saved;
+      $('#svcModal').classList.remove('on');
+      paintServices();
+      toast('Removed from the home page.');
+    } catch (err) { toast(err.message); }
     return;
   }
 
@@ -1397,7 +1618,10 @@ function paintPlan(d) {
 $('#sFile').addEventListener('change', () => { $('#sOut').innerHTML = ''; });
 $('#sWhat').addEventListener('change', () => { $('#sOut').innerHTML = ''; });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') $('#pkgModal').classList.remove('on');
+  if (e.key === 'Escape') {
+    $('#pkgModal').classList.remove('on');
+    $('#svcModal').classList.remove('on');
+  }
 });
 
 /* The three simple lists save as a block, so each pane gets one Save button
@@ -1441,24 +1665,6 @@ if (location.protocol === 'file:') {
   b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
     'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
     'it opens — <b>http://localhost:8080</b>';
-  document.body.appendChild(b);
-  document.body.style.paddingTop = b.offsetHeight + 'px';
-}
-</script>
-<script>
-/* GLOVELS-FILE-WARNING
-   This runs at the end of <body>, so document.body already exists. It waited
-   for DOMContentLoaded at first, which never arrived on pages where an earlier
-   script had already thrown \u2014 and a warning that only appears when nothing
-   else is wrong is a warning that never appears. */
-if (location.protocol === 'file:') {
-  var b = document.createElement('div');
-  b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:13px 18px;' +
-    'background:#7a2118;color:#fff;font:600 13.5px/1.55 system-ui,-apple-system,sans-serif;' +
-    'text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.25)';
-  b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
-    'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
-    'it opens \u2014 <b>http://localhost:8080</b>';
   document.body.appendChild(b);
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }

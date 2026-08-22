@@ -311,6 +311,28 @@ SCRIPT = r"""
       }
     } catch (e) { console.warn('prices', e); }
 
+    /* The a-la-carte services grid. Same story as the packages: frozen in the
+       page, so a price change meant a developer. */
+    try {
+      var setSvc = window.__glovelsSetServices;
+      if (typeof setSvc === 'function' && data.services
+          && data.services.items && data.services.items.length) {
+        setSvc(data.services.items
+          .filter(function (x) { return x.active !== false; })
+          .map(function (x) {
+            return {
+              id: x.id, name: x.name, desc: x.desc, meta: x.meta,
+              cats: x.cats || [], posTop: x.posTop || 0,
+              priceInr: x.priceInr || 0, priceLabel: x.priceLabel || '',
+              isFree: !!x.isFree, levels: x.levels || [], badge: x.badge || '',
+              ai: x.ai || '',
+              cta: x.ctaLabel ? { label: x.ctaLabel, href: x.ctaHref || '#counsel' } : null,
+              ctaGreen: !!x.ctaGreen, partners: x.partners || [],
+            };
+          }));
+      }
+    } catch (e) { console.warn('services', e); }
+
     /* The showcase grid on the home page. It was rendering a list frozen at
        build time, so a university added on the Catalogue screen never reached
        the one place a visitor browses what is on offer. */

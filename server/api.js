@@ -1425,7 +1425,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
    * a plan first, and only what has been seen gets written.
    */
 
-  const CONTENT_KEYS = ['packages', 'stats', 'faq', 'testimonials'];
+  const CONTENT_KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services'];
   const noContent = res => json(res, 503, {
     error: 'The home page content is not loaded on this server. Run: python3 build_content.py',
   });
@@ -1453,7 +1453,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     return json(res, 200, out);
   }));
 
-  route('PUT', /^\/api\/staff\/content\/(packages|stats|faq|testimonials)$/,
+  route('PUT', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services)$/,
     needs('content', async (req, res, s, m) => {
       if (!content) return noContent(res);
       const key = m[1];
@@ -1463,7 +1463,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       /* A block arriving empty is almost always a bug in the screen, not an
          intention — and the cost of being wrong is a blank home page section
          that nobody notices for a week. Emptying one on purpose has to say so. */
-      const n = key === 'packages' ? (value && value.items || []).length : (value || []).length;
+      /* Packages and services arrive as {tabs, items}; the other three are bare
+         arrays. Counting `.length` on the object form gives undefined, which
+         reads as "empty" and refuses every save — the guard against emptying a
+         section becomes a guard against editing it. */
+      const grouped = key === 'packages' || key === 'services';
+      const n = grouped ? ((value && value.items) || []).length : (value || []).length;
       if (!n && !YES(b && b.allowEmpty)) {
         return json(res, 422, {
           error: 'That would leave the ' + key + ' section of the home page with nothing in it. '
@@ -1472,12 +1477,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       }
 
       const saved = content.save(key, value, s.name);
-      const count = key === 'packages' ? saved.items.length : saved.length;
+      const count = grouped ? saved.items.length : saved.length;
       db.log(s.name, 'home page — ' + key + ' edited', count + ' now on the page');
       return json(res, 200, { saved, count });
     }));
 
-  route('GET', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|text)\.(xlsx|csv)$/,
+  route('GET', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services|text)\.(xlsx|csv)$/,
     staffOnly(async (req, res, s, m) => {
       if (!content) return noContent(res);
       const key = m[1];
@@ -1502,7 +1507,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       return res.end(body);
     }));
 
-  route('POST', /^\/api\/staff\/content\/(packages|stats|faq|testimonials)\/import$/,
+  route('POST', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services)\/import$/,
     needs('content', async (req, res, s, m) => {
       if (!content) return noContent(res);
       const key = m[1];

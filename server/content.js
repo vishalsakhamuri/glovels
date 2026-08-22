@@ -23,7 +23,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const KEYS = ['packages', 'stats', 'faq', 'testimonials'];
+const KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services'];
 
 /*
  * The fifth block is not like the other four.
@@ -147,6 +147,64 @@ function cleanPackages(v) {
   };
 }
 
+/*
+ * The a-la-carte grid. Two fields are kept but never shown in the editor:
+ * `levels` (the per-level price list on the language courses) and `partners`
+ * (outbound links). Modelling them would double the size of the form for two
+ * cards; dropping them on save would quietly delete a price list. So they ride
+ * through untouched.
+ */
+function cleanService(x, n) {
+  const id = str(x.id, 40).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '');
+  const free = yes(x.isFree);
+  return {
+    id: id || 'svc-' + (n + 1),
+    sort: num(x.sort) || n + 1,
+    active: x.active === undefined ? true : yes(x.active),
+    name: str(x.name, 80),
+    desc: str(x.desc, 500),
+    meta: str(x.meta, 120),
+    cats: (Array.isArray(x.cats) ? x.cats : String(x.cats || '').split(/[,\s]+/))
+      .map(c => str(c, 20).toLowerCase()).filter(Boolean).slice(0, 6),
+    posTop: Math.max(0, Math.min(99, Math.round(num(x.posTop)))),
+    isFree: free,
+    priceInr: free ? 0 : Math.max(0, Math.min(9999999, Math.round(num(x.priceInr)))),
+    priceLabel: str(x.priceLabel, 40),
+    badge: /^(best|start|fast|value)$/.test(str(x.badge, 10)) ? str(x.badge, 10) : '',
+    ai: /^(sop|lor|cv)$/.test(str(x.ai, 10)) ? str(x.ai, 10) : '',
+    ctaLabel: str(x.ctaLabel, 40),
+    ctaHref: str(x.ctaHref, 200),
+    ctaGreen: yes(x.ctaGreen),
+    levels: Array.isArray(x.levels) ? x.levels.slice(0, 12) : [],
+    partners: Array.isArray(x.partners) ? x.partners.slice(0, 8) : [],
+  };
+}
+
+function cleanServices(v) {
+  const raw = v && Array.isArray(v.items) ? v : { items: Array.isArray(v) ? v : [] };
+  const items = raw.items.slice(0, 120).map(cleanService);
+
+  /* A duplicate id is not cosmetic: "Add to plan" tracks a service by id, so
+     two with the same one add and remove each other. */
+  const seen = new Set();
+  items.forEach(x => {
+    let id = x.id, n = 2;
+    while (seen.has(id)) id = x.id + '-' + n++;
+    x.id = id;
+    seen.add(id);
+  });
+  items.sort((a, b) => a.sort - b.sort);
+  items.forEach((x, i) => { x.sort = i + 1; });
+
+  const tabs = (Array.isArray(raw.tabs) ? raw.tabs : []).slice(0, 10).map(t => ({
+    key: str(t.key, 20), label: str(t.label, 40),
+    icon: str(t.icon, 20) || 'star', colour: /^#[0-9a-f]{3,8}$/i.test(str(t.colour, 10))
+      ? str(t.colour, 10) : '#123a7b',
+  })).filter(t => t.key);
+
+  return { tabs, items };
+}
+
 const cleanStats = v => (Array.isArray(v) ? v : []).slice(0, 8).map(x => ({
   num: str(x.num, 20), label: str(x.label, 120), dummy: yes(x.dummy),
 })).filter(x => x.num || x.label);
@@ -162,7 +220,7 @@ const cleanTestimonials = v => (Array.isArray(v) ? v : []).slice(0, 30).map(x =>
 
 const CLEAN = {
   packages: cleanPackages, stats: cleanStats,
-  faq: cleanFaq, testimonials: cleanTestimonials,
+  faq: cleanFaq, testimonials: cleanTestimonials, services: cleanServices,
 };
 
 /* ------------------------------------------------------------- the spreadsheet */
@@ -207,6 +265,17 @@ const SHEETS = {
     row: t => [t.name, t.route, t.quote, t.where, t.verified ? 'yes' : 'no', t.dummy ? 'yes' : 'no'],
     key: 'name',
     label: t => t.name || t.quote,
+  },
+  services: {
+    columns: [['id', 'id'], ['service', 'name'], ['description', 'desc'],
+      ['how long it takes', 'meta'], ['price inr', 'priceInr'], ['free', 'isFree'],
+      ['instead of a price', 'priceLabel'], ['categories', 'cats'], ['badge', 'badge'],
+      ['button label', 'ctaLabel'], ['button link', 'ctaHref'], ['on the site', 'active']],
+    row: x => [x.id, x.name, x.desc, x.meta, x.isFree ? '' : x.priceInr,
+      x.isFree ? 'yes' : 'no', x.priceLabel, x.cats.join(' '), x.badge,
+      x.ctaLabel, x.ctaHref, x.active ? 'yes' : 'no'],
+    key: 'id',
+    label: x => x.name || x.id,
   },
   /* The text sheet is the one people will actually live in: every line on the
      page, its section, what it says now, and a column to type the new wording
@@ -378,7 +447,7 @@ function makeContent({ db, file }) {
       const sh = SHEETS[key];
       if (!sh) throw new Error('There is no "' + key + '" block on the home page.');
       const items = key === 'text' ? text().lines
-                  : key === 'packages' ? get(key).items
+                  : (key === 'packages' || key === 'services') ? get(key).items
                   : get(key);
       return { headers: sh.columns.map(c => c[0]), rows: items.map(sh.row) };
     },
@@ -478,7 +547,8 @@ function makeContent({ db, file }) {
 
         /* One required field per block, chosen as the one whose absence means
            the row is a blank line rather than a mistake. */
-        const need = { packages: 'title', stats: 'num', faq: 'q', testimonials: 'quote' }[key];
+        const need = { packages: 'title', stats: 'num', faq: 'q', testimonials: 'quote',
+          services: 'name' }[key];
         if (!str(draft[need])) {
           rejected.push({ line, what: '(row ' + line + ')', why: ['no ' + need] });
           return;
@@ -491,10 +561,13 @@ function makeContent({ db, file }) {
         items.push(draft);
       });
 
-      const before = key === 'packages' ? get(key).items : get(key);
+      const grouped = key === 'packages' || key === 'services';
+      const before = grouped ? get(key).items : get(key);
       const after = key === 'packages'
         ? cleanPackages({ items, tabs: get(key).tabs, eyebrow: get(key).eyebrow, heading: get(key).heading }).items
-        : CLEAN[key](items);
+        : key === 'services'
+          ? cleanServices({ items, tabs: get(key).tabs }).items
+          : CLEAN[key](items);
 
       const idOf = x => String(sh.key === 'id' ? x.id : sh.label(x)).toLowerCase();
       const had = new Set(before.map(idOf));
@@ -512,7 +585,7 @@ function makeContent({ db, file }) {
     },
 
     apply(key, plan, who) {
-      const v = key === 'packages'
+      const v = (key === 'packages' || key === 'services')
         ? Object.assign({}, get(key), { items: plan.result })
         : plan.result;
       return this.save(key, v, who);

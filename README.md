@@ -174,7 +174,9 @@ and every corrected number was a developer job. It is not any more. Six tabs:
 - **Page text** — **every other word on the page.** Headings, paragraphs, button labels, the
   words in the enquiry form, the footer, the page title and the description Google shows.
   430 lines, searchable, each with **Back to original** beside it.
-- **Spreadsheet** — download any of the five as Excel or CSV, edit it, upload it back.
+- **Services** — the 26 things sold on their own: SOP, LOR, CV, visa, test prep, language,
+  loan. Name, price, how long it takes, badge, and which category chips it appears under.
+- **Spreadsheet** — download any of the six as Excel or CSV, edit it, upload it back.
 
 **The price you type is the price charged.** The card, the checkout sheet and the receipt all
 read the one number, so they cannot drift apart. **Universities revealed** is the same: the
@@ -207,6 +209,11 @@ Two tabs:
 - **Destinations** — the countries the finder offers. A programme cannot be added to a
   destination that does not exist yet, which is what stops a typo creating a country
   called "Austrlia" that nobody notices for a month.
+
+**The showcase grid** — "Real universities, matched to what you're looking for" — reads this
+catalogue live. Tick **Feature this one** on a programme and give it a position, and it leads
+its price band; everything else follows cheapest-first, six per band. The same two columns are
+in the spreadsheet, so fifty universities can be ordered in one upload.
 
 Every change is recorded with who made it, on the **Recent changes** tab.
 

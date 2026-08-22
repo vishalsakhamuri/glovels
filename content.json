@@ -339,6 +339,11 @@
    "q": "How long does a German student visa take?",
    "a": "Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.",
    "dummy": true
+  },
+  {
+   "q": "' + E(f.q)\n           + (f.dummy ? '' : '')\n           + '",
+   "a": "' + E(f.a) + '",
+   "dummy": true
   }
  ],
  "testimonials": [
@@ -365,8 +370,654 @@
    "name": "Sakshi",
    "where": "Public university · Germany",
    "dummy": true
+  },
+  {
+   "route": "' + E(t.route) + '",
+   "verified": true,
+   "quote": "' + E(t.quote) + '",
+   "name": "'\n           + E(t.name) + '",
+   "where": "' + E(t.where) + '",
+   "dummy": true
   }
  ],
+ "services": {
+  "tabs": [
+   {
+    "key": "top",
+    "colour": "#8a6a1f",
+    "icon": "star",
+    "label": "Most Booked"
+   },
+   {
+    "key": "consult",
+    "colour": "#123a7b",
+    "icon": "chat",
+    "label": "Consultation"
+   },
+   {
+    "key": "test",
+    "colour": "#5b3fa8",
+    "icon": "book",
+    "label": "Test Prep"
+   },
+   {
+    "key": "lang",
+    "colour": "#1a6a52",
+    "icon": "globe",
+    "label": "Language"
+   },
+   {
+    "key": "post",
+    "colour": "#0e5f73",
+    "icon": "bank",
+    "label": "Loan / financial services"
+   }
+  ],
+  "items": [
+   {
+    "id": "counsel",
+    "sort": 1,
+    "active": true,
+    "name": "Book Counselling",
+    "desc": "A 1-on-1 session with a counsellor — profile review, a country and course shortlist, a realistic budget and a clear next step. No obligation.",
+    "meta": "45 minutes · call within 24 hours",
+    "cats": [
+     "top"
+    ],
+    "posTop": 4,
+    "isFree": true,
+    "priceInr": 0,
+    "priceLabel": "",
+    "badge": "start",
+    "ai": "",
+    "ctaLabel": "Book my free session",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "sop",
+    "sort": 2,
+    "active": true,
+    "name": "SOP Development & Editing",
+    "desc": "An AI first draft built from your own profile in under a minute, then rewritten with you by an admissions writer. Two full revision rounds.",
+    "meta": "AI draft in ~60s · final in 1 business day",
+    "cats": [
+     "top"
+    ],
+    "posTop": 2,
+    "isFree": false,
+    "priceInr": 599,
+    "priceLabel": "",
+    "badge": "best",
+    "ai": "sop",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "lor",
+    "sort": 3,
+    "active": true,
+    "name": "LOR Development",
+    "desc": "AI drafts each letter in your recommender’s voice from what they actually saw you do — then we send it to them to edit and sign. Up to 3 letters, plus the request emails.",
+    "meta": "AI draft in ~60s · final in 1 business day",
+    "cats": [
+     "top"
+    ],
+    "posTop": 1,
+    "isFree": false,
+    "priceInr": 599,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "lor",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "cv",
+    "sort": 4,
+    "active": true,
+    "name": "Academic CV & Resume",
+    "desc": "A university-format academic CV plus a job-ready resume, both tuned to your target country.",
+    "meta": "3–4 days",
+    "cats": [
+     "top"
+    ],
+    "posTop": 3,
+    "isFree": false,
+    "priceInr": 999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "aps",
+    "sort": 5,
+    "active": true,
+    "name": "APS, Attestation & Translation",
+    "desc": "APS certificate, document attestation, notary and certified translations handled end-to-end.",
+    "meta": "2–4 weeks",
+    "cats": [
+     "top"
+    ],
+    "posTop": 7,
+    "isFree": false,
+    "priceInr": 2499,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "visa",
+    "sort": 6,
+    "active": true,
+    "name": "Student Visa: End-to-End",
+    "desc": "Application filing, financial documents, appointment booking and mock interview until your decision.",
+    "meta": "Until visa decision",
+    "cats": [
+     "top"
+    ],
+    "posTop": 8,
+    "isFree": false,
+    "priceInr": 14999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "probundle",
+    "sort": 7,
+    "active": true,
+    "name": "Country Pro Bundle",
+    "desc": "Country guide, live cost calculator, intake calendar and a document checklist for your destination.",
+    "meta": "Instant access",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 299,
+    "priceLabel": "",
+    "badge": "value",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "live",
+    "sort": 8,
+    "active": true,
+    "name": "1-on-1 Live Counselling",
+    "desc": "A 45-minute video call with a senior counsellor on your country, course and budget — no sales pitch.",
+    "meta": "45 min · book any slot",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 299,
+    "priceLabel": "",
+    "badge": "value",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "profile",
+    "sort": 9,
+    "active": true,
+    "name": "Profile Building",
+    "desc": "A 3-month mentored plan to strengthen your profile before you apply — projects, tests and references.",
+    "meta": "3 months · dedicated mentor",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 14999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "scholar",
+    "sort": 10,
+    "active": true,
+    "name": "Scholarship Shortlisting",
+    "desc": "Every scholarship you are eligible for, ranked by award size and deadline, with the eligibility proof.",
+    "meta": "Delivered in 48 hours",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "interview",
+    "sort": 11,
+    "active": true,
+    "name": "Admission Interview Prep",
+    "desc": "Two mock interviews with a university-panel format, recorded feedback and a question bank.",
+    "meta": "2 mocks · recorded",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 1499,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "career",
+    "sort": 12,
+    "active": true,
+    "name": "Course & Career Mapping",
+    "desc": "Match your degree to the job market and PR pathway of each destination before you commit.",
+    "meta": "60 min + written report",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 1499,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "predep",
+    "sort": 13,
+    "active": true,
+    "name": "Pre-Departure Briefing",
+    "desc": "Packing and insurance checklist plus a pre-departure briefing session before you fly.",
+    "meta": "Before you fly",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 1499,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "reeval",
+    "sort": 14,
+    "active": true,
+    "name": "Application Review",
+    "desc": "A senior counsellor reviews an application you have already prepared and flags what will get it rejected.",
+    "meta": "48-hour turnaround",
+    "cats": [
+     "consult"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 1999,
+    "priceLabel": "",
+    "badge": "fast",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "ielts",
+    "sort": 15,
+    "active": true,
+    "name": "IELTS Training",
+    "desc": "Live batches with band-wise practice, four full mock tests and speaking partner sessions.",
+    "meta": "4–6 weeks · live batch",
+    "cats": [
+     "test"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 9999,
+    "priceLabel": "",
+    "badge": "best",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "pte",
+    "sort": 16,
+    "active": true,
+    "name": "PTE Preparation",
+    "desc": "Templates for every task type, AI-scored practice and unlimited doubt-clearing sessions.",
+    "meta": "4–6 weeks · live batch",
+    "cats": [
+     "test"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 9999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "gre",
+    "sort": 17,
+    "active": true,
+    "name": "GRE Preparation",
+    "desc": "Quant, verbal and AWA with sectional adaptive tests and a personal score-improvement plan.",
+    "meta": "10 weeks · live batch",
+    "cats": [
+     "test"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 19999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "gmat",
+    "sort": 18,
+    "active": true,
+    "name": "GMAT Preparation",
+    "desc": "Focus-edition syllabus, 8 full-length adaptive mocks and B-school profile guidance included.",
+    "meta": "10 weeks · live batch",
+    "cats": [
+     "test"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 34999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "dmat",
+    "sort": 19,
+    "active": true,
+    "name": "dMAT Preparation",
+    "desc": "Full syllabus coverage, sectional drills and timed full-length mocks, with a tutor-reviewed score plan before your attempt.",
+    "meta": "6 weeks · live batch",
+    "cats": [
+     "test"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 14999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "sat",
+    "sort": 20,
+    "active": true,
+    "name": "SAT Preparation",
+    "desc": "Digital SAT format with Bluebook-style practice, module-adaptive drills and 6 mocks.",
+    "meta": "10 weeks · live batch",
+    "cats": [
+     "test"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 19999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "german",
+    "sort": 21,
+    "active": true,
+    "name": "German — A1 to B2",
+    "desc": "Goethe/telc-aligned live classes with a trainer, taken one level at a time.",
+    "meta": "Live classes · 2 sessions a week",
+    "cats": [
+     "lang",
+     "top"
+    ],
+    "posTop": 9,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "",
+    "badge": "best",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [
+     {
+      "code": "A1",
+      "priceInr": 15000
+     },
+     {
+      "code": "A2",
+      "priceInr": 15000
+     },
+     {
+      "code": "B1",
+      "priceInr": 20000
+     },
+     {
+      "code": "B2",
+      "priceInr": 35000
+     }
+    ],
+    "partners": []
+   },
+   {
+    "id": "french",
+    "sort": 22,
+    "active": true,
+    "name": "French A1–B2",
+    "desc": "DELF-aligned training for French universities and the Canada Express Entry language bonus.",
+    "meta": "A1 to B2 · live classes",
+    "cats": [
+     "lang"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 11999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "loan",
+    "sort": 23,
+    "active": true,
+    "name": "Education Loan Assistance",
+    "desc": "Compare offers from partner lenders, prepare the file and track sanction until disbursement.",
+    "meta": "Sanction in 7–14 days",
+    "cats": [
+     "post"
+    ],
+    "posTop": 0,
+    "isFree": true,
+    "priceInr": 0,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Compare loan offers",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "scholarfull",
+    "sort": 24,
+    "active": true,
+    "name": "Scholarship: End-to-End",
+    "desc": "We write and file every scholarship application on your shortlist, then follow up on decisions.",
+    "meta": "Until final decision",
+    "cats": [
+     "post"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 6999,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "",
+    "ctaHref": "",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "forex",
+    "sort": 25,
+    "active": true,
+    "name": "Blocked Account & Forex",
+    "desc": "Blocked account opening, best-rate currency transfer and a student bank account set up on arrival.",
+    "meta": "5–10 days",
+    "cats": [
+     "post",
+     "top"
+    ],
+    "posTop": 5,
+    "isFree": true,
+    "priceInr": 0,
+    "priceLabel": "",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Open with Expatrio",
+    "ctaHref": "https://www.expatrio.com/?p=GLOVELS",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": [
+     {
+      "label": "Open with Fintiba",
+      "url": "https://partner.fintiba.com/glovels"
+     }
+    ]
+   },
+   {
+    "id": "insure",
+    "sort": 26,
+    "active": true,
+    "name": "Travel & Health Insurance",
+    "desc": "Visa-compliant travel and health cover for the student visa and the Germany Opportunity Card, arranged before you file.",
+    "meta": "Certificate same day",
+    "cats": [
+     "post",
+     "top"
+    ],
+    "posTop": 6,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Insurer’s rates",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Start a quote",
+    "ctaHref": "https://www.dr-walter-secure.de/educare24_en/?vkn=88966",
+    "ctaGreen": true,
+    "levels": [],
+    "partners": [
+     {
+      "label": "Product information",
+      "url": "https://www.educare24.com/?vkn=88966"
+     }
+    ]
+   }
+  ]
+ },
  "text": [
   {
    "key": "page|title|a98e4e2f|0",
@@ -3272,69 +3923,6 @@
    "kind": "text",
    "element": "h2",
    "original": "Real universities, matched to what you're looking for",
-   "note": "",
-   "sectionLabel": "Real universities, matched to what you're looking for"
-  },
-  {
-   "key": "catalogue|div|2c856198|0",
-   "section": "catalogue",
-   "kind": "text",
-   "element": "div",
-   "original": "Mode:",
-   "note": "",
-   "sectionLabel": "Real universities, matched to what you're looking for"
-  },
-  {
-   "key": "catalogue|b|b092aac2|0",
-   "section": "catalogue",
-   "kind": "text",
-   "element": "b",
-   "original": "gated",
-   "note": "",
-   "sectionLabel": "Real universities, matched to what you're looking for"
-  },
-  {
-   "key": "catalogue|div|499095ea|0",
-   "section": "catalogue",
-   "kind": "text",
-   "element": "div",
-   "original": "— only private programmes are listed; public universities appear as a count. Consistent with Block 1, but the public university names earn no search traffic. Change",
-   "note": "",
-   "sectionLabel": "Real universities, matched to what you're looking for"
-  },
-  {
-   "key": "catalogue|code|af7b9454|0",
-   "section": "catalogue",
-   "kind": "text",
-   "element": "code",
-   "original": "CATALOGUE_MODE",
-   "note": "",
-   "sectionLabel": "Real universities, matched to what you're looking for"
-  },
-  {
-   "key": "catalogue|div|41387a9e|0",
-   "section": "catalogue",
-   "kind": "text",
-   "element": "div",
-   "original": "in",
-   "note": "",
-   "sectionLabel": "Real universities, matched to what you're looking for"
-  },
-  {
-   "key": "catalogue|code|211b7f17|0",
-   "section": "catalogue",
-   "kind": "text",
-   "element": "code",
-   "original": "build_block34.py",
-   "note": "",
-   "sectionLabel": "Real universities, matched to what you're looking for"
-  },
-  {
-   "key": "catalogue|div|d82c494f|0",
-   "section": "catalogue",
-   "kind": "text",
-   "element": "div",
-   "original": "to compare.",
    "note": "",
    "sectionLabel": "Real universities, matched to what you're looking for"
   },

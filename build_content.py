@@ -155,6 +155,62 @@ def packages(s):
     }
 
 
+# --------------------------------------------------------------------- services
+
+def services(s):
+    """
+    The a-la-carte grid: LOR, SOP, CV, visa, test prep, language, loan.
+
+    Like the packages, this is already data in the page — `const SERVICES` —
+    put there by the build. Reading that beats scraping the rendered cards.
+    """
+    i = s.find("const SERVICES = [")
+    if i < 0:
+        sys.exit("index.html has no `const SERVICES` block — has the build changed?")
+    j = s.find("\n", i)
+    raw = json.loads(s[i + len("const SERVICES = "):j].rstrip(";"))
+
+    # The category chips above the grid: key, label, and the colour the build
+    # chose for each. Read from the markup because that is where they live.
+    tabs = []
+    for m in re.finditer(r'data-cat="(\w+)"[^>]*?style="--tabc:(#[0-9a-f]+)"[^>]*>'
+                         r'(?:<svg.*?#i-([\w-]+).*?</svg>)?<span>([^<]*)</span>', s, re.S):
+        tabs.append({"key": m.group(1), "colour": m.group(2),
+                     "icon": m.group(3) or "star", "label": unesc(m.group(4))})
+
+    items = []
+    for n, x in enumerate(raw):
+        cta = x.get("cta") or {}
+        items.append({
+            "id": x.get("id") or f"svc-{n + 1}",
+            "sort": n + 1,
+            "active": True,
+            "name": unesc(x.get("name")),
+            "desc": unesc(x.get("desc")),
+            # The line under the description: how long it takes.
+            "meta": unesc(x.get("meta")),
+            "cats": [c for c in (x.get("cats") or []) if c],
+            "posTop": int(x.get("posTop") or 0),
+            "isFree": bool(x.get("isFree")),
+            "priceInr": int(x.get("priceInr") or 0),
+            # Shown instead of a number — "from ₹X", "priced per case".
+            "priceLabel": unesc(x.get("priceLabel")),
+            "badge": x.get("badge") or "",
+            # Which AI writer the "Try the AI draft" button opens, if any.
+            "ai": x.get("ai") or "",
+            "ctaLabel": unesc(cta.get("label")) if cta else "",
+            "ctaHref": cta.get("href") or "",
+            "ctaGreen": bool(x.get("ctaGreen")),
+            # Kept whole rather than modelled: the level pricing on language
+            # courses and the partner links. Nothing in the editor touches
+            # them, and dropping them would quietly delete a price list.
+            "levels": x.get("levels") or [],
+            "partners": x.get("partners") or [],
+        })
+
+    return {"tabs": tabs, "items": items}
+
+
 # ------------------------------------------------------------ the other blocks
 
 def stats(s):
@@ -199,6 +255,7 @@ def main():
         "stats": stats(s),
         "faq": faq(s),
         "testimonials": testimonials(s),
+        "services": services(s),
         # Everything else on the page: headings, paragraphs, button labels, the
         # form's own words, the footer, the page title and meta description.
         "text": page_text.extract(s),
@@ -206,7 +263,8 @@ def main():
 
     for name, n in [("packages", len(doc["packages"]["items"])), ("stats", len(doc["stats"])),
                     ("faq", len(doc["faq"])), ("testimonials", len(doc["testimonials"])),
-                    ("lines of text", len(doc["text"]))]:
+                    ("lines of text", len(doc["text"])),
+                    ("services", len(doc["services"]["items"]))]:
         if not n:
             sys.exit(f"REFUSED: extracted 0 {name} from index.html. That is a broken pattern, "
                      f"not an empty page — writing this would blank the home page.")
@@ -221,7 +279,7 @@ def main():
 
     print(f"content.json · {len(doc['packages']['items'])} packages, {len(doc['stats'])} numbers, "
           f"{len(doc['faq'])} FAQ, {len(doc['testimonials'])} testimonials, "
-          f"{len(doc['text'])} lines of text")
+          f"{len(doc['text'])} lines of text, {len(doc['services']['items'])} services")
     for p in doc["packages"]["items"]:
         print(f"   {p['tab']:<8} {p['id']:<18} "
               f"{('₹' + format(p['priceInr'], ',')) if p['sell'] else 'on request':<12} {p['title']}")
