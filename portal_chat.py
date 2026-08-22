@@ -1,7 +1,17 @@
 """Visitors asking questions on the website, and the person answering them."""
 
 BODY = """
-    <div class="out" style="grid-template-columns:repeat(3,1fr);margin:0 0 18px">
+    <style>
+      /* Counter tiles. The column count was an inline style on every one of
+         these, which beats any media query — so a row of four or five tiles
+         pushed the page sideways on a phone. The count is a custom property
+         now, and the row folds to two, then one, as the screen narrows. */
+      .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
+      @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
+      @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
+    </style>
+
+    <div class="out tiles" style="--tiles:3;margin:0 0 18px">
       <div><b id="kOpen">—</b><span>Waiting for a reply</span></div>
       <div><b id="kToday">—</b><span>Started today</span></div>
       <div><b id="kAll">—</b><span>Conversations in all</span></div>

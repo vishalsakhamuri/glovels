@@ -1,7 +1,17 @@
 """The home page, edited by the people who answer for what it says."""
 
 BODY = """
-    <div class="out" style="grid-template-columns:repeat(4,1fr);margin:0 0 18px">
+    <style>
+      /* Counter tiles. The column count was an inline style on every one of
+         these, which beats any media query — so a row of four or five tiles
+         pushed the page sideways on a phone. The count is a custom property
+         now, and the row folds to two, then one, as the screen narrows. */
+      .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
+      @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
+      @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
+    </style>
+
+    <div class="out tiles" style="--tiles:4;margin:0 0 18px">
       <div><b id="kPkg">—</b><span>Packages on the site</span></div>
       <div><b id="kFrom">—</b><span>Cheapest package</span></div>
       <div><b id="kLines">—</b><span>Lines of text</span></div>
@@ -1341,8 +1351,8 @@ function paintPlan(d) {
     '</b><span>' + label + '</span></div>';
   const isText = $('#sWhat').value === 'text';
 
-  let html = '<div class="out" style="grid-template-columns:repeat(' +
-    (isText ? 3 : 4) + ',1fr);margin:0">' +
+  let html = '<div class="out tiles" style="--tiles:' +
+    (isText ? 3 : 4) + ';margin:0">' +
     (isText
       ? box(c.change || 0, 'to reword', 'var(--navy-900)') +
         box(c.revert || 0, 'back to original', 'var(--muted)') +

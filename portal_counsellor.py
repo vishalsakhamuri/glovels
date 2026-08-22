@@ -1,7 +1,32 @@
 """The counsellor's workspace — their caseload, and the live conversation."""
 
 BODY = """
-    <div class="p-cols" style="grid-template-columns:320px 1fr;align-items:start;gap:16px">
+    <style>
+      /* Counter tiles. The column count was an inline style on every one of
+         these, which beats any media query — so a row of four or five tiles
+         pushed the page sideways on a phone. The count is a custom property
+         now, and the row folds to two, then one, as the screen narrows. */
+      .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
+      @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
+      @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
+    </style>
+
+    <style>
+      /* A fixed-width aside beside the main column. The width used to be an
+         inline style, which beats the media query that collapses .p-cols on a
+         narrow screen — so this page scrolled sideways on every phone. The
+         width lives in a class now, and stands down under 980px. */
+      .p-cols.aside{grid-template-columns:var(--aside,270px) 1fr}
+      @media (max-width:980px){ .p-cols.aside{grid-template-columns:1fr} }
+      @media (max-width:980px){ .p-cols.aside>*{position:static !important} }
+      /* A grid child is min-width:auto by default, so one wide thing inside
+         the thread — a long link, an avatar row — sets the floor for the whole
+         column and the page scrolls. Nothing here needs to be wider than the
+         screen. */
+      .p-cols.aside>*{min-width:0}
+    </style>
+
+    <div class="p-cols aside" style="--aside:320px;align-items:start;gap:16px">
 
       <div class="p-card" style="padding:0;overflow:hidden">
         <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;
@@ -137,7 +162,7 @@ function paintRecord(r) {
         (r.counsellor ? '<span class="pill">' + esc(r.counsellor.name) + '</span>' : '') +
         '<span class="pill" style="margin-left:auto">' + (r.orders[0] ? esc(r.orders[0].package) : 'No package') + '</span>' +
       '</div>' +
-      '<div class="out" style="grid-template-columns:repeat(4,1fr);margin:0 0 16px">' +
+      '<div class="out tiles" style="--tiles:4;margin:0 0 16px">' +
         '<div><b>' + r.shortlist.length + '</b><span>Shortlisted</span></div>' +
         '<div><b>' + Object.keys(r.apps).length + '</b><span>Applications</span></div>' +
         '<div><b>' + r.docs.filter(d => d.status === 'ok').length + '/' + r.docs.length + '</b><span>Docs verified</span></div>' +

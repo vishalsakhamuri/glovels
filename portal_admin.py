@@ -1,10 +1,20 @@
 """The admin screen — the organisation, and who is looking after whom."""
 
 BODY = """
+    <style>
+      /* Counter tiles. The column count was an inline style on every one of
+         these, which beats any media query — so a row of four or five tiles
+         pushed the page sideways on a phone. The count is a custom property
+         now, and the row folds to two, then one, as the screen narrows. */
+      .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
+      @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
+      @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
+    </style>
+
     <!-- A count with somewhere to go is a button and looks like one. "Orders
          placed" has no screen behind it yet, so it stays a plain number rather
          than a control that does nothing when pressed. -->
-    <div class="out" style="grid-template-columns:repeat(5,1fr);margin:0 0 20px">
+    <div class="out tiles" style="--tiles:5;margin:0 0 20px">
       <button type="button" class="outgo" data-go="all">
         <b id="kStudents">—</b><span>Students</span></button>
       <button type="button" class="outgo" data-go="unassigned">

@@ -1,7 +1,17 @@
 """Applications — one tracker per shortlisted university."""
 
 BODY = """
-    <div class="out" style="grid-template-columns:repeat(4,1fr);margin:0 0 20px">
+    <style>
+      /* Counter tiles. The column count was an inline style on every one of
+         these, which beats any media query — so a row of four or five tiles
+         pushed the page sideways on a phone. The count is a custom property
+         now, and the row folds to two, then one, as the screen narrows. */
+      .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
+      @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
+      @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
+    </style>
+
+    <div class="out tiles" style="--tiles:4;margin:0 0 20px">
       <div><b id="kTotal">0</b><span>Applications</span></div>
       <div><b id="kSent">0</b><span>Submitted</span></div>
       <div><b id="kDec">0</b><span>Decisions in</span></div>
