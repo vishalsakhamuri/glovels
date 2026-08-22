@@ -1,0 +1,815 @@
+"""The home page, edited by the people who answer for what it says."""
+
+BODY = """
+    <div class="out" style="grid-template-columns:repeat(4,1fr);margin:0 0 18px">
+      <div><b id="kPkg">—</b><span>Packages on the site</span></div>
+      <div><b id="kFrom">—</b><span>Cheapest package</span></div>
+      <div><b id="kLines">—</b><span>Lines of text</span></div>
+      <div><b id="kEdited">—</b><span>Reworded</span></div>
+    </div>
+
+    <div class="tabs" style="margin-bottom:16px;flex-wrap:wrap">
+      <button class="tab" data-t="pkg" aria-selected="true">Packages
+        <span class="n" id="nPkg">0</span></button>
+      <button class="tab" data-t="num" aria-selected="false">Numbers
+        <span class="n" id="nNum">0</span></button>
+      <button class="tab" data-t="faq" aria-selected="false">FAQ
+        <span class="n" id="nFaq">0</span></button>
+      <button class="tab" data-t="sto" aria-selected="false">Stories
+        <span class="n" id="nSto">0</span></button>
+      <button class="tab" data-t="txt" aria-selected="false">Page text
+        <span class="n" id="nTxt">0</span></button>
+      <button class="tab" data-t="sheet" aria-selected="false">Spreadsheet</button>
+    </div>
+
+    <!-- -------------------------------------------------------- packages -->
+    <section class="pane active" id="t-pkg">
+      <div class="p-card" style="margin-bottom:14px;display:flex;gap:11px;flex-wrap:wrap;
+        align-items:center">
+        <b style="font:700 13.4px/1.4 var(--sans);color:var(--navy-900)">The three tabs on the
+          home page</b>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-primary btn-sm" id="addPkg">+ Add a package</button>
+      </div>
+      <div id="pkgTabs"></div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        <b>The price here is the price charged.</b> The card on the home page, the checkout sheet
+        and the receipt all read this one number, so they cannot disagree. <b>Universities
+        revealed</b> is the same: it is what the server hands out to a student who has paid, not
+        a line of marketing.</p>
+    </section>
+
+    <!-- --------------------------------------------------------- numbers -->
+    <section class="pane" id="t-num">
+      <div class="p-card">
+        <h3>The four figures under the hero</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Tick <b>unconfirmed</b> on anything nobody has checked. It puts a DUMMY marker beside it
+          on the site, which is ugly on purpose — an unverified student count should not be able
+          to ship quietly.</p>
+        <div id="numRows"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="stats"
+          style="margin-top:12px">+ Add a figure</button>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------- FAQ -->
+    <section class="pane" id="t-faq">
+      <div class="p-card">
+        <h3>The questions everyone asks</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Answer them the way you would on the phone. These are read more than anything else on
+          the page.</p>
+        <div id="faqRows"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="faq"
+          style="margin-top:12px">+ Add a question</button>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------- stories -->
+    <section class="pane" id="t-sto">
+      <div class="p-card">
+        <h3>Student stories</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Only put a name here with that student&rsquo;s written consent, and only tick
+          <b>verified</b> when the admission letter is on file. Leave <b>unconfirmed</b> ticked
+          until both are true.</p>
+        <div id="stoRows"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="testimonials"
+          style="margin-top:12px">+ Add a story</button>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------- page text -->
+    <section class="pane" id="t-txt">
+      <div class="p-card" style="margin-bottom:14px;display:flex;gap:11px;flex-wrap:wrap;
+        align-items:center">
+        <input id="tq" placeholder="Search the page for a word or a sentence"
+          style="flex:1;min-width:240px;padding:9px 12px;font:400 13px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px">
+        <select id="tsec" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px"></select>
+        <label style="display:flex;gap:7px;align-items:center;font:600 12.6px/1.4 var(--sans);
+          color:var(--navy-800)">
+          <input type="checkbox" id="tonly"> Only what has been changed</label>
+      </div>
+      <div id="txtRows"></div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        Every word on the home page that is not a package, a figure, an FAQ entry or a story is
+        here &mdash; headings, paragraphs, button labels, the words in the enquiry form, the
+        footer, and the two lines Google shows. Edit one and it changes on the site as soon as
+        the next visitor loads it. <b>Back to original</b> undoes it completely.</p>
+    </section>
+
+    <!-- ------------------------------------------------------ spreadsheet -->
+    <section class="pane" id="t-sheet">
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>Download</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          One sheet per section. Edit it in Excel and upload it below.</p>
+        <div id="dlRows" style="display:grid;gap:10px"></div>
+      </div>
+
+      <div class="p-card">
+        <h3>Upload</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Nothing is written when you upload. You are shown exactly what the file would do, and
+          it is applied only when you press the button under that summary.</p>
+        <div style="display:flex;gap:11px;flex-wrap:wrap;align-items:center">
+          <select id="sWhat" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
+            border:1.5px solid #d8dde4;border-radius:9px"></select>
+          <input type="file" id="sFile" accept=".xlsx,.csv"
+            style="font:400 13px/1.4 var(--sans);max-width:100%">
+          <button type="button" class="btn btn-primary btn-sm" id="sCheck">Check the file</button>
+          <span id="sBusy" style="display:none;font:600 12.4px/1.4 var(--sans);color:var(--muted)">
+            Reading&hellip;</span>
+        </div>
+        <div id="sOut" style="margin-top:18px"></div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------ the editor -->
+    <div class="modal" id="pkgModal" role="dialog" aria-modal="true">
+      <div class="sheet" style="width:min(760px,100%)">
+        <button class="sheet-close" data-close aria-label="Close">✕</button>
+        <h3 id="pmTitle">Add a package</h3>
+        <p class="lead" id="pmLead">It is on the home page as soon as you save.</p>
+        <div id="pmBody"></div>
+        <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="pmSave">Save</button>
+          <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+          <button type="button" class="btn btn-ghost" id="pmDelete" style="margin-left:auto">Remove</button>
+        </div>
+        <p id="pmErr" role="alert" style="display:none;margin:14px 0 0;padding:11px 13px;
+          border-radius:10px;font:600 12.8px/1.5 var(--sans);background:#fdf3f2;
+          border:1px solid #f0c8c4;color:#7a2118"></p>
+      </div>
+    </div>
+"""
+
+SCRIPT = r"""
+let C = null, TEXT = null, editing = null;
+
+const inr = n => '₹' + new Intl.NumberFormat('en-IN').format(Number(n || 0));
+const BLOCKS = [['packages', 'Packages'], ['stats', 'Numbers'], ['faq', 'FAQ'],
+  ['testimonials', 'Stories'], ['text', 'Page text']];
+
+/* ---------------------------------------------------------------- painting */
+
+function paintPackages() {
+  const pk = C.packages;
+  $('#nPkg').textContent = pk.items.length;
+  $('#kPkg').textContent = pk.items.filter(p => p.active !== false).length;
+  const prices = pk.items.filter(p => p.sell && p.active !== false).map(p => p.priceInr);
+  $('#kFrom').textContent = prices.length ? inr(Math.min.apply(null, prices)) : '—';
+
+  $('#pkgTabs').innerHTML = pk.tabs.map(t => {
+    const rows = pk.items.filter(p => p.tab === t.key);
+    return '<div class="p-card" style="padding:0;margin-bottom:14px;overflow-x:auto">' +
+      '<div style="padding:14px 16px 0"><b style="font:700 13.4px/1.4 var(--sans)">' +
+        esc(t.label) + '</b> <span style="font-size:12px;color:var(--muted)">' +
+        rows.length + ' package' + (rows.length === 1 ? '' : 's') + '</span></div>' +
+      '<table class="tbl" style="margin:8px 0 0"><thead><tr><th>Package</th><th>Price</th>' +
+        '<th>Reveals</th><th>Status</th><th></th></tr></thead><tbody>' +
+      (rows.map(p =>
+        '<tr><td><b>' + esc(p.title) + '</b>' +
+          (p.ribbon ? ' <span class="st ok">' + esc(p.ribbon) + '</span>' : '') +
+          '<br><span style="font-size:11.6px;color:var(--muted)">' +
+          esc(p.desc.slice(0, 90)) + '</span></td>' +
+        '<td>' + (p.sell ? '<b>' + inr(p.priceInr) + '</b>' +
+            (p.priceNote ? '<br><span style="font-size:11.4px;color:var(--muted)">' +
+              esc(p.priceNote) + '</span>' : '')
+          : '<span class="st none">On request</span>') + '</td>' +
+        '<td>' + (p.unlocks ? p.unlocks + ' universities' : '—') + '</td>' +
+        '<td>' + (p.active === false ? '<span class="st wait">Hidden</span>'
+                                     : '<span class="st ok">On the site</span>') + '</td>' +
+        '<td style="white-space:nowrap">' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-edit="' + esc(p.id) + '">Edit</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-move="' + esc(p.id) +
+            '" data-dir="-1" style="margin-left:6px" aria-label="Move up">↑</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-move="' + esc(p.id) +
+            '" data-dir="1" style="margin-left:4px" aria-label="Move down">↓</button>' +
+        '</td></tr>').join('') ||
+        '<tr><td colspan="5" style="padding:18px;color:var(--muted)">Nothing in this tab yet.</td></tr>') +
+      '</tbody></table></div>';
+  }).join('');
+}
+
+/* The three simple lists share one editor: a card of fields per row, saved as a
+   whole block. They are short enough that a row-at-a-time API would be more
+   moving parts for no benefit. */
+
+function rowCard(n, fields, count) {
+  return '<div class="p-card" style="padding:14px 16px;margin-bottom:10px;background:var(--paper)">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+      '<b style="font:700 12.6px/1 var(--sans);color:var(--muted);letter-spacing:.08em;' +
+        'text-transform:uppercase">' + (n + 1) + ' of ' + count + '</b>' +
+      '<span><button type="button" class="btn btn-ghost btn-sm" data-rmove="' + n +
+        '" data-dir="-1" aria-label="Move up">↑</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-rmove="' + n +
+        '" data-dir="1" style="margin-left:4px" aria-label="Move down">↓</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-rdel="' + n +
+        '" style="margin-left:8px">Remove</button></span>' +
+    '</div>' + fields + '</div>';
+}
+
+const tf = (label, id, value, ph, wide) =>
+  '<div class="field" style="margin-bottom:10px' + (wide ? ';grid-column:1/-1' : '') + '">' +
+  '<label for="' + id + '">' + esc(label) + '</label>' +
+  '<input id="' + id + '" value="' + esc(value == null ? '' : value) + '"' +
+  (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
+
+const ta = (label, id, value, wide) =>
+  '<div class="field" style="margin-bottom:10px' + (wide ? ';grid-column:1/-1' : '') + '">' +
+  '<label for="' + id + '">' + esc(label) + '</label>' +
+  '<textarea id="' + id + '" rows="3" style="width:100%;padding:9px 11px;font:400 13px/1.5 ' +
+  'var(--sans);border:1.5px solid #d8dde4;border-radius:9px;resize:vertical">' +
+  esc(value == null ? '' : value) + '</textarea></div>';
+
+const tick = (label, id, on) =>
+  '<label style="display:flex;gap:8px;align-items:center;font:600 12.6px/1.4 var(--sans);' +
+  'color:var(--navy-800);margin:2px 0 10px"><input type="checkbox" id="' + id + '"' +
+  (on ? ' checked' : '') + '> ' + esc(label) + '</label>';
+
+function paintStats() {
+  $('#nNum').textContent = C.stats.length;
+  $('#numRows').innerHTML = C.stats.map((s, n) => rowCard(n,
+    '<div style="display:grid;grid-template-columns:160px 1fr;gap:0 14px">' +
+      tf('The figure', 'num' + n, s.num, '3,200+') +
+      tf('What it counts', 'lbl' + n, s.label, 'students placed abroad') +
+    '</div>' + tick('Unconfirmed — show a DUMMY marker beside it', 'sd' + n, s.dummy),
+    C.stats.length)).join('');
+}
+
+function paintFaq() {
+  $('#nFaq').textContent = C.faq.length;
+  $('#faqRows').innerHTML = C.faq.map((f, n) => rowCard(n,
+    tf('Question', 'q' + n, f.q, 'Can I study abroad for free?') +
+    ta('Answer', 'a' + n, f.a) +
+    tick('Unconfirmed — show a DUMMY marker beside it', 'fd' + n, f.dummy),
+    C.faq.length)).join('');
+}
+
+function paintStories() {
+  $('#nSto').textContent = C.testimonials.length;
+  $('#stoRows').innerHTML = C.testimonials.map((t, n) => rowCard(n,
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
+      tf('Name', 'tn' + n, t.name, 'Ram') +
+      tf('Route', 'tr' + n, t.route, 'India → Germany') +
+      tf('Where they are', 'tw' + n, t.where, 'Public university · Germany') +
+    '</div>' + ta('What they say', 'tq' + n, t.quote, true) +
+    tick('Verified — the admission letter is on file', 'tv' + n, t.verified) +
+    tick('Unconfirmed — show a DUMMY marker beside it', 'td' + n, t.dummy),
+    C.testimonials.length)).join('');
+}
+
+function paintText() {
+  const lines = TEXT.lines;
+  $('#nTxt').textContent = lines.length;
+  $('#kLines').textContent = lines.length;
+  $('#kEdited').textContent = TEXT.edited;
+
+  /* A section name a person recognises. Most sections are named by their own
+     heading; the three that have no heading are the ones everybody thinks of
+     by where they are on the screen. */
+  const SECTION_NAME = {
+    page: 'Menu, and words that are not in a section',
+    header: 'The top of the page',
+    footer: 'The footer',
+  };
+  const nameOf = l => SECTION_NAME[l.section] || l.sectionLabel
+    || l.section.replace(/^section-/, 'Section ');
+
+  const secs = [];
+  lines.forEach(l => {
+    if (!secs.some(s => s.key === l.section)) {
+      secs.push({key: l.section, label: nameOf(l)});
+    }
+  });
+  const keep = $('#tsec').value;
+  $('#tsec').innerHTML = '<option value="">Every part of the page</option>' +
+    secs.map(s => '<option value="' + esc(s.key) + '">' + esc(s.label) + '</option>').join('');
+  $('#tsec').value = keep;
+
+  const q = $('#tq').value.trim().toLowerCase();
+  const sec = $('#tsec').value;
+  const only = $('#tonly').checked;
+  const show = lines.filter(l =>
+    (!sec || l.section === sec) &&
+    (!only || l.edited) &&
+    (!q || (l.current + ' ' + l.original).toLowerCase().includes(q)));
+
+  const where = l => l.kind === 'title' ? 'Page title (Google)'
+    : l.kind === 'meta-description' ? 'Search description (Google)'
+    : l.kind.indexOf('attr:') === 0 ? l.kind.slice(5)
+    : ({h1: 'Big heading', h2: 'Heading', h3: 'Sub-heading', p: 'Paragraph',
+        a: 'Link', button: 'Button', li: 'List item', b: 'Bold text',
+        summary: 'Question', label: 'Form label', small: 'Small print',
+        span: 'Text', div: 'Text'}[l.element] || l.element);
+
+  let last = '';
+  $('#txtRows').innerHTML = show.slice(0, 250).map(l => {
+    let head = '';
+    if (l.section !== last) {
+      last = l.section;
+      const label = (secs.find(s => s.key === l.section) || {}).label || nameOf(l);
+      head = '<h3 style="font-size:13.6px;margin:18px 0 8px">' + esc(label) + '</h3>';
+    }
+    return head +
+      '<div class="p-card" style="padding:12px 15px;margin-bottom:8px;display:grid;' +
+        'grid-template-columns:120px 1fr auto;gap:12px;align-items:start">' +
+      '<span class="st none" style="text-transform:none;letter-spacing:0;margin-top:6px">' +
+        esc(where(l)) + '</span>' +
+      '<div><textarea data-tkey="' + esc(l.key) + '" rows="' +
+        (l.current.length > 110 ? 3 : 1) + '" style="width:100%;padding:8px 10px;' +
+        'font:400 13px/1.5 var(--sans);border:1.5px solid ' +
+        (l.edited ? 'var(--gold-soft,#c9a227)' : '#d8dde4') +
+        ';border-radius:9px;resize:vertical">' + esc(l.current) + '</textarea>' +
+        (l.edited ? '<p style="margin:6px 0 0;font-size:11.6px;color:var(--muted);' +
+          'line-height:1.5">Was: ' + esc(l.original) + '</p>' : '') +
+        (l.note ? '<p style="margin:5px 0 0;font-size:11.4px;color:var(--muted)">' +
+          esc(l.note) + '</p>' : '') +
+      '</div>' +
+      '<span style="white-space:nowrap">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-tsave="' + esc(l.key) +
+          '">Save</button>' +
+        (l.edited ? '<button type="button" class="btn btn-ghost btn-sm" data-treset="' +
+          esc(l.key) + '" style="margin-left:6px">Back to original</button>' : '') +
+      '</span></div>';
+  }).join('') || '<div class="sl-empty"><b>Nothing matches</b><p>Try a different word.</p></div>';
+
+  if (show.length > 250) {
+    $('#txtRows').insertAdjacentHTML('beforeend',
+      '<p style="margin:12px 0 0;font-size:12.4px;color:var(--muted)">Showing the first 250 of ' +
+      show.length + ' — search to narrow it down.</p>');
+  }
+
+  if (TEXT.orphans && TEXT.orphans.length) {
+    $('#txtRows').insertAdjacentHTML('afterbegin',
+      '<div class="p-card" style="padding:13px 15px;margin-bottom:12px;background:#fffaf0;' +
+      'border:1px solid #f0dcb4"><b style="font:700 13px/1.4 var(--sans);color:#7a5510">' +
+      TEXT.orphans.length + ' earlier edit' + (TEXT.orphans.length === 1 ? '' : 's') +
+      ' no longer match anything on the page.</b>' +
+      '<p style="margin:6px 0 0;font-size:12.4px;color:#7a5510;line-height:1.55">The line ' +
+      'they replaced was reworded when the site was last rebuilt, so they are not being ' +
+      'applied. Nothing is broken — but if the wording mattered, make the change again ' +
+      'below.</p></div>');
+  }
+}
+
+function paintSheet() {
+  $('#dlRows').innerHTML = BLOCKS.map(([k, label]) =>
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+    '<b style="min-width:120px;font:700 13px/1.4 var(--sans)">' + esc(label) + '</b>' +
+    '<a class="btn btn-ghost btn-sm" href="/api/staff/content/' + k + '.xlsx">Excel</a>' +
+    '<a class="btn btn-ghost btn-sm" href="/api/staff/content/' + k + '.csv">CSV</a></div>').join('');
+  if (!$('#sWhat').options.length) {
+    $('#sWhat').innerHTML = BLOCKS.map(([k, label]) =>
+      '<option value="' + k + '">' + esc(label) + '</option>').join('');
+  }
+}
+
+function paintAll() {
+  paintPackages(); paintStats(); paintFaq(); paintStories(); paintText(); paintSheet();
+}
+
+async function reload() {
+  C = await api('GET', '/api/staff/content');
+  TEXT = C.text;
+  paintAll();
+}
+
+/* ------------------------------------------------------------ the packages */
+
+function openEditor(p) {
+  editing = p || null;
+  const v = p || {tab: 'study', sell: true, active: true, features: [], priceFrom: 'From',
+    quote: 'Priced after we assess your case', quoteSmall: 'Free first call · no obligation'};
+  $('#pmTitle').textContent = p ? 'Edit package' : 'Add a package';
+  $('#pmLead').textContent = p
+    ? 'Changes are on the home page, and in the checkout, as soon as you save.'
+    : 'It is on the home page as soon as you save.';
+  $('#pmDelete').style.display = p ? '' : 'none';
+  $('#pmErr').style.display = 'none';
+
+  const sel = (label, id, value, opts, help) =>
+    '<div class="field" style="margin-bottom:10px"><label for="' + id + '">' + esc(label) +
+    '</label><select id="' + id + '">' + opts.map(([o, t]) =>
+      '<option value="' + esc(o) + '"' + (String(o) === String(value) ? ' selected' : '') +
+      '>' + esc(t) + '</option>').join('') + '</select>' +
+    (help ? '<p style="margin:6px 0 0;font-size:11.6px;color:var(--muted);line-height:1.5">' +
+      help + '</p>' : '') + '</div>';
+
+  const pl = v.pledge || {};
+  $('#pmBody').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
+      tf('Name', 'fTitle', v.title, 'Boarding Pass') +
+      sel('Which tab', 'fTab', v.tab, C.packages.tabs.map(t => [t.key, t.label])) +
+    '</div>' +
+    ta('The line under the name', 'fDesc', v.desc, true) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
+      sel('How it is sold', 'fSell', v.sell ? '1' : '0',
+        [['1', 'A price and a Buy button'], ['0', 'Priced after we speak to them']],
+        'The second kind sends them to the enquiry form instead of checkout.') +
+      tf('Price, ₹', 'fPrice', v.priceInr || 0, '74999') +
+      tf('Word before the price', 'fFrom', v.priceFrom, 'From') +
+      tf('Note under the price', 'fNote', v.priceNote, 'including taxes') +
+      tf('Universities revealed', 'fUnlocks', v.unlocks || 0, '15') +
+      tf('Ribbon', 'fRibbon', v.ribbon, 'Most popular') +
+      tf('Instead of a price', 'fQuote', v.quote, 'Priced after we assess your case') +
+      tf('Small print under that', 'fQuoteSmall', v.quoteSmall, 'Free first call · no obligation') +
+      tf('Button label', 'fCta', v.cta, 'Choose Boarding Pass') +
+      tf('Button link', 'fHref', v.ctaHref, '#counsel') +
+    '</div>' +
+    ta("What's included — one per line", 'fFeatures', (v.features || []).join('\n'), true) +
+    '<h3 style="font-size:14px;margin:8px 0 10px">Guarantee panel</h3>' +
+    '<p style="margin:-4px 0 10px;font-size:11.8px;color:var(--muted);line-height:1.5">' +
+      'Leave the heading empty for no panel. This is a promise the business has to keep — ' +
+      'write it the way you would defend it.</p>' +
+    tf('Heading', 'fPlT', pl.title, 'An admission offer, guaranteed — or your money back.') +
+    ta('The promise', 'fPlB', pl.body, true) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px">' +
+      sel('Colour', 'fPlTone', pl.tone || 'green',
+        [['green', 'Green'], ['gold', 'Gold'], ['blue', 'Blue']]) +
+      tf('Terms link', 'fPlHref', pl.href, 'refunds.html#guarantee-terms') +
+      tf('Link text', 'fPlLink', pl.linkText || 'Full terms', 'Full terms') +
+    '</div>' +
+    ta('Tick box at checkout — leave empty for none', 'fConsent', v.consent, true) +
+    tick('Show this package on the website', 'fActive', v.active !== false) +
+    tick('Highlight it (raised card and a coloured button)', 'fFeatured', v.featured);
+
+  /* Half these fields belong to one kind of package and half to the other.
+     Showing all of them at once is how somebody fills in a price on a card
+     that says "priced after we assess your case". */
+  const showRelevant = () => {
+    const selling = $('#fSell').value === '1';
+    [['fPrice', selling], ['fFrom', selling], ['fNote', selling],
+     ['fQuote', !selling], ['fQuoteSmall', !selling], ['fHref', !selling]]
+      .forEach(([id, on]) => {
+        const box = $('#' + id).closest('.field');
+        if (box) box.style.display = on ? '' : 'none';
+      });
+  };
+  $('#fSell').addEventListener('change', showRelevant);
+  showRelevant();
+
+  $('#pkgModal').classList.add('on');
+  setTimeout(() => $('#fTitle').focus(), 50);
+}
+
+function readEditor() {
+  const sell = $('#fSell').value === '1';
+  return {
+    id: editing ? editing.id : '',
+    tab: $('#fTab').value,
+    title: $('#fTitle').value,
+    desc: $('#fDesc').value,
+    sell,
+    priceInr: sell ? Number($('#fPrice').value || 0) : 0,
+    priceFrom: $('#fFrom').value,
+    priceNote: $('#fNote').value,
+    unlocks: Number($('#fUnlocks').value || 0),
+    ribbon: $('#fRibbon').value,
+    quote: $('#fQuote').value,
+    quoteSmall: $('#fQuoteSmall').value,
+    cta: $('#fCta').value,
+    ctaHref: $('#fHref').value,
+    consent: $('#fConsent').value,
+    features: $('#fFeatures').value.split('\n').map(s => s.trim()).filter(Boolean),
+    active: $('#fActive').checked,
+    featured: $('#fFeatured').checked,
+    primary: $('#fFeatured').checked,
+    sort: editing ? editing.sort : 999,
+    pledge: $('#fPlT').value.trim() || $('#fPlB').value.trim() ? {
+      tone: $('#fPlTone').value, title: $('#fPlT').value, body: $('#fPlB').value,
+      href: $('#fPlHref').value, linkText: $('#fPlLink').value,
+    } : null,
+  };
+}
+
+const savePackages = items =>
+  api('PUT', '/api/staff/content/packages',
+    {value: Object.assign({}, C.packages, {items})});
+
+/* ------------------------------------------------------ the simple lists */
+
+const READ = {
+  stats: () => C.stats.map((s, n) => ({
+    num: $('#num' + n).value, label: $('#lbl' + n).value, dummy: $('#sd' + n).checked})),
+  faq: () => C.faq.map((f, n) => ({
+    q: $('#q' + n).value, a: $('#a' + n).value, dummy: $('#fd' + n).checked})),
+  testimonials: () => C.testimonials.map((t, n) => ({
+    name: $('#tn' + n).value, route: $('#tr' + n).value, where: $('#tw' + n).value,
+    quote: $('#tq' + n).value, verified: $('#tv' + n).checked, dummy: $('#td' + n).checked})),
+};
+const BLANK = {
+  stats: {num: '', label: '', dummy: true},
+  faq: {q: '', a: '', dummy: true},
+  testimonials: {name: '', route: '', where: '', quote: '', verified: false, dummy: true},
+};
+/* Which pane a list is in, so a save can repaint the right one without a
+   reload — a reload would throw away whatever else is half-typed on screen. */
+const PANE = {stats: 'num', faq: 'faq', testimonials: 'sto'};
+
+async function saveList(key, value) {
+  const r = await api('PUT', '/api/staff/content/' + key, {value});
+  C[key] = r.saved;
+  paintAll();
+  return r;
+}
+
+/* --------------------------------------------------------------- behaviour */
+
+document.addEventListener('click', async e => {
+  const t = e.target.closest('.tab[data-t]');
+  if (t) {
+    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
+    return;
+  }
+  if (e.target.closest('[data-close]') || e.target === $('#pkgModal')) {
+    $('#pkgModal').classList.remove('on');
+    return;
+  }
+
+  /* ---- packages ---- */
+  const ed = e.target.closest('[data-edit]');
+  if (ed) return openEditor(C.packages.items.find(p => p.id === ed.dataset.edit));
+  if (e.target.closest('#addPkg')) return openEditor(null);
+
+  const mv = e.target.closest('[data-move]');
+  if (mv) {
+    const items = C.packages.items.slice();
+    const i = items.findIndex(p => p.id === mv.dataset.move);
+    const dir = Number(mv.dataset.dir);
+    /* Within its own tab. Moving a package past the end of its tab and into
+       the next one is never what the arrow meant. */
+    const sameTab = items.filter(p => p.tab === items[i].tab);
+    const at = sameTab.indexOf(items[i]);
+    if (at + dir < 0 || at + dir >= sameTab.length) return;
+    const j = items.indexOf(sameTab[at + dir]);
+    items[i].sort = j + 1; items[j].sort = i + 1;
+    const tmp = items[i]; items[i] = items[j]; items[j] = tmp;
+    items.forEach((p, n) => { p.sort = n + 1; });
+    try { const r = await savePackages(items); C.packages = r.saved; paintPackages(); }
+    catch (err) { toast(err.message); }
+    return;
+  }
+
+  if (e.target.closest('#pmSave')) {
+    const body = readEditor();
+    $('#pmErr').style.display = 'none';
+    if (!body.title.trim()) {
+      $('#pmErr').textContent = 'A package needs a name.';
+      $('#pmErr').style.display = 'block';
+      return;
+    }
+    const items = C.packages.items.slice();
+    if (editing) {
+      const i = items.findIndex(p => p.id === editing.id);
+      items[i] = Object.assign({}, items[i], body);
+    } else {
+      body.id = body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        || ('pkg-' + (items.length + 1));
+      items.push(body);
+    }
+    try {
+      const r = await savePackages(items);
+      C.packages = r.saved;
+      $('#pkgModal').classList.remove('on');
+      paintPackages();
+      toast(editing ? 'Saved — it is live on the home page.' : 'Added — it is live on the home page.');
+    } catch (err) {
+      $('#pmErr').textContent = err.message;
+      $('#pmErr').style.display = 'block';
+    }
+    return;
+  }
+
+  if (e.target.closest('#pmDelete') && editing) {
+    const items = C.packages.items.filter(p => p.id !== editing.id);
+    if (!items.length) return toast('That is the last package. Hide it instead of removing it.');
+    try {
+      const r = await savePackages(items);
+      C.packages = r.saved;
+      $('#pkgModal').classList.remove('on');
+      paintPackages();
+      toast('Removed from the home page.');
+    } catch (err) { toast(err.message); }
+    return;
+  }
+
+  /* ---- the three simple lists ---- */
+  const add = e.target.closest('[data-add]');
+  if (add) {
+    const key = add.dataset.add;
+    C[key] = READ[key]().concat([BLANK[key]]);
+    paintAll();
+    return;
+  }
+  const rd = e.target.closest('[data-rdel]');
+  const rm = e.target.closest('[data-rmove]');
+  if (rd || rm) {
+    const pane = (rd || rm).closest('.pane').id.slice(2);
+    const key = Object.keys(PANE).find(k => PANE[k] === pane);
+    const rows = READ[key]();
+    if (rd) {
+      rows.splice(Number(rd.dataset.rdel), 1);
+      if (!rows.length) return toast('Leave at least one — an empty section is refused.');
+    } else {
+      const i = Number(rm.dataset.rmove), j = i + Number(rm.dataset.dir);
+      if (j < 0 || j >= rows.length) return;
+      const tmp = rows[i]; rows[i] = rows[j]; rows[j] = tmp;
+    }
+    try { await saveList(key, rows); toast('Saved.'); }
+    catch (err) { toast(err.message); }
+    return;
+  }
+  const sv = e.target.closest('[data-save]');
+  if (sv) {
+    try { await saveList(sv.dataset.save, READ[sv.dataset.save]()); toast('Saved — it is live.'); }
+    catch (err) { toast(err.message); }
+    return;
+  }
+
+  /* ---- page text ---- */
+  const ts = e.target.closest('[data-tsave]');
+  if (ts) {
+    const box = $('[data-tkey="' + ts.dataset.tsave.replace(/"/g, '\\"') + '"]');
+    try {
+      await api('PUT', '/api/staff/content/text', {key: ts.dataset.tsave, value: box.value});
+      await reloadText();
+      toast('Saved — it is live on the home page.');
+    } catch (err) { toast(err.message); }
+    return;
+  }
+  const tr = e.target.closest('[data-treset]');
+  if (tr) {
+    try {
+      await api('PUT', '/api/staff/content/text', {key: tr.dataset.treset, value: ''});
+      await reloadText();
+      toast('Back to what the page said before.');
+    } catch (err) { toast(err.message); }
+    return;
+  }
+
+  /* ---- the spreadsheet ---- */
+  if (e.target.closest('#sCheck')) {
+    $('#sOut').innerHTML = '';
+    $('#sBusy').style.display = '';
+    try { paintPlan(await sheetPost({})); }
+    catch (err) {
+      $('#sOut').innerHTML = '<p role="alert" style="margin:0;padding:11px 13px;border-radius:10px;' +
+        'font:600 12.8px/1.5 var(--sans);background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118">' +
+        esc(err.message) + '</p>';
+    } finally { $('#sBusy').style.display = 'none'; }
+    return;
+  }
+  if (e.target.closest('#sCancel')) { $('#sOut').innerHTML = ''; return; }
+  if (e.target.closest('#sApply')) {
+    const btn = e.target.closest('#sApply');
+    btn.disabled = true; btn.textContent = 'Applying…';
+    try {
+      const r = await sheetPost({confirm: 'yes'});
+      await reload();
+      $('#sOut').innerHTML = '<p style="margin:0;padding:12px 14px;border-radius:10px;' +
+        'font:600 13px/1.55 var(--sans);background:#f1f8f3;border:1px solid #c8e3d0;color:#1d5c33">' +
+        (r.applied ? 'Done — it is live on the home page now.' : 'Done.') + '</p>';
+      $('#sFile').value = '';
+      toast('Home page updated from the sheet.');
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'Try again';
+      toast(err.message);
+    }
+    return;
+  }
+});
+
+async function reloadText() {
+  const r = await api('GET', '/api/staff/content');
+  C = r; TEXT = r.text;
+  paintAll();
+}
+
+/* ---------------------------------------------------------- the spreadsheet */
+
+async function sheetPost(fields) {
+  const f = $('#sFile').files[0];
+  if (!f) throw new Error('Choose a file first.');
+  const fd = new FormData();
+  fd.append('file', f, f.name);
+  Object.keys(fields || {}).forEach(k => fd.append(k, fields[k]));
+  const what = $('#sWhat').value;
+  const url = what === 'text'
+    ? '/api/staff/content/text/import'
+    : '/api/staff/content/' + what + '/import';
+  const r = await fetch(url, {method: 'POST', credentials: 'same-origin', body: fd});
+  if (r.status === 401) { location.href = 'login.html'; throw new Error('signed out'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(data.error || ('HTTP ' + r.status)); e.data = data; throw e; }
+  return data;
+}
+
+const list = (title, items, render, tone) => items && items.length
+  ? '<h3 style="font-size:13.6px;margin:20px 0 0' + (tone ? ';color:' + tone : '') + '">' +
+    esc(title) + '</h3><ul class="doclist" style="margin:10px 0 0">' +
+    items.slice(0, 12).map(render).join('') +
+    (items.length > 12 ? '<li style="color:var(--muted)"><span>… and ' +
+      (items.length - 12) + ' more</span></li>' : '') + '</ul>'
+  : '';
+
+function paintPlan(d) {
+  const c = d.counts || {}, p = d.plan || {};
+  const box = (n, label, tone) => '<div><b style="color:' + tone + '">' + n +
+    '</b><span>' + label + '</span></div>';
+  const isText = $('#sWhat').value === 'text';
+
+  let html = '<div class="out" style="grid-template-columns:repeat(' +
+    (isText ? 3 : 4) + ',1fr);margin:0">' +
+    (isText
+      ? box(c.change || 0, 'to reword', 'var(--navy-900)') +
+        box(c.revert || 0, 'back to original', 'var(--muted)') +
+        box(c.rejected || 0, 'cannot use', (c.rejected ? '#a5311f' : 'var(--muted)'))
+      : box(c.total || 0, 'will be on the page', 'var(--navy-900)') +
+        box(c.create || 0, 'new', 'var(--navy-900)') +
+        box(c.removed || 0, 'come off the page', (c.removed ? '#a5311f' : 'var(--muted)')) +
+        box(c.rejected || 0, 'cannot use', (c.rejected ? '#a5311f' : 'var(--muted)'))) +
+    '</div>';
+
+  if (d.note) {
+    html += '<p style="margin:14px 0 0;padding:11px 13px;border-radius:10px;background:#fffaf0;' +
+      'border:1px solid #f0dcb4;font:600 12.6px/1.55 var(--sans);color:#7a5510">' +
+      esc(d.note) + '</p>';
+  }
+  if ((p.unknownColumns || []).length) {
+    html += '<p style="margin:10px 0 0;font:600 12.4px/1.5 var(--sans);color:var(--muted)">' +
+      'Columns that were not recognised and were left alone: ' +
+      p.unknownColumns.map(esc).join(', ') + '</p>';
+  }
+
+  html += list('Rows that cannot be used', p.rejected, r =>
+    '<li><span style="flex:1"><b>Row ' + r.line + '</b> — ' + esc(r.what || '(blank)') +
+    '<br><span style="font-size:11.8px;color:#a5311f">' + r.why.map(esc).join('; ') +
+    '</span></span></li>');
+  html += list('Coming off the page', p.removed, r =>
+    '<li><span style="flex:1">' + esc(r.what) + '</span></li>', '#a5311f');
+  html += list('New', p.create, r => '<li><span style="flex:1">' + esc(r.what) + '</span></li>');
+  html += list('Reworded', p.change, r =>
+    '<li><span style="flex:1"><b>' + esc(r.section) + '</b><br>' +
+    '<span style="font-size:11.8px;color:var(--muted)">' + esc(r.was) + '</span><br>' +
+    esc(r.now) + '</span></li>');
+  html += list('Back to original', p.revert, r =>
+    '<li><span style="flex:1">' + esc(r.now) + '</span></li>');
+
+  const n = isText ? (c.change || 0) + (c.revert || 0) : (c.total || 0);
+  if (!n) {
+    html += '<p style="margin:18px 0 0;font:600 13px/1.5 var(--sans)">' +
+      'Nothing in that sheet changes anything.</p>';
+  } else {
+    html += '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:20px;' +
+      'padding-top:18px;border-top:1px solid var(--line,#e6e9ee)">' +
+      '<button type="button" class="btn btn-primary" id="sApply">Apply this</button>' +
+      '<button type="button" class="btn btn-ghost" id="sCancel">Cancel</button></div>';
+  }
+  $('#sOut').innerHTML = html;
+}
+
+/* ------------------------------------------------------------------- boot */
+
+['tq', 'tsec', 'tonly'].forEach(id => {
+  $('#' + id).addEventListener('input', paintText);
+  $('#' + id).addEventListener('change', paintText);
+});
+$('#sFile').addEventListener('change', () => { $('#sOut').innerHTML = ''; });
+$('#sWhat').addEventListener('change', () => { $('#sOut').innerHTML = ''; });
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') $('#pkgModal').classList.remove('on');
+});
+
+/* The three simple lists save as a block, so each pane gets one Save button
+   rather than one per row — a row-level save on a block API would write the
+   other rows' half-typed state along with it. */
+['num', 'faq', 'sto'].forEach(pane => {
+  const key = Object.keys(PANE).find(k => PANE[k] === pane);
+  const host = document.getElementById('t-' + pane).querySelector('.p-card');
+  host.insertAdjacentHTML('beforeend',
+    '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line,#e6e9ee)">' +
+    '<button type="button" class="btn btn-primary" data-save="' + key + '">Save this section</button>' +
+    '</div>');
+});
+
+staffBoot(async me => {
+  /* The API refuses the change anyway. This is so the refusal is not the first
+     thing they learn about it, after typing a page of copy. */
+  if ((me.user.perms || []).indexOf('content') < 0) {
+    document.querySelector('.p-main').innerHTML =
+      '<div class="sl-empty" style="margin-top:40px"><b>You do not have access to the home page</b>' +
+      '<p>An administrator can give it to you on the Organisation screen &mdash; it is a tick box beside your name.</p>' +
+      '<a class="btn btn-primary" href="counsellor.html">Go to Conversations</a></div>';
+    return;
+  }
+
+  await reload();
+  connectLive({});
+});
+"""

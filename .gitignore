@@ -1,0 +1,13 @@
+# The database, every uploaded passport scan, and the outbox. Never in git:
+# this is student personal data, and a git history is forever.
+data/
+data-shared/
+
+# SMTP and WhatsApp credentials.
+mail.env
+
+# Half-written files from an interrupted build.
+*.tmp
+
+.DS_Store
+node_modules/

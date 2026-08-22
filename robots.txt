@@ -1,0 +1,3 @@
+# preview build - not for indexing
+User-agent: *
+Disallow: /

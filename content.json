@@ -1,0 +1,4242 @@
+{
+ "packages": {
+  "eyebrow": "Public University Packages",
+  "heading": "Packages for public university admission & work abroad",
+  "tabs": [
+   {
+    "key": "study",
+    "label": "Public University Admission"
+   },
+   {
+    "key": "work",
+    "label": "Work Abroad"
+   },
+   {
+    "key": "migrate",
+    "label": "Migration & PR"
+   }
+  ],
+  "items": [
+   {
+    "id": "pkg-roadmap",
+    "tab": "study",
+    "sort": 1,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Roadmap",
+    "desc": "The universities you qualify for, the cost of each, and the loan that covers it.",
+    "unlocks": 5,
+    "features": [
+     "Shortlist of up to 5 universities",
+     "2 counselling sessions",
+     "SOP & CV review",
+     "Scholarship guidance",
+     "Education loan assistance",
+     "Blocked account setup",
+     "Health & travel insurance",
+     "Forex & fee payment assistance"
+    ],
+    "sell": true,
+    "priceInr": 9999,
+    "priceFrom": "From",
+    "priceNote": "one-time",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Roadmap",
+    "ctaHref": "",
+    "consent": "",
+    "pledge": null
+   },
+   {
+    "id": "pkg-offer",
+    "tab": "study",
+    "sort": 2,
+    "active": true,
+    "featured": true,
+    "primary": true,
+    "ribbon": "Most popular",
+    "title": "Offer Letter",
+    "desc": "Ten applications, executed end to end: written to your strengths, filed on time, and followed up at every step.",
+    "unlocks": 10,
+    "features": [
+     "Unlimited counselling",
+     "Shortlist and applications to 10 universities",
+     "Full SOP, LOR & essay support",
+     "Visa filing & interview prep",
+     "Education loan assistance",
+     "Blocked account setup",
+     "Health & travel insurance",
+     "Forex & fee payment assistance"
+    ],
+    "sell": true,
+    "priceInr": 49999,
+    "priceFrom": "From",
+    "priceNote": "including taxes",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Offer Letter",
+    "ctaHref": "",
+    "consent": "",
+    "pledge": {
+     "tone": "green",
+     "title": "Every application pursued to a decision.",
+     "body": "We do not stop at submission - we follow up until each university has answered.",
+     "href": "refunds.html#guarantee-terms",
+     "linkText": "Full terms"
+    }
+   },
+   {
+    "id": "pkg-boarding",
+    "tab": "study",
+    "sort": 3,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Boarding Pass",
+    "desc": "Admission secured, or your money back - your documents in order, your funds in place, your visa applied for, and your arrival arranged before you board.",
+    "unlocks": 15,
+    "features": [
+     "Everything in Offer Letter",
+     "Shortlist and applications to 15 universities, across 2 intakes",
+     "Dedicated senior mentor",
+     "Pre-departure briefing & checklist",
+     "Education loan assistance",
+     "Blocked account setup",
+     "Health & travel insurance",
+     "Forex & fee payment assistance"
+    ],
+    "sell": true,
+    "priceInr": 74999,
+    "priceFrom": "From",
+    "priceNote": "premium",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Boarding Pass",
+    "ctaHref": "",
+    "consent": "I understand the admission guarantee applies to the shortlist I agree with my counsellor after this purchase, and that the visa is decided by the consulate, not Glovels.",
+    "pledge": {
+     "tone": "gold",
+     "title": "An admission offer, guaranteed - or your money back.",
+     "body": "If no university on your agreed shortlist makes you an offer, we return the package fee in full.",
+     "href": "refunds.html#guarantee-terms",
+     "linkText": "Full terms"
+    }
+   },
+   {
+    "id": "work-opportunity",
+    "tab": "work",
+    "sort": 4,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Job Opportunity Card",
+    "desc": "Get to Germany and search on the ground.",
+    "unlocks": 0,
+    "features": [
+     "Eligibility Check",
+     "German-format CV & LinkedIn",
+     "Blocked account setup",
+     "Visa Filing"
+    ],
+    "sell": true,
+    "priceInr": 29999,
+    "priceFrom": "From",
+    "priceNote": "",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Get started",
+    "ctaHref": "",
+    "consent": "",
+    "pledge": null
+   },
+   {
+    "id": "work-nursing",
+    "tab": "work",
+    "sort": 5,
+    "active": true,
+    "featured": true,
+    "primary": true,
+    "ribbon": "For healthcare",
+    "title": "Nursing & Medical",
+    "desc": "Recognition, licensing and work-visa support for nurses, doctors & pharma roles.",
+    "unlocks": 0,
+    "features": [
+     "German language (A1-B2) roadmap",
+     "Recognition (Anerkennung) support",
+     "Employer introductions",
+     "Contract & visa handling",
+     "Post-landing documentation guidance"
+    ],
+    "sell": true,
+    "priceInr": 49999,
+    "priceFrom": "From",
+    "priceNote": "",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Talk to an expert",
+    "ctaHref": "",
+    "consent": "",
+    "pledge": null
+   },
+   {
+    "id": "work-skilled",
+    "tab": "work",
+    "sort": 6,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Skilled Professional",
+    "desc": "EU Blue Card & Opportunity Card pathway.",
+    "unlocks": 0,
+    "features": [
+     "Blue Card / Opportunity Card check",
+     "Credential assessment",
+     "Interview & salary coaching",
+     "Work visa filing"
+    ],
+    "sell": true,
+    "priceInr": 44999,
+    "priceFrom": "From",
+    "priceNote": "",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Get started",
+    "ctaHref": "",
+    "consent": "",
+    "pledge": null
+   },
+   {
+    "id": "mig-canada",
+    "tab": "migrate",
+    "sort": 7,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Canada Express Entry",
+    "desc": "PR pathway via the federal points system.",
+    "unlocks": 0,
+    "features": [
+     "CRS score assessment",
+     "ECA & IELTS planning",
+     "Express Entry profile filing",
+     "PNP nomination guidance"
+    ],
+    "sell": false,
+    "priceInr": 0,
+    "priceFrom": "From",
+    "priceNote": "",
+    "quote": "Priced after we assess your case",
+    "quoteSmall": "Free first call · no obligation",
+    "cta": "Check eligibility",
+    "ctaHref": "#counsel",
+    "consent": "",
+    "pledge": null
+   },
+   {
+    "id": "mig-australia",
+    "tab": "migrate",
+    "sort": 8,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Australia PR",
+    "desc": "Skilled migration under points-tested visas.",
+    "unlocks": 0,
+    "features": [
+     "Points & occupation-list check",
+     "Skills assessment support",
+     "EOI & SkillSelect filing",
+     "State nomination strategy",
+     "Document & health prep"
+    ],
+    "sell": false,
+    "priceInr": 0,
+    "priceFrom": "From",
+    "priceNote": "",
+    "quote": "Priced after we assess your case",
+    "quoteSmall": "Free first call · no obligation",
+    "cta": "Check eligibility",
+    "ctaHref": "#counsel",
+    "consent": "",
+    "pledge": null
+   },
+   {
+    "id": "mig-docs",
+    "tab": "migrate",
+    "sort": 9,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Documentation Plus",
+    "desc": "Attestation, translation & compliance done right.",
+    "unlocks": 0,
+    "features": [
+     "Document attestation",
+     "Certified translations",
+     "Police clearance guidance",
+     "Financial documentation"
+    ],
+    "sell": false,
+    "priceInr": 0,
+    "priceFrom": "From",
+    "priceNote": "",
+    "quote": "Priced after we assess your case",
+    "quoteSmall": "Free first call · no obligation",
+    "cta": "Request a quote",
+    "ctaHref": "#counsel",
+    "consent": "",
+    "pledge": null
+   }
+  ]
+ },
+ "stats": [
+  {
+   "num": "3,200+",
+   "label": "students placed abroad",
+   "dummy": true
+  },
+  {
+   "num": "15+",
+   "label": "destination countries",
+   "dummy": true
+  },
+  {
+   "num": "Rs 0-3L",
+   "label": "tuition at the public universities we match",
+   "dummy": false
+  },
+  {
+   "num": "24 hrs",
+   "label": "to your first shortlist after enrolment",
+   "dummy": true
+  }
+ ],
+ "faq": [
+  {
+   "q": "Can I study abroad for free?",
+   "a": "In Germany, public universities charge no tuition — you pay only a semester contribution of roughly €150–350. You still need living costs and a blocked account, so \"free\" means free tuition, not a free degree.",
+   "dummy": true
+  },
+  {
+   "q": "What CGPA do I need for a public university in Germany?",
+   "a": "Most public universities look for 7.5 or above on 10. Between 7.0 and 7.5 a smaller set stays open, and below 7.0 a pathway or a private university is usually the realistic route.",
+   "dummy": true
+  },
+  {
+   "q": "How much does a study abroad consultant cost in India?",
+   "a": "Individual services start at a few hundred rupees; full end-to-end packages run from ₹9,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.",
+   "dummy": true
+  },
+  {
+   "q": "How long does a German student visa take?",
+   "a": "Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.",
+   "dummy": true
+  }
+ ],
+ "testimonials": [
+  {
+   "route": "India → Germany",
+   "verified": true,
+   "quote": "Admitted to TU Darmstadt for the M.Sc. in Information & Communication Engineering.",
+   "name": "Ram",
+   "where": "Public university · Germany",
+   "dummy": true
+  },
+  {
+   "route": "India → Germany",
+   "verified": true,
+   "quote": "Admitted to RWTH Aachen for the M.Sc. in Data Science.",
+   "name": "Arya",
+   "where": "Public university · Germany",
+   "dummy": true
+  },
+  {
+   "route": "India → Germany",
+   "verified": true,
+   "quote": "Admitted to FAU Erlangen–Nürnberg for the M.Sc. in Information & Communication Technology.",
+   "name": "Sakshi",
+   "where": "Public university · Germany",
+   "dummy": true
+  }
+ ],
+ "text": [
+  {
+   "key": "page|title|a98e4e2f|0",
+   "section": "page",
+   "kind": "title",
+   "element": "title",
+   "original": "Study Abroad Consultants in Hyderabad | Public University Admissions | Glovels",
+   "note": "The browser tab, and the blue line in Google.",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|meta-description|89f2800b|0",
+   "section": "page",
+   "kind": "meta-description",
+   "element": "meta",
+   "original": "Glovels matches Indian students to public universities abroad where tuition is ₹0–₹3L, then handles the applications, the funding and the visa. Free first counselling session.",
+   "note": "Google shows this under the page title in search results.",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|div|f7e613cb|0",
+   "section": "page",
+   "kind": "text",
+   "element": "div",
+   "original": "GLOVELS SALES SITE · all six blocks · built 2026-08-18 16:57 from Glovels_Content_Master.xlsx · 171 programmes, 7 countries",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|ef719001|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "Offline copy.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|div|ff4c9049|0",
+   "section": "page",
+   "kind": "text",
+   "element": "div",
+   "original": "The forms cannot send from a local file, and web fonts need internet. Everything else works, including Pay.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|07a5c39a|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "Dummy data in use — do not quote any figure here to a student.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|div|0b1fd8df|0",
+   "section": "page",
+   "kind": "text",
+   "element": "div",
+   "original": "18 private programmes, 6 countries, 25 cities, 4 stats evidence lines, 3 success stories (consent NOT on file), 4 FAQ entries. Every placeholder is listed in",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|code|f50970e7|0",
+   "section": "page",
+   "kind": "text",
+   "element": "code",
+   "original": "DUMMY_DATA.md",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|attr:aria-label|13e3e668|0",
+   "section": "header",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "Glovels — home",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|attr:aria-label|0e72547f|0",
+   "section": "header",
+   "kind": "attr:aria-label",
+   "element": "span",
+   "original": "Glovels",
+   "note": "the aria-label on a <span>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|attr:aria-label|51707928|0",
+   "section": "header",
+   "kind": "attr:aria-label",
+   "element": "nav",
+   "original": "Main",
+   "note": "the aria-label on a <nav>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|6dda792a|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "About Us",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|button|9e2cebef|0",
+   "section": "header",
+   "kind": "text",
+   "element": "button",
+   "original": "Study Abroad",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|0f3ff758|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|215cfc45|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Canada",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|f8d648c1|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in United Kingdom",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|8f529ad2|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Ireland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|53431427|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Poland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|c4bdbe3c|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Spain",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|dcc37dd2|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Italy",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|button|895da821|0",
+   "section": "header",
+   "kind": "text",
+   "element": "button",
+   "original": "Work Abroad",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|441d8cb9|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Medical PG in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|de026f53|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Nursing Jobs in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|dccb6d5b|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Germany Opportunity Card",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|740862e2|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Pharma Jobs in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|button|5622081e|0",
+   "section": "header",
+   "kind": "text",
+   "element": "button",
+   "original": "Migrate",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|243357c3|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Canada PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|296e2649|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Australia PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|button|f48d2208|0",
+   "section": "header",
+   "kind": "text",
+   "element": "button",
+   "original": "Test Prep",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|8c7d7572|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "IELTS, TOEFL",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|8b2b50cc|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "PTE",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|e7e5799a|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "GRE, GMAT",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|18f6a9f7|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "SAT",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|ca811303|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "German classes",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|07aa9dcd|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "French classes",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|63b30055|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Services",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|a3947e38|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Packages",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|c79c4311|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Blog",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|73ac94c3|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Contact",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|744be623|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Sign in",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|dacaf61d|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Book Free Counselling",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|attr:aria-label|b79c01dc|0",
+   "section": "header",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Open menu",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|00c6075a|0",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "aside",
+   "original": "Menu",
+   "note": "the aria-label on a <aside>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|13e3e668|0",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "Glovels — home",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|0e72547f|0",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "span",
+   "original": "Glovels",
+   "note": "the aria-label on a <span>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|58ee52ce|0",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Close menu",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|6dda792a|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "About Us",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|9e2cebef|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Study Abroad",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|0f3ff758|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|215cfc45|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Canada",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|f8d648c1|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in United Kingdom",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|8f529ad2|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Ireland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|53431427|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Poland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|c4bdbe3c|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Spain",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|dcc37dd2|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Italy",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|895da821|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Work Abroad",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|441d8cb9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Medical PG in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|de026f53|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Nursing Jobs in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|dccb6d5b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Germany Opportunity Card",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|740862e2|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Pharma Jobs in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|5622081e|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Migrate",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|243357c3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Canada PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|296e2649|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Australia PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|f48d2208|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Test Prep",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|8c7d7572|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "IELTS, TOEFL",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|8b2b50cc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "PTE",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|e7e5799a|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "GRE, GMAT",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|18f6a9f7|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "SAT",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|ca811303|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "German classes",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|07aa9dcd|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "French classes",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|63b30055|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Services",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|a3947e38|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Packages",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|c79c4311|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Blog",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|73ac94c3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Contact",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|744be623|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Sign in",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|dacaf61d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Book Free Counselling",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "section-1|h1|0104ff17|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "h1",
+   "original": "Find your university",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|em|bd8499af|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "em",
+   "original": "in seconds",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|p|636cb7f8|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "p",
+   "original": "Your country, level and CGPA — instant matches, including public universities.",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|span|be305a18|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "span",
+   "original": "· 3,200+ students placed abroad",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|div|d36224ee|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "div",
+   "original": "Your journey",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|div|3aa3c271|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "div",
+   "original": "Shortlist",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|div|0af310ac|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "div",
+   "original": "Application Processing",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|div|1bea756d|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "div",
+   "original": "Financial Planning",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|div|41fdab89|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "div",
+   "original": "Visa Filing",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "section-1|div|7ecc6bac|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "div",
+   "original": "Post-Visa Support",
+   "note": "",
+   "sectionLabel": "Find your university"
+  },
+  {
+   "key": "page|label|04f4fe71|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Country",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|51bfe22d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Any destination",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|2d5f0b05|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "🇨🇦 Canada (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|52182611|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "🇬🇧 United Kingdom (4)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|6123a17c|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "🇩🇪 Germany (158)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|99475c67|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "🇮🇪 Ireland (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|a28d8f6d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "🇮🇹 Italy (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|e84948b7|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "🇵🇱 Poland (3)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|d42d47c7|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "🇪🇸 Spain (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|8692c568|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Study level",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|174c8e47|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Any level",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|f8d8694f|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Bachelor's (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|b1ddfc89|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Diploma / PG Diploma (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|dc072865|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Foundation / Pathway (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|2d261edd|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Master's (164)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|c06bab06|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "MBA (4)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|0fb83d07|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Field",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|2d7c3ae9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Any field",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|a40ce017|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Animation, Film",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|679fa5a9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Game Design (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|278c981b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Arts",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|89189169|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Design (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|9a5733df|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Fashion",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|0c81599d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Luxury Management (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|d10fcaa3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Media",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|06deae85|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Communication (9)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|07dbaf6b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Business",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|3aa61c22|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Management (18)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|d4d75e15|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Finance, Banking",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|a2d9a081|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Accounting (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|97c6b302|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Hospitality, Tourism",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|58a484a9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Events (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|647a24bc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "MBA (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|54cb9b0f|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Marketing",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|8a100ae9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Digital Media (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|941807a2|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Aerospace",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|fbb2e399|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Robotics (6)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|82574932|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Computer Science",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|c1bf8aa9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "IT (20)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|1f0230ac|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Cybersecurity",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|92279642|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Cloud (3)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|702f40a9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Data Science, AI",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|e3d9b6de|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Machine Learning (23)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|258666d3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Electrical",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|6025570b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Electronics Engineering (12)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|0d21b612|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Mechanical",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|1136cf62|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Automotive Engineering (13)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|83a189e3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Biotechnology",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|10017196|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Bioinformatics (14)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|ef72d015|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Medicine, Dentistry",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|4e98067d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Allied Health (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|bb8d4c26|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Public Health",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|3fd88bf8|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Healthcare Management (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|bcb36992|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Economics (8)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|8fd6914a|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "International Relations",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|5a24c7bb|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Public Policy (2)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|9b41ec42|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Agriculture",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|b46dbbd1|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Food Science (1)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|e7a2758d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Environmental Science",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|bdaf117c|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Sustainability (7)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|2026c6b6|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Natural Sciences (Physics, Chemistry, Maths) (14)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|b0eec76e|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Renewable Energy (7)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|4e499543|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Your CGPA",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|920c7e77|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Convert %",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|f3ba11a6|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Any CGPA",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|10f22d0e|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "below 6.0",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|fe99b215|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Intake",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|f6058e4f|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Any intake",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|f44d37ec|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Summer 2026 (67)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|55341401|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Winter 2026 (109)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|0aecf5ef|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Summer 2027 (25)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|4b22edf9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Winter 2027 (52)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|5dc7ac27|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Find Programs",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|b4b42f84|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "Admits at",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|22f59556|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "TU Munich",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|b3ca1a6b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "FAU Erlangen-Nürnberg",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|62a6612e|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Deggendorf Institute of Technology (TH Deggendorf)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|b67c2183|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "TU Dortmund University",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|72931b9b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Uni Trier",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|fbd1ac89|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Justus Liebig University Giessen",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|611a45b3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Darmstadt University of Applied Sciences (h_da)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|1f909a5d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "Under ₹10L",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|ccdfbfa0|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Public",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|5eef05e7|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "low-cost picks",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|d2db9dcc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "Under ₹20L",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|a0d2d8d0|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Best-value programs",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|cd90510f|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "₹20L+",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|c8785017|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Premium destinations",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|6e9c9140|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "Top-ranked",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|b9cab1ab|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "Top-ranked worldwide",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|h3|ef56dcb7|0",
+   "section": "results",
+   "kind": "text",
+   "element": "h3",
+   "original": "Popular programs this intake",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|button|280728be|0",
+   "section": "results",
+   "kind": "text",
+   "element": "button",
+   "original": "Lock again",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|label|146f2256|0",
+   "section": "results",
+   "kind": "text",
+   "element": "label",
+   "original": "Currency",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|option|dac398a4|0",
+   "section": "results",
+   "kind": "text",
+   "element": "option",
+   "original": "INR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|option|c354faa7|0",
+   "section": "results",
+   "kind": "text",
+   "element": "option",
+   "original": "EUR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|option|9b6bdda7|0",
+   "section": "results",
+   "kind": "text",
+   "element": "option",
+   "original": "USD",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|option|d8e964f4|0",
+   "section": "results",
+   "kind": "text",
+   "element": "option",
+   "original": "GBP",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|option|839eb04d|0",
+   "section": "results",
+   "kind": "text",
+   "element": "option",
+   "original": "AUD",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|option|394e59f7|0",
+   "section": "results",
+   "kind": "text",
+   "element": "option",
+   "original": "CAD",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|button|31f1fa93|0",
+   "section": "results",
+   "kind": "text",
+   "element": "button",
+   "original": "See our packages",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|span|49bbf82b|0",
+   "section": "results",
+   "kind": "text",
+   "element": "span",
+   "original": "Private universities are free to view. Public matches unlock with a package.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|d69b43b7|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "Public university matches unlock with a package — from ₹9,999.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|31f1fa93|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "See our packages",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|cd86acc3|0",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Close",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|h3|4abc8a6d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "h3",
+   "original": "Convert your marks",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|d1983efe|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "Percentage, CGPA-10 and GPA-4 at once — then drop the answer into the finder.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|49d1e7cc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Your score",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:placeholder|d663220e|0",
+   "section": "page",
+   "kind": "attr:placeholder",
+   "element": "input",
+   "original": "e.g. 78",
+   "note": "the placeholder on a <input>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|803c4b06|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "On this scale",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|745595d5|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Percentage",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|d7fed272|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "CGPA out of 10",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|f5cadbbe|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "GPA out of 4",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|a3493def|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Conversion formula",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|97537db5|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "percentage",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|0c12ad2a|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "CGPA / 10",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|b6d496c0|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "GPA / 4",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|097196bc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Use this in the finder",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|d424ae57|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "An estimate, not an official conversion.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|div|3de11501|0",
+   "section": "page",
+   "kind": "text",
+   "element": "div",
+   "original": "Indian universities differ — always go by the figure printed on your transcript.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|cd86acc3|1",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Close",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|h3|b1fbf0cd|0",
+   "section": "page",
+   "kind": "text",
+   "element": "h3",
+   "original": "Entry requirements",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|cd86acc3|2",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Close",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|h3|4a06ab59|0",
+   "section": "page",
+   "kind": "text",
+   "element": "h3",
+   "original": "Checkout",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|b5aba4a3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "Demo mode — nothing will be charged.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|c35b0729|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Pay",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|ae7623dc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "Demo mode · no payment is taken",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|a8c52ec5|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "By paying you accept our",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|9435adcc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Terms",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|0f29c2a6|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "and",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|7900117f|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Refund",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|c64375dc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Cancellation policy",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "services|span|e7fffff6|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "Popular services",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|h2|9745e1af|0",
+   "section": "services",
+   "kind": "text",
+   "element": "h2",
+   "original": "Book exactly what you need — every price upfront",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|p|02ed88f8|0",
+   "section": "services",
+   "kind": "text",
+   "element": "p",
+   "original": "Not everyone needs a full package — pick individual services and pay only for what you use.",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|i|84517da4|0",
+   "section": "services",
+   "kind": "text",
+   "element": "i",
+   "original": "AI draft",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|i|69f2feaa|0",
+   "section": "services",
+   "kind": "text",
+   "element": "i",
+   "original": "Human final",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|b|139b7fbc|0",
+   "section": "services",
+   "kind": "text",
+   "element": "b",
+   "original": "Your SOP and your recommendation letters, drafted in a minute",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|button|2c4625e7|0",
+   "section": "services",
+   "kind": "text",
+   "element": "button",
+   "original": "Try it free — no sign-in",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|b|8fc39ac1|0",
+   "section": "services",
+   "kind": "text",
+   "element": "b",
+   "original": "Tell it about you",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|p|63ad46ea|0",
+   "section": "services",
+   "kind": "text",
+   "element": "p",
+   "original": "Four questions — your programme, what you've done, and why this course.",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|b|d6cb5e26|0",
+   "section": "services",
+   "kind": "text",
+   "element": "b",
+   "original": "AI writes draft one",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|p|92949110|0",
+   "section": "services",
+   "kind": "text",
+   "element": "p",
+   "original": "A full statement or letter in about a minute. Rewrite any paragraph you don't like.",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|b|569594e1|0",
+   "section": "services",
+   "kind": "text",
+   "element": "b",
+   "original": "A human finishes it",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|p|77209bac|0",
+   "section": "services",
+   "kind": "text",
+   "element": "p",
+   "original": "Your writer rewrites it with you — a raw AI draft costs you the application.",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|44ab6d3a|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "Most Booked",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|f9c8c624|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "Consultation",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|f48d2208|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "Test Prep",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|9a73db9b|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "Language",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|c0f2b097|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "Loan / financial services",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|ca0a79bd|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "0 services",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|button|04a57fc2|0",
+   "section": "services",
+   "kind": "text",
+   "element": "button",
+   "original": "Clear",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|button|895ee4e2|0",
+   "section": "services",
+   "kind": "text",
+   "element": "button",
+   "original": "Continue →",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|p|658935e2|0",
+   "section": "services",
+   "kind": "text",
+   "element": "p",
+   "original": "Every service is delivered by Glovels' in-house counsellors and admissions writers, with a fixed turnaround.",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|b|0a669e88|0",
+   "section": "services",
+   "kind": "text",
+   "element": "b",
+   "original": "Already on a package?",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|p|6f5eaea4|0",
+   "section": "services",
+   "kind": "text",
+   "element": "p",
+   "original": "Most of these are included — check with your counsellor before buying separately.",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "page|attr:aria-label|cd86acc3|3",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Close",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|h3|ef0beb85|0",
+   "section": "page",
+   "kind": "text",
+   "element": "h3",
+   "original": "Your plan",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|b5aba4a3|1",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "Demo mode — nothing will be charged.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|c35b0729|1",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Pay",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|ae7623dc|1",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "Demo mode · no payment is taken",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|a8c52ec5|1",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "By paying you accept our",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|9435adcc|1",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Terms",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|0f29c2a6|1",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "and",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|7900117f|1",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Refund",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|c64375dc|1",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Cancellation policy",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|cd86acc3|4",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Close",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|h3|e0fd8c4d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "h3",
+   "original": "AI SOP",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|h3|d589457c|0",
+   "section": "page",
+   "kind": "text",
+   "element": "h3",
+   "original": "LOR Studio",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|b45f9825|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "Answer four short questions and get a real first draft in under a minute — built only from what you tell it, then rewritten with you by a Glovels admissions writer.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|06d1b425|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "A draft, not a submission.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|div|70eea4b8|0",
+   "section": "page",
+   "kind": "text",
+   "element": "div",
+   "original": "Universities run originality and AI-detection checks, and a statement that reads as machine-written costs you the application. Every draft here is rewritten with a human writer before it goes anywhere — that review is what you are paying for.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "section-2|span|be2c1139|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "Your student dashboard",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|h2|92e2c192|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "h2",
+   "original": "Everything above, waiting the moment you sign in",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|p|4c2badd6|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "p",
+   "original": "Your shortlist, application tracker, deadlines and counsellor messages — one dashboard.",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|c37f61b6|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "app.glovels.com/dashboard",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|attr:aria-label|0e72547f|0",
+   "section": "section-2",
+   "kind": "attr:aria-label",
+   "element": "span",
+   "original": "Glovels",
+   "note": "the aria-label on a <span>",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|11f6d87b|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Dashboard",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|bbf9687a|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "My Profile",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|5a036285|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Documents",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|f8611fd5|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Messages",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|h3|48e13026|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "h3",
+   "original": "Welcome back",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|p|d598ecb3|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "p",
+   "original": "Here's where your application stands — United Kingdom, public universities.",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|c9b608d2|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Message my counsellor",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|h4|1da80d5f|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "h4",
+   "original": "Foundation Year — Business",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|88599d7e|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Arden University · Coventry",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|8bc8116e|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "Matched · 80% fit",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|72be2c53|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Tuition:",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|47e11601|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "· Private",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|f79ab23d|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Deadline:",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|8c55e65c|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "31 Aug 2026",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|9b00c952|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Continue application",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|h4|58dfef15|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "h4",
+   "original": "MSc Computer Science",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|5cf74661|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Vistula University · Warsaw",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|8bc8116e|1",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "Matched · 80% fit",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|72be2c53|1",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Tuition:",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|47e11601|1",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "· Private",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|f79ab23d|1",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Deadline:",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|a1bb1e9f|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "1 Jul 2026",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|9b00c952|1",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Continue application",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|h4|89fd1926|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "h4",
+   "original": "B.Sc. Computer Science",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|6c8fb938|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "IU International University · Berlin",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|8bc8116e|2",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "Matched · 80% fit",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|72be2c53|2",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Tuition:",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|47e11601|2",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "· Private",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|div|f79ab23d|2",
+   "section": "section-2",
+   "kind": "text",
+   "element": "div",
+   "original": "Deadline:",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|8c55e65c|1",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "31 Aug 2026",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|9b00c952|2",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Continue application",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|deafcb54|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "7 more of your 10",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|p|7fe52758|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "p",
+   "original": "Your package covers 10 universities. 7 are ready to open.",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|4a4ffecb|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "View all",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|h4|1144e999|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "h4",
+   "original": "Application tracker",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|cd17328e|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "Profile",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|009017e5|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "documents",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|ec88aab2|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "Completed",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|3c911313|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "University shortlist",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|88786df0|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "10 matched of 10 covered",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|bbc351e7|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "Applications submitted",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|39ef1c6a|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "2 of 10 submitted",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|486facb8|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "Visa",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|a2a4f26f|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "departure",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|d27b474f|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "Not started",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|h4|d36224ee|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "h4",
+   "original": "Your journey",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|8c14fe85|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "Enroll",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|b3a22171|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "payment",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|4bf3881f|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "Package: Offer Letter",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|3cde789f|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "Profile completed",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|721d109d|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "All sections submitted",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|3aa3c271|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "Shortlist",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|24bc4a3b|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "apply",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|06877519|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "10 of 10 ready",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|486facb8|1",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "Visa",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|b|bff162e2|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "b",
+   "original": "fly",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|span|57aabf4e|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "span",
+   "original": "After your offer",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|ac75dc3f|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Sign in to your dashboard",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "section-2|a|d7f6c093|0",
+   "section": "section-2",
+   "kind": "text",
+   "element": "a",
+   "original": "Create an account",
+   "note": "",
+   "sectionLabel": "Everything above, waiting the moment you sign in"
+  },
+  {
+   "key": "catalogue|span|8e23089f|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "span",
+   "original": "Explore our catalogue",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|h2|a11f7a2b|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "h2",
+   "original": "Real universities, matched to what you're looking for",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|div|2c856198|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "div",
+   "original": "Mode:",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|b|b092aac2|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "b",
+   "original": "gated",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|div|499095ea|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "div",
+   "original": "— only private programmes are listed; public universities appear as a count. Consistent with Block 1, but the public university names earn no search traffic. Change",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|code|af7b9454|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "code",
+   "original": "CATALOGUE_MODE",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|div|41387a9e|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "div",
+   "original": "in",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|code|211b7f17|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "code",
+   "original": "build_block34.py",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|div|d82c494f|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "div",
+   "original": "to compare.",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|825ffea6|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Everything we offer",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|1f909a5d|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Under ₹10L",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|d2db9dcc|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Under ₹20L",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|cd90510f|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "₹20L+",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|6e9c9140|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Top-ranked",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|702f40a9|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Data Science, AI",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|9d25e72c|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Machine Learning",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|82574932|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Computer Science",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|66e90490|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "IT",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|1f0230ac|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Cybersecurity",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|c0821b1e|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Cloud",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|941807a2|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Aerospace",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|a37971e0|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Robotics",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|37038c3e|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Renewable Energy",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|83a189e3|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Biotechnology",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|button|f23d41a6|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "button",
+   "original": "Bioinformatics",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "catalogue|a|8a9b4329|0",
+   "section": "catalogue",
+   "kind": "text",
+   "element": "a",
+   "original": "Talk to a counsellor about your options",
+   "note": "",
+   "sectionLabel": "Real universities, matched to what you're looking for"
+  },
+  {
+   "key": "stories|span|18393409|0",
+   "section": "stories",
+   "kind": "text",
+   "element": "span",
+   "original": "Success stories",
+   "note": "",
+   "sectionLabel": "Real journeys, real outcomes"
+  },
+  {
+   "key": "stories|h2|5a7e3eeb|0",
+   "section": "stories",
+   "kind": "text",
+   "element": "h2",
+   "original": "Real journeys, real outcomes",
+   "note": "",
+   "sectionLabel": "Real journeys, real outcomes"
+  },
+  {
+   "key": "stories|p|e159b5a8|0",
+   "section": "stories",
+   "kind": "text",
+   "element": "p",
+   "original": "Statements of admission, not quotes — we hold the offer letter for every card below.",
+   "note": "",
+   "sectionLabel": "Real journeys, real outcomes"
+  },
+  {
+   "key": "faq|span|ca897d29|0",
+   "section": "faq",
+   "kind": "text",
+   "element": "span",
+   "original": "Common questions",
+   "note": "",
+   "sectionLabel": "The four things everyone asks first"
+  },
+  {
+   "key": "faq|h2|67aabdfe|0",
+   "section": "faq",
+   "kind": "text",
+   "element": "h2",
+   "original": "The four things everyone asks first",
+   "note": "",
+   "sectionLabel": "The four things everyone asks first"
+  },
+  {
+   "key": "counsel|span|1e786188|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "Free counselling",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|h2|227d3adb|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "h2",
+   "original": "Talk to a counsellor before you spend anything",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|p|e89260a4|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "p",
+   "original": "Forty-five minutes, your marksheets read properly, and an honest answer about where you stand. No obligation to buy a package afterwards.",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|span|8348b517|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "Which public universities your CGPA actually opens",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|span|52eef5eb|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "What the whole thing costs — tuition, blocked account, living",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|span|f514e910|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "Whether your intake is realistic, or the next one is",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|span|71e07a21|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "Online, or at the Hyderabad office",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|h3|ff2257b7|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "h3",
+   "original": "Book your free session",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|p|c5d5cce8|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "p",
+   "original": "Mon–Sat, 9:30am–7:30pm IST. A counsellor calls you back within one working day.",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|label|9010932f|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "label",
+   "original": "Full name",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|attr:placeholder|3a0663bd|0",
+   "section": "counsel",
+   "kind": "attr:placeholder",
+   "element": "input",
+   "original": "Your name",
+   "note": "the placeholder on a <input>",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|label|0bb78ab0|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "label",
+   "original": "Mobile number",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|attr:placeholder|898c75a6|0",
+   "section": "counsel",
+   "kind": "attr:placeholder",
+   "element": "input",
+   "original": "10-digit mobile",
+   "note": "the placeholder on a <input>",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|label|43352167|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "label",
+   "original": "Email",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|label|1614214b|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "label",
+   "original": "Where are you thinking of going?",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|1ef3fc59|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "Not sure yet",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|f2546429|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "🇩🇪 Germany",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|d893b79b|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "🇨🇦 Canada",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|a59ad06a|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "🇬🇧 United Kingdom",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|00d10986|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "🇮🇪 Ireland",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|1d8d01ff|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "🇵🇱 Poland",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|91e40366|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "🇪🇸 Spain",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|option|8844e983|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "option",
+   "original": "🇮🇹 Italy",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|label|9c369531|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "label",
+   "original": "Leave this field empty",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|span|754a25e4|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|span|401472a2|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "Please tick the box so we can call you back.",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|button|dacaf61d|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "button",
+   "original": "Book Free Counselling",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "counsel|span|de295a9a|0",
+   "section": "counsel",
+   "kind": "text",
+   "element": "span",
+   "original": "We call you — we never send marketing blasts. Your details are not shared with any university without your say.",
+   "note": "",
+   "sectionLabel": "Talk to a counsellor before you spend anything"
+  },
+  {
+   "key": "footer|attr:aria-label|13e3e668|0",
+   "section": "footer",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "Glovels — home",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|attr:aria-label|0e72547f|0",
+   "section": "footer",
+   "kind": "attr:aria-label",
+   "element": "span",
+   "original": "Glovels",
+   "note": "the aria-label on a <span>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|p|94070a8e|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "p",
+   "original": "Study",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|p|1d727ded|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "p",
+   "original": "Work Abroad Consultancy helping students and professionals build a global future.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|attr:aria-label|0f95701b|0",
+   "section": "footer",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "Instagram",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|attr:aria-label|ac37c251|0",
+   "section": "footer",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "Facebook",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|attr:aria-label|2f5973bf|0",
+   "section": "footer",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "LinkedIn",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|attr:aria-label|be3a531e|0",
+   "section": "footer",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "YouTube",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|attr:aria-label|b1332787|0",
+   "section": "footer",
+   "kind": "attr:aria-label",
+   "element": "a",
+   "original": "WhatsApp",
+   "note": "the aria-label on a <a>",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|e9021447|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Hyderabad",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|div|3073d9bd|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "div",
+   "original": "Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|6a847485|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Munich",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|div|daf8dd40|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "div",
+   "original": "München, Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|43352167|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Email",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|7bef3aba|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "info@glovels.com",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|945de063|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Show the Hyderabad office on a map",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|button|f10e3d30|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "button",
+   "original": "Loading the map lets Google set cookies and see your IP, so it only loads when you ask. Opens in a new tab.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|h4|e6bacf0f|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "h4",
+   "original": "Study abroad",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|0f3ff758|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|215cfc45|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Canada",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|f8d648c1|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in United Kingdom",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|8f529ad2|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Ireland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|53431427|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Poland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|c4bdbe3c|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Spain",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|2f37e1ed|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Browse the catalogue",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|h4|dbc51e80|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "h4",
+   "original": "Work",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|h4|e8cde87e|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "h4",
+   "original": "migrate",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|441d8cb9|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Medical PG in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|de026f53|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Nursing Jobs in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|dccb6d5b|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Germany Opportunity Card",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|740862e2|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Pharma Jobs in Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|243357c3|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Canada PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|296e2649|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Australia PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|h4|c1bf0f5c|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "h4",
+   "original": "Company",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|6dda792a|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "About Us",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|09a13d38|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Careers",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|c79c4311|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Blog",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|9437aa6a|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Refer a friend",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|50793575|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Glossary",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|91dd0cb5|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Contact Us",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|h4|de7530aa|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "h4",
+   "original": "Legal",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|f7c86026|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Terms of Use",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|2526541f|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Privacy Policy",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|7900117f|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Refund",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|270628be|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Cancellation",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|e151a0e2|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Grievance Redressal",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|afa11bf3|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Disclaimers",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|div|b0c3735e|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "div",
+   "original": "© 2024–26 Glovels Consultants Private Limited. All rights reserved.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|div|4e20b6b6|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "div",
+   "original": "Prices include taxes. Tuition figures are indicative and confirmed by each university at offer stage.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|ff894c2e|0",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Chat with a counsellor",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  }
+ ]
+}

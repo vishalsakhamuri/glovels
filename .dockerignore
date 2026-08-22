@@ -1,0 +1,7 @@
+data
+data-shared
+node_modules
+*.log
+mail.env
+.DS_Store
+__pycache__

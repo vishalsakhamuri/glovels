@@ -1,0 +1,13 @@
+{
+  "name": "glovels",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Glovels — the website, the student portal and the operations site, in one Node process with no dependencies.",
+  "main": "serve.js",
+  "scripts": {
+    "start": "node serve.js"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}
