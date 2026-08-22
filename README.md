@@ -135,7 +135,30 @@ Every button works. No dead links, no "coming soon" pop-ups, nothing that goes n
 
 **4 staff screens** — Conversations (the counsellor's caseload and live threads),
 **Home page** (everything the front of the site says), **Catalogue** (the universities and
-destinations the site offers), and Organisation (every student, and who is assigned to whom).
+destinations the site offers), and Organisation (every student, who is assigned to whom, and
+who is allowed to change what).
+
+### Who can do what
+
+Three kinds of staff account, created on the Organisation screen:
+
+| | Sees |
+|---|---|
+| **Administrator** | Everything, including adding people. Always allowed to change the site |
+| **Counsellor** | The students assigned to them, and the chat |
+| **Website editor** | The site only — **no student record, no document, no conversation** |
+
+On top of that, two permissions decide what may be *changed* on the website:
+
+- **Home page** — packages, prices, the figures, the questions, the stories, the wording
+- **Universities** — adding, editing and removing what the finder offers
+
+A counsellor has neither until an administrator ticks the box. The rule is enforced on the
+server: hiding the menu item is a courtesy, not the permission.
+
+Adding someone generates a password and **shows it once** — it is stored hashed, so nobody
+including the administrator can read it back. If it is lost, *Reset password* makes a new
+one and signs that person out everywhere.
 
 ### The Home page screen — the front of the site, without a developer
 
@@ -278,6 +301,17 @@ All three are safe to run twice — they check for their own result first.
 ---
 
 ## Putting it live
+
+**`LAUNCH.md` is the step-by-step**: GitHub, then Render, about twenty minutes.
+`DEPLOY.md` is the reasoning behind it — including why Vercel and Cloudflare cannot run
+this application as it stands.
+
+For a link this afternoon with no hosting at all, double-click **`share.command`**: a
+Cloudflare quick tunnel, a freshly generated password, and a separate data folder.
+
+---
+
+### The older notes, still true
 
 The marketing pages need Apache with `mod_rewrite`; one.com's standard hosting is fine.
 Upload the contents of this folder to `httpd.www`, including the hidden `.htaccess`.
