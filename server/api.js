@@ -1063,6 +1063,44 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
    */
   const FIELD_LIMITS = { program: 140, university: 140, city: 80, url: 400, field: 80 };
 
+  /*
+   * The words on the filters are `master`, `autumn`, `u20`. The words a
+   * counsellor types into a spreadsheet are "Masters", "MSc", "Fall", "under
+   * 20L". The old code compared against the first list and replaced anything
+   * else with nothing — so a row that said "Masters" was imported with no
+   * level at all, dropped out of the level filter on the home page, and looked
+   * fine everywhere the counsellor thought to check. Silent is the problem:
+   * translate what can be translated, and report the rest as a warning on the
+   * row rather than swallowing it.
+   */
+  const LEVELS = {
+    master: 'master', masters: 'master', ms: 'master', msc: 'master', ma: 'master',
+    meng: 'master', mtech: 'master', pg: 'master', postgraduate: 'master', pgt: 'master',
+    bachelor: 'bachelor', bachelors: 'bachelor', ba: 'bachelor', bsc: 'bachelor',
+    beng: 'bachelor', undergraduate: 'bachelor', undergrad: 'bachelor', ug: 'bachelor',
+    mba: 'mba', executivemba: 'mba', emba: 'mba',
+    phd: 'phd', doctorate: 'phd', doctoral: 'phd',
+    diploma: 'diploma', pgdiploma: 'diploma', pgdip: 'diploma',
+    foundation: 'foundation', pathway: 'foundation', premasters: 'foundation',
+  };
+  const normLevel = v => LEVELS[String(v || '').toLowerCase().replace(/[^a-z]/g, '')] || '';
+
+  const SEASONS = {
+    winter: 'winter', jan: 'winter', january: 'winter',
+    summer: 'summer', may: 'summer', june: 'summer',
+    autumn: 'autumn', fall: 'autumn', sep: 'autumn', september: 'autumn',
+    spring: 'spring', feb: 'spring', march: 'spring',
+  };
+  const normSeason = v => SEASONS[String(v || '').toLowerCase().replace(/[^a-z]/g, '')] || '';
+
+  const BANDS = {
+    u10: 'u10', under10: 'u10', under10l: 'u10',
+    u20: 'u20', under20: 'u20', under20l: 'u20',
+    above20: 'above20', over20: 'above20', above20l: 'above20',
+    elite: 'elite', premium: 'elite',
+  };
+  const normBand = v => BANDS[String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '')] || '';
+
   function cleanProgramme(b, existing) {
     const t = (k, max) => String(b[k] == null ? (existing ? existing[k] : '') : b[k]).trim().slice(0, max);
     const country = String(b.country || '').toUpperCase().slice(0, 2);
@@ -1072,10 +1110,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       university: t('university', FIELD_LIMITS.university),
       city: t('city', FIELD_LIMITS.city),
       country,
-      level: ['master', 'bachelor', 'mba', 'phd', 'diploma', 'foundation', ''].includes(String(b.level || '').toLowerCase())
-        ? String(b.level || '').toLowerCase() : '',
+      level: normLevel(b.level),
       field: t('field', FIELD_LIMITS.field),
-      band: ['u10', 'u20', 'above20', 'elite', ''].includes(b.band) ? b.band : '',
+      band: normBand(b.band),
       isPublic: !!b.isPublic,
       fit: Math.max(0, Math.min(100, Number(b.fit) || 0)),
       totalInr: Math.max(0, Math.round(Number(b.totalInr) || 0)),
@@ -1089,8 +1126,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         b.featureSort === undefined ? (existing ? existing.feature_sort : 0) : b.featureSort) || 0))),
       intakes: Array.isArray(b.intakes)
         ? b.intakes.filter(i => i && i.deadline).slice(0, 6).map(i => ({
-            season: ['winter', 'summer', 'autumn', 'spring'].includes(String(i.season || '').toLowerCase())
-              ? String(i.season).toLowerCase() : 'winter',
+            season: normSeason(i.season) || 'winter',
             deadline: /^\d{4}-\d{2}-\d{2}$/.test(i.deadline) ? i.deadline : '',
           })).filter(i => i.deadline)
         : [],
@@ -1290,7 +1326,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const seen = Object.keys(objects[0] || {});
     const unknown = seen.filter(h => !alias[h]);
 
-    const plan = { create: [], update: [], unchanged: [], rejected: [], unknownColumns: unknown };
+    const plan = { create: [], update: [], unchanged: [], rejected: [], warned: 0, unknownColumns: unknown };
 
     objects.forEach((o, n) => {
       const line = n + 2;                        // +1 header, +1 for 1-based rows
@@ -1316,6 +1352,24 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
           .map(([sea, d]) => ({ season: String(sea || 'winter').toLowerCase().trim(), deadline: String(d).trim().slice(0, 10) })),
       };
 
+      /* Warnings, not rejections. A word we cannot translate is worth saying
+         out loud — "Masters" imported as no level at all is the kind of thing
+         that is only discovered months later, by a student who cannot find the
+         course — but it is not a reason to refuse the row. */
+      const warn = [];
+      const rawLevel = String(g('level') || '').trim();
+      if (rawLevel && !normLevel(rawLevel)) {
+        warn.push(`the level "${rawLevel}" is not one the filters know — it will be left blank`);
+      }
+      const rawBand = String(g('band') || '').trim();
+      if (rawBand && !normBand(rawBand)) {
+        warn.push(`the budget band "${rawBand}" is not one of u10 / u20 / above20 / elite — it will be worked out from the fee`);
+      }
+      [g('i1s'), g('i2s')].forEach(s => {
+        const raw = String(s || '').trim();
+        if (raw && !normSeason(raw)) warn.push(`the intake season "${raw}" was read as winter`);
+      });
+
       const why = [];
       if (!draft.program) why.push('no programme name');
       if (!draft.university) why.push('no university');
@@ -1334,22 +1388,40 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       const existing = draft.id ? db.programme(draft.id) : null;
       const clean = cleanProgramme(draft, existing);
       if (!existing) {
-        plan.create.push({ line, id: clean.id, what: clean.university + ' — ' + clean.program });
+        plan.create.push({ line, id: clean.id, what: clean.university + ' — ' + clean.program, warn });
+        if (warn.length) plan.warned++;
         return;
       }
+      /* Every column the sheet carries has to be in this comparison. A field
+         that is missing from it makes a row that changes only that field come
+         back as "already right" — and the apply pass skips those, so the edit
+         is reported as done and never written. Showcase and its position were
+         the ones that mattered: ordering the university strip from Excel did
+         nothing at all. */
+      const oldIntakes = (() => {
+        try { return JSON.parse(existing.intakes) || []; } catch (e) { return []; }
+      })();
+      const asIntakes = a => (a || []).map(i => i.season + '@' + i.deadline).join(',');
       const before = {
         program: existing.program, university: existing.university, city: existing.city || '',
         country: existing.country, totalInr: existing.total_inr, isPublic: !!existing.is_public,
         active: !!existing.active, url: existing.url || '',
+        level: existing.level || '', field: existing.field || '', band: existing.band || '',
+        featured: !!existing.featured, featureSort: existing.feature_sort || 0,
+        intakes: asIntakes(oldIntakes),
       };
       const after = {
         program: clean.program, university: clean.university, city: clean.city,
         country: clean.country, totalInr: clean.totalInr, isPublic: clean.isPublic,
         active: clean.active, url: clean.url,
+        level: clean.level, field: clean.field, band: clean.band,
+        featured: clean.featured, featureSort: clean.featureSort,
+        intakes: asIntakes(clean.intakes),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
       if (!changed.length) plan.unchanged.push({ line, id: clean.id });
-      else plan.update.push({ line, id: clean.id, what: clean.university + ' — ' + clean.program, changed });
+      else plan.update.push({ line, id: clean.id, what: clean.university + ' — ' + clean.program, changed, warn });
+      if (warn.length) plan.warned++;
     });
 
     /* Nothing is written unless this is the confirm pass. */
@@ -1360,6 +1432,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         counts: {
           create: plan.create.length, update: plan.update.length,
           unchanged: plan.unchanged.length, rejected: plan.rejected.length,
+          warned: plan.warned,
         },
         plan,
         note: 'Nothing has been changed. Send it again with confirm to apply.',
