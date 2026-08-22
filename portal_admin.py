@@ -48,7 +48,14 @@ BODY = """
               <option value="counsellor">Counsellor — their own students, and the chat</option>
               <option value="editor">Website editor — the site only, no student records</option>
               <option value="admin">Administrator — everything, including this screen</option>
+              <option value="student">Student — a real student account, assigned to you</option>
             </select></div>
+          <p id="pStudentNote" style="display:none;margin:0 0 10px;padding:11px 13px;
+            border-radius:10px;background:#f1f6fb;border:1px solid #cfe0f2;
+            font:600 12.4px/1.55 var(--sans);color:var(--navy-800)">
+            A real student account &mdash; their own dashboard, shortlist, documents and
+            messages &mdash; assigned to you. Give them the password below and they can change
+            it themselves. Use this for a walk-in, or to make yourself a test login.</p>
           <div id="pPermBox" style="padding:12px 14px;border-radius:11px;background:var(--paper);
             border:1px solid var(--line,#e6e9ee);margin-bottom:4px">
             <span style="display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;
@@ -399,12 +406,16 @@ document.addEventListener('change', async e => {
 /* An administrator has every permission by definition, so offering the boxes
    next to that choice would be offering something that does nothing. */
 function syncRole() {
-  const isAdmin = $('#pRole').value === 'admin';
-  $('#pPermBox').style.display = isAdmin ? 'none' : '';
-  if ($('#pRole').value === 'editor' && !$('#pPermContent').checked
-      && !$('#pPermCatalogue').checked) {
+  const role = $('#pRole').value;
+  /* An administrator has every permission by definition, and a student has
+     none of them — offering the boxes next to either is offering something
+     that does nothing. */
+  $('#pPermBox').style.display = (role === 'admin' || role === 'student') ? 'none' : '';
+  if (role === 'editor' && !$('#pPermContent').checked && !$('#pPermCatalogue').checked) {
     $('#pPermContent').checked = true;
   }
+  const note = $('#pStudentNote');
+  if (note) note.style.display = role === 'student' ? '' : 'none';
 }
 $('#pRole').addEventListener('change', syncRole);
 

@@ -927,12 +927,6 @@ patch_re("dashboard.html", "remove the not-built-yet alert",
          present=lambda t: "data-soon" not in t)
 
 
-if __name__ == "__main__":
-    for a in applied:
-        print("  applied ", a)
-    for s in skipped:
-        print("  already ", s)
-    print(f"\n{len(applied)} applied, {len(skipped)} already in place")
 
 
 # ---------------------------------------------------------------- index.html
@@ -1181,38 +1175,71 @@ patch(
 
 # ------------------------------------------------------------ every page
 #
-# The chat box.
+# The corner of the screen.
 #
-# On every public page, not only the home page: a visitor reading "Study in
-# Germany" at eleven at night is exactly the person with a question, and making
-# them find their way back to the home page to ask it is how the question goes
-# unasked. The portal's own pages are excluded — a student who is signed in has
-# the Messages screen, and two chat surfaces on one screen is a way to send the
-# same question twice.
+# On a marketing page: a green WhatsApp button, because that is the one an
+# Indian family will actually press, with the site's own chat under it in a
+# quieter weight. The chat is kept rather than dropped because it asks for a
+# name and a number before the first message — which is what makes it a lead in
+# the enquiry book. A WhatsApp conversation lives in WhatsApp and never reaches
+# the operations site; that is the trade, made on purpose.
+#
+# On a portal screen: the chat only, opening the student's real thread with
+# their counsellor, on whatever screen they are on. No WhatsApp — they are past
+# the point of being sold to — and no intro form, because the server already
+# knows who they are.
+#
+# messages.html is excluded: that screen IS the thread, and a floating button
+# over it offering to open the thread is furniture.
 import chat_widget
 
 PORTAL_PAGES = {
-    "dashboard.html", "messages.html", "documents.html", "profile.html",
+    "dashboard.html", "documents.html", "profile.html",
     "applications.html", "universities.html", "scholarships.html",
-    "counsellor.html", "admin.html", "home.html", "catalogue.html",
-    "login.html", "404.html",
+}
+
+# Never gets a corner: the staff screens (they have the Website chat screen),
+# the sign-in page, the 404, and the thread itself.
+NO_CORNER = {
+    "messages.html", "login.html", "404.html",
+    "counsellor.html", "admin.html", "home.html", "catalogue.html", "chat.html",
 }
 
 
 def chat_everywhere():
     n = 0
     for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
-        if f.name in PORTAL_PAGES:
+        if f.name in NO_CORNER:
             continue
+        mode = "portal" if f.name in PORTAL_PAGES else "site"
+        block = ('<script>window.__glovelsChatMode="' + mode + '";</script>\n'
+                 + '<script>' + chat_widget.WIDGET + "</script>\n")
+
         t = f.read_text(encoding="utf-8")
-        if "GLOVELS-CHAT-WIDGET" in t or "</body>" not in t:
+        if "</body>" not in t:
             continue
-        write(f, t.replace("</body>", "<script>" + chat_widget.WIDGET + "</script>\n</body>", 1))
+
+        # Already there: replace it rather than skip. The widget changes, and a
+        # patch that only ever adds leaves forty pages carrying whichever
+        # version happened to be current the day they were generated.
+        i = t.find("<script>window.__glovelsChatMode")
+        if i < 0:
+            i = t.find("<script>\n/* GLOVELS-CHAT-WIDGET */")
+        if i < 0:
+            i = t.find("<script>/* GLOVELS-CHAT-WIDGET */")
+        if i >= 0:
+            j = t.index("</script>", t.index("/* GLOVELS-CHAT-WIDGET */", i)) + len("</script>")
+            new_t = t[:i] + block.rstrip("\n") + t[j:]
+            if new_t == t:
+                continue
+            write(f, new_t)
+        else:
+            write(f, t.replace("</body>", block + "</body>", 1))
         n += 1
     if n:
-        applied.append(f"{n} page(s): the chat box")
+        applied.append(f"{n} page(s): the corner \u2014 WhatsApp on the site, chat in the portal")
     else:
-        skipped.append("every page: the chat box")
+        skipped.append("every page: the corner")
 
 
 chat_everywhere()
@@ -1494,3 +1521,176 @@ def contact_everywhere():
 
 
 contact_everywhere()
+
+
+# ---------------------------------------------------------------------------
+# The summary, and it has to be the LAST thing in the file.
+#
+# It used to sit in the middle: patches were appended below it over time, and
+# every one of those ran — module level, so the files really were being
+# patched — but appended to `applied` after the printing had already happened.
+# The script reported "0 applied" while rewriting forty pages. A build script
+# that lies about what it did is worse than one that fails.
+if __name__ == "__main__":
+    for a in applied:
+        print("  applied ", a)
+    for note in skipped:
+        print("  already ", note)
+    print(f"\n{len(applied)} applied, {len(skipped)} already in place")
+
+
+# ---------------------------------------------------------------- index.html
+#
+# Buying services makes an order.
+#
+# The package checkout has always posted to /api/orders and been priced by the
+# server. The a-la-carte grid did not: it posted a line of TEXT to the enquiry
+# endpoint, with a reference the browser made up out of Math.random. Nothing
+# was recorded against the student — they ticked four services, paid, and
+# signed in to a dashboard that had never heard of them.
+#
+# Same endpoint, same rule: ids up, the server prices them, and what comes back
+# is the reference. The enquiry post stays as well, because the office reads
+# that book and a lead is a lead.
+patch(
+    "index.html",
+    "buying services creates a real order",
+    "    const ref = 'GLV-' + String(Math.floor(Math.random()*9000)+1000);\n"
+    "    if(ENDPOINT){",
+    """    /* The server's reference, not one this page invented. An order the
+       student can find is an order with the same number on both ends. */
+    let ref = 'GLV-' + String(Math.floor(Math.random()*9000)+1000);
+    let placed = null;
+    try {
+      const r = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          services: items.map(s => ({
+            id: s.id,
+            level: s.levels.length ? (levelOf[s.id] || s.levels[0].code) : '',
+          })),
+          name: $('#scName').value.trim(),
+          email: $('#scMail').value.trim(),
+          phone: $('#scPhone').value.trim(),
+        }),
+      });
+      if (r.ok) {
+        placed = await r.json();
+        ref = placed.reference;
+      }
+    } catch (e) {
+      /* Offline, or opened from disk. The confirmation below still appears —
+         losing the screen as well as the connection helps nobody. */
+    }
+    if(ENDPOINT){""",
+    # The marker has to be text that ends up IN THE PAGE. The patch name is
+    # not — it lives only in this file — so the check could never find it and
+    # the patch re-ran every time, failing on an anchor it had itself consumed.
+    marker="The server's reference, not one this page invented",
+)
+
+# The handler that runs it has to be async for the await above to parse.
+patch(
+    "index.html",
+    "the services checkout handler can await",
+    "  $('#scPay').onclick = () => {\n    let ok = true;",
+    "  $('#scPay').onclick = async () => {\n    let ok = true;",
+)
+
+# And the confirmation says where it went.
+patch(
+    "index.html",
+    "the services confirmation points at the dashboard",
+    "    steps.push(['Your login details arrive by email',",
+    """    if (placed && placed.linkedToAccount) {
+      steps.push(['It is in your dashboard already',
+        'Signed in as you are, this order is on your dashboard now, with everything '
+        + 'else you have bought.']);
+    }
+    steps.push(['Your login details arrive by email',""",
+)
+
+
+# -------------------------------------------------------------- dashboard.html
+#
+# Everything they have bought, on the screen they land on.
+#
+# The dashboard showed ONE order — the first one — as a receipt card, and only
+# if it had a package on it. A student who bought a package in March and an SOP
+# rewrite in June saw the March one and no sign of the other. Now every order is
+# listed, with the services inside it named, because "2 services · ₹4,498" tells
+# somebody nothing about what they are owed.
+BOUGHT_SECTION = """
+    <section class="p-sec" id="boughtSec" hidden>
+      <div class="p-sec-head">
+        <h2>What you have bought</h2>
+        <a href="index.html#services">Add a service <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div id="boughtWrap"></div>
+    </section>
+"""
+
+patch(
+    "dashboard.html",
+    "a place for everything the student has bought",
+    '      <div id="draftWrap"></div>\n    </section>\n',
+    '      <div id="draftWrap"></div>\n    </section>\n' + BOUGHT_SECTION,
+    marker='id="boughtSec"',
+)
+
+BOUGHT_JS = r"""
+/* Every order, newest first, with what was in it. */
+(function () {
+  var st = window.__GLOVELS;
+  var sec = document.getElementById('boughtSec');
+  var wrap = document.getElementById('boughtWrap');
+  if (!sec || !wrap || !st || !st.orders || !st.orders.length) return;
+
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+  var rupees = new Intl.NumberFormat('en-IN');
+  var money = function (paise) { return '₹' + rupees.format(Math.round(paise / 100)); };
+  var day = function (iso) {
+    return new Date(iso || Date.now()).toLocaleDateString('en-GB',
+      { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  wrap.innerHTML = st.orders.map(function (o) {
+    var items = o.items || [];
+    return '<div class="p-card" style="margin-bottom:10px">' +
+      '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' +
+        '<b style="font:700 14.4px/1.4 var(--sans);color:var(--navy-900)">' +
+          esc(o.package) + '</b>' +
+        '<span class="pill">' + esc(o.reference) + '</span>' +
+        '<span style="margin-left:auto;font:700 14px/1.4 var(--sans);color:var(--navy-900)">' +
+          money(o.grossPaise) + '</span>' +
+      '</div>' +
+      '<span style="display:block;margin-top:3px;font-size:12.2px;color:var(--muted)">' +
+        (o.publicUnis ? o.publicUnis + ' public universities unlocked · ' : '') +
+        'Paid ' + day(o.paidAt) + '</span>' +
+      (items.length
+        ? '<ul class="doclist" style="margin:12px 0 0">' + items.map(function (it) {
+            return '<li><span style="flex:1">' + esc(it.name) +
+              (it.level ? ' <span style="color:var(--muted)">(' + esc(it.level) + ')</span>' : '') +
+              '</span><span class="st none" style="text-transform:none;letter-spacing:0">' +
+              money(it.paise) + '</span></li>';
+          }).join('') + '</ul>'
+        : '') +
+      '</div>';
+  }).join('');
+  sec.hidden = false;
+}());
+"""
+
+patch(
+    "dashboard.html",
+    "the bought card fills itself in",
+    "__dashBoot(function () { __dashMain();",
+    "__dashBoot(function () { __dashMain();" + BOUGHT_JS,
+    marker="Every order, newest first, with what was in it",
+)

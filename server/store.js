@@ -251,6 +251,11 @@ function sqliteDriver(file) {
       cares about changes and a migration per fact is how it stops being kept
       up to date. */
    "ALTER TABLE countries ADD COLUMN facts TEXT NOT NULL DEFAULT ''",
+   /* What was actually bought, as JSON. An order used to be one package and a
+      total; the a-la-carte services never became an order at all, so a student
+      who bought four of them signed in to an empty dashboard. */
+   "ALTER TABLE orders ADD COLUMN items TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE orders ADD COLUMN kind TEXT NOT NULL DEFAULT 'package'",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -577,11 +582,12 @@ function open(dir) {
     /* ---- orders ---- */
     addOrder(o) {
       db.run(`INSERT INTO orders
-        (student_id, reference, package, public_unis, gross_paise, name, email, phone, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (student_id, reference, package, public_unis, gross_paise, name, email, phone, status, created_at, items, kind)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         o.studentId ? Number(o.studentId) : null, o.reference, o.package,
         Number(o.publicUnis || 0), Number(o.grossPaise || 0),
-        o.name || '', String(o.email || '').toLowerCase(), o.phone || '', o.status || 'paid', now());
+        o.name || '', String(o.email || '').toLowerCase(), o.phone || '', o.status || 'paid', now(),
+        JSON.stringify(o.items || []), o.kind || 'package');
       return db.one('SELECT * FROM orders WHERE reference = ?', o.reference);
     },
     ordersFor: id => db.all('SELECT * FROM orders WHERE student_id = ? ORDER BY id desc', Number(id)),

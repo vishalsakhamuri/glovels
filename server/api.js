@@ -217,6 +217,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       orders: orders.map(o => ({
         reference: o.reference, package: o.package, grossPaise: o.gross_paise,
         publicUnis: o.public_unis, status: o.status, paidAt: o.created_at,
+        kind: o.kind || 'package',
+        /* What was in it. An order placed before this column existed has none,
+           and shows as it always did — the package name and the total. */
+        items: (() => { try { return JSON.parse(o.items || '[]') || []; } catch (e) { return []; } })(),
       })),
     };
   }
@@ -528,12 +532,54 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
   /* -------------------------------------------------------------- orders */
 
+  /*
+   * An order.
+   *
+   * Two shapes arrive here, and until now only one of them existed. A package
+   * has always come through as an id the server prices. The a-la-carte services
+   * — the grid a visitor ticks their way down — went to the enquiry endpoint as
+   * a line of text with a reference the BROWSER made up, so nothing was ever
+   * recorded against the student: they paid for four services and signed in to
+   * an empty dashboard.
+   *
+   * Both now make an order. The rule is the same for both and it is the only
+   * rule that matters here: the browser sends ids, the server decides what they
+   * cost. An `amount` in the request is ignored, and there is a test named for
+   * that.
+   */
+  const SERVICES_OF = () => (content ? content.serviceList() : {});
+
   route('POST', '/api/orders', async (req, res) => {
     const b = await readJson(req);
-    const pkg = PACKAGES()[b.packageId];
-    /* The browser sends an id. The server prices it. An `amount` in the request
-       is ignored, and there is a test named for that. */
-    if (!pkg) return json(res, 400, { error: 'No such package' });
+
+    const pkg = b.packageId ? PACKAGES()[b.packageId] : null;
+    if (b.packageId && !pkg) return json(res, 400, { error: 'No such package' });
+
+    /* Services: [{id, level}] or plain ids. Anything not on the list today is
+       dropped rather than guessed at — a service that has been retired must not
+       be sellable through a stale page. */
+    const catalogue = SERVICES_OF();
+    const asked = Array.isArray(b.services) ? b.services.slice(0, 30) : [];
+    const items = [];
+    asked.forEach(raw => {
+      const id = String((raw && raw.id) || raw || '').trim();
+      const svc = catalogue[id];
+      if (!svc || items.some(x => x.id === id)) return;
+      const wanted = String((raw && raw.level) || '').trim();
+      const codes = Object.keys(svc.levels);
+      /* A level is only honoured if this service HAS that level. "B2 at the A1
+         price" is exactly what a hand-rolled request would try. */
+      const level = codes.length ? (svc.levels[wanted] != null ? wanted : codes[0]) : '';
+      items.push({
+        id, name: svc.name, level,
+        paise: level ? svc.levels[level] * 100 : svc.paise,
+        ai: svc.ai || '',
+      });
+    });
+
+    if (!pkg && !items.length) {
+      return json(res, 400, { error: 'Nothing was selected' });
+    }
 
     const name = String(b.name || '').trim();
     const email = String(b.email || '').trim().toLowerCase();
@@ -544,25 +590,36 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     const s = me(req);
     const reference = 'GLV-' + crypto.randomInt(1000, 9999);
+    const gross = (pkg ? pkg.paise : 0) + items.reduce((t, x) => t + x.paise, 0);
+
+    /* What the order is CALLED. A package keeps its name; a basket of services
+       is named by what is in it, because "Order GLV-4821" on a dashboard tells
+       a student nothing about what they bought. */
+    const label = pkg ? pkg.name
+      : items.length === 1 ? items[0].name
+      : items.length + ' services';
+
     const order = db.addOrder({
-      studentId: s ? s.id : null, reference, package: pkg.name,
-      publicUnis: pkg.publicUnis, grossPaise: pkg.paise, name, email, phone,
-      status: 'paid',
+      studentId: s ? s.id : null, reference, package: label,
+      publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
+      status: 'paid', kind: pkg ? 'package' : 'services',
+      items: items.map(x => ({ id: x.id, name: x.name, level: x.level, paise: x.paise })),
     });
 
-    const gross = pkg.paise;
     const tax = Math.round(gross - gross / (1 + GST_RATE));
 
     /* The receipt is the message that tells a guest how to get into the portal
        they just paid for, so it goes out whether or not they have an account. */
     mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({
-      name, email, reference, packageName: pkg.name, grossPaise: gross,
-      publicUnis: pkg.publicUnis, siteUrl, hasAccount: !!s,
+      name, email, reference, packageName: label, grossPaise: gross,
+      publicUnis: pkg ? pkg.publicUnis : 0, siteUrl, hasAccount: !!s,
+      services: items.map(x => x.name + (x.level ? ' (' + x.level + ')' : '')),
     }))).catch(() => {});
 
     return json(res, 200, {
-      reference, package: pkg.name, publicUnis: pkg.publicUnis,
+      reference, package: label, publicUnis: pkg ? pkg.publicUnis : 0,
       grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax,
+      services: items.map(x => ({ id: x.id, name: x.name, level: x.level, priceInr: x.paise / 100 })),
       linkedToAccount: !!s,
       createdAt: order.created_at,
     });
@@ -1232,7 +1289,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const b = await readJson(req);
     const name = String(b.name || '').trim().slice(0, 80);
     const email = String(b.email || '').trim().toLowerCase();
-    const role = ['admin', 'editor', 'counsellor'].includes(b.role) ? b.role : 'counsellor';
+    /* `student` is here as well as the three staff roles. A counsellor sitting
+       with a walk-in should be able to make them an account there and then,
+       and it is also the only way to get a test login onto a live site without
+       putting a seeded password in an environment variable. */
+    const role = ['admin', 'editor', 'counsellor', 'student'].includes(b.role)
+      ? b.role : 'counsellor';
     const phone = String(b.phone || '').trim();
 
     if (!name) return json(res, 422, { error: 'They need a name' });
@@ -1244,8 +1306,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     /* A password nobody has chosen, shown once. An admin inventing passwords
        for their staff is how "Glovels@123" ends up on four accounts. */
     const password = String(b.password || '') || crypto.randomBytes(9).toString('base64url');
-    if (password.length < 10) {
-      return json(res, 422, { error: 'A password for a staff account needs at least 10 characters' });
+    /* A student's own sign-up accepts eight; holding an account made FOR them
+       to a longer one would mean a counsellor reading out a password the
+       student could not then choose for themselves. */
+    const floor = role === 'student' ? 8 : 10;
+    if (password.length < floor) {
+      return json(res, 422, {
+        error: 'A password for ' + (role === 'student' ? 'a student' : 'a staff')
+             + ' account needs at least ' + floor + ' characters',
+      });
     }
     const salt = newSalt();
     const person = db.createStudent(email, name, phone, hashPassword(password, salt), salt, role);
@@ -1255,11 +1324,19 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
        the one the role exists for. */
     let perms = Array.isArray(b.perms) ? b.perms : [];
     if (role === 'editor' && !perms.length) perms = ['content'];
+    if (role === 'student') perms = [];
     if (role !== 'admin') db.setPerms(person.id, perms);
+
+    /* A student made here is assigned to whoever made them, so they do not
+       land in the unassigned pile the moment they are created. */
+    if (role === 'student' && s.role === 'admin') {
+      try { db.assignCounsellor(person.id, s.id); } catch (e) { /* not fatal */ }
+    }
 
     db.log(s.name,
       role === 'admin' ? 'administrator added'
-        : role === 'editor' ? 'website editor added' : 'counsellor added',
+        : role === 'editor' ? 'website editor added'
+        : role === 'student' ? 'student account created' : 'counsellor added',
       name + ' (' + email + ')'
         + (role === 'admin' ? '' : ' — may change: ' + (db.permsOf(db.studentById(person.id)).join(', ') || 'nothing')));
     /* Returned once and never stored in the clear. If it is lost, the admin

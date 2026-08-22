@@ -92,21 +92,33 @@ Glovels
     };
   },
 
-  orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl, hasAccount }) {
+  orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl,
+    hasAccount, services }) {
     const first = String(name || '').split(' ')[0] || 'there';
     const tax = Math.round(grossPaise - grossPaise / 1.18);
+    /* A receipt for services has to name them. "2 services — ₹4,498" is not a
+       receipt, it is a bank statement line. */
+    const bought = (services || []).length
+      ? '\n' + services.map(x => '  \u00b7 ' + x).join('\n') + '\n' : '';
+    /* "Your universities" is right for a package and wrong for a receipt that
+       bought an SOP rewrite. */
+    const what = (services || []).length ? 'This order is' : 'Your universities are';
     const nextStep = hasAccount
-      ? `Your universities are in your dashboard now: ${siteUrl}/dashboard`
-      : `Create your account with this email address and your universities are attached straight away: ${siteUrl}/login?signup=1&email=${encodeURIComponent(email)}`;
+      ? `${what} in your dashboard now: ${siteUrl}/dashboard`
+      : `Create your account with this email address and ${(services || []).length
+          ? 'this order is' : 'your universities are'} attached straight away: `
+        + `${siteUrl}/login?signup=1&email=${encodeURIComponent(email)}`;
     return {
       subject: `Your Glovels order ${reference} — ${packageName}`,
       text: `Hi ${first},
 
-Your ${packageName} package is active.
-
+${(services || []).length
+  ? `You have booked:${bought}`
+  : `Your ${packageName} package is active.`}
 Order reference   ${reference}
-Amount            ${money(grossPaise)} (including ${money(tax)} GST)
-Universities      ${publicUnis} public universities unlocked
+Amount            ${money(grossPaise)} (including ${money(tax)} GST)${publicUnis
+  ? `
+Universities      ${publicUnis} public universities unlocked` : ''}
 
 ${nextStep}
 

@@ -40,6 +40,7 @@ run writingtest.js  8099
 run chatboxtest.js  8099
 run reqtest.js      8099
 run findertest.js   8099
+run ordertest.js    8099
 run sheettest.js    8099
 run servicetest.js  8086
 run showcasetest.js 8089

@@ -1,28 +1,32 @@
 """
-The chat box on the marketing site.
+The corner of the screen, on the website and inside the portal.
 
-One script, appended to every public page by apply_fixes.py. It is written
-plainly — `var`, no arrow functions, no template literals — because it runs on
-whatever browser a parent in Hyderabad has open, and a syntax error in a chat
-widget would take down the page it is sitting on.
+Two modes, because the two audiences want different things and the business
+wants different things from them.
 
-Three states, and the second one is the one that matters commercially:
+  site    A marketing page. WhatsApp is the button people recognise and the one
+          most Indian families will actually press, so it is the green one and
+          it is first. The chat sits under it, quieter, for somebody who does
+          not want to hand over a phone number to a stranger — and because a
+          chat asks for a name and a number before the first message, which is
+          what turns it into a lead in the enquiry book. WhatsApp conversations
+          live in WhatsApp and never reach the operations site; that is the
+          trade, made deliberately.
 
-  closed   a button in the corner, with an unread dot when a reply came in
-           while it was shut
+  portal  A signed-in student. No WhatsApp, no intro form, no asking who they
+          are — the server already knows. The button opens their real thread
+          with their counsellor, on whatever screen they are on, so a question
+          does not mean navigating away from the document they were uploading.
+          The Messages screen is still the full view.
 
-  intro    a name and a phone number, asked once. This is not a formality: a
-           chat with no way to call back is a question answered into the void,
-           and the office's whole job is the call back. A student who is signed
-           in never sees this screen — the server already knows them, and their
-           chat is their real thread with their counsellor.
+The mode is set by a one-line script written above this one at build time. It
+defaults to `site`, because the failure of guessing wrong that way is a portal
+page offering WhatsApp, and the other way round is a marketing page asking a
+stranger to sign in.
 
-  open     the conversation. Replies arrive over the same server-sent stream
-           the portal uses, so a counsellor's answer appears without a refresh.
-
-The widget deliberately does NOT pretend to be staffed at three in the morning.
-When nobody has replied yet it says what it says on the tin: that it goes to a
-counsellor's screen and someone will call back.
+It is written plainly — `var`, no arrow functions, no template literals —
+because it runs on whatever browser a parent in Hyderabad has open, and a syntax
+error in a chat widget would take down the page it is sitting on.
 """
 
 WIDGET = r"""
@@ -32,9 +36,16 @@ WIDGET = r"""
   window.__glovelsChat = true;
   if (location.protocol === 'file:') return;   /* no server behind it */
 
+  var MODE = window.__glovelsChatMode === 'portal' ? 'portal' : 'site';
   var OPEN_KEY = 'glovels_chat_open';
   var state = { started: false, signedIn: false, msgs: [], unread: 0, name: '' };
-  var es = null, panel = null, dot = null;
+  var es = null, panel = null, dot = null, wa = null;
+
+  /* Baked in at build time and replaced by whatever the office has set on the
+     Finder & contact tab. Having a number here means the button works on the
+     first paint rather than appearing a second later, and still works if that
+     request fails. */
+  var WA_NUMBER = '917093314089';
 
   var esc = function (s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -49,6 +60,20 @@ WIDGET = r"""
       'background:#0b1e31;color:#fff;font:700 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif;',
       'cursor:pointer;box-shadow:0 8px 26px rgba(11,30,49,.28)}',
     '.gv-chat-fab:hover{background:#13385c}',
+    /* The corner holds a stack, not one button: WhatsApp first because it is
+       the one people recognise, the chat under it in a quieter weight. */
+    '.gv-corner{position:fixed;right:20px;bottom:20px;z-index:9998;display:flex;',
+      'flex-direction:column;align-items:flex-end;gap:9px}',
+    '.gv-wa{display:inline-flex;align-items:center;gap:9px;padding:13px 18px;border:0;',
+      'border-radius:999px;background:#25d366;color:#08301a;text-decoration:none;',
+      'font:700 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;',
+      'box-shadow:0 8px 26px rgba(6,70,38,.32)}',
+    '.gv-wa:hover{background:#1fbe5a}',
+    '.gv-corner .gv-chat-fab{position:static;box-shadow:0 6px 18px rgba(11,30,49,.22);',
+      'padding:10px 15px;font-size:13px;background:#fff;color:#13385c;',
+      'border:1.5px solid #d3dbe4}',
+    '.gv-corner .gv-chat-fab:hover{background:#f4f7fb}',
+    '.gv-corner .gv-dot{top:-4px;right:-4px}',
     /* A class that sets display beats the browser's own rule for [hidden], so
        hiding the button by setting .hidden left it sitting on top of the open
        panel, swallowing clicks meant for Send. Both of these are load-bearing. */
@@ -90,15 +115,56 @@ WIDGET = r"""
   ].join('');
   document.head.appendChild(css);
 
+  var corner = document.createElement('div');
+  corner.className = 'gv-corner';
+
   var fab = document.createElement('button');
   fab.type = 'button';
   fab.className = 'gv-chat-fab';
-  fab.setAttribute('aria-label', 'Chat with a counsellor');
+  fab.setAttribute('aria-label', MODE === 'portal'
+    ? 'Message your counsellor' : 'Send us a message on the site');
   fab.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
     + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
     + '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg>'
-    + '<span>Chat with us</span><span class="gv-dot" hidden></span>';
+    + '<span>' + (MODE === 'portal' ? 'Message my counsellor' : 'Send a message')
+    + '</span><span class="gv-dot" hidden></span>';
   dot = fab.querySelector('.gv-dot');
+
+  /* What the visitor was reading, so the counsellor opens the conversation
+     already knowing what it is about. The page title is an SEO sentence and
+     makes a terrible opening line, so the first heading is preferred. */
+  function pageName() {
+    var h = document.querySelector('h1');
+    var t = h ? h.textContent : '';
+    t = String(t || '').replace(/\s+/g, ' ').trim();
+    if (t.length > 3 && t.length < 70) return t;
+    return location.pathname === '/' ? 'your website' : location.pathname.replace(/^\//, '');
+  }
+
+  function waHref() {
+    return 'https://wa.me/' + WA_NUMBER + '?text='
+      + encodeURIComponent('Hi Glovels — I was reading ' + pageName()
+        + ' on your website and I have a question.');
+  }
+
+  if (MODE === 'site') {
+    wa = document.createElement('a');
+    wa.className = 'gv-wa';
+    wa.target = '_blank';
+    wa.rel = 'noopener';
+    wa.href = waHref();
+    wa.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"'
+      + ' aria-hidden="true"><path d="M17.5 14.4c-.3-.2-1.8-.9-2-1-.3-.1-.5-.2-.7.1'
+      + '-.2.3-.7 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1'
+      + '-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6 0-.2-.7-1.6-.9-2.2'
+      + '-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.7s1.2 3.1 1.3 3.3'
+      + 'c.2.2 2.4 3.7 5.8 5.1.8.4 1.4.6 1.9.7.8.3 1.5.2 2.1.1.6-.1 1.8-.7 2.1-1.5'
+      + '.3-.7.3-1.4.2-1.5-.1-.2-.3-.2-.6-.4z"/><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22'
+      + 'l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3'
+      + 'A8.2 8.2 0 1 1 12 20.2z"/></svg>'
+      + '<span>WhatsApp us</span>';
+    corner.appendChild(wa);
+  }
 
   var api = function (path, body) {
     return fetch(path, {
@@ -264,6 +330,10 @@ WIDGET = r"""
     });
   }
 
+  /* The corner hides only the chat button when the panel is open. WhatsApp
+     stays: somebody who opened the chat, read the "we will call you back" line
+     and decided they would rather have an instant reply should not have to
+     close anything to reach it. */
   function open() {
     if (!panel) {
       panel = document.createElement('div');
@@ -292,16 +362,39 @@ WIDGET = r"""
   });
 
   function boot() {
-    document.body.appendChild(fab);
+    corner.appendChild(fab);
+    document.body.appendChild(corner);
+
     api('/api/chat').then(function (d) {
       state.signedIn = !!d.signedIn;
       state.msgs = d.messages || [];
       state.started = state.signedIn || state.msgs.length > 0 || d.id != null;
+
+      /* A portal screen with nobody signed in should not be showing a button
+         that opens somebody's counsellor thread. In practice the screen has
+         already redirected to sign-in by now; this is the belt to that brace. */
+      if (MODE === 'portal' && !state.signedIn) {
+        corner.remove();
+        return;
+      }
+
       if (state.started) listen();
       var wasOpen = false;
       try { wasOpen = sessionStorage.getItem(OPEN_KEY) === '1'; } catch (e) {}
       if (wasOpen) open();
     }, function () { /* server down: the button still opens the intro */ });
+
+    /* The office's number, as set on the Finder & contact tab. The button
+       already works with the number baked in above; this corrects it. */
+    if (wa) {
+      fetch('/api/content', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          var n = d && d.finder && d.finder.contact && d.finder.contact.whatsapp;
+          if (n) { WA_NUMBER = n; wa.href = waHref(); }
+        })
+        .catch(function () {});
+    }
   }
 
   if (document.readyState === 'loading') {

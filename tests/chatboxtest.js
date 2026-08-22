@@ -27,13 +27,23 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await v.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await v.waitForSelector('.gv-chat-fab', { timeout: 10000 });
   check('the chat button is on the home page', await v.isVisible('.gv-chat-fab'));
+  check('and WhatsApp is above it, which is the one people press',
+    await v.isVisible('.gv-wa'));
 
   /* It has to be on the other marketing pages too — the person reading about
      Germany at eleven at night is the one with the question. */
   const other = await guest.newPage();
   await other.goto(BASE + '/study-in-germany', { waitUntil: 'domcontentloaded' });
-  await other.waitForTimeout(900);
+  await other.waitForTimeout(1200);
   check('and on the country pages', await other.isVisible('.gv-chat-fab'));
+
+  /* The WhatsApp message says what they were reading, so the counsellor opens
+     the conversation already knowing what it is about. */
+  const href = await other.getAttribute('.gv-wa', 'href');
+  check('WhatsApp carries the office number', /wa\.me\/9\d{10,}/.test(href), href.slice(0, 40));
+  check('and a message naming the page they were on',
+    decodeURIComponent(href).includes('Germany'),
+    decodeURIComponent(href).slice(0, 110));
   await other.close();
 
   await v.click('.gv-chat-fab');
@@ -166,6 +176,47 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check('what they type goes into that same thread, not a second one',
     (st.msgs || []).some(m => m.t === 'Sent from the chat box on the home page.'),
     (st.msgs || []).length + ' messages');
+
+  /* ------------------------------------------- the portal's own corner */
+  /* Inside the portal there is no WhatsApp and no intro form: they are past
+     being sold to, and the server already knows who they are. */
+  const dash = await stu.newPage();
+  const derr = [];
+  dash.on('pageerror', e => derr.push(String(e)));
+  await dash.goto(BASE + '/documents', { waitUntil: 'domcontentloaded' });
+  await dash.waitForTimeout(2000);
+  check('a portal screen has the chat button', await dash.isVisible('.gv-chat-fab'));
+  check('and no WhatsApp button', !(await dash.isVisible('.gv-wa')));
+  check('it says whose thread it opens',
+    /counsellor/i.test(await dash.textContent('.gv-chat-fab')),
+    (await dash.textContent('.gv-chat-fab')).trim());
+
+  await dash.click('.gv-chat-fab');
+  await dash.waitForTimeout(1300);
+  check('it opens the thread without asking who they are',
+    !(await dash.isVisible('.gv-chat input[name="name"]'))
+    && (await dash.isVisible('.gv-chat textarea')));
+  check('with the conversation already in it',
+    (await dash.textContent('.gv-body')).length > 100,
+    (await dash.textContent('.gv-body')).replace(/\s+/g, ' ').slice(0, 80));
+
+  await dash.fill('.gv-chat textarea', 'Asked from the documents screen.');
+  await dash.click('.gv-chat .gv-go');
+  await wait(1600);
+  const st2 = await (await stu.request.get(BASE + '/api/state')).json();
+  check('what they type reaches their counsellor thread',
+    (st2.msgs || []).some(m => m.t === 'Asked from the documents screen.'),
+    (st2.msgs || []).length + ' messages');
+  check('no errors on a portal screen', derr.length === 0, derr.slice(0, 2).join(' | '));
+
+  /* The Messages screen IS the thread; a floating button over it offering to
+     open the thread is furniture. */
+  const msgs = await stu.newPage();
+  await msgs.goto(BASE + '/messages', { waitUntil: 'domcontentloaded' });
+  await msgs.waitForTimeout(1500);
+  check('the Messages screen has no floating button',
+    (await msgs.$$('.gv-chat-fab')).length === 0);
+  await msgs.close();
 
   /* The 422 is the refused contact number, which is a check above. */
   check('no errors on the website',

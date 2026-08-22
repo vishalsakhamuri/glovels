@@ -554,6 +554,34 @@ function makeContent({ db, file }) {
       return out;
     },
 
+    /**
+     * The service price list the order endpoint charges from.
+     *
+     * Same rule as the packages: the browser sends ids, the server decides what
+     * they cost. A language course carries a price per level, so those come
+     * through as a map and the level is validated against it — "B2 at the A1
+     * price" is exactly the kind of thing a hand-rolled request would try.
+     */
+    serviceList() {
+      const out = {};
+      get('services').items.forEach(x => {
+        if (!x.active) return;
+        const levels = {};
+        (x.levels || []).forEach(l => {
+          const code = str(l.code, 12);
+          if (code) levels[code] = Math.max(0, Math.round(num(l.priceInr)));
+        });
+        out[x.id] = {
+          name: x.name,
+          paise: Math.round((x.isFree ? 0 : x.priceInr) * 100),
+          isFree: !!x.isFree,
+          levels,
+          ai: x.ai || '',
+        };
+      });
+      return out;
+    },
+
     /** The block as rows, for the download. */
     sheet(key) {
       const sh = SHEETS[key];

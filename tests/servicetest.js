@@ -62,8 +62,9 @@ const home = async (ctx, expect) => {
     && (await page.textContent('#svcCats')).includes('Test Prep'));
 
   /* ------------------------------------------------------- edit a price */
+  await page.waitForSelector('[data-sedit="sop"]', { timeout: 10000 });
   await page.click('[data-sedit="sop"]');
-  await page.waitForSelector('#sName');
+  await page.waitForSelector('#sName', { timeout: 10000 });
   check('the editor opens with the service in it',
     (await page.inputValue('#sName')).includes('SOP'), await page.inputValue('#sName'));
 
@@ -104,8 +105,12 @@ const home = async (ctx, expect) => {
     pub.services.items.map(x => x.id).slice(-3).join(','));
 
   /* --------------------------------------------------------- hide it */
+  /* Wait for the row before clicking it. The table repaints after the save,
+     and clicking into the gap where the row is about to be produces a timeout
+     three lines later on a selector that was never going to appear. */
+  await page.waitForSelector('[data-sedit="accommodation-search"]', { timeout: 10000 });
   await page.click('[data-sedit="accommodation-search"]');
-  await page.waitForSelector('#sActive');
+  await page.waitForSelector('#sActive', { timeout: 10000 });
   await page.uncheck('#sActive');
   await page.click('#smSave');
   await page.waitForTimeout(800);
