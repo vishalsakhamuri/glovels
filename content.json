@@ -1180,6 +1180,13 @@
   }
  },
  "finder": {
+  "gate": "gated",
+  "badges": {
+   "best": "Bestseller",
+   "value": "Best value",
+   "fast": "48-hr",
+   "start": "Start here"
+  },
   "browsePublic": 3,
   "browsePrivate": 2,
   "cgpaFull": 7.5,

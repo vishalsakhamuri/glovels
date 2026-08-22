@@ -108,6 +108,10 @@ async function sweep(ctx, pages, who) {
           .map(x => x.value).join('\u0001').length,
         checked: [...document.querySelectorAll('input')].filter(x => x.checked).length,
         selected: [...document.querySelectorAll('[aria-selected="true"], .active, .on')].length,
+        /* Scrolling somewhere IS the effect for a control whose job is "take me
+           to that table". Without this, pressing Students while the table was
+           already unfiltered read as a dead button. */
+        scroll: Math.round(window.scrollY / 40),
       }));
       const before = await snapshot();
       let requested = false;

@@ -313,6 +313,11 @@ const cleanFinder = v => {
   const digits = (x, n) => String(x == null ? '' : x).replace(/[^0-9]/g, '').slice(0, n || 15);
 
   return {
+    /* Whether public university NAMES are hidden until somebody buys a package.
+       This is the commercial lever the whole finder turns on, and it was a
+       string in the page: `gated` hides the name behind a package, `names`
+       shows the name but not the fee, `open` shows everything. */
+    gate: /^(gated|names|open)$/.test(str(f.gate, 10)) ? str(f.gate, 10) : 'gated',
     browsePublic: int(f.browsePublic, 1, 50, 3),
     browsePrivate: int(f.browsePrivate, 1, 50, 2),
     cgpaFull: rate(f.cgpaFull) || 7.5,
@@ -325,6 +330,14 @@ const cleanFinder = v => {
       whatsapp: digits((f.contact || {}).whatsapp, 15),
       phone: str((f.contact || {}).phone, 30),
       email: str((f.contact || {}).email, 120).toLowerCase(),
+    },
+    /* The words on the four service badges. The office already picks WHICH
+       badge a service carries; these are what those badges say. */
+    badges: {
+      best: str((f.badges || {}).best, 24) || 'Bestseller',
+      value: str((f.badges || {}).value, 24) || 'Best value',
+      fast: str((f.badges || {}).fast, 24) || '48-hr',
+      start: str((f.badges || {}).start, 24) || 'Start here',
     },
   };
 };

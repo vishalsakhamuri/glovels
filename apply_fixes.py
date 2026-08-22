@@ -120,9 +120,14 @@ patch(
 # that owns D.programs, C, S and render(). The countries block further down also
 # ends in "render();" followed by the same close, and putting it there throws
 # "S is not defined" — the blocks are separate IIFEs and share no scope.
+# The marker matters here: a later patch inserts an entitlement check between
+# this patch's anchor and its body, so `new` stops being present verbatim while
+# the patch has very much run. Without it this re-ran and failed on an anchor it
+# had itself moved.
 patch("index.html", "the finder reads the live catalogue",
       "$('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };\n\nrender();\n\n})();\n/* ---- block2 ---- */",
-      "$('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };\n\nrender();\n\n/* ------------------------------------------------- the live catalogue -----\n * The programme table above is what this page was BUILT with. The live one is\n * in the database, and counsellors edit it from the operations screen — add a\n * university in Australia and it has to appear here, without a developer and\n * without a rebuild.\n *\n * The built-in copy renders first, so the finder is usable before this request\n * finishes and still works on static hosting with no server behind it.\n * ------------------------------------------------------------------------- */\n(async function liveCatalogue(){\n  let data;\n  try {\n    const r = await fetch('/api/catalogue', {headers: {Accept: 'application/json'}});\n    if (!r.ok) return;\n    data = await r.json();\n  } catch (e) { return; }\n  if (!data || !Array.isArray(data.programmes) || !data.programmes.length) return;\n\n  /* Destinations first. A programme in a country the finder has never heard of\n     filters to nothing and looks like a bug. */\n  let touchedCountries = false;\n  Object.values(data.countries || {}).forEach(c => {\n    if (C[c.code]) return;\n    C[c.code] = {\n      code: c.code, name: c.name, flag: c.flag || '\\u{1F30D}',\n      slug: String(c.name || '').toLowerCase().replace(/\\s+/g, '-'),\n      region: '', hasPublicTrack: false, tuitionFree: false,\n      minCgpaPublic: S.cgpaFull, minCgpaPrivate: S.cgpaPartial,\n      degreeRule: '', extraNote: '', backlogRule: '', tests: [],\n      fundsLabel: '', documents: [],\n    };\n    touchedCountries = true;\n  });\n\n  const known = new Set(D.programs.map(p => String(p.id)));\n  let added = 0;\n\n  data.programmes.forEach(p => {\n    /* An edited fee or a corrected name has to reach the unlocked view too, or\n       a student who paid is looking at last month's price. A locked public row\n       has no name in this response at all — that is what the package buys. */\n    if (p.program && p.university) {\n      EXTRA_NAMES[p.id] = {\n        program: p.program, university: p.university, city: p.city || '',\n        totalInr: p.totalInr || 0, url: p.url || '', uKey: 'live-' + p.id,\n      };\n    }\n    if (known.has(String(p.id))) return;\n\n    const row = {\n      id: p.id, country: p.country, level: p.level || 'master',\n      fieldGroup: p.field || 'Other', field: p.field || 'Other',\n      band: p.band || 'u20', isPublic: !!p.isPublic, minCgpa: null,\n      fit: p.fit || 75, uKey: 'live-' + p.id,\n      intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],\n      nLen: p.nLen != null ? p.nLen : String(p.program || '').length,\n      uLen: p.uLen != null ? p.uLen : String(p.university || '').length,\n      freeTuition: (p.totalInr || 0) === 0, dummy: false,\n    };\n    /* A private university is not gated, so its row carries its own name, city\n       and fee — a locked public row deliberately carries none of that. Adding a\n       private one without them renders \"undefined undefined ₹NaNL\". */\n    if (!p.isPublic) {\n      row.program = p.program;\n      row.university = p.university;\n      row.city = p.city || '';\n      row.totalInr = p.totalInr || 0;\n      row.slug = String(p.program || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');\n      row.universitySlug = String(p.university || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');\n      row.semesters = p.semesters || 4;\n      row.feeEur = p.feeEur || 0;\n      row.url = p.url || '';\n    }\n    D.programs.push(row);\n    added++;\n  });\n\n  /* Anything switched off in the operations screen comes off the site — but only\n     what the server NAMED as switched off. Filtering to \"ids the server sent\"\n     instead deletes every programme the database has never heard of, which\n     silently emptied five countries out of the finder the first time. */\n  const off = new Set((data.inactive || []).map(String));\n  const before = D.programs.length;\n  if (off.size) D.programs = D.programs.filter(p => !off.has(String(p.id)));\n  const removed = before - D.programs.length;\n\n  if (added || removed || touchedCountries) {\n    const sel = $('#fCountry');\n    if (sel) {\n      const keep = sel.value;\n      const any = sel.querySelector('option[value=\"\"]');\n      const counts = {};\n      D.programs.forEach(p => { counts[p.country] = (counts[p.country] || 0) + 1; });\n      sel.innerHTML = (any ? any.outerHTML : '<option value=\"\">Any destination</option>')\n        + Object.values(C)\n            .filter(c => counts[c.code])\n            .sort((a, b) => String(a.name).localeCompare(String(b.name)))\n            .map(c => '<option value=\"' + esc(c.code) + '\">' + (c.flag || '') + ' '\n              + esc(c.name) + ' (' + counts[c.code] + ')</option>').join('');\n      sel.value = keep;\n    }\n    render();\n  }\n})();\n\n})();\n/* ---- block2 ---- */")
+      "$('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };\n\nrender();\n\n/* ------------------------------------------------- the live catalogue -----\n * The programme table above is what this page was BUILT with. The live one is\n * in the database, and counsellors edit it from the operations screen — add a\n * university in Australia and it has to appear here, without a developer and\n * without a rebuild.\n *\n * The built-in copy renders first, so the finder is usable before this request\n * finishes and still works on static hosting with no server behind it.\n * ------------------------------------------------------------------------- */\n(async function liveCatalogue(){\n  let data;\n  try {\n    const r = await fetch('/api/catalogue', {headers: {Accept: 'application/json'}});\n    if (!r.ok) return;\n    data = await r.json();\n  } catch (e) { return; }\n  if (!data || !Array.isArray(data.programmes) || !data.programmes.length) return;\n\n  /* Destinations first. A programme in a country the finder has never heard of\n     filters to nothing and looks like a bug. */\n  let touchedCountries = false;\n  Object.values(data.countries || {}).forEach(c => {\n    if (C[c.code]) return;\n    C[c.code] = {\n      code: c.code, name: c.name, flag: c.flag || '\\u{1F30D}',\n      slug: String(c.name || '').toLowerCase().replace(/\\s+/g, '-'),\n      region: '', hasPublicTrack: false, tuitionFree: false,\n      minCgpaPublic: S.cgpaFull, minCgpaPrivate: S.cgpaPartial,\n      degreeRule: '', extraNote: '', backlogRule: '', tests: [],\n      fundsLabel: '', documents: [],\n    };\n    touchedCountries = true;\n  });\n\n  const known = new Set(D.programs.map(p => String(p.id)));\n  let added = 0;\n\n  data.programmes.forEach(p => {\n    /* An edited fee or a corrected name has to reach the unlocked view too, or\n       a student who paid is looking at last month's price. A locked public row\n       has no name in this response at all — that is what the package buys. */\n    if (p.program && p.university) {\n      EXTRA_NAMES[p.id] = {\n        program: p.program, university: p.university, city: p.city || '',\n        totalInr: p.totalInr || 0, url: p.url || '', uKey: 'live-' + p.id,\n      };\n    }\n    if (known.has(String(p.id))) return;\n\n    const row = {\n      id: p.id, country: p.country, level: p.level || 'master',\n      fieldGroup: p.field || 'Other', field: p.field || 'Other',\n      band: p.band || 'u20', isPublic: !!p.isPublic, minCgpa: null,\n      fit: p.fit || 75, uKey: 'live-' + p.id,\n      intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],\n      nLen: p.nLen != null ? p.nLen : String(p.program || '').length,\n      uLen: p.uLen != null ? p.uLen : String(p.university || '').length,\n      freeTuition: (p.totalInr || 0) === 0, dummy: false,\n    };\n    /* A private university is not gated, so its row carries its own name, city\n       and fee — a locked public row deliberately carries none of that. Adding a\n       private one without them renders \"undefined undefined ₹NaNL\". */\n    if (!p.isPublic) {\n      row.program = p.program;\n      row.university = p.university;\n      row.city = p.city || '';\n      row.totalInr = p.totalInr || 0;\n      row.slug = String(p.program || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');\n      row.universitySlug = String(p.university || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');\n      row.semesters = p.semesters || 4;\n      row.feeEur = p.feeEur || 0;\n      row.url = p.url || '';\n    }\n    D.programs.push(row);\n    added++;\n  });\n\n  /* Anything switched off in the operations screen comes off the site — but only\n     what the server NAMED as switched off. Filtering to \"ids the server sent\"\n     instead deletes every programme the database has never heard of, which\n     silently emptied five countries out of the finder the first time. */\n  const off = new Set((data.inactive || []).map(String));\n  const before = D.programs.length;\n  if (off.size) D.programs = D.programs.filter(p => !off.has(String(p.id)));\n  const removed = before - D.programs.length;\n\n  if (added || removed || touchedCountries) {\n    const sel = $('#fCountry');\n    if (sel) {\n      const keep = sel.value;\n      const any = sel.querySelector('option[value=\"\"]');\n      const counts = {};\n      D.programs.forEach(p => { counts[p.country] = (counts[p.country] || 0) + 1; });\n      sel.innerHTML = (any ? any.outerHTML : '<option value=\"\">Any destination</option>')\n        + Object.values(C)\n            .filter(c => counts[c.code])\n            .sort((a, b) => String(a.name).localeCompare(String(b.name)))\n            .map(c => '<option value=\"' + esc(c.code) + '\">' + (c.flag || '') + ' '\n              + esc(c.name) + ' (' + counts[c.code] + ')</option>').join('');\n      sel.value = keep;\n    }\n    render();\n  }\n})();\n\n})();\n/* ---- block2 ---- */",
+      marker="------------------------------------------------- the live catalogue -----")
 
 patch("index.html", "somewhere to keep names for programmes added since the build",
       "let revealed = {};",
@@ -130,7 +135,11 @@ patch("index.html", "somewhere to keep names for programmes added since the buil
 
 patch("index.html", "merge those names when the matches unlock",
       "async function loadUnlocked(){\n  if(Object.keys(revealed).length) return;",
-      "async function loadUnlocked(){\n  if(Object.keys(revealed).length) { Object.assign(revealed, EXTRA_NAMES); return; }")
+      "async function loadUnlocked(){\n  if(Object.keys(revealed).length) { Object.assign(revealed, EXTRA_NAMES); return; }",
+      # A later patch rewrites this whole function to fetch the names instead of
+      # holding them, so neither the anchor nor `new` survives once it has run.
+      # The marker is the merge itself, which that rewrite keeps.
+      marker="Object.assign(revealed, EXTRA_NAMES)")
 
 # THE IMPORTANT ONE.
 #
@@ -165,6 +174,10 @@ patch(
     "      + '</a>or email us, and your details are below so nothing is lost.'",
     "'<b>That did not send.</b> Please call <a href=\"tel:' + PHONE + '\">'\n"
     "      + '+91 70933 14089</a> or email us, and your details are below so nothing is lost.'",
+    # A later patch rewrites this same line to read the number from the office's
+    # own settings, so `new` stops being present verbatim once both have run.
+    # The marker is the half that neither of them touches.
+    marker="or email us, and your details are below so nothing is lost.",
 )
 
 # The dashboard preview inside the sales page had three "Continue application"
@@ -1693,4 +1706,258 @@ patch(
     "__dashBoot(function () { __dashMain();",
     "__dashBoot(function () { __dashMain();" + BOUGHT_JS,
     marker="Every order, newest first, with what was in it",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# The last three things on the home page that only a developer could change.
+#
+# MODE decides whether public university NAMES are hidden until somebody buys a
+# package — the commercial lever the entire finder turns on — and it was a
+# string in the page. PHONE and TO are the number and address the enquiry form
+# falls back to when a send fails, so a changed office number left the failure
+# message quoting the old one, which is the worst possible moment to be wrong.
+# And BADGE holds the words on the four service badges.
+#
+# All three now come from the same `finder` block as everything else.
+patch(
+    "index.html",
+    "the gate, the badge words and the fallback number come from the server",
+    "window.__glovelsSetFinder = function (f) {",
+    """window.__glovelsSetGate = function (f) {
+  if (!f) return;
+  /* MODE and BADGE are `const`, and PHONE/TO are read at the moment a form
+     fails rather than at load, so these are held in a box the rest of the page
+     reads through. */
+  if (/^(gated|names|open)$/.test(f.gate)) window.__glovelsGate = f.gate;
+  /* The badge words are NOT set here. BADGE is declared in the services block,
+     which this one cannot see — reaching for it threw a ReferenceError that
+     the loader's single try/catch swallowed, taking the two setters that ran
+     after it down with it. They have their own setter, below. */
+  if (f.contact) {
+    if (f.contact.phone) window.__glovelsPhone = f.contact.phone;
+    if (f.contact.email) window.__glovelsEmail = f.contact.email;
+  }
+};
+
+window.__glovelsSetFinder = function (f) {""",
+    marker="__glovelsSetGate",
+)
+
+# MODE is read in one place — the gate that decides whether a row is locked.
+patch(
+    "index.html",
+    "the gate is read through the box",
+    "  if(!p.isPublic || MODE === 'open') return {...p, locked:false};\n"
+    "  if(MODE === 'names') return {...p, locked:true};",
+    "  /* `window.__glovelsGate` when the office has set one, else what the page\n"
+    "     shipped with. Read here rather than captured once, so an edit applies\n"
+    "     on the next repaint instead of the next deploy. */\n"
+    "  const gate = window.__glovelsGate || MODE;\n"
+    "  if(!p.isPublic || gate === 'open') return {...p, locked:false};\n"
+    "  if(gate === 'names') return {...p, locked:true};",
+)
+
+patch(
+    "index.html",
+    "the enquiry failure quotes the current number",
+    "      '<b>That did not send.</b> Please call <a href=\"tel:' + PHONE + '\">'",
+    "      '<b>That did not send.</b> Please call <a href=\"tel:' + (window.__glovelsPhone || PHONE) + '\">'",
+)
+
+patch(
+    "index.html",
+    "and the current address",
+    "      + '<a class=\"btn btn-ghost btn-sm\" style=\"margin-top:10px\" href=\"mailto:' + TO",
+    "      + '<a class=\"btn btn-ghost btn-sm\" style=\"margin-top:10px\" href=\"mailto:'"
+    " + (window.__glovelsEmail || TO)",
+)
+
+patch(
+    "index.html",
+    "the loader applies the gate",
+    "        if (typeof window.__glovelsSetFinder === 'function') {\n"
+    "          window.__glovelsSetFinder(data.finder);\n"
+    "        }",
+    "        if (typeof window.__glovelsSetGate === 'function') {\n"
+    "          window.__glovelsSetGate(data.finder);\n"
+    "        }\n"
+    "        if (typeof window.__glovelsSetFinder === 'function') {\n"
+    "          window.__glovelsSetFinder(data.finder);\n"
+    "        }",
+    marker="window.__glovelsSetGate(data.finder)",
+)
+
+# A currency the office adds has no symbol baked in, and `SYM[cur]` came back
+# undefined — printing "undefined1,23,456" on every price.
+patch(
+    "index.html",
+    "an unknown currency prints its code rather than the word undefined",
+    "  return SYM[cur] + nf.format(Math.round(v));",
+    "  /* A currency the office adds on the Finder tab has no symbol baked in\n"
+    "     here. Falling back to the code reads as \"SGD 1,234\"; without it,\n"
+    "     SYM[cur] is undefined and every price on the page printed\n"
+    "     \"undefined1,234\". */\n"
+    "  return (SYM[cur] || (cur + '\\u00a0')) + nf.format(Math.round(v));",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# The names stop being in the page.
+#
+# `revealed` carried this comment —
+#
+#     Filled only after a package is active. Empty until then, which is why a
+#     locked row has nothing to reveal even to someone reading the source.
+#
+# — and three lines below it, the build pasted in all 153 gated programmes with
+# their universities, their fees and their course URLs. 37KB of it, in every
+# visitor's View Source. The gating was a blur over data the browser already
+# had, and the one thing a package is sold to buy was free to anybody who
+# pressed Cmd-U.
+#
+# The server already decides this correctly and has done since /api/catalogue
+# existed: it returns names only up to what the order covers, or per the gate
+# the office set. So the page asks it, and holds nothing it was not given.
+patch(
+    "index.html",
+    "the gated names come from the server, not from the page source",
+    "async function loadUnlocked(){\n"
+    "  if(Object.keys(revealed).length) { Object.assign(revealed, EXTRA_NAMES); return; }\n"
+    "  try {",
+    """async function loadUnlocked(){
+  try {
+    /* Whatever came back with a name is what this visitor is entitled to see —
+       the entitlement is the server's decision, not a filter applied here. */
+    const r = await fetch('/api/catalogue', {credentials: 'same-origin'});
+    if(!r.ok) return;
+    const d = await r.json();
+    const out = {};
+    (d.programmes || []).forEach(p => {
+      if(!p.university) return;
+      out[p.id] = {
+        program: p.program, university: p.university, city: p.city || '',
+        totalInr: p.totalInr, url: p.url || '', uKey: p.uKey,
+      };
+    });
+    revealed = out;
+    Object.assign(revealed, EXTRA_NAMES);
+    return;
+  } catch(e) { /* leave locked rather than guess */ }
+  try {""",
+    marker="the entitlement is the server's decision",
+)
+
+# The 37KB blob itself, and the dead branch that followed it.
+patch_re(
+    "index.html",
+    "the inline list of every gated university is deleted",
+    r"    /\* PROD: GET /api/matches with the session cookie\. The server returns only\n"
+    r"       what the entitlement covers; this static file is the stand-in\. \*/\n"
+    r"    revealed = \{\"gated-.*?\n"
+    r"  \} catch\(e\) \{ /\* leave locked rather than guess \*/ \}\n",
+    "    /* Nothing here. The list that used to sit inline is what the fetch\n"
+    "       above asks for, and it is the server's answer that decides. */\n"
+    "  } catch(e) { /* leave locked rather than guess */ }\n",
+    present=lambda t: 'revealed = {"gated-' not in t,
+)
+
+# And the reveal itself trusts the server rather than re-deciding client-side.
+patch(
+    "index.html",
+    "a row is unlocked because the server named it",
+    "  const reduce = p => (allowed.has(p.uKey) && revealed[p.id])\n"
+    "    ? {...p, ...revealed[p.id], locked:false}",
+    "  /* Named by the server means allowed. The quota is counted there, in\n"
+    "     universities, which is what the package card promises — counting again\n"
+    "     here in a second unit was how five universities became three. */\n"
+    "  const reduce = p => revealed[p.id]\n"
+    "    ? {...p, ...revealed[p.id], locked:false}",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# Ask the server what this visitor may see, on load.
+#
+# loadUnlocked() ran in exactly one place: the moment a package was paid for.
+# That was right when the names were already sitting in the page and the fetch
+# was decoration. Now that the names come from the server, a visitor who is
+# already entitled to them — signed in with an order from last week, or on a
+# site the office has set to "show everything" — has to be asked about on load,
+# or they see blurred rows they have paid for.
+patch(
+    "index.html",
+    "the entitlement is checked when the page opens",
+    "$('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };",
+    """$('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };
+
+/* What this visitor may see, asked once on load. The answer decides how many
+   rows come back with a name; `unlocked` is set from that rather than from a
+   package the browser thinks it bought, so an order placed on another device
+   works the same as one placed in this tab. */
+(async function entitlement(){
+  await loadUnlocked();
+  const n = Object.keys(revealed).length;
+  if (!n) return;
+  const unis = new Set(Object.values(revealed).map(r => r.uKey));
+  unlocked = Math.max(unlocked, unis.size);
+  render();
+}());""",
+    marker="What this visitor may see, asked once on load",
+)
+
+# The badge words, set in the block that declares them.
+patch(
+    "index.html",
+    "the service badge words can be replaced from the server",
+    "const BADGE = {best:'Bestseller', value:'Best value', fast:'48-hr', start:'Start here'};",
+    "const BADGE = {best:'Bestseller', value:'Best value', fast:'48-hr', start:'Start here'};\n"
+    "window.__glovelsSetBadges = function (words) {\n"
+    "  if (!words) return;\n"
+    "  Object.keys(words).forEach(function (k) {\n"
+    "    if (BADGE[k] !== undefined && words[k]) BADGE[k] = words[k];\n"
+    "  });\n"
+    "};",
+)
+
+# 3. Each setter in its own try/catch.
+#
+# This is the third time a setter has been declared in an IIFE that cannot see
+# what it reaches for, and each time the symptom was somebody ELSE'S setter
+# silently not running — because one try/catch wrapped all of them, so the first
+# throw ended the sequence. Wrapping each one means a misplaced setter costs its
+# own feature and nothing else, and the warning names which.
+patch(
+    "index.html",
+    "one broken setter cannot take the others with it",
+    """    try {
+      if (data.finder) {
+        if (typeof window.__glovelsSetGate === 'function') {
+          window.__glovelsSetGate(data.finder);
+        }
+        if (typeof window.__glovelsSetFinder === 'function') {
+          window.__glovelsSetFinder(data.finder);
+        }
+        if (typeof window.__glovelsSetBands === 'function') {
+          window.__glovelsSetBands(data.finder.bands, data.finder.trending);
+        }
+      }
+    } catch (e) { console.warn('finder settings', e); }""",
+    """    if (data.finder) {
+      [
+        ['the gate', function () { window.__glovelsSetGate(data.finder); }],
+        ['the badge words', function () { window.__glovelsSetBadges(data.finder.badges); }],
+        ['the finder settings', function () { window.__glovelsSetFinder(data.finder); }],
+        ['the bands', function () {
+          window.__glovelsSetBands(data.finder.bands, data.finder.trending);
+        }],
+      ].forEach(function (pair) {
+        try { pair[1](); }
+        catch (e) { console.warn('glovels: ' + pair[0] + ' did not apply', e); }
+      });
+    }""",
+    marker="did not apply",
 )

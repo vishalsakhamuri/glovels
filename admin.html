@@ -542,6 +542,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
       .out .outgo span{text-decoration:underline;text-decoration-color:transparent;
         text-underline-offset:3px;transition:text-decoration-color .12s}
       .out .outgo:hover span{text-decoration-color:currentColor}
+      .out .outgo.on{border-color:var(--navy-700);background:var(--paper);
+        box-shadow:inset 0 0 0 1px var(--navy-700)}
+      .out .outgo.on span{text-decoration-color:currentColor}
     </style>
 
     <div class="p-cols" style="margin-bottom:20px;align-items:start">
@@ -784,6 +787,13 @@ function paint() {
   chip.hidden = !only;
   chip.textContent = only === 'unassigned' ? 'Unassigned only \u00d7'
     : only === 'docs' ? 'Waiting on documents \u00d7' : '';
+
+  /* Which view you are in, marked on the counter that chose it. Without this the
+     screen gives no clue that the list is filtered once the chip has scrolled out
+     of sight, and pressing Students while already unfiltered looks like a button
+     that does nothing. */
+  $$('[data-go]').forEach(el =>
+    el.classList.toggle('on', el.dataset.go === (only || 'all')));
 
   $('#rows').innerHTML = list.map(row).join('') ||
     '<tr><td colspan="6" style="color:var(--muted);padding:22px">' +

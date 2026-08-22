@@ -104,7 +104,16 @@ def finder_block(s):
     tel = re.search(r"\+91[\d ]{8,}", s)
     mail = re.search(r"mailto:([a-z0-9._%+-]+@[a-z0-9.-]+)", s)
 
+    mode = re.search(r'const MODE\s*=\s*"([a-z]+)"', s)
+    badge = re.search(r'const BADGE\s*=\s*\{(.*?)\}', s)
+    badges = {}
+    if badge:
+        for k, v in re.findall(r"(\w+)\s*:\s*'([^']*)'", badge.group(1)):
+            badges[k] = v
+
     return {
+        "gate": mode.group(1) if mode else "gated",
+        "badges": badges,
         "browsePublic": st.get("browsePublic", 3),
         "browsePrivate": st.get("browsePrivate", 2),
         "cgpaFull": st.get("cgpaFull", 7.5),

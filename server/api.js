@@ -950,10 +950,44 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const quota = order ? Number(order.public_unis || 0) : 0;
     let spent = 0;
 
+    /*
+     * How much of a public university a visitor who has not paid may see. Set
+     * on the Home page screen, under Finder & contact, and enforced HERE
+     * because the name has to be withheld by the server — a page that hides it
+     * with CSS has already sent it.
+     *
+     *   gated  the match, not the name. The default, and the business model.
+     *   names  the name, not the fee.
+     *   open   everything, free to all.
+     */
+    let gate = 'gated';
+    try {
+      const f = content && content.get('finder');
+      if (f && f.gate) gate = f.gate;
+    } catch (e) { /* the strictest reading is the safe one */ }
+
+    /* The quota counts UNIVERSITIES, because that is what the package says on
+       the card: "Reveals 5 public universities". Counting programmes instead
+       spends the allowance on five courses at three universities, which is a
+       worse deal than the one that was sold. Every programme at an already
+       revealed university is free. */
+    const named = new Set();
+    const mayShow = p => {
+      if (named.has(p.uKey)) return true;
+      if (named.size >= quota) return false;
+      named.add(p.uKey);
+      return true;
+    };
+
     const programmes = cat().map(p => {
       if (!p.isPublic) return p;                       // never gated
-      const mayName = spent < quota;
-      if (mayName) spent++;
+      if (gate === 'open') return p;
+      if (gate === 'names') {
+        /* The name, and enough to place it, but not what it costs. */
+        return Object.assign({}, p, { totalInr: 0, freeTuition: false, feeHidden: true });
+      }
+      const mayName = quota > 0 && mayShow(p);
+      if (mayName) spent = named.size;
       return mayName ? p : {
         id: p.id, country: p.country, level: p.level, field: p.field,
         band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
@@ -969,6 +1003,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     return json(res, 200, {
       programmes,
+      /* Said out loud, so the page does not have to infer it from the shape of
+         the rows it got. */
+      gate,
       countries: countryMap(),
       /* Explicitly listed, so the page removes exactly what was switched off and
          nothing else. Filtering by "not in this list" would delete every row the

@@ -126,6 +126,22 @@ BODY = """
     <!-- ---------------------------------------------------- the finder -->
     <section class="pane" id="t-find">
       <div class="p-card" style="margin-bottom:14px">
+        <h3>Public university names</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The finder matches a visitor to public universities whether or not they have paid.
+          This decides how much of each one they are shown &mdash; and it is the single
+          biggest lever on the site, so it is worth being deliberate about.</p>
+        <div class="field" style="margin-bottom:0;max-width:520px">
+          <label for="fGate">What a visitor who has not paid sees</label>
+          <select id="fGate">
+            <option value="gated">The match, not the name &mdash; the name comes with a package</option>
+            <option value="names">The name, but not the fee</option>
+            <option value="open">Everything &mdash; names and fees, free to all</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
         <h3>How much a visitor sees before they pay</h3>
         <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
           Somebody who lands on the site and has not touched the filters sees this many
@@ -182,6 +198,23 @@ BODY = """
           themselves are stored in rupees and converted for display.</p>
         <div id="fxRows" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
           gap:0 14px"></div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>The words on the service badges</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          You pick which badge a service carries on the Services tab. These are what those
+          badges say.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 14px">
+          <div class="field" style="margin-bottom:10px"><label for="fbBest">Bestseller</label>
+            <input id="fbBest"></div>
+          <div class="field" style="margin-bottom:10px"><label for="fbValue">Best value</label>
+            <input id="fbValue"></div>
+          <div class="field" style="margin-bottom:10px"><label for="fbFast">Fast</label>
+            <input id="fbFast"></div>
+          <div class="field" style="margin-bottom:10px"><label for="fbStart">Start here</label>
+            <input id="fbStart"></div>
+        </div>
       </div>
 
       <div class="p-card" style="margin-bottom:14px">
@@ -683,6 +716,11 @@ function paintFinder() {
   set('fCgFull', f.cgpaFull);
   set('fCgPart', f.cgpaPartial);
   set('fTrend', (f.trending || []).join('\n'));
+  set('fGate', f.gate || 'gated');
+  set('fbBest', (f.badges || {}).best);
+  set('fbValue', (f.badges || {}).value);
+  set('fbFast', (f.badges || {}).fast);
+  set('fbStart', (f.badges || {}).start);
   set('fWa', (f.contact || {}).whatsapp);
   set('fPhone', (f.contact || {}).phone);
   set('fEmail', (f.contact || {}).email);
@@ -724,6 +762,10 @@ function finderFromScreen() {
       ceilInr: v('bc' + n) === '' ? null : Number(v('bc' + n)),
     })),
     trending: v('fTrend').split('\n').map(x => x.trim()).filter(Boolean),
+    gate: v('fGate') || C.finder.gate,
+    badges: {
+      best: v('fbBest'), value: v('fbValue'), fast: v('fbFast'), start: v('fbStart'),
+    },
     contact: { whatsapp: v('fWa'), phone: v('fPhone'), email: v('fEmail') },
   };
 }
