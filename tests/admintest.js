@@ -68,8 +68,14 @@ const names = page => page.$$eval('#rows tr',
   const all = await names(page);
   check('the table starts with everybody', all.length >= 2, all.length + ' rows');
 
+  check('and the view you are in is marked on the counter',
+    await page.$eval('[data-go="all"]', el => el.classList.contains('on')));
+
   await page.click('[data-go="unassigned"]');
   await page.waitForTimeout(700);
+  check('the mark follows the filter',
+    await page.$eval('[data-go="unassigned"]', el => el.classList.contains('on'))
+    && !(await page.$eval('[data-go="all"]', el => el.classList.contains('on'))));
   const unassigned = await names(page);
   check('Unassigned narrows the table', unassigned.length < all.length,
     all.length + ' -> ' + unassigned.length);
