@@ -82,6 +82,7 @@ def sidebar(active):
 
 STAFF_NAV = [
     ("counsellor", "i-chat",   "Conversations"),
+    ("chat",       "i-globe",  "Website chat"),
     ("home",       "i-file",   "Home page"),
     ("catalogue",  "i-cap",    "Catalogue"),
     ("admin",      "i-grid",   "Organisation"),
@@ -636,6 +637,14 @@ def main():
         "Your students, and the thread with each of them. Messages arrive without a refresh.",
         portal_counsellor.BODY, portal_counsellor.SCRIPT, "Counsellor"), encoding="utf-8")
     written.append("counsellor.html")
+
+    import portal_chat
+    (HERE / "chat.html").write_text(staff_page(
+        "chat", "Website chat", "Website chat",
+        "People asking questions in the chat box on the website. They have not made an account "
+        "\u2014 they left a name and a number, and they are waiting.",
+        portal_chat.BODY, portal_chat.SCRIPT, "Counsellor"), encoding="utf-8")
+    written.append("chat.html")
 
     import portal_home
     (HERE / "home.html").write_text(staff_page(

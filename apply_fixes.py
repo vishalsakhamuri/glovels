@@ -1177,3 +1177,42 @@ patch(
     "__dashBoot(function () { __dashMain();" + DRAFTS_JS + "});",
     marker="The studio's drafts, from the same /api/state",
 )
+
+
+# ------------------------------------------------------------ every page
+#
+# The chat box.
+#
+# On every public page, not only the home page: a visitor reading "Study in
+# Germany" at eleven at night is exactly the person with a question, and making
+# them find their way back to the home page to ask it is how the question goes
+# unasked. The portal's own pages are excluded — a student who is signed in has
+# the Messages screen, and two chat surfaces on one screen is a way to send the
+# same question twice.
+import chat_widget
+
+PORTAL_PAGES = {
+    "dashboard.html", "messages.html", "documents.html", "profile.html",
+    "applications.html", "universities.html", "scholarships.html",
+    "counsellor.html", "admin.html", "home.html", "catalogue.html",
+    "login.html", "404.html",
+}
+
+
+def chat_everywhere():
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        if f.name in PORTAL_PAGES:
+            continue
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-CHAT-WIDGET" in t or "</body>" not in t:
+            continue
+        write(f, t.replace("</body>", "<script>" + chat_widget.WIDGET + "</script>\n</body>", 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the chat box")
+    else:
+        skipped.append("every page: the chat box")
+
+
+chat_everywhere()

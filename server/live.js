@@ -23,6 +23,9 @@ class Live {
     this.students = new Map();
     /** staffId -> Set of open responses */
     this.staff = new Map();
+    /** chat token -> Set of open responses. A visitor on the marketing site has
+        no account, so their channel is keyed by the token in their cookie. */
+    this.guests = new Map();
     this.heartbeat = setInterval(() => this.ping(), 25000);
     this.heartbeat.unref && this.heartbeat.unref();
   }
@@ -49,7 +52,8 @@ class Live {
     });
     res.write('retry: 3000\n\n');       // how long the browser waits before reconnecting
 
-    const map = who.role === 'student' ? this.students : this.staff;
+    const map = who.role === 'student' ? this.students
+              : who.role === 'guest' ? this.guests : this.staff;
     this._add(map, who.id, res);
 
     const close = () => { this._drop(map, who.id, res); };
@@ -68,7 +72,7 @@ class Live {
   }
 
   ping() {
-    const all = [...this.students.values(), ...this.staff.values()];
+    const all = [...this.students.values(), ...this.staff.values(), ...this.guests.values()];
     all.forEach(set => set.forEach(res => {
       try { res.write(': ping\n\n'); } catch (e) {}
     }));
@@ -95,6 +99,17 @@ class Live {
     (this.staff.get(Number(staffId)) || new Set()).forEach(res => this._write(res, event, data));
   }
 
+  /** Every member of staff who has the operations site open. A visitor chat is
+      not assigned to anyone yet, so whoever is at a desk should see it. */
+  toAllStaff(event, data) {
+    this.staff.forEach(set => set.forEach(res => this._write(res, event, data)));
+  }
+
+  /** The visitor on the other end of one chat, in however many tabs. */
+  toGuest(token, event, data) {
+    (this.guests.get(String(token)) || new Set()).forEach(res => this._write(res, event, data));
+  }
+
   /** Who is currently connected — used to decide whether to send an email too. */
   isOnline(role, id) {
     const map = role === 'student' ? this.students : this.staff;
@@ -102,7 +117,7 @@ class Live {
   }
 
   counts() {
-    return { students: this.students.size, staff: this.staff.size };
+    return { students: this.students.size, staff: this.staff.size, guests: this.guests.size };
   }
 }
 

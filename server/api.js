@@ -614,6 +614,148 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     };
   });
 
+  /* ------------------------------------------------------ the chat box */
+  /*
+   * The chat box on the marketing site.
+   *
+   * A visitor who is not signed in is the whole point. Making them create an
+   * account before they can ask "do I need IELTS for Germany?" is how a chat
+   * box becomes decoration — so a chat is identified by a random token in a
+   * cookie, and the only thing asked for up front is a name and a way to call
+   * back, which is what makes it a lead rather than an anonymous question.
+   *
+   * A student who IS signed in gets their real thread instead: the same
+   * conversation as the Messages screen, with the same counsellor, so a
+   * question asked from the home page does not start a second conversation
+   * nobody joins up.
+   */
+  const chatCookie = token =>
+    'glovels_chat=' + token + '; Path=/; HttpOnly; SameSite=Lax'
+    + (CFG.secureCookies ? '; Secure' : '')
+    + '; Max-Age=' + (60 * 86400);
+
+  const chatOf = req => {
+    const t = cookies(req).glovels_chat;
+    return t ? db.chatByToken(t) : null;
+  };
+
+  const chatShape = c => ({
+    id: c.id, name: c.name, phone: c.phone, email: c.email,
+    status: c.status, at: c.created_at, lastAt: c.last_at,
+    messages: db.chatMessages(c.id).map(m => ({
+      who: m.sender, t: m.body, name: m.who, at: m.created_at,
+    })),
+  });
+
+  /* Where a signed-in student's chat goes: their real thread, not a guest one. */
+  const studentThread = s => ({
+    signedIn: true,
+    name: s.name,
+    counsellor: s.counsellor_id ? (db.studentById(s.counsellor_id) || {}).name || '' : '',
+    messages: db.getMessages(s.id).map(m => ({
+      who: m.sender, t: m.body, name: '', at: m.created_at,
+    })),
+  });
+
+  route('GET', '/api/chat', async (req, res, s) => {
+    if (s && s.role === 'student') return json(res, 200, studentThread(s));
+    const c = chatOf(req);
+    return json(res, 200, c ? Object.assign({ signedIn: false }, chatShape(c))
+                            : { signedIn: false, messages: [], started: false });
+  }, { open: true, soft: true });
+
+  route('POST', '/api/chat/start', async (req, res, s) => {
+    if (s && s.role === 'student') return json(res, 200, studentThread(s));
+
+    const b = await readJson(req);
+    const name = String(b.name || '').trim().slice(0, 80);
+    const contact = String(b.contact || '').trim().slice(0, 120);
+    if (!name) return json(res, 422, { error: 'Your name, so we know who we are talking to.' });
+
+    const isEmail = contact.includes('@');
+    const phone = !isEmail ? tenDigits(contact) : '';
+    if (isEmail && !validEmail(contact)) {
+      return json(res, 422, { error: 'That email address does not look right.' });
+    }
+    if (!isEmail && !phone) {
+      return json(res, 422, { error: 'A 10-digit mobile number, or an email address.' });
+    }
+
+    /* One chat per browser. Coming back the next day continues the same
+       conversation rather than starting a second one a different counsellor
+       picks up with no history. */
+    const existing = chatOf(req);
+    if (existing) return json(res, 200, Object.assign({ signedIn: false }, chatShape(existing)));
+
+    const token = newToken();
+    const c = db.createChat(token, {
+      name, phone: phone ? '+91' + phone : '', email: isEmail ? contact.toLowerCase() : '',
+      page: String(b.page || '').slice(0, 200),
+    });
+
+    /* A chat is a lead. It goes in the enquiries book the same as the form, so
+       nobody has to remember to look in two places for the same person. */
+    try {
+      db.addEnquiry({
+        name, phone: phone ? '+91' + phone : '', email: isEmail ? contact.toLowerCase() : '',
+        destination: '', consent: 'chat', sourcePage: String(b.page || '').slice(0, 200),
+        referrer: String(req.headers.referer || '').slice(0, 200),
+      });
+    } catch (e) { /* a lead that could not be filed must not lose the chat */ }
+
+    live.toAllStaff('chat', { id: c.id, name: c.name, at: c.created_at, kind: 'started' });
+    return json(res, 200, Object.assign({ signedIn: false }, chatShape(c)),
+      { 'Set-Cookie': chatCookie(token) });
+  }, { open: true, soft: true });
+
+  route('POST', '/api/chat/send', async (req, res, s) => {
+    const b = await readJson(req);
+    const body = String(b.body || '').trim().slice(0, 2000);
+    if (!body) return json(res, 422, { error: 'Nothing to send' });
+
+    /* Signed in: this is their real conversation with their counsellor. */
+    if (s && s.role === 'student') {
+      db.addMessage(s.id, 'me', body, '');
+      const msgs = stateFor(s).msgs;
+      /* The same shape the Messages screen's own sends produce, so a message
+         typed into the chat box lands in the counsellor's open thread exactly
+         as one typed into the full screen does. Two shapes for one event is how
+         a message arrives live on one screen and not the other. */
+      live.toThread(s.id, s.counsellor_id, 'message', {
+        studentId: s.id, studentName: s.name, msg: msgs[msgs.length - 1],
+      });
+      const counsellor = s.counsellor_id ? db.studentById(s.counsellor_id) : null;
+      const target = counsellor || db.staffByRole('admin')[0] || null;
+      if (target && !live.isOnline('staff', target.id)) {
+        notify.notify({
+          to: target.email, phone: target.phone,
+          email: EMAILS.newStudentMessage({
+            studentName: s.name, studentEmail: s.email, body, siteUrl,
+          }),
+          whatsapp: { text: `New Glovels message from ${s.name}: "${body.slice(0, 120)}"` },
+        }).catch(() => {});
+      }
+      return json(res, 200, studentThread(s));
+    }
+
+    const c = chatOf(req);
+    if (!c) return json(res, 409, { error: 'Tell us your name first.' });
+    const m = db.addChatMessage(c.id, 'me', body, c.name);
+    live.toAllStaff('chat', {
+      id: c.id, name: c.name, kind: 'message', t: body, at: m.created_at,
+    });
+    return json(res, 200, Object.assign({ signedIn: false }, chatShape(db.chatById(c.id))));
+  }, { open: true, soft: true });
+
+  /* The visitor's live channel. Keyed by the cookie, so it cannot be used to
+     listen to anybody else's conversation. */
+  route('GET', '/api/chat/live', async (req, res) => {
+    const c = chatOf(req);
+    if (!c) return json(res, 404, { error: 'No chat here yet' });
+    live.subscribe(req, res, { id: c.token, role: 'guest' });
+    return true;
+  }, { open: true });
+
   /* ------------------------------------------------------- the AI studio */
   /*
    * The SOP and LOR studio.
@@ -1193,6 +1335,73 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     db.setPassword(id, hashPassword(password, salt), salt);
     db.log(s.name, 'password reset', person.name);
     return json(res, 200, { password, name: person.name });
+  }));
+
+  /* ---------------------------------------------------- the office's side */
+
+  route('GET', '/api/staff/chats', caseworkOnly(async (req, res) => {
+    const unseen = db.unseenChats();
+    return json(res, 200, {
+      chats: db.chats(60).map(c => {
+        const msgs = db.chatMessages(c.id);
+        const last = msgs[msgs.length - 1];
+        return {
+          id: c.id, name: c.name, phone: c.phone, email: c.email,
+          status: c.status, at: c.created_at, lastAt: c.last_at,
+          page: c.page, messages: msgs.length,
+          unseen: unseen[c.id] || 0,
+          preview: last ? last.body.slice(0, 90) : '',
+          lastFrom: last ? last.sender : '',
+        };
+      }),
+    });
+  }));
+
+  /*
+   * The enquiry book.
+   *
+   * Every form on the website writes here, and so does every chat. Until now
+   * the operations site showed a COUNT of them and nothing else — which means
+   * the leads were being collected and nobody could read one. A number on a
+   * dashboard is not a lead.
+   */
+  route('GET', '/api/staff/enquiries', caseworkOnly(async (req, res) => json(res, 200, {
+    enquiries: db.allEnquiries().slice(0, 200).map(e => ({
+      id: e.id, name: e.name, phone: e.phone, email: e.email,
+      destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
+      page: e.source_page || '', at: e.created_at,
+    })),
+  })));
+
+  route('GET', /^\/api\/staff\/chat\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    const c = db.chatById(Number(m[1]));
+    if (!c) return json(res, 404, { error: 'No such chat' });
+    db.markChatSeen(c.id);
+    return json(res, 200, { chat: chatShape(c) });
+  }));
+
+  route('POST', /^\/api\/staff\/chat\/(\d+)\/reply$/, caseworkOnly(async (req, res, s, m) => {
+    const c = db.chatById(Number(m[1]));
+    if (!c) return json(res, 404, { error: 'No such chat' });
+    const b = await readJson(req);
+    const body = String(b.body || '').trim().slice(0, 2000);
+    if (!body) return json(res, 422, { error: 'Nothing to send' });
+
+    const msg = db.addChatMessage(c.id, 'them', body, s.name);
+    /* Straight down the visitor's open stream. This is the half that makes it a
+       chat rather than a contact form with extra steps. */
+    live.toGuest(c.token, 'chat', { who: 'them', t: body, name: s.name, at: msg.created_at });
+    live.toAllStaff('chat', { id: c.id, kind: 'replied', at: msg.created_at });
+    db.log(s.name, 'chat replied', c.name + (c.phone ? ' (' + c.phone + ')' : ''));
+    return json(res, 200, { chat: chatShape(db.chatById(c.id)) });
+  }));
+
+  route('POST', /^\/api\/staff\/chat\/(\d+)\/close$/, caseworkOnly(async (req, res, s, m) => {
+    const c = db.chatById(Number(m[1]));
+    if (!c) return json(res, 404, { error: 'No such chat' });
+    const next = c.status === 'open' ? 'done' : 'open';
+    db.setChatStatus(c.id, next);
+    return json(res, 200, { status: next });
   }));
 
   /* ------------------------------------------------------- the catalogue */

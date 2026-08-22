@@ -181,6 +181,34 @@ CREATE TABLE IF NOT EXISTS drafts (
   body        TEXT NOT NULL,
   created_at  TEXT NOT NULL
 );
+/* A conversation with somebody who is not signed in.
+   The chat box on the marketing site is the first thing a visitor uses and the
+   last place they should be asked to make an account. A chat is identified by a
+   random token in a cookie, carries the name and number they gave, and is a
+   lead the moment it starts — which is why it is a table of its own rather than
+   a shell student record polluting the caseload. */
+CREATE TABLE IF NOT EXISTS chats (
+  id          INTEGER PRIMARY KEY,
+  token       TEXT NOT NULL UNIQUE,
+  name        TEXT NOT NULL DEFAULT '',
+  phone       TEXT NOT NULL DEFAULT '',
+  email       TEXT NOT NULL DEFAULT '',
+  page        TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT 'open',
+  student_id  INTEGER,
+  created_at  TEXT NOT NULL,
+  last_at     TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id          INTEGER PRIMARY KEY,
+  chat_id     INTEGER NOT NULL,
+  sender      TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  who         TEXT NOT NULL DEFAULT '',
+  seen_staff  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chatmsg_chat   ON chat_messages(chat_id);
 CREATE INDEX IF NOT EXISTS idx_drafts_student  ON drafts(student_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_student ON sessions(student_id);
 CREATE INDEX IF NOT EXISTS idx_docs_student    ON documents(student_id);
@@ -234,7 +262,8 @@ function sqliteDriver(file) {
 function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
-    'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts'];
+    'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
+    'chats', 'chat_messages'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -437,6 +466,49 @@ function open(dir) {
       db.all('SELECT DISTINCT prog_id FROM shortlist').forEach(r => s.add(String(r.prog_id)));
       db.all('SELECT DISTINCT prog_id FROM applications').forEach(r => s.add(String(r.prog_id)));
       return s;
+    },
+
+    /* ---- the visitor chat ---- */
+    chatByToken: t => db.one('SELECT * FROM chats WHERE token = ?', String(t)),
+    chatById: id => db.one('SELECT * FROM chats WHERE id = ?', Number(id)),
+    createChat(token, d) {
+      const t = now();
+      db.run(`INSERT INTO chats (token, name, phone, email, page, status, student_id, created_at, last_at)
+        VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+        String(token), String(d.name || ''), String(d.phone || ''), String(d.email || ''),
+        String(d.page || ''), d.studentId == null ? null : Number(d.studentId), t, t);
+      return db.one('SELECT * FROM chats WHERE token = ?', String(token));
+    },
+    chatMessages: id => db.all('SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY id asc', Number(id)),
+    addChatMessage(chatId, sender, body, who) {
+      db.run(`INSERT INTO chat_messages (chat_id, sender, body, who, seen_staff, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        Number(chatId), String(sender), String(body), String(who || ''),
+        sender === 'them' ? 1 : 0, now());
+      db.run('UPDATE chats SET last_at = ? WHERE id = ?', now(), Number(chatId));
+      const all = db.all('SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY id asc', Number(chatId));
+      return all[all.length - 1];
+    },
+    /* Newest activity first — a chat waiting on a reply is the one that matters,
+       and it is the one that was written in most recently. */
+    chats(limit) {
+      const rows = db.all("SELECT * FROM chats WHERE token > ? ORDER BY last_at desc", '');
+      return rows.slice(0, limit || 60);
+    },
+    setChatStatus(id, status) {
+      db.run('UPDATE chats SET status = ? WHERE id = ?', String(status), Number(id));
+      return db.one('SELECT * FROM chats WHERE id = ?', Number(id));
+    },
+    markChatSeen(id) {
+      db.all('SELECT * FROM chat_messages WHERE chat_id = ?', Number(id))
+        .filter(m => !m.seen_staff)
+        .forEach(m => db.run('UPDATE chat_messages SET seen_staff = 1 WHERE id = ?', Number(m.id)));
+    },
+    unseenChats() {
+      const seen = {};
+      db.all('SELECT * FROM chat_messages WHERE seen_staff = ?', 0)
+        .forEach(m => { seen[m.chat_id] = (seen[m.chat_id] || 0) + 1; });
+      return seen;
     },
 
     /* ---- drafts ---- */

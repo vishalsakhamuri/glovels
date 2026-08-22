@@ -3,16 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GRE, GMAT &amp;amp; SAT | Glovels Overseas Consultants</title>
-<meta name="description" content="Quant and verbal drills plus a tutor-reviewed score plan.">
+<title>Website chat | Glovels</title>
 <meta name="robots" content="noindex,nofollow">
-
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Glovels">
-<meta property="og:title" content="GRE, GMAT &amp;amp; SAT | Glovels Overseas Consultants">
-<meta property="og:description" content="Quant and verbal drills plus a tutor-reviewed score plan.">
-<meta property="og:url" content="https://www.glovels.com/test-gre-gmat-sat">
-<meta name="twitter:card" content="summary">
 <link rel="icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -196,178 +188,768 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .dlogo .logo-img{width:74px;height:33px}
 @media (max-width:1240px){.nav .logo-img{width:81px;height:36px}}
 
-header.site{position:sticky;top:0;z-index:100;background:rgba(247,245,239,.94);
-  backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.nav{display:flex;align-items:center;gap:clamp(12px,2vw,30px);height:76px;max-width:var(--maxw);
-  margin:0 auto;padding:0 var(--wrap)}
-nav.menu{display:flex;align-items:center;gap:clamp(10px,1.6vw,24px);margin-right:auto}
-nav.menu>a,.ndt{font:600 13.6px/1 var(--sans);color:var(--navy-800);white-space:nowrap;
-  background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-.nav-drop{position:relative}
-.mega{position:absolute;top:calc(100% + 16px);left:-18px;min-width:250px;background:var(--paper);
-  border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--sh-3);opacity:0;
-  visibility:hidden;transform:translateY(-6px);transition:.18s;z-index:60;max-height:70vh;overflow:auto}
-.nav-drop.open>.mega{opacity:1;visibility:visible;transform:none}
-.mega a{display:block;padding:9px 12px;border-radius:9px;font-size:13.4px;color:var(--navy-800)}
-.mega a:hover{background:var(--cream);color:var(--blue-deep)}
-.nav-cta{display:flex;gap:10px;align-items:center}
-.signin{font:700 13.6px/1 var(--sans);color:var(--navy-800);border:1px solid rgba(13,35,56,.4);
-  background:var(--paper);padding:11px 17px;border-radius:var(--r-pill)}
-.burger{display:none;background:none;border:1px solid var(--line);border-radius:10px;width:44px;
-  height:40px;align-items:center;justify-content:center;cursor:pointer;color:var(--navy-800)}
-.mobile-menu{position:fixed;inset:0 0 0 auto;width:min(370px,88vw);background:var(--paper);z-index:130;
-  transform:translateX(102%);transition:transform .26s;padding:18px 22px 40px;overflow-y:auto}
-.mobile-menu.open{transform:none}
-.mm-item{border-bottom:1px solid var(--line)}
-.mmt{width:100%;display:flex;justify-content:space-between;background:none;border:0;padding:14px 0;
-  font:700 14.5px/1 var(--sans);color:var(--navy-800);cursor:pointer}
-.mm-sub{display:none;padding:0 0 12px 4px}
-.mm-item.open .mm-sub{display:block}
-.mm-sub a{display:block;padding:8px 0;font-size:13.4px;color:var(--muted)}
-.mobile-menu>a:not(.btn){display:block;padding:14px 0;border-bottom:1px solid var(--line);
-  color:var(--navy-800);font-weight:600}
-.scrim{position:fixed;inset:0;background:rgba(11,30,49,.44);z-index:120;opacity:0;
-  pointer-events:none;transition:opacity .24s}
-.scrim.on{opacity:1;pointer-events:auto}
-.page-hero{background:linear-gradient(165deg,var(--navy-900),var(--navy-800) 55%,var(--navy-700));
-  color:#fff;padding:44px 0 40px}
-.page-hero h1{font-size:clamp(28px,3.6vw,42px);line-height:1.1;color:#fff;max-width:20ch}
-.page-hero p{color:#c8d6e4;font-size:15.5px;max-width:62ch;margin:12px 0 0}
-.crumbs{font-size:12.4px;color:#9fb1c4;margin-bottom:14px}
-.crumbs a{color:#c8d6e4}
-.prose{max-width:70ch;margin:0 auto}
-.prose h2{font-size:24px;margin:30px 0 10px}
-.prose h3{font-size:18px;margin:22px 0 8px}
-.prose p{font-size:15px;line-height:1.7;color:var(--ink);margin:0 0 14px}
-.prose ul{margin:0 0 16px;padding-left:20px}
-.prose li{font-size:15px;line-height:1.7;margin-bottom:7px}
-.prose .lead{font-size:17px;line-height:1.65;color:var(--navy-800)}
-.factbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;
-  margin:22px 0}
-.factbox div{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
-  padding:13px 14px}
-.factbox span{display:block;font:800 8.8px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
+/* ------------------------------------------------------- portal chrome ---- */
+.p-shell{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.p-side{background:var(--navy-900);color:#c8d6e4;padding:20px 16px;display:flex;
+  flex-direction:column;gap:6px}
+.p-logo{background:#fff;border-radius:10px;padding:9px 12px;width:fit-content;margin-bottom:20px}
+.p-logo .logo-img{width:88px;height:39px}
+.p-nav{display:flex;flex-direction:column;gap:3px}
+.p-nav a{display:flex;align-items:center;gap:10px;font:600 13.4px/1 var(--sans);color:#c8d6e4;
+  padding:12px 12px;border-radius:10px;transition:.15s}
+.p-nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+.p-nav a.on{background:var(--blue-deep);color:#fff}
+.p-nav a .ico{font-size:17px}
+.p-nav .soon{margin-left:auto;font:800 8.4px/1 var(--sans);letter-spacing:.1em;
+  text-transform:uppercase;background:rgba(255,255,255,.12);padding:4px 6px;border-radius:4px}
+.p-side-foot{margin-top:auto;padding-top:18px;border-top:1px solid rgba(255,255,255,.12)}
+.p-side-foot a{display:flex;align-items:center;gap:9px;font:600 12.8px/1 var(--sans);
+  color:#9fb1c4;padding:10px 12px;border-radius:9px}
+.p-side-foot a:hover{color:#fff;background:rgba(255,255,255,.07)}
+.p-main{background:var(--cream);padding:26px 30px 50px;min-width:0}
+.p-top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.p-top h1{font-size:clamp(22px,2.4vw,29px);color:var(--navy-900)}
+.p-top p{margin:5px 0 0;font-size:13.6px;color:var(--muted)}
+.p-top .btn{margin-left:auto}
+.p-sec{margin-bottom:26px}
+.p-sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:13px}
+.p-sec-head h2{font-size:18px;color:var(--navy-900)}
+.p-sec-head a{margin-left:auto;font:700 12.6px/1 var(--sans);color:var(--blue-deep)}
+
+/* -------------------------------------------------- shortlisted cards ---- */
+.sl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.sl{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 17px;
+  display:flex;flex-direction:column;box-shadow:var(--sh-1)}
+.sl-flag{font-size:20px}
+.sl h3{font-size:14.8px;color:var(--navy-900);margin:9px 0 3px;line-height:1.3}
+.sl .uni{font-size:12.8px;color:var(--navy-700)}
+.sl .city{font-size:11.8px;color:var(--muted);margin-top:2px}
+.sl-tag{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);
+  background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc;padding:5px 8px;
+  border-radius:var(--r-pill);margin:11px 0 9px;width:fit-content}
+.sl-meta{font-size:12.2px;color:var(--navy-800);margin-top:3px}
+.sl-meta b{font-weight:600}
+.sl-go{margin-top:auto;padding-top:12px;display:inline-flex;align-items:center;gap:6px;
+  font:700 12.2px/1 var(--sans);color:var(--blue-deep)}
+.sl.pending{border-style:dashed;background:#fbfaf6;align-items:center;text-align:center;
+  justify-content:center;gap:5px}
+.sl.pending .ico{font-size:22px;color:var(--gold-deep)}
+.sl.pending b{font-family:var(--disp);font-size:15px;color:var(--navy-900)}
+.sl.pending p{margin:0;font-size:12.2px;color:var(--muted);line-height:1.5}
+.sl-chip{font:700 10.6px/1 var(--sans);background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8;
+  padding:6px 9px;border-radius:var(--r-pill);margin-top:8px}
+.sl-empty{background:var(--paper);border:1px dashed #cfd6de;border-radius:var(--r-lg);
+  padding:30px;text-align:center}
+.sl-empty b{display:block;font-family:var(--disp);font-size:18px;color:var(--navy-900);
+  margin-bottom:7px}
+.sl-empty p{margin:0 auto 16px;font-size:13.4px;color:var(--muted);max-width:52ch;line-height:1.6}
+
+/* --------------------------------------------------------- lower cards ---- */
+.p-cols{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+.p-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:18px 19px;box-shadow:var(--sh-1)}
+.p-card h3{font-size:15.5px;color:var(--navy-900);margin-bottom:14px;display:flex;
+  align-items:center;gap:9px}
+.p-card h3 .pill{margin-left:auto}
+.track{list-style:none;margin:0;padding:0;display:grid;gap:13px}
+.track li{display:flex;gap:11px;align-items:flex-start;font-size:12.6px;color:var(--muted)}
+.track li b{display:block;font-size:13.4px;color:var(--navy-900);font-weight:600}
+.track .dot{width:20px;height:20px;border-radius:50%;flex:none;border:2px solid var(--line);
+  margin-top:1px;display:grid;place-items:center}
+.track li.done .dot{background:var(--blue-deep);border-color:var(--blue-deep);color:#fff}
+.track li.done .dot .ico{font-size:12px}
+.track li.now .dot{border-color:var(--gold);background:#fdf6e6}
+.bar{height:7px;border-radius:99px;background:#e8ebef;overflow:hidden;margin-bottom:16px}
+.bar span{display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--blue-deep),var(--gold))}
+.ring-row{display:flex;align-items:center;gap:16px}
+.ring{width:78px;height:78px;flex:none}
+.ring circle{fill:none;stroke-width:9}
+.ring .bg{stroke:#e8ebef}
+.ring .fg{stroke:var(--blue-deep);stroke-linecap:round;transform:rotate(-90deg);
+  transform-origin:50% 50%}
+.ring-lbl{font:700 17px/1 var(--sans);fill:var(--navy-900)}
+.doclist{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:12.6px}
+.doclist li{display:flex;align-items:center;gap:8px;color:var(--navy-800)}
+.doclist .st{margin-left:auto;font:700 9.6px/1 var(--sans);letter-spacing:.08em;
+  text-transform:uppercase;padding:4px 7px;border-radius:var(--r-pill)}
+.st.ok{background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc}
+.st.wait{background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8}
+.st.none{background:#f2f4f7;color:var(--muted);border:1px solid var(--line)}
+.msg{display:flex;gap:11px;align-items:flex-start;background:var(--cream);
+  border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;font-size:12.8px;
+  color:var(--navy-800);line-height:1.55}
+.msg .av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
+  color:#fff;font:700 12px/1 var(--sans);background:linear-gradient(160deg,var(--navy-600),var(--navy-800))}
+.msg b{display:block;font-size:12.6px;color:var(--navy-900);margin-bottom:2px}
+.deadline{display:flex;align-items:baseline;gap:10px;font-size:12.8px;color:var(--navy-800);
+  padding:9px 0;border-bottom:1px solid var(--line)}
+.deadline:last-child{border-bottom:0}
+.deadline .d{margin-left:auto;font:700 12px/1 var(--sans);color:var(--gold-deep);white-space:nowrap}
+
+/* --------------------------------------------------------------- login ---- */
+.auth{display:grid;grid-template-columns:1.05fr .95fr;min-height:100vh}
+.auth-brand{padding:44px 46px;color:#fff;position:relative;overflow:hidden;
+  background:radial-gradient(800px 400px at 84% 8%,rgba(28,77,120,.6),transparent 60%),
+             linear-gradient(165deg,var(--navy-900),var(--navy-800) 55%,var(--navy-700));
+  display:flex;flex-direction:column}
+.auth-brand::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:60px 60px;
+  -webkit-mask-image:radial-gradient(70% 60% at 40% 30%,#000,transparent);
+  mask-image:radial-gradient(70% 60% at 40% 30%,#000,transparent)}
+.auth-brand>*{position:relative;z-index:1}
+.auth-brand .logo-img{width:104px;height:46px}
+.auth-brand .blogo{background:#fff;border-radius:12px;padding:10px 14px;width:fit-content}
+.auth-brand h1{font-size:clamp(26px,2.8vw,36px);line-height:1.14;color:#fff;margin-top:auto;
+  max-width:22ch}
+.auth-brand p{color:#c8d6e4;font-size:14.6px;margin:14px 0 0;max-width:44ch;line-height:1.6}
+.auth-list{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:10px}
+.auth-list li{display:flex;gap:10px;font-size:13.4px;color:#dbe5ef}
+.auth-list .ico{font-size:16px;color:var(--gold-soft);flex:none;margin-top:1px}
+.auth-form{display:grid;place-items:center;padding:40px 24px;background:var(--cream)}
+.auth-card{width:min(400px,100%)}
+.auth-card h2{font-size:24px;color:var(--navy-900)}
+.auth-card .sub{font-size:13.4px;color:var(--muted);margin:6px 0 22px}
+.fld{margin-bottom:14px}
+.fld label{display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
   color:var(--muted);margin-bottom:6px}
-.factbox b{font-size:14.6px;color:var(--navy-900);font-weight:600}
-.towrite{background:#fdf0d6;border:1px solid #e8c88a;color:#7a4f08;border-radius:var(--r);
-  padding:13px 15px;font-size:13px;margin:16px 0}
-.towrite b{display:block;margin-bottom:4px}
-.postcard{display:block;background:var(--paper);border:1px solid var(--line);
-  border-radius:var(--r-lg);padding:20px 22px;margin-bottom:14px;transition:.18s}
-.postcard:hover{transform:translateY(-2px);box-shadow:var(--sh-2)}
-.postcard h3{font-size:18px;color:var(--navy-900);margin-bottom:7px}
-.postcard p{font-size:13.6px;color:var(--muted);line-height:1.6;margin:0}
-.postmeta{font:700 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;
-  color:var(--blue-deep);margin-bottom:9px}
-.cta-band{background:var(--paper);border-top:1px solid var(--line);
-  border-bottom:1px solid var(--line);padding:30px 0;text-align:center}
-.cta-band h2{font-size:24px;margin-bottom:8px}
-.cta-band p{color:var(--muted);margin:0 0 16px}
-footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9c8d8;
-  padding:36px 0 0;font-size:13.2px}
-.fgrid{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr;gap:26px}
-.fcol h4{font:800 10.6px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:#fff;
-  margin-bottom:13px}
-.fcol a{display:block;padding:5px 0;color:#b9c8d8;font-size:12.9px}
-.fcol a:hover{color:#fff}
-.flogo{display:inline-flex;background:var(--paper);border-radius:12px;padding:9px 14px}
-.office{max-width:330px;line-height:1.55;margin-top:16px;color:#9fb1c4}
-.office b{display:block;color:#fff;font-size:12.4px;letter-spacing:.04em;text-transform:uppercase;
+.fld input{width:100%;height:48px;padding:0 13px;font:500 14.4px/1 var(--sans);
+  border:1.5px solid #d8dde4;border-radius:12px;background:var(--paper);color:var(--navy-900)}
+.fld input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 4px rgba(26,79,180,.14)}
+.fld.bad input{border-color:#c0392b;background:#fdf3f2}
+.fld .err{display:none;font-size:11.6px;color:#c0392b;margin-top:5px}
+.fld.bad .err{display:block}
+.pw-wrap{position:relative}
+.pw-wrap button{position:absolute;right:6px;top:6px;height:36px;width:38px;border:0;
+  background:none;color:var(--muted);cursor:pointer;border-radius:9px}
+.auth-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  font-size:12.6px;margin:-4px 0 18px}
+.auth-row a{color:var(--blue-deep);font-weight:600}
+.auth-or{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);
+  font-size:11.6px;letter-spacing:.06em;text-transform:uppercase}
+.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.btn-google{width:100%;background:var(--paper);color:var(--navy-900);border:1.5px solid #d8dde4}
+.btn-google:hover{border-color:var(--navy-800)}
+.auth-swap{text-align:center;font-size:13px;color:var(--muted);margin-top:20px}
+.auth-swap button{background:none;border:0;color:var(--blue-deep);font:700 13px/1 var(--sans);
+  cursor:pointer;text-decoration:underline}
+.demo-bar{background:#fdf0d6;border:1px solid #e8c88a;color:#7a4f08;border-radius:var(--r);
+  padding:12px 14px;font-size:12.4px;line-height:1.55;margin-bottom:20px}
+.demo-bar b{display:block;margin-bottom:3px}
+.demo-bar{display:flex;gap:10px;align-items:flex-start}
+.demo-bar>.ico{font-size:16px;flex:none;margin-top:2px}
+.creds{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.creds div{background:rgba(255,255,255,.65);border:1px solid #e8c88a;border-radius:8px;padding:7px 10px}
+.creds span{display:block;font:800 8.6px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#9a7420;margin-bottom:3px}
+.creds code{font:600 12.6px/1 ui-monospace,Menlo,monospace;color:#5b4409}
+.p-demo{background:#fdf0d6;border-bottom:1px solid #e8c88a;color:#7a4f08;
+  font:600 11.8px/1.5 var(--sans);padding:9px var(--wrap);text-align:center}
+
+@media (max-width:980px){.auth{grid-template-columns:1fr}.auth-brand{padding:30px 26px}
+  .auth-brand h1{margin-top:26px}.p-cols{grid-template-columns:1fr}}
+@media (max-width:860px){
+  .p-shell{grid-template-columns:1fr}
+  .p-side{flex-direction:row;align-items:center;gap:4px;padding:12px 14px;overflow-x:auto}
+  .p-logo{margin:0 12px 0 0;flex:none}
+  .p-nav{flex-direction:row;gap:2px}
+  .p-nav a{padding:10px 11px;white-space:nowrap}
+  .p-nav .soon{display:none}
+  .p-side-foot{margin:0 0 0 auto;padding:0;border:0;flex:none}
+  .p-main{padding:20px 18px 40px}
+}
+
+.nextup{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  background:linear-gradient(120deg,#fdf6e6,#f9edd2);border:1px solid #e6d5a8;
+  border-radius:var(--r-lg);padding:15px 18px;margin-bottom:20px;color:#5b4409}
+.nextup>.ico{font-size:24px;flex:none}
+.nextup b{display:block;font-family:var(--disp);font-size:16.5px;color:var(--navy-900);
   margin-bottom:3px}
-.fbot{margin-top:30px;border-top:1px solid rgba(255,255,255,.12);padding:16px 0 24px;
-  font-size:12.2px;color:#8ba0b4}
-@media (max-width:1160px){nav.menu,.nav-cta .signin{display:none}.burger{display:flex}
-  .nav-cta{margin-left:auto}}
-@media (max-width:1000px){.fgrid{grid-template-columns:1fr 1fr 1fr}}
-@media (max-width:640px){.fgrid{grid-template-columns:1fr 1fr}}
+.nextup span{display:block;font-size:13px;line-height:1.55;max-width:66ch}
+.nextup .btn{margin-left:auto;white-space:nowrap}
+.sl-chip.late{background:#fdf3f2;color:#7a2118;border-color:#f0c4bf}
+.rc{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;
+  border-bottom:1px solid var(--line);font-size:13.6px;color:var(--navy-900)}
+.rc b{font-family:var(--disp);font-size:17px}
+.rc.sub{font-size:12.6px;color:var(--muted);padding:6px 0;border-bottom:0}
+.p-cols-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:1180px){.p-cols-3{grid-template-columns:1fr 1fr}}
+@media(max-width:980px){.p-cols-3{grid-template-columns:1fr}}
+/* the counsellor block in the header */
+.coun{display:flex;align-items:center;gap:12px;background:var(--navy-900);color:#fff;
+  border-radius:var(--r-lg);padding:12px 15px;margin-left:auto}
+.coun .av{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font:700 14px/1 var(--sans);color:#20160a;background:var(--gold)}
+.coun .lbl{font:800 9.4px/1 var(--sans);letter-spacing:.13em;text-transform:uppercase;
+  color:#9fb1c4;display:block;margin-bottom:3px}
+.coun b{display:block;font-size:14px}
+.coun small{display:block;font-size:11.6px;color:#9fb1c4;margin-top:1px}
+.coun .btn{margin-left:8px}
 </style>
-</head>
+<style>
+/* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
+
+/* Top bar: page title, notifications, avatar. */
+.p-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.p-bar-title{font:800 11.4px/1 var(--sans);letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted)}
+.p-bell{margin-left:auto;position:relative;width:36px;height:36px;border-radius:50%;
+  border:1px solid var(--line);background:var(--paper);color:var(--navy-700);cursor:pointer;
+  display:grid;place-items:center;transition:.16s}
+.p-bell:hover{border-color:var(--blue);color:var(--blue-deep)}
+.p-bell .dot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;
+  background:var(--gold-deep);border:1.5px solid var(--paper)}
+.p-av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+  font:700 12.4px/1 var(--sans);color:#fff;
+  background:linear-gradient(160deg,var(--navy-600),var(--navy-800))}
+
+/* The package the student is actually on, in the sidebar under the logo. */
+.plan-badge{margin:14px 14px 0;padding:11px 13px;border-radius:12px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14)}
+.plan-badge b{display:block;font:700 13px/1.25 var(--sans);color:#fff}
+.plan-badge span{display:block;margin-top:3px;font-size:11.4px;line-height:1.4;
+  color:rgba(255,255,255,.62)}
+
+/* "Do this next." One prompt, and it has to look like the most actionable thing
+   on the page — otherwise it is just another card. */
+.nextup{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:linear-gradient(120deg,#f4f8ff,#eef3fc);
+  border:1.5px solid #c9dbf7;border-radius:var(--r-lg,16px);padding:16px 18px;
+  margin-bottom:20px;box-shadow:var(--sh-1,0 2px 10px rgba(11,30,49,.06))}
+.nextup>.ico{font-size:26px;color:var(--blue-deep);flex:none}
+.nextup>div{flex:1;min-width:220px}
+.nextup b{display:block;font-family:var(--disp);font-size:16px;color:var(--navy-900);
+  margin-bottom:3px}
+.nextup span{font-size:12.8px;line-height:1.55;color:var(--muted)}
+.nextup .btn{flex:none}
+
+/* Counsellor card. */
+.couns{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg,16px);
+  padding:15px 17px;box-shadow:var(--sh-1,0 2px 10px rgba(11,30,49,.06))}
+.couns .c-av{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font:700 14px/1 var(--sans);color:#fff;
+  background:linear-gradient(160deg,var(--navy-600),var(--navy-800))}
+.couns>div{flex:1;min-width:150px}
+.c-lbl{display:block;font:800 9.6px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:4px}
+.couns b{display:block;font-size:14px;color:var(--navy-900);line-height:1.3}
+.c-sub{display:block;margin-top:3px;font-size:11.8px;color:var(--muted)}
+
+/* The four-step strip. A step that has not happened must not look like one that
+   has, so the difference is fill and colour, not a tick alone. */
+.steps4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+.step4{background:var(--paper);border:1px solid var(--line);border-radius:13px;
+  padding:12px 14px;box-shadow:var(--sh-1,0 2px 10px rgba(11,30,49,.06))}
+.step4 .s-n{display:block;font:800 9.4px/1 var(--sans);letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.step4 b{display:flex;align-items:center;gap:6px;font-size:13.4px;color:var(--navy-800);
+  font-weight:600;line-height:1.3}
+.step4.done{background:#eaf6ee;border-color:#bfe0cc}
+.step4.done .s-n{color:#2c7a53}
+.step4.done b{color:#14603a}
+.step4.done .ico{font-size:14px;color:var(--green)}
+@media(max-width:900px){ .steps4{grid-template-columns:repeat(2,1fr)} }
+@media(max-width:520px){ .steps4{grid-template-columns:1fr} }
+
+/* Shortlist as a vertical list rather than a grid — the newer layout.
+   Two lines per row: what it is and what it costs on the first, where it is on
+   the second. `order` rather than a grid because the card's children are four
+   different divs with no distinguishing hook between the two .sl-meta lines. */
+.rows-list{display:grid;gap:12px}
+.rows-list .sl{flex-direction:row;flex-wrap:wrap;align-items:center;
+  gap:5px 16px;padding:14px 18px}
+.rows-list .sl>.sl-flag{order:1;font-size:18px}
+.rows-list .sl>h3{order:2;margin:0}
+.rows-list .sl>.uni{order:3;margin:0;font-weight:600}
+.rows-list .sl>.uni::before{content:"·";margin-right:11px;color:var(--muted);font-weight:400}
+.rows-list .sl>.city{order:4;margin:0}
+.rows-list .sl>.sl-tag{order:5;margin:0}
+.rows-list .sl>.sl-meta{order:6;margin:0;white-space:nowrap}
+.rows-list .sl>.sl-go{order:7;margin:0 0 0 auto;padding:0}
+@media(max-width:760px){
+  .rows-list .sl>.sl-go{margin-left:0;flex-basis:100%;padding-top:8px}
+  .rows-list .sl>.uni::before{content:none}
+}
+
+/* Order summary rows: label left, figure right, on one baseline. */
+.rc{display:flex;align-items:baseline;gap:12px;font-size:13px;color:var(--navy-800);
+  padding:8px 0;border-bottom:1px solid var(--line)}
+.rc:last-child{border-bottom:0}
+.rc b{margin-left:auto;font-weight:700;color:var(--navy-900);white-space:nowrap}
+.rc.sub{font-size:12.2px;color:var(--muted)}
+.rc.sub b{font-weight:600;color:var(--muted)}
+
+.p-cols-3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:1000px){ .p-cols-3{grid-template-columns:1fr} }
+
+/* Status pills sit inside table cells here, where the column can be narrow
+   enough to break "On the site" across two lines. They are labels, not prose. */
+.tbl .st{white-space:nowrap;display:inline-block}
+.tbl td{vertical-align:middle}
+
+/* The 24-hour shortlist promise, counting down. Amber once it is close, because
+   a countdown that looks the same at 20 hours and at 20 minutes is decoration. */
+.sla{display:inline-flex;align-items:center;gap:6px;font:700 11px/1 var(--sans);
+  padding:6px 10px;border-radius:999px;background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc}
+.sla.late{background:#fdf6e6;color:#8a6a1f;border-color:#e6d5a8}
+</style></head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7 2 2 0 0 1 6.5 3.5Z"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 16H6a2 2 0 0 0-2 2"/></symbol><symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 9.6 12 4l9 5.6"/><path d="M5 10v9M19 10v9M9.5 10v9M14.5 10v9M2.5 20h19"/></symbol></defs></svg>
-<header class="site">
-  <div class="nav"><a class="logo" href="index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a>
-    <nav class="menu" aria-label="Main"><a href="about-us.html">About Us</a><div class="nav-drop"><button class="ndt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a></div></div><div class="nav-drop"><button class="ndt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="nav-drop"><button class="ndt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div></div><div class="nav-drop"><button class="ndt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a></nav>
-    <div class="nav-cta">
-      <a class="signin" href="login.html">Sign in</a>
-      <a class="btn btn-green" href="index.html#counsel">Book Free Counselling</a>
-      <button class="burger" id="burger" aria-label="Open menu"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-google" viewBox="0 0 24 24"></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.7 5.5 6 .9-4.3 4.3 1 6-5.4-2.9-5.4 2.9 1-6L3.3 10l6-.9z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-plane" viewBox="0 0 24 24"><path d="M10.2 12.6 3 10.4l1-2 4.8.6 3.6-3.6 1.9.6-1.4 4.2 4.4.5 1.4-1.9 1.6.5-1.1 3 1.1 3-1.6.5-1.4-1.9-4.4.5 1.4 4.2-1.9.6-3.6-3.6-4.8.6-1-2z"/></symbol><symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></symbol></defs></svg>
+<div class="p-shell">
+  <aside class="p-side">
+    <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
+    <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">Counsellor</span></div>
+    <nav class="p-nav"><a href="counsellor.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Conversations</a><a href="chat.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Website chat</a><a href="home.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Home page</a><a href="catalogue.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Catalogue</a><a href="admin.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Organisation</a></nav>
+    <div class="p-side-foot">
+      <a href="#" id="staffOut"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
     </div>
-  </div>
-</header>
-<div class="scrim" id="scrim"></div>
-<aside class="mobile-menu" id="mm" aria-label="Menu">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <a class="logo" href="index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a><button class="sheet-close" id="mmClose" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button></div>
-  <a href="about-us.html">About Us</a><div class="mm-item"><button class="mmt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a></div></div><div class="mm-item"><button class="mmt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="mm-item"><button class="mmt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div></div><div class="mm-item"><button class="mmt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a><a href="login.html">Sign in</a>
-  <a class="btn btn-green" href="index.html#counsel" style="margin-top:16px;color:#fff">
-    Book Free Counselling</a>
-</aside>
-
-<section class="page-hero"><div class="wrap">
-  <div class="crumbs"><a href="index.html">Home</a> / GRE, GMAT &amp; SAT</div>
-  <h1>GRE, GMAT &amp; SAT</h1><p>Quant and verbal drills plus a tutor-reviewed score plan.</p>
-</div></section>
-
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>Batch timings and syllabus coverage per test. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
-
-<div class="cta-band"><div class="wrap">
-  <h2>Not sure where you stand?</h2>
-  <p>Forty-five minutes with a counsellor, your marksheets read properly, no obligation.</p>
-  <a class="btn btn-green" href="index.html#counsel">Book free counselling <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-</div></div>
-
-<footer class="site"><div class="wrap">
-  <div class="fgrid">
-    <div class="fcol">
-      <div class="flogo"><a class="logo" href="index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a></div>
-      <p style="margin:13px 0 0;max-width:320px;line-height:1.55;color:#9fb1c4">Study &amp; Work
-        Abroad Consultancy helping students and professionals build a global future.</p>
-      <div class="office"><b>Hyderabad</b>Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</div><div class="office"><b>Munich</b>München, Germany</div>
-      <div class="office"><b>Email</b><a href="mailto:info@glovels.com" style="color:#c8d6e4">info@glovels.com</a></div>
+  </aside>
+  <main class="p-main">
+    <div class="p-bar">
+      <span class="p-bar-title" id="crumb">Website chat</span>
+      <span class="sla" id="liveDot">connecting…</span>
+      <span class="p-av" id="staffAv">—</span>
     </div>
-    <div class="fcol"><h4>Study abroad</h4><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="index.html#catalogue">Browse the catalogue</a></div><div class="fcol"><h4>Work &amp; migrate</h4><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div><div class="fcol"><h4>Company</h4><a href="about-us.html">About Us</a><a href="careers.html">Careers</a><a href="blog.html">Blog</a><a href="refer.html">Refer a friend</a><a href="glossary.html">Glossary</a><a href="contact-us.html">Contact Us</a></div><div class="fcol"><h4>Legal</h4><a href="terms.html">Terms of Use</a><a href="privacy.html">Privacy Policy</a><a href="refunds.html">Refund &amp; Cancellation</a><a href="grievance.html">Grievance Redressal</a><a href="disclaimers.html">Disclaimers</a></div>
-  </div>
-  <div class="fbot">&copy; 2024–26 Glovels Consultants Private Limited. All rights reserved.</div>
-</div></footer>
+    <div class="p-top">
+      <div><h1>Website chat</h1><p>People asking questions in the chat box on the website. They have not made an account — they left a name and a number, and they are waiting.</p></div>
+    </div>
 
+    <div class="out" style="grid-template-columns:repeat(3,1fr);margin:0 0 18px">
+      <div><b id="kOpen">—</b><span>Waiting for a reply</span></div>
+      <div><b id="kToday">—</b><span>Started today</span></div>
+      <div><b id="kAll">—</b><span>Conversations in all</span></div>
+    </div>
+
+    <div class="tabs" style="margin-bottom:16px">
+      <button class="tab" data-t="live" aria-selected="true">Chats
+        <span class="n" id="nChat">0</span></button>
+      <button class="tab" data-t="enq" aria-selected="false">Enquiry forms
+        <span class="n" id="nEnq">0</span></button>
+    </div>
+
+    <section class="pane active" id="t-live">
+    <div class="p-cols" style="align-items:start;gap:16px">
+      <div class="p-card" style="padding:0;max-height:74vh;overflow-y:auto">
+        <div style="padding:13px 15px;border-bottom:1px solid var(--line);display:flex;
+          gap:10px;align-items:center;flex-wrap:wrap">
+          <b style="font:700 12.6px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;
+            color:var(--muted)">Conversations</b>
+          <label style="margin-left:auto;display:flex;gap:7px;align-items:center;
+            font:600 12.4px/1.4 var(--sans);color:var(--navy-800)">
+            <input type="checkbox" id="onlyOpen" checked> Only ones needing a reply</label>
+        </div>
+        <ul class="doclist" id="chatList" style="gap:0"></ul>
+      </div>
+
+      <div class="p-card" id="chatPane">
+        <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.7">
+          Pick a conversation on the left.<br><br>
+          These come from the chat box on the website, from people who have not made an account.
+          Every one of them left a name and a number, and every one is in the enquiries book too
+          — so a chat nobody gets to in time is still a lead somebody can call.</p>
+      </div>
+    </div>
+    </section>
+
+    <!-- ------------------------------------------------------- the forms -->
+    <section class="pane" id="t-enq">
+      <div class="p-card" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="margin:0">
+          <thead><tr><th>Who</th><th>How to reach them</th><th>Where from</th>
+            <th>How</th><th>When</th></tr></thead>
+          <tbody id="enqRows"></tbody>
+        </table>
+      </div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        Every enquiry form on the website lands here, and so does everyone who starts a chat.
+        This list is the reason the forms exist &mdash; before it, the operations site showed
+        how many there were and no way to read one.</p>
+    </section>
+
+  </main>
+</div>
 <script>
-(function(){
-  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
-  let t = null;
-  $$('.nav-drop').forEach(d => {
-    d.addEventListener('pointerenter', e => { if(e.pointerType === 'touch') return;
-      clearTimeout(t); $$('.nav-drop.open').forEach(o => o !== d && o.classList.remove('open'));
-      d.classList.add('open'); });
-    d.addEventListener('pointerleave', e => { if(e.pointerType === 'touch') return;
-      t = setTimeout(() => d.classList.remove('open'), 180); });
-    d.querySelector('.ndt').onclick = () => {
-      const was = d.classList.contains('open');
-      $$('.nav-drop.open').forEach(o => o.classList.remove('open'));
-      d.classList.toggle('open', !was); };
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function ico(n) { return '<svg class="ico" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
+const api = async (method, path, body) => {
+  const opts = { method, credentials: 'same-origin', headers: {} };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opts);
+  if (r.status === 401) { location.href = 'login.html?next=' + encodeURIComponent(location.pathname); throw new Error('signed out'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+};
+function toast(msg) {
+  let t = $('#toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:400;' +
+      'background:var(--navy-900);color:#fff;font:600 13px/1.4 var(--sans);padding:12px 18px;' +
+      'border-radius:12px;box-shadow:0 16px 40px rgba(11,30,49,.36);max-width:min(460px,90vw)';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.remove(), 2600);
+}
+const timeAgo = iso => {
+  if (!iso) return '';
+  const s = Math.round((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+};
+
+/* The live stream. EventSource reconnects on its own, so the only thing to do
+   here is say plainly whether it is up — a chat that has quietly gone deaf
+   while still looking connected is worse than one that admits it. */
+let ES = null;
+function connectLive(handlers) {
+  ES = new EventSource('/api/live');
+  ES.addEventListener('hello', () => {
+    const d = $('#liveDot');
+    d.textContent = 'live';
+    d.className = 'sla';
   });
-  $('#burger').onclick = () => { $('#mm').classList.add('open'); $('#scrim').classList.add('on'); };
-  const shut = () => { $('#mm').classList.remove('open'); $('#scrim').classList.remove('on'); };
-  $('#mmClose').onclick = shut; $('#scrim').onclick = shut;
-  $$('.mmt').forEach(x => x.onclick = () => {
-    const i = x.closest('.mm-item'), was = i.classList.contains('open');
-    $$('.mm-item.open').forEach(o => o.classList.remove('open'));
-    i.classList.toggle('open', !was); });
-  addEventListener('keydown', e => e.key === 'Escape' && shut());
-})();
-</script>
-<script>
-/* This runs at the end of <body>, so document.body already exists. It waited
-   for DOMContentLoaded at first, which never arrived on pages where an earlier
-   script had already thrown \u2014 and a warning that only appears when nothing
-   else is wrong is a warning that never appears. */
+  ES.onerror = () => {
+    const d = $('#liveDot');
+    d.textContent = 'reconnecting…';
+    d.className = 'sla late';
+  };
+  Object.keys(handlers).forEach(ev =>
+    ES.addEventListener(ev, e => handlers[ev](JSON.parse(e.data))));
+}
+
+async function staffBoot(run) {
+  let me;
+  try {
+    me = await api('GET', '/api/staff/me');
+  } catch (e) {
+    if (e.message === 'signed out') return;
+    document.querySelector('.p-main').innerHTML =
+      '<div class="sl-empty" style="margin-top:40px"><b>This screen is for Glovels staff</b>' +
+      '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';
+    return;
+  }
+  $('#staffName').textContent = me.user.name;
+  $('#staffRole').textContent = me.user.role === 'admin' ? 'Administrator'
+    : me.user.role === 'editor' ? 'Website editor' : 'Counsellor';
+
+  /* The menu shows what this account can actually open. A link to a screen that
+     answers "not your workspace" is worse than no link: it reads as something
+     broken rather than something withheld. */
+  const perms = me.user.perms || [];
+  const allowed = {
+    counsellor: me.user.role !== 'editor',
+    admin: me.user.role === 'admin',
+    catalogue: perms.indexOf('catalogue') >= 0,
+    home: perms.indexOf('content') >= 0,
+  };
+  $$('.p-nav a').forEach(a => {
+    const slug = (a.getAttribute('href') || '').replace('.html', '');
+    if (slug in allowed && !allowed[slug]) a.remove();
+  });
+  $('#staffAv').textContent = me.user.name.trim().slice(0, 1).toUpperCase();
+  $('#staffOut').onclick = async e => {
+    e.preventDefault();
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    location.href = 'login.html';
+  };
+  run(me);
+}
+
+let CHATS = [], openId = null;
+
+const fmtWhen = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const today = new Date().toDateString() === d.toDateString();
+  return today
+    ? d.toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})
+    : d.toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+};
+
+function paintList() {
+  const onlyOpen = $('#onlyOpen').checked;
+  /* "Needs a reply" is the last message being theirs, not the status flag: a
+     conversation somebody marked done and the visitor then wrote into again is
+     exactly the one that must not disappear off this list. */
+  const needsReply = c => c.lastFrom === 'me' || c.unseen > 0;
+  const list = CHATS.filter(c => !onlyOpen || needsReply(c));
+
+  $('#kOpen').textContent = CHATS.filter(needsReply).length;
+  $('#kAll').textContent = CHATS.length;
+  $('#nChat').textContent = CHATS.length;
+  const today = new Date().toDateString();
+  $('#kToday').textContent = CHATS.filter(c => new Date(c.at).toDateString() === today).length;
+
+  $('#chatList').innerHTML = list.map(c =>
+    '<li data-chat="' + c.id + '" style="cursor:pointer;padding:13px 15px;border-bottom:' +
+      '1px solid var(--line);align-items:flex-start;gap:4px;flex-direction:column;' +
+      (c.id === openId ? 'background:#f4f7fb' : '') + '">' +
+    '<span style="display:flex;width:100%;gap:9px;align-items:center">' +
+      '<b style="font:700 13.2px/1.4 var(--sans);color:var(--navy-900)">' + esc(c.name) + '</b>' +
+      (needsReply(c) ? '<span class="st wait">Needs a reply</span>' : '') +
+      '<span style="margin-left:auto;font-size:11.6px;color:var(--muted)">' +
+        fmtWhen(c.lastAt) + '</span></span>' +
+    '<span style="font-size:12.2px;color:var(--muted);line-height:1.5">' +
+      esc(c.phone || c.email || 'no number given') + '</span>' +
+    (c.preview ? '<span style="font-size:12.4px;color:var(--navy-800);line-height:1.5">' +
+      (c.lastFrom === 'me' ? '' : 'You: ') + esc(c.preview) + '</span>' : '') +
+    '</li>').join('')
+    || '<li style="padding:20px 15px;color:var(--muted);font-size:12.8px">' +
+       (onlyOpen ? 'Nothing waiting. Untick the box to see the rest.'
+                 : 'No conversations yet.') + '</li>';
+}
+
+function paintChat(c) {
+  const bubble = m =>
+    '<div style="max-width:78%;padding:9px 13px;border-radius:13px;font-size:13.2px;' +
+      'line-height:1.65;white-space:pre-wrap;' +
+      (m.who === 'them'
+        ? 'align-self:flex-end;background:var(--navy-700);color:#fff;border-bottom-right-radius:5px"'
+        : 'align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:5px"') +
+    '>' + esc(m.t) +
+    '<small style="display:block;margin-top:4px;font-size:11px;opacity:.7">' +
+      (m.who === 'them' ? esc(m.name || 'Glovels') : esc(c.name)) + ' · ' + fmtWhen(m.at) +
+    '</small></div>';
+
+  $('#chatPane').innerHTML =
+      '<div style="display:flex;gap:11px;align-items:flex-start;flex-wrap:wrap;' +
+        'padding-bottom:13px;border-bottom:1px solid var(--line);margin-bottom:14px">' +
+        '<div><b style="font:700 15px/1.3 var(--disp,inherit);color:var(--navy-900)">' +
+          esc(c.name) + '</b>' +
+        '<span style="display:block;font-size:12.4px;color:var(--muted);margin-top:3px">' +
+          esc(c.phone || '') + (c.phone && c.email ? ' · ' : '') + esc(c.email || '') +
+          ' · started ' + fmtWhen(c.at) + '</span></div>' +
+        (c.phone ? '<a class="btn btn-ghost btn-sm" style="margin-left:auto" href="tel:' +
+          esc(c.phone) + '">Call</a>' : '') +
+        '<button type="button" class="btn btn-ghost btn-sm" id="chatDone">' +
+          (c.status === 'open' ? 'Mark done' : 'Reopen') + '</button>' +
+      '</div>' +
+      '<div id="chatThread" style="display:flex;flex-direction:column;gap:9px;max-height:44vh;' +
+        'overflow-y:auto;padding:4px 2px 12px">' + c.messages.map(bubble).join('') + '</div>' +
+      '<form id="chatForm" style="display:flex;gap:9px;align-items:flex-end;margin-top:12px">' +
+        '<textarea id="chatBox" rows="2" placeholder="Write back…" style="flex:1;padding:10px 12px;' +
+          'font:400 13.2px/1.6 var(--sans);border:1.5px solid #d8dde4;border-radius:10px;' +
+          'resize:none"></textarea>' +
+        '<button type="submit" class="btn btn-primary">Send</button>' +
+      '</form>' +
+      '<p style="margin:10px 0 0;font-size:11.8px;color:var(--muted);line-height:1.55">' +
+        'They see this on the website straight away, if the tab is still open. If it is not, ' +
+        'call the number — that is what it is there for.</p>';
+
+  const th = $('#chatThread');
+  th.scrollTop = th.scrollHeight;
+  $('#chatBox').focus();
+}
+
+async function openChat(id) {
+  openId = id;
+  paintList();
+  const r = await api('GET', '/api/staff/chat/' + id);
+  paintChat(r.chat);
+  await async function loadEnquiries() {
+  const r = await api('GET', '/api/staff/enquiries');
+  $('#nEnq').textContent = r.enquiries.length;
+  $('#enqRows').innerHTML = r.enquiries.map(e =>
+    '<tr>' +
+      '<td><b>' + esc(e.name || 'no name') + '</b>' +
+        (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
+          esc(e.destination) + '</span>' : '') + '</td>' +
+      '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
+        (e.phone && e.email ? '<br>' : '') +
+        (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
+        (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
+      '</td>' +
+      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
+      '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
+                                 : '<span class="st none">Form</span>') + '</td>' +
+      '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +
+    '</tr>').join('')
+    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">Nothing yet.</td></tr>';
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab[data-t]');
+  if (!t) return;
+  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
+});
+
+loadList();
+loadEnquiries();
+}
+
+async function loadList() {
+  const r = await api('GET', '/api/staff/chats');
+  CHATS = r.chats;
+  paintList();
+}
+
+document.addEventListener('click', async e => {
+  const row = e.target.closest('[data-chat]');
+  if (row) return openChat(Number(row.dataset.chat));
+
+  if (e.target.closest('#chatDone')) {
+    await api('POST', '/api/staff/chat/' + openId + '/close', {});
+    await openChat(openId);
+    return;
+  }
+});
+
+document.addEventListener('change', e => {
+  if (e.target.id === 'onlyOpen') paintList();
+});
+
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'chatForm') return;
+  e.preventDefault();
+  const box = $('#chatBox');
+  const body = box.value.trim();
+  if (!body || !openId) return;
+  box.value = '';
+  try {
+    const r = await api('POST', '/api/staff/chat/' + openId + '/reply', {body});
+    paintChat(r.chat);
+    await async function loadEnquiries() {
+  const r = await api('GET', '/api/staff/enquiries');
+  $('#nEnq').textContent = r.enquiries.length;
+  $('#enqRows').innerHTML = r.enquiries.map(e =>
+    '<tr>' +
+      '<td><b>' + esc(e.name || 'no name') + '</b>' +
+        (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
+          esc(e.destination) + '</span>' : '') + '</td>' +
+      '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
+        (e.phone && e.email ? '<br>' : '') +
+        (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
+        (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
+      '</td>' +
+      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
+      '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
+                                 : '<span class="st none">Form</span>') + '</td>' +
+      '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +
+    '</tr>').join('')
+    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">Nothing yet.</td></tr>';
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab[data-t]');
+  if (!t) return;
+  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
+});
+
+loadList();
+loadEnquiries();
+  } catch (err) { toast(err.message); box.value = body; }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'chatBox' && e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    $('#chatForm').requestSubmit();
+  }
+});
+
+/* A new chat, or a new message in one, arrives on the same stream the rest of
+   the operations site uses. Without this the screen is a list you have to
+   remember to refresh, which is not what anybody means by live chat. */
+connectLive({
+  chat: async () => {
+    await async function loadEnquiries() {
+  const r = await api('GET', '/api/staff/enquiries');
+  $('#nEnq').textContent = r.enquiries.length;
+  $('#enqRows').innerHTML = r.enquiries.map(e =>
+    '<tr>' +
+      '<td><b>' + esc(e.name || 'no name') + '</b>' +
+        (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
+          esc(e.destination) + '</span>' : '') + '</td>' +
+      '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
+        (e.phone && e.email ? '<br>' : '') +
+        (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
+        (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
+      '</td>' +
+      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
+      '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
+                                 : '<span class="st none">Form</span>') + '</td>' +
+      '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +
+    '</tr>').join('')
+    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">Nothing yet.</td></tr>';
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab[data-t]');
+  if (!t) return;
+  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
+});
+
+loadList();
+loadEnquiries();
+    if (openId) {
+      const r = await api('GET', '/api/staff/chat/' + openId);
+      paintChat(r.chat);
+    }
+  },
+});
+
+async function loadEnquiries() {
+  const r = await api('GET', '/api/staff/enquiries');
+  $('#nEnq').textContent = r.enquiries.length;
+  $('#enqRows').innerHTML = r.enquiries.map(e =>
+    '<tr>' +
+      '<td><b>' + esc(e.name || 'no name') + '</b>' +
+        (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
+          esc(e.destination) + '</span>' : '') + '</td>' +
+      '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
+        (e.phone && e.email ? '<br>' : '') +
+        (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
+        (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
+      '</td>' +
+      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
+      '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
+                                 : '<span class="st none">Form</span>') + '</td>' +
+      '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +
+    '</tr>').join('')
+    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">Nothing yet.</td></tr>';
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab[data-t]');
+  if (!t) return;
+  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
+});
+
+loadList();
+loadEnquiries();
+
+
+/* Opened by double-clicking rather than through start.command. The portal has
+   nothing to talk to in that state and the sign-in cannot work, which is not
+   obvious from the inside — the page looks fine. So it says so, at the top,
+   where it cannot be missed. apply_fixes.py puts the same thing on the
+   marketing pages; it is here as well so a rebuild does not remove it. */
 if (location.protocol === 'file:') {
-  var b = document.createElement('div');
+  const b = document.createElement('div');
   b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:13px 18px;' +
     'background:#7a2118;color:#fff;font:600 13.5px/1.55 system-ui,-apple-system,sans-serif;' +
     'text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.25)';
   b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
     'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
-    'it opens \u2014 <b>http://localhost:8080</b>';
+    'it opens — <b>http://localhost:8080</b>';
   document.body.appendChild(b);
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }
