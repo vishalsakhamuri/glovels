@@ -125,6 +125,12 @@ SEED_DEMO=false        # default in production. Turning it on requires DEMO_PASS
                        # 10+ characters, and not the one published in the README
 TRUST_PROXY=true       # default in production; needed behind a platform load balancer
                        # so the cookie gets Secure and links come out https://
+ALLOW_INDEXING=true    # whether search engines may index the public pages.
+                       # Defaults to ON once GLOVELS_URL names a domain you chose,
+                       # and OFF while the site is on the platform's own address —
+                       # a preview URL in Google's index is a nuisance to undo.
+                       # robots.txt, sitemap.xml and the per-page noindex tag all
+                       # follow this one setting, so they cannot disagree.
 ```
 
 If any of those are wrong the server prints exactly which one and stops. Read the message;
