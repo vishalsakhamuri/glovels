@@ -22,6 +22,8 @@ const fs = require('fs');
 const path = require('path');
 const EMAILS = require('./emails.js');
 const SHEET = require('./sheet.js');
+const WRITING = require('./writing.js');
+const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 
 const DAY = 864e5;
 
@@ -205,6 +207,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       apps,
       docs,
       saved: db.getSaved(s.id),
+      drafts: draftsFor(s.id),
       msgs: db.getMessages(s.id).map(m => ({ who: m.sender, t: m.body, file: m.file, at: m.created_at })),
       order: orders[0] ? {
         reference: orders[0].reference, package: orders[0].package,
@@ -261,8 +264,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     || (req.socket && req.socket.remoteAddress) || 'unknown';
 
   const ROUTES = [];
+  /*
+   * `open` means "no sign-in required". It also meant "do not look the session
+   * up at all", which is not the same thing and cost an afternoon: the studio's
+   * draft endpoint is open — a visitor may try it before making an account —
+   * but when a student IS signed in the draft has to be saved to their account,
+   * and the handler was always handed a null session.
+   *
+   * `soft` is the missing third state: anyone may call this, and if they happen
+   * to be signed in the handler is told who they are. It is opt-in rather than
+   * the default for every open route, because handing a live session to a
+   * handler written on the assumption of null is how a public endpoint starts
+   * quietly returning private data.
+   */
   const route = (method, pattern, handler, opts) =>
-    ROUTES.push({ method, pattern, handler, auth: !(opts && opts.open) });
+    ROUTES.push({ method, pattern, handler,
+      auth: !(opts && opts.open), soft: !!(opts && opts.soft) });
 
   /* ---------------------------------------------------------------- auth */
 
@@ -585,6 +602,128 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
   route('POST', '/api/enquiries', enquiry, { open: true });
   route('POST', '/send.php', enquiry, { open: true });     // the live host's path
 
+  /* Drafts as the portal shows them: the stored JSON parsed back, newest first,
+     capped at what a screen can sensibly list. */
+  const draftsFor = id => db.drafts(id).slice(0, 30).map(r => {
+    let body = {};
+    try { body = JSON.parse(r.body) || {}; } catch (e) {}
+    return {
+      id: r.id, kind: r.kind, programme: r.programme, university: r.university,
+      at: r.created_at, paragraphs: body.paragraphs || [], words: body.words || 0,
+      caveat: body.caveat || '',
+    };
+  });
+
+  /* ------------------------------------------------------- the AI studio */
+  /*
+   * The SOP and LOR studio.
+   *
+   * The drafting moved off the page and onto the server for three reasons, in
+   * order of how much they matter:
+   *
+   *   The wording is editable. It lives in the `writing` content block, so the
+   *   office rewrites how a draft opens without a developer and without a
+   *   rebuild.
+   *
+   *   A draft can be kept. A student who is signed in gets theirs saved, sees
+   *   it in their portal, and their counsellor sees it too — which is the
+   *   point, since the thing being sold is a human rewrite of exactly this.
+   *
+   *   The phrasing is not in the page source for anyone to lift.
+   *
+   * Open to visitors who are not signed in: the studio sits on the public home
+   * page and asking people to make an account before they can see what it does
+   * is how you find out nobody tries it. Signed out, the draft is returned and
+   * not stored.
+   */
+  const DRAFT_LIMIT = 40;                     // per address, per hour
+  const draftHits = new Map();
+  function draftAllowed(ip) {
+    const now = Date.now();
+    const rec = draftHits.get(ip);
+    if (!rec || now - rec.first > 36e5) { draftHits.set(ip, { n: 1, first: now }); return true; }
+    rec.n++;
+    if (draftHits.size > 5000) {
+      for (const [k, v] of draftHits) if (now - v.first > 36e5) draftHits.delete(k);
+    }
+    return rec.n <= DRAFT_LIMIT;
+  }
+
+  route('POST', '/api/ai/draft', async (req, res, s) => {
+    if (!content) return noContent(res);
+    if (!draftAllowed(clientIp(req))) {
+      return json(res, 429, {
+        error: 'That is a lot of drafts in one hour. Try again shortly, or talk to a '
+             + 'counsellor — they can write it with you.',
+      });
+    }
+
+    const b = await readJson(req);
+    const kind = b.kind === 'lor' ? 'lor' : 'sop';
+    const bank = content.get('writing');
+
+    /* Refusing an empty pick here as well as in the page. The page's check is a
+       courtesy; this one is the rule, because a draft assembled from nothing is
+       four sentences of scaffolding with no evidence in them — exactly the
+       thing this studio must never produce. */
+    const picked = (Array.isArray(b.signals) ? b.signals : []).filter(Boolean);
+    if (!picked.length) {
+      return json(res, 422, {
+        error: kind === 'sop'
+          ? 'Pick at least one thing for the draft to draw on.'
+          : 'Pick at least one thing the referee actually saw.',
+      });
+    }
+
+    const out = WRITING.draft(bank, {
+      kind,
+      programme: b.programme, university: b.university,
+      signals: picked, motives: b.motives,
+      who: b.who, span: b.span, instance: b.instance,
+    }, b.pass);
+
+    if (!out.paragraphs.length) {
+      return json(res, 500, {
+        error: 'The studio has nothing to write with at the moment. A counsellor can '
+             + 'write it with you — tell them the writing bank is empty.',
+      });
+    }
+
+    /* Saved only for a signed-in student. Staff drafting on a student's behalf
+       is a different feature and would need to say whose it is. */
+    let saved = null;
+    if (s && s.role === 'student') {
+      const row = db.addDraft(s.id, out);
+      saved = { id: row.id, at: row.created_at };
+    }
+
+    return json(res, 200, { draft: out, saved });
+  }, { open: true, soft: true });
+
+  /* The chips the studio shows. Labels and keys only — the phrases stay on the
+     server, both because the page has no use for them and because they are the
+     part worth keeping off a competitor's clipboard. */
+  route('GET', '/api/ai/chips', async (req, res) => {
+    if (!content) return noContent(res);
+    const w = content.get('writing');
+    const strip = a => (a || []).map(c => ({ key: c.key, label: c.label }));
+    return json(res, 200, {
+      sop: { signals: strip(w.sop.signals), motives: strip(w.sop.motives) },
+      lor: { signals: strip(w.lor.signals) },
+    });
+  }, { open: true });
+
+  route('GET', '/api/ai/drafts', async (req, res, s) => {
+    if (!s) return json(res, 401, { error: 'Please sign in' });
+    return json(res, 200, { drafts: draftsFor(s.id) });
+  });
+
+  route('DELETE', /^\/api\/ai\/draft\/(\d+)$/, async (req, res, s, m) => {
+    if (!s) return json(res, 401, { error: 'Please sign in' });
+    db.deleteDraft(s.id, Number(m[1]));
+    return json(res, 200, { deleted: true, drafts: draftsFor(s.id) });
+  });
+
   /* --------------------------------------------------------- catalogue */
 
   /* The home page reads this, so a university added on the operations screen
@@ -817,6 +956,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         bytes: d.bytes,
       })),
       orders: stateFor(st).orders,
+      /* The drafts the student wrote in the studio. The counsellor is the one
+         being paid to rewrite them, so making them ask for a copy by email is
+         a step that exists for no reason. */
+      drafts: draftsFor(id),
       msgs: db.getMessages(id).map(x => ({ who: x.sender, t: x.body, file: x.file, at: x.created_at })),
     });
   }));
@@ -1579,10 +1722,67 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
        need to see every line on the page, including the ones nobody has
        touched, because that list IS the editor. */
     out.text = content.text();
+    /* The writing bank is not part of `home()` — the public page never receives
+       it — so it is added here explicitly for the screen that edits it. */
+    out.writing = content.get('writing');
     out.updated = {};
-    CONTENT_KEYS.concat(['textOverrides']).forEach(k => { out.updated[k] = db.contentMeta(k) || null; });
+    CONTENT_KEYS.concat(['writing', 'textOverrides']).forEach(k => { out.updated[k] = db.contentMeta(k) || null; });
     out.audit = db.auditTrail(40);
     return json(res, 200, out);
+  }));
+
+  /*
+   * The writing bank saves on its own route.
+   *
+   * The shared route's guard counts `.length` to refuse an accidental empty
+   * block, and this block is an object of six lists — the count would be
+   * undefined and every save refused. Its own emptiness rule is also different
+   * and worth stating: a kind with no openings and no closings can produce
+   * nothing at all, so that is what gets refused, not "fewer sentences".
+   */
+  route('PUT', '/api/staff/content/writing', needs('content', async (req, res, s) => {
+    if (!content) return noContent(res);
+    const b = await readJson(req);
+    const value = b && b.value !== undefined ? b.value : b;
+    const empty = k => !((value && value[k] && value[k].openings) || []).length
+                    || !((value && value[k] && value[k].closings) || []).length;
+    if (empty('sop') || empty('lor')) {
+      return json(res, 422, {
+        error: 'Both the SOP and the LOR need at least one opening and one closing — '
+             + 'without them the studio has nothing to write.',
+      });
+    }
+    const saved = content.save('writing', value, s.name);
+    db.log(s.name, 'home page \u2014 writing bank edited',
+      saved.sop.openings.length + ' SOP openings, ' + saved.lor.openings.length + ' LOR openings');
+    return json(res, 200, { saved });
+  }));
+
+  /* A draft written from the bank ON THE SCREEN, saved or not. Rewriting an
+     opening and having to save it — over the live one — before you can see how
+     it reads is how a bad sentence reaches the site. */
+  route('POST', '/api/staff/content/writing/preview', needs('content', async (req, res) => {
+    if (!content) return noContent(res);
+    const b = await readJson(req);
+    const value = b && b.value !== undefined ? b.value : b;
+    const kind = b.kind === 'lor' ? 'lor' : 'sop';
+    /* Cleaned through the same rules a save would apply, so the preview shows
+       what would actually happen rather than what was typed. */
+    const cleaned = CLEAN_WRITING(value);
+    const sample = kind === 'sop'
+      ? { kind, programme: 'M.Sc. Data Science', university: 'RWTH Aachen University',
+          signals: (cleaned.sop.signals[0] ? [cleaned.sop.signals[0].key] : [])
+            .concat(cleaned.sop.signals[1] ? [cleaned.sop.signals[1].key] : []),
+          motives: cleaned.sop.motives[0] ? [cleaned.sop.motives[0].key] : [] }
+      : { kind, programme: 'MSc Computer Science', university: 'TU Munich',
+          signals: (cleaned.lor.signals[0] ? [cleaned.lor.signals[0].key] : []),
+          who: 'their project supervisor', span: 'two years',
+          instance: 'rebuilt the lab data pipeline in a week' };
+    const out = WRITING.draft(cleaned, sample, 0);
+    if (!out.paragraphs.length) {
+      return json(res, 422, { error: 'There is nothing here to write with yet.' });
+    }
+    return json(res, 200, { draft: out });
   }));
 
   route('PUT', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services)$/,
@@ -1819,6 +2019,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         if (!m) continue;
       }
       let s = null;
+      if (r.soft) s = me(req);
       if (r.auth) {
         s = me(req);
         /* `return json(...)` here would return undefined, and the caller reads

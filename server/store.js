@@ -169,6 +169,19 @@ CREATE TABLE IF NOT EXISTS password_resets (
   used        INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL
 );
+/* A draft the SOP/LOR studio wrote. Kept because a student who writes one at
+   eleven at night expects it to be there in the morning, and because the
+   counsellor doing the paid rewrite should not have to ask them to paste it. */
+CREATE TABLE IF NOT EXISTS drafts (
+  id          INTEGER PRIMARY KEY,
+  student_id  INTEGER NOT NULL,
+  kind        TEXT NOT NULL,
+  programme   TEXT NOT NULL DEFAULT '',
+  university  TEXT NOT NULL DEFAULT '',
+  body        TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_drafts_student  ON drafts(student_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_student ON sessions(student_id);
 CREATE INDEX IF NOT EXISTS idx_docs_student    ON documents(student_id);
 CREATE INDEX IF NOT EXISTS idx_msgs_student    ON messages(student_id);
@@ -221,7 +234,7 @@ function sqliteDriver(file) {
 function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
-    'password_resets', 'programmes', 'countries', 'audit', 'content'];
+    'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -425,6 +438,21 @@ function open(dir) {
       db.all('SELECT DISTINCT prog_id FROM applications').forEach(r => s.add(String(r.prog_id)));
       return s;
     },
+
+    /* ---- drafts ---- */
+    /* Newest first, and capped where it is read rather than where it is
+       written: a student who regenerates twenty times still has all twenty,
+       and the screen shows the ones they are likely to want. */
+    drafts: id => db.all('SELECT * FROM drafts WHERE student_id = ? ORDER BY id desc', Number(id)),
+    addDraft(studentId, d) {
+      db.run(`INSERT INTO drafts (student_id, kind, programme, university, body, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        Number(studentId), String(d.kind || 'sop'), String(d.programme || ''),
+        String(d.university || ''), JSON.stringify(d), now());
+      return db.all('SELECT * FROM drafts WHERE student_id = ? ORDER BY id desc', Number(studentId))[0];
+    },
+    deleteDraft: (studentId, id) =>
+      db.run('DELETE FROM drafts WHERE id = ? AND student_id = ?', Number(id), Number(studentId)),
 
     /* ---- applications ---- */
     getApplications: id => db.all('SELECT * FROM applications WHERE student_id = ?', Number(id)),

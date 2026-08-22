@@ -218,9 +218,55 @@ const cleanTestimonials = v => (Array.isArray(v) ? v : []).slice(0, 30).map(x =>
   where: str(x.where, 80), verified: yes(x.verified), dummy: yes(x.dummy),
 })).filter(x => x.quote || x.name);
 
+/*
+ * What the SOP/LOR studio writes with.
+ *
+ * Deliberately NOT in KEYS. Everything in KEYS is sent to every visitor with
+ * `/api/content`; this block is several pages of prose that the browser has no
+ * use for, because drafting happens on the server. Keeping it out of the public
+ * payload also keeps the phrasing off the page, where a competitor would find
+ * it in one View Source.
+ */
+const cleanChips = v => (Array.isArray(v) ? v : []).slice(0, 24).map((c, n) => ({
+  key: str(c.key, 40).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '')
+    || 'c' + (n + 1),
+  label: str(c.label, 60),
+  phrase: str(c.phrase, 200) || str(c.label, 60),
+})).filter(c => c.label);
+
+/* Sentences, not lines of a list: 400 characters, and newlines collapsed by
+   str() so a stray line break in the editor cannot split one in half. */
+const cleanLines = v => (Array.isArray(v) ? v : String(v || '').split(/\n{2,}|\n/))
+  .map(x => str(x, 400)).filter(Boolean).slice(0, 24);
+
+function cleanWriting(v) {
+  const w = v && typeof v === 'object' ? v : {};
+  const sop = w.sop || {};
+  const lor = w.lor || {};
+  return {
+    sop: {
+      signals: cleanChips(sop.signals),
+      motives: cleanChips(sop.motives),
+      openings: cleanLines(sop.openings),
+      background: cleanLines(sop.background),
+      motive: cleanLines(sop.motive),
+      fit: cleanLines(sop.fit),
+      closings: cleanLines(sop.closings),
+    },
+    lor: {
+      signals: cleanChips(lor.signals),
+      openings: cleanLines(lor.openings),
+      body: cleanLines(lor.body),
+      instance: cleanLines(lor.instance),
+      closings: cleanLines(lor.closings),
+    },
+  };
+}
+
 const CLEAN = {
   packages: cleanPackages, stats: cleanStats,
   faq: cleanFaq, testimonials: cleanTestimonials, services: cleanServices,
+  writing: cleanWriting,
 };
 
 /* ------------------------------------------------------------- the spreadsheet */
@@ -593,4 +639,4 @@ function makeContent({ db, file }) {
   };
 }
 
-module.exports = { makeContent, KEYS, SHEETS };
+module.exports = { makeContent, KEYS, SHEETS, cleanWriting };

@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 import page_text
+import writing_bank
 
 HERE = Path(__file__).resolve().parent
 INDEX = HERE / "index.html"
@@ -71,6 +72,15 @@ def page_data(s):
         sys.exit("index.html has no `const D` block — has the build changed?")
     j = s.find("\n", i)
     return json.loads(s[i + len("const D = "):j].rstrip(";"))
+
+
+def ai_block(s):
+    """The studio's chip lists, read from the page the same way as `const D`."""
+    i = s.find("const AI = {")
+    if i < 0:
+        sys.exit("index.html has no `const AI` block — has the build changed?")
+    j = s.find("\n", i)
+    return json.loads(s[i + len("const AI = "):j].rstrip(";"))
 
 
 def packages(s):
@@ -256,6 +266,10 @@ def main():
         "faq": faq(s),
         "testimonials": testimonials(s),
         "services": services(s),
+        # What the SOP/LOR studio writes with. The chips come out of the page so
+        # the label a student ticks and the phrase the draft uses cannot drift
+        # apart; the sentences around them are authored in writing_bank.py.
+        "writing": writing_bank.bank(ai_block(s)),
         # Everything else on the page: headings, paragraphs, button labels, the
         # form's own words, the footer, the page title and meta description.
         "text": page_text.extract(s),
@@ -264,7 +278,10 @@ def main():
     for name, n in [("packages", len(doc["packages"]["items"])), ("stats", len(doc["stats"])),
                     ("faq", len(doc["faq"])), ("testimonials", len(doc["testimonials"])),
                     ("lines of text", len(doc["text"])),
-                    ("services", len(doc["services"]["items"]))]:
+                    ("services", len(doc["services"]["items"])),
+                    ("SOP openings", len(doc["writing"]["sop"]["openings"])),
+                    ("SOP signals", len(doc["writing"]["sop"]["signals"])),
+                    ("LOR signals", len(doc["writing"]["lor"]["signals"]))]:
         if not n:
             sys.exit(f"REFUSED: extracted 0 {name} from index.html. That is a broken pattern, "
                      f"not an empty page — writing this would blank the home page.")
@@ -279,7 +296,9 @@ def main():
 
     print(f"content.json · {len(doc['packages']['items'])} packages, {len(doc['stats'])} numbers, "
           f"{len(doc['faq'])} FAQ, {len(doc['testimonials'])} testimonials, "
-          f"{len(doc['text'])} lines of text, {len(doc['services']['items'])} services")
+          f"{len(doc['text'])} lines of text, {len(doc['services']['items'])} services, "
+          f"{len(doc['writing']['sop']['signals'])}+{len(doc['writing']['lor']['signals'])} "
+          f"writing chips")
     for p in doc["packages"]["items"]:
         print(f"   {p['tab']:<8} {p['id']:<18} "
               f"{('₹' + format(p['priceInr'], ',')) if p['sell'] else 'on request':<12} {p['title']}")

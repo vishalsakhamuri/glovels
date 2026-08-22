@@ -535,6 +535,8 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
         <span class="n" id="nSvc">0</span></button>
       <button class="tab" data-t="txt" aria-selected="false">Page text
         <span class="n" id="nTxt">0</span></button>
+      <button class="tab" data-t="ai" aria-selected="false">SOP &amp; LOR
+        <span class="n" id="nAi">0</span></button>
       <button class="tab" data-t="sheet" aria-selected="false">Spreadsheet</button>
     </div>
 
@@ -634,6 +636,49 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
     </section>
 
     <!-- ------------------------------------------------------ spreadsheet -->
+    <!-- ---------------------------------------------------- the studio -->
+    <section class="pane" id="t-ai">
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>What the SOP and LOR studio writes</h3>
+        <p style="margin:0 0 6px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          A draft is built from these sentences and nothing else. Each list is a set of
+          alternatives &mdash; the studio uses a different one each time a student presses
+          <b>write it again</b>, so a list with one line in it means every draft opens the
+          same way.</p>
+        <p style="margin:0;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The words in braces are filled in from what the student typed:
+          <code>{programme}</code>, <code>{university}</code>, <code>{signals}</code>,
+          <code>{motives}</code>, <code>{who}</code>, <code>{span}</code>,
+          <code>{instance}</code>. A sentence whose value is missing is left out of that
+          draft rather than printed with a gap in it, so it is safe to write one that
+          uses <code>{instance}</code> even though not every student fills that box in.</p>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px;border-color:#e0d3a8;background:#fffdf6">
+        <b style="font:700 13px/1.5 var(--sans);color:#7a5510">Nothing here may state a fact
+          about the student.</b>
+        <p style="margin:6px 0 0;font-size:12.8px;color:var(--muted);line-height:1.6">
+          No grade, rank, title, employer or publication &mdash; not even a flattering one.
+          Every concrete detail in a finished draft has to have come from a box the student
+          filled in, because they are signing it and a university is reading it. Sentences
+          about emphasis are fine; sentences that claim an achievement are not.</p>
+      </div>
+
+      <div class="tabs" style="margin-bottom:14px">
+        <button class="tab tab-ai" data-a="sop" aria-selected="true">Statement of Purpose</button>
+        <button class="tab tab-ai" data-a="lor" aria-selected="false">Letter of Recommendation</button>
+      </div>
+
+      <div id="aiPanes"></div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px">
+        <button type="button" class="btn btn-primary" id="aiSave">Save the writing</button>
+        <button type="button" class="btn btn-ghost" id="aiPreview">Show me a draft</button>
+        <span id="aiWhen" style="font:600 12.2px/1.4 var(--sans);color:var(--muted)"></span>
+      </div>
+      <div id="aiPrev" style="margin-top:16px"></div>
+    </section>
+
     <section class="pane" id="t-sheet">
       <div class="p-card" style="margin-bottom:14px">
         <h3>Download</h3>
@@ -1151,9 +1196,109 @@ function paintSheet() {
   }
 }
 
+/* ---------------------------------------------------------------- the studio */
+
+let aiKind = 'sop';
+
+/* The four or five sentence lists, plus the chips. One textarea per list, one
+   line per sentence: a sentence is a paragraph in a draft, so a blank line
+   between them would be ambiguous and a row-per-sentence editor would be five
+   screens tall for something people edit twice a year. */
+const AI_LISTS = {
+  sop: [
+    ['openings', 'How it opens', 'The first paragraph. It names the programme and the university.'],
+    ['background', 'What they have done', 'Carries {signals} — the things the student ticked.'],
+    ['motive', 'Why this course', 'Carries {motives}. Left out when nothing is ticked.'],
+    ['fit', 'Why this university', 'No placeholders needed; {programme} and {university} are available.'],
+    ['closings', 'How it ends', 'The last paragraph.'],
+  ],
+  lor: [
+    ['openings', 'How it opens', 'Carries {who} and {span} — who is writing and for how long.'],
+    ['body', 'What they saw', 'Carries {signals}.'],
+    ['instance', 'The specific example', 'Carries {instance}. Left out when the student leaves that box empty.'],
+    ['closings', 'How it ends', 'The last paragraph.'],
+  ],
+};
+
+function paintAi() {
+  if (!C.writing) return;
+  const w = C.writing[aiKind] || {};
+  const n = (C.writing.sop.openings || []).length + (C.writing.lor.openings || []).length;
+  $('#nAi').textContent = n;
+
+  const box = (key, label, hint) => {
+    const lines = (w[key] || []).join('\n');
+    return '<div class="p-card" style="margin-bottom:10px">' +
+      '<label for="ai_' + key + '" style="display:block;font:700 13.4px/1.4 var(--sans);' +
+        'color:var(--navy-900);margin-bottom:3px">' + esc(label) +
+        ' <span style="font-weight:600;color:var(--muted)">(' + (w[key] || []).length + ')</span></label>' +
+      '<p style="margin:0 0 9px;font-size:12.2px;color:var(--muted);line-height:1.5">' +
+        esc(hint) + ' One per line.</p>' +
+      '<textarea id="ai_' + key + '" rows="' + Math.min(14, Math.max(4, (w[key] || []).length + 1)) +
+        '" style="width:100%;padding:10px 12px;font:400 12.8px/1.7 var(--sans);' +
+        'border:1.5px solid #d8dde4;border-radius:9px;resize:vertical">' + esc(lines) +
+      '</textarea></div>';
+  };
+
+  const chips = (key, label, hint) => {
+    const list = w[key] || [];
+    return '<div class="p-card" style="margin-bottom:10px">' +
+      '<label style="display:block;font:700 13.4px/1.4 var(--sans);color:var(--navy-900);' +
+        'margin-bottom:3px">' + esc(label) +
+        ' <span style="font-weight:600;color:var(--muted)">(' + list.length + ')</span></label>' +
+      '<p style="margin:0 0 9px;font-size:12.2px;color:var(--muted);line-height:1.5">' +
+        esc(hint) + '</p>' +
+      '<div style="overflow-x:auto"><table class="tbl" style="margin:0">' +
+      '<thead><tr><th style="width:34%">What the student sees</th>' +
+      '<th>The words that go into the draft</th></tr></thead><tbody>' +
+      list.map((c, i) =>
+        '<tr><td><input id="ck_' + key + '_' + i + '" value="' + esc(c.label) + '"></td>' +
+        '<td><input id="cp_' + key + '_' + i + '" value="' + esc(c.phrase) + '"></td></tr>').join('') +
+      '</tbody></table></div></div>';
+  };
+
+  let html = '';
+  if (aiKind === 'sop') {
+    html += chips('signals', 'What should it draw on?',
+      'The chips on the first row. The right-hand column is dropped into a sentence, so it '
+      + 'has to read as part of one: "my final-year project", not "Final-year project".');
+    html += chips('motives', 'Why this course?',
+      'The second row of chips. These follow "I want to ...", so write them that way: '
+      + '"go deeper into this specialisation".');
+  } else {
+    html += chips('signals', 'What did they actually see?',
+      'These follow "What I saw was ...", so write them as things: "their analytical rigour".');
+  }
+  AI_LISTS[aiKind].forEach(([k, label, hint]) => { html += box(k, label, hint); });
+  $('#aiPanes').innerHTML = html;
+
+  const meta = C.updated && C.updated.writing;
+  $('#aiWhen').textContent = meta
+    ? 'Last changed by ' + meta.who + ' ' + timeAgo(meta.updated_at) : '';
+}
+
+/* What is on the screen, as the block the server stores. Read out of the DOM
+   rather than tracked in a variable, so what you see is what saves. */
+function aiFromScreen() {
+  const out = JSON.parse(JSON.stringify(C.writing));
+  const w = out[aiKind];
+  const lines = id => ($('#ai_' + id) ? $('#ai_' + id).value : '')
+    .split('\n').map(x => x.trim()).filter(Boolean);
+  AI_LISTS[aiKind].forEach(([k]) => { w[k] = lines(k); });
+  const chipKeys = aiKind === 'sop' ? ['signals', 'motives'] : ['signals'];
+  chipKeys.forEach(key => {
+    w[key] = (w[key] || []).map((c, i) => ({
+      key: c.key,
+      label: $('#ck_' + key + '_' + i) ? $('#ck_' + key + '_' + i).value.trim() : c.label,
+      phrase: $('#cp_' + key + '_' + i) ? $('#cp_' + key + '_' + i).value.trim() : c.phrase,
+    })).filter(c => c.label);
+  });
+  return out;
+}
+
 function paintAll() {
   paintPackages(); paintServices(); paintStats(); paintFaq(); paintStories();
-  paintText(); paintSheet();
+  paintText(); paintSheet(); paintAi();
 }
 
 async function reload() {
@@ -1624,6 +1769,60 @@ addEventListener('keydown', e => {
   }
 });
 
+/* ------------------------------------------------------- studio behaviour */
+
+document.addEventListener('click', async e => {
+  const t = e.target.closest('.tab-ai');
+  if (t) {
+    /* Keep what is on the screen before switching, or a counsellor who edits
+       the SOP, looks at the LOR and comes back finds their work gone. */
+    C.writing = aiFromScreen();
+    aiKind = t.dataset.a;
+    $$('.tab-ai').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+    paintAi();
+    return;
+  }
+
+  if (e.target.closest('#aiSave')) {
+    const btn = e.target.closest('#aiSave');
+    btn.disabled = true;
+    try {
+      const r = await api('PUT', '/api/staff/content/writing', {value: aiFromScreen()});
+      C.writing = r.saved;
+      await reload();
+      toast('Saved — the studio writes with this from now on.');
+    } catch (err) { toast(err.message); }
+    finally { btn.disabled = false; }
+    return;
+  }
+
+  if (e.target.closest('#aiPreview')) {
+    /* Written against what is on the screen, saved or not, so the person
+       rewriting a sentence can see it land before committing to it. */
+    const out = $('#aiPrev');
+    out.innerHTML = '<p style="font-size:12.8px;color:var(--muted)">Writing…</p>';
+    try {
+      const draft = await api('POST', '/api/staff/content/writing/preview', {
+        value: aiFromScreen(),
+        kind: aiKind,
+      });
+      const d = draft.draft;
+      out.innerHTML = '<div class="p-card">' +
+        '<b style="font:700 12.4px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;' +
+          'color:var(--muted)">A draft for a made-up student · ' + d.words + ' words</b>' +
+        d.paragraphs.map(x => '<p style="margin:12px 0 0;font-size:13.4px;line-height:1.75">' +
+          esc(x) + '</p>').join('') +
+        '<p style="margin:14px 0 0;font-size:12px;color:var(--muted)">' + esc(d.caveat) + '</p>' +
+        '</div>';
+    } catch (err) {
+      out.innerHTML = '<p role="alert" style="margin:0;padding:11px 13px;border-radius:10px;' +
+        'font:600 12.8px/1.5 var(--sans);background:#fdf3f2;border:1px solid #f0c8c4;' +
+        'color:#7a2118">' + esc(err.message) + '</p>';
+    }
+    return;
+  }
+});
+
 /* The three simple lists save as a block, so each pane gets one Save button
    rather than one per row — a row-level save on a block API would write the
    other rows' half-typed state along with it. */
@@ -1665,6 +1864,24 @@ if (location.protocol === 'file:') {
   b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
     'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
     'it opens — <b>http://localhost:8080</b>';
+  document.body.appendChild(b);
+  document.body.style.paddingTop = b.offsetHeight + 'px';
+}
+</script>
+<script>
+/* GLOVELS-FILE-WARNING
+   This runs at the end of <body>, so document.body already exists. It waited
+   for DOMContentLoaded at first, which never arrived on pages where an earlier
+   script had already thrown \u2014 and a warning that only appears when nothing
+   else is wrong is a warning that never appears. */
+if (location.protocol === 'file:') {
+  var b = document.createElement('div');
+  b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:13px 18px;' +
+    'background:#7a2118;color:#fff;font:600 13.5px/1.55 system-ui,-apple-system,sans-serif;' +
+    'text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.25)';
+  b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
+    'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
+    'it opens \u2014 <b>http://localhost:8080</b>';
   document.body.appendChild(b);
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }

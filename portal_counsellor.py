@@ -186,6 +186,30 @@ function paintRecord(r) {
               '<li><span style="flex:1">' + esc(p.program) + ' · <b>' + esc(p.university) + '</b></span>' +
               '<span class="st none" style="text-transform:none;letter-spacing:0">' + money(p) + '</span></li>').join('') + '</ul>'
           : '<p style="font-size:12.8px;color:var(--muted)">Nothing shortlisted yet.</p>') +
+
+        /* The drafts the student wrote in the studio. This is the copy the
+           rewrite is billed against, so it belongs on the counsellor's screen
+           rather than in an email the student has to be asked for. */
+        '<h3 style="font-size:14.5px;margin:18px 0 10px">Drafts from the studio' +
+          (r.drafts && r.drafts.length
+            ? ' <span class="st none" style="text-transform:none;letter-spacing:0">' +
+              r.drafts.length + '</span>' : '') + '</h3>' +
+        ((r.drafts && r.drafts.length)
+          ? r.drafts.slice(0, 6).map((d, i) =>
+              '<details' + (i === 0 ? ' open' : '') + ' style="border:1px solid var(--line);' +
+                'border-radius:10px;padding:10px 13px;margin-bottom:8px;background:var(--paper)">' +
+              '<summary style="cursor:pointer;font:700 12.8px/1.5 var(--sans);color:var(--navy-900)">' +
+                (d.kind === 'lor' ? 'Letter of recommendation' : 'Statement of purpose') +
+                ' \u00b7 ' + esc(d.programme || 'no programme given') +
+                (d.university ? ', ' + esc(d.university) : '') +
+                ' <span style="font-weight:600;color:var(--muted)">' + d.words + ' words, ' +
+                timeAgo(d.at) + '</span></summary>' +
+              d.paragraphs.map(t => '<p style="margin:11px 0 0;font-size:13px;line-height:1.7">' +
+                esc(t) + '</p>').join('') +
+              '<p style="margin:12px 0 0;font-size:11.6px;color:var(--muted)">' +
+                esc(d.caveat) + '</p></details>').join('')
+          : '<p style="font-size:12.8px;color:var(--muted)">They have not written one yet. ' +
+            'The studio is on the home page, under the SOP and LOR cards.</p>') +
       '</section>' +
     '</div>';
 

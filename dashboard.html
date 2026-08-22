@@ -542,6 +542,14 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
       <div id="slWrap"></div>
     </section>
 
+    <section class="p-sec" id="draftsSec" hidden>
+      <div class="p-sec-head">
+        <h2>Your SOP and LOR drafts</h2>
+        <a href="index.html#services">Write another <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div id="draftWrap"></div>
+    </section>
+
     <div class="p-cols">
       <div class="p-card">
         <h3><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Application tracker <span class="pill" id="trackPill"></span></h3>
@@ -857,7 +865,68 @@ $('#signOut').onclick = () => {
 })();
 
 }
-__dashBoot(__dashMain);
+__dashBoot(function () { __dashMain();
+/* The studio's drafts, from the same /api/state the rest of this screen uses.
+   Hidden entirely when there are none: an empty card that says "nothing here"
+   on a dashboard the student sees every day is just clutter. */
+(function () {
+  var st = window.__GLOVELS;
+  var sec = document.getElementById('draftsSec');
+  var wrap = document.getElementById('draftWrap');
+  if (!sec || !wrap || !st || !st.drafts || !st.drafts.length) return;
+
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+  var when = function (iso) {
+    var s = Math.round((Date.now() - new Date(iso)) / 1000);
+    var n = function (v, word) { return v + ' ' + word + (v === 1 ? '' : 's') + ' ago'; };
+    if (s < 60) return 'just now';
+    if (s < 3600) return n(Math.floor(s / 60), 'minute');
+    if (s < 86400) return n(Math.floor(s / 3600), 'hour');
+    var d = Math.floor(s / 86400);
+    return d === 1 ? 'yesterday' : n(d, 'day');
+  };
+
+  wrap.innerHTML = st.drafts.slice(0, 8).map(function (d, i) {
+    return '<details class="p-card" ' + (i === 0 ? 'open ' : '') +
+      'style="margin-bottom:10px">' +
+      '<summary style="cursor:pointer;font:700 13.6px/1.5 var(--sans);color:var(--navy-900)">' +
+        (d.kind === 'lor' ? 'Letter of recommendation' : 'Statement of purpose') +
+        (d.programme ? ' &middot; ' + esc(d.programme) : '') +
+        (d.university ? ', ' + esc(d.university) : '') +
+        '<span style="font-weight:600;color:var(--muted)"> &mdash; ' + d.words +
+        ' words, ' + when(d.at) + '</span></summary>' +
+      d.paragraphs.map(function (t) {
+        return '<p style="margin:12px 0 0;font-size:13.4px;line-height:1.75">' + esc(t) + '</p>';
+      }).join('') +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:14px">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-copy="' + i + '">Copy</button>' +
+        '<a class="btn btn-ghost btn-sm" href="messages.html">Ask my counsellor to rewrite it</a>' +
+      '</div>' +
+      '<p style="margin:12px 0 0;font-size:11.6px;color:var(--muted)">' + esc(d.caveat) + '</p>' +
+      '</details>';
+  }).join('');
+  sec.hidden = false;
+
+  wrap.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (!b) return;
+    var d = st.drafts[Number(b.dataset.copy)];
+    var text = d.paragraphs.join('\n\n');
+    var done = function () { b.textContent = 'Copied'; };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+    else {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) {}
+      ta.remove();
+    }
+  });
+}());
+});
 </script>
 <script>
 /* This runs at the end of <body>, so document.body already exists. It waited

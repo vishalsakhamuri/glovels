@@ -2149,9 +2149,108 @@ $$('.modal').forEach(m => m.addEventListener('click', e => {
 addEventListener('keydown', e => { if(e.key === 'Escape')
   $$('.modal.on').forEach(m => m.classList.remove('on')); });
 
-function openAI(kind){
-  const sigs = AI[(kind === 'sop' ? 'SOP' : 'LOR') + ' signal'] || [];
-  const mots = AI['SOP motive'] || [];
+
+/* ------------------------------------------------- the studio, server-side */
+let AI_CHIPS = null;
+let aiPass = 0;
+
+async function aiChips(kind) {
+  if (!AI_CHIPS) {
+    try {
+      const r = await fetch('/api/ai/chips', {credentials: 'same-origin'});
+      if (r.ok) AI_CHIPS = await r.json();
+    } catch (e) { /* opened from disk, or the server is down */ }
+  }
+  if (AI_CHIPS && AI_CHIPS[kind]) return AI_CHIPS[kind];
+  /* The page's own copy. Same keys, so a draft asked for with these still
+     matches the bank on the server. */
+  return kind === 'sop'
+    ? {signals: AI['SOP signal'] || [], motives: AI['SOP motive'] || []}
+    : {signals: AI['LOR signal'] || []};
+}
+
+async function aiDraft(kind, out) {
+  const picked = g => $$('[data-chip][data-group="' + g + '"][aria-pressed="true"]')
+    .map(b => b.dataset.chip);
+  const sigs = picked('sig');
+  if (!sigs.length) {
+    out.innerHTML = '<div class="warnbox" style="border-color:#c0392b;background:#fdf3f2;'
+      + 'color:#7a2118">' + (kind === 'sop'
+        ? 'Pick at least one thing for the draft to draw on.'
+        : 'Pick at least one thing the referee actually saw.') + '</div>';
+    return;
+  }
+
+  const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+  out.innerHTML = '<div class="ai-draft"><div class="steps-lbl">Writing…</div>'
+    + '<p style="opacity:.6">One moment.</p></div>';
+
+  let d;
+  try {
+    const r = await fetch('/api/ai/draft', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        kind: kind,
+        programme: val('aiProg'), university: val('aiUni'),
+        signals: sigs, motives: picked('mot'),
+        who: val('aiWho'), span: val('aiSpan'), instance: val('aiInst'),
+        pass: aiPass,
+      }),
+    });
+    d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'The studio could not write that just now.');
+  } catch (err) {
+    out.innerHTML = '<div class="warnbox" style="border-color:#c0392b;background:#fdf3f2;'
+      + 'color:#7a2118">' + esc(err.message) + '</div>';
+    return;
+  }
+
+  const draft = d.draft;
+  out.innerHTML =
+      '<div class="ai-draft"><div class="steps-lbl">Draft '
+    + (aiPass === 0 ? 'one' : String(aiPass + 1)) + ' · ' + draft.words + ' words</div>'
+    + draft.paragraphs.map(t => '<p>' + esc(t) + '</p>').join('')
+    + '</div>'
+    + '<div class="warnbox" style="margin-top:12px"><b>This is a draft, not a submission.</b> '
+    + 'It uses only what you entered — no invented grade, title or publication. An '
+    + 'admissions writer rewrites it with you before it goes anywhere, and that review is what '
+    + 'you are paying for.</div>'
+    + (d.saved
+        ? '<p style="font-size:11.6px;color:var(--green);margin:10px 0 0;font-weight:600">'
+          + 'Saved to your account — it is in your dashboard, and your counsellor can see it.</p>'
+        : '<p style="font-size:11.6px;color:var(--muted);margin:10px 0 0">'
+          + 'Sign in before you write and every draft is kept in your dashboard.</p>')
+    + '<div class="paid-cta"><button class="btn btn-primary" id="aiBuy">Add the '
+    + (kind === 'sop' ? 'SOP' : 'LOR') + ' rewrite to my plan</button>'
+    + '<button class="btn btn-ghost" id="aiCopy">Copy</button>'
+    + '<button class="btn btn-ghost" id="aiAgain">Write it again</button></div>';
+
+  $('#aiAgain').onclick = () => { aiPass++; aiDraft(kind, out); };
+  $('#aiCopy').onclick = () => {
+    const text = draft.paragraphs.join('\n\n');
+    const done = () => { $('#aiCopy').textContent = 'Copied'; };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => {});
+    else {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      ta.remove();
+    }
+  };
+  $('#aiBuy').onclick = () => {
+    const svc = SERVICES.find(s => s.ai === kind);
+    if (svc) { chosen.add(svc.id); render(); plan(); }
+    $('#aiModal').classList.remove('on');
+    document.getElementById('services').scrollIntoView({behavior: 'smooth', block: 'start'});
+  };
+}
+
+async function openAI(kind){
+  const bank = await aiChips(kind === 'sop' ? 'sop' : 'lor');
+  const sigs = bank.signals || [];
+  const mots = bank.motives || [];
   const chips = (a, group) => '<div class="lv-row" style="margin-bottom:12px">'
     + a.map(x => '<button class="lv" data-chip="' + esc(x.key) + '" data-group="' + group
       + '" data-phrase="' + esc(x.phrase || x.label) + '" aria-pressed="false">'
@@ -2182,64 +2281,8 @@ function openAI(kind){
     + '<div id="aiOut" style="margin-top:14px"></div>';
   $$('[data-chip]').forEach(b => b.onclick = () =>
     b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'));
-  $('#aiGo').onclick = () => {
-    const picked = $$('[data-chip][aria-pressed="true"]');
-    if(!picked.length){ $('#aiOut').innerHTML = '<div class="warnbox" style="border-color:#c0392b;'
-      + 'background:#fdf3f2;color:#7a2118">Pick at least one thing for the draft to draw on.</div>';
-      return; }
-    const pick = g => picked.filter(b => b.dataset.group === g).map(b => b.dataset.phrase);
-    const join = a => a.length === 1 ? a[0]
-      : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
-    const prog = ($('#aiProg') && $('#aiProg').value.trim()) || 'this programme';
-    const uni  = ($('#aiUni')  && $('#aiUni').value.trim())  || 'your chosen university';
-    const sigs = pick('sig');
-    const mots = pick('mot');
-    let paras;
-    if(kind === 'sop'){
-      paras = [
-        'I am applying to the ' + prog + ' at ' + uni + '. What brings me here is not a sudden '
-        + 'interest but a direction that has been forming through the work I have already done.',
-        'What shaped me most were ' + join(sigs.length ? sigs : ['the work I have done'])
-        + '. Those are the parts of my record I would point to first, because they are where I '
-        + 'learned the most and where the learning stuck.',
-        mots.length
-          ? 'I want to ' + join(mots) + '. This programme is where that becomes possible rather '
-            + 'than aspirational.'
-          : 'This programme is where that direction becomes possible rather than aspirational.',
-        'I am ready for the pace of it, and I intend to be a student who contributes rather than '
-        + 'only attends.'
-      ];
-    } else {
-      const who = ($('#aiWho') && $('#aiWho').value) || 'their supervisor';
-      const span = ($('#aiSpan') && $('#aiSpan').value) || 'some time';
-      const inst = ($('#aiInst') && $('#aiInst').value.trim()) || '';
-      paras = [
-        'I write in support of this application to the ' + prog + ' at ' + uni + '. I have known '
-        + 'the applicant for ' + span + ' as ' + who + ', and I am glad to be asked.',
-        'What I saw was ' + join(sigs.length ? sigs : ['consistent, careful work']) + '.'
-        + (inst ? ' One instance stays with me: ' + inst + '.' : ''),
-        'I recommend the applicant without reservation, and I am happy to answer any questions.'
-      ];
-    }
-    $('#aiOut').innerHTML =
-        '<div class="ai-draft"><div class="steps-lbl">Draft one</div>'
-      + paras.map(t => '<p>' + esc(t) + '</p>').join('')
-      + '</div>'
-      + '<div class="warnbox" style="margin-top:12px"><b>This is a draft, not a submission.</b> '
-      + 'It uses only what you entered — no invented grade, title or publication. An '
-      + 'admissions writer rewrites it with you before it goes anywhere, and that review is what '
-      + 'you are paying for.</div>'
-      + '<div class="paid-cta"><button class="btn btn-primary" id="aiBuy">Add the '
-      + (kind === 'sop' ? 'SOP' : 'LOR') + ' rewrite to my plan</button>'
-      + '<button class="btn btn-ghost" id="aiAgain">Write it again</button></div>';
-    $('#aiAgain').onclick = () => $('#aiGo').click();
-    $('#aiBuy').onclick = () => {
-      const svc = SERVICES.find(s => s.ai === kind);
-      if(svc){ chosen.add(svc.id); render(); plan(); }
-      $('#aiModal').classList.remove('on');
-      document.getElementById('services').scrollIntoView({behavior:'smooth', block:'start'});
-    };
-  };
+  aiPass = 0;
+  $('#aiGo').onclick = () => aiDraft(kind, $('#aiOut'));
   $('#aiModal').classList.add('on');
 }
 
