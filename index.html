@@ -324,6 +324,10 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .mname .masked{max-width:19em}
 .mprice.masked{filter:blur(5.5px);color:#0e5230}
 @media (prefers-reduced-motion:reduce){.masked{filter:blur(6px)}}
+/* Read aloud, never drawn. Not display:none — that hides it from screen readers
+   too, which is the whole thing this is here to avoid. */
+.offscreen{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 .lockword{display:inline-flex;align-items:center;gap:5px;font:700 10.6px/1 var(--sans);
   letter-spacing:.1em;text-transform:uppercase;color:#8a6a1f}
 .co-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
@@ -1470,10 +1474,13 @@ function rowHtml(r){
   const type = `<div class="mtype ${r.isPublic?'pub':'priv'}">${r.isPublic?'Public':'Private'}</div>`;
   if(r.locked) return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
-    <div class="mname"><b class="masked">${filler(r.nLen)}</b>
-      <div class="msub masked">${filler(r.uLen)}</div></div>
+    <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
+      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>
+      <span class="offscreen">A ${r.isPublic ? 'public' : 'private'} university in
+        ${esc(ctry.name)} that matches you. The name and the fee are unlocked by a
+        package.</span></div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
-    <div class="mprice masked">${filler(r.fLen)}</div>
+    <div class="mprice masked" aria-hidden="true">${filler(r.fLen)}</div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
       <span class="lockword">${ico('lock')}Locked</span>
       <button class="btn btn-navy btn-sm" data-goto-pkg>Select Package</button></div></div>`;

@@ -2008,6 +2008,51 @@ patch(
 )
 
 
+# ---------------------------------------------------------------- index.html
+#
+# A locked row, read aloud.
+#
+# The withheld name is blurred filler, which works for anybody who can see the
+# screen. A screen reader ignores the blur entirely and reads the filler out:
+# "nemo enim ipsam voluptatem, Germany, Public, nemo enim i". Somebody using one
+# is told nothing about why, and is left with Latin.
+#
+# The filler is now hidden from assistive technology and the row says what is
+# actually true in its place.
+patch(
+    "index.html",
+    "a locked row says why it is locked, out loud",
+    """  if(r.locked) return `<div class="mrow" data-band="${r.band}">
+    <div class="mcc">${ctry.flag}</div>
+    <div class="mname"><b class="masked">${filler(r.nLen)}</b>
+      <div class="msub masked">${filler(r.uLen)}</div></div>
+    <div class="mctry">${esc(ctry.name)}</div>${type}
+    <div class="mprice masked">${filler(r.fLen)}</div>""",
+    """  if(r.locked) return `<div class="mrow" data-band="${r.band}">
+    <div class="mcc">${ctry.flag}</div>
+    <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
+      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>
+      <span class="offscreen">A ${r.isPublic ? 'public' : 'private'} university in
+        ${esc(ctry.name)} that matches you. The name and the fee are unlocked by a
+        package.</span></div>
+    <div class="mctry">${esc(ctry.name)}</div>${type}
+    <div class="mprice masked" aria-hidden="true">${filler(r.fLen)}</div>""",
+    marker='A ${r.isPublic ? \'public\' : \'private\'} university in',
+)
+
+patch(
+    "index.html",
+    "there is a way to say something to a screen reader only",
+    "@media (prefers-reduced-motion:reduce){.masked{filter:blur(6px)}}",
+    """@media (prefers-reduced-motion:reduce){.masked{filter:blur(6px)}}
+/* Read aloud, never drawn. Not display:none — that hides it from screen readers
+   too, which is the whole thing this is here to avoid. */
+.offscreen{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}""",
+    marker="Read aloud, never drawn",
+)
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and
