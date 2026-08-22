@@ -15,10 +15,17 @@ const home = async (ctx, expect) => {
   const p = await ctx.newPage();
   await p.goto(BASE + '/#services', { waitUntil: 'domcontentloaded' });
   if (expect) {
-    await p.waitForFunction(
-      t => document.getElementById('services').innerText.includes(t),
-      expect, { timeout: 15000 },
-    ).catch(() => {});
+    /* Every string that should be there, not just the first. The grid is
+       painted in one pass, but the wait used to return as soon as the NAME
+       appeared and then read the prices — which under load were still the old
+       ones for another frame. A test that fails once in five runs gets ignored
+       exactly as fast as one that always fails. */
+    for (const t of [].concat(expect)) {
+      await p.waitForFunction(
+        s => document.getElementById('services').innerText.includes(s),
+        t, { timeout: 15000 },
+      ).catch(() => {});
+    }
   } else {
     await p.waitForTimeout(2600);
   }
@@ -68,7 +75,7 @@ const home = async (ctx, expect) => {
   await page.waitForTimeout(800);
   check('the editor closes on save', !(await page.isVisible('#svcModal .sheet')));
 
-  let h = await home(ctx, 'SOP Writing & Editing');
+  let h = await home(ctx, ['SOP Writing & Editing', '1,499', 'final same day']);
   check('the new name is on the home page', h.names.includes('SOP Writing & Editing'),
     h.names.slice(0, 3).join(' | '));
   check('the new price is on the home page', h.text.includes('1,499'),
@@ -86,7 +93,7 @@ const home = async (ctx, expect) => {
   await page.click('#smSave');
   await page.waitForTimeout(800);
 
-  h = await home(ctx, 'Accommodation Search');
+  h = await home(ctx, ['Accommodation Search', '2,999']);
   check('a brand-new service appears on the home page',
     h.names.includes('Accommodation Search'));
   check('with its price', h.text.includes('2,999'));

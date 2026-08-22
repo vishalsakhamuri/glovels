@@ -1415,6 +1415,51 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
    */
   const FIELD_LIMITS = { program: 140, university: 140, city: 80, url: 400, field: 80 };
 
+  const FALLBACK_BANDS = [
+    { id: 'u10', ceilInr: 1000000 }, { id: 'u20', ceilInr: 2000000 },
+    { id: 'above20', ceilInr: 4000000 }, { id: 'elite', ceilInr: null },
+  ];
+
+  /** Which budget bucket a fee falls in, by the ceilings the office set. */
+  function bandFor(totalInr) {
+    let bands = FALLBACK_BANDS;
+    try {
+      const f = content && content.get('finder');
+      if (f && f.bands && f.bands.length) bands = f.bands;
+    } catch (e) { /* fall back rather than refuse to save a programme */ }
+    const fee = Math.max(0, Number(totalInr) || 0);
+    for (const b of bands) {
+      if (b.ceilInr == null) return b.id;      // the top band takes the rest
+      if (fee <= b.ceilInr) return b.id;
+    }
+    return bands[bands.length - 1].id;
+  }
+
+  /**
+   * Put every programme back in the right bucket.
+   *
+   * Called when the ceilings change. Without it a new boundary applies only to
+   * programmes edited afterwards, so the filter would show a mix of the old
+   * rule and the new one — which is harder to notice, and harder to explain,
+   * than it simply not working.
+   */
+  function rebandAll(who) {
+    let moved = 0;
+    db.programmes(true).forEach(r => {
+      const want = bandFor(r.total_inr);
+      if (want === r.band) return;
+      db.saveProgramme({
+        id: r.id, program: r.program, university: r.university, city: r.city,
+        country: r.country, level: r.level, field: r.field, band: want,
+        isPublic: !!r.is_public, fit: r.fit, totalInr: r.total_inr, url: r.url,
+        active: !!r.active, featured: !!r.featured, featureSort: r.feature_sort || 0,
+        intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
+      }, who);
+      moved++;
+    });
+    return moved;
+  }
+
   /*
    * The words on the filters are `master`, `autumn`, `u20`. The words a
    * counsellor types into a spreadsheet are "Masters", "MSc", "Fall", "under
@@ -1485,12 +1530,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     };
     /* The band is what the budget filter on the home page uses. Deriving it from
        the fee when it is left blank means a counsellor cannot accidentally put a
-       ₹30 lakh course in the "under ₹10L" bucket. */
-    if (!out.band) {
-      out.band = out.totalInr === 0 ? 'u10'
-        : out.totalInr <= 1000000 ? 'u10'
-        : out.totalInr <= 2000000 ? 'u20' : 'above20';
-    }
+       ₹30 lakh course in the "under ₹10L" bucket.
+
+       The ceilings come from the Finder tab rather than from three numbers
+       written here, because otherwise editing them changes a label and nothing
+       else — the buckets would keep their old boundaries and the screen would
+       be lying about what it does. */
+    if (!out.band) out.band = bandFor(out.totalInr);
     if (!out.fit) out.fit = 75;
     return out;
   }
@@ -1959,7 +2005,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
    * a plan first, and only what has been seen gets written.
    */
 
-  const CONTENT_KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services'];
+  const CONTENT_KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services', 'finder'];
   const noContent = res => json(res, 503, {
     error: 'The home page content is not loaded on this server. Run: python3 build_content.py',
   });
@@ -2044,7 +2090,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     return json(res, 200, { draft: out });
   }));
 
-  route('PUT', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services)$/,
+  route('PUT', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services|finder)$/,
     needs('content', async (req, res, s, m) => {
       if (!content) return noContent(res);
       const key = m[1];
@@ -2059,7 +2105,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
          reads as "empty" and refuses every save — the guard against emptying a
          section becomes a guard against editing it. */
       const grouped = key === 'packages' || key === 'services';
-      const n = grouped ? ((value && value.items) || []).length : (value || []).length;
+      /* The finder block is an object of settings, not a list. Counting it the
+         way the lists are counted gives undefined, which reads as empty, and
+         the guard against blanking a section would refuse every save. */
+      const n = key === 'finder' ? 1
+        : grouped ? ((value && value.items) || []).length : (value || []).length;
       if (!n && !YES(b && b.allowEmpty)) {
         return json(res, 422, {
           error: 'That would leave the ' + key + ' section of the home page with nothing in it. '
@@ -2068,9 +2118,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       }
 
       const saved = content.save(key, value, s.name);
-      const count = grouped ? saved.items.length : saved.length;
-      db.log(s.name, 'home page — ' + key + ' edited', count + ' now on the page');
-      return json(res, 200, { saved, count });
+      const count = key === 'finder' ? (saved.bands || []).length
+        : grouped ? saved.items.length : saved.length;
+
+      let moved = 0;
+      if (key === 'finder') moved = rebandAll(s.name);
+
+      db.log(s.name, 'home page — ' + key + ' edited',
+        count + ' now on the page' + (moved ? ', ' + moved + ' programmes re-banded' : ''));
+      return json(res, 200, { saved, count, moved });
     }));
 
   route('GET', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services|text)\.(xlsx|csv)$/,

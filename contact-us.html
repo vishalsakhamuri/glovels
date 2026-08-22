@@ -688,5 +688,37 @@ if (location.protocol === 'file:') {
   }
 }());
 </script>
+<script>
+/* GLOVELS-CONTACT-LINKS */
+(function () {
+  if (location.protocol === 'file:') return;
+  fetch('/api/content', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var c = d && d.finder && d.finder.contact;
+      if (!c) return;
+      if (c.whatsapp) {
+        [].forEach.call(document.querySelectorAll('a[href*="wa.me/"]'), function (a) {
+          a.href = a.href.replace(/wa\.me\/\d+/, 'wa.me/' + c.whatsapp);
+        });
+      }
+      /* The displayed number is a line of text, so it is edited on the Page
+         text tab like every other line. Only the LINK is rewritten here — the
+         two can disagree, and if they do the text is the one people read and
+         the link is the one that fails silently. */
+      if (c.phone) {
+        [].forEach.call(document.querySelectorAll('a[href^="tel:"]'), function (a) {
+          a.href = 'tel:' + c.phone.replace(/[^0-9+]/g, '');
+        });
+      }
+      if (c.email) {
+        [].forEach.call(document.querySelectorAll('a[href^="mailto:"]'), function (a) {
+          a.href = a.href.replace(/mailto:[^?]*/, 'mailto:' + c.email);
+        });
+      }
+    })
+    .catch(function () {});
+}());
+</script>
 </body>
 </html>

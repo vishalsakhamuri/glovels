@@ -14,7 +14,7 @@ run() {                       # run <suite> <port> [env...]
   # A moment for the previous suite's browser to actually exit. Without it the
   # next one starts while a dozen chromium processes are still shutting down,
   # and a click times out for reasons that have nothing to do with the code.
-  sleep 2
+  sleep 4
   local out
   out=$(node "$suite" 2>&1 | tail -3)
   local line
@@ -39,6 +39,7 @@ run aitest.js       8099
 run writingtest.js  8099
 run chatboxtest.js  8099
 run reqtest.js      8099
+run findertest.js   8099
 run sheettest.js    8099
 run servicetest.js  8086
 run showcasetest.js 8089

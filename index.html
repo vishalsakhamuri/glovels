@@ -1242,6 +1242,21 @@ window.__glovelsSetPackages = function (list) {
    mutating it in place is what makes the Requirements panel, the CGPA scoring
    and the destination cards all read the edited figures. Replacing
    `D.countries` with a new object would leave `C` pointing at the old one. */
+window.__glovelsSetFinder = function (f) {
+  if (!f || typeof f !== 'object') return;
+  ['browsePublic', 'browsePrivate', 'cgpaFull', 'cgpaPartial'].forEach(function (k) {
+    if (typeof f[k] === 'number' && f[k] > 0) D.settings[k] = f[k];
+  });
+  /* Merged rather than replaced: a currency the office has not set a rate for
+     keeps the one the page shipped with, instead of dividing by undefined and
+     printing NaN on every price. */
+  if (f.fx && typeof f.fx === 'object') {
+    Object.keys(f.fx).forEach(function (c) {
+      if (typeof f.fx[c] === 'number' && f.fx[c] > 0) D.settings.fx[c] = f.fx[c];
+    });
+  }
+};
+
 window.__glovelsSetCountryFacts = function (map) {
   if (!map || typeof map !== 'object') return;
   Object.keys(map).forEach(function (code) {
@@ -1255,6 +1270,16 @@ window.__glovelsSetCountryFacts = function (map) {
       if (live[k] !== undefined && live[k] !== null) here[k] = live[k];
     });
   });
+};
+
+/* The content loader at the end of this page repaints the package cards when
+   the office edits them, and it has to reprice the checkout sheet at the same
+   moment — the sheet reads D.packages, not the card. D is declared inside this
+   IIFE, so it cannot be reached from out there unless it is handed out
+   deliberately. One named function rather than exposing D wholesale: the
+   loader may replace the price list and nothing else. */
+window.__glovelsSetPackages = function (list) {
+  if (Array.isArray(list) && list.length) D.packages = list;
 };
 
 /* --------------------------------------------------------- sending a form ---
@@ -2355,6 +2380,21 @@ function shape(p){
 /* Handed out for the same reason the price list is: this block is an IIFE,
    so `P` is unreachable from the content loader at the end of the page. The
    loader replaces the list and asks for a repaint; it can do nothing else. */
+window.__glovelsSetBands = function (bands, trending) {
+  /* Spliced in place, not reassigned. Both are `const`, and more to the point
+     other code holds references to these same arrays — swapping the binding
+     would leave those pointing at the old list. */
+  if (Array.isArray(bands) && bands.length) {
+    BANDS.length = 0;
+    bands.forEach(function (b) { BANDS.push(b); });
+  }
+  if (Array.isArray(trending) && trending.length) {
+    TRENDING.length = 0;
+    trending.forEach(function (t) { TRENDING.push(t); });
+  }
+  render();
+};
+
 window.__glovelsSetCountries = function (map) {
   if (!map || typeof map !== 'object') return;
   Object.keys(map).forEach(function (code) {
@@ -2955,6 +2995,17 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
       }
     } catch (e) { console.warn('showcase', e); }
 
+    try {
+      if (data.finder) {
+        if (typeof window.__glovelsSetFinder === 'function') {
+          window.__glovelsSetFinder(data.finder);
+        }
+        if (typeof window.__glovelsSetBands === 'function') {
+          window.__glovelsSetBands(data.finder.bands, data.finder.trending);
+        }
+      }
+    } catch (e) { console.warn('finder settings', e); }
+
     try { applyText(data.text); } catch (e) { console.warn('wording', e); }
 
     document.dispatchEvent(new CustomEvent('glovels:content', { detail: data }));
@@ -3275,6 +3326,38 @@ if (location.protocol === 'file:') {
   } else {
     boot();
   }
+}());
+</script>
+<script>
+/* GLOVELS-CONTACT-LINKS */
+(function () {
+  if (location.protocol === 'file:') return;
+  fetch('/api/content', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var c = d && d.finder && d.finder.contact;
+      if (!c) return;
+      if (c.whatsapp) {
+        [].forEach.call(document.querySelectorAll('a[href*="wa.me/"]'), function (a) {
+          a.href = a.href.replace(/wa\.me\/\d+/, 'wa.me/' + c.whatsapp);
+        });
+      }
+      /* The displayed number is a line of text, so it is edited on the Page
+         text tab like every other line. Only the LINK is rewritten here — the
+         two can disagree, and if they do the text is the one people read and
+         the link is the one that fails silently. */
+      if (c.phone) {
+        [].forEach.call(document.querySelectorAll('a[href^="tel:"]'), function (a) {
+          a.href = 'tel:' + c.phone.replace(/[^0-9+]/g, '');
+        });
+      }
+      if (c.email) {
+        [].forEach.call(document.querySelectorAll('a[href^="mailto:"]'), function (a) {
+          a.href = a.href.replace(/mailto:[^?]*/, 'mailto:' + c.email);
+        });
+      }
+    })
+    .catch(function () {});
 }());
 </script>
 </body>

@@ -23,7 +23,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services'];
+const KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services', 'finder'];
 
 /*
  * The fifth block is not like the other four.
@@ -263,10 +263,76 @@ function cleanWriting(v) {
   };
 }
 
+/*
+ * How the finder behaves, and how to reach the office.
+ *
+ * Small, but every field in here is a decision somebody in the business makes
+ * and nobody in the business could change:
+ *
+ *   browsePublic / browsePrivate  how many universities a visitor sees before
+ *                                 they have touched the filters. That is a
+ *                                 pricing lever, not a layout choice.
+ *   cgpaFull / cgpaPartial        the CGPA bar used for a destination that has
+ *                                 not set its own.
+ *   fx                            what one unit of each currency is worth in
+ *                                 rupees, for the currency switch.
+ *   bands                         the four budget buckets and their ceilings.
+ *   trending                      the suggestion chips.
+ *   contact                       the WhatsApp number, the phone number and the
+ *                                 address every page links to. It was written
+ *                                 into the markup of forty pages.
+ */
+const cleanFinder = v => {
+  const f = v && typeof v === 'object' ? v : {};
+  const int = (x, lo, hi, dflt) => {
+    const n = Math.round(num(x));
+    return Number.isFinite(n) && n > 0 ? Math.max(lo, Math.min(hi, n)) : dflt;
+  };
+  const rate = x => {
+    const n = num(x);
+    return n > 0 ? Math.round(n * 100) / 100 : 0;
+  };
+  const fxIn = f.fx && typeof f.fx === 'object' ? f.fx : {};
+  const fx = { INR: 1 };
+  Object.keys(fxIn).slice(0, 12).forEach(k => {
+    const code = str(k, 4).toUpperCase().replace(/[^A-Z]/g, '');
+    if (!code || code === 'INR') return;
+    const r = rate(fxIn[k]);
+    if (r) fx[code] = r;
+  });
+
+  const bands = (Array.isArray(f.bands) ? f.bands : []).slice(0, 8).map((b, i) => ({
+    id: str(b.id, 20).toLowerCase().replace(/[^a-z0-9]/g, '') || 'band' + (i + 1),
+    label: str(b.label, 40),
+    /* null is not zero. The top band deliberately has no ceiling, and turning
+       that into 0 would make it match nothing at all. */
+    ceilInr: b.ceilInr == null || b.ceilInr === '' ? null
+      : Math.max(0, Math.min(99999999, Math.round(num(b.ceilInr)))),
+  })).filter(b => b.label);
+
+  const digits = (x, n) => String(x == null ? '' : x).replace(/[^0-9]/g, '').slice(0, n || 15);
+
+  return {
+    browsePublic: int(f.browsePublic, 1, 50, 3),
+    browsePrivate: int(f.browsePrivate, 1, 50, 2),
+    cgpaFull: rate(f.cgpaFull) || 7.5,
+    cgpaPartial: rate(f.cgpaPartial) || 6,
+    fx,
+    bands,
+    trending: (Array.isArray(f.trending) ? f.trending : String(f.trending || '').split(/\n/))
+      .map(x => str(x, 80)).filter(Boolean).slice(0, 12),
+    contact: {
+      whatsapp: digits((f.contact || {}).whatsapp, 15),
+      phone: str((f.contact || {}).phone, 30),
+      email: str((f.contact || {}).email, 120).toLowerCase(),
+    },
+  };
+};
+
 const CLEAN = {
   packages: cleanPackages, stats: cleanStats,
   faq: cleanFaq, testimonials: cleanTestimonials, services: cleanServices,
-  writing: cleanWriting,
+  writing: cleanWriting, finder: cleanFinder,
 };
 
 /* ------------------------------------------------------------- the spreadsheet */

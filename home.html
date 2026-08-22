@@ -540,6 +540,7 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
         <span class="n" id="nTxt">0</span></button>
       <button class="tab" data-t="ai" aria-selected="false">SOP &amp; LOR
         <span class="n" id="nAi">0</span></button>
+      <button class="tab" data-t="find" aria-selected="false">Finder &amp; contact</button>
       <button class="tab" data-t="sheet" aria-selected="false">Spreadsheet</button>
     </div>
 
@@ -639,6 +640,93 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
     </section>
 
     <!-- ------------------------------------------------------ spreadsheet -->
+    <!-- ---------------------------------------------------- the finder -->
+    <section class="pane" id="t-find">
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>How much a visitor sees before they pay</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Somebody who lands on the site and has not touched the filters sees this many
+          universities. It is a pricing decision, not a layout one &mdash; too few and the
+          finder looks empty, too many and there is less reason to buy a package.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+          <div class="field" style="margin-bottom:10px">
+            <label for="fBrowsePub">Public universities shown</label>
+            <input id="fBrowsePub" type="number" min="1" max="50"></div>
+          <div class="field" style="margin-bottom:10px">
+            <label for="fBrowsePriv">Private universities shown</label>
+            <input id="fBrowsePriv" type="number" min="1" max="50"></div>
+        </div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>The CGPA bar</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Used only for a destination that has not set its own on the Catalogue screen.
+          On 10.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+          <div class="field" style="margin-bottom:10px">
+            <label for="fCgFull">Public universities</label>
+            <input id="fCgFull" type="number" min="0" max="10" step="0.1"></div>
+          <div class="field" style="margin-bottom:10px">
+            <label for="fCgPart">Private universities</label>
+            <input id="fCgPart" type="number" min="0" max="10" step="0.1"></div>
+        </div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>Budget bands</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The buckets on the finder. A programme lands in a band by its total tuition, so the
+          ceilings decide what appears where. Leave the last one&rsquo;s ceiling empty &mdash;
+          that is what makes it the top band rather than a bucket that matches nothing.</p>
+        <div id="bandRows"></div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>Trending fields</h3>
+        <p style="margin:0 0 12px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The suggestion chips. One per line. They have to match a field on the programmes
+          exactly, or the chip finds nothing.</p>
+        <textarea id="fTrend" rows="7" style="width:100%;padding:10px 12px;
+          font:400 13px/1.7 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;
+          resize:vertical"></textarea>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>What a currency is worth</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Rupees for one unit. Used by the currency switch beside the results &mdash; the fees
+          themselves are stored in rupees and converted for display.</p>
+        <div id="fxRows" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+          gap:0 14px"></div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>How people reach you</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          These are the <b>links</b> on every page &mdash; the WhatsApp button, the phone link,
+          the email link. The number as it is <em>written</em> on the page is a line of text and
+          is edited on the Page text tab; change it in both places or they will disagree, and
+          the one people read is not the one that dials.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 14px">
+          <div class="field" style="margin-bottom:10px">
+            <label for="fWa">WhatsApp number</label>
+            <input id="fWa" placeholder="917093314089">
+            <span style="display:block;margin-top:4px;font-size:11.6px;color:var(--muted)">
+              Country code, no plus, no spaces.</span></div>
+          <div class="field" style="margin-bottom:10px">
+            <label for="fPhone">Phone</label><input id="fPhone" placeholder="+91 70933 14089"></div>
+          <div class="field" style="margin-bottom:10px">
+            <label for="fEmail">Email</label><input id="fEmail" placeholder="info@glovels.com"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-primary" id="findSave">Save</button>
+        <span id="findWhen" style="font:600 12.2px/1.4 var(--sans);color:var(--muted)"></span>
+      </div>
+    </section>
+
     <!-- ---------------------------------------------------- the studio -->
     <section class="pane" id="t-ai">
       <div class="p-card" style="margin-bottom:14px">
@@ -1199,6 +1287,74 @@ function paintSheet() {
   }
 }
 
+/* ----------------------------------------------------------------- the finder */
+
+const FX_ORDER = ['EUR', 'USD', 'GBP', 'AUD', 'CAD'];
+
+function paintFinder() {
+  const f = C.finder;
+  if (!f) return;
+  const set = (id, v) => { const el = $('#' + id); if (el) el.value = v == null ? '' : v; };
+  set('fBrowsePub', f.browsePublic);
+  set('fBrowsePriv', f.browsePrivate);
+  set('fCgFull', f.cgpaFull);
+  set('fCgPart', f.cgpaPartial);
+  set('fTrend', (f.trending || []).join('\n'));
+  set('fWa', (f.contact || {}).whatsapp);
+  set('fPhone', (f.contact || {}).phone);
+  set('fEmail', (f.contact || {}).email);
+
+  $('#bandRows').innerHTML = (f.bands || []).map((b, n) =>
+    '<div style="display:grid;grid-template-columns:1fr 200px;gap:0 14px;align-items:end">' +
+      tf('Label', 'bl' + n, b.label, 'Under \u20b910L') +
+      tf('Ceiling, \u20b9 (blank = no ceiling)', 'bc' + n,
+        b.ceilInr == null ? '' : b.ceilInr, '1000000') +
+    '</div>').join('');
+
+  $('#fxRows').innerHTML = FX_ORDER.map(code =>
+    tf(code + ' \u2192 \u20b9', 'fx' + code, (f.fx || {})[code] || '')).join('');
+
+  const meta = C.updated && C.updated.finder;
+  $('#findWhen').textContent = meta
+    ? 'Last changed by ' + meta.who + ' ' + timeAgo(meta.updated_at) : '';
+}
+
+function finderFromScreen() {
+  const v = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+  const fx = {};
+  FX_ORDER.forEach(c => { if (v('fx' + c)) fx[c] = Number(v('fx' + c)); });
+  return {
+    browsePublic: Number(v('fBrowsePub')) || C.finder.browsePublic,
+    browsePrivate: Number(v('fBrowsePriv')) || C.finder.browsePrivate,
+    cgpaFull: Number(v('fCgFull')) || C.finder.cgpaFull,
+    cgpaPartial: Number(v('fCgPart')) || C.finder.cgpaPartial,
+    fx,
+    bands: (C.finder.bands || []).map((b, n) => ({
+      id: b.id,
+      label: v('bl' + n) || b.label,
+      /* An empty ceiling is a real value here — it means "no ceiling", which is
+         what makes the last band the top one. Number('') is 0, and a band with
+         a ceiling of zero matches nothing at all. */
+      ceilInr: v('bc' + n) === '' ? null : Number(v('bc' + n)),
+    })),
+    trending: v('fTrend').split('\n').map(x => x.trim()).filter(Boolean),
+    contact: { whatsapp: v('fWa'), phone: v('fPhone'), email: v('fEmail') },
+  };
+}
+
+document.addEventListener('click', async e => {
+  if (!e.target.closest('#findSave')) return;
+  const btn = e.target.closest('#findSave');
+  btn.disabled = true;
+  try {
+    const r = await api('PUT', '/api/staff/content/finder', {value: finderFromScreen()});
+    C.finder = r.saved;
+    await reload();
+    toast('Saved — the next visitor gets this.');
+  } catch (err) { toast(err.message); }
+  finally { btn.disabled = false; }
+});
+
 /* ---------------------------------------------------------------- the studio */
 
 let aiKind = 'sop';
@@ -1301,7 +1457,7 @@ function aiFromScreen() {
 
 function paintAll() {
   paintPackages(); paintServices(); paintStats(); paintFaq(); paintStories();
-  paintText(); paintSheet(); paintAi();
+  paintText(); paintSheet(); paintAi(); paintFinder();
 }
 
 async function reload() {

@@ -1352,3 +1352,145 @@ patch(
             setCat(c.programmes.map(function (p) {""",
     marker="__glovelsSetCountries(c.countries)",
 )
+
+
+# ---------------------------------------------------------------- index.html
+#
+# How the finder behaves, from the operations site.
+#
+# Every field here is a decision the business makes and could not change: how
+# many universities a visitor sees before they touch a filter (a pricing lever,
+# not a layout choice), the CGPA bar for a destination that has not set its own,
+# what a euro is worth in rupees, the four budget buckets and the suggestion
+# chips.
+#
+# Two setters again, because the page has two blocks that cannot see each other:
+# `D.settings` in the first, `BANDS` and `TRENDING` in the second.
+patch(
+    "index.html",
+    "the finder's settings can be replaced from the server",
+    """window.__glovelsSetCountryFacts = function (map) {""",
+    """window.__glovelsSetFinder = function (f) {
+  if (!f || typeof f !== 'object') return;
+  ['browsePublic', 'browsePrivate', 'cgpaFull', 'cgpaPartial'].forEach(function (k) {
+    if (typeof f[k] === 'number' && f[k] > 0) D.settings[k] = f[k];
+  });
+  /* Merged rather than replaced: a currency the office has not set a rate for
+     keeps the one the page shipped with, instead of dividing by undefined and
+     printing NaN on every price. */
+  if (f.fx && typeof f.fx === 'object') {
+    Object.keys(f.fx).forEach(function (c) {
+      if (typeof f.fx[c] === 'number' && f.fx[c] > 0) D.settings.fx[c] = f.fx[c];
+    });
+  }
+};
+
+window.__glovelsSetCountryFacts = function (map) {""",
+    marker="__glovelsSetFinder",
+)
+
+patch(
+    "index.html",
+    "the budget bands and the trending chips come from the server",
+    """window.__glovelsSetCountries = function (map) {""",
+    """window.__glovelsSetBands = function (bands, trending) {
+  /* Spliced in place, not reassigned. Both are `const`, and more to the point
+     other code holds references to these same arrays — swapping the binding
+     would leave those pointing at the old list. */
+  if (Array.isArray(bands) && bands.length) {
+    BANDS.length = 0;
+    bands.forEach(function (b) { BANDS.push(b); });
+  }
+  if (Array.isArray(trending) && trending.length) {
+    TRENDING.length = 0;
+    trending.forEach(function (t) { TRENDING.push(t); });
+  }
+  render();
+};
+
+window.__glovelsSetCountries = function (map) {""",
+    marker="__glovelsSetBands",
+)
+
+# The content loader already runs for the packages and the services; the finder
+# block rides along with the same response.
+patch(
+    "index.html",
+    "the loader applies the finder settings",
+    """    try { applyText(data.text); } catch (e) { console.warn('wording', e); }""",
+    """    try {
+      if (data.finder) {
+        if (typeof window.__glovelsSetFinder === 'function') {
+          window.__glovelsSetFinder(data.finder);
+        }
+        if (typeof window.__glovelsSetBands === 'function') {
+          window.__glovelsSetBands(data.finder.bands, data.finder.trending);
+        }
+      }
+    } catch (e) { console.warn('finder settings', e); }
+
+    try { applyText(data.text); } catch (e) { console.warn('wording', e); }""",
+    marker="window.__glovelsSetFinder(data.finder)",
+)
+
+
+# ------------------------------------------------------------ every page
+#
+# The office's own contact details.
+#
+# The WhatsApp number is in a wa.me link on four pages, the phone number and the
+# address are in the markup of forty. None of them were editable: the page-text
+# editor covers text and a few attributes, not href, so changing the office
+# number meant a developer — and a wrong number on a marketing site is not a
+# cosmetic problem, it is every lead from that page.
+CONTACT_JS = r"""
+/* GLOVELS-CONTACT-LINKS */
+(function () {
+  if (location.protocol === 'file:') return;
+  fetch('/api/content', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var c = d && d.finder && d.finder.contact;
+      if (!c) return;
+      if (c.whatsapp) {
+        [].forEach.call(document.querySelectorAll('a[href*="wa.me/"]'), function (a) {
+          a.href = a.href.replace(/wa\.me\/\d+/, 'wa.me/' + c.whatsapp);
+        });
+      }
+      /* The displayed number is a line of text, so it is edited on the Page
+         text tab like every other line. Only the LINK is rewritten here — the
+         two can disagree, and if they do the text is the one people read and
+         the link is the one that fails silently. */
+      if (c.phone) {
+        [].forEach.call(document.querySelectorAll('a[href^="tel:"]'), function (a) {
+          a.href = 'tel:' + c.phone.replace(/[^0-9+]/g, '');
+        });
+      }
+      if (c.email) {
+        [].forEach.call(document.querySelectorAll('a[href^="mailto:"]'), function (a) {
+          a.href = a.href.replace(/mailto:[^?]*/, 'mailto:' + c.email);
+        });
+      }
+    })
+    .catch(function () {});
+}());
+"""
+
+
+def contact_everywhere():
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-CONTACT-LINKS" in t or "</body>" not in t:
+            continue
+        if "wa.me/" not in t and "mailto:" not in t and "tel:" not in t:
+            continue
+        write(f, t.replace("</body>", "<script>" + CONTACT_JS + "</script>\n</body>", 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the contact links follow the office")
+    else:
+        skipped.append("every page: the contact links follow the office")
+
+
+contact_everywhere()

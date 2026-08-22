@@ -83,6 +83,43 @@ def ai_block(s):
     return json.loads(s[i + len("const AI = "):j].rstrip(";"))
 
 
+def finder_block(s):
+    """The finder's settings, the budget bands, the trending chips, the number."""
+    d = page_data(s)
+    st = d.get("settings", {})
+
+    i = s.find("const TRENDING = ")
+    trending = []
+    if i >= 0:
+        trending = json.loads(s[i + len("const TRENDING = "):s.find("\n", i)].rstrip(";"))
+
+    i = s.find("const BANDS = ")
+    bands = st.get("bands", [])
+    if i >= 0:
+        bands = json.loads(s[i + len("const BANDS = "):s.find("\n", i)].rstrip(";"))
+
+    # The number lives in a wa.me link rather than in the settings, because it
+    # was written into the markup of forty pages by hand.
+    m = re.search(r"wa\.me/(\d+)", s)
+    tel = re.search(r"\+91[\d ]{8,}", s)
+    mail = re.search(r"mailto:([a-z0-9._%+-]+@[a-z0-9.-]+)", s)
+
+    return {
+        "browsePublic": st.get("browsePublic", 3),
+        "browsePrivate": st.get("browsePrivate", 2),
+        "cgpaFull": st.get("cgpaFull", 7.5),
+        "cgpaPartial": st.get("cgpaPartial", 6),
+        "fx": st.get("fx", {"INR": 1}),
+        "bands": bands,
+        "trending": trending,
+        "contact": {
+            "whatsapp": m.group(1) if m else "",
+            "phone": tel.group(0).strip() if tel else "",
+            "email": mail.group(1) if mail else "",
+        },
+    }
+
+
 def packages(s):
     D = page_data(s)
     raw = D.get("packages") or []
@@ -270,6 +307,10 @@ def main():
         # the label a student ticks and the phrase the draft uses cannot drift
         # apart; the sentences around them are authored in writing_bank.py.
         "writing": writing_bank.bank(ai_block(s)),
+        # How the finder behaves and how to reach the office. Read out of the
+        # page's own settings block so the defaults are exactly what the site
+        # shipped with.
+        "finder": finder_block(s),
         # Everything else on the page: headings, paragraphs, button labels, the
         # form's own words, the footer, the page title and meta description.
         "text": page_text.extract(s),
@@ -281,7 +322,9 @@ def main():
                     ("services", len(doc["services"]["items"])),
                     ("SOP openings", len(doc["writing"]["sop"]["openings"])),
                     ("SOP signals", len(doc["writing"]["sop"]["signals"])),
-                    ("LOR signals", len(doc["writing"]["lor"]["signals"]))]:
+                    ("LOR signals", len(doc["writing"]["lor"]["signals"])),
+                    ("budget bands", len(doc["finder"]["bands"])),
+                    ("trending chips", len(doc["finder"]["trending"]))]:
         if not n:
             sys.exit(f"REFUSED: extracted 0 {name} from index.html. That is a broken pattern, "
                      f"not an empty page — writing this would blank the home page.")
