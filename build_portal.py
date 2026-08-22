@@ -37,6 +37,18 @@ def shell_parts():
 
 HEAD_RAW, SPRITE = shell_parts()
 
+# One icon the donor page never needed. `<use>` on a symbol that does not exist
+# renders nothing at all — no icon, no error, and a nav item that sits with a
+# blank space where every other item has a picture, which reads as broken.
+GLOBE = (
+    '<symbol id="i-globe" viewBox="0 0 24 24">'
+    '<circle cx="12" cy="12" r="9"/>'
+    '<path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/>'
+    '</symbol>'
+)
+if 'id="i-globe"' not in SPRITE:
+    SPRITE = SPRITE.replace("</defs>", GLOBE + "</defs>")
+
 # The nav, declared once. `slug` marks the active item.
 NAV = [
     ("dashboard",    "i-grid",   "Dashboard"),
