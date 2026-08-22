@@ -1114,8 +1114,6 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
       <span class="eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Explore our catalogue</span>
       <h2>Real universities, matched to what you're looking for</h2>
     </div>
-    <div class="modebar">Mode: <b>gated</b> — only private programmes are listed; public universities appear as a count. Consistent with Block 1, but the public university names earn no search traffic. Change <code>CATALOGUE_MODE</code>
-      in <code>build_block34.py</code> to compare.</div>
     <div class="tabs" role="tablist" style="justify-content:center"><button class="tab" data-bandtab="all" role="tab" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg>Everything we offer</button><button class="tab" data-bandtab="u10" data-band="u10" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>Under ₹10L</button><button class="tab" data-bandtab="u20" data-band="u20" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg>Under ₹20L</button><button class="tab" data-bandtab="above20" data-band="above20" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg>₹20L+</button><button class="tab" data-bandtab="elite" data-band="elite" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg>Top-ranked</button></div>
     <div class="chips" id="chips"><button class="chip" data-field="Data Science, AI &amp; Machine Learning"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Data Science, AI &amp; Machine Learning</button><button class="chip" data-field="Computer Science &amp; IT"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Computer Science &amp; IT</button><button class="chip" data-field="Cybersecurity &amp; Cloud"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Cybersecurity &amp; Cloud</button><button class="chip" data-field="Aerospace &amp; Robotics"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Aerospace &amp; Robotics</button><button class="chip" data-field="Renewable Energy"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Renewable Energy</button><button class="chip" data-field="Biotechnology &amp; Bioinformatics"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Biotechnology &amp; Bioinformatics</button></div>
     <div class="cgrid" id="cgrid"></div>
@@ -2256,7 +2254,7 @@ const P = [{"id": "gated-2", "country": "DE", "level": "master", "fieldGroup": "
 const C = {"DE": {"code": "DE", "name": "Germany", "slug": "germany", "flag": "🇩🇪", "region": "Europe - public university routes", "hasPublicTrack": true, "tuitionFree": true, "minCgpaPublic": 7.5, "minCgpaPrivate": 6.0, "degreeRule": "4-year Bachelor (16 years of education). A 3-year degree needs a recognised bridge or a Studienkolleg year.", "extraNote": "APS certificate is mandatory for Indian applicants - budget 6-8 weeks for it.", "backlogRule": "Up to 5 backlogs usually tolerated; more needs a written explanation.", "tests": ["IELTS 6.5 overall, no band below 6.0 (or TOEFL iBT 88)", "German A1-A2 expected for daily life", "GRE only for a few TU programmes"], "fundsLabel": "Blocked account (Sperrkonto)", "fundsInr": 1130000.0, "fundsNote": "One year of living costs frozen before the visa interview.", "livingInr": 75000.0, "workRights": "20 hrs/week during term", "deadlineNote": "Winter: 15 Jul . Summer: 15 Jan", "documents": ["Passport", "Marksheets & degree", "APS certificate", "IELTS/TOEFL", "SOP", "LORs", "CV", "Blocked account confirmation"], "published": true}, "CA": {"code": "CA", "slug": "canada", "published": true, "dummy": true, "name": "Canada", "flag": "🇨🇦", "region": "UK & North America", "hasPublicTrack": false, "tuitionFree": false, "minCgpaPublic": null, "minCgpaPrivate": 6.0, "degreeRule": "3 or 4-year Bachelor accepted by most colleges.", "extraNote": "A Provincial Attestation Letter is needed for most study permits.", "backlogRule": "Up to 5 backlogs usually tolerated.", "tests": ["IELTS 6.5 overall, no band below 6.0"], "fundsLabel": "GIC + first-year tuition", "fundsInr": 2000000, "fundsNote": "Held before the permit application.", "livingInr": 95000, "workRights": "20 hrs/week during term", "deadlineNote": "Sep, Jan and May intakes", "documents": ["Passport", "Marksheets", "IELTS", "SOP", "GIC certificate"]}, "GB": {"code": "GB", "slug": "united-kingdom", "published": true, "dummy": true, "name": "United Kingdom", "flag": "🇬🇧", "region": "UK & North America", "hasPublicTrack": false, "tuitionFree": false, "minCgpaPublic": null, "minCgpaPrivate": 6.0, "degreeRule": "3-year Bachelor accepted for most Master's.", "extraNote": "A CAS letter from the university is required before the visa.", "backlogRule": "Assessed case by case.", "tests": ["IELTS UKVI 6.5, no band below 6.0"], "fundsLabel": "Maintenance funds", "fundsInr": 1200000, "fundsNote": "Held for 28 consecutive days before applying.", "livingInr": 110000, "workRights": "20 hrs/week during term", "deadlineNote": "Sep and Jan intakes", "documents": ["Passport", "Marksheets", "IELTS UKVI", "CAS letter", "Bank statements"]}, "IE": {"code": "IE", "slug": "ireland", "published": true, "dummy": true, "name": "Ireland", "flag": "🇮🇪", "region": "Europe - public university routes", "hasPublicTrack": false, "tuitionFree": false, "minCgpaPublic": null, "minCgpaPrivate": 6.0, "degreeRule": "Honours Bachelor degree, 3 or 4 years.", "extraNote": "Fees are usually paid in full before the visa application.", "backlogRule": "Up to 5 backlogs usually tolerated.", "tests": ["IELTS 6.5 overall"], "fundsLabel": "Proof of funds", "fundsInr": 900000, "fundsNote": "One year of living costs.", "livingInr": 90000, "workRights": "20 hrs/week during term", "deadlineNote": "Sep intake, rolling", "documents": ["Passport", "Marksheets", "IELTS", "Fee receipt", "Insurance"]}, "PL": {"code": "PL", "slug": "poland", "published": true, "dummy": true, "name": "Poland", "flag": "🇵🇱", "region": "Europe - public university routes", "hasPublicTrack": true, "tuitionFree": false, "minCgpaPublic": 6.5, "minCgpaPrivate": 5.5, "degreeRule": "3-year Bachelor accepted.", "extraNote": "Degree apostille needed for enrolment.", "backlogRule": "Generally flexible.", "tests": ["IELTS 6.0, or a medium-of-instruction letter"], "fundsLabel": "Proof of funds", "fundsInr": 550000, "fundsNote": "One year of living costs.", "livingInr": 45000, "workRights": "Full-time permitted for students", "deadlineNote": "Oct and Feb intakes", "documents": ["Passport", "Marksheets", "Apostille", "Insurance"]}, "ES": {"code": "ES", "slug": "spain", "published": true, "dummy": true, "name": "Spain", "flag": "🇪🇸", "region": "Europe - public university routes", "hasPublicTrack": true, "tuitionFree": false, "minCgpaPublic": 6.5, "minCgpaPrivate": 5.5, "degreeRule": "3 or 4-year Bachelor accepted.", "extraNote": "Homologation may be required for regulated fields.", "backlogRule": "Assessed case by case.", "tests": ["IELTS 6.0"], "fundsLabel": "Proof of funds", "fundsInr": 700000, "fundsNote": "IPREM-linked minimum.", "livingInr": 60000, "workRights": "30 hrs/week permitted", "deadlineNote": "Sep and Feb intakes", "documents": ["Passport", "Marksheets", "IELTS", "NIE appointment", "Insurance"]}, "IT": {"code": "IT", "slug": "italy", "published": true, "dummy": true, "name": "Italy", "flag": "🇮🇹", "region": "Europe - public university routes", "hasPublicTrack": true, "tuitionFree": false, "minCgpaPublic": 6.5, "minCgpaPrivate": 5.5, "degreeRule": "3-year Bachelor accepted with a Declaration of Value.", "extraNote": "Universitaly pre-enrolment is mandatory.", "backlogRule": "Assessed case by case.", "tests": ["IELTS 6.0"], "fundsLabel": "Proof of funds", "fundsInr": 650000, "fundsNote": "One year of living costs.", "livingInr": 65000, "workRights": "20 hrs/week during term", "deadlineNote": "Sep intake, Universitaly deadlines apply", "documents": ["Passport", "Marksheets", "Declaration of Value", "Universitaly receipt"]}};
 const BANDS = [{"id": "u10", "label": "Under \u20b910L", "ceilInr": 1000000.0}, {"id": "u20", "label": "Under \u20b920L", "ceilInr": 2000000.0}, {"id": "above20", "label": "\u20b920L+", "ceilInr": 4000000.0}, {"id": "elite", "label": "Top-ranked", "ceilInr": null}];
 const TRENDING = ["Data Science, AI & Machine Learning", "Computer Science & IT", "Cybersecurity & Cloud", "Aerospace & Robotics", "Renewable Energy", "Biotechnology & Bioinformatics"];
-const PER_TIER = 2;
+const PER_TIER = 6;
 const ROOT = document.getElementById('catalogue');
 const $ = s => ROOT.querySelector(s), $$ = s => [...ROOT.querySelectorAll(s)];
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -2277,11 +2275,27 @@ function shape(p){
   return null;
 }
 
+/* Handed out for the same reason the price list is: this block is an IIFE,
+   so `P` is unreachable from the content loader at the end of the page. The
+   loader replaces the list and asks for a repaint; it can do nothing else. */
+window.__glovelsSetCatalogue = function (list) {
+  if (!Array.isArray(list) || !list.length) return;
+  P.length = 0;
+  list.forEach(function (p) { P.push(p); });
+  render();
+};
+
 function pick(){
   /* Shape first: a gated row must not take a slot it will then be dropped from. */
   let list = P.filter(p => !field || p.field === field);
   if(cat !== 'all') list = list.filter(p => p.band === cat);
-  list.sort((a,b) => (a.totalInr||0) - (b.totalInr||0) || b.fit - a.fit);
+  /* Chosen first, in the order they were put in, then the rest by price.
+     A programme nobody has featured has featureSort 0 and sorts as before. */
+  list.sort((a,b) =>
+    (b.featured ? 1 : 0) - (a.featured ? 1 : 0)
+    || (a.featureSort || 0) - (b.featureSort || 0)
+    || (a.totalInr||0) - (b.totalInr||0)
+    || b.fit - a.fit);
   const shown = list.map(shape).filter(Boolean);
   const hiddenUnis = new Set(
     list.filter(p => p.isPublic && !shown.some(s => s && s.id === p.id)).map(p => p.uKey)).size;
@@ -2290,7 +2304,11 @@ function pick(){
     const out = [];
     for(const b of BANDS){
       out.push(...shown.filter(p => p.band === b.id)
-        .sort((a,b2) => (a.totalInr||0) - (b2.totalInr||0)).slice(0, PER_TIER));
+        .sort((a,b2) =>
+          (b2.featured ? 1 : 0) - (a.featured ? 1 : 0)
+          || (a.featureSort || 0) - (b2.featureSort || 0)
+          || (a.totalInr||0) - (b2.totalInr||0))
+        .slice(0, PER_TIER));
     }
     return {rows: out, hiddenUnis};
   }
@@ -2773,6 +2791,35 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
       }
     } catch (e) { console.warn('prices', e); }
 
+    /* The showcase grid on the home page. It was rendering a list frozen at
+       build time, so a university added on the Catalogue screen never reached
+       the one place a visitor browses what is on offer. */
+    try {
+      var setCat = window.__glovelsSetCatalogue;
+      if (typeof setCat === 'function') {
+        fetch('/api/catalogue', { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (c) {
+            if (!c || !c.programmes || !c.programmes.length) return;
+            setCat(c.programmes.map(function (p) {
+              return {
+                id: p.id, country: p.country, level: p.level || '',
+                field: p.field || '', fieldGroup: p.field || '',
+                band: p.band || 'u20', isPublic: !!p.isPublic,
+                program: p.program || '', university: p.university || '',
+                city: p.city || '', totalInr: p.totalInr || 0,
+                fit: p.fit || 75, uKey: p.uKey || ('u' + p.id),
+                intakes: p.intakes || [], minCgpa: null,
+                freeTuition: (p.totalInr || 0) === 0,
+                featured: !!p.featured, featureSort: p.featureSort || 0,
+                nLen: p.nLen, uLen: p.uLen,
+              };
+            }));
+          })
+          .catch(function () {});
+      }
+    } catch (e) { console.warn('showcase', e); }
+
     try { applyText(data.text); } catch (e) { console.warn('wording', e); }
 
     document.dispatchEvent(new CustomEvent('glovels:content', { detail: data }));
@@ -2790,23 +2837,6 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
   else go();
 }());
-</script>
-<script>
-/* This runs at the end of <body>, so document.body already exists. It waited
-   for DOMContentLoaded at first, which never arrived on pages where an earlier
-   script had already thrown \u2014 and a warning that only appears when nothing
-   else is wrong is a warning that never appears. */
-if (location.protocol === 'file:') {
-  var b = document.createElement('div');
-  b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:13px 18px;' +
-    'background:#7a2118;color:#fff;font:600 13.5px/1.55 system-ui,-apple-system,sans-serif;' +
-    'text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.25)';
-  b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
-    'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
-    'it opens \u2014 <b>http://localhost:8080</b>';
-  document.body.appendChild(b);
-  document.body.style.paddingTop = b.offsetHeight + 'px';
-}
 </script>
 <script>
 /* GLOVELS-FILE-WARNING

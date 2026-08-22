@@ -620,6 +620,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         id: p.id, country: p.country, level: p.level, field: p.field,
         band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
         totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,
+        /* uKey groups programmes by university so the page can say "12 public
+           universities" without naming one. featured/featureSort say where the
+           row sits, not what it is. None of the three is the name. */
+        uKey: p.uKey, featured: p.featured, featureSort: p.featureSort,
         nLen: String(p.program || '').length,
         uLen: String(p.university || '').length,
       };
@@ -695,7 +699,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
   route('GET', '/api/health', async (req, res) => {
     try {
       const n = db.countStudents();
-      return json(res, 200, { ok: true, accounts: n, storage: db.kind });
+      /* `demoAccounts` is read by the sign-in page, which hides its yellow
+         "use student@glovels.com" box when there are none. It is not a secret:
+         it says whether a well-known account exists, which anyone could
+         discover by trying it once. */
+      return json(res, 200, {
+        ok: true, accounts: n, storage: db.kind,
+        demoAccounts: !!(CFG.seedDemo && !CFG.production),
+      });
     } catch (e) {
       return json(res, 503, { ok: false, error: 'the database is not readable' });
     }
@@ -1070,6 +1081,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       totalInr: Math.max(0, Math.round(Number(b.totalInr) || 0)),
       url: /^https?:\/\//i.test(b.url || '') ? String(b.url).slice(0, FIELD_LIMITS.url) : '',
       active: b.active !== false,
+      /* Featured is the office saying "lead with this one". It is not a
+         property of the programme, so it survives an edit that says nothing
+         about it rather than being reset to false by omission. */
+      featured: b.featured === undefined ? !!(existing && existing.featured) : !!b.featured,
+      featureSort: Math.max(0, Math.min(999, Math.round(Number(
+        b.featureSort === undefined ? (existing ? existing.feature_sort : 0) : b.featureSort) || 0))),
       intakes: Array.isArray(b.intakes)
         ? b.intakes.filter(i => i && i.deadline).slice(0, 6).map(i => ({
             season: ['winter', 'summer', 'autumn', 'spring'].includes(String(i.season || '').toLowerCase())
@@ -1096,6 +1113,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
       isPublic: !!r.is_public, fit: r.fit, totalInr: r.total_inr, url: r.url || '',
       active: !!r.active, updatedAt: r.updated_at, updatedBy: r.updated_by || '',
+      featured: !!r.featured, featureSort: r.feature_sort || 0,
       intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
     })),
     countries: db.countries(true).map(c => ({
@@ -1195,6 +1213,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     ['intake 1 season', 'i1s'], ['intake 1 deadline', 'i1d'],
     ['intake 2 season', 'i2s'], ['intake 2 deadline', 'i2d'],
     ['on the site', 'active'],
+    ['showcase', 'featured'], ['showcase position', 'featureSort'],
   ];
 
   const sheetRows = () => db.programmes(true).map(r => {
@@ -1206,6 +1225,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       (ins[0] && ins[0].season) || '', (ins[0] && ins[0].deadline) || '',
       (ins[1] && ins[1].season) || '', (ins[1] && ins[1].deadline) || '',
       r.active ? 'yes' : 'no',
+      r.featured ? 'yes' : 'no', r.feature_sort || '',
     ];
   });
 
@@ -1289,6 +1309,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         band: String(g('band') || '').trim(),
         url: g('url'),
         active: NO_(g('active')) ? false : true,
+        featured: YES(g('featured')),
+        featureSort: Number(String(g('featureSort') || '0').replace(/[^0-9]/g, '')) || 0,
         intakes: [[g('i1s'), g('i1d')], [g('i2s'), g('i2d')]]
           .filter(([, d]) => String(d || '').trim())
           .map(([sea, d]) => ({ season: String(sea || 'winter').toLowerCase().trim(), deadline: String(d).trim().slice(0, 10) })),
@@ -1374,6 +1396,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         totalInr: Number(String(g('totalInr') || '0').replace(/[^0-9.]/g, '')) || 0,
         band: String(g('band') || '').trim(), url: g('url'),
         active: NO_(g('active')) ? false : true,
+        featured: YES(g('featured')),
+        featureSort: Number(String(g('featureSort') || '0').replace(/[^0-9]/g, '')) || 0,
         intakes: [[g('i1s'), g('i1d')], [g('i2s'), g('i2d')]]
           .filter(([, d]) => String(d || '').trim())
           .map(([sea, d]) => ({ season: String(sea || 'winter').toLowerCase().trim(), deadline: String(d).trim().slice(0, 10) })),

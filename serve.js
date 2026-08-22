@@ -73,12 +73,21 @@ const UPLOADS = path.join(DATA, 'uploads');
 /* The shape the rest of the application expects, read fresh from the database
    every time — so a programme a counsellor adds is live on the next request
    rather than on the next restart. */
+/* A stable id for "the same university", used to count distinct universities
+   without naming them. Derived from the name, so two programmes at one
+   university agree, and it reveals nothing a gated row was hiding. */
+const uKeyOf = name => 'u' + require('crypto')
+  .createHash('sha1').update(String(name || '').trim().toLowerCase()).digest('hex').slice(0, 8);
+
 function liveCatalogue() {
   return db.programmes().map(r => ({
     id: r.id, program: r.program, university: r.university, city: r.city || '',
     country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
     isPublic: !!r.is_public, fit: r.fit || null, totalInr: r.total_inr || 0,
     url: r.url || '',
+    uKey: uKeyOf(r.university),
+    /* The office's choice of what leads the showcase on the home page. */
+    featured: !!r.featured, featureSort: r.feature_sort || 0,
     intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
   }));
 }

@@ -311,6 +311,35 @@ SCRIPT = r"""
       }
     } catch (e) { console.warn('prices', e); }
 
+    /* The showcase grid on the home page. It was rendering a list frozen at
+       build time, so a university added on the Catalogue screen never reached
+       the one place a visitor browses what is on offer. */
+    try {
+      var setCat = window.__glovelsSetCatalogue;
+      if (typeof setCat === 'function') {
+        fetch('/api/catalogue', { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (c) {
+            if (!c || !c.programmes || !c.programmes.length) return;
+            setCat(c.programmes.map(function (p) {
+              return {
+                id: p.id, country: p.country, level: p.level || '',
+                field: p.field || '', fieldGroup: p.field || '',
+                band: p.band || 'u20', isPublic: !!p.isPublic,
+                program: p.program || '', university: p.university || '',
+                city: p.city || '', totalInr: p.totalInr || 0,
+                fit: p.fit || 75, uKey: p.uKey || ('u' + p.id),
+                intakes: p.intakes || [], minCgpa: null,
+                freeTuition: (p.totalInr || 0) === 0,
+                featured: !!p.featured, featureSort: p.featureSort || 0,
+                nLen: p.nLen, uLen: p.uLen,
+              };
+            }));
+          })
+          .catch(function () {});
+      }
+    } catch (e) { console.warn('showcase', e); }
+
     try { applyText(data.text); } catch (e) { console.warn('wording', e); }
 
     document.dispatchEvent(new CustomEvent('glovels:content', { detail: data }));

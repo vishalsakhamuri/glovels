@@ -184,7 +184,9 @@ function paintProgs() {
       '<td>' + (p.isPublic ? '<span class="st ok">Public</span>' : '<span class="st none">Private</span>') + '</td>' +
       '<td>' + (p.totalInr === 0 ? '<span class="st ok">Free</span>' : inr(p.totalInr)) + '</td>' +
       '<td style="font-size:12.4px">' + nextIntake(p) + '</td>' +
-      '<td>' + (p.active ? '<span class="st ok">On the site</span>' : '<span class="st wait">Hidden</span>') + '</td>' +
+      '<td>' + (p.active ? '<span class="st ok">On the site</span>' : '<span class="st wait">Hidden</span>') +
+        (p.featured ? '<br><span class="st ok" style="margin-top:4px;display:inline-block">' +
+          '\u2605 Showcase' + (p.featureSort ? ' #' + p.featureSort : '') + '</span>' : '') + '</td>' +
       '<td><button type="button" class="btn btn-ghost btn-sm" data-edit="' + esc(p.id) + '">Edit</button></td>' +
       '</tr>';
   }).join('') || '<tr><td colspan="7" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
@@ -288,7 +290,23 @@ function openEditor(p) {
     '<label style="display:flex;gap:9px;align-items:center;font:600 13px/1.4 var(--sans);' +
       'color:var(--navy-800);margin-top:8px">' +
       '<input type="checkbox" id="fActive"' + (v.active === false ? '' : ' checked') + '> ' +
-      'Show this on the website</label>';
+      'Show this on the website</label>' +
+    /* Where it sits in the grid on the home page. Separate from "show this on
+       the website", because everything on the site is in the finder and only a
+       handful lead the showcase. */
+    '<h3 style="font-size:14px;margin:18px 0 4px">The showcase on the home page</h3>' +
+    '<p style="margin:0 0 10px;font-size:11.8px;color:var(--muted);line-height:1.5">' +
+      'The grid under &ldquo;Real universities, matched to what you&rsquo;re looking for&rdquo;. ' +
+      'Featured programmes lead it, in the order you number them; everything else follows ' +
+      'cheapest first.</p>' +
+    '<label style="display:flex;gap:9px;align-items:center;font:600 13px/1.4 var(--sans);' +
+      'color:var(--navy-800);margin-bottom:10px">' +
+      '<input type="checkbox" id="fFeatured"' + (v.featured ? ' checked' : '') + '> ' +
+      'Feature this one</label>' +
+    '<div style="max-width:220px">' +
+      field('Position', 'fFeatureSort', v.featureSort || 0, 'type="number" min="0" max="999"',
+        '1 shows first. Leave at 0 and it follows the other featured ones.') +
+    '</div>';
 
   $('#progModal').classList.add('on');
   setTimeout(() => $('#fProgram').focus(), 50);
@@ -310,6 +328,8 @@ function readEditor() {
     field: $('#fField').value,
     band: $('#fBand').value,
     isPublic: $('#fPublic').value === '1',
+    featured: $('#fFeatured').checked,
+    featureSort: Number($('#fFeatureSort').value || 0),
     totalInr: Number($('#fFee').value || 0),
     url: $('#fUrl').value.trim(),
     active: $('#fActive').checked,

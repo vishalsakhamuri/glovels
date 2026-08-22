@@ -89,8 +89,44 @@ const APP_STAGES = [[4, 'offer'], [3, ''], [2, ''], [2, ''], [1, ''], [0, '']];
 /* The catalogue starts as the 153 programmes the site was built with, then
    lives in the database. Seeded separately from the demo accounts, because a
    real deployment wants the catalogue and not the demo student. */
+/*
+ * Three programme names shipped with `&amp;` written into them — double-escaped
+ * when the site was first generated — and rendered on the home page as the
+ * literal text "AI &amp; Machine Learning". Decoding on the way in fixes the
+ * seed; this repairs a database that already has them, once, on start-up.
+ *
+ * It only touches a value that actually changes when decoded, so it is a no-op
+ * on every later boot and cannot mangle a name that legitimately contains an
+ * ampersand.
+ */
+function repairEntities(db) {
+  const decode = s => String(s == null ? '' : s)
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+  let n = 0;
+  db.programmes(true).forEach(r => {
+    const fixed = {
+      program: decode(r.program), university: decode(r.university),
+      city: decode(r.city), field: decode(r.field),
+    };
+    if (fixed.program === r.program && fixed.university === r.university
+        && fixed.city === (r.city || '') && fixed.field === (r.field || '')) return;
+    db.saveProgramme({
+      id: r.id, program: fixed.program, university: fixed.university,
+      city: fixed.city, country: r.country, level: r.level, field: fixed.field,
+      band: r.band, isPublic: !!r.is_public, fit: r.fit, totalInr: r.total_inr,
+      url: r.url, active: !!r.active, featured: !!r.featured,
+      featureSort: r.feature_sort || 0,
+      intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
+    }, 'entity repair');
+    n++;
+  });
+  if (n) db.log('system', 'programme names repaired', n + ' had &amp; written into them');
+  return n;
+}
+
 function seedCatalogue({ db, catalogue, countries }) {
-  if (db.programmes(true).length) return 0;
+  if (db.programmes(true).length) return repairEntities(db) ? 0 : 0;
   Object.values(countries || {}).forEach((c, i) =>
     db.saveCountry({ code: c.code, name: c.name, flag: c.flag, region: c.region || '', sort: i * 10 }));
   catalogue.forEach(p => db.saveProgramme(p, 'initial import'));

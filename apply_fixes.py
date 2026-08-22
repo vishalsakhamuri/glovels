@@ -461,7 +461,10 @@ patch("login.html", "the shortlist bought as a guest is attached on sign-up",
 # Staff sign in through the same door and must not land in a student dashboard.
 patch("login.html", "sign-in sends staff to their own screen",
       "    const next = new URLSearchParams(location.search).get('next');\n    location.href = (next && /^\\/[a-z0-9/_-]*$/i.test(next)) ? next : 'dashboard.html';",
-      "    /* Staff do not have a student dashboard. Sending a counsellor to /dashboard\n       shows them an empty portal and no way to find their actual work. */\n    const home = data.user && data.user.role === 'admin' ? 'admin.html'\n               : data.user && data.user.role === 'counsellor' ? 'counsellor.html'\n               : 'dashboard.html';\n    const next = new URLSearchParams(location.search).get('next');\n    location.href = (next && /^\\/[a-z0-9/_-]*$/i.test(next)) ? next : home;")
+      "    /* Staff do not have a student dashboard. Sending a counsellor to /dashboard\n       shows them an empty portal and no way to find their actual work. */\n    const home = data.user && data.user.role === 'admin' ? 'admin.html'\n               : data.user && data.user.role === 'counsellor' ? 'counsellor.html'\n               : 'dashboard.html';\n    const next = new URLSearchParams(location.search).get('next');\n    location.href = (next && /^\\/[a-z0-9/_-]*$/i.test(next)) ? next : home;",
+      # A later patch rewrites this block again to route website editors, so
+      # `new` is no longer present verbatim even though this patch has run.
+      marker="Staff do not have a student dashboard")
 
 # "Forgot password?" now asks the server for a real, single-use link, and the
 # emailed link turns this same page into a set-a-new-password form.
@@ -614,6 +617,113 @@ patch("login.html", "the demo box describes what actually happens now",
       """        <div><b>Demo sign-in</b>These are real accounts, created by the server on its first
         run and saved to a database on this machine. Sign in with the student below, or create
         your own account \u2014 either way, what you do is still there tomorrow.""")
+
+
+# ---------------------------------------------------------------------------
+# A note to developers, on the customer's home page.
+#
+# Under "Real universities, matched to what you're looking for" there is a blue
+# box reading: Mode: gated ... Change CATALOGUE_MODE in build_block34.py to
+# compare. It is a note the build left behind, and every visitor can read it.
+# ---------------------------------------------------------------------------
+
+patch_re("index.html", "remove the developer note from the catalogue section",
+         r'\s*<div class="modebar">.*?</div>\n',
+         "\n",
+         present=lambda t: 'class="modebar"' not in t)
+
+
+# ---------------------------------------------------------------------------
+# The showcase grid was frozen at build time.
+#
+# It renders from a list baked into the page, so a university added on the
+# Catalogue screen never reached it — the one place a visitor browses what is
+# on offer. It now takes the live catalogue, and takes it in the order the
+# office chose.
+#
+# Two cards per price band was also too few to browse. Six.
+# ---------------------------------------------------------------------------
+
+patch("index.html", "the showcase shows more per price band",
+      "const PER_TIER = 2;",
+      "const PER_TIER = 6;")
+
+patch("index.html", "the showcase takes the live catalogue, in the chosen order",
+      """function pick(){""",
+      """/* Handed out for the same reason the price list is: this block is an IIFE,
+   so `P` is unreachable from the content loader at the end of the page. The
+   loader replaces the list and asks for a repaint; it can do nothing else. */
+window.__glovelsSetCatalogue = function (list) {
+  if (!Array.isArray(list) || !list.length) return;
+  P.length = 0;
+  list.forEach(function (p) { P.push(p); });
+  render();
+};
+
+function pick(){""")
+
+# Ordering. `featured` and its position come from the Catalogue screen; without
+# them the original behaviour (cheapest first) is exactly what is left.
+patch("index.html", "featured programmes lead the showcase",
+      """  list.sort((a,b) => (a.totalInr||0) - (b.totalInr||0) || b.fit - a.fit);""",
+      """  /* Chosen first, in the order they were put in, then the rest by price.
+     A programme nobody has featured has featureSort 0 and sorts as before. */
+  list.sort((a,b) =>
+    (b.featured ? 1 : 0) - (a.featured ? 1 : 0)
+    || (a.featureSort || 0) - (b.featureSort || 0)
+    || (a.totalInr||0) - (b.totalInr||0)
+    || b.fit - a.fit);""")
+
+# The band grouping re-sorts by price, which silently undid the ordering above —
+# a featured programme sorted to the front and was then sorted back. Both sorts
+# have to agree or neither matters.
+patch("index.html", "featured programmes survive the band grouping",
+      """      out.push(...shown.filter(p => p.band === b.id)
+        .sort((a,b2) => (a.totalInr||0) - (b2.totalInr||0)).slice(0, PER_TIER));""",
+      """      out.push(...shown.filter(p => p.band === b.id)
+        .sort((a,b2) =>
+          (b2.featured ? 1 : 0) - (a.featured ? 1 : 0)
+          || (a.featureSort || 0) - (b2.featureSort || 0)
+          || (a.totalInr||0) - (b2.totalInr||0))
+        .slice(0, PER_TIER));""")
+
+
+
+# ---------------------------------------------------------------------------
+# The demo box has no business on a public site.
+#
+# It names student@glovels.com and a password, in a yellow box, at the top of
+# the sign-in page. On a laptop that account exists and the box is the point.
+# In production the server refuses to create it — so the box advertises
+# credentials that cannot work, to every counsellor and every student who
+# opens the page. It asks the server which mode it is in and removes itself.
+# ---------------------------------------------------------------------------
+
+patch("login.html", "the demo box disappears on a public site",
+      "</body>",
+      """<script>
+/* The demo accounts exist only on a laptop. Rather than guess from the
+   hostname \u2014 which is wrong for anyone testing over a tunnel or a LAN
+   address \u2014 ask the server, which is the only thing that knows. */
+(function () {
+  var box = document.querySelector('.demo-note');
+  if (!box) return;
+  box.style.visibility = 'hidden';
+  fetch('/api/health', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (h) {
+      if (h && h.demoAccounts) box.style.visibility = '';
+      else box.remove();
+    })
+    .catch(function () {
+      /* No server at all \u2014 the page was opened as a file. The banner
+         above already says so; the demo box would only add noise. */
+      box.remove();
+    });
+}());
+</script>
+</body>""",
+      marker="The demo accounts exist only on a laptop")
 
 
 # ---------------------------------------------------------------------------

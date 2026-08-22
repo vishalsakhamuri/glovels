@@ -435,6 +435,7 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
         <div class="demo-strip"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span><b>Demo screen.</b> This
       fills in as your application progresses. Nothing here reaches a server yet.</span></div>
 
@@ -456,6 +457,7 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
     <table class="tbl"><thead><tr><th>Country</th><th>Work rights</th><th>Intakes</th>
       <th>Tests</th></tr></thead><tbody><tr><td><b>🇩🇪 Germany</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Winter: 15 Jul . Summer: 15 Jan</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.5 overall, no band below 6.0 (or TOEFL iBT 88) · German A1-A2 expected for daily life · GRE only for a few TU programmes</td></tr><tr><td><b>🇨🇦 Canada</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep, Jan and May intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.5 overall, no band below 6.0</td></tr><tr><td><b>🇬🇧 United Kingdom</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep and Jan intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS UKVI 6.5, no band below 6.0</td></tr><tr><td><b>🇮🇪 Ireland</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep intake, rolling</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.5 overall</td></tr><tr><td><b>🇵🇱 Poland</b></td><td>Full-time permitted for students</td><td style="font-size:12.4px">Oct and Feb intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.0, or a medium-of-instruction letter</td></tr><tr><td><b>🇪🇸 Spain</b></td><td>30 hrs/week permitted</td><td style="font-size:12.4px">Sep and Feb intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.0</td></tr><tr><td><b>🇮🇹 Italy</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep intake, Universitaly deadlines apply</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.0</td></tr></tbody></table>
 
+  
   
   
   
@@ -667,6 +669,24 @@ if (location.protocol === 'file:') {
   b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
     'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
     'it opens — <b>http://localhost:8080</b>';
+  document.body.appendChild(b);
+  document.body.style.paddingTop = b.offsetHeight + 'px';
+}
+</script>
+<script>
+/* GLOVELS-FILE-WARNING
+   This runs at the end of <body>, so document.body already exists. It waited
+   for DOMContentLoaded at first, which never arrived on pages where an earlier
+   script had already thrown \u2014 and a warning that only appears when nothing
+   else is wrong is a warning that never appears. */
+if (location.protocol === 'file:') {
+  var b = document.createElement('div');
+  b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:13px 18px;' +
+    'background:#7a2118;color:#fff;font:600 13.5px/1.55 system-ui,-apple-system,sans-serif;' +
+    'text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.25)';
+  b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
+    'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
+    'it opens \u2014 <b>http://localhost:8080</b>';
   document.body.appendChild(b);
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }

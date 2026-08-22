@@ -199,6 +199,11 @@ function sqliteDriver(file) {
       until an administrator ticks a box, because "every counsellor can edit
       the prices on the home page" is not a permission model. */
    "ALTER TABLE students ADD COLUMN perms TEXT NOT NULL DEFAULT ''",
+   /* Which programmes lead the showcase on the home page, and in what order.
+      Chosen on the Catalogue screen. Nothing featured means the grid falls
+      back to cheapest-first, which is what it always did. */
+   'ALTER TABLE programmes ADD COLUMN featured INTEGER NOT NULL DEFAULT 0',
+   'ALTER TABLE programmes ADD COLUMN feature_sort INTEGER NOT NULL DEFAULT 0',
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -486,12 +491,13 @@ function open(dir) {
     saveProgramme(p, who) {
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, city, country, level, field, band, is_public, fit,
-         total_inr, url, intakes, active, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         total_inr, url, intakes, active, featured, feature_sort, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university, p.city || '', p.country,
         p.level || '', p.field || '', p.band || '', p.isPublic ? 1 : 0,
         Number(p.fit || 0), Number(p.totalInr || 0), p.url || '',
-        JSON.stringify(p.intakes || []), p.active === false ? 0 : 1, now(), who || '');
+        JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
+        p.featured ? 1 : 0, Number(p.featureSort || 0), now(), who || '');
       return this.programme(p.id);
     },
     deleteProgramme: id => db.run('DELETE FROM programmes WHERE id = ?', String(id)),
