@@ -129,7 +129,8 @@ const seeded = CFG.seedDemo
   ? seed.run({ db, uploadDir: UPLOADS, catalogue: liveCatalogue(), hashPassword, newSalt,
       password: CFG.demoPassword })
   : null;
-const adminSeed = seed.seedAdmin({ db, admin: CFG.admin, hashPassword, newSalt });
+const adminSeed = seed.seedAdmin({ db, admin: CFG.admin, hashPassword, newSalt,
+  reset: CFG.admin.reset });
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -237,7 +238,7 @@ ${configure.describe(CFG)}
   Email: ${mail.mode === 'smtp' ? 'sending through ' + (process.env.SMTP_HOST || 'mail.env')
     : 'written to data/outbox/ as .eml files (no mail.env yet)'}.
   WhatsApp: ${notify.whatsappReady ? 'configured' : 'off — the messenger works without it'}.
-${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it)\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
+${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
     student     ${seeded.email}      ${seeded.shortlisted} universities, 6 documents, 1 paid order
     counsellor  ${seeded.counsellor}       answers the chat — open /counsellor
     admin       ${seeded.admin}        assigns counsellors — open /admin

@@ -193,9 +193,34 @@ it is edited in the operations site and live on the next page load.
 |---|---|
 | Deploy fails, log says a setting is missing | Production refuses to start unsafely. The log names the exact variable. |
 | Blank white page | Look at **Logs** in the Render dashboard — the error is there, in English. |
-| Sign-in says the password is wrong | The generated one has characters that are easy to mistype. Copy it, do not retype it. |
+| Sign-in says the password is wrong | The generated one has characters that are easy to mistype. Copy it, do not retype it. If it is lost, see **Locked out** below. |
+| "Too many attempts" | Eight failed sign-ins locks that email for 15 minutes. Deliberate. Wait, then try once, carefully. |
 | Everything logged out after a deploy | Sessions are in the database on `/data`. If they are gone, the disk is not mounted — check **Disks** shows `glovels-data` at `/data`. |
 | A counsellor sees "Not your workspace" | They are an editor, or lack that permission. Organisation → tick the box. |
+
+### Locked out
+
+`ADMIN_PASSWORD` creates the administrator and then stops mattering — the server will not
+overwrite a password on every restart, because that would mean anyone who can edit an
+environment variable owns every student file. Which leaves one bad situation: the generated
+password is lost, there is no second administrator, and there is no way in.
+
+There is a switch for exactly that. In **Render → glovels → Environment**:
+
+1. Change **`ADMIN_PASSWORD`** to something you choose — at least 12 characters.
+2. Add **`ADMIN_RESET`** = `true`.
+3. **Save changes.** Render redeploys, about two minutes.
+4. Sign in with your new password.
+5. **Come straight back and set `ADMIN_RESET` to `false`.**
+
+Step 5 is not optional. Left on, it resets the administrator's password on every deploy —
+which is a way in for anybody who can see that variable, not a convenience. The log says so
+in capitals each time it fires.
+
+The better answer, once you are in: **add a second administrator** on the Organisation
+screen. Two admins can reset each other, and none of this is needed again.
+
+---
 
 **Back up `/data`.** It is the only copy of every student record. Render can snapshot the
 disk; set it up before there is anything on it worth losing.

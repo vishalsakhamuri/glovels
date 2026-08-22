@@ -584,11 +584,15 @@ patch("login.html", "say what is actually wrong when the page was opened as a fi
 patch("login.html", "an editor lands right after a password reset too",
       """      location.href = d.user && d.user.role === 'admin' ? 'admin.html'
         : d.user && d.user.role === 'counsellor' ? 'counsellor.html' : 'dashboard.html';""",
-      """      const r = d.user && d.user.role;
+      """      /* `who`, not `r`. `r` is the fetch response three lines above, and
+         redeclaring it with const is a SyntaxError — which does not fail at
+         this line, it stops the WHOLE script from parsing. The sign-in button
+         on this page then does nothing at all, silently. */
+      const who = d.user && d.user.role;
       const pm = (d.user && d.user.perms) || [];
-      location.href = r === 'admin' ? 'admin.html'
-        : r === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
-        : r === 'counsellor' ? 'counsellor.html' : 'dashboard.html';""")
+      location.href = who === 'admin' ? 'admin.html'
+        : who === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
+        : who === 'counsellor' ? 'counsellor.html' : 'dashboard.html';""")
 
 
 patch("login.html", "an editor lands on the screen they were given",

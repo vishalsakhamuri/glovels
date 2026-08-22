@@ -300,11 +300,15 @@ function forgotBox(message){
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'That did not work.');
-      const r = d.user && d.user.role;
+      /* `who`, not `r`. `r` is the fetch response three lines above, and
+         redeclaring it with const is a SyntaxError — which does not fail at
+         this line, it stops the WHOLE script from parsing. The sign-in button
+         on this page then does nothing at all, silently. */
+      const who = d.user && d.user.role;
       const pm = (d.user && d.user.perms) || [];
-      location.href = r === 'admin' ? 'admin.html'
-        : r === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
-        : r === 'counsellor' ? 'counsellor.html' : 'dashboard.html';
+      location.href = who === 'admin' ? 'admin.html'
+        : who === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
+        : who === 'counsellor' ? 'counsellor.html' : 'dashboard.html';
     } catch (err) {
       btn.disabled = false; btn.textContent = 'Save and sign in \u2192';
       say(err.message);

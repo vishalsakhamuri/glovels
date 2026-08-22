@@ -56,6 +56,10 @@ function load(env) {
       email: (env.ADMIN_EMAIL || '').trim().toLowerCase(),
       password: env.ADMIN_PASSWORD || '',
       name: env.ADMIN_NAME || 'Glovels Admin',
+      /* The way back in when the administrator's password is lost. Off unless
+         asked for, loud when used, and meant to be turned off again — see
+         seedAdmin in server/seed.js. */
+      reset: bool(env.ADMIN_RESET, false),
     },
 
     /* Sign-in throttling. Pointless on a laptop, essential the moment the URL is

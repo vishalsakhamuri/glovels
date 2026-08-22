@@ -11,3 +11,7 @@ mail.env
 
 .DS_Store
 node_modules/
+
+# Python bytecode. Regenerated on every run, and it was committed once by accident.
+__pycache__/
+*.pyc
