@@ -1216,3 +1216,42 @@ def chat_everywhere():
 
 
 chat_everywhere()
+
+
+# ---------------------------------------------------------------- every page
+#
+# `hidden` has to mean hidden.
+#
+# The browser hides [hidden] with `display:none` from its own stylesheet, which
+# is the weakest rule there is: ANY class that sets `display` beats it. This
+# has now bitten four separate things in this codebase — the notifications dot,
+# the bulk-action bar, the chat button, and a red "Lock again" button that sat
+# in the results header of every visitor's first view offering to re-lock
+# universities they had never unlocked.
+#
+# It is not a mistake anyone stops making, because the markup reads correctly:
+# `<button hidden class="pill">` is exactly what you would write. So the rule is
+# made to win instead. This is what normalize.css does, and the `!important` is
+# the point of it — without that it loses to the next `.pill{display:flex}`
+# somebody adds.
+HIDDEN_RULE = """<style>/* GLOVELS-HIDDEN-RULE */
+[hidden]{display:none !important}
+</style>
+"""
+
+
+def hidden_means_hidden():
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-HIDDEN-RULE" in t or "</head>" not in t:
+            continue
+        write(f, t.replace("</head>", HIDDEN_RULE + "</head>", 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): hidden means hidden")
+    else:
+        skipped.append("every page: hidden means hidden")
+
+
+hidden_means_hidden()
