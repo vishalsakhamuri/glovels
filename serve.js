@@ -186,6 +186,100 @@ function resolveSafe(pathname) {
   return full.startsWith(ROOT) ? full : null;
 }
 
+/*
+ * robots.txt and sitemap.xml, generated rather than shipped.
+ *
+ * The file on disk said "Disallow: /" — correct for a preview build, and a
+ * quiet disaster on a live marketing site: the blog posts, the country pages
+ * and every SEO title the office can edit would never be read by a search
+ * engine at all. Generating it means the answer follows the setting instead of
+ * whatever was last committed. See allowIndexing in server/config.js.
+ */
+function robotsTxt() {
+  if (!CFG.allowIndexing) {
+    return '# Not the live address yet — nothing here is for indexing.\n'
+         + 'User-agent: *\nDisallow: /\n';
+  }
+  return [
+    '# The public pages are for reading. The portal and the API are not.',
+    'User-agent: *',
+    'Disallow: /api/',
+    'Disallow: /dashboard',
+    'Disallow: /profile',
+    'Disallow: /documents',
+    'Disallow: /messages',
+    'Disallow: /applications',
+    'Disallow: /universities',
+    'Disallow: /scholarships',
+    'Disallow: /visa',
+    'Disallow: /admin',
+    'Disallow: /counsellor',
+    'Disallow: /chat',
+    'Disallow: /home',
+    'Disallow: /catalogue',
+    'Disallow: /login',
+    'Allow: /',
+    '',
+    'Sitemap: ' + (CFG.siteUrl || '') + '/sitemap.xml',
+    '',
+  ].join('\n');
+}
+
+/* The public pages only: everything behind a sign-in is left out, and so is
+   404.html, which exists to be reached by accident. */
+const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
+  'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
+  'chat', 'home', 'catalogue', 'login', '404']);
+
+function sitemapXml() {
+  const pages = [];
+  const walk = (dir, prefix) => {
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory()) {
+        if (name === 'data' || name === 'server' || name.startsWith('.')) continue;
+        walk(full, prefix + name + '/');
+        continue;
+      }
+      if (!name.endsWith('.html')) continue;
+      const slug = name.slice(0, -5);
+      if (!prefix && PORTAL_PAGES.has(slug)) continue;
+      pages.push(prefix === '' && slug === 'index' ? '' : prefix + slug);
+    }
+  };
+  walk(ROOT, '');
+  pages.sort();
+  const base = CFG.siteUrl || '';
+  return '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + pages.map(p => '  <url><loc>' + base + '/' + p + '</loc></url>').join('\n')
+    + '\n</urlset>\n';
+}
+
+/*
+ * The noindex meta tag, taken off the public pages when the site is live.
+ *
+ * Every one of the fifty pages shipped with
+ * `<meta name="robots" content="noindex,nofollow">` in its head — right for a
+ * preview build, and the single thing that would have kept this site out of
+ * Google no matter what robots.txt said. robots.txt asks a crawler not to
+ * fetch; a noindex tells it not to list, and it is written per page, so fixing
+ * only robots.txt would have achieved nothing at all.
+ *
+ * It is rewritten on the way out rather than at build time, because the build
+ * has no idea which address it is going to be served from. Same setting as
+ * robots.txt, one place, so the two can never disagree. The portal pages and
+ * the 404 keep theirs whatever happens.
+ */
+const NOINDEX = /<meta name="robots" content="noindex,nofollow"\s*\/?>/i;
+
+function forIndexing(html, slug) {
+  if (!CFG.allowIndexing) return html;
+  if (PORTAL_PAGES.has(slug)) return html;
+  return html.replace(NOINDEX,
+    '<meta name="robots" content="index,follow,max-image-preview:large">');
+}
+
 const server = http.createServer(async (req, res) => {
   const { pathname, query } = url.parse(req.url);
 
@@ -197,6 +291,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
+
+  /* Ahead of the static files, so the generated answer wins over the one on
+     disk rather than depending on which is found first. */
+  if (pathname === '/robots.txt') return send(res, 200, robotsTxt(), TYPES['.txt']);
+  if (pathname === '/sitemap.xml') {
+    if (!CFG.allowIndexing) return notFound(res);
+    return send(res, 200, sitemapXml(), TYPES['.xml']);
+  }
 
   // The database and anything a student uploaded are never served as files.
   if (pathname.startsWith('/data/') || pathname.startsWith('/server/')
@@ -226,8 +328,15 @@ const server = http.createServer(async (req, res) => {
   if (!fs.existsSync(file) && fs.existsSync(file + '.html')) file += '.html';
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return notFound(res);
 
+  const ext = path.extname(file).toLowerCase();
+  if (ext === '.html') {
+    const slug = path.basename(file, '.html');
+    return send(res, 200,
+      forIndexing(fs.readFileSync(file, 'utf8'), slug), TYPES['.html']);
+  }
+
   send(res, 200, fs.readFileSync(file),
-    TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream');
+    TYPES[ext] || 'application/octet-stream');
 });
 
 process.on('SIGINT', () => {

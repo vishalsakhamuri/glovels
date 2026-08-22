@@ -1,3 +1,13 @@
-# preview build - not for indexing
+# This file is a fallback, and it says no.
+#
+# When the site is served by serve.js — which is how it runs on Render — this
+# file is never read: /robots.txt is generated from the ALLOW_INDEXING setting,
+# and answers "yes, index the public pages" as soon as GLOVELS_URL is your own
+# domain. See robotsTxt() in serve.js and allowIndexing in server/config.js.
+#
+# So this copy only applies to a plain static host with no Node in front of it,
+# which today means a preview or a mirror. Saying no is the safe answer there:
+# a preview in Google's index is a nuisance to undo, and an un-indexed preview
+# costs nothing.
 User-agent: *
 Disallow: /

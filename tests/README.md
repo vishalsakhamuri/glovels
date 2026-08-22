@@ -53,3 +53,10 @@ to report success in that case.
 Playwright's `fill` focuses and then inserts, so an unfocused fill lands in
 whichever box had focus last. Several suites click into a field before typing
 for exactly this reason, and the comments say so where it bit.
+
+## robots.txt and sitemap.xml
+
+Both are generated, not served from disk. `ALLOW_INDEXING` decides; it defaults
+to on when the site is in production *and* `GLOVELS_URL` is set to a domain
+somebody chose, rather than the address the platform handed out. `seotest.js`
+covers all three states.

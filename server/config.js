@@ -70,6 +70,27 @@ function load(env) {
     dataDir: env.DATA_DIR || '',
   };
 
+  /*
+   * Whether search engines may index this.
+   *
+   * robots.txt shipped with "Disallow: /" on it, which was right for a preview
+   * build and wrong the moment the site went live: the blog posts, the country
+   * pages and every SEO title the office can edit would never have been read by
+   * Google at all.
+   *
+   * Flipping it to "allow in production" is not right either. Production mode is
+   * also what runs on the platform's own address before a domain is pointed
+   * here, and getting glovels.onrender.com into Google's index is a mess to
+   * undo afterwards.
+   *
+   * So: index when this is production AND it is being served from a real
+   * address somebody chose - GLOVELS_URL set by hand - rather than the one the
+   * platform handed out. ALLOW_INDEXING=true|false overrides either way, which
+   * is how you switch it on early or hold it back after the domain moves.
+   */
+  const ownDomain = !!(env.GLOVELS_URL || '').trim();
+  cfg.allowIndexing = bool(env.ALLOW_INDEXING, cfg.production && ownDomain);
+
   const problems = [];
 
   if (production) {
@@ -118,7 +139,11 @@ function describe(cfg) {
          + '  Do not put this on a public address as it is: run it with GLOVELS_ENV=production.';
   }
   return `  Mode: PRODUCTION — no demo accounts, Secure cookies, sign-in throttled.\n`
-       + `  Public address: ${cfg.siteUrl}`;
+       + `  Public address: ${cfg.siteUrl}\n`
+       + (cfg.allowIndexing
+           ? '  Search engines: allowed to index this site.'
+           : '  Search engines: asked to stay away (set GLOVELS_URL to your own '
+             + 'domain, or ALLOW_INDEXING=true, when you want to be found).');
 }
 
 module.exports = { load, describe, DEV_PASSWORD };

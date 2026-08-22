@@ -50,9 +50,15 @@ const openService = async (page, id) => {
     await row.waitFor({ state: 'visible', timeout: 10000 });
     await row.click();
     try {
-      await page.waitForSelector('#sName', { state: 'visible', timeout: 3000 });
+      /* #sActive, not #sName. The sheet's markup arrives before the service is
+         loaded into it, so #sName appears a moment before the form is usable —
+         and the very next line of every caller reaches for the Active toggle.
+         Waiting for the thing that is actually needed removed a suite that
+         passed alone and timed out when it ran after fifteen others. */
+      await page.waitForSelector('#sName', { state: 'visible', timeout: 4000 });
+      await page.waitForSelector('#sActive', { state: 'visible', timeout: 4000 });
       return true;
-    } catch (e) { await page.waitForTimeout(500); }
+    } catch (e) { await page.waitForTimeout(700); }
   }
   return false;
 };
@@ -123,7 +129,6 @@ const openService = async (page, id) => {
 
   /* --------------------------------------------------------- hide it */
   check('the new service can be reopened', await openService(page, 'accommodation-search'));
-  await page.waitForSelector('#sActive', { timeout: 10000 });
   await page.uncheck('#sActive');
   await page.click('#smSave');
   await page.waitForTimeout(800);

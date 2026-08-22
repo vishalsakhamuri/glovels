@@ -2053,6 +2053,67 @@ patch(
 )
 
 
+# ------------------------------------------------------------- every page
+#
+# The notes to ourselves are not for the visitor.
+#
+# Twenty-seven pages carry a `.towrite` block — "To write: batch timings and how
+# this fits a Campus France timeline", "The live site has a Terms of Use page,
+# move it across, then have it reviewed". Every one of them is addressed to
+# somebody in this office and every one of them was being published.
+#
+# Same rule as the review banners on the home page: kept for the copy opened
+# from disk, which is where the office reads them, and never shown by a served
+# page. It does not make an unfinished page finished — GOLIVE.md lists which
+# pages are still stubs — it stops a customer reading our to-do list.
+TOWRITE_RULE = """<style>/* GLOVELS-TOWRITE-RULE */
+.towrite{display:none !important}
+html.review-copy .towrite{display:block !important}
+</style>
+"""
+
+TOWRITE_MARK = """<script>/* GLOVELS-REVIEW-COPY */
+/* Opened from disk = the office reviewing this. Served over http = a visitor.
+   Only the first sees the notes we left ourselves. */
+if (location.protocol === 'file:') document.documentElement.className += ' review-copy';
+</script>
+"""
+
+
+def notes_are_for_us():
+    """
+    Two independent steps, each checked on its own.
+
+    They were one step with one guard, and the guard was wrong: the CSS was
+    inserted first and the CSS itself contains the string "review-copy", so the
+    test for "has the script already" was true on every page the moment before
+    the script was added. Twenty-seven pages got the rule that hides the notes
+    and none got the line that shows them again on the review copy — hiding
+    them from the one reader they were written for.
+    """
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        t = f.read_text(encoding="utf-8")
+        if "towrite" not in t or "</head>" not in t:
+            continue
+        before = t
+        if "GLOVELS-TOWRITE-RULE" not in t:
+            t = t.replace("</head>", TOWRITE_RULE + "</head>", 1)
+        if "GLOVELS-REVIEW-COPY" not in t and "document.documentElement.className" not in t:
+            t = t.replace("<body>", "<body>\n" + TOWRITE_MARK, 1)
+        if t == before:
+            continue
+        write(f, t)
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the notes to ourselves are not for the visitor")
+    else:
+        skipped.append("every page: the notes to ourselves are not for the visitor")
+
+
+notes_are_for_us()
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and
