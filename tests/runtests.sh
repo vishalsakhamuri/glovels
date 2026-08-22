@@ -46,6 +46,9 @@ run gatetest.js     8099
 run sheettest.js    8099
 run servicetest.js  8086
 run showcasetest.js 8089
+# Last, and on its own port: one person's walk through the whole business,
+# rather than one screen at a time.
+run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 
 echo "" | tee -a "$REPORT"

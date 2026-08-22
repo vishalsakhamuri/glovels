@@ -239,6 +239,23 @@ const homeText = async ctx => {
   check('an unknown key is rejected with a reason',
     /no line on the page has the key/.test(badPlan), badPlan.replace(/\s+/g, ' ').slice(0, 140));
 
+  /* ------------------------------------------- the scaffolding stays off the site
+     Three banners and thirteen DUMMY chips were shipping above the navigation on
+     the live site, one of them reading "do not quote any figure here to a
+     student". They belong to the copy the office opens from disk. */
+  const visitor = await browser.newContext({ viewport: { width: 1400, height: 950 } });
+  const vp = await visitor.newPage();
+  await vp.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await vp.waitForTimeout(2000);
+  const scaffold = await vp.$$eval('.dummy-bar,.dummy-chip,.build-strip',
+    els => els.filter(e => e.offsetParent !== null).map(e => e.innerText.slice(0, 40)));
+  check('no review banners or DUMMY chips on the public page',
+    scaffold.length === 0, scaffold.join(' | '));
+  const first = await vp.$eval('body *', el => el.tagName + ':' + el.className);
+  check('the page opens on the site, not on a build note',
+    !/build-strip|dummy/.test(first), first);
+  await visitor.close();
+
   check('no page errors on the screen', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   await browser.close();

@@ -722,7 +722,6 @@ patch("index.html", "featured programmes survive the band grouping",
         .slice(0, PER_TIER));""")
 
 
-
 # ---------------------------------------------------------------------------
 # The demo box has no business on a public site.
 #
@@ -938,7 +937,6 @@ patch_re("dashboard.html", "remove the not-built-yet alert",
          r"document\.addEventListener\('click', e => \{\s*const a = e\.target\.closest\('\[data-soon\]'\);.*?\n\}\);\n",
          "",
          present=lambda t: "data-soon" not in t)
-
 
 
 
@@ -1537,19 +1535,6 @@ contact_everywhere()
 
 
 # ---------------------------------------------------------------------------
-# The summary, and it has to be the LAST thing in the file.
-#
-# It used to sit in the middle: patches were appended below it over time, and
-# every one of those ran — module level, so the files really were being
-# patched — but appended to `applied` after the printing had already happened.
-# The script reported "0 applied" while rewriting forty pages. A build script
-# that lies about what it did is worse than one that fails.
-if __name__ == "__main__":
-    for a in applied:
-        print("  applied ", a)
-    for note in skipped:
-        print("  already ", note)
-    print(f"\n{len(applied)} applied, {len(skipped)} already in place")
 
 
 # ---------------------------------------------------------------- index.html
@@ -1961,3 +1946,78 @@ patch(
     }""",
     marker="did not apply",
 )
+
+
+# --------------------------------------------------- index.html and the pages
+#
+# The review scaffolding stays on the review copy.
+#
+# Three banners sat above the navigation on the live site: a build strip naming
+# the spreadsheet and the hour it was generated, "Offline copy", and "Dummy data
+# in use - do not quote any figure here to a student". Thirteen small DUMMY
+# chips sat beside figures further down. Every one of them is genuinely useful
+# when somebody in the office opens the saved copy to check the numbers, and
+# every one of them is a disaster on a page a fee-paying student is reading.
+#
+# So they are hidden by default and shown only when the page is opened as a
+# file - which is exactly when the office is reviewing it and never when the
+# server is serving it. Hiding them by default is the safe direction: a new
+# banner nobody remembered to mark is invisible to visitors rather than the
+# other way round.
+patch(
+    "index.html",
+    "the review banners and chips are for the offline copy only",
+    ".dummy-bar b{font-weight:800}\n\n.ai-draft{",
+    """.dummy-bar b{font-weight:800}
+/* Review scaffolding. Visible when this file is opened from disk, which is how
+   the office checks the numbers; never visible on the served site. The class is
+   put on <html> by the two lines at the top of <body>.
+
+   !important because the generator emits this stylesheet several times over,
+   and a later copy of .dummy-chip{display:inline-flex} beat the first attempt
+   at this - the bars went away and thirteen DUMMY chips stayed on the page. */
+.dummy-bar,.dummy-chip,.build-strip{display:none !important}
+html.review-copy .dummy-bar{display:block !important}
+html.review-copy .dummy-chip{display:inline-flex !important}
+html.review-copy .build-strip{display:block !important}
+
+.ai-draft{""",
+    marker="Review scaffolding. Visible when this file is opened from disk",
+)
+
+patch_re(
+    "index.html",
+    "the build strip is marked as scaffolding",
+    r'<div style="background:#0b1e31;color:#c8d6e4;font:600 11\.5px/1 var\(--sans\)',
+    '<div class="build-strip" style="background:#0b1e31;color:#c8d6e4;'
+    'font:600 11.5px/1 var(--sans)',
+    present=lambda s: '<div class="build-strip"' in s,
+)
+
+patch(
+    "index.html",
+    "and the review copy says so about itself",
+    "<body>\n<svg width=\"0\" height=\"0\"",
+    "<body>\n"
+    "<script>/* Opened from disk = somebody in the office reviewing it. Served\n"
+    "  over http = a visitor. Only the first gets the review banners. */\n"
+    "if (location.protocol === 'file:')"
+    " document.documentElement.className += ' review-copy';</script>\n"
+    "<svg width=\"0\" height=\"0\"",
+    marker="Opened from disk = somebody in the office reviewing it",
+)
+
+
+# The summary, and it has to be the LAST thing in the file.
+#
+# It used to sit in the middle: patches were appended below it over time, and
+# every one of those ran — module level, so the files really were being
+# patched — but appended to `applied` after the printing had already happened.
+# The script reported "0 applied" while rewriting forty pages. A build script
+# that lies about what it did is worse than one that fails.
+if __name__ == "__main__":
+    for a in applied:
+        print("  applied ", a)
+    for note in skipped:
+        print("  already ", note)
+    print(f"\n{len(applied)} applied, {len(skipped)} already in place")
