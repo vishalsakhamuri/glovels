@@ -125,6 +125,16 @@ SEED_DEMO=false        # default in production. Turning it on requires DEMO_PASS
                        # 10+ characters, and not the one published in the README
 TRUST_PROXY=true       # default in production; needed behind a platform load balancer
                        # so the cookie gets Secure and links come out https://
+RAZORPAY_KEY_ID=rzp_live_xxxxxxxx      # from the Razorpay dashboard, API Keys.
+RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxx   # shown ONCE when the key is generated.
+                       # Both or neither — with only one, the checkout offers a card
+                       # and then cannot confirm the payment, and the server refuses
+                       # to start in production rather than let that happen.
+RAZORPAY_WEBHOOK_SECRET=xxxxxxxxxxxx   # whatever you typed when creating the webhook.
+                       # Point the webhook at  https://<your domain>/api/razorpay/webhook
+                       # and subscribe to payment.captured and payment.failed.
+                       # WITHOUT this, a student whose browser died on the bank's
+                       # 3-D Secure page has paid and the order will never say so.
 ALLOW_INDEXING=true    # whether search engines may index the public pages.
                        # Defaults to ON once GLOVELS_URL names a domain you chose,
                        # and OFF while the site is on the platform's own address —

@@ -25,17 +25,26 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     && !/ERR_TUNNEL|fonts\.googleapis|favicon/.test(m.text()) && errs.push(m.text()));
 
   await v.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
-  await v.waitForSelector('.gv-chat-fab', { timeout: 10000 });
-  check('the chat button is on the home page', await v.isVisible('.gv-chat-fab'));
-  check('and WhatsApp is above it, which is the one people press',
-    await v.isVisible('.gv-wa'));
+  await v.waitForSelector('.gv-wa', { timeout: 10000 });
+
+  /*
+   * ONE button on the marketing pages, and it is WhatsApp.
+   *
+   * WhatsApp and a chat box sat stacked in the corner and read as clutter. The
+   * chat box now lives where it earns its keep — inside the student portal,
+   * where it is the counsellor thread. Lead capture on the public site is the
+   * contact form and the counselling form, both of which write an enquiry.
+   */
+  check('WhatsApp is in the corner of the home page', await v.isVisible('.gv-wa'));
+  check('and it is the only thing there',
+    (await v.$$eval('.gv-chat-fab', els => els.filter(e => e.offsetParent !== null).length)) === 0);
 
   /* It has to be on the other marketing pages too — the person reading about
      Germany at eleven at night is the one with the question. */
   const other = await guest.newPage();
   await other.goto(BASE + '/study-in-germany', { waitUntil: 'domcontentloaded' });
   await other.waitForTimeout(1200);
-  check('and on the country pages', await other.isVisible('.gv-chat-fab'));
+  check('and on the country pages', await other.isVisible('.gv-wa'));
 
   /* The WhatsApp message says what they were reading, so the counsellor opens
      the conversation already knowing what it is about. */
@@ -46,33 +55,34 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     decodeURIComponent(href).slice(0, 110));
   await other.close();
 
-  await v.click('.gv-chat-fab');
-  await v.waitForSelector('.gv-chat form.gv-intro', { timeout: 8000 });
-  check('it asks who you are before anything else',
-    await v.isVisible('.gv-chat input[name="name"]'));
+  /*
+   * The guest thread, through the endpoint the widget used to call.
+   *
+   * There is no longer a button on the public site that starts one, so driving
+   * it through a widget that is not there would be testing a screen nobody can
+   * reach. The endpoint is still live — the office screen, the enquiry it
+   * creates and the counsellor's reply all still matter — so the rules it
+   * enforces are checked where they actually live.
+   */
+  let r = await guest.request.post(BASE + '/api/chat/start',
+    { data: { name: 'Priya Reddy', contact: 'not-a-number' } });
+  check('a contact that cannot be called back is refused', r.status() === 422, r.status());
 
-  /* A number that is not a number must be refused, or the lead is worthless. */
-  await v.fill('.gv-chat input[name="name"]', 'Priya Reddy');
-  await v.fill('.gv-chat input[name="contact"]', 'not-a-number');
-  await v.click('.gv-chat .gv-go');
-  await v.waitForTimeout(900);
-  check('a contact that cannot be called back is refused',
-    await v.isVisible('.gv-chat .gv-err'),
-    (await v.textContent('.gv-chat .gv-err')) || '(no message)');
+  r = await guest.request.post(BASE + '/api/chat/start',
+    { data: { name: '', contact: '9876543210' } });
+  check('and so is a lead with no name', r.status() === 422, r.status());
 
-  await v.fill('.gv-chat input[name="contact"]', '9876543210');
-  await v.click('.gv-chat .gv-go');
-  await v.waitForSelector('.gv-chat textarea', { timeout: 8000 });
-  check('with a real number it opens the conversation',
-    await v.isVisible('.gv-chat textarea'));
+  r = await guest.request.post(BASE + '/api/chat/start',
+    { data: { name: 'Priya Reddy', contact: '9876543210' } });
+  check('with a name and a real number it opens a conversation', r.ok(), r.status());
 
-  await v.fill('.gv-chat textarea', 'Do I need IELTS for a public university in Germany?');
-  await v.click('.gv-chat .gv-go');
-  await v.waitForTimeout(1200);
-  check('the question shows in the visitor\'s own thread',
-    (await v.textContent('.gv-body')).includes('Do I need IELTS'));
-  check('the box empties after sending',
-    (await v.inputValue('.gv-chat textarea')) === '');
+  r = await guest.request.post(BASE + '/api/chat/send',
+    { data: { body: 'Do I need IELTS for a public university in Germany?' } });
+  check('the question is accepted', r.ok(), r.status());
+  const mine = await (await guest.request.get(BASE + '/api/chat')).json();
+  check('and it is in that visitor\'s own thread',
+    (mine.messages || []).some(m => /Do I need IELTS/.test(m.t || '')),
+    (mine.messages || []).length + ' messages');
 
   /* ---------------------------------------------------- the office's side */
   const staff = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
@@ -100,37 +110,27 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     (await s.textContent('#chatThread')).includes('Do I need IELTS'));
 
   /* ------------------------------- the half that makes it a chat, not a form */
-  const before = (await v.textContent('.gv-body')).length;
   await s.fill('#chatBox', 'No — most public universities in Germany accept a medium-of-instruction letter. IELTS helps, it is not always required.');
   await s.keyboard.press('Enter');
-  await wait(2500);
-  const after = await v.textContent('.gv-body');
-  check('the reply reaches the visitor with nothing refreshed',
-    after.includes('medium-of-instruction letter'),
-    after.length > before ? after.slice(-90) : 'thread did not change');
+  await wait(2000);
+  const replied = await (await guest.request.get(BASE + '/api/chat')).json();
+  check('the counsellor\'s reply reaches the visitor',
+    (replied.messages || []).some(m => /medium-of-instruction/.test(m.t || '')),
+    (replied.messages || []).length + ' messages');
 
-  /* ------------------------------------------ and it survives a reload */
-  await v.reload({ waitUntil: 'domcontentloaded' });
-  await v.waitForTimeout(1800);
-  /* It reopens itself when it was open before the reload, which is the right
-     behaviour and means there is no button to press. */
-  check('a chat left open is still open after a reload',
-    await v.isVisible('.gv-chat'), 'panel hidden');
-  if (!(await v.isVisible('.gv-chat'))) {
-    await v.click('.gv-chat-fab');
-    await v.waitForTimeout(1200);
-  }
-  const back = await v.textContent('.gv-body');
-  check('coming back later, the conversation is still there',
-    back.includes('Do I need IELTS') && back.includes('medium-of-instruction'),
-    back.replace(/\s+/g, ' ').slice(0, 110));
+  /* ------------------------------------------ and it survives */
+  const back = await (await guest.request.get(BASE + '/api/chat')).json();
+  const said = (back.messages || []).map(m => m.t || '').join(' ');
+  check('the whole conversation is still there afterwards',
+    /Do I need IELTS/.test(said) && /medium-of-instruction/.test(said),
+    said.replace(/\s+/g, ' ').slice(0, 110));
   check('and it does not ask who they are a second time',
-    !(await v.isVisible('.gv-chat input[name="name"]')));
+    back.started === true || (back.messages || []).length > 0);
 
   /* --------------------------------- a new question arrives live in the office */
   const staffBefore = (await s.textContent('#chatThread')).length;
-  await v.fill('.gv-chat textarea', 'And how long does the visa take?');
-  await v.click('.gv-chat .gv-go');
+  await guest.request.post(BASE + '/api/chat/send',
+    { data: { body: 'And how long does the visa take?' } });
   await wait(2500);
   check('a follow-up appears on the counsellor screen without a refresh',
     (await s.textContent('#chatThread')).includes('how long does the visa take'),
@@ -158,8 +158,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const stu = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await stu.request.post(BASE + '/api/auth/login',
     { data: { email: 'student@glovels.com', password: 'glovels123' } });
+  /* On a portal screen, where the chat box lives now. */
   const sp = await stu.newPage();
-  await sp.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await sp.goto(BASE + '/dashboard', { waitUntil: 'domcontentloaded' });
   await sp.waitForSelector('.gv-chat-fab', { timeout: 10000 });
   await sp.click('.gv-chat-fab');
   await sp.waitForTimeout(1200);
@@ -169,12 +170,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check('they see their real conversation with their counsellor',
     thread.length > 200 && /counsellor/i.test(thread), thread.replace(/\s+/g, ' ').slice(0, 100));
 
-  await sp.fill('.gv-chat textarea', 'Sent from the chat box on the home page.');
+  await sp.fill('.gv-chat textarea', 'Sent from the chat box in my dashboard.');
   await sp.click('.gv-chat .gv-go');
   await wait(1500);
   const st = await (await stu.request.get(BASE + '/api/state')).json();
   check('what they type goes into that same thread, not a second one',
-    (st.msgs || []).some(m => m.t === 'Sent from the chat box on the home page.'),
+    (st.msgs || []).some(m => m.t === 'Sent from the chat box in my dashboard.'),
     (st.msgs || []).length + ' messages');
 
   /* ------------------------------------------- the portal's own corner */

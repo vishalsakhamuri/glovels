@@ -34,6 +34,8 @@ BODY = """
       <button class="tab" data-t="ai" aria-selected="false">SOP &amp; LOR
         <span class="n" id="nAi">0</span></button>
       <button class="tab" data-t="find" aria-selected="false">Finder &amp; contact</button>
+      <button class="tab" data-t="legal" aria-selected="false">Legal
+        <span class="n" id="nLegal">0</span></button>
       <button class="tab" data-t="sheet" aria-selected="false">Spreadsheet</button>
     </div>
 
@@ -294,6 +296,90 @@ BODY = """
         <span id="aiWhen" style="font:600 12.2px/1.4 var(--sans);color:var(--muted)"></span>
       </div>
       <div id="aiPrev" style="margin-top:16px"></div>
+    </section>
+
+    <!-- ------------------------------------------------------------ legal -->
+    <section class="pane" id="t-legal">
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>What is still missing</h3>
+        <p style="margin:0 0 12px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Terms of Use, the Privacy Policy, the Refund policy and the Grievance page all quote
+          the same particulars, and they read them from here &mdash; so a wrong digit is fixed
+          once, not four times. A field left blank does not print a dash on the public page;
+          its whole line is left out. This is the only place that says so.</p>
+        <div id="legalGaps"></div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>The company</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+          gap:0 14px">
+          <div class="field" style="margin-bottom:10px"><label for="lgEntity">Legal entity
+            name</label><input id="lgEntity" placeholder="Glovels Consultants Private Limited">
+            <p style="margin:5px 0 0;font-size:11.4px;color:var(--muted);line-height:1.5">
+              Must match the PAN and GST records character for character.</p></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgCin">CIN</label>
+            <input id="lgCin" placeholder="U80903TG2019PTC000000"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgGstin">GSTIN</label>
+            <input id="lgGstin" placeholder="36AAAAA0000A1Z5"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgJuris">Courts of</label>
+            <input id="lgJuris" placeholder="Hyderabad, Telangana"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px"><label for="lgAddress">Registered office
+          address</label>
+          <textarea id="lgAddress" rows="3"
+            placeholder="Line by line, exactly as on the incorporation certificate"></textarea>
+          <p style="margin:5px 0 0;font-size:11.4px;color:var(--muted);line-height:1.5">
+            Line breaks are kept. An address on one line is not somewhere anybody can send a
+            legal notice.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+          gap:0 14px">
+          <div class="field" style="margin-bottom:10px"><label for="lgEffective">In effect
+            from</label><input id="lgEffective" placeholder="1 September 2026">
+            <p style="margin:5px 0 0;font-size:11.4px;color:var(--muted);line-height:1.5">
+              Until this is set, the pages simply do not show an effective date.</p></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgInvoice">Invoice
+            numbering series</label><input id="lgInvoice" placeholder="GLV/26-27/0001"></div>
+        </div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>The grievance officer</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The Consumer Protection (E-Commerce) Rules want a named person with a direct number.
+          A shared inbox does not satisfy it. Until a name and an email are here, the Grievance
+          page tells people to write to <code>info@glovels.com</code> instead &mdash; which
+          works, but is not what the rules ask for.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+          gap:0 14px">
+          <div class="field" style="margin-bottom:10px"><label for="lgOffName">Name</label>
+            <input id="lgOffName" placeholder="Kavya Menon"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgOffRole">Designation</label>
+            <input id="lgOffRole" placeholder="Grievance Officer"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgOffMail">Email</label>
+            <input id="lgOffMail" inputmode="email" placeholder="grievance@glovels.com"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgOffPhone">Direct
+            phone</label><input id="lgOffPhone" inputmode="tel" placeholder="+91 40 0000 0000">
+            </div>
+        </div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>The terms behind each package</h3>
+        <p style="margin:0 0 6px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The pledge on a card is one sentence; this is the contract behind it, and it is what
+          <b>Full terms</b> on the card opens. Each package has its own, because they are not
+          the same promise.</p>
+        <p style="margin:0 0 14px;font-size:12.2px;color:var(--muted);line-height:1.6">
+          Type it as clauses separated by a blank line. A first line with no full stop becomes
+          that clause's heading. Nothing else is interpreted.</p>
+        <div id="legalTerms"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-primary" id="lgSave">Save the legal details</button>
+        <span id="lgSaved" class="st ok" hidden>Saved</span>
+      </div>
     </section>
 
     <section class="pane" id="t-sheet">
@@ -943,9 +1029,116 @@ function aiFromScreen() {
   return out;
 }
 
+/* ----------------------------------------------------------------- legal */
+
+/* What each blank is called on the page that needs it, so the gap list can say
+   "the Grievance page still has no named officer" rather than "officer.name is
+   empty". A missing particular is a compliance gap, not a null. */
+const LEGAL_FIELDS = [
+  ['lgEntity',    'entity',             'Legal entity name',   'all four pages'],
+  ['lgCin',       'cin',                'CIN',                 'all four pages'],
+  ['lgGstin',     'gstin',              'GSTIN',               'all four pages'],
+  ['lgAddress',   'address',            'Registered office',   'all four pages'],
+  ['lgEffective', 'effective',          'Effective date',      'all four pages'],
+  ['lgJuris',     'jurisdiction',       'Courts of',           'Terms of Use'],
+  ['lgInvoice',   'invoiceSeries',      'Invoice series',      'your invoices'],
+  ['lgOffName',   'officer.name',       'Officer name',        'Grievance'],
+  ['lgOffRole',   'officer.designation', 'Officer designation', 'Grievance'],
+  ['lgOffMail',   'officer.email',      'Officer email',       'Grievance'],
+  ['lgOffPhone',  'officer.phone',      'Officer phone',       'Grievance'],
+];
+
+const dig = (o, path) => path.split('.').reduce((x, k) => (x == null ? x : x[k]), o);
+
+function paintLegal() {
+  const L = C.legal || {};
+  LEGAL_FIELDS.forEach(([id, path]) => {
+    const el = $('#' + id);
+    if (el) el.value = dig(L, path) == null ? '' : dig(L, path);
+  });
+
+  /* The count on the tab is the number of blanks, not the number of fields —
+     a tab that reads "Legal 4" is asking to be opened. Zero is hidden the way
+     an empty count is hidden everywhere else on this screen. */
+  const missing = LEGAL_FIELDS.filter(([, path]) => !String(dig(L, path) || '').trim());
+  const n = $('#nLegal');
+  if (n) { n.textContent = missing.length; n.hidden = !missing.length; }
+
+  $('#legalGaps').innerHTML = missing.length
+    ? '<ul class="doclist">' + missing.map(([, , label, where]) =>
+        '<li><div><b>' + esc(label) + '</b>' +
+        '<span style="display:block;font-size:11.8px;color:var(--muted)">Needed by ' +
+        esc(where) + '</span></div><span class="st wait">blank</span></li>').join('') +
+      '</ul>' +
+      '<p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">' +
+      'Nothing here is guessed and nothing is filled in for you. Until a line is typed, ' +
+      'the pages leave it out rather than printing a placeholder.</p>'
+    : '<div class="sl-empty" style="margin:0"><b>Every particular is filled in</b>' +
+      '<p>The four pages are quoting these. Check them once on the live site.</p></div>';
+
+  /* One box per package that is actually sold. A package with no pledge can
+     still carry terms — what is refundable is a term whether or not anything
+     is promised on the card. */
+  const items = ((C.packages || {}).items || []).filter(p => p.active !== false);
+  $('#legalTerms').innerHTML = items.map(p =>
+    '<div class="field" style="margin-bottom:14px">' +
+    '<label for="lgT-' + esc(p.id) + '">' + esc(p.title || p.id) +
+      (p.pledge && p.pledge.title
+        ? '<span style="font-weight:400;color:var(--muted)"> &mdash; ' +
+          esc(p.pledge.title) + '</span>'
+        : '') + '</label>' +
+    '<textarea id="lgT-' + esc(p.id) + '" data-terms="' + esc(p.id) + '" rows="' +
+      (p.terms ? 10 : 3) + '" placeholder="No terms published for this package yet.">' +
+      esc(p.terms || '') + '</textarea></div>').join('') ||
+    '<p style="color:var(--muted);font-size:13px">No packages are on the site yet.</p>';
+}
+
+async function saveLegal() {
+  const btn = $('#lgSave');
+  btn.disabled = true;
+  try {
+    /* EVERYTHING is read off the screen first, before a single save.
+       saveList repaints this tab from the reloaded block, so saving the
+       particulars and then reading the package boxes reads them AFTER the
+       repaint has already put the old text back — and the terms somebody just
+       typed are silently thrown away. It is not a race; it happens every
+       time. */
+    const value = { officer: {} };
+    LEGAL_FIELDS.forEach(([id, path]) => {
+      const v = ($('#' + id) || {}).value || '';
+      if (path.indexOf('officer.') === 0) value.officer[path.slice(8)] = v;
+      else value[path] = v;
+    });
+
+    /* The per-package terms ride on the packages block, not on this one. Saving
+       them here rather than making somebody find the package editor is the
+       point of putting them on this screen. */
+    const items = ((C.packages || {}).items || []).map(p => {
+      const box = $('[data-terms="' + p.id + '"]');
+      return box ? Object.assign({}, p, { terms: box.value }) : p;
+    });
+    const pkgs = Object.assign({}, C.packages, { items });
+
+    await saveList('legal', value);
+    await saveList('packages', pkgs);
+
+    const ok = $('#lgSaved');
+    ok.hidden = false;
+    setTimeout(() => { ok.hidden = true; }, 2500);
+  } catch (e) {
+    alert(e.message || 'That did not save.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('#lgSave')) saveLegal();
+});
+
 function paintAll() {
   paintPackages(); paintServices(); paintStats(); paintFaq(); paintStories();
-  paintText(); paintSheet(); paintAi(); paintFinder();
+  paintText(); paintSheet(); paintAi(); paintFinder(); paintLegal();
 }
 
 async function reload() {

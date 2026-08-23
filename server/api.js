@@ -18,6 +18,7 @@
  */
 
 const crypto = require('crypto');
+const PAY = require('./pay.js');
 const fs = require('fs');
 const path = require('path');
 const EMAILS = require('./emails.js');
@@ -71,6 +72,13 @@ const readJson = async req => {
   if (!raw) return {};
   try { return JSON.parse(raw); } catch (e) { return {}; }
 };
+
+/* The bytes exactly as they arrived. A webhook signature is computed over those
+   bytes, and JSON.parse followed by JSON.stringify is not the identity — key
+   order and whitespace both move — so a re-serialised body never verifies. */
+const readRaw = req => readBody(req);
+
+const inrOf = paise => '\u20b9' + Math.round(Number(paise || 0) / 100).toLocaleString('en-IN');
 
 function cookies(req) {
   const out = {};
@@ -147,6 +155,10 @@ function parseMultipart(buf, boundary) {
 /* ------------------------------------------------------------------- routes */
 
 function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, siteUrl, config, content }) {
+  /* Razorpay, or a stand-in that reports itself off. Off is a working state:
+     the order is recorded and a counsellor collects, which is how this site
+     ran before there was a gateway at all. */
+  const pay = PAY.makePay((config && config.razorpay) || {});
   /* Prices are read per request, never captured. A package edited at 11:02 is
      charged at the new price at 11:03, without a restart. */
   const PACKAGES = () => (content ? content.priceList() : FALLBACK_PACKAGES);
@@ -599,12 +611,45 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       : items.length === 1 ? items[0].name
       : items.length + ' services';
 
+    /*
+     * `awaiting` when a gateway is going to collect, `owing` when a counsellor
+     * is.
+     *
+     * It used to be `paid` in both cases, which was true of neither: nothing
+     * was ever charged. Once Razorpay is on, marking an order paid at the
+     * moment it is created would hand over the universities before a single
+     * rupee had moved, to anybody who pressed the button and closed the tab.
+     */
+    const collecting = pay.enabled;
     const order = db.addOrder({
       studentId: s ? s.id : null, reference, package: label,
       publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
-      status: 'paid', kind: pkg ? 'package' : 'services',
+      status: collecting ? 'awaiting' : 'owing', kind: pkg ? 'package' : 'services',
       items: items.map(x => ({ id: x.id, name: x.name, level: x.level, paise: x.paise })),
     });
+
+    /* The gateway's own order, created from OUR total. The browser is handed an
+       id and the public key id; the amount it displays comes from Razorpay,
+       which got it from here, so there is no number in this flow that a page
+       could have tampered with. */
+    let rzp = null;
+    if (collecting) {
+      try {
+        const made = await pay.createOrder({
+          amountPaise: gross,
+          receipt: reference,
+          notes: { reference, email, package: label },
+        });
+        rzp = { orderId: made.id, keyId: pay.keyId, amountPaise: gross };
+        db.setOrderGateway(reference, made.id);
+      } catch (e) {
+        /* The gateway is down or misconfigured. The order still exists and a
+           counsellor can still collect — losing the sale because a third party
+           had a bad minute would be the worse failure. */
+        db.setOrderStatus(reference, 'owing');
+        db.log('system', 'Razorpay order could not be created', reference + ': ' + e.message);
+      }
+    }
 
     const tax = Math.round(gross - gross / (1 + GST_RATE));
 
@@ -622,8 +667,115 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       services: items.map(x => ({ id: x.id, name: x.name, level: x.level, priceInr: x.paise / 100 })),
       linkedToAccount: !!s,
       createdAt: order.created_at,
+      /* Present only when there is genuinely a card form to open. The page
+         decides which confirmation to show from this and nothing else. */
+      razorpay: rzp,
+      status: rzp ? 'awaiting' : 'owing',
     });
   }, { open: true });
+
+  /*
+   * The browser comes back from Razorpay saying it worked.
+   *
+   * It might be right. The signature is the only reason to believe it: Razorpay
+   * computes it over `order_id|payment_id` with the key secret, which no
+   * browser has ever seen. Wrong signature, nothing happens — and the webhook
+   * will settle it properly a moment later if the payment was real.
+   */
+  route('POST', /^\/api\/orders\/(GLV-\d+)\/paid$/, async (req, res, s, m) => {
+    const reference = m[1];
+    const b = await readJson(req);
+    const order = db.orderByReference(reference);
+    if (!order) return json(res, 404, { error: 'No such order.' });
+    if (order.status === 'paid') return json(res, 200, { status: 'paid', reference });
+
+    if (!pay.enabled) return json(res, 409, { error: 'No gateway is collecting on this site.' });
+
+    const okSig = pay.verifyHandback({
+      orderId: String(b.razorpay_order_id || ''),
+      paymentId: String(b.razorpay_payment_id || ''),
+      signature: String(b.razorpay_signature || ''),
+    });
+    /* And it must be the signature for THIS order — a valid signature from
+       somebody else's ₹1 payment is still a valid signature. */
+    const sameOrder = order.gateway_order_id
+      && order.gateway_order_id === String(b.razorpay_order_id || '');
+
+    if (!okSig || !sameOrder) {
+      db.log('system', 'Payment handback refused', reference
+        + (okSig ? ' — signature was for a different order' : ' — signature did not verify'));
+      return json(res, 400, {
+        error: 'That payment could not be confirmed. If money has left your account it is '
+             + 'safe — tell us the reference and we will find it.',
+      });
+    }
+
+    db.setOrderPaid(reference, String(b.razorpay_payment_id || ''));
+    db.log('system', 'Payment confirmed', reference + ' — ' + inrOf(order.gross_paise));
+    return json(res, 200, { status: 'paid', reference });
+  }, { open: true });
+
+  /*
+   * Razorpay tells us directly.
+   *
+   * This is the one that matters. A student whose phone died on the bank's
+   * 3-D Secure page never sends a handback, and their money has still left
+   * their account. The webhook arrives regardless.
+   *
+   * Signed over the RAW bytes, so the route reads them itself rather than
+   * taking a parsed object — re-serialising JSON reorders keys and the
+   * signature stops matching.
+   */
+  route('POST', '/api/razorpay/webhook', async (req, res) => {
+    const raw = await readRaw(req);
+    const sig = req.headers['x-razorpay-signature'];
+
+    if (!pay.webhookReady) {
+      /* Not configured to verify: refuse rather than trust. An unverifiable
+         webhook is an open endpoint for marking any order paid. */
+      return json(res, 503, { error: 'No webhook secret is configured.' });
+    }
+    if (!pay.verifyWebhook(raw, sig)) {
+      db.log('system', 'Webhook refused', 'signature did not verify');
+      return json(res, 400, { error: 'Signature did not verify.' });
+    }
+
+    let body = {};
+    try { body = JSON.parse(raw.toString('utf8') || '{}'); } catch (e) { body = {}; }
+    const event = String(body.event || '');
+    const entity = ((body.payload || {}).payment || {}).entity || {};
+    const gatewayOrderId = entity.order_id || '';
+    const order = gatewayOrderId ? db.orderByGateway(gatewayOrderId) : null;
+
+    /* 200 even when we do nothing. Razorpay retries anything that is not a 2xx,
+       and retrying an event we have deliberately ignored forever helps nobody. */
+    if (!order) return json(res, 200, { ok: true, note: 'no matching order' });
+
+    if (event === 'payment.captured') {
+      /* The amount is checked, not assumed. A payment for less than the order
+         is not that order being paid. */
+      if (Number(entity.amount || 0) !== Number(order.gross_paise || 0)) {
+        db.log('system', 'Webhook amount mismatch',
+          order.reference + ': gateway says ' + entity.amount + ', order is ' + order.gross_paise);
+        return json(res, 200, { ok: true, note: 'amount mismatch, left alone' });
+      }
+      if (order.status !== 'paid') {
+        db.setOrderPaid(order.reference, entity.id || '');
+        db.log('system', 'Payment captured', order.reference + ' — ' + inrOf(order.gross_paise));
+      }
+    } else if (event === 'payment.failed' && order.status !== 'paid') {
+      db.setOrderStatus(order.reference, 'failed');
+      db.log('system', 'Payment failed', order.reference);
+    }
+    return json(res, 200, { ok: true });
+  }, { open: true });
+
+  /* Whether to offer a card at all, and under whose key. The secret is not here
+     and never will be — the key id is public by design. */
+  route('GET', '/api/pay/config', async (req, res) => json(res, 200, {
+    enabled: pay.enabled,
+    keyId: pay.keyId,
+  }), { open: true });
 
   route('GET', '/api/orders', async (req, res, s) => json(res, 200, { orders: stateFor(s).orders }));
 
@@ -946,8 +1098,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
      * widen the hole.
      */
     const me_ = me(req);
-    const order = me_ ? db.ordersFor(me_.id)[0] : null;
-    const quota = order ? Number(order.public_unis || 0) : 0;
+    /*
+     * The BIGGEST paid entitlement, not the most recent order.
+     *
+     * Two changes here, both of which matter once money moves. It used to take
+     * `ordersFor(id)[0]` — the newest order, whatever its state — so an order
+     * that had only been created would unlock the names before anybody paid for
+     * them, and a small package bought after a large one would take the large
+     * one's universities away again.
+     *
+     * `owing` counts: that is the state on a site with no gateway, where a
+     * counsellor collects and the office has decided the student may proceed.
+     * `awaiting` does not: a gateway is mid-collection and has not confirmed.
+     */
+    const me_orders = me_ ? db.ordersFor(me_.id) : [];
+    const earned = me_orders.filter(o => o.status === 'paid' || o.status === 'owing');
+    const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
     let spent = 0;
 
     /*
@@ -1277,7 +1443,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const students = db.allStudents();
     const counsellors = db.counsellors();
     const docs = students.flatMap(st => db.getDocuments(st.id));
-    const orders = students.flatMap(st => db.ordersFor(st.id));
+    /* Every order, not one per student. An order placed before the buyer made
+       an account belongs to nobody yet, and walking the students to find the
+       orders skipped exactly those — so the counter read zero to the person
+       who had just placed four of them. */
+    const orders = db.allOrders();
     return json(res, 200, {
       students: students.length,
       unassigned: students.filter(st => !st.counsellor_id).length,
@@ -1291,6 +1461,48 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       docsWaiting: docs.filter(d => d.status === 'wait').length,
       online: live.counts(),
       channels: notify.status(),
+    });
+  }));
+
+  /*
+   * The order book.
+   *
+   * There was no way to see an order. The Organisation screen counted them and
+   * showed a rupee total, and that was all — no list, no reference, no way to
+   * find out what somebody had bought. Orders placed by a visitor who had not
+   * signed up were not even counted.
+   */
+  route('GET', '/api/staff/orders', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const byId = new Map(db.allStudents().map(st => [st.id, st]));
+    const orders = db.allOrders().map(o => {
+      let items = [];
+      try { items = JSON.parse(o.items || '[]'); } catch (e) { items = []; }
+      const st = o.student_id ? byId.get(o.student_id) : null;
+      return {
+        reference: o.reference,
+        kind: o.kind || 'package',
+        package: o.package || '',
+        items,
+        publicUnis: o.public_unis || 0,
+        grossPaise: o.gross_paise || 0,
+        status: o.status || '',
+        name: o.name || '',
+        email: o.email || '',
+        phone: o.phone || '',
+        at: o.created_at,
+        /* Whether this order has an account behind it yet. A guest order is not
+           a problem — it is the normal path — but it is the one somebody has to
+           chase, so it is said out loud rather than left to be inferred from a
+           null. */
+        studentId: o.student_id || null,
+        studentName: st ? st.name : '',
+      };
+    });
+    return json(res, 200, {
+      orders,
+      grossPaise: orders.reduce((a, o) => a + o.grossPaise, 0),
+      guests: orders.filter(o => !o.studentId).length,
     });
   }));
 
@@ -2122,7 +2334,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
    * a plan first, and only what has been seen gets written.
    */
 
-  const CONTENT_KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services', 'finder'];
+  const CONTENT_KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services', 'finder',
+    'legal'];
   const noContent = res => json(res, 503, {
     error: 'The home page content is not loaded on this server. Run: python3 build_content.py',
   });
@@ -2207,7 +2420,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     return json(res, 200, { draft: out });
   }));
 
-  route('PUT', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services|finder)$/,
+  route('PUT', /^\/api\/staff\/content\/(packages|stats|faq|testimonials|services|finder|legal)$/,
     needs('content', async (req, res, s, m) => {
       if (!content) return noContent(res);
       const key = m[1];
@@ -2225,7 +2438,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       /* The finder block is an object of settings, not a list. Counting it the
          way the lists are counted gives undefined, which reads as empty, and
          the guard against blanking a section would refuse every save. */
-      const n = key === 'finder' ? 1
+      /* `legal` is an object of particulars, like `finder`, and an EMPTY one is
+         a legitimate save — clearing a CIN that was typed wrong is a thing
+         somebody will do at 11pm. Counting its keys would refuse exactly that. */
+      const n = key === 'finder' || key === 'legal' ? 1
         : grouped ? ((value && value.items) || []).length : (value || []).length;
       if (!n && !YES(b && b.allowEmpty)) {
         return json(res, 422, {
@@ -2236,6 +2452,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
       const saved = content.save(key, value, s.name);
       const count = key === 'finder' ? (saved.bands || []).length
+        : key === 'legal' ? Object.keys(saved).length
         : grouped ? saved.items.length : saved.length;
 
       let moved = 0;

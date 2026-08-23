@@ -288,6 +288,23 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-CONTACT-FORM */
+.ct-form{display:grid;gap:14px;max-width:640px;margin:16px 0 0}
+.ct-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:640px){ .ct-row{grid-template-columns:1fr} }
+.ct-form label{display:grid;gap:6px;font:600 12.6px/1.4 var(--sans);color:var(--navy-800)}
+.ct-form input,.ct-form textarea{width:100%;padding:11px 13px;font:400 14px/1.5 var(--sans);
+  border:1.5px solid #d8dde4;border-radius:10px;background:#fff;color:var(--navy-900)}
+.ct-form textarea{resize:vertical;min-height:96px}
+.ct-form input:focus,.ct-form textarea:focus{outline:2px solid var(--blue,#1a4fb4);
+  outline-offset:1px;border-color:var(--blue,#1a4fb4)}
+.ct-form input.bad,.ct-form textarea.bad{border-color:#c0392b;background:#fdf3f2}
+.ct-err{margin:0;color:#7a2118;font:600 13px/1.55 var(--sans)}
+.ct-sent{display:flex;gap:11px;align-items:flex-start;padding:15px 17px;border-radius:12px;
+  background:#eef8f2;border:1px solid #bfe0cc;color:#14603a;max-width:640px}
+.ct-sent b{display:block;font-size:14.6px;margin-bottom:3px}
+.ct-sent span{font-size:13.2px;line-height:1.6}
+</style>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -296,7 +313,7 @@ html.review-copy .towrite{display:block !important}
 if (location.protocol === 'file:') document.documentElement.className += ' review-copy';
 </script>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7 2 2 0 0 1 6.5 3.5Z"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 16H6a2 2 0 0 0-2 2"/></symbol><symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 9.6 12 4l9 5.6"/><path d="M5 10v9M19 10v9M9.5 10v9M14.5 10v9M2.5 20h19"/></symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7 2 2 0 0 1 6.5 3.5Z"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 16H6a2 2 0 0 0-2 2"/></symbol><symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 9.6 12 4l9 5.6"/><path d="M5 10v9M19 10v9M9.5 10v9M14.5 10v9M2.5 20h19"/></symbol><symbol id="i-wa" viewBox="0 0 24 24"><path d="M12 3.8a8 8 0 0 0-6.8 12.2L4 20.4l4.5-1.2A8 8 0 1 0 12 3.8Z"/></symbol></defs></svg>
 <header class="site">
   <div class="nav"><a class="logo" href="index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a>
     <nav class="menu" aria-label="Main"><a href="about-us.html">About Us</a><div class="nav-drop"><button class="ndt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a></div></div><div class="nav-drop"><button class="ndt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="nav-drop"><button class="ndt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div></div><div class="nav-drop"><button class="ndt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a></nav>
@@ -329,6 +346,44 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <p>The fastest route is the counselling form — a counsellor calls you back within one
     working day with your profile already in front of them.</p>
   <p><a class="btn btn-primary" href="index.html#counsel">Book free counselling <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
+  <h2 id="reach-us">Reach us</h2>
+  <div class="factbox" id="reachBox">
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Phone</span>
+      <b><a href="tel:+917093314089" id="reachTel">+91 70933 14089</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg> WhatsApp</span>
+      <b><a href="https://wa.me/917093314089" id="reachWa" rel="noopener"
+        target="_blank">Message us</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span>
+      <b><a href="mailto:info@glovels.com" id="reachMail">info@glovels.com</a></b></div>
+  </div>
+
+  <h2 id="write">Or write to us here</h2>
+  <p>Tell us where you are headed and we will call you back within one working day,
+    Mon&ndash;Sat 9:30&ndash;19:30 IST. Nothing is charged and there is no obligation.</p>
+  <form id="ctForm" class="ct-form" novalidate>
+    <div class="ct-row">
+      <label>Your name
+        <input id="ctName" autocomplete="name" placeholder="Ananya Rao" required></label>
+      <label>Mobile number
+        <input id="ctPhone" inputmode="tel" autocomplete="tel"
+          placeholder="98765 43210" required></label>
+    </div>
+    <div class="ct-row">
+      <label>Email
+        <input id="ctMail" inputmode="email" autocomplete="email"
+          placeholder="you@example.com" required></label>
+      <label>Where are you headed?
+        <input id="ctDest" placeholder="Germany, Canada, not sure yet"></label>
+    </div>
+    <label>What would you like to ask?
+      <textarea id="ctMsg" rows="4"
+        placeholder="Your course, your CGPA, your intake — whatever is on your mind."></textarea></label>
+    <input id="ctTrap" tabindex="-1" autocomplete="off" aria-hidden="true"
+      style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    <p class="ct-err" id="ctErr" role="alert" hidden></p>
+    <button class="btn btn-green" id="ctGo" type="submit">Send</button>
+  </form>
+
   <div class="towrite"><b>To write</b>A phone number for: Hyderabad, Munich. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div>
 </div></section>
 
@@ -746,7 +801,20 @@ if (location.protocol === 'file:') {
   });
 
   function boot() {
-    corner.appendChild(fab);
+    /*
+     * One button in the corner of the marketing pages, not two.
+     *
+     * WhatsApp and "Send a message" sat stacked on top of each other, and the
+     * pair read as clutter rather than as choice. On the site the corner is
+     * WhatsApp — it is where this office actually answers people, and it is
+     * what was asked for. The chat box stays exactly where it earns its keep:
+     * inside the student portal, where it is the counsellor thread.
+     *
+     * The lead capture that made the site chat worth having has not gone with
+     * it. The contact page carries a form that writes an enquiry, and the
+     * counselling form on the home page always has.
+     */
+    if (MODE !== 'site') corner.appendChild(fab);
     document.body.appendChild(corner);
 
     api('/api/chat').then(function (d) {
@@ -818,6 +886,118 @@ if (location.protocol === 'file:') {
       }
     })
     .catch(function () {});
+}());
+</script>
+<script>/* GLOVELS-CONTACT-FORM-JS */
+(function () {
+  var form = document.getElementById('ctForm');
+  if (!form) return;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* The office's own numbers, from Finder & contact — the same place the rest
+     of the site reads them from, so there is one number to change and not
+     four. The markup ships with the current one so the page is right even if
+     this never runs. */
+  if (location.protocol !== 'file:') {
+    fetch('/api/content', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var c = (d && d.finder && d.finder.contact) || {};
+        if (c.phone) {
+          var tel = $('reachTel');
+          var digits = c.phone.replace(/[^0-9]/g, '');
+          /* 917093314089 -> +91 70933 14089. Anything that is not a 12-digit
+             Indian number is printed as it was typed, because a guess at the
+             grouping of a number we do not recognise is worse than no
+             grouping. */
+          tel.textContent = /^91[6-9][0-9]{9}$/.test(digits)
+            ? '+91 ' + digits.slice(2, 7) + ' ' + digits.slice(7)
+            : c.phone;
+          tel.href = 'tel:+' + digits;
+        }
+        if (c.whatsapp) $('reachWa').href = 'https://wa.me/' + c.whatsapp;
+        if (c.email) {
+          var m = $('reachMail');
+          m.textContent = c.email;
+          m.href = 'mailto:' + c.email;
+        }
+      })
+      .catch(function () {});
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = $('ctErr');
+    err.hidden = true;
+
+    /* Anything that fills the hidden field is a robot. Answer it exactly as we
+       would answer a person, and write nothing down. */
+    if ($('ctTrap').value) { done(); return; }
+
+    var checks = [
+      ['ctName', function (v) { return v.length > 1; }, 'Tell us your name.'],
+      ['ctPhone', function (v) {
+        return /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10));
+      }, 'A 10-digit Indian mobile, please.'],
+      ['ctMail', function (v) { return /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v); },
+        'A valid email, please.']
+    ];
+    var bad = null;
+    checks.forEach(function (c) {
+      var el = $(c[0]), ok = c[1](el.value.trim());
+      el.classList.toggle('bad', !ok);
+      if (!ok && !bad) bad = c[2];
+    });
+    if (bad) { err.textContent = bad; err.hidden = false; $(checks[0][0]).focus(); return; }
+
+    var btn = $('ctGo');
+    btn.disabled = true;
+    btn.textContent = 'Sending\u2026';
+
+    var payload = {
+      _subject: 'Website enquiry \u2014 contact page',
+      name: $('ctName').value.trim(),
+      phone: $('ctPhone').value.trim(),
+      email: $('ctMail').value.trim(),
+      destination: $('ctDest').value.trim(),
+      message: $('ctMsg').value.trim(),
+      source: 'contact-us'
+    };
+
+    fetch('/send.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('the server answered ' + r.status);
+        done();
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Send';
+        /* Never a dead end. What they typed goes into a mail link so it is not
+           lost, and the phone number is right there. */
+        var body = ['Name: ' + payload.name, 'Phone: ' + payload.phone,
+          'Email: ' + payload.email, 'Destination: ' + payload.destination,
+          '', payload.message].join('\n');
+        err.innerHTML = '<b>That did not send.</b> Please call '
+          + '<a href="' + $('reachTel').href + '">' + $('reachTel').textContent
+          + '</a>, or <a href="mailto:' + $('reachMail').textContent
+          + '?subject=' + encodeURIComponent('Website enquiry')
+          + '&body=' + encodeURIComponent(body) + '">send it by email</a> \u2014 '
+          + 'what you typed is already in the message.';
+        err.hidden = false;
+      });
+
+    function done() {
+      form.outerHTML = '<div class="ct-sent" id="ctSent"><svg class="ico" aria-hidden="true">'
+        + '<use href="#i-check"></use></svg><div><b>Thank you \u2014 that reached us.</b>'
+        + '<span>A counsellor calls you back within one working day, Mon\u2013Sat '
+        + '9:30\u201319:30 IST. Nothing is charged and there is no obligation.</span>'
+        + '</div></div>';
+    }
+  });
 }());
 </script>
 </body>

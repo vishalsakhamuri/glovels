@@ -11,9 +11,9 @@ BODY = """
       @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
     </style>
 
-    <!-- A count with somewhere to go is a button and looks like one. "Orders
-         placed" has no screen behind it yet, so it stays a plain number rather
-         than a control that does nothing when pressed. -->
+    <!-- Every count leads somewhere. Three filter the table below, Enquiries
+         opens the enquiry book, and Orders placed scrolls to the order book —
+         which did not exist, which is why this one used to be a plain number. -->
     <div class="out tiles" style="--tiles:5;margin:0 0 20px">
       <button type="button" class="outgo" data-go="all">
         <b id="kStudents">—</b><span>Students</span></button>
@@ -23,7 +23,8 @@ BODY = """
         <b id="kDocs">—</b><span>Docs to review</span></button>
       <button type="button" class="outgo" data-go="enquiries">
         <b id="kEnq">—</b><span>Enquiries</span></button>
-      <div><b id="kRev">—</b><span>Recorded</span></div>
+      <button type="button" class="outgo" data-go="orders">
+        <b id="kRev">—</b><span>Orders placed</span></button>
     </div>
 
     <style>
@@ -135,6 +136,32 @@ BODY = """
         </table>
       </div>
     </div>
+
+    <!-- Every order, including the ones placed before the buyer made an account.
+         There was nowhere at all to see these: the screen counted them, showed a
+         rupee total and stopped. Somebody who had just bought four services
+         could not find one of them. -->
+    <div class="p-sec">
+      <div class="p-sec-head"><h2 id="everyOrder">Orders</h2>
+        <span id="ordGuests" hidden class="st wait" style="text-transform:none;
+          letter-spacing:0"></span>
+        <input id="findOrder" placeholder="Reference, name or email"
+          style="margin-left:auto;padding:8px 11px;font:400 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px;min-width:220px"></div>
+      <div class="p-card" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="margin:0">
+          <thead><tr><th>Reference</th><th>Who</th><th>What they bought</th>
+            <th style="text-align:right">Amount</th><th>Account</th><th>When</th></tr></thead>
+          <tbody id="ordRows"></tbody>
+        </table>
+      </div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        An order placed before somebody signs up shows as <b>no account yet</b>. It attaches
+        itself the moment they register with the same email &mdash; nothing is lost, but until
+        then there is nobody to call it up on a dashboard, so those are the ones to chase.
+        No money moves on this site yet: an amount here is what was agreed, not what was
+        collected.</p>
+    </div>
 """
 
 SCRIPT = r"""
@@ -207,12 +234,84 @@ document.addEventListener('click', e => {
   const what = go.dataset.go;
 
   if (what === 'enquiries') { location.href = 'chat.html#enquiries'; return; }
+  if (what === 'orders') {
+    $('#everyOrder').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
 
   only = what === 'all' ? '' : what;
   filter = '';
   $('#findStudent').value = '';
   paint();
   $('#everyStudent').scrollIntoView({behavior: 'smooth', block: 'start'});
+});
+
+/* ------------------------------------------------------------- the orders */
+
+let ORDERS = [], orderFilter = '';
+
+const inrPaise = p => '\u20b9' + Math.round(Number(p || 0) / 100).toLocaleString('en-IN');
+
+function whenShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' +
+         d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function paintOrders() {
+  const q = orderFilter.toLowerCase();
+  const list = ORDERS.filter(o => !q ||
+    (o.reference + ' ' + o.name + ' ' + o.email + ' ' + o.package).toLowerCase().includes(q));
+
+  const guests = ORDERS.filter(o => !o.studentId).length;
+  const chip = $('#ordGuests');
+  chip.hidden = !guests;
+  chip.textContent = guests + (guests === 1 ? ' has no account yet' : ' have no account yet');
+
+  $('#ordRows').innerHTML = list.map(o => {
+    /* What they actually bought, by name. A row that says "services" and a
+       total is no use to somebody on the phone to the person who bought it. */
+    const what = o.kind === 'services'
+      ? (o.items || []).map(x => esc(x.name || x.id)).join(', ') || 'Services'
+      : esc(o.package || 'Package') +
+        (o.publicUnis ? ' <span style="color:var(--muted)">\u00b7 ' + o.publicUnis +
+          ' universities</span>' : '');
+
+    return '<tr>' +
+      '<td><b>' + esc(o.reference) + '</b></td>' +
+      '<td>' + esc(o.name || '\u2014') +
+        '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
+        esc(o.email || '') + (o.phone ? ' \u00b7 ' + esc(o.phone) : '') + '</span></td>' +
+      '<td style="max-width:320px">' + what + '</td>' +
+      '<td style="text-align:right;white-space:nowrap"><b>' + inrPaise(o.grossPaise) + '</b>' +
+        /* Paid, owed, or half way through a card payment. Before there was a
+           gateway every order said "paid" and none of them were; now the word
+           means what it says. */
+        '<span style="display:block;margin-top:3px">' + ({
+          paid: '<span class="st ok">paid</span>',
+          owing: '<span class="st wait">to collect</span>',
+          awaiting: '<span class="st wait">card started</span>',
+          failed: '<span class="st bad">card failed</span>',
+        }[o.status] || '<span class="st none">' + esc(o.status || '—') + '</span>') +
+        '</span></td>' +
+      '<td>' + (o.studentId
+        ? '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + o.studentId +
+          '">' + esc(o.studentName || 'Open') + '</a>'
+        : '<span class="st wait">no account yet</span>') + '</td>' +
+      '<td style="white-space:nowrap;color:var(--muted);font-size:12.2px">' +
+        esc(whenShort(o.at)) + '</td>' +
+      '</tr>';
+  }).join('') ||
+    '<tr><td colspan="6" style="color:var(--muted);padding:22px">' +
+    (ORDERS.length ? 'No order matches that.'
+      : 'No orders yet. One appears here the moment somebody buys a package or a service ' +
+        'on the site \u2014 whether or not they have an account.') + '</td></tr>';
+}
+
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'findOrder') { orderFilter = e.target.value; paintOrders(); }
 });
 
 staffBoot(async me => {
@@ -224,24 +323,31 @@ staffBoot(async me => {
     return;
   }
 
-  const [ov, st] = await Promise.all([
+  const [ov, st, od] = await Promise.all([
     api('GET', '/api/staff/overview'),
     api('GET', '/api/staff/students'),
+    api('GET', '/api/staff/orders'),
   ]);
 
   STUDENTS = st.students;
   COUNSELLORS = ov.counsellors;
+  ORDERS = od.orders || [];
 
   $('#kStudents').textContent = ov.students;
   $('#kUnassigned').textContent = ov.unassigned;
   $('#kDocs').textContent = ov.docsWaiting;
   $('#kEnq').textContent = ov.enquiries;
-  $('#kRev').textContent = inr(ov.revenuePaise);
-
-  /* "Recorded", not "revenue" — no payment gateway is connected yet, so this is
-     the total of orders placed, not money received. Calling it revenue on an
-     admin screen is how a number ends up in a board pack. */
-  $('#kRev').parentElement.querySelector('span').textContent = 'Orders placed';
+  /* The count, with the money underneath it. "₹0" alone was what somebody saw
+     after placing four orders — the total is zero because nothing has been
+     charged yet, and the number of orders is the part they were looking for. */
+  $('#kRev').textContent = ORDERS.length;
+  const rev = $('#kRev').parentElement.querySelector('span');
+  if (rev) {
+    rev.innerHTML = 'Orders placed' +
+      '<span style="display:block;font-weight:600;text-transform:none;letter-spacing:0;' +
+      'font-size:11.4px;opacity:.75;margin-top:3px">' + inr(ov.revenuePaise) + ' agreed</span>';
+  }
+  paintOrders();
 
   ME = me.user.id;
   await paintPeople();

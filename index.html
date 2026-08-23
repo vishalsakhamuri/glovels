@@ -1742,7 +1742,7 @@ document.addEventListener('click', e => {
           + '<span class="err" id="rqOkErr">Please accept the terms shown before paying.</span>'
         : '');
   $('#buyPay').disabled = false;
-  $('#buyPay').innerHTML = 'Pay ₹' + nf.format(gross);
+  $('#buyPay').innerHTML = 'Confirm — ₹' + nf.format(gross);
   open('#buyModal');
 });
 
@@ -1804,6 +1804,14 @@ $('#buyPay').onclick = () => {
   .then(r => r.json().then(d => ({ok: r.ok, d})))
   .then(({ok, d}) => {
     if (!ok) throw new Error(d.error || 'order refused');
+    /* If a gateway is collecting, this opens the card sheet and does not
+       resolve until the server has verified the signature. With no gateway it
+       resolves at once and everything below is unchanged. */
+    return window.__glovelsCollect(Object.assign({}, d, {
+      buyerName: buyer.name, buyerEmail: buyer.email, buyerPhone: buyer.phone
+    }));
+  })
+  .then(d => {
     ref = d.reference;                       /* the server's reference, not ours */
     $('#buyRef') && ($('#buyRef').textContent = ref);
 
@@ -1863,12 +1871,12 @@ $('#buyPay').onclick = () => {
   touched = true;
   loadUnlocked().then(render);
 
-  $('#buyT').textContent = 'Payment received';
+  $('#buyT').textContent = 'Order confirmed';
   $('#buyLead').textContent = '';
   $('#buyBody').innerHTML =
       '<div class="paid-head">' + ico('check') + '<div><b>' + esc(buying.name)
     + ' is active</b><span>Order <b id="buyRef">' + ref + '</b> · ₹' + nf.format(gross)
-    + ' paid, including ₹' + nf.format(tax) + ' GST</span></div></div>'
+    + ' including ₹' + nf.format(tax) + ' GST, payable to your counsellor</span></div></div>'
     + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
     + '<li id="buyAcct"><b>Setting up your dashboard\u2026</b><span>One moment.</span></li>'
     + '<li><b>Your ' + (buying.publicUnis || 'matched') + ' universities are in your '
@@ -1884,9 +1892,10 @@ $('#buyPay').onclick = () => {
       + 'so nothing waits on your offer letter.</span></li>'
     + '</ol></div>'
     + '<div class="demo-note" style="margin-top:14px">' + ico('info')
-    + '<span><b>Demo — no money was taken.</b> The payment gateway is not connected yet. '
-    + 'In production this screen appears only after the gateway confirms settlement, and the '
-    + 'invoice and unlock are written by the server.</span></div>'
+    + '<span><b>Nothing has been charged yet.</b> Online payment is not open on this site. '
+    + 'Your counsellor will confirm the amount and how to pay it when they call, and your '
+    + 'invoice follows the payment. Your place and your universities are held either '
+    + 'way.</span></div>'
     + '<div class="paid-cta"><button class="btn btn-primary" id="seeMatches">See my '
       + (buying.publicUnis || '') + ' universities ' + ico('arrow') + '</button>'
       + '<a class="btn btn-ghost" href="' + "" + '/login">Go to my dashboard</a>'
@@ -2178,7 +2187,7 @@ $('#planCta').onclick = () => {
     + '<div class="fld"><label for="scMail">Email *</label>'
       + '<input id="scMail" inputmode="email"><span class="err"></span></div></div>';
   $('#scPay').style.display = '';
-  $('#scPay').innerHTML = 'Pay ' + inr(gross);
+  $('#scPay').innerHTML = 'Confirm — ' + inr(gross);
   $('#scLegal').style.display = '';
   $('#svcCheckout').classList.add('on');
 
@@ -2222,6 +2231,30 @@ $('#planCta').onclick = () => {
     } catch (e) {
       /* Offline, or opened from disk. The confirmation below still appears —
          losing the screen as well as the connection helps nobody. */
+    }
+
+    /* If a gateway is collecting, the card sheet opens here and this does not
+       return until the server has verified the signature. With no gateway it
+       returns at once and everything below is unchanged.
+
+       A failure here is NOT swallowed the way the fetch above is: an order that
+       was never paid must not show a confirmation. */
+    if (placed && placed.razorpay) {
+      try {
+        await window.__glovelsCollect(Object.assign({}, placed, {
+          buyerName: $('#scName').value.trim(),
+          buyerEmail: $('#scMail').value.trim(),
+          buyerPhone: $('#scPhone').value.trim(),
+        }));
+      } catch (e) {
+        const err = $('#scLegal') || $('#scBody');
+        if (err) {
+          err.innerHTML = '<p style="margin:12px 0 0;padding:11px 13px;border-radius:10px;'
+            + 'background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118;font:600 12.8px/1.55 '
+            + 'var(--sans)">' + esc(e.message) + '</p>';
+        }
+        return;
+      }
     }
     if(ENDPOINT){
       fetch(ENDPOINT, {
@@ -2273,18 +2306,19 @@ $('#planCta').onclick = () => {
     steps.push(['Everything lands in your dashboard and your inbox',
         'Drafts, certificates and receipts, with your reference ' + ref + '.']);
 
-    $('#scT').textContent = 'Payment received';
+    $('#scT').textContent = 'Order confirmed';
     $('#scLead').textContent = '';
     $('#scBody').innerHTML =
         '<div class="paid-head">' + ico('check') + '<div><b>' + items.length
       + (items.length === 1 ? ' service' : ' services') + ' booked</b><span>Order ' + ref
-      + ' · ' + inr(gross) + ' paid, including ' + inr(tax) + ' GST</span></div></div>'
+      + ' · ' + inr(gross) + ' including ' + inr(tax) + ' GST, payable to your counsellor</span></div></div>'
       + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
       + steps.map(([h, b]) => '<li><b>' + h + '</b><span>' + b + '</span></li>').join('')
       + '</ol></div>'
       + '<div class="demo-note" style="margin-top:14px">' + ico('info')
-      + '<span><b>Demo — no money was taken.</b> The payment gateway is not connected yet. '
-      + 'In production this screen appears only after the gateway confirms settlement.</span></div>'
+      + '<span><b>Nothing has been charged yet.</b> Online payment is not open on this site. '
+      + 'Your counsellor will confirm the amount and how to pay it when they call, and your '
+      + 'invoice follows the payment.</span></div>'
       + (items.some(s => s.ai)
           ? '<div class="paid-cta"><button class="btn btn-primary" id="scAi">'
             + ico('spark') + 'Open the AI studio</button></div>' : '');
@@ -3497,7 +3531,20 @@ if (location.protocol === 'file:') {
   });
 
   function boot() {
-    corner.appendChild(fab);
+    /*
+     * One button in the corner of the marketing pages, not two.
+     *
+     * WhatsApp and "Send a message" sat stacked on top of each other, and the
+     * pair read as clutter rather than as choice. On the site the corner is
+     * WhatsApp — it is where this office actually answers people, and it is
+     * what was asked for. The chat box stays exactly where it earns its keep:
+     * inside the student portal, where it is the counsellor thread.
+     *
+     * The lead capture that made the site chat worth having has not gone with
+     * it. The contact page carries a form that writes an enquiry, and the
+     * counselling form on the home page always has.
+     */
+    if (MODE !== 'site') corner.appendChild(fab);
     document.body.appendChild(corner);
 
     api('/api/chat').then(function (d) {
@@ -3569,6 +3616,104 @@ if (location.protocol === 'file:') {
       }
     })
     .catch(function () {});
+}());
+</script>
+<script>/* GLOVELS-RAZORPAY */
+(function () {
+  var SDK = 'https://checkout.razorpay.com/v1/checkout.js';
+  var loading = null;
+
+  function sdk() {
+    if (window.Razorpay) return Promise.resolve(window.Razorpay);
+    if (loading) return loading;
+    loading = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = SDK;
+      s.onload = function () {
+        window.Razorpay ? resolve(window.Razorpay)
+                        : reject(new Error('The payment window did not load.'));
+      };
+      s.onerror = function () {
+        reject(new Error('The payment window could not be reached. Check your connection '
+          + 'and try again \u2014 nothing has been charged.'));
+      };
+      document.head.appendChild(s);
+    });
+    return loading;
+  }
+
+  /*
+   * Resolves when the money is in, rejects with something worth reading.
+   *
+   * `d` is the answer from /api/orders. No gateway on this site means no
+   * `d.razorpay`, and then there is nothing to collect and nothing to wait for.
+   */
+  window.__glovelsCollect = function (d) {
+    if (!d || !d.razorpay) return Promise.resolve(d);
+
+    return sdk().then(function (Razorpay) {
+      return new Promise(function (resolve, reject) {
+        var settled = false;
+        var rzp = new Razorpay({
+          key: d.razorpay.keyId,
+          order_id: d.razorpay.orderId,
+          amount: d.razorpay.amountPaise,
+          currency: 'INR',
+          name: 'Glovels',
+          description: d.package || 'Glovels',
+          prefill: { name: d.buyerName || '', email: d.buyerEmail || '',
+                     contact: d.buyerPhone || '' },
+          notes: { reference: d.reference },
+          theme: { color: '#0b1e31' },
+
+          handler: function (r) {
+            settled = true;
+            /* The browser saying it worked is not the same as it having worked.
+               The server checks the signature; until it answers, nothing on
+               this page may claim a payment. */
+            fetch('/api/orders/' + encodeURIComponent(d.reference) + '/paid', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: r.razorpay_order_id,
+                razorpay_payment_id: r.razorpay_payment_id,
+                razorpay_signature: r.razorpay_signature
+              })
+            })
+              .then(function (res) { return res.json().then(function (j) {
+                return { ok: res.ok, j: j }; }); })
+              .then(function (out) {
+                if (!out.ok) throw new Error(out.j.error || 'That payment could not be confirmed.');
+                resolve(d);
+              })
+              .catch(function (e) {
+                /* Money may well have left their account — the webhook will
+                   settle it. Never tell them it failed. */
+                reject(new Error(e.message + ' Your reference is ' + d.reference
+                  + ' \u2014 quote it and we will find the payment.'));
+              });
+          },
+
+          modal: {
+            ondismiss: function () {
+              if (settled) return;
+              reject(new Error('The payment window was closed, so nothing has been charged. '
+                + 'Your order is held under ' + d.reference + ' if you would like to try again.'));
+            }
+          }
+        });
+
+        rzp.on('payment.failed', function (e) {
+          settled = true;
+          var why = (e && e.error && e.error.description) || 'The payment did not go through.';
+          reject(new Error(why + ' Nothing has been charged.'));
+        });
+
+        rzp.open();
+      });
+    });
+  };
 }());
 </script>
 </body>

@@ -50,6 +50,8 @@ run showcasetest.js 8089
 # rather than one screen at a time.
 run mobiletest.js   8099
 run seotest.js      8099
+run legaltest.js    8099
+run paytest.js      8099
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 

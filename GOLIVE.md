@@ -28,11 +28,12 @@ cheapest to check:
 1. **The site loads, and it opens on the navigation.** `https://glovels.onrender.com/`
    — the finder paints, the packages show prices, and there is no orange banner
    above the menu. Those banners are for the copy you open from disk.
-2. **The chat button is in the corner.** Press it, give a name and a number,
-   send a message. It should appear in the operations site under
-   **Website chat** within a second or two.
-3. **Reply to yourself from the office** and watch it arrive in the other tab
-   with nothing refreshed. That is the half that makes it a chat.
+2. **One button in the corner — WhatsApp.** The chat box lives inside the
+   student login now, where it is the counsellor thread. Lead capture on the
+   public site is the contact form and the counselling form, both of which write
+   into the enquiry book.
+3. **Send the contact form** on `/contact-us` and find yourself in the office
+   under **Website chat → Enquiry forms** within a second or two.
 4. **Sign in** at `/login` with your own email and the password from Render's
    Environment tab.
 5. **Change a price** on Home page → Packages, then reload the site. The card
@@ -77,27 +78,65 @@ To turn indexing on or off regardless — a soft launch, or a hold after the
 domain moves — set `ALLOW_INDEXING` to `true` or `false`. The start-up log says
 which way it went, on the line beginning `Search engines:`.
 
-## What is not built, and what is not written
+## Turning payments on
 
-**Payment.** An order is recorded, priced and confirmed, and no money moves.
-That was deliberate and it is the one thing standing between this and taking
-money.
+The checkout is wired to Razorpay and switched off. With no keys set, an order
+is recorded and a counsellor collects — the confirmation says exactly that, and
+does not claim a payment.
 
-**Four legal pages are stubs.** Terms, Privacy, Refunds and Grievance have a
-heading, a bullet list of what a page like that needs, and no actual terms. The
-notes reminding you of this are no longer published to visitors — but hiding the
-note does not write the page, and taking payments against an empty Terms page is
-the kind of gap that only matters once. The pages needing real copy, as of this
-build:
+To collect online, set three variables in Render's Environment tab:
 
-    terms  privacy  refunds  grievance  disclaimers  careers  refer
-    glossary  language-french  language-german  migrate-australia-pr
-    migrate-canada-pr  test-gre-gmat-sat  test-ielts-toefl-pte
-    work-medical-pg-germany  work-nursing-germany  work-opportunity-card
-    work-pharma-germany  and the six posts under /post/
+    RAZORPAY_KEY_ID          from the Razorpay dashboard, API Keys
+    RAZORPAY_KEY_SECRET      shown once, when the key is generated
+    RAZORPAY_WEBHOOK_SECRET  whatever you type when you create the webhook
 
-Open any of them from disk — `open build/terms.html` — and the note tells you
-what was intended for it.
+Then create the webhook in Razorpay pointing at
+`https://<your domain>/api/razorpay/webhook`, subscribed to **payment.captured**
+and **payment.failed**.
+
+The webhook is not optional in practice. It is the only thing that records a
+payment when the student's browser dies on the bank's verification page — their
+money has gone and nothing on your side would otherwise know. The start-up log
+says which state you are in, on the line beginning `Payments:`.
+
+Two things the server refuses in production, rather than letting them through:
+one key without the other, and a `rzp_test_` key. Both are cases where the
+checkout would look like it was working and would not be.
+
+Nothing is ever marked paid because a browser said so. Razorpay signs the
+payment, the server recomputes that signature with the secret, and only a match
+counts — so a package's universities cannot be unlocked by anybody who presses
+Confirm and closes the tab.
+
+## What is not written
+
+**Terms, Privacy, Refunds and Grievance are written — and want a lawyer's
+eye.** They are drafts, built from what this business actually does, and they
+are live rather than blank because the guarantee on the Boarding Pass card has
+been linking to `refunds.html#guarantee-terms` all along and that anchor did not
+exist. A guarantee whose terms are a 404 is the expensive kind of gap.
+
+They are not a lawyer's work. Before you take real money, have somebody who does
+this for a living read them — the refund rule and the guarantee especially.
+
+**They also need your numbers.** Home page → **Legal**. CIN, GSTIN, the
+registered office, the effective date, and a named grievance officer with a
+direct phone number. The tab counts what is still blank and says which page each
+blank belongs to. Nothing is guessed: until a line is typed, the pages leave it
+out rather than printing a placeholder.
+
+**The terms behind each package** are on that same tab, one box per package.
+That is what **Full terms** on a card opens. Edit them there, not in the code.
+
+**These pages are still stubs:**
+
+    disclaimers  careers  refer  glossary  language-french  language-german
+    migrate-australia-pr  migrate-canada-pr  test-gre-gmat-sat
+    test-ielts-toefl-pte  work-medical-pg-germany  work-nursing-germany
+    work-opportunity-card  work-pharma-germany  and the six posts under /post/
+
+Open any of them from disk — `open build/careers.html` — and the note tells you
+what was intended for it. Visitors do not see those notes.
 
 **Eight search descriptions are short.** Google shows about 155 characters and
 writes its own when the tag is thinner than it can use. `node tests/seotest.js`
@@ -105,11 +144,13 @@ lists them under `NOTE`.
 
 ## The tests
 
-    cd tests && ./runtests.sh          # nineteen suites, each on a fresh database
+    cd tests && ./runtests.sh          # every suite, each on a fresh database
     node loadcheck.js                  # every page loads without a console error
     node linkcheck.js                  # every internal link resolves
     node sweep.js                      # every control on every screen does something
     node mobiletest.js                 # nothing scrolls sideways on a phone
+    node paytest.js                    # what a forged payment cannot do
+    node legaltest.js                  # the legal pages, and the contact form
     node e2e.js                        # one person's walk through the whole business
 
 `e2e.js` is the one to run if you only run one: a stranger lands, is matched on

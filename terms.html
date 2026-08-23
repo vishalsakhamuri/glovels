@@ -288,6 +288,31 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-LEGAL-CSS */
+.prose h2{margin:34px 0 10px}
+.prose .lead{font-size:16.5px;line-height:1.7;color:var(--navy-800)}
+.legal-particulars{list-style:none;padding:0;margin:14px 0;display:grid;gap:7px}
+.legal-particulars li{font-size:14px;line-height:1.6;color:var(--navy-800);
+  padding-left:15px;position:relative}
+.legal-particulars li::before{content:"";position:absolute;left:0;top:9px;
+  width:5px;height:5px;border-radius:50%;background:var(--gold,#c9a24b)}
+.legal-eff{font-size:13.2px;color:var(--muted)}
+.legal-note{font-size:13.4px;color:var(--muted);line-height:1.65}
+.pkg-terms{display:grid;gap:16px;margin:16px 0 0}
+.pkg-term{border:1px solid var(--line);border-radius:12px;padding:17px 19px;
+  background:var(--paper)}
+.pkg-term > b{display:block;font:700 15.4px/1.35 var(--disp,inherit);
+  color:var(--navy-900);margin-bottom:4px}
+.pkg-term .pkg-term-price{display:block;font-size:12.4px;color:var(--muted);
+  margin-bottom:10px}
+.pkg-term h4{margin:14px 0 4px;font-size:13.8px;color:var(--navy-900)}
+.pkg-term h4:first-of-type{margin-top:0}
+.pkg-term p{margin:0 0 8px;font-size:13.9px;line-height:1.68}
+.pkg-term p:last-child{margin-bottom:0}
+[data-legal-row]{display:none}
+[data-legal-row].on{display:list-item}
+p[data-legal-row].on{display:block}
+</style>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +346,129 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Terms of Use</h1>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>The live site has a Terms of Use page. Move it across, then have it reviewed — it predates packages, pledges and online enquiries. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div><h2>Blanks that every legal page needs</h2><ul><li>CIN (Corporate Identity Number)</li><li>GSTIN</li><li>Registered office address</li><li>Grievance officer: name, designation, email, direct phone</li><li>Invoice numbering series</li><li>Effective date and version</li></ul><p style="font-size:13px;color:var(--muted)">Legal entity: <b>Glovels Consultants Private Limited</b>. This must match the PAN and GST records character for character.</p></div></section>
+<section class="block"><!-- GLOVELS-LEGAL-BODY --><div class="wrap prose">
+<p class="lead">These terms govern your use of this website and any service you
+  buy through it. Using the site means you accept them.</p>
+
+<h2 id="who-we-are">Who you are dealing with</h2>
+<p>This site is operated by <b data-legal="entity">Glovels Consultants Private
+  Limited</b> ("Glovels", "we", "us"), a company registered in India.</p>
+<ul class="legal-particulars">
+  <li data-legal-row="cin">Corporate Identity Number: <b data-legal="cin"></b></li>
+  <li data-legal-row="gstin">GSTIN: <b data-legal="gstin"></b></li>
+  <li data-legal-row="address">Registered office:
+    <span data-legal="address"></span></li>
+  <li>Email: <a href="mailto:info@glovels.com">info@glovels.com</a></li>
+</ul>
+<p data-legal-row="effective" class="legal-eff">In effect from
+  <b data-legal="effective"></b>.</p>
+
+<h2>What we do, and what we do not</h2>
+<p>We are an education consultancy. We match students to universities abroad —
+  public universities in particular — and we help with the work of getting there:
+  shortlisting, applications, statements of purpose and letters of
+  recommendation, scholarships, education loans, blocked accounts, insurance,
+  fee transfers and visa paperwork.</p>
+<p>We are not a university, an agent of any university, or any part of a
+  government. We do not decide admissions and we do not grant visas.
+  <b>An admission is decided by the university. A visa is decided by the
+  consulate.</b> Where a package carries an admission guarantee, that guarantee
+  is a promise about our fee and is set out in full on the
+  <a href="refunds.html">Refund and Cancellation policy</a>.</p>
+
+<h2>What the university finder shows you</h2>
+<p>The finder matches you against a catalogue we maintain of programmes, fees,
+  intakes and entry requirements. We keep it current and we check it, but
+  universities change fees, deadlines and requirements without telling us, and
+  the university's own website is the authority. Anything the finder shows is
+  an indication to act on, not a representation you should rely on without
+  checking.</p>
+<p>Some information — the names of public universities you match, and their
+  fees — is shown in full only to students who have bought a package that
+  includes it. What a package includes is stated on the package.</p>
+
+<h2>Your account</h2>
+<p>The student dashboard holds your shortlist, your documents, your
+  applications and your conversation with your counsellor. You are responsible
+  for your password and for what is done with your account. Tell us at once if
+  you think somebody else has it.</p>
+<p>You must be 18 or over to hold an account. If you are younger, a parent or
+  guardian must open it and deal with us on your behalf.</p>
+
+<h2>What you have to give us, and what happens if it is wrong</h2>
+<p>Everything we do rests on your documents and on what you tell us. Marksheets,
+  test scores, passports, funds statements and work history must be true,
+  complete and yours. A university that finds otherwise will reject the
+  application, and may bar you from applying again; a consulate may refuse a
+  visa and record the refusal.</p>
+<p>We do not verify documents for authenticity and we do not present them as
+  verified. If a document you gave us turns out to be false or materially
+  incomplete, we may stop work without refund, and any guarantee attached to
+  your package does not apply.</p>
+
+<h2>Deadlines</h2>
+<p>Applications run on the university's calendar, not ours or yours. When we set
+  you a deadline in writing for a document, a payment or a decision, meeting it
+  is your part of the arrangement. If a deadline is missed and an application
+  fails because of it, that is not a failure of the service.</p>
+
+<h2>Fees, GST and what a price includes</h2>
+<p>Prices on this site are in Indian rupees and include GST at the rate shown at
+  checkout. The price of a package covers the services listed on that package
+  and nothing else. Third-party costs are yours and are not included: university
+  application fees, tuition, deposits, blocked-account fees, test fees, visa
+  fees, biometrics, translation, apostille, courier and travel.</p>
+<p>We may change our prices at any time. A change never affects a package you
+  have already bought.</p>
+
+<h2>Cancellation and refunds</h2>
+<p>Set out separately, on the
+  <a href="refunds.html">Refund and Cancellation policy</a>. In short: fees are
+  not refundable once paid, save where a service was not delivered, where we
+  cancel, or where an admission guarantee pays out.</p>
+
+<h2>What we write for you</h2>
+<p>The studio on this site helps you draft a statement of purpose or a letter of
+  recommendation from things you tell it about yourself. It arranges your own
+  material — it does not invent achievements, grades or titles, and you must not
+  add any. The draft is a starting point and the final document is yours: you
+  are the one signing it, and you are responsible for it being true.</p>
+
+<h2>Our material</h2>
+<p>The text, design, catalogue and tools on this site belong to us. You may use
+  them to plan your own education. You may not copy the catalogue, scrape the
+  site, or resell any part of it.</p>
+
+<h2>What we are responsible for</h2>
+<p>We are responsible for doing our work with reasonable care and skill, and for
+  the promises we make on the packages we sell you. We are not responsible for
+  decisions that are not ours: an admission refused, a visa refused, a fee a
+  university changes, a deadline a university moves, or a delay at a bank or a
+  consulate.</p>
+<p>Where we are liable to you, our liability is limited to the fee you paid us
+  for the service concerned. Nothing here limits liability for fraud, or for
+  anything that cannot be limited by law.</p>
+
+<h2>Ending the arrangement</h2>
+<p>You may stop using the site at any time; the refund policy governs money
+  already paid. We may suspend or close an account that supplies false
+  documents, abuses our staff, or uses the site to do something unlawful.</p>
+
+<h2>Complaints</h2>
+<p>If something has gone wrong, the
+  <a href="grievance.html">Grievance Redressal</a> page names the person whose
+  job it is to deal with it and the time in which they must reply.</p>
+
+<h2>Law and jurisdiction</h2>
+<p>These terms are governed by the law of India, and the courts at
+  <span data-legal="jurisdiction">Hyderabad, Telangana</span> have exclusive
+  jurisdiction.</p>
+
+<h2>Changes to these terms</h2>
+<p>We may change these terms. The version on this page is the one that applies,
+  and the date it took effect is shown above. A change does not alter the terms
+  of a package you have already bought.</p>
+</div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>
@@ -737,7 +884,20 @@ if (location.protocol === 'file:') {
   });
 
   function boot() {
-    corner.appendChild(fab);
+    /*
+     * One button in the corner of the marketing pages, not two.
+     *
+     * WhatsApp and "Send a message" sat stacked on top of each other, and the
+     * pair read as clutter rather than as choice. On the site the corner is
+     * WhatsApp — it is where this office actually answers people, and it is
+     * what was asked for. The chat box stays exactly where it earns its keep:
+     * inside the student portal, where it is the counsellor thread.
+     *
+     * The lead capture that made the site chat worth having has not gone with
+     * it. The contact page carries a form that writes an enquiry, and the
+     * counselling form on the home page always has.
+     */
+    if (MODE !== 'site') corner.appendChild(fab);
     document.body.appendChild(corner);
 
     api('/api/chat').then(function (d) {
@@ -807,6 +967,100 @@ if (location.protocol === 'file:') {
           a.href = a.href.replace(/mailto:[^?]*/, 'mailto:' + c.email);
         });
       }
+    })
+    .catch(function () {});
+}());
+</script>
+<script>/* GLOVELS-LEGAL */
+(function () {
+  /* Opened from disk there is nothing to fetch, and the page still reads
+     correctly without the particulars — which is the whole reason a missing
+     value hides its row rather than printing a dash. */
+  if (location.protocol === 'file:') return;
+
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+
+  fetch('/api/content', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d) return;
+      var L = d.legal || {};
+      var o = L.officer || {};
+
+      var values = {
+        entity: L.entity,
+        cin: L.cin,
+        gstin: L.gstin,
+        address: L.address,
+        effective: L.effective,
+        jurisdiction: L.jurisdiction,
+        officerName: o.name,
+        officerDesignation: o.designation,
+        officerEmail: o.email,
+        officerPhone: o.phone
+      };
+
+      Object.keys(values).forEach(function (k) {
+        var v = values[k];
+        [].forEach.call(document.querySelectorAll('[data-legal="' + k + '"]'),
+          function (el) {
+            if (!v) return;
+            /* An address is typed across several lines and has to stay that
+               way — a registered office on one line is not somewhere anybody
+               can send a legal notice. */
+            if (k === 'address') el.innerHTML = esc(v).replace(/\n/g, '<br>');
+            else el.textContent = v;
+          });
+        [].forEach.call(document.querySelectorAll('[data-legal-row="' + k + '"]'),
+          function (el) { if (v) el.classList.add('on'); });
+        [].forEach.call(document.querySelectorAll('[data-legal-href="' + k + '"]'),
+          function (el) {
+            if (!v) return;
+            el.href = (k === 'officerPhone' ? 'tel:' + String(v).replace(/[^0-9+]/g, '')
+                                            : 'mailto:' + v);
+          });
+      });
+
+      /* A named officer replaces the fallback line rather than sitting above
+         it — two answers to "who do I write to" is one too many. */
+      var fb = document.getElementById('officerFallback');
+      if (fb && o.name && o.email) fb.hidden = true;
+
+      /* The package terms, on the refunds page. Each package's own contract,
+         under its own name, because that is what the card links here for. */
+      var host = document.getElementById('pkgTerms');
+      if (!host) return;
+      var items = ((d.packages || {}).items || [])
+        .filter(function (p) { return p.active !== false && p.terms; });
+      var none = document.getElementById('pkgTermsNone');
+      if (!items.length) { if (none) none.hidden = false; return; }
+
+      host.innerHTML = items.map(function (p) {
+        /* A blank line starts a new clause; a clause whose first line has no
+           full stop is its heading. That is how the office types it into the
+           box, so that is how it is read back. */
+        var body = String(p.terms).split(/\n\s*\n/).map(function (chunk) {
+          var lines = chunk.split('\n').filter(function (x) { return x.trim(); });
+          if (!lines.length) return '';
+          var head = lines[0].trim();
+          if (lines.length > 1 && !/[.:!?]$/.test(head) && head.length < 90) {
+            return '<h4>' + esc(head) + '</h4><p>'
+                 + esc(lines.slice(1).join(' ')) + '</p>';
+          }
+          return '<p>' + esc(lines.join(' ')) + '</p>';
+        }).join('');
+
+        var price = p.sell && p.priceInr
+          ? '<span class="pkg-term-price">' + esc(p.priceFrom || 'From') + ' \u20b9'
+            + Number(p.priceInr).toLocaleString('en-IN') + '</span>'
+          : '';
+        return '<div class="pkg-term" id="terms-' + esc(p.id) + '"><b>'
+             + esc(p.title || p.id) + '</b>' + price + body + '</div>';
+      }).join('');
     })
     .catch(function () {});
 }());

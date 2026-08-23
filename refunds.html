@@ -288,6 +288,31 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-LEGAL-CSS */
+.prose h2{margin:34px 0 10px}
+.prose .lead{font-size:16.5px;line-height:1.7;color:var(--navy-800)}
+.legal-particulars{list-style:none;padding:0;margin:14px 0;display:grid;gap:7px}
+.legal-particulars li{font-size:14px;line-height:1.6;color:var(--navy-800);
+  padding-left:15px;position:relative}
+.legal-particulars li::before{content:"";position:absolute;left:0;top:9px;
+  width:5px;height:5px;border-radius:50%;background:var(--gold,#c9a24b)}
+.legal-eff{font-size:13.2px;color:var(--muted)}
+.legal-note{font-size:13.4px;color:var(--muted);line-height:1.65}
+.pkg-terms{display:grid;gap:16px;margin:16px 0 0}
+.pkg-term{border:1px solid var(--line);border-radius:12px;padding:17px 19px;
+  background:var(--paper)}
+.pkg-term > b{display:block;font:700 15.4px/1.35 var(--disp,inherit);
+  color:var(--navy-900);margin-bottom:4px}
+.pkg-term .pkg-term-price{display:block;font-size:12.4px;color:var(--muted);
+  margin-bottom:10px}
+.pkg-term h4{margin:14px 0 4px;font-size:13.8px;color:var(--navy-900)}
+.pkg-term h4:first-of-type{margin-top:0}
+.pkg-term p{margin:0 0 8px;font-size:13.9px;line-height:1.68}
+.pkg-term p:last-child{margin-bottom:0}
+[data-legal-row]{display:none}
+[data-legal-row].on{display:list-item}
+p[data-legal-row].on{display:block}
+</style>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +346,70 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Refund &amp; Cancellation</h1>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>This page does not exist yet and BOTH package pledges link to it. It is the one page that carries a contractual promise. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div><h2 id="guarantee-terms">The admission guarantee — to be written</h2><p>Boarding Pass promises an admission offer or the fee back. Before a rupee is taken, this section must define:</p><ul><li>What counts as the <b>agreed shortlist</b>, and who agrees it</li><li>The <b>window</b> for supplying documents, and what happens if it is missed</li><li>What happens if the student <b>declines</b> an offer that is made</li><li>How the <b>refund</b> is calculated and when it is paid</li><li>What <b>voids</b> the guarantee</li><li>That <b>admission is the university’s decision</b>, and the visa the consulate’s</li></ul><h2>Blanks that every legal page needs</h2><ul><li>CIN (Corporate Identity Number)</li><li>GSTIN</li><li>Registered office address</li><li>Grievance officer: name, designation, email, direct phone</li><li>Invoice numbering series</li><li>Effective date and version</li></ul><p style="font-size:13px;color:var(--muted)">Legal entity: <b>Glovels Consultants Private Limited</b>. This must match the PAN and GST records character for character.</p></div></section>
+<section class="block"><!-- GLOVELS-LEGAL-BODY --><div class="wrap prose">
+<p class="lead">What happens to your money if you change your mind, if we cannot
+  do what we said, and if an admission guarantee has to pay out.</p>
+
+<h2 id="who-we-are">Who you are dealing with</h2>
+<p>This site is operated by <b data-legal="entity">Glovels Consultants Private
+  Limited</b> ("Glovels", "we", "us"), a company registered in India.</p>
+<ul class="legal-particulars">
+  <li data-legal-row="cin">Corporate Identity Number: <b data-legal="cin"></b></li>
+  <li data-legal-row="gstin">GSTIN: <b data-legal="gstin"></b></li>
+  <li data-legal-row="address">Registered office:
+    <span data-legal="address"></span></li>
+  <li>Email: <a href="mailto:info@glovels.com">info@glovels.com</a></li>
+</ul>
+<p data-legal-row="effective" class="legal-eff">In effect from
+  <b data-legal="effective"></b>.</p>
+
+<h2 id="cancellation">Cancellation by you</h2>
+<p>Fees are not refundable once paid. Our work begins with the first counselling call — the reading of your marksheets, the shortlist, the applications — and it is not recoverable once it has been done.</p>
+
+<p>Three things are not affected by that, and cannot be signed away:</p>
+
+<ul>
+<li>If we do not deliver a service you paid for, you are entitled to your money
+  back for it. That is the law and this policy does not displace it.</li>
+<li>If we cancel, or cannot carry out the service, we refund in full.</li>
+<li>The admission guarantee on a package that carries one is a separate promise
+  we have made to you, and it pays out on its own terms — see below.</li>
+</ul>
+
+<p>If you were charged twice for the same thing, or charged an amount you did not authorise, tell us and we will return it. That is a mistake, not a cancellation.</p>
+
+<h2>Cancellation by us</h2>
+<p>If we cancel, or find we cannot carry out what you bought, we refund what you
+  paid for the part not delivered, including the GST charged on it. We pay it to
+  the account the money came from, within 45 working days.</p>
+
+<h2>What a fee never covers</h2>
+<p>Third-party costs are not ours to refund, because they are not ours to
+  collect: university application fees, tuition, deposits, blocked-account fees,
+  test fees, visa fees, biometrics, translation, apostille and courier. Where
+  one of those is refundable, it is refundable by whoever charged it, on their
+  terms.</p>
+
+<h2 id="guarantee-terms">The admission guarantee</h2>
+<p>Some packages carry an admission guarantee. It is a promise about our own
+  fee, and it is separate from the cancellation rule above — the guarantee pays
+  out even though an ordinary cancellation does not.</p>
+<p>The exact terms belong to the package you bought, and are set out below.</p>
+<div id="pkgTerms" class="pkg-terms"></div>
+<p class="legal-note" id="pkgTermsNone" hidden>The terms for each package are
+  shown here once they are published. Until then, ask your counsellor for them
+  in writing before you buy.</p>
+
+<h2>How a refund reaches you</h2>
+<p>Refunds go back to the account the payment came from. We do not pay a refund
+  in cash, and we do not pay it to a third party.</p>
+
+<h2>If you disagree with a decision</h2>
+<p>Take it to the officer named on the
+  <a href="grievance.html">Grievance Redressal</a> page. They must acknowledge
+  you within 48 hours and answer within 30 days, and they are not the person who
+  made the decision you are disputing.</p>
+</div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>
@@ -737,7 +825,20 @@ if (location.protocol === 'file:') {
   });
 
   function boot() {
-    corner.appendChild(fab);
+    /*
+     * One button in the corner of the marketing pages, not two.
+     *
+     * WhatsApp and "Send a message" sat stacked on top of each other, and the
+     * pair read as clutter rather than as choice. On the site the corner is
+     * WhatsApp — it is where this office actually answers people, and it is
+     * what was asked for. The chat box stays exactly where it earns its keep:
+     * inside the student portal, where it is the counsellor thread.
+     *
+     * The lead capture that made the site chat worth having has not gone with
+     * it. The contact page carries a form that writes an enquiry, and the
+     * counselling form on the home page always has.
+     */
+    if (MODE !== 'site') corner.appendChild(fab);
     document.body.appendChild(corner);
 
     api('/api/chat').then(function (d) {
@@ -807,6 +908,100 @@ if (location.protocol === 'file:') {
           a.href = a.href.replace(/mailto:[^?]*/, 'mailto:' + c.email);
         });
       }
+    })
+    .catch(function () {});
+}());
+</script>
+<script>/* GLOVELS-LEGAL */
+(function () {
+  /* Opened from disk there is nothing to fetch, and the page still reads
+     correctly without the particulars — which is the whole reason a missing
+     value hides its row rather than printing a dash. */
+  if (location.protocol === 'file:') return;
+
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+
+  fetch('/api/content', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d) return;
+      var L = d.legal || {};
+      var o = L.officer || {};
+
+      var values = {
+        entity: L.entity,
+        cin: L.cin,
+        gstin: L.gstin,
+        address: L.address,
+        effective: L.effective,
+        jurisdiction: L.jurisdiction,
+        officerName: o.name,
+        officerDesignation: o.designation,
+        officerEmail: o.email,
+        officerPhone: o.phone
+      };
+
+      Object.keys(values).forEach(function (k) {
+        var v = values[k];
+        [].forEach.call(document.querySelectorAll('[data-legal="' + k + '"]'),
+          function (el) {
+            if (!v) return;
+            /* An address is typed across several lines and has to stay that
+               way — a registered office on one line is not somewhere anybody
+               can send a legal notice. */
+            if (k === 'address') el.innerHTML = esc(v).replace(/\n/g, '<br>');
+            else el.textContent = v;
+          });
+        [].forEach.call(document.querySelectorAll('[data-legal-row="' + k + '"]'),
+          function (el) { if (v) el.classList.add('on'); });
+        [].forEach.call(document.querySelectorAll('[data-legal-href="' + k + '"]'),
+          function (el) {
+            if (!v) return;
+            el.href = (k === 'officerPhone' ? 'tel:' + String(v).replace(/[^0-9+]/g, '')
+                                            : 'mailto:' + v);
+          });
+      });
+
+      /* A named officer replaces the fallback line rather than sitting above
+         it — two answers to "who do I write to" is one too many. */
+      var fb = document.getElementById('officerFallback');
+      if (fb && o.name && o.email) fb.hidden = true;
+
+      /* The package terms, on the refunds page. Each package's own contract,
+         under its own name, because that is what the card links here for. */
+      var host = document.getElementById('pkgTerms');
+      if (!host) return;
+      var items = ((d.packages || {}).items || [])
+        .filter(function (p) { return p.active !== false && p.terms; });
+      var none = document.getElementById('pkgTermsNone');
+      if (!items.length) { if (none) none.hidden = false; return; }
+
+      host.innerHTML = items.map(function (p) {
+        /* A blank line starts a new clause; a clause whose first line has no
+           full stop is its heading. That is how the office types it into the
+           box, so that is how it is read back. */
+        var body = String(p.terms).split(/\n\s*\n/).map(function (chunk) {
+          var lines = chunk.split('\n').filter(function (x) { return x.trim(); });
+          if (!lines.length) return '';
+          var head = lines[0].trim();
+          if (lines.length > 1 && !/[.:!?]$/.test(head) && head.length < 90) {
+            return '<h4>' + esc(head) + '</h4><p>'
+                 + esc(lines.slice(1).join(' ')) + '</p>';
+          }
+          return '<p>' + esc(lines.join(' ')) + '</p>';
+        }).join('');
+
+        var price = p.sell && p.priceInr
+          ? '<span class="pkg-term-price">' + esc(p.priceFrom || 'From') + ' \u20b9'
+            + Number(p.priceInr).toLocaleString('en-IN') + '</span>'
+          : '';
+        return '<div class="pkg-term" id="terms-' + esc(p.id) + '"><b>'
+             + esc(p.title || p.id) + '</b>' + price + body + '</div>';
+      }).join('');
     })
     .catch(function () {});
 }());

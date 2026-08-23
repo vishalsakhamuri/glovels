@@ -111,8 +111,17 @@ const names = page => page.$$eval('#rows tr',
   /* ------------------------ the one with nowhere to go is not a button */
   await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#rows tr', { timeout: 15000 });
-  check('"Orders placed" is a plain number, not a dead button',
-    (await page.$$('[data-go="orders"]')).length === 0);
+  /* It used to be a plain number BECAUSE there was no order book to open. There
+     is one now, so it leads there — and the person who reported the counters as
+     broken was pressing this one. */
+  check('"Orders placed" now leads to the order book',
+    (await page.$$('[data-go="orders"]')).length === 1);
+  await page.click('[data-go="orders"]');
+  await page.waitForTimeout(900);
+  check('and the order book is on the screen', await page.isVisible('#ordRows'));
+  check('it says how many orders there are, not just a rupee total',
+    /^\d+$/.test((await page.textContent('#kRev')).trim()),
+    await page.textContent('#kRev'));
 
   check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 

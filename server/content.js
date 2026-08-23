@@ -23,7 +23,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services', 'finder'];
+const KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services', 'finder',
+  'legal'];
 
 /*
  * The fifth block is not like the other four.
@@ -94,6 +95,21 @@ function cleanPackage(p, n) {
        package does and does not cover, so it belongs with the package, and it
        is editable by the people who have to honour it. */
     consent: str(p.consent, 400),
+    /*
+     * The package's own terms, in full.
+     *
+     * The pledge on the card is one sentence — "an admission offer, guaranteed,
+     * or your money back". The sentence that sells it cannot also be the
+     * contract, and the card already links to refunds.html#guarantee-terms for
+     * the rest. That page had nothing on it.
+     *
+     * This is the rest: what the guarantee covers, what voids it, how a claim
+     * is made. Kept with the package rather than written into the page, because
+     * the terms differ per package and the people who have to honour them are
+     * the people who should be able to change them. Newlines are kept — it is
+     * a list of clauses, not a sentence.
+     */
+    terms: String(p.terms == null ? '' : p.terms).slice(0, 6000),
     cta: str(p.cta, 40) || (sell ? 'Choose ' + str(p.title, 40) : 'Enquire'),
     ctaHref: /^(#|https?:\/\/|[a-z0-9._-]+\.html)/i.test(str(p.ctaHref, 200)) ? str(p.ctaHref, 200) : '',
     pledge: p.pledge && (p.pledge.title || p.pledge.body) ? {
@@ -342,10 +358,54 @@ const cleanFinder = v => {
   };
 };
 
+/*
+ * The company's own particulars, in one place.
+ *
+ * Terms of Use, the Privacy Policy, the Refund policy and the Grievance page
+ * all have to state the same CIN, the same GSTIN, the same registered address
+ * and the same named officer. Four copies of a number is four chances for
+ * three of them to be stale, and the one thing worse than an unfinished legal
+ * page is four legal pages that disagree with each other.
+ *
+ * So they live here and the pages read them at load. A typo in a GSTIN is
+ * fixed from the office in ten seconds and does not need a deploy.
+ *
+ * Nothing here is invented. Every field starts empty except the entity name,
+ * which is already printed on the pages; `blanks()` on the Legal tab counts
+ * what is still missing, so nobody has to remember which page needed what.
+ */
+function cleanLegal(v) {
+  const f = v && typeof v === 'object' ? v : {};
+  const o = f.officer && typeof f.officer === 'object' ? f.officer : {};
+  return {
+    entity: str(f.entity, 120) || 'Glovels Consultants Private Limited',
+    cin: str(f.cin, 40).toUpperCase(),
+    gstin: str(f.gstin, 20).toUpperCase(),
+    /* Kept as typed, newlines and all — an address on one line is not an
+       address anybody can post a legal notice to. */
+    address: String(f.address == null ? '' : f.address).slice(0, 400),
+    /* The Consumer Protection (E-Commerce) Rules want a NAMED officer with a
+       direct number. A support@ alias does not satisfy it, which is why these
+       are separate fields rather than one "contact us" line. */
+    officer: {
+      name: str(o.name, 80),
+      designation: str(o.designation, 80),
+      email: str(o.email, 120).toLowerCase(),
+      phone: str(o.phone, 30),
+    },
+    /* Shown on every page as "in effect from". Blank means the pages say they
+       are in draft, which is the honest reading until somebody sets it. */
+    effective: str(f.effective, 30),
+    jurisdiction: str(f.jurisdiction, 80) || 'Hyderabad, Telangana',
+    /* Where a student's fee actually lands, for the refund clause. */
+    invoiceSeries: str(f.invoiceSeries, 40),
+  };
+}
+
 const CLEAN = {
   packages: cleanPackages, stats: cleanStats,
   faq: cleanFaq, testimonials: cleanTestimonials, services: cleanServices,
-  writing: cleanWriting, finder: cleanFinder,
+  writing: cleanWriting, finder: cleanFinder, legal: cleanLegal,
 };
 
 /* ------------------------------------------------------------- the spreadsheet */

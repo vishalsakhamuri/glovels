@@ -68,6 +68,23 @@ function load(env) {
     loginWindowMs: (Number(env.LOGIN_WINDOW_MINUTES) || 15) * 60000,
 
     dataDir: env.DATA_DIR || '',
+
+    /*
+     * Razorpay. Off until both keys are set, and that is a working state, not a
+     * broken one: without them the checkout records the order and a counsellor
+     * collects, which is how this site has run all along.
+     *
+     * The secret is read here and never leaves the server — the browser is
+     * given the key id only, which is public by design and useless on its own.
+     */
+    razorpay: {
+      keyId: (env.RAZORPAY_KEY_ID || '').trim(),
+      keySecret: (env.RAZORPAY_KEY_SECRET || '').trim(),
+      /* Set this to the secret typed into the Razorpay dashboard when the
+         webhook is created. Without it a webhook cannot be verified, and an
+         unverifiable webhook is ignored rather than trusted. */
+      webhookSecret: (env.RAZORPAY_WEBHOOK_SECRET || '').trim(),
+    },
   };
 
   /*
@@ -94,6 +111,19 @@ function load(env) {
   const problems = [];
 
   if (production) {
+    /* Half-configured is worse than off: a key id with no secret means the
+       browser is offered a card form for a payment this server can never
+       verify. */
+    const r = cfg.razorpay;
+    if ((r.keyId || r.keySecret) && !(r.keyId && r.keySecret)) {
+      problems.push('Razorpay is half configured — RAZORPAY_KEY_ID and '
+        + 'RAZORPAY_KEY_SECRET must both be set, or neither. With one of them the '
+        + 'checkout would offer a card and then be unable to confirm the payment.');
+    }
+    if (r.keyId && /^rzp_test_/.test(r.keyId)) {
+      problems.push('RAZORPAY_KEY_ID is a TEST key (rzp_test_…) and this is production. '
+        + 'Real cards will be declined and test cards will appear to work.');
+    }
     if (!cfg.siteUrl) {
       problems.push('GLOVELS_URL is not set, and the host did not supply one either. '
         + 'Password-reset links and order emails are built from it, so without it they '
@@ -141,9 +171,15 @@ function describe(cfg) {
   return `  Mode: PRODUCTION — no demo accounts, Secure cookies, sign-in throttled.\n`
        + `  Public address: ${cfg.siteUrl}\n`
        + (cfg.allowIndexing
-           ? '  Search engines: allowed to index this site.'
+           ? '  Search engines: allowed to index this site.\n'
            : '  Search engines: asked to stay away (set GLOVELS_URL to your own '
-             + 'domain, or ALLOW_INDEXING=true, when you want to be found).');
+             + 'domain, or ALLOW_INDEXING=true, when you want to be found).\n')
+       + (cfg.razorpay.keyId && cfg.razorpay.keySecret
+           ? '  Payments: Razorpay is live'
+             + (cfg.razorpay.webhookSecret ? ', webhook verified.' : ' — NO webhook secret set, '
+               + 'so a payment whose browser never came back will not be recorded.')
+           : '  Payments: not collected online — an order is recorded and a counsellor '
+             + 'collects. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to change that.');
 }
 
 module.exports = { load, describe, DEV_PASSWORD };

@@ -42,8 +42,10 @@ const watch = (page, errs) => {
 
   check('the home page renders', (await p.title()).length > 5, await p.title());
   check('WhatsApp is offered to people who have not signed in',
-    await p.isVisible('#wa'));
-  check('and so is the chat box', await p.isVisible('.gv-chat-fab'));
+    await p.isVisible('.gv-wa'));
+  check('and it is the only thing in the corner',
+    (await p.$$eval('.gv-chat-fab',
+      els => els.filter(el => el.offsetParent !== null).length)) === 0);
 
   /* ------------------------------------------------------------ the finder */
   /* Germany and a master's — the combination most of the traffic arrives
@@ -59,21 +61,19 @@ const watch = (page, errs) => {
   check('a public university is matched but not named',
     /Public|Unlocks with|package/i.test(table), table.slice(0, 90));
 
-  /* =============================================== 2. the stranger asks a question */
+  /* ========================== 2. the stranger asks a question, on the contact page */
   console.log('\n=== and asks a question ===');
-  await p.click('.gv-chat-fab');
-  await p.waitForSelector('.gv-intro', { timeout: 8000 });
-  await p.fill('.gv-intro input[name="name"]', VISITOR.name);
-  await p.fill('.gv-intro input[name="contact"]', VISITOR.phone);
-  await p.click('.gv-intro .gv-go');
-  await p.waitForSelector('.gv-send', { timeout: 10000 });
-  check('giving a name and number opens the conversation', true);
-
-  await p.fill('.gv-send textarea', 'Is a public university in Germany possible with 7.2 CGPA?');
-  await p.click('.gv-send .gv-go');
+  await p.goto(BASE + '/contact-us', { waitUntil: 'load' });
   await p.waitForTimeout(1800);
-  check('the question appears in the thread',
-    /7\.2 CGPA/.test(await p.textContent('.gv-body')));
+  check('the contact page offers a phone number', await p.isVisible('#reachTel'));
+  await p.fill('#ctName', VISITOR.name);
+  await p.fill('#ctPhone', VISITOR.phone);
+  await p.fill('#ctMail', VISITOR.email);
+  await p.fill('#ctDest', 'Germany');
+  await p.fill('#ctMsg', 'Is a public university in Germany possible with 7.2 CGPA?');
+  await p.click('#ctGo');
+  await p.waitForSelector('#ctSent', { timeout: 10000 });
+  check('the enquiry is accepted and says so', await p.isVisible('#ctSent'));
 
   /* =============================================== 3. the office sees the lead */
   console.log('\n=== the office picks it up ===');
@@ -85,36 +85,17 @@ const watch = (page, errs) => {
   await s.goto(BASE + '/chat', { waitUntil: 'domcontentloaded' });
   await s.waitForTimeout(2500);
 
-  const chatList = await s.textContent('body');
-  check('the conversation is on the counsellor screen',
-    chatList.includes(VISITOR.name), VISITOR.name);
-
   await s.goto(BASE + '/chat#enquiries', { waitUntil: 'domcontentloaded' });
-  await s.waitForTimeout(2000);
+  await s.waitForTimeout(2200);
   const book = await s.textContent('#enqRows');
-  check('and the same person is a lead in the enquiry book',
+  check('the enquiry is a lead in the office within seconds',
     book.includes(VISITOR.name) && book.includes(VISITOR.phone),
     book.slice(0, 120));
-
-  /* ------------------------------------------------------- a counsellor replies */
-  await s.goto(BASE + '/chat', { waitUntil: 'domcontentloaded' });
-  await s.waitForTimeout(2000);
-  const thread = s.locator('[data-chat]').first();
-  if (await thread.count()) { await thread.click(); await s.waitForTimeout(1200); }
-  const reply = s.locator('#cReply, textarea').first();
-  await reply.fill('Yes — 7.2 clears most public universities. Shall we look at Munich?');
-  await s.locator('#cSend, button:has-text("Send")').first().click();
-  await s.waitForTimeout(2000);
-
-  await p.waitForTimeout(2500);
-  const seen = await p.textContent('.gv-body');
-  check('the reply reaches the visitor without a refresh',
-    /Munich/.test(seen), seen.slice(-90));
+  check('with what they actually asked, not just their name',
+    /7\.2 CGPA/.test(book) || /Germany/.test(book), book.slice(0, 140));
 
   /* =============================================== 4. the stranger buys something */
   console.log('\n=== and buys a package ===');
-  await p.click('.gv-chat header button');
-  await p.waitForTimeout(400);
   await p.goto(BASE + '/#packages', { waitUntil: 'domcontentloaded' });
   await p.waitForTimeout(2200);
   const buy = p.locator('#packages [data-buy]').first();

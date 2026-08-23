@@ -2114,6 +2114,620 @@ def notes_are_for_us():
 notes_are_for_us()
 
 
+# ------------------------------- terms / privacy / refunds / grievance
+#
+# The four legal pages get their bodies.
+#
+# All four were stubs: a heading, a list of "blanks that every legal page
+# needs", and a note to ourselves. The Boarding Pass card has been selling an
+# admission guarantee and linking to refunds.html#guarantee-terms for the full
+# terms, and that anchor did not exist. A guarantee whose terms are a 404 is the
+# one gap on this site that could cost real money.
+#
+# The prose lives in legal_pages.py. The particulars - CIN, GSTIN, registered
+# address, the named grievance officer, the effective date - are filled at load
+# from the `legal` content block, so four pages quoting the same number quote it
+# from one place. Each package's own terms are rendered from that package, which
+# is what the card links here for.
+import legal_pages
+
+
+def legal_bodies():
+    n = 0
+    for name, body in legal_pages.PAGES.items():
+        f = HERE / name
+        if not f.exists():
+            sys.exit(f"FAILED: {name} is missing - the legal pages patch has "
+                     f"nothing to write into.")
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-LEGAL-BODY" in t:
+            skipped.append(f"{name}: the body is written")
+            continue
+
+        start = t.index('<section class="block">')
+        end = t.index("</section>", start) + len("</section>")
+        t = (t[:start]
+             + '<section class="block"><!-- GLOVELS-LEGAL-BODY --><div class="wrap prose">'
+             + body + "</div></section>"
+             + t[end:])
+
+        if "GLOVELS-LEGAL-CSS" not in t:
+            t = t.replace("</head>", legal_pages.CSS + "</head>", 1)
+        if "GLOVELS-LEGAL" not in t.split("</body>")[0].split("GLOVELS-LEGAL-BODY")[0] \
+                or "/* GLOVELS-LEGAL */" not in t:
+            t = t.replace("</body>", legal_pages.SCRIPT + "</body>", 1)
+        write(f, t)
+        n += 1
+    if n:
+        applied.append(f"{n} legal page(s): the body is written")
+
+
+legal_bodies()
+
+
+# ---------------------------------------------------------------- index.html
+#
+# The checkout stops saying money was received.
+#
+# Both confirmations opened with "Payment received" and "Order GLV-1234 ·
+# ₹9,999 paid, including ₹1,525 GST". No gateway is connected and nothing is
+# charged. There was a grey note further down admitting it, which is not much
+# use: people read the big green heading, and it said they had paid.
+#
+# The wording now says what actually happened — the order is confirmed, the
+# amount is payable to the counsellor — and the note is written for a customer
+# rather than for us. None of this changes the flow or the order record; when a
+# gateway is connected, these three strings are what change back.
+patch(
+    "index.html",
+    "the package checkout does not claim a payment",
+    "$('#buyT').textContent = 'Payment received';",
+    "$('#buyT').textContent = 'Order confirmed';",
+    marker="$('#buyT').textContent = 'Order confirmed';",
+)
+
+patch(
+    "index.html",
+    "and states the amount as still payable",
+    "    + ' paid, including ₹' + nf.format(tax) + ' GST</span></div></div>'",
+    "    + ' including ₹' + nf.format(tax) + ' GST, payable to your counsellor"
+    "</span></div></div>'",
+    marker="GST, payable to your counsellor",
+)
+
+patch(
+    "index.html",
+    "and explains that to a customer rather than to us",
+    """    + '<div class="demo-note" style="margin-top:14px">' + ico('info')
+    + '<span><b>Demo — no money was taken.</b> The payment gateway is not connected yet. '
+    + 'In production this screen appears only after the gateway confirms settlement, and the '
+    + 'invoice and unlock are written by the server.</span></div>'""",
+    """    + '<div class="demo-note" style="margin-top:14px">' + ico('info')
+    + '<span><b>Nothing has been charged yet.</b> Online payment is not open on this site. '
+    + 'Your counsellor will confirm the amount and how to pay it when they call, and your '
+    + 'invoice follows the payment. Your place and your universities are held either '
+    + 'way.</span></div>'""",
+    marker="Nothing has been charged yet.</b> Online payment is not open on this site. '\n    + 'Your counsellor",
+)
+
+patch(
+    "index.html",
+    "the services checkout does not claim a payment either",
+    "$('#scT').textContent = 'Payment received';",
+    "$('#scT').textContent = 'Order confirmed';",
+    marker="$('#scT').textContent = 'Order confirmed';",
+)
+
+patch(
+    "index.html",
+    "and states its amount as still payable",
+    "      + ' · ' + inr(gross) + ' paid, including ' + inr(tax) + ' GST</span></div></div>'",
+    "      + ' · ' + inr(gross) + ' including ' + inr(tax) + ' GST, payable to your "
+    "counsellor</span></div></div>'",
+    # A marker unique to THIS patch. It was the same string the package patch
+    # above produces, so the moment that one ran this one believed it had
+    # already been applied — and the services confirmation went on saying
+    # "paid" while the package one had been fixed. The two patches are one
+    # scroll apart and the collision was invisible in the output: both lines
+    # said "already".
+    marker="inr(gross) + ' including ' + inr(tax) + ' GST, payable to your counsellor",
+)
+
+patch(
+    "index.html",
+    "and explains itself the same way",
+    """      + '<div class="demo-note" style="margin-top:14px">' + ico('info')
+      + '<span><b>Demo — no money was taken.</b> The payment gateway is not connected yet. '
+      + 'In production this screen appears only after the gateway confirms settlement.</span></div>'""",
+    """      + '<div class="demo-note" style="margin-top:14px">' + ico('info')
+      + '<span><b>Nothing has been charged yet.</b> Online payment is not open on this site. '
+      + 'Your counsellor will confirm the amount and how to pay it when they call, and your '
+      + 'invoice follows the payment.</span></div>'""",
+    marker="invoice follows the payment.</span></div>'",
+)
+
+# The buttons that said Pay. Same reasoning: a button labelled Pay that takes no
+# payment is the same untruth in fewer words.
+patch(
+    "index.html",
+    "the package button asks to confirm, not to pay",
+    "$('#buyPay').innerHTML = 'Pay ₹' + nf.format(gross);",
+    "$('#buyPay').innerHTML = 'Confirm — ₹' + nf.format(gross);",
+    marker="$('#buyPay').innerHTML = 'Confirm — ₹'",
+)
+
+patch(
+    "index.html",
+    "and so does the services button",
+    "$('#scPay').innerHTML = 'Pay ' + inr(gross);",
+    "$('#scPay').innerHTML = 'Confirm — ' + inr(gross);",
+    marker="$('#scPay').innerHTML = 'Confirm — '",
+)
+
+
+# ------------------------------------------------------------- contact-us.html
+#
+# The contact page gets a way to make contact.
+#
+# It listed two addresses, an email and the opening hours, and then sent people
+# to the counselling form on another page. There was no phone number anywhere on
+# it — the note to ourselves said "a phone number for: Hyderabad, Munich" and
+# that note was the only trace of the gap. A contact page whose answer to "how
+# do I contact you" is "go to a different page" is the one page on a site nobody
+# forgives.
+#
+# It now carries the office's own number, the WhatsApp button and the email —
+# all three filled at load from Finder & contact, so they are edited in one
+# place — and a form that posts to the same endpoint the counselling form uses,
+# so an enquiry from here lands in the enquiry book like any other.
+CONTACT_BLOCK = """
+  <h2 id="reach-us">Reach us</h2>
+  <div class="factbox" id="reachBox">
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Phone</span>
+      <b><a href="tel:+917093314089" id="reachTel">+91 70933 14089</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg> WhatsApp</span>
+      <b><a href="https://wa.me/917093314089" id="reachWa" rel="noopener"
+        target="_blank">Message us</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span>
+      <b><a href="mailto:info@glovels.com" id="reachMail">info@glovels.com</a></b></div>
+  </div>
+
+  <h2 id="write">Or write to us here</h2>
+  <p>Tell us where you are headed and we will call you back within one working day,
+    Mon&ndash;Sat 9:30&ndash;19:30 IST. Nothing is charged and there is no obligation.</p>
+  <form id="ctForm" class="ct-form" novalidate>
+    <div class="ct-row">
+      <label>Your name
+        <input id="ctName" autocomplete="name" placeholder="Ananya Rao" required></label>
+      <label>Mobile number
+        <input id="ctPhone" inputmode="tel" autocomplete="tel"
+          placeholder="98765 43210" required></label>
+    </div>
+    <div class="ct-row">
+      <label>Email
+        <input id="ctMail" inputmode="email" autocomplete="email"
+          placeholder="you@example.com" required></label>
+      <label>Where are you headed?
+        <input id="ctDest" placeholder="Germany, Canada, not sure yet"></label>
+    </div>
+    <label>What would you like to ask?
+      <textarea id="ctMsg" rows="4"
+        placeholder="Your course, your CGPA, your intake — whatever is on your mind."></textarea></label>
+    <input id="ctTrap" tabindex="-1" autocomplete="off" aria-hidden="true"
+      style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    <p class="ct-err" id="ctErr" role="alert" hidden></p>
+    <button class="btn btn-green" id="ctGo" type="submit">Send</button>
+  </form>
+"""
+
+CONTACT_CSS = """<style>/* GLOVELS-CONTACT-FORM */
+.ct-form{display:grid;gap:14px;max-width:640px;margin:16px 0 0}
+.ct-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:640px){ .ct-row{grid-template-columns:1fr} }
+.ct-form label{display:grid;gap:6px;font:600 12.6px/1.4 var(--sans);color:var(--navy-800)}
+.ct-form input,.ct-form textarea{width:100%;padding:11px 13px;font:400 14px/1.5 var(--sans);
+  border:1.5px solid #d8dde4;border-radius:10px;background:#fff;color:var(--navy-900)}
+.ct-form textarea{resize:vertical;min-height:96px}
+.ct-form input:focus,.ct-form textarea:focus{outline:2px solid var(--blue,#1a4fb4);
+  outline-offset:1px;border-color:var(--blue,#1a4fb4)}
+.ct-form input.bad,.ct-form textarea.bad{border-color:#c0392b;background:#fdf3f2}
+.ct-err{margin:0;color:#7a2118;font:600 13px/1.55 var(--sans)}
+.ct-sent{display:flex;gap:11px;align-items:flex-start;padding:15px 17px;border-radius:12px;
+  background:#eef8f2;border:1px solid #bfe0cc;color:#14603a;max-width:640px}
+.ct-sent b{display:block;font-size:14.6px;margin-bottom:3px}
+.ct-sent span{font-size:13.2px;line-height:1.6}
+</style>
+"""
+
+CONTACT_SCRIPT = """<script>/* GLOVELS-CONTACT-FORM-JS */
+(function () {
+  var form = document.getElementById('ctForm');
+  if (!form) return;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* The office's own numbers, from Finder & contact — the same place the rest
+     of the site reads them from, so there is one number to change and not
+     four. The markup ships with the current one so the page is right even if
+     this never runs. */
+  if (location.protocol !== 'file:') {
+    fetch('/api/content', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var c = (d && d.finder && d.finder.contact) || {};
+        if (c.phone) {
+          var tel = $('reachTel');
+          tel.textContent = c.phone;
+          tel.href = 'tel:' + c.phone.replace(/[^0-9+]/g, '');
+        }
+        if (c.whatsapp) $('reachWa').href = 'https://wa.me/' + c.whatsapp;
+        if (c.email) {
+          var m = $('reachMail');
+          m.textContent = c.email;
+          m.href = 'mailto:' + c.email;
+        }
+      })
+      .catch(function () {});
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = $('ctErr');
+    err.hidden = true;
+
+    /* Anything that fills the hidden field is a robot. Answer it exactly as we
+       would answer a person, and write nothing down. */
+    if ($('ctTrap').value) { done(); return; }
+
+    var checks = [
+      ['ctName', function (v) { return v.length > 1; }, 'Tell us your name.'],
+      ['ctPhone', function (v) {
+        return /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10));
+      }, 'A 10-digit Indian mobile, please.'],
+      ['ctMail', function (v) { return /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v); },
+        'A valid email, please.']
+    ];
+    var bad = null;
+    checks.forEach(function (c) {
+      var el = $(c[0]), ok = c[1](el.value.trim());
+      el.classList.toggle('bad', !ok);
+      if (!ok && !bad) bad = c[2];
+    });
+    if (bad) { err.textContent = bad; err.hidden = false; $(checks[0][0]).focus(); return; }
+
+    var btn = $('ctGo');
+    btn.disabled = true;
+    btn.textContent = 'Sending\\u2026';
+
+    var payload = {
+      _subject: 'Website enquiry \\u2014 contact page',
+      name: $('ctName').value.trim(),
+      phone: $('ctPhone').value.trim(),
+      email: $('ctMail').value.trim(),
+      destination: $('ctDest').value.trim(),
+      message: $('ctMsg').value.trim(),
+      source: 'contact-us'
+    };
+
+    fetch('/send.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('the server answered ' + r.status);
+        done();
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Send';
+        /* Never a dead end. What they typed goes into a mail link so it is not
+           lost, and the phone number is right there. */
+        var body = ['Name: ' + payload.name, 'Phone: ' + payload.phone,
+          'Email: ' + payload.email, 'Destination: ' + payload.destination,
+          '', payload.message].join('\\n');
+        err.innerHTML = '<b>That did not send.</b> Please call '
+          + '<a href="' + $('reachTel').href + '">' + $('reachTel').textContent
+          + '</a>, or <a href="mailto:' + $('reachMail').textContent
+          + '?subject=' + encodeURIComponent('Website enquiry')
+          + '&body=' + encodeURIComponent(body) + '">send it by email</a> \\u2014 '
+          + 'what you typed is already in the message.';
+        err.hidden = false;
+      });
+
+    function done() {
+      form.outerHTML = '<div class="ct-sent" id="ctSent"><svg class="ico" aria-hidden="true">'
+        + '<use href="#i-check"></use></svg><div><b>Thank you \\u2014 that reached us.</b>'
+        + '<span>A counsellor calls you back within one working day, Mon\\u2013Sat '
+        + '9:30\\u201319:30 IST. Nothing is charged and there is no obligation.</span>'
+        + '</div></div>';
+    }
+  });
+}());
+</script>
+"""
+
+
+def contact_page():
+    f = HERE / "contact-us.html"
+    t = f.read_text(encoding="utf-8")
+    if "GLOVELS-CONTACT-FORM-JS" in t:
+        skipped.append("contact-us.html: there is a way to make contact")
+        return
+    anchor = ('<p><a class="btn btn-primary" href="index.html#counsel">Book free counselling '
+              '<svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>')
+    if anchor not in t:
+        sys.exit("FAILED contact-us.html: the counselling button is not where the "
+                 "contact block expected to go in after it.")
+    t = t.replace(anchor, anchor + CONTACT_BLOCK, 1)
+    t = t.replace("</head>", CONTACT_CSS + "</head>", 1)
+    t = t.replace("</body>", CONTACT_SCRIPT + "</body>", 1)
+    write(f, t)
+    applied.append("contact-us.html: there is a way to make contact")
+
+
+contact_page()
+
+
+# ------------------------------------------------------------------ every page
+#
+# The WhatsApp glyph, on the pages that reference it.
+#
+# `<use href="#i-wa">` on a page whose sprite has no i-wa renders as an empty
+# gap — silently, with no console error. index.html defines it; the marketing
+# pages were built before it existed, and the contact page now asks for it.
+WA_SYMBOL = ('<symbol id="i-wa" viewBox="0 0 24 24">'
+             '<path d="M12 3.8a8 8 0 0 0-6.8 12.2L4 20.4l4.5-1.2A8 8 0 1 0 12 3.8Z"/>'
+             '</symbol>')
+
+
+def whatsapp_glyph():
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        t = f.read_text(encoding="utf-8")
+        if "#i-wa" not in t or 'symbol id="i-wa"' in t or "</defs>" not in t:
+            continue
+        write(f, t.replace("</defs>", WA_SYMBOL + "</defs>", 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the WhatsApp glyph is defined where it is used")
+    else:
+        skipped.append("every page: the WhatsApp glyph is defined where it is used")
+
+
+whatsapp_glyph()
+
+
+# ------------------------------------------------------------- contact-us.html
+#
+# A phone number a person reads, and a phone number a phone dials.
+#
+# The office stores its number as digits — 917093314089 — because that is what a
+# tel: link and a wa.me link need. Printed raw it is a fourteen-digit run nobody
+# can read back over a bad line. The link keeps the digits; the label gets the
+# spaces.
+patch(
+    "contact-us.html",
+    "the printed phone number is readable",
+    """        if (c.phone) {
+          var tel = $('reachTel');
+          tel.textContent = c.phone;
+          tel.href = 'tel:' + c.phone.replace(/[^0-9+]/g, '');
+        }""",
+    """        if (c.phone) {
+          var tel = $('reachTel');
+          var digits = c.phone.replace(/[^0-9]/g, '');
+          /* 917093314089 -> +91 70933 14089. Anything that is not a 12-digit
+             Indian number is printed as it was typed, because a guess at the
+             grouping of a number we do not recognise is worse than no
+             grouping. */
+          tel.textContent = /^91[6-9][0-9]{9}$/.test(digits)
+            ? '+91 ' + digits.slice(2, 7) + ' ' + digits.slice(7)
+            : c.phone;
+          tel.href = 'tel:+' + digits;
+        }""",
+    marker="a guess at the",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# Razorpay: the card form, and the one thing that must not be trusted.
+#
+# The browser opens Razorpay's own sheet — the card never touches this site —
+# and Razorpay hands back three ids and a signature. Those go straight to our
+# server, which recomputes the signature with a secret no browser has ever seen.
+# Only then is anything marked paid. The page never decides that; it only asks.
+#
+# With no keys configured `d.razorpay` is absent, __glovelsCollect resolves at
+# once, and the checkout behaves exactly as it did before there was a gateway.
+# That is the state this site is in today and it has to keep working.
+RAZORPAY_JS = """<script>/* GLOVELS-RAZORPAY */
+(function () {
+  var SDK = 'https://checkout.razorpay.com/v1/checkout.js';
+  var loading = null;
+
+  function sdk() {
+    if (window.Razorpay) return Promise.resolve(window.Razorpay);
+    if (loading) return loading;
+    loading = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = SDK;
+      s.onload = function () {
+        window.Razorpay ? resolve(window.Razorpay)
+                        : reject(new Error('The payment window did not load.'));
+      };
+      s.onerror = function () {
+        reject(new Error('The payment window could not be reached. Check your connection '
+          + 'and try again \\u2014 nothing has been charged.'));
+      };
+      document.head.appendChild(s);
+    });
+    return loading;
+  }
+
+  /*
+   * Resolves when the money is in, rejects with something worth reading.
+   *
+   * `d` is the answer from /api/orders. No gateway on this site means no
+   * `d.razorpay`, and then there is nothing to collect and nothing to wait for.
+   */
+  window.__glovelsCollect = function (d) {
+    if (!d || !d.razorpay) return Promise.resolve(d);
+
+    return sdk().then(function (Razorpay) {
+      return new Promise(function (resolve, reject) {
+        var settled = false;
+        var rzp = new Razorpay({
+          key: d.razorpay.keyId,
+          order_id: d.razorpay.orderId,
+          amount: d.razorpay.amountPaise,
+          currency: 'INR',
+          name: 'Glovels',
+          description: d.package || 'Glovels',
+          prefill: { name: d.buyerName || '', email: d.buyerEmail || '',
+                     contact: d.buyerPhone || '' },
+          notes: { reference: d.reference },
+          theme: { color: '#0b1e31' },
+
+          handler: function (r) {
+            settled = true;
+            /* The browser saying it worked is not the same as it having worked.
+               The server checks the signature; until it answers, nothing on
+               this page may claim a payment. */
+            fetch('/api/orders/' + encodeURIComponent(d.reference) + '/paid', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: r.razorpay_order_id,
+                razorpay_payment_id: r.razorpay_payment_id,
+                razorpay_signature: r.razorpay_signature
+              })
+            })
+              .then(function (res) { return res.json().then(function (j) {
+                return { ok: res.ok, j: j }; }); })
+              .then(function (out) {
+                if (!out.ok) throw new Error(out.j.error || 'That payment could not be confirmed.');
+                resolve(d);
+              })
+              .catch(function (e) {
+                /* Money may well have left their account — the webhook will
+                   settle it. Never tell them it failed. */
+                reject(new Error(e.message + ' Your reference is ' + d.reference
+                  + ' \\u2014 quote it and we will find the payment.'));
+              });
+          },
+
+          modal: {
+            ondismiss: function () {
+              if (settled) return;
+              reject(new Error('The payment window was closed, so nothing has been charged. '
+                + 'Your order is held under ' + d.reference + ' if you would like to try again.'));
+            }
+          }
+        });
+
+        rzp.on('payment.failed', function (e) {
+          settled = true;
+          var why = (e && e.error && e.error.description) || 'The payment did not go through.';
+          reject(new Error(why + ' Nothing has been charged.'));
+        });
+
+        rzp.open();
+      });
+    });
+  };
+}());
+</script>
+"""
+
+
+def razorpay_client():
+    f = HERE / "index.html"
+    t = f.read_text(encoding="utf-8")
+    if "GLOVELS-RAZORPAY" not in t:
+        t = t.replace("</body>", RAZORPAY_JS + "</body>", 1)
+        write(f, t)
+        applied.append("index.html: the card form, and a payment the server verifies")
+    else:
+        skipped.append("index.html: the card form, and a payment the server verifies")
+
+
+razorpay_client()
+
+
+# The package checkout waits for the money before it congratulates anybody.
+patch(
+    "index.html",
+    "the package checkout collects before it confirms",
+    """  .then(r => r.json().then(d => ({ok: r.ok, d})))
+  .then(({ok, d}) => {
+    if (!ok) throw new Error(d.error || 'order refused');
+    ref = d.reference;                       /* the server's reference, not ours */""",
+    """  .then(r => r.json().then(d => ({ok: r.ok, d})))
+  .then(({ok, d}) => {
+    if (!ok) throw new Error(d.error || 'order refused');
+    /* If a gateway is collecting, this opens the card sheet and does not
+       resolve until the server has verified the signature. With no gateway it
+       resolves at once and everything below is unchanged. */
+    return window.__glovelsCollect(Object.assign({}, d, {
+      buyerName: buyer.name, buyerEmail: buyer.email, buyerPhone: buyer.phone
+    }));
+  })
+  .then(d => {
+    ref = d.reference;                       /* the server's reference, not ours */""",
+    marker="the card sheet and does not\n       resolve until the server has verified",
+)
+
+# And the services checkout, the same way. Its shape is different — async/await
+# rather than a promise chain — so the wait goes in where the order comes back.
+patch(
+    "index.html",
+    "the services checkout collects before it confirms",
+    """      if (r.ok) {
+        placed = await r.json();
+        ref = placed.reference;
+      }
+    } catch (e) {
+      /* Offline, or opened from disk. The confirmation below still appears —
+         losing the screen as well as the connection helps nobody. */
+    }""",
+    """      if (r.ok) {
+        placed = await r.json();
+        ref = placed.reference;
+      }
+    } catch (e) {
+      /* Offline, or opened from disk. The confirmation below still appears —
+         losing the screen as well as the connection helps nobody. */
+    }
+
+    /* If a gateway is collecting, the card sheet opens here and this does not
+       return until the server has verified the signature. With no gateway it
+       returns at once and everything below is unchanged.
+
+       A failure here is NOT swallowed the way the fetch above is: an order that
+       was never paid must not show a confirmation. */
+    if (placed && placed.razorpay) {
+      try {
+        await window.__glovelsCollect(Object.assign({}, placed, {
+          buyerName: $('#scName').value.trim(),
+          buyerEmail: $('#scMail').value.trim(),
+          buyerPhone: $('#scPhone').value.trim(),
+        }));
+      } catch (e) {
+        const err = $('#scLegal') || $('#scBody');
+        if (err) {
+          err.innerHTML = '<p style="margin:12px 0 0;padding:11px 13px;border-radius:10px;'
+            + 'background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118;font:600 12.8px/1.55 '
+            + 'var(--sans)">' + esc(e.message) + '</p>';
+        }
+        return;
+      }
+    }""",
+    marker="an order that\n       was never paid must not show a confirmation",
+)
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and

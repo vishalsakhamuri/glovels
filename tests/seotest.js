@@ -17,7 +17,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = '/home/claude/glovels/build';
+const ROOT = require('path').join(__dirname, '..');
 const ok = [], bad = [];
 const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + note : ''));
 
@@ -144,8 +144,8 @@ const PROD = {
        Twenty-seven pages carried a "To write" block addressed to this office
        and published to everybody. They belong to the copy opened from disk. */
     const notes = [];
-    for (const s of ['terms', 'privacy', 'refunds', 'grievance', 'about-us',
-      'careers', 'language-french', 'work-nursing-germany']) {
+    for (const s of ['about-us', 'careers', 'refer', 'glossary',
+      'language-french', 'work-nursing-germany', 'test-gre-gmat-sat']) {
       await page.goto('http://localhost:8071/' + s, { waitUntil: 'load' });
       await page.waitForTimeout(300);
       const n = await page.$$eval('.towrite',
@@ -155,8 +155,11 @@ const PROD = {
     check('no "To write" notes are published to visitors',
       notes.length === 0, notes.join(' '));
 
+    /* careers.html, not terms.html — Terms has since been written, and its note
+       to ourselves went with the stub it was attached to. Testing for a note on
+       a page that no longer needs one is testing the wrong thing. */
     const fileCopy = await (await browser.newContext()).newPage();
-    await fileCopy.goto('file:///home/claude/glovels/build/terms.html', { waitUntil: 'load' });
+    await fileCopy.goto('file://' + ROOT + '/careers.html', { waitUntil: 'load' });
     await fileCopy.waitForTimeout(500);
     check('but the office still sees them on the copy it opens from disk',
       (await fileCopy.$$eval('.towrite',

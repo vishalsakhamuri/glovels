@@ -256,6 +256,15 @@ function sqliteDriver(file) {
       who bought four of them signed in to an empty dashboard. */
    "ALTER TABLE orders ADD COLUMN items TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE orders ADD COLUMN kind TEXT NOT NULL DEFAULT 'package'",
+   /* The gateway's own identifiers. Kept because a refund, a chargeback or a
+      reconciliation against a Razorpay settlement report is done by THEIR id —
+      our reference means nothing at their end. */
+   "ALTER TABLE orders ADD COLUMN gateway_order_id TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE orders ADD COLUMN gateway_payment_id TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE orders ADD COLUMN paid_at TEXT NOT NULL DEFAULT ''",
+   /* After the ALTERs, not in the schema above: the schema runs first, and an
+      index on a column that does not exist yet fails on every fresh database. */
+   "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -591,6 +600,39 @@ function open(dir) {
       return db.one('SELECT * FROM orders WHERE reference = ?', o.reference);
     },
     ordersFor: id => db.all('SELECT * FROM orders WHERE student_id = ? ORDER BY id desc', Number(id)),
+    /*
+     * EVERY order, including the ones nobody has signed up for yet.
+     *
+     * The office counted its orders by walking the students and asking each one
+     * what they had bought. An order placed by a visitor who has not yet made
+     * an account has no student to walk from — so it was counted nowhere, shown
+     * nowhere, and the Organisation screen read "0 orders placed" to somebody
+     * who had just placed four. Buying before signing up is the normal path on
+     * this site; it cannot be the path that disappears.
+     */
+    allOrders: () => db.all('SELECT * FROM orders ORDER BY id desc'),
+    orderByReference: r => db.one('SELECT * FROM orders WHERE reference = ?', String(r)),
+    orderByGateway: g =>
+      db.one('SELECT * FROM orders WHERE gateway_order_id = ?', String(g)),
+    setOrderGateway: (reference, gatewayOrderId) =>
+      db.run('UPDATE orders SET gateway_order_id = ? WHERE reference = ?',
+        String(gatewayOrderId), String(reference)),
+    setOrderStatus: (reference, status) =>
+      db.run('UPDATE orders SET status = ? WHERE reference = ?',
+        String(status), String(reference)),
+    /*
+     * Paid, and when, and by which payment.
+     *
+     * The payment id is kept because it is the only handle a refund or a
+     * dispute can be raised against later — an order reference means nothing to
+     * the gateway. `paid_at` is separate from `created_at`: an order created on
+     * Friday and paid on Monday is a normal thing, and collapsing the two loses
+     * the fact.
+     */
+    setOrderPaid: (reference, paymentId) =>
+      db.run('UPDATE orders SET status = ?, gateway_payment_id = ?, paid_at = ? '
+        + 'WHERE reference = ?',
+        'paid', String(paymentId || ''), now(), String(reference)),
     ordersByEmail: e => db.all('SELECT * FROM orders WHERE email = ? ORDER BY id desc', String(e).toLowerCase()),
     /* An order placed before signing up is claimed the moment that email
        registers — otherwise a student who paid as a guest signs in to an empty
