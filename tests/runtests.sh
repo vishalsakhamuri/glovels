@@ -50,6 +50,7 @@ run leadtest.js     8099
 run alerttest.js    8099
 run contracttest.js 8099
 run partstest.js    8099
+run sharedtest.js   8099
 run sheettest.js    8099
 run servicetest.js  8086
 run showcasetest.js 8089

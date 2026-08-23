@@ -29,6 +29,33 @@ const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
     !PLANS.allowed(1000000));
   check('a rupee over, and it can be spread', PLANS.allowed(1000100));
 
+  /* The office's two other rules: four parts at most, and ₹5,000 at least. */
+  check('four parts at most', PLANS.MAX_PARTS === 4, PLANS.MAX_PARTS);
+  check('and ₹5,000 at least in each', PLANS.MIN_PART_PAISE === 500000,
+    PLANS.MIN_PART_PAISE);
+  for (const gross of [1000100, 1100000, 1200000, 1500000, 2999900, 4499900, 7499900]) {
+    const parts = PLANS.split(gross, null, 0);
+    check('₹' + (gross / 100) + ' splits into no more than four',
+      parts.length <= 4, parts.length);
+    check('and no part of it is under ₹5,000',
+      parts.every(p => p.paise >= 500000), parts.map(p => p.paise / 100).join(' + '));
+  }
+  /* A price that cannot carry three parts of ₹5,000 gets two, not three small
+     ones. ₹11,000 is the case: 40/30/30 would be ₹4,400 / ₹3,300 / ₹3,300. */
+  check('a price that cannot carry three parts is given two',
+    PLANS.split(1100000, null, 0).length === 2,
+    PLANS.split(1100000, null, 0).map(p => p.paise / 100).join(' + '));
+  /* And an authored plan with more phases than four is capped. */
+  const many = PLANS.split(10000000, { plan: [
+    { label: 'a', percent: 20, dueDays: 0 }, { label: 'b', percent: 20, dueDays: 20 },
+    { label: 'c', percent: 20, dueDays: 40 }, { label: 'd', percent: 20, dueDays: 60 },
+    { label: 'e', percent: 20, dueDays: 80 }, { label: 'f', percent: 20, dueDays: 99 },
+  ] }, 0);
+  check('six authored phases become four', many.length === 4, many.length);
+  check('and they still add up exactly',
+    many.reduce((n, p) => n + p.paise, 0) === 10000000,
+    many.map(p => p.paise / 100).join(' + '));
+
   for (const gross of [1000100, 2999900, 4999900, 7499900, 123457]) {
     const parts = PLANS.split(gross, null, 0);
     if (!parts) continue;
@@ -62,8 +89,8 @@ const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
 
   const lines = await page.$$eval('#packages .partline', els => els.map(e => e.textContent.trim()));
   check('the cards say part payment is possible', lines.length >= 2, lines.join(' | '));
-  check('and say what starting it costs', lines.every(l => /₹[\d,]+ to start/.test(l)),
-    lines[0]);
+  check('and say what starting it costs, and in how many parts',
+    lines.every(l => /₹[\d,]+ to start, \d parts/.test(l)), lines[0]);
 
   await page.click('[data-buy="pkg-boarding"]');
   await page.waitForTimeout(900);

@@ -65,12 +65,15 @@ SCRIPT = r"""
     /* "We should show it in feature part payment possible." A price somebody
        cannot pay today is a card they stop reading, so the alternative goes on
        the card rather than being found at the checkout. */
-    if (p.sell && Number(p.priceInr) > 10000) {
-      var first = Math.round(Number(p.priceInr) * 0.4);
+    /* The same arithmetic the checkout will use, not a fresh 40%. A card that
+       says ₹4,800 to start and a checkout that then asks for ₹6,800 is a card
+       nobody believes twice. */
+    var parts = (typeof partsFor === 'function' && p.sell) ? partsFor(p.priceInr) : null;
+    if (parts) {
       out += '<div class="partline">'
           +  '<svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>'
-          +  '<span>Part payment possible \u2014 \u20b9' + nf.format(first)
-          +  ' to start</span></div>';
+          +  '<span>Part payment possible \u2014 \u20b9' + nf.format(parts[0].inr)
+          +  ' to start, ' + parts.length + ' parts</span></div>';
     }
     out += '</div><div class="card-foot prow-cta">';
     if (p.sell) {

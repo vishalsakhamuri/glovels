@@ -110,9 +110,21 @@ function bubble(m) {
       '<div style="background:' + (mine ? '#eaf1fd' : 'var(--cream)') +
       ';border:1px solid ' + (mine ? '#c2d6f5' : 'var(--line)') + ';border-radius:14px;' +
       'padding:11px 13px;font-size:13.2px;line-height:1.6;color:var(--navy-800)">' +
-      (m.file ? '<div style="display:flex;align-items:center;gap:7px;font-weight:600;' +
-        'color:var(--blue-deep);margin-bottom:' + (m.t ? '6px' : '0') + '">' +
-        ico('file') + esc(m.file) + '</div>' : '') +
+      /* A real file, with a way to open it. It is the same document that is on
+         the Documents page — one copy, two places it can be reached from. */
+      (m.attachment
+        ? (m.attachment.sending
+            ? '<div style="display:flex;align-items:center;gap:7px;font-weight:600;' +
+              'color:var(--muted);margin-bottom:' + (m.t ? '6px' : '0') + '">' +
+              ico('file') + esc(m.attachment.name) + ' \u2014 sending\u2026</div>'
+            : '<a href="/api/documents/' + encodeURIComponent(m.attachment.key) +
+              '/file" style="display:flex;align-items:center;gap:7px;font-weight:700;' +
+              'color:var(--blue-deep);margin-bottom:' + (m.t ? '6px' : '0') + ';' +
+              'text-decoration:underline">' +
+              ico('file') + esc(m.attachment.name) +
+              (m.attachment.size ? ' <span style="font-weight:400;color:var(--muted)">\u00b7 ' +
+                esc(m.attachment.size) + '</span>' : '') + '</a>')
+        : '') +
       (m.t ? esc(m.t) : '') + '</div>' +
       '<div style="font:400 10.4px/1.6 var(--sans);color:var(--muted);margin-top:3px;' +
         (mine ? 'text-align:right' : '') + '">' + stamp(m.at) + '</div>' +
@@ -185,14 +197,62 @@ $('#box').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#composer').requestSubmit(); }
 });
 
+/*
+ * The paperclip, which used to send the NAME of a file.
+ *
+ * A student attached their passport, saw "passport.pdf" appear in the thread,
+ * and nothing had been uploaded — not to the server, not to their documents,
+ * nowhere. The counsellor saw the same word and went looking for a file that
+ * did not exist.
+ *
+ * It uploads now, and what it uploads lands on the student's own file: the
+ * same folder as everything on the Documents screen, so it can be found again
+ * by somebody who was not in the conversation.
+ */
 const picker = document.createElement('input');
 picker.type = 'file';
+picker.accept = '.pdf,.jpg,.jpeg,.png,.heic,.doc,.docx,image/*,application/pdf';
 picker.style.display = 'none';
 document.body.appendChild(picker);
-picker.addEventListener('change', () => {
-  if (picker.files[0]) send($('#box').value.trim(), picker.files[0].name);
-  $('#box').value = '';
+
+picker.addEventListener('change', async () => {
+  const f = picker.files[0];
   picker.value = '';
+  if (!f) return;
+  if (f.size > 10 * 1024 * 1024) {
+    toast('That file is over 10 MB. Photograph the page rather than scanning it at full size.');
+    return;
+  }
+  const note = $('#box').value.trim();
+  $('#box').value = '';
+  $('#box').style.height = 'auto';
+
+  /* Drawn straight away, like a typed message, and replaced by the server's
+     answer. An upload with no sign that anything is happening is an upload
+     somebody presses four times. */
+  const optimistic = { who: 'me', t: note || 'Sending ' + f.name, file: '',
+    attachment: { name: f.name, sending: true }, at: new Date().toISOString() };
+  DB.msgs.push(optimistic);
+  paint();
+  hint('Sending ' + f.name + '\u2026');
+
+  try {
+    const form = new FormData();
+    form.append('file', f, f.name);
+    if (note) form.append('body', note);
+    const r = await fetch('/api/messages/attach',
+      { method: 'POST', credentials: 'same-origin', body: form });
+    const d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(d.error || 'That did not go through.');
+    DB.msgs = d.msgs;
+    if (d.docs) DB.docs = d.docs;
+    paint();
+    hint('Sent. It is on your Documents page too.');
+  } catch (e) {
+    DB.msgs = DB.msgs.filter(m => m !== optimistic);
+    paint();
+    toast('That file was not sent: ' + e.message);
+  }
 });
 $('#clip').addEventListener('click', () => picker.click());
 

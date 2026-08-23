@@ -436,6 +436,19 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
       <div class="p-sec-head"><h2>Your documents</h2>
         <a href="#" id="verifyAll">Simulate counsellor verification</a></div>
       <div class="sl-grid" id="docGrid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))"></div>
+
+      <!-- Anything sent in the conversation. It is a document like any other —
+           same folder, same download — but it does not belong to one of the
+           twelve cards above, so it would otherwise be uploaded and then
+           invisible. -->
+      <section id="sharedWrap" hidden style="margin-top:26px">
+        <h2 style="font:700 16.4px/1.3 var(--disp,inherit);color:var(--navy-900);margin:0 0 4px">
+          Shared in your conversation</h2>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          Files you and your counsellor have sent each other. They are on your file, so
+          nobody has to scroll back through messages to find one.</p>
+        <ul class="doclist" id="sharedList" style="gap:8px"></ul>
+      </section>
     </div>
 
     <div class="warnbox" style="background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;
@@ -680,6 +693,31 @@ const LABEL = {none:'Not uploaded', wait:'In review', ok:'Verified'};
 
 function stOf(id) { return (DB.docs[id] && DB.docs[id].status) || S.NONE; }
 
+/* Every document that is not one of the twelve cards: the ones sent in the
+   conversation. A file uploaded through the chat and shown nowhere on this
+   screen is a file the student cannot find again. */
+const KNOWN = new Set(DOCS.map(d => d.id));
+
+function paintShared() {
+  const extra = Object.keys(DB.docs || {}).filter(k => !KNOWN.has(k));
+  const wrap = $('#sharedWrap');
+  if (!wrap) return;
+  wrap.hidden = !extra.length;
+  if (!extra.length) return;
+  /* Newest first. The keys carry the time they were made, which is what makes
+     this a sort rather than a guess. */
+  extra.sort().reverse();
+  $('#sharedList').innerHTML = extra.map(k => {
+    const rec = DB.docs[k];
+    return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
+      '<span style="flex:1"><a href="/api/documents/' + encodeURIComponent(k) +
+        '/file" style="color:var(--blue-deep);font-weight:600">' + esc(rec.file) + '</a>' +
+        '<span style="display:block;font-size:11.6px;color:var(--muted)">' + esc(rec.size) +
+        '</span></span>' +
+      '<span class="st ' + rec.status + '">' + LABEL[rec.status] + '</span></li>';
+  }).join('');
+}
+
 function card(d) {
   const rec = DB.docs[d.id];
   const st = stOf(d.id);
@@ -711,6 +749,7 @@ function required() { return DOCS.filter(d => d.need); }
 
 function paint() {
   $('#docGrid').innerHTML = DOCS.map(card).join('');
+  paintShared();
   const req = required();
   const ok = req.filter(d => stOf(d.id) === S.OK).length;
   const up = req.filter(d => stOf(d.id) !== S.NONE).length;

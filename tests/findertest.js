@@ -185,6 +185,55 @@ const homeCounts = async ctx => {
 
   check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 
+  /* ---------------------------------------- the budget cards follow the filters */
+  const rail = await browser.newContext({ viewport: { width: 1500, height: 1050 } });
+  const rp = await rail.newPage();
+  const rerrs = [];
+  rp.on('pageerror', e => rerrs.push(String(e)));
+  await rp.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await rp.waitForTimeout(2800);
+  const counts = () => rp.$$eval('.rail-n', e => e.map(x => Number(x.textContent)));
+  const tabs = async () => Number(await rp.textContent('#rtnPriv'))
+    + Number(await rp.textContent('#rtnPub'));
+
+  const all = await counts();
+  check('the budget cards carry a count', all.every(n => n > 0), all.join(','));
+
+  await rp.selectOption('#fCountry', 'DE');
+  await rp.click('#fGo');
+  await rp.waitForTimeout(1200);
+  const de = await counts();
+  check('and it moves when the destination changes',
+    de.join(',') !== all.join(','), all.join(',') + ' -> ' + de.join(','));
+  check('and adds up to what the two tabs are showing',
+    de.reduce((a, b) => a + b, 0) === await tabs(),
+    de.reduce((a, b) => a + b, 0) + ' vs ' + await tabs());
+
+  await rp.selectOption('#fCgpa', '6.5');
+  await rp.click('#fGo');
+  await rp.waitForTimeout(1200);
+  const cg = await counts();
+  check('and it moves again when the CGPA does',
+    cg.join(',') !== de.join(','), de.join(',') + ' -> ' + cg.join(','));
+  check('still adding up to the tabs',
+    cg.reduce((a, b) => a + b, 0) === await tabs(),
+    cg.reduce((a, b) => a + b, 0) + ' vs ' + await tabs());
+
+  /* And pressing one filters BOTH tabs, which is the thing it is for. */
+  await rp.selectOption('#fCgpa', '');
+  await rp.click('#fGo');
+  await rp.waitForTimeout(1000);
+  const wide = await tabs();
+  await rp.click('[data-railband="u20"]');
+  await rp.waitForTimeout(1200);
+  check('pressing a budget card narrows the results', await tabs() < wide,
+    wide + ' -> ' + await tabs());
+  check('to exactly what the card said',
+    await tabs() === (await counts())[1], await tabs() + ' vs ' + (await counts())[1]);
+  check('and the card shows that it is on',
+    (await rp.getAttribute('[data-railband="u20"]', 'aria-pressed')) === 'true');
+  check('no page errors on the finder', rerrs.length === 0, rerrs.slice(0, 2).join(' | '));
+
   await browser.close();
   console.log('\nPASS');
   ok.forEach(x => console.log('  ✓ ' + x));

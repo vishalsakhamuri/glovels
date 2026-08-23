@@ -225,6 +225,86 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     perms: db.permsOf(s),
   });
 
+  /*
+   * A file shared in the conversation.
+   *
+   * "He should be able to share documents in the chatbox and these should be
+   * available for the counsellor in the documents folder of the student."
+   *
+   * So an attachment is not a copy of a file that lives in a chat thread — it
+   * IS a document on the student's file, and the message is a pointer to it.
+   * One upload, one place it lives, and it is on the Documents screen the
+   * moment it is sent. A thread with the only copy of somebody's passport in
+   * it is a thread nobody can find the passport in six weeks later.
+   *
+   * The message column holds the document's key. Everything a screen needs to
+   * draw the attachment — its name, its size, whether it has been verified —
+   * is resolved from the document itself, so renaming or replacing the
+   * document does not leave the thread quoting a name that no longer exists.
+   */
+  const attachmentOf = (studentId, key) => {
+    if (!key) return null;
+    const d = db.docByKey(studentId, key);
+    if (!d) return { key, name: key, missing: true };
+    return {
+      key: d.doc_key,
+      name: d.filename,
+      bytes: d.bytes,
+      size: d.bytes > 1048576 ? (d.bytes / 1048576).toFixed(1) + ' MB'
+                              : Math.max(1, Math.round(d.bytes / 1024)) + ' KB',
+      status: d.status,
+    };
+  };
+
+  const msgShape = studentId => m => ({
+    who: m.sender, t: m.body, file: m.file, at: m.created_at,
+    attachment: attachmentOf(studentId, m.file),
+  });
+
+  /*
+   * Where an attachment is written, and what it is called on the file.
+   *
+   * The key is stamped with the time so two people sending `scan.pdf` on the
+   * same file do not overwrite each other — which is what would happen if the
+   * key were the filename, and it would happen silently.
+   */
+  function storeAttachment(studentId, file, who) {
+    const dir = path.join(uploadDir, String(studentId));
+    fs.mkdirSync(dir, { recursive: true });
+    const ext = (path.extname(file.filename) || '').slice(0, 10).replace(/[^.a-z0-9]/gi, '');
+    const key = 'shared-' + Date.now() + '-' + crypto.randomInt(100, 999);
+    const stored = key + ext;
+    fs.writeFileSync(path.join(dir, stored), file.data);
+    db.addDocument(studentId, key, file.filename, stored, file.data.length);
+    /* A file the counsellor sent is not waiting for the counsellor to check
+       it. A file the student sent is. */
+    if (who === 'them') db.setDocStatus(studentId, key, 'ok');
+    return key;
+  }
+
+  /** The multipart body, or null with the reason already sent. */
+  async function oneFile(req, res) {
+    const ct = req.headers['content-type'] || '';
+    const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+    if (!bm) { json(res, 400, { error: 'Expected a file upload' }); return null; }
+    const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
+    if (!parsed.file || !parsed.file.data || !parsed.file.data.length) {
+      json(res, 400, { error: 'No file arrived. Try again, or send it as an email.' });
+      return null;
+    }
+    /* Ten megabytes. A passport scan is under one; a phone photo of a degree
+       certificate is three. Anything above this is a video somebody attached
+       by accident. */
+    if (parsed.file.data.length > 10 * 1024 * 1024) {
+      json(res, 413, {
+        error: 'That file is over 10 MB. Photograph the page rather than scanning it at '
+             + 'full size, or send it as a PDF.',
+      });
+      return null;
+    }
+    return parsed;
+  }
+
   /* The whole of a student's portal in one response. The portal screens each
      need a slice of it and there is no benefit in six round trips on load. */
   function stateFor(s) {
@@ -260,7 +340,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       todo: ALERTS.forStudent(db, s),
       saved: db.getSaved(s.id),
       drafts: draftsFor(s.id),
-      msgs: db.getMessages(s.id).map(m => ({ who: m.sender, t: m.body, file: m.file, at: m.created_at })),
+      msgs: db.getMessages(s.id).map(msgShape(s.id)),
       order: orders[0] ? {
         reference: orders[0].reference, package: orders[0].package,
         publicUnis: orders[0].public_unis, grossPaise: orders[0].gross_paise,
@@ -679,6 +759,28 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
   /* ------------------------------------------------------------ messages */
 
+  /*
+   * A file, sent in the conversation.
+   *
+   * It lands on the student's own file at the same moment — same upload, same
+   * folder, visible on the Documents screen and in the counsellor's list. The
+   * message is the announcement; the document is the thing.
+   */
+  route('POST', '/api/messages/attach', async (req, res, s) => {
+    const parsed = await oneFile(req, res);
+    if (!parsed) return true;
+    const key = storeAttachment(s.id, parsed.file, 'me');
+    const note = String(parsed.fields.body || '').slice(0, 400);
+    db.addMessage(s.id, 'me', note || 'Sent ' + parsed.file.filename, key);
+
+    const msgs = stateFor(s).msgs;
+    const last = msgs[msgs.length - 1];
+    live.toThread(s.id, s.counsellor_id, 'message', {
+      studentId: s.id, studentName: s.name, msg: last,
+    });
+    return json(res, 200, { msgs, docs: stateFor(s).docs });
+  });
+
   route('POST', '/api/messages', async (req, res, s) => {
     const b = await readJson(req);
     const body = String(b.body || '').slice(0, 4000);
@@ -964,7 +1066,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
      * ₹74,999 "in parts" is asking for the schedule to come from the request,
      * and it does not.
      */
-    const canSplit = pkg && PLANS.allowed(gross);
+    /* Packages and baskets of services alike — the rule is the price, not what
+       was bought. A student buying four services for ₹32,000 is in exactly the
+       position the rule exists for. */
+    const canSplit = PLANS.allowed(gross);
     const inParts = canSplit && b.payIn === 'parts';
     const plan = inParts ? PLANS.split(gross, pkg, Date.now()) : null;
     /* The gateway collects the first part, not the total. This is the number
@@ -2009,7 +2114,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
          being paid to rewrite them, so making them ask for a copy by email is
          a step that exists for no reason. */
       drafts: draftsFor(id),
-      msgs: db.getMessages(id).map(x => ({ who: x.sender, t: x.body, file: x.file, at: x.created_at })),
+      msgs: db.getMessages(id).map(msgShape(id)),
     });
   }));
 
@@ -2127,7 +2232,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const st = db.studentById(id);
     const msgs = db.getMessages(id);
     const last = msgs[msgs.length - 1];
-    const payload = { who: 'them', t: last.body, file: '', at: last.created_at };
+    const payload = { who: 'them', t: last.body, file: '', attachment: null,
+      at: last.created_at };
 
     /* toThread already reaches the student — pushing to both delivered the same
        reply twice and it appeared as two bubbles. */
@@ -2149,6 +2255,49 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
   /* Somebody is typing. Nothing is stored — it is a hint, and a hint that
      arrives late is worse than none. */
+  /* The other direction: a counsellor sending an offer letter, a form to
+     sign, a checklist. It goes on the student's file too, because "where is
+     that form they sent me" is the same question in reverse. */
+  route('POST', /^\/api\/staff\/student\/(\d+)\/attach$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const st = db.studentById(id);
+      if (!st) return json(res, 404, { error: 'No such student' });
+      const parsed = await oneFile(req, res);
+      if (!parsed) return true;
+
+      const key = storeAttachment(id, parsed.file, 'them');
+      const note = String(parsed.fields.body || '').slice(0, 400);
+      db.addMessage(id, 'them', note || 'Sent you ' + parsed.file.filename, key);
+      db.log(s.name, 'shared a document', st.name + ' — ' + parsed.file.filename);
+
+      const msgs = db.getMessages(id).map(msgShape(id));
+      live.toStudent(id, 'message', { studentId: id, msg: msgs[msgs.length - 1] });
+      return json(res, 200, { msgs });
+    }));
+
+  /* A student's file, to the person looking after them. The student's own
+     route builds the path from their session; this one builds it from the id
+     in the URL, so it checks the assignment first — an id in a URL is a guess
+     until somebody says otherwise. */
+  route('GET', /^\/api\/staff\/student\/(\d+)\/document\/(.+)\/file$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const rec = db.docByKey(id, decodeURIComponent(m[2]));
+      if (!rec) return json(res, 404, { error: 'Not found' });
+      const file = path.join(uploadDir, String(id), rec.stored_name);
+      if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': 'attachment; filename="' + rec.filename.replace(/"/g, '') + '"',
+        'Cache-Control': 'no-store',
+      });
+      fs.createReadStream(file).pipe(res);
+      return true;
+    }));
+
   route('POST', /^\/api\/staff\/student\/(\d+)\/typing$/, caseworkOnly(async (req, res, s, m) => {
     const id = Number(m[1]);
     if (!db.canSee(s, id)) return json(res, 403, { error: 'Not yours' });

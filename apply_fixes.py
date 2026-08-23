@@ -593,7 +593,11 @@ document.addEventListener('click', e => {
 # prices and the packages from the server. An edit to content_client.py that
 # never reaches the page is the worst kind of change: the file says one thing
 # and the site does another.
-_loader = re.compile("<script>\\s*/\\*[-\\s]*\\n\\s*Glovels \u2014 live content.*?</script>\\n",
+# The stamp comment sits between <script> and the loader's own banner, so
+# the pattern has to allow it — the first version did not, and the refresh
+# silently stopped matching the moment it had run once.
+_loader = re.compile("<script>\\s*(?:/\\* content_client [0-9a-f]+ \\*/\\s*)?"
+                     "/\\*[-\\s]*\\n\\s*Glovels \u2014 live content.*?</script>\\n",
                      re.S)
 _page = HERE / "index.html"
 _html = _page.read_text(encoding="utf-8")
@@ -3588,26 +3592,68 @@ patch("index.html", "the checkout arithmetic for parts",
  * wins and the student pays what the server said.
  */
 const PART_THRESHOLD_INR = 10000;
+const PART_MIN_INR = 5000;
+const PART_MAX = 4;
 const PART_PHASES = [
   { label: 'To start', percent: 40 },
   { label: 'When your applications go in', percent: 30 },
   { label: 'When your offer is in hand', percent: 30 },
 ];
+/* A basket of services has no applications and no offer to hang a phase on.
+   Same rule, same floor, different words — and the same words the server
+   stores, or the schedule shown is not the schedule agreed. */
+const PART_PHASES_SERVICES = [
+  { label: 'To start', percent: 40 },
+  { label: 'When the first drafts are with you', percent: 30 },
+  { label: 'On delivery', percent: 30 },
+];
 
-function canSplit(inr){ return Number(inr || 0) > PART_THRESHOLD_INR; }
+function canSplit(inr){
+  const g = Number(inr || 0);
+  return g > PART_THRESHOLD_INR && g >= PART_MIN_INR * 2;
+}
 
-function partsFor(inr){
+/* Every part at least ₹5,000, four at most, and they add up to the price on
+   the card exactly. Fewer parts is the right way to fail: two parts of ₹5,500
+   is a plan, five parts of ₹2,200 is a collections problem. */
+function amountsFor(gross, rows){
+  const total = rows.reduce((n, r) => n + r.percent, 0) || 100;
+  const out = [];
+  let spent = 0;
+  for(let i = 0; i < rows.length - 1; i++){
+    const toCome = rows.length - 1 - i;
+    const ceiling = gross - spent - PART_MIN_INR * toCome;
+    if(ceiling < PART_MIN_INR) return null;
+    let a = Math.round(gross * rows[i].percent / total);
+    const tidy = Math.floor(a / 100) * 100;
+    if(tidy >= PART_MIN_INR && gross - spent - tidy >= PART_MIN_INR * toCome) a = tidy;
+    if(a < PART_MIN_INR) a = PART_MIN_INR;
+    if(a > ceiling) a = ceiling;
+    out.push(a);
+    spent += a;
+  }
+  const last = gross - spent;
+  if(last < PART_MIN_INR) return null;
+  out.push(last);
+  return out;
+}
+
+function partsFor(inr, kind){
   if(!canSplit(inr)) return null;
   const gross = Math.round(inr);
-  let spent = 0;
-  return PART_PHASES.map((r, i) => {
-    const last = i === PART_PHASES.length - 1;
-    const amount = last ? gross - spent : Math.round(gross * r.percent / 100);
-    spent += amount;
-    return { n: i + 1, label: r.label, inr: amount };
-  });
+  const phases = kind === 'services' ? PART_PHASES_SERVICES : PART_PHASES;
+  for(let n = Math.min(PART_MAX, phases.length); n >= 2; n--){
+    const rows = phases.slice(0, n);
+    const amounts = amountsFor(gross, rows);
+    if(!amounts) continue;
+    return rows.map((r, i) => ({ n: i + 1, label: r.label, inr: amounts[i] }));
+  }
+  return null;
 }""",
-      marker="function partsFor(inr){")
+      # The signature of partsFor changed once already, and the marker was its
+      # signature — so the whole block was pasted in again on every build. A
+      # constant nobody has a reason to rename is the safer stamp.
+      marker="const PART_THRESHOLD_INR")
 
 patch("index.html", "the checkout offers to spread it",
       """    + '<div class="co-fields"><b>Where should we send it?</b>'
@@ -3722,11 +3768,142 @@ for _pkg, _first in [("pkg-offer", "20,000"), ("pkg-boarding", "30,000")]:
         '<div class="card-foot prow-cta"><div class="price"><span class="from">From</span>'
         + ("₹49,999" if _pkg == "pkg-offer" else "₹74,999"),
         '<div class="partline"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>'
-        '<span>Part payment possible — ₹' + _first + ' to start</span></div>'
+        '<span>Part payment possible — ₹' + _first + ' to start, 3 parts</span></div>'
         '</div><div class="card-foot prow-cta"><div class="price"><span class="from">From</span>'
         + ("₹49,999" if _pkg == "pkg-offer" else "₹74,999"),
         marker="₹" + _first + " to start",
     )
+
+
+# Services over ₹10,000 are spread too — the rule is the price, not what was
+# bought. Four services at ₹8,000 each is exactly the basket somebody abandons.
+patch("index.html", "the services checkout offers to spread it",
+      """    + '<label class="consent-row" id="scBox"><input type="checkbox" id="scOk">'""",
+      """    + (partsFor(gross, 'services')
+        ? '<div class="paychoice" id="scChoice">'
+          + '<label class="paypick on"><input type="radio" name="scpayin" value="full" checked>'
+            + '<span><b>Pay in full</b><i>' + inr(gross) + ' today</i></span></label>'
+          + '<label class="paypick"><input type="radio" name="scpayin" value="parts">'
+            + '<span><b>Pay in ' + partsFor(gross, 'services').length + ' parts</b><i>'
+            + inr(partsFor(gross, 'services')[0].inr) + ' today</i></span></label>'
+          + '</div>'
+          + '<div class="paysched" id="scSched" hidden><b>How it is split</b><ul>'
+          + partsFor(gross, 'services').map(p => '<li><span>' + esc(p.label) + '</span><b>'
+              + inr(p.inr) + '</b></li>').join('')
+          + '</ul><small>Nothing is charged automatically. We ask for each part when '
+          + 'the work it pays for is done, and it is on your dashboard the whole '
+          + 'time.</small></div>'
+        : '')
+    + '<label class="consent-row" id="scBox"><input type="checkbox" id="scOk">'""",
+      marker='id="scChoice"')
+
+patch("index.html", "and the services button says what it will charge",
+      """  $('#scPay').style.display = '';
+  $('#scPay').innerHTML = 'Confirm — ' + inr(gross);""",
+      """  $('#scPay').style.display = '';
+  $('#scPay').innerHTML = 'Confirm — ' + inr(gross);
+  const scParts = partsFor(gross, 'services');
+  if (scParts) {
+    $$('[name="scpayin"]').forEach(r => r.onchange = () => {
+      const inParts = r.value === 'parts' && r.checked;
+      $$('#scChoice .paypick').forEach(l => l.classList.toggle('on',
+        l.querySelector('input').checked));
+      $('#scSched').hidden = !inParts;
+      $('#scPay').innerHTML = 'Confirm — ' + inr(inParts ? scParts[0].inr : gross);
+    });
+  }""",
+      # Same trap as partsFor: the marker was the line the patch inserts, and
+      # that line changed. Marked on the id it wires up instead.
+      marker="$$('[name=\"scpayin\"]')")
+
+patch("index.html", "and the services order says which it is",
+      """          /* The tick, and nothing about what it said: the server writes the
+             record from its own copy of the words. */
+          acceptedTerms: true,
+        }),""",
+      """          /* The tick, and nothing about what it said: the server writes the
+             record from its own copy of the words. */
+          acceptedTerms: true,
+          payIn: (document.querySelector('[name="scpayin"]:checked') || {}).value === 'parts'
+            ? 'parts' : 'full',
+        }),""",
+      marker="[name=\"scpayin\"]:checked")
+
+
+# ---------------------------------------------------------------------------
+# The budget cards move with the filters.
+#
+# Pressing one always filtered the results — that part worked. But the number on
+# each card was written once, at build time, and never moved: with Germany
+# chosen and a CGPA set, "Under ₹20L · 19" was the count across the whole
+# catalogue while the list below it showed ten. Four numbers that disagree with
+# the list under them read as four numbers that do nothing, and the cards read
+# as decoration.
+#
+# They are counted from the same filters as the results now, minus the band
+# itself — so each card answers "how many would I get if I pressed this", which
+# is the only question somebody has when they look at it.
+
+patch("index.html", "the band filter can be lifted out of the query",
+      """function filtered(){
+  const co = $('#fCountry').value, lv = $('#fLevel').value, fd = $('#fField').value,
+        ik = $('#fIntake').value, cg = cgpaOf();""",
+      """function filtered(ignoreBands){
+  const co = $('#fCountry').value, lv = $('#fLevel').value, fd = $('#fField').value,
+        ik = $('#fIntake').value, cg = cgpaOf();""",
+      marker="function filtered(ignoreBands){")
+
+patch("index.html", "and the count can be asked without it",
+      "    if(bands.size && !bands.has(p.band)) return false;\n    return true;",
+      "    if(!ignoreBands && bands.size && !bands.has(p.band)) return false;\n    return true;",
+      marker="if(!ignoreBands && bands.size")
+
+patch("index.html", "the budget cards carry a live count",
+      """  const shownRows = resTab === 'pub' ? pubAll : privAll;""",
+      """  paintRail();
+
+  const shownRows = resTab === 'pub' ? pubAll : privAll;""",
+      marker="  paintRail();")
+
+patch("index.html", "what paintRail does",
+      """function criteria(){""",
+      """/*
+ * The number on each budget card, and whether it is worth pressing.
+ *
+ * Counted from everything the visitor has already chosen EXCEPT the bands, so
+ * the four numbers add up to the list below when no band is pressed, and each
+ * one still says what pressing it would give when one is. A card with nothing
+ * behind it is dimmed rather than removed — a row of four that becomes a row of
+ * two while somebody is reading it is worse than a card that says none.
+ */
+function paintRail(){
+  const pool = filtered(true);
+  $$('[data-railband]').forEach(b => {
+    const id = b.dataset.railband;
+    const n = pool.filter(p => p.band === id).length;
+    const cell = b.querySelector('.rail-n');
+    if(cell) cell.textContent = n;
+    b.classList.toggle('empty', n === 0);
+    /* Pressed but empty is a filter that hides everything and explains
+       nothing, so pressing an empty card is simply not offered. */
+    b.disabled = n === 0 && !bands.has(id);
+  });
+}
+
+function criteria(){""",
+      marker="function paintRail(){")
+
+patch("index.html", "a budget card with nothing behind it says so",
+      """.rail-card[aria-pressed="true"]{border-color:var(--band-solid);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--band-solid) 18%,transparent)}""",
+      """.rail-card[aria-pressed="true"]{border-color:var(--band-solid);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--band-solid) 18%,transparent)}
+.rail-card[aria-pressed="true"] .rail-n{background:var(--band-solid);color:#fff;
+  border-color:var(--band-solid)}
+.rail-card[aria-pressed="true"] .rail-tx b::after{content:" \\2713";color:var(--band-solid)}
+.rail-card.empty{opacity:.45;cursor:default}
+.rail-card.empty:hover{transform:none;border-color:var(--line)}""",
+      marker=".rail-card.empty{opacity:.45")
 
 
 # The summary, and it has to be the LAST thing in the file.

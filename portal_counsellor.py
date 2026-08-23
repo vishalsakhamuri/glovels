@@ -127,8 +127,17 @@ function bubble(m) {
     '<div style="max-width:70%"><div style="background:' + (fromStudent ? 'var(--cream)' : '#eaf1fd') +
       ';border:1px solid ' + (fromStudent ? 'var(--line)' : '#c2d6f5') + ';border-radius:14px;' +
       'padding:10px 13px;font-size:13.2px;line-height:1.6;color:var(--navy-800)">' +
-      (m.file ? '<div style="display:flex;align-items:center;gap:7px;font-weight:600;color:var(--blue-deep)">' +
-        ico('file') + esc(m.file) + '</div>' : '') + esc(m.t || '') + '</div>' +
+      /* The attachment is a document on the student's file, so this opens the
+         real thing rather than printing a filename at somebody. */
+      (m.attachment
+        ? '<a href="/api/staff/student/' + openId + '/document/' +
+          encodeURIComponent(m.attachment.key) + '/file" style="display:flex;' +
+          'align-items:center;gap:7px;font-weight:700;color:var(--blue-deep);' +
+          'text-decoration:underline;margin-bottom:5px">' +
+          ico('file') + esc(m.attachment.name) +
+          (m.attachment.size ? ' <span style="font-weight:400;color:var(--muted)">\u00b7 ' +
+            esc(m.attachment.size) + '</span>' : '') + '</a>'
+        : '') + esc(m.t || '') + '</div>' +
       '<div style="font:400 10.4px/1.6 var(--sans);color:var(--muted);margin-top:3px;' +
         (fromStudent ? '' : 'text-align:right') + '">' + timeAgo(m.at) + '</div></div></div>';
 }
@@ -224,8 +233,12 @@ function paintRecord(r) {
           '<textarea id="rbox" rows="1" placeholder="Reply to ' + esc(r.student.name.split(" ")[0]) + '…" style="flex:1;' +
             'resize:none;max-height:130px;padding:11px 12px;font:400 13.4px/1.5 var(--sans);' +
             'color:var(--navy-900);border:1.5px solid #d8dde4;border-radius:12px"></textarea>' +
+          '<button type="button" class="btn btn-ghost btn-sm" id="rclip" ' +
+            'title="Send a file">' + ico('file') + '</button>' +
           '<button type="submit" class="btn btn-primary btn-sm">Send</button>' +
         '</form>' +
+        '<p id="rfile" style="margin:7px 0 0;font:600 12.2px/1.5 var(--sans);' +
+          'color:var(--muted)"></p>' +
         '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">' +
           ['I have your documents — I will confirm your shortlist on a call tomorrow.',
            'Please start the APS certificate this week. It takes 6–8 weeks and blocks the German application.',
@@ -310,6 +323,19 @@ function paintRecord(r) {
   box.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#reply').requestSubmit(); }
   });
+  if ($('#rclip')) {
+    const pick = document.createElement('input');
+    pick.type = 'file';
+    pick.accept = '.pdf,.jpg,.jpeg,.png,.heic,.doc,.docx,image/*,application/pdf';
+    pick.style.display = 'none';
+    document.body.appendChild(pick);
+    pick.addEventListener('change', () => {
+      const f = pick.files[0];
+      pick.value = '';
+      if (f) sendFile(f);
+    });
+    $('#rclip').onclick = () => pick.click();
+  }
   $('#reply').addEventListener('submit', async e => {
     e.preventDefault();
     const v = box.value.trim();
@@ -447,6 +473,47 @@ function ping() {
   if (now - lastPing < 1500 || !openId) return;
   lastPing = now;
   api('POST', '/api/staff/student/' + openId + '/typing').catch(() => {});
+}
+
+/*
+ * A file, sent to the student.
+ *
+ * It goes on their file at the same moment — an offer letter that exists only
+ * inside a chat thread is one nobody can find when the visa appointment comes
+ * round.
+ */
+async function sendFile(f) {
+  const note = $('#rfile');
+  if (f.size > 10 * 1024 * 1024) {
+    note.textContent = 'That file is over 10 MB.';
+    return;
+  }
+  note.textContent = 'Sending ' + f.name + '\u2026';
+  try {
+    const form = new FormData();
+    form.append('file', f, f.name);
+    const body = $('#rbox') ? $('#rbox').value.trim() : '';
+    if (body) form.append('body', body);
+    const r = await fetch('/api/staff/student/' + openId + '/attach',
+      { method: 'POST', credentials: 'same-origin', body: form });
+    const d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(d.error || 'That did not go through.');
+    if ($('#rbox')) { $('#rbox').value = ''; }
+    /* The whole record, not just the thread: the file is now on their Their
+       file tab as well, and a screen that shows it in one place and not the
+       other is the screen somebody stops believing. The Conversation tab is
+       where they were, so that is where they stay. */
+    paintRecord(await api('GET', '/api/staff/student/' + openId));
+    const th = $('#thread');
+    if (th) th.scrollTop = th.scrollHeight;
+    const note2 = $('#rfile');
+    if (note2) {
+      note2.textContent = 'Sent. It is on their file too.';
+      setTimeout(function () { if (note2) note2.textContent = ''; }, 5000);
+    }
+  } catch (e) {
+    note.textContent = 'Not sent: ' + e.message;
+  }
 }
 
 async function sendReply(body) {
