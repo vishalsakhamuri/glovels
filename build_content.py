@@ -212,6 +212,12 @@ def packages(s):
     return {
         "eyebrow": unesc(head.group(1)) if head else "",
         "heading": unesc(head.group(2)) if head else "",
+        # The sentence every buyer ticks, whatever they are buying. One string,
+        # read by the page that shows it and by the server that records it
+        # against the order — two copies of a legal sentence is one copy that
+        # gets edited.
+        "acceptance": "I have read and accept the Terms of Service, the Refund "
+                      "& Cancellation policy and the Privacy policy.",
         "tabs": tabs,
         "items": items,
     }

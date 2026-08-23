@@ -7,7 +7,7 @@
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
-const SHEET = require('../server/sheet.js');
+const SHEET = require('/home/claude/glovels/build/server/sheet.js');
 
 const BASE = 'http://localhost:8099';
 const ok = [], bad = [];
@@ -72,7 +72,8 @@ const homeText = async ctx => {
   check('the old feature list is gone', !home.includes('2 counselling sessions'));
 
   const order = await (await ctx.request.post(BASE + '/api/orders', {
-    data: { packageId: 'pkg-roadmap', name: 'T', email: 't@t.com', phone: '9876543210' },
+    data: { packageId: 'pkg-roadmap', name: 'T', email: 't@t.com', phone: '9876543210',
+      acceptedTerms: true },
   })).json();
   check('checkout charges the edited price', order.grossPaise === 1234500, order.grossPaise);
   check('checkout unlocks the edited count', order.publicUnis === 7, order.publicUnis);

@@ -21,6 +21,7 @@ const crypto = require('crypto');
 const PAY = require('./pay.js');
 const fs = require('fs');
 const path = require('path');
+const url = require('url');
 const EMAILS = require('./emails.js');
 const SHEET = require('./sheet.js');
 const WRITING = require('./writing.js');
@@ -38,9 +39,9 @@ const DAY = 864e5;
    that an order in that case is priced wrongly-but-safely rather than crashing.
    In the running server the real list comes from the packages block. */
 const FALLBACK_PACKAGES = {
-  'pkg-roadmap':  { name: 'Roadmap',       paise:  999900, publicUnis: 5  },
-  'pkg-offer':    { name: 'Offer Letter',  paise: 4999900, publicUnis: 10 },
-  'pkg-boarding': { name: 'Boarding Pass', paise: 7499900, publicUnis: 15 },
+  'pkg-roadmap':  { id: 'pkg-roadmap',  name: 'Roadmap',       paise:  999900, publicUnis: 5  },
+  'pkg-offer':    { id: 'pkg-offer',    name: 'Offer Letter',  paise: 4999900, publicUnis: 10 },
+  'pkg-boarding': { id: 'pkg-boarding', name: 'Boarding Pass', paise: 7499900, publicUnis: 15 },
 };
 
 const GST_RATE = 0.18;
@@ -729,6 +730,89 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
    */
   const SERVICES_OF = () => (content ? content.serviceList() : {});
 
+  /*
+   * What the student accepted, recorded so it can be shown back to them.
+   *
+   * "They ticked a box" is evidence of nothing a year later, when the terms
+   * have been reworded twice and nobody can say which version was on the
+   * screen. So the record carries the words that were actually shown, the
+   * package's own terms in full as they read that day, and a fingerprint of
+   * each legal page — which is what makes "this is what you accepted" a
+   * statement rather than an assertion.
+   *
+   * Built HERE, from our own copies. Nothing the browser sends about what it
+   * displayed is trusted: a page that reported its own consent wording could
+   * report anything.
+   */
+  const fingerprint = text => crypto.createHash('sha256')
+    .update(String(text == null ? '' : text), 'utf8').digest('hex').slice(0, 16);
+
+  const pageFingerprint = name => {
+    try {
+      const f = path.join(__dirname, '..', name + '.html');
+      const html = fs.readFileSync(f, 'utf8');
+      /* The readable part only. The head carries a build time and the footer a
+         year, and hashing those would make every page look edited every time
+         anything at all was rebuilt. */
+      const m = /<main[\s\S]*?<\/main>/i.exec(html) || /<body[\s\S]*<\/body>/i.exec(html);
+      return fingerprint((m ? m[0] : html).replace(/\s+/g, ' '));
+    } catch (e) { return ''; }
+  };
+
+  /*
+   * The sentence somebody actually ticks.
+   *
+   * Every order carries the base line, whatever was bought — a package with no
+   * pledge of its own is still sold under the Terms and the Refund policy, and
+   * an order with no acceptance recorded against it is exactly the one that
+   * gets argued about. A package that makes its own promise adds its sentence
+   * to it rather than replacing it.
+   */
+  const baseAcceptance = () => {
+    try {
+      const block_ = content && content.get('packages');
+      if (block_ && block_.acceptance) return block_.acceptance;
+    } catch (e) { /* content not loaded */ }
+    return 'I have read and accept the Terms of Service, the Refund & Cancellation '
+         + 'policy and the Privacy policy.';
+  };
+
+  const acceptanceLine = pkg => {
+    const own = pkg ? String(pkg.consent || '').trim() : '';
+    return own ? baseAcceptance() + ' ' + own : baseAcceptance();
+  };
+
+  function acceptanceRecord({ req, line, pkg, name, email }) {
+    let legal = {};
+    try { legal = (content && content.get('legal')) || {}; } catch (e) { /* stubs */ }
+    let packageTerms = '';
+    if (pkg && pkg.id) {
+      try {
+        const block_ = content && content.get('packages');
+        const row = ((block_ && block_.items) || []).find(x => x.id === pkg.id);
+        packageTerms = (row && row.terms) || '';
+      } catch (e) { /* none authored */ }
+    }
+    return {
+      at: new Date().toISOString(),
+      ip: clientIp(req),
+      /* Their own browser, because "somebody with my email did it" is the first
+         thing a disputed charge says. */
+      agent: String(req.headers['user-agent'] || '').slice(0, 200),
+      name, email,
+      line,
+      packageTerms,
+      entity: legal.entity || '',
+      effective: legal.effective || '',
+      docs: [
+        { name: 'Terms of Service', url: '/terms', sha256: pageFingerprint('terms') },
+        { name: 'Refund & Cancellation policy', url: '/refunds', sha256: pageFingerprint('refunds') },
+        { name: 'Privacy policy', url: '/privacy', sha256: pageFingerprint('privacy') },
+      ].filter(d => d.sha256),
+      packageTermsSha256: packageTerms ? fingerprint(packageTerms) : '',
+    };
+  }
+
   route('POST', '/api/orders', async (req, res) => {
     const b = await readJson(req);
 
@@ -793,12 +877,33 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
      * moment it is created would hand over the universities before a single
      * rupee had moved, to anybody who pressed the button and closed the tab.
      */
+    /*
+     * The terms, accepted before the money and recorded with it.
+     *
+     * The wording comes from OUR copy of the package, not from what the page
+     * says it displayed — a browser that reports its own consent line could
+     * report anything, and this is the part that has to hold up when somebody
+     * disputes a charge. If a package carries a consent line and the tick is
+     * not there, the order does not exist: refusing here rather than in the
+     * page means a hand-rolled request cannot skip it either.
+     */
+    const consentLine = acceptanceLine(pkg);
+    if (b.acceptedTerms !== true) {
+      return json(res, 422, {
+        error: 'Accept the terms shown before paying — we record what you accepted '
+             + 'and show it back to you.',
+        needsAcceptance: true, line: consentLine,
+      });
+    }
+    const accepted = acceptanceRecord({ req, line: consentLine, pkg, name, email });
+
     const collecting = pay.enabled;
     const order = db.addOrder({
       studentId: s ? s.id : null, reference, package: label,
       publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
       status: collecting ? 'awaiting' : 'owing', kind: pkg ? 'package' : 'services',
       items: items.map(x => ({ id: x.id, name: x.name, level: x.level, paise: x.paise })),
+      accepted,
     });
 
     /* The gateway's own order, created from OUR total. The browser is handed an
@@ -1006,6 +1111,45 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     enabled: pay.enabled,
     keyId: pay.keyId,
   }), { open: true });
+
+  /*
+   * What you accepted, shown back to you.
+   *
+   * "The student should be shown proof that during payment he accepted all
+   * conditions" — so the record is readable by the person it is about, by the
+   * office, and by nobody else. An order still waiting for its account is
+   * readable by whoever knows its reference AND its email address, because the
+   * person who just paid has no account to sign in to yet and is exactly who
+   * needs to see this.
+   */
+  route('GET', /^\/api\/orders\/([A-Za-z0-9-]{3,30})\/acceptance$/,
+    async (req, res, s, m) => {
+      const order = db.orderByReference(m[1]);
+      if (!order) return json(res, 404, { error: 'No such order' });
+
+      const staff = s && s.role !== 'student';
+      const mine = s && Number(order.student_id) === Number(s.id);
+      const asked = String((url.parse(req.url, true).query || {}).email || '')
+        .trim().toLowerCase();
+      const byEmail = asked && asked === String(order.email || '').toLowerCase();
+      if (!staff && !mine && !byEmail) {
+        return json(res, 403, {
+          error: 'Sign in with the email this order was placed under to see it.',
+        });
+      }
+
+      let accepted = null;
+      try { accepted = order.accepted ? JSON.parse(order.accepted) : null; } catch (e) { /* none */ }
+      return json(res, 200, {
+        order: {
+          reference: order.reference, package: order.package,
+          grossPaise: order.gross_paise, status: order.status,
+          name: order.name, email: order.email, at: order.created_at,
+          paidAt: order.paid_at || '',
+        },
+        accepted,
+      });
+    }, { open: true, soft: true });
 
   route('GET', '/api/orders', async (req, res, s) => json(res, 200, { orders: stateFor(s).orders }));
 
@@ -1953,6 +2097,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         name: o.name || '',
         email: o.email || '',
         phone: o.phone || '',
+        /* Whether there is a record of what they accepted, and when. The words
+           themselves are on the receipt — the book only needs to say that one
+           exists, because an order with nothing recorded against it is the one
+           worth spotting. */
+        acceptedAt: (() => {
+          try { return o.accepted ? (JSON.parse(o.accepted).at || '') : ''; }
+          catch (e) { return ''; }
+        })(),
         at: o.created_at,
         /* Whether this order has an account behind it yet. A guest order is not
            a problem — it is the normal path — but it is the one somebody has to

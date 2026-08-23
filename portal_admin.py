@@ -369,7 +369,17 @@ function paintOrders() {
           '">' + esc(o.studentName || 'Open') + '</a>'
         : '<span class="st wait">no account yet</span>') + '</td>' +
       '<td style="white-space:nowrap;color:var(--muted);font-size:12.2px">' +
-        esc(whenShort(o.at)) + '</td>' +
+        esc(whenShort(o.at)) +
+        /* What they accepted, and a way to read it. An order with nothing
+           recorded against it is the one that gets argued about, so it says so
+           rather than showing a blank cell. */
+        (o.acceptedAt
+          ? '<a href="/acceptance/' + encodeURIComponent(o.reference) + '" target="_blank" ' +
+            'style="display:block;margin-top:4px;font-weight:700;color:var(--navy-700)">' +
+            'Terms accepted</a>'
+          : '<span style="display:block;margin-top:4px;color:#b03a2e;font-weight:700">' +
+            'nothing recorded</span>') +
+        '</td>' +
       '</tr>';
   }).join('') ||
     '<tr><td colspan="6" style="color:var(--muted);padding:22px">' +

@@ -2,6 +2,7 @@
  "packages": {
   "eyebrow": "Public University Packages",
   "heading": "Packages for public university admission & work abroad",
+  "acceptance": "I have read and accept the Terms of Service, the Refund & Cancellation policy and the Privacy policy.",
   "tabs": [
    {
     "key": "study",

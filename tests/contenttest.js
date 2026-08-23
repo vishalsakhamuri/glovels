@@ -99,7 +99,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   /* And the number the server would actually charge. */
   const order = await (await ctx.request.post(BASE + '/api/orders', {
     data: { packageId: 'pkg-boarding', name: 'Price Test', email: 'price@test.com',
-      phone: '9876543210', amount: 1 },
+      phone: '9876543210', amount: 1, acceptedTerms: true },
   })).json();
   const paise = order.grossPaise != null ? order.grossPaise
     : (order.order && (order.order.gross_paise != null ? order.order.gross_paise : order.order.grossPaise));

@@ -240,6 +240,7 @@ function robotsTxt() {
     'Disallow: /catalogue',
     'Disallow: /blog-admin',
     'Disallow: /leads',
+    'Disallow: /acceptance/',
     'Disallow: /login',
     'Allow: /',
     '',
@@ -337,17 +338,24 @@ function whoIsIt(req) {
   if (!hit) return null;
   try { return db.sessionStudent(decodeURIComponent(hit[1])); } catch (e) { return null; }
 }
-let TPL = { post: null, index: null, at: 0 };
+let TPL = { post: null, index: null, page: null, at: 0 };
 
 function templates() {
   /* Re-read when the file on disk is newer, so a rebuild shows up without a
      restart, and cached otherwise — this is on the path of every blog page. */
   const a = path.join(ROOT, 'post', '_post.tpl.html');
   const b = path.join(ROOT, '_blog.tpl.html');
+  const c = path.join(ROOT, '_page.tpl.html');
   try {
-    const at = Math.max(fs.statSync(a).mtimeMs, fs.statSync(b).mtimeMs);
+    const at = Math.max(fs.statSync(a).mtimeMs, fs.statSync(b).mtimeMs,
+      fs.statSync(c).mtimeMs);
     if (!TPL.post || at > TPL.at) {
-      TPL = { post: fs.readFileSync(a, 'utf8'), index: fs.readFileSync(b, 'utf8'), at };
+      TPL = {
+        post: fs.readFileSync(a, 'utf8'),
+        index: fs.readFileSync(b, 'utf8'),
+        page: fs.readFileSync(c, 'utf8'),
+        at,
+      };
     }
   } catch (e) {
     return null;                      // templates not built: fall through to files
@@ -493,6 +501,91 @@ function blogIndexPage(posts) {
   }));
 }
 
+/*
+ * The receipt for what somebody accepted when they paid.
+ *
+ * "The student should be shown proof that during payment he has accepted all
+ * conditions." A tick in a database is not proof to the person who ticked it —
+ * this is the page that shows them the words that were on the screen, the day
+ * and time, and the fingerprint of each document as it read then. It prints.
+ *
+ * Never indexed. It has somebody's name, their email and their order on it.
+ */
+function acceptancePage(order, accepted) {
+  const t = templates();
+  if (!t) return null;
+  const money = p => '₹' + Number((p || 0) / 100).toLocaleString('en-IN');
+  const when = iso => {
+    const d = new Date(iso);
+    return isNaN(d) ? String(iso || '') : d.toLocaleString('en-IN', {
+      day: 'numeric', month: 'long', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata',
+    }) + ' IST';
+  };
+
+  const body = accepted
+    ? '<div class="rc"><h2>What you accepted</h2>'
+      + '<p class="rc-sub">Recorded when the order was placed. This page is the record; '
+      + 'nothing on it is written from memory.</p>'
+      + '<dl>'
+      + '<dt>Order</dt><dd>' + esc(order.reference) + ' — ' + esc(order.package)
+        + ' · ' + money(order.gross_paise) + '</dd>'
+      + '<dt>Accepted by</dt><dd>' + esc(accepted.name || order.name)
+        + ' (' + esc(accepted.email || order.email) + ')</dd>'
+      + '<dt>Accepted at</dt><dd>' + esc(when(accepted.at)) + '</dd>'
+      + (accepted.ip ? '<dt>From</dt><dd>' + esc(accepted.ip) + '</dd>' : '')
+      + (accepted.entity ? '<dt>With</dt><dd>' + esc(accepted.entity) + '</dd>' : '')
+      + (accepted.effective ? '<dt>Terms in effect from</dt><dd>'
+        + esc(accepted.effective) + '</dd>' : '')
+      + '</dl>'
+      + '<div class="said">' + esc(accepted.line) + '</div>'
+      + '</div>'
+
+      + (accepted.docs && accepted.docs.length
+          ? '<div class="rc"><h2>The documents, as they read that day</h2>'
+            + '<p class="rc-sub">The code beside each one is a fingerprint of its text at '
+            + 'the moment you accepted it. If a page is edited later, its fingerprint '
+            + 'changes and this one stays — so what you agreed to can always be told apart '
+            + 'from what the page says today.</p>'
+            + '<ul class="rc-docs">'
+            + accepted.docs.map(d => '<li><a href="' + esc(d.url) + '">' + esc(d.name)
+              + '</a> <code>' + esc(d.sha256) + '</code></li>').join('')
+            + '</ul></div>'
+          : '')
+
+      + (accepted.packageTerms
+          ? '<div class="rc"><h2>' + esc(order.package) + ' — the terms in full</h2>'
+            + '<p class="rc-sub">Stored word for word with the order, not linked to. '
+            + (accepted.packageTermsSha256
+                ? 'Fingerprint <code>' + esc(accepted.packageTermsSha256) + '</code>.' : '')
+            + '</p>'
+            + '<div class="rc-terms">' + esc(accepted.packageTerms) + '</div></div>'
+          : '')
+
+      + '<p style="margin:22px 0 0;font-size:12.6px;color:var(--muted);line-height:1.65">'
+      + 'Keep this page, or print it. A copy is held against your order and your '
+      + 'counsellor can send it again at any time.</p>'
+
+    : '<div class="rc-none"><b>Nothing was recorded against this order.</b><br>'
+      + 'It was placed before we started recording acceptance, or the package it was '
+      + 'for carries no separate terms. The Terms of Service and the Refund policy '
+      + 'still apply, and your counsellor can go through them with you.</div>';
+
+  return fill(t.page, Object.assign(metaHoles({
+    title: 'What you accepted — ' + order.reference,
+    desc: 'The terms accepted with order ' + order.reference + '.',
+    canonical: absolute('/acceptance/' + order.reference),
+    type: 'website',
+    /* Never. Somebody's name, their email and their order are on this page. */
+    indexable: false,
+  }), {
+    CRUMBS: '<a href="index.html">Home</a> / Your order',
+    H1: 'What you accepted',
+    DATELINE: 'Order ' + esc(order.reference) + ' · ' + esc(when(order.created_at)),
+    BODY: body,
+  }));
+}
+
 const NOINDEX = /<meta name="robots" content="noindex,nofollow"\s*\/?>/i;
 
 function forIndexing(html, slug) {
@@ -534,6 +627,40 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/sitemap.xml') {
     if (!CFG.allowIndexing) return notFound(res);
     return send(res, 200, sitemapXml(), TYPES['.xml']);
+  }
+
+  /*
+   * /acceptance/<reference> — the receipt for what somebody accepted.
+   *
+   * Readable by the person it is about, by the office, and by nobody else. An
+   * order still waiting for its account is readable with its email in the
+   * query, because the person who has just paid has no account to sign in to
+   * yet and is exactly who needs to see this.
+   */
+  const acc = /^\/acceptance\/([A-Za-z0-9-]{3,30})$/.exec(pathname);
+  if (acc) {
+    const order = db.orderByReference(acc[1]);
+    if (!order) return notFound(res);
+    const who = whoIsIt(req);
+    const asked = String((url.parse(req.url, true).query || {}).email || '')
+      .trim().toLowerCase();
+    const allowed = (who && who.role !== 'student')
+      || (who && Number(order.student_id) === Number(who.id))
+      || (asked && asked === String(order.email || '').toLowerCase());
+    if (!allowed) {
+      return send(res, 403,
+        '<!doctype html><meta charset="utf-8"><title>Sign in to see this</title>'
+        + '<body style="font:400 15px/1.6 system-ui,sans-serif;max-width:34em;margin:14vh auto;'
+        + 'padding:0 20px;color:#0b1e31"><h1 style="font-size:22px">This one is yours, so '
+        + 'we have to know it is you</h1><p>Sign in with the email address the order was '
+        + 'placed under, and open it from your dashboard.</p>'
+        + '<p><a href="/login" style="font-weight:700;color:#13385c">Sign in</a></p></body>',
+        TYPES['.html']);
+    }
+    let accepted = null;
+    try { accepted = order.accepted ? JSON.parse(order.accepted) : null; } catch (e) { /* none */ }
+    const html = acceptancePage(order, accepted);
+    if (html) return send(res, 200, html, TYPES['.html']);
   }
 
   /*

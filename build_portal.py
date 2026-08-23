@@ -638,6 +638,7 @@ async function __dashBoot(main) {
       localStorage.setItem('glovels_shortlist', JSON.stringify(s.shortlist || []));
       window.__GLOVELS = s;
       __dashTodo(s);
+      __dashOrders(s);
     }
   } catch (e) {
     /* Server down: fall through to whatever this browser last saw, and say so
@@ -690,6 +691,46 @@ function __dashTodo(s) {
         : 'things about you', gaps, 'profile.html', 'Fill these in') : '')
     + (docs.length ? line(docs.length, docs.length === 1 ? 'document' : 'documents',
         docs, 'documents.html', 'Upload them') : '')
+    + '</ul>';
+  host.parentNode.insertBefore(el, host.nextSibling);
+}
+
+/*
+ * Your orders, and what you accepted with each one.
+ *
+ * "The student should be shown proof that during payment he has accepted all
+ * conditions." A record nobody can reach is not proof of anything, so the way
+ * to it is on the screen they land on rather than on a link a counsellor has
+ * to remember to send.
+ */
+function __dashOrders(s) {
+  const orders = (s && s.orders) || [];
+  if (!orders.length) return;
+  const main = document.querySelector('.p-main') || document.body;
+  const host = main.querySelector('.todo-card')
+    || main.querySelector('.p-top') || main.firstElementChild;
+  if (!host) return;
+  const esc3 = x => String(x == null ? '' : x)
+    .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money = p => '₹' + Number((p || 0) / 100).toLocaleString('en-IN');
+  const when = iso => {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString('en-IN',
+      { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const WORD = { paid: 'Paid', owing: 'To pay', awaiting: 'Card started',
+    failed: 'Card failed' };
+
+  const el = document.createElement('div');
+  el.className = 'ord-card';
+  el.innerHTML = '<b class="ord-h">Your orders</b><ul>'
+    + orders.map(o =>
+        '<li><span class="ord-l"><b>' + esc3(o.package || 'Order') + '</b>'
+        + '<span>' + esc3(o.reference) + ' · ' + when(o.paidAt) + '</span></span>'
+        + '<span class="ord-r"><b>' + money(o.grossPaise) + '</b>'
+        + '<span class="ord-st">' + esc3(WORD[o.status] || o.status || '') + '</span></span>'
+        + '<a class="ord-a" href="/acceptance/' + encodeURIComponent(o.reference) + '">'
+        + 'What I accepted</a></li>').join('')
     + '</ul>';
   host.parentNode.insertBefore(el, host.nextSibling);
 }

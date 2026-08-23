@@ -447,6 +447,8 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
+
 /* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
 
 /* Top bar: page title, notifications, avatar. */
@@ -602,6 +604,25 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .todo-card li{font-size:13.1px;line-height:1.6;color:#5b4409}
 .todo-card li b{color:#3f2f06}
 .todo-card a{font-weight:700;color:#8a5a0b;text-decoration:underline;white-space:nowrap}
+
+/* ------------------------------------------------------------- your orders */
+.ord-card{background:var(--paper);border:1px solid var(--line);border-radius:14px;
+  padding:16px 20px 14px;margin:0 0 20px}
+.ord-h{display:block;font:700 12.6px/1 var(--sans);letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:11px}
+.ord-card ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.ord-card li{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  padding-bottom:10px;border-bottom:1px solid var(--line)}
+.ord-card li:last-child{border-bottom:0;padding-bottom:0}
+.ord-l{display:flex;flex-direction:column;gap:2px;flex:1;min-width:180px}
+.ord-l b{font:700 13.8px/1.4 var(--sans);color:var(--navy-900)}
+.ord-l span{font-size:11.8px;color:var(--muted)}
+.ord-r{display:flex;flex-direction:column;gap:2px;align-items:flex-end}
+.ord-r b{font:700 13.8px/1.4 var(--sans);color:var(--navy-900)}
+.ord-st{font:700 10.6px/1.7 var(--sans);letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted)}
+.ord-a{font:700 12.4px/1.5 var(--sans);color:var(--navy-700);text-decoration:underline;
+  white-space:nowrap}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
@@ -765,6 +786,7 @@ async function __dashBoot(main) {
       localStorage.setItem('glovels_shortlist', JSON.stringify(s.shortlist || []));
       window.__GLOVELS = s;
       __dashTodo(s);
+      __dashOrders(s);
     }
   } catch (e) {
     /* Server down: fall through to whatever this browser last saw, and say so
@@ -817,6 +839,46 @@ function __dashTodo(s) {
         : 'things about you', gaps, 'profile.html', 'Fill these in') : '')
     + (docs.length ? line(docs.length, docs.length === 1 ? 'document' : 'documents',
         docs, 'documents.html', 'Upload them') : '')
+    + '</ul>';
+  host.parentNode.insertBefore(el, host.nextSibling);
+}
+
+/*
+ * Your orders, and what you accepted with each one.
+ *
+ * "The student should be shown proof that during payment he has accepted all
+ * conditions." A record nobody can reach is not proof of anything, so the way
+ * to it is on the screen they land on rather than on a link a counsellor has
+ * to remember to send.
+ */
+function __dashOrders(s) {
+  const orders = (s && s.orders) || [];
+  if (!orders.length) return;
+  const main = document.querySelector('.p-main') || document.body;
+  const host = main.querySelector('.todo-card')
+    || main.querySelector('.p-top') || main.firstElementChild;
+  if (!host) return;
+  const esc3 = x => String(x == null ? '' : x)
+    .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money = p => '₹' + Number((p || 0) / 100).toLocaleString('en-IN');
+  const when = iso => {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString('en-IN',
+      { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const WORD = { paid: 'Paid', owing: 'To pay', awaiting: 'Card started',
+    failed: 'Card failed' };
+
+  const el = document.createElement('div');
+  el.className = 'ord-card';
+  el.innerHTML = '<b class="ord-h">Your orders</b><ul>'
+    + orders.map(o =>
+        '<li><span class="ord-l"><b>' + esc3(o.package || 'Order') + '</b>'
+        + '<span>' + esc3(o.reference) + ' · ' + when(o.paidAt) + '</span></span>'
+        + '<span class="ord-r"><b>' + money(o.grossPaise) + '</b>'
+        + '<span class="ord-st">' + esc3(WORD[o.status] || o.status || '') + '</span></span>'
+        + '<a class="ord-a" href="/acceptance/' + encodeURIComponent(o.reference) + '">'
+        + 'What I accepted</a></li>').join('')
     + '</ul>';
   host.parentNode.insertBefore(el, host.nextSibling);
 }

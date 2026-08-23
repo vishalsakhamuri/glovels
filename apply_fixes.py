@@ -3378,6 +3378,160 @@ patch("index.html", "the results box shows more of what it has",
       "@media (max-width:700px){ .rows{max-height:min(70vh,520px)} }")
 
 
+# ---------------------------------------------------------------------------
+# The terms, accepted before the money and recorded with it.
+#
+# The tick box only appeared for packages that carried a pledge of their own —
+# so two of the three study packages, and every work and migration package, took
+# money with nothing recorded about what the buyer had agreed to. And what WAS
+# recorded was a string the browser sent, which is worth nothing: a page that
+# reports its own consent wording can report anything.
+#
+# Now: every order shows the line, every order records it, and the record is
+# built from the server's own copy. The confirmation links to the receipt.
+
+patch("index.html", "every checkout shows the terms it is recording",
+      """    + (buying.consent
+        ? '<label class="consent-row" id="cBox"><input type="checkbox" id="rqOk">'
+          + '<span>' + esc(buying.consent) + '</span></label>'
+          + '<span class="err" id="rqOkErr">Please accept the terms shown before paying.</span>'
+        : '');""",
+      """    + '<label class="consent-row" id="cBox"><input type="checkbox" id="rqOk">'
+      + '<span>' + esc(acceptanceLine(buying)) + '</span></label>'
+      + '<span class="err" id="rqOkErr">Please accept the terms shown before paying.</span>'
+      + '<p style="margin:8px 0 0;font-size:11.4px;color:var(--muted);line-height:1.55">'
+      + 'We record what you accept, word for word, and show it back to you on your '
+      + 'order — so neither of us is working from memory later.</p>';""",
+      marker="acceptanceLine(buying)")
+
+# Declared at the top of the page's script, not inside a section.
+#
+# The packages checkout and the services checkout are in different IIFEs, and
+# the first version of this put the helper inside the finder's one — where the
+# services sheet could not see it. `acceptanceLine is not defined` threw inside
+# the button handler, so the sheet opened with no Pay button and the whole
+# a-la-carte checkout stopped working, silently.
+patch("index.html", "the acceptance sentence is one string, from the server",
+      "/* ---- block1 ---- */",
+      """/*
+ * The sentence somebody ticks, composed the same way on both sides.
+ *
+ * The base line comes from the server with the packages, so the words on the
+ * screen and the words stored against the order are the same string rather
+ * than two copies of a legal sentence that drift.
+ */
+const BASE_ACCEPTANCE = 'I have read and accept the Terms of Service, the Refund '
+  + '& Cancellation policy and the Privacy policy.';
+
+function acceptanceLine(pkg){
+  const base = (pkg && pkg.acceptance) || BASE_ACCEPTANCE;
+  const own = (pkg && pkg.consent || '').trim();
+  return own ? base + ' ' + own : base;
+}
+
+/* ---- block1 ---- */""",
+      marker="function acceptanceLine(pkg){")
+
+patch("index.html", "the tick is always required, not only when a package pledges",
+      """  const box = $('#rqOk');
+  if(buying.consent){
+    const given = box && box.checked;
+    $('#rqOkErr').style.display = given ? 'none' : 'block';
+    if(!given) ok = false;
+  }""",
+      """  /* Always, whatever was bought. The server refuses the order without it, so
+     this is the polite half of a rule that is enforced somewhere it cannot be
+     skipped by a hand-rolled request. */
+  const box = $('#rqOk');
+  const given = box && box.checked;
+  if($('#rqOkErr')) $('#rqOkErr').style.display = given ? 'none' : 'block';
+  if(!given) ok = false;""",
+      marker="Always, whatever was bought")
+
+patch("index.html", "the order carries the acceptance",
+      """      packageId,
+      name: buyer.name, phone: buyer.phone, email: buyer.email,
+      consent: buying.consent ? 'yes' : 'not required',
+      consentWording: buying.consent || '',
+      sourcePage: location.pathname, referrer: document.referrer || 'direct'""",
+      """      packageId,
+      name: buyer.name, phone: buyer.phone, email: buyer.email,
+      /* The tick, and nothing about what it said: the server writes the record
+         from its own copy of the words. A page that reports its own consent
+         wording could report anything, and this is the part that has to hold
+         up when somebody disputes a charge. */
+      acceptedTerms: true,
+      sourcePage: location.pathname, referrer: document.referrer || 'direct'""",
+      marker="acceptedTerms: true,")
+
+# The confirmation now has somewhere to point: the receipt.
+patch("index.html", "the confirmation links to what was accepted",
+      """    const acct = $('#buyAcct');""",
+      """    /* Where the proof lives. The email is on the link because somebody who
+       has just paid has no account yet, and this is exactly who needs to read
+       it. */
+    const proof = '/acceptance/' + encodeURIComponent(ref)
+      + '?email=' + encodeURIComponent(buyer.email);
+    const legal = $('.co-legal');
+    if (legal) {
+      legal.innerHTML = '<a href="' + proof + '" style="font-weight:700;'
+        + 'color:var(--blue-deep)">What you accepted \\u2014 your copy</a><br>'
+        + 'Recorded with this order, word for word.';
+      legal.style.display = '';
+    }
+    const acct = $('#buyAcct');""",
+      marker="What you accepted \\u2014 your copy")
+
+
+# The services checkout takes money too, and was recording nothing at all.
+patch("index.html", "the services checkout shows the terms it is recording",
+      """    + '<div class="fld"><label for="scMail">Email *</label>'
+      + '<input id="scMail" inputmode="email"><span class="err"></span></div></div>';""",
+      """    + '<div class="fld"><label for="scMail">Email *</label>'
+      + '<input id="scMail" inputmode="email"><span class="err"></span></div></div>'
+    + '<label class="consent-row" id="scBox"><input type="checkbox" id="scOk">'
+      + '<span>' + esc(acceptanceLine(null)) + '</span></label>'
+      + '<span class="err" id="scOkErr">Please accept the terms shown before paying.</span>'
+      + '<p style="margin:8px 0 0;font-size:11.4px;color:var(--muted);line-height:1.55">'
+      + 'We record what you accept, word for word, and show it back to you on your '
+      + 'order.</p>';""",
+      marker="acceptanceLine(null)")
+
+patch("index.html", "the services checkout will not pay without the tick",
+      """      if(bad) ok = false;
+    });
+    if(!ok) return;
+
+    /* The server's reference, not one this page invented. An order the
+       student can find is an order with the same number on both ends. */""",
+      """      if(bad) ok = false;
+    });
+    const scBox = $('#scOk');
+    const scGiven = scBox && scBox.checked;
+    if($('#scOkErr')) $('#scOkErr').style.display = scGiven ? 'none' : 'block';
+    if(!scGiven) ok = false;
+    if(!ok) return;
+
+    /* The server's reference, not one this page invented. An order the
+       student can find is an order with the same number on both ends. */""",
+      marker="const scGiven = scBox && scBox.checked;")
+
+patch("index.html", "and sends it",
+      """          name: $('#scName').value.trim(),
+          email: $('#scMail').value.trim(),
+          phone: $('#scPhone').value.trim(),
+        }),""",
+      """          name: $('#scName').value.trim(),
+          email: $('#scMail').value.trim(),
+          phone: $('#scPhone').value.trim(),
+          /* The tick, and nothing about what it said: the server writes the
+             record from its own copy of the words. */
+          acceptedTerms: true,
+        }),""",
+      marker="""          phone: $('#scPhone').value.trim(),
+          /* The tick, and nothing about what it said""")
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and

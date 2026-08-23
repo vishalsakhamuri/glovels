@@ -167,4 +167,23 @@ CSS = """
 .todo-card li{font-size:13.1px;line-height:1.6;color:#5b4409}
 .todo-card li b{color:#3f2f06}
 .todo-card a{font-weight:700;color:#8a5a0b;text-decoration:underline;white-space:nowrap}
+
+/* ------------------------------------------------------------- your orders */
+.ord-card{background:var(--paper);border:1px solid var(--line);border-radius:14px;
+  padding:16px 20px 14px;margin:0 0 20px}
+.ord-h{display:block;font:700 12.6px/1 var(--sans);letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:11px}
+.ord-card ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.ord-card li{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  padding-bottom:10px;border-bottom:1px solid var(--line)}
+.ord-card li:last-child{border-bottom:0;padding-bottom:0}
+.ord-l{display:flex;flex-direction:column;gap:2px;flex:1;min-width:180px}
+.ord-l b{font:700 13.8px/1.4 var(--sans);color:var(--navy-900)}
+.ord-l span{font-size:11.8px;color:var(--muted)}
+.ord-r{display:flex;flex-direction:column;gap:2px;align-items:flex-end}
+.ord-r b{font:700 13.8px/1.4 var(--sans);color:var(--navy-900)}
+.ord-st{font:700 10.6px/1.7 var(--sans);letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted)}
+.ord-a{font:700 12.4px/1.5 var(--sans);color:var(--navy-700);text-decoration:underline;
+  white-space:nowrap}
 """

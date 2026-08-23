@@ -62,8 +62,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await p.fill('#scMail', 'student@glovels.com');
   await p.fill('#scPhone', '9876543210');
 
-  const consent = await p.$('#svcCheckout input[type="checkbox"]');
-  if (consent) await consent.check().catch(() => {});
+  /* Every checkout records what was accepted now, services included — so the
+     tick is not optional and the order is refused without it. */
+  await p.check('#scOk');
 
   await p.click('#scPay');
   await p.waitForTimeout(2500);
@@ -117,7 +118,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
 
   /* ---------------------------------- a package still works exactly as before */
   const pkgOrder = await (await stu.request.post(BASE + '/api/orders', {
-    data: { packageId: 'pkg-roadmap', name: 'T', email: 'student@glovels.com', phone: '9876543210' },
+    data: { packageId: 'pkg-roadmap', name: 'T', email: 'student@glovels.com',
+      phone: '9876543210', acceptedTerms: true },
   })).json();
   check('a package order still prices from the server', pkgOrder.grossPaise > 0,
     pkgOrder.grossPaise);
@@ -126,7 +128,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   /* --------------------------------------------- the price cannot be dictated */
   const cheeky = await (await stu.request.post(BASE + '/api/orders', {
     data: { services: [{ id: picked[0] }], amount: 1, grossPaise: 1,
-      name: 'T', email: 'student@glovels.com', phone: '9876543210' },
+      name: 'T', email: 'student@glovels.com', phone: '9876543210',
+      acceptedTerms: true },
   })).json();
   const real = (after.orders.find(o => o.reference === ref).items || [])
     .find(x => x.id === picked[0]);
@@ -137,7 +140,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   /* ------------------------------------- a service that does not exist is not sold */
   const bogus = await stu.request.post(BASE + '/api/orders', {
     data: { services: [{ id: 'not-a-real-service' }],
-      name: 'T', email: 'student@glovels.com', phone: '9876543210' },
+      name: 'T', email: 'student@glovels.com', phone: '9876543210',
+      acceptedTerms: true },
   });
   check('an unknown service is refused rather than invented', bogus.status() === 400,
     bogus.status());

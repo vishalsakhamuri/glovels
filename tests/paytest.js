@@ -16,7 +16,7 @@ const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
 
-const ROOT = require('path').join(__dirname, '..');
+const ROOT = '/home/claude/glovels/build';
 const KEY_ID = 'rzp_test_glovels';
 const KEY_SECRET = 'a-secret-no-browser-has-seen';
 const HOOK_SECRET = 'a-webhook-secret';
@@ -107,7 +107,7 @@ async function boot(port, env) {
     /* ------------------------------------------------- an order is created */
     const made = await post(PORT, '/api/orders', {
       packageId: 'pkg-roadmap', name: 'Ananya Rao',
-      email: 'pay@example.com', phone: '9812345678',
+      email: 'pay@example.com', phone: '9812345678', acceptedTerms: true,
     });
     const ref = made.body.reference;
     check('an order is created', made.status === 200 && /^GLV-\d+$/.test(ref || ''), ref);
@@ -214,7 +214,7 @@ async function boot(port, env) {
        came back. This is the case the webhook exists for. */
     const two = await post(PORT, '/api/orders', {
       packageId: 'pkg-boarding', name: 'Rohit K',
-      email: 'hook@example.com', phone: '9812345670',
+      email: 'hook@example.com', phone: '9812345670', acceptedTerms: true,
     });
     const twoGateway = two.body.razorpay.orderId;
 
@@ -263,7 +263,7 @@ async function boot(port, env) {
 
     const plain = await post(PORT + 1, '/api/orders', {
       packageId: 'pkg-roadmap', name: 'Ananya Rao',
-      email: 'nogateway@example.com', phone: '9812345678',
+      email: 'nogateway@example.com', phone: '9812345678', acceptedTerms: true,
     });
     check('an order is still placed', plain.status === 200 && !!plain.body.reference);
     check('it carries no card sheet to open', !plain.body.razorpay);

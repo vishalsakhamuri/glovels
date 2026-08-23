@@ -306,6 +306,10 @@ SCRIPT = r"""
               sellTier: p.sell ? 'call' : 'quote',
               buyable: !!p.sell, publicUnis: p.unlocks || 0,
               consent: p.consent || '', cta: p.cta,
+              /* The sentence every buyer ticks, whatever they bought. It comes
+                 from the server so the words on the screen and the words
+                 recorded against the order are the same string. */
+              acceptance: data.packages.acceptance || '',
             };
           }));
       }

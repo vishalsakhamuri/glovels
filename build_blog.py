@@ -141,6 +141,35 @@ FORM_CSS = """
 .postcard .postmeta .live{color:#14603a}
 """
 
+RECEIPT_CSS = """
+/* The acceptance receipt. Built to be printed and to be believed: a fixed-width
+   fingerprint next to each document, and nothing on the page that moves. */
+.rc{border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:0 0 20px;
+  background:var(--paper)}
+.rc h2{font-size:19px;margin:0 0 4px}
+.rc .rc-sub{font-size:12.9px;color:var(--muted);margin:0 0 16px;line-height:1.6}
+.rc dl{display:grid;grid-template-columns:minmax(140px,180px) 1fr;gap:9px 16px;margin:0}
+.rc dt{font:700 12.5px/1.6 var(--sans);color:var(--muted)}
+.rc dd{margin:0;font:400 13.4px/1.6 var(--sans);color:var(--navy-900);word-break:break-word}
+.rc .said{background:#f7f9fc;border-left:3px solid var(--navy-700);padding:13px 16px;
+  border-radius:0 10px 10px 0;margin:18px 0 0;font-size:13.6px;line-height:1.7;
+  color:var(--navy-900)}
+.rc-docs{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px}
+.rc-docs li{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;font-size:13.2px}
+.rc-docs code{font:600 11.8px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:#eef2f7;border-radius:5px;padding:2px 7px;color:#3d5a78}
+.rc-terms{white-space:pre-wrap;font-size:13.4px;line-height:1.72;color:var(--navy-800);
+  background:#fff;border:1px solid var(--line);border-radius:12px;padding:17px 19px;
+  margin:14px 0 0}
+.rc-none{background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;border-radius:12px;
+  padding:15px 17px;font-size:13.2px;line-height:1.65}
+@media print{
+  header.site,footer.site,.cta-band,.page-hero{display:none !important}
+  .rc{border:0;padding:0}
+  body{background:#fff}
+}
+"""
+
 FORM_JS = """
 <script>
 (function () {
@@ -251,17 +280,54 @@ def build_index():
     return out
 
 
+def build_page():
+    """A plain top-level page, for anything the server has to render per request.
+
+    The acceptance receipt is the first: it is different for every order, so it
+    cannot be a file. terms.html is the donor because it is the plainest page on
+    the site — a heading and a column of prose, which is exactly the shape of a
+    document somebody prints.
+    """
+    donor = HERE / "terms.html"
+    if not donor.exists():
+        die(f"donor page missing: {donor}")
+    html = donor.read_text(encoding="utf-8")
+    html = head_holes(html)
+    html = html.replace("</style>", FORM_CSS + RECEIPT_CSS + "</style>", 1)
+
+    hero = re.search(r'(<section class="page-hero">.*?</section>)', html, re.S)
+    if not hero:
+        die("no page-hero in terms.html")
+    html = html.replace(hero.group(1), """<section class="page-hero"><div class="wrap">
+  <div class="crumbs">{{CRUMBS}}</div>
+  <h1>{{H1}}</h1><p>{{DATELINE}}</p>
+</div></section>""", 1)
+
+    block = re.search(r'<section class="block">.*?</section>', html, re.S)
+    if not block:
+        die("no prose section in terms.html")
+    html = html.replace(block.group(0),
+                        '<section class="block"><div class="wrap prose" id="page">'
+                        '{{BODY}}</div></section>', 1)
+
+    out = HERE / "_page.tpl.html"
+    out.write_text(html, encoding="utf-8")
+    return out
+
+
 def main():
     a = build_post()
     b = build_index()
-    for f in (a, b):
+    c = build_page()
+    for f in (a, b, c):
         t = f.read_text(encoding="utf-8")
         for hole in ("{{HEAD_TITLE}}", "{{DESC}}", "{{CANONICAL}}", "{{H1}}", "{{BODY}}"):
             if hole not in t:
                 die(f"{f.name} lost {hole} — the donor page changed shape")
-    print("blog templates built")
+    print("page templates built")
     print(f"   {a.relative_to(HERE)}")
     print(f"   {b.relative_to(HERE)}")
+    print(f"   {c.relative_to(HERE)}")
 
 
 if __name__ == "__main__":

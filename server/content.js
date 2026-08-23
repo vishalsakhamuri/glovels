@@ -158,6 +158,12 @@ function cleanPackages(v) {
   return {
     eyebrow: str(raw.eyebrow, 80),
     heading: str(raw.heading, 200),
+    /* The sentence every buyer ticks, whatever they are buying. It lives here
+       so the page that shows it and the server that records it read the same
+       string — two copies of a legal sentence is one copy that gets edited. */
+    acceptance: str(raw.acceptance, 400)
+      || 'I have read and accept the Terms of Service, the Refund & Cancellation '
+       + 'policy and the Privacy policy.',
     tabs,
     items,
   };
@@ -622,7 +628,13 @@ function makeContent({ db, file }) {
       const out = {};
       get('packages').items.forEach(p => {
         if (!p.sell || !p.active) return;
-        out[p.id] = { name: p.title, paise: Math.round(p.priceInr * 100), publicUnis: p.unlocks };
+        /* `id` and `consent` travel with the price because the order endpoint
+           records what was accepted from OUR copy of the package, not from
+           what the page reported it had shown. */
+        out[p.id] = {
+          id: p.id, name: p.title, paise: Math.round(p.priceInr * 100),
+          publicUnis: p.unlocks, consent: p.consent || '',
+        };
       });
       return out;
     },

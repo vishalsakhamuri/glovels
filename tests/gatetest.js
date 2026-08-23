@@ -102,7 +102,8 @@ const asVisitor = async (browser) => {
   check('a student who has not paid sees no public name', (await seen()).programmes === 0);
 
   const order = await (await stu.request.post(BASE + '/api/orders', {
-    data: { packageId: 'pkg-roadmap', name: 'G', email, phone: '9876543210' },
+    data: { packageId: 'pkg-roadmap', name: 'G', email, phone: '9876543210',
+      acceptedTerms: true },
   })).json();
   const after = await seen();
   check('the package promises universities, and delivers exactly that many',

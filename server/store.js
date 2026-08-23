@@ -316,6 +316,12 @@ function sqliteDriver(file) {
       at which university they pressed Apply on. A lead that says only "someone
       from Hyderabad" is a lead the counsellor has to start from nothing. */
    "ALTER TABLE enquiries ADD COLUMN note TEXT NOT NULL DEFAULT ''",
+   /* What the student accepted, and when, as one JSON document.
+      Not a boolean. "They ticked a box" is evidence of nothing a year later,
+      when the terms have been reworded twice — the record has to carry the
+      words that were on the screen, the documents as they read that day, and
+      a fingerprint that shows neither has been edited since. */
+   "ALTER TABLE orders ADD COLUMN accepted TEXT NOT NULL DEFAULT ''",
    /* Where the lead came from — a Facebook ad, a WhatsApp message, a Google
       search, the chat box, a blog post, or somebody who walked in. Every
       enquiry landed in one undifferentiated list, so "which of these is
@@ -661,12 +667,13 @@ function open(dir) {
     /* ---- orders ---- */
     addOrder(o) {
       db.run(`INSERT INTO orders
-        (student_id, reference, package, public_unis, gross_paise, name, email, phone, status, created_at, items, kind)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (student_id, reference, package, public_unis, gross_paise, name, email, phone, status, created_at, items, kind, accepted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         o.studentId ? Number(o.studentId) : null, o.reference, o.package,
         Number(o.publicUnis || 0), Number(o.grossPaise || 0),
         o.name || '', String(o.email || '').toLowerCase(), o.phone || '', o.status || 'paid', now(),
-        JSON.stringify(o.items || []), o.kind || 'package');
+        JSON.stringify(o.items || []), o.kind || 'package',
+        o.accepted ? JSON.stringify(o.accepted) : '');
       return db.one('SELECT * FROM orders WHERE reference = ?', o.reference);
     },
     ordersFor: id => db.all('SELECT * FROM orders WHERE student_id = ? ORDER BY id desc', Number(id)),
