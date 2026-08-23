@@ -702,8 +702,16 @@ function stOf(id) { return (DB.docs[id] && DB.docs[id].status) || S.NONE; }
    screen is a file the student cannot find again. */
 const KNOWN = new Set(DOCS.map(d => d.id));
 
+/* The visa file has its own screen and its own cards. Its keys live in the
+   same document store — one mechanism, not two — so without this every visa
+   upload would also turn up here under "shared in the conversation", which is
+   both wrong and the sort of duplicate that makes a student ask whether they
+   have uploaded the same thing twice. */
+const isVisaDoc = k => /^visa-/.test(k);
+
 function paintShared() {
-  const extra = Object.keys(DB.docs || {}).filter(k => !KNOWN.has(k));
+  const extra = Object.keys(DB.docs || {})
+    .filter(k => !KNOWN.has(k) && !isVisaDoc(k));
   const wrap = $('#sharedWrap');
   if (!wrap) return;
   wrap.hidden = !extra.length;

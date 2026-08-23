@@ -926,6 +926,7 @@ def data_js():
 def main():
     import portal_profile, portal_documents, portal_universities
     import portal_applications, portal_scholarships, portal_messages
+    import portal_visa
 
     DATA = data_js()
 
@@ -942,6 +943,9 @@ def main():
         ("applications", "Applications", "Applications",
          "Where each application stands, and what is holding it up.",
          portal_applications),
+        ("visa", "Visa &amp; enrollment", "Visa &amp; enrollment",
+         "The papers the consulate wants, uploaded once and checked by your counsellor.",
+         portal_visa),
         ("scholarships", "Scholarships", "Scholarships",
          "Checked against your profile, so you only spend time on the ones you can win.",
          portal_scholarships),
@@ -1014,22 +1018,11 @@ def main():
         (HERE / f"{slug}.html").write_text(html, encoding="utf-8")
         written.append(f"{slug}.html")
 
-    # The donor page keeps its own body but is re-emitted through the same shell,
-    # so its sidebar can never drift from the six pages generated above.
-    donor = DONOR.read_text(encoding="utf-8")
-    main_html = donor[donor.index('<main class="p-main">'):donor.index("</main>")]
-    # drop the shell's own top block; page() supplies it
-    inner = main_html.split("</div>", 3)[-1]
-    # Trimmed, because this page is its own donor: page() puts a newline either
-    # side of what it is given, and next build that newline is part of `inner`
-    # again. Two blank lines a build, for as long as anybody keeps building.
-    inner = re.sub(r"\A(?:[ \t]*\n)+", "", inner)
-    inner = re.sub(r"\s+\Z", "\n", inner)
-    visa = page("visa", "Visa &amp; enrollment", "Visa &amp; enrollment",
-                "What happens between your offer letter and your first week abroad.",
-                inner)
-    (HERE / "visa.html").write_text(visa, encoding="utf-8")
-    written.append("visa.html (re-shelled)")
+    # visa.html used to be its own donor: this block read the body out of the
+    # page it had written last time and wrapped it again. It worked, and it
+    # accumulated — two blank lines a build, and a patch that could apply twice
+    # if its marker moved. The body lives in portal_visa.py now and the page is
+    # generated like every other one, above.
 
     # Dashboard keeps its own markup and scripts; two things are replaced.
     import portal_dashboard_css
