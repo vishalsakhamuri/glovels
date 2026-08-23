@@ -2115,6 +2115,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
          a step that exists for no reason. */
       drafts: draftsFor(id),
       msgs: db.getMessages(id).map(msgShape(id)),
+      /* What an administrator has said about this conversation, to the person
+         having it. The student never sees this — it is not on their record and
+         it is not in their messages. Opening the file is reading it, so it
+         stops being unread here. */
+      guidance: (() => {
+        const notes = db.staffNotes(id);
+        if (s.role !== 'admin') db.markStaffNotesSeen(id, s.id);
+        return notes.map(guideShape);
+      })(),
     });
   }));
 
@@ -2413,6 +2422,129 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         reference: order.reference, status: done.status,
         plan: done.plan, outstandingPaise: done.outstanding,
       });
+    }));
+
+  /* ------------------------------------------------- reading the room */
+  /*
+   * Every conversation, and how long it has been waiting.
+   *
+   * "Admin should be able to see all the chats, everything related to the
+   * student. In case a counsellor is not writing messages correctly he should
+   * be able to guide him."
+   *
+   * An administrator could already open any student's file — one at a time,
+   * having first guessed which one to open. That is not oversight. This is the
+   * list: who is talking to whom, what was said last, and which conversations
+   * have somebody sitting at the other end of them waiting.
+   */
+  route('GET', '/api/staff/conversations', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const people = peopleMap();
+    const now = Date.now();
+
+    const rows = db.allStudents().map(st => {
+      const msgs = db.getMessages(st.id);
+      const last = msgs[msgs.length - 1] || null;
+      const waiting = ALERTS.waitingSince(msgs);
+      const c = st.counsellor_id ? people.get(Number(st.counsellor_id)) : null;
+      const notes = db.staffNotes(st.id);
+      return {
+        id: st.id, name: st.name, email: st.email,
+        counsellor: c ? { id: c.id, name: c.name } : null,
+        messages: msgs.length,
+        /* Who spoke last is the whole of it: a thread where we spoke last is
+           not waiting on anybody, whatever its age. */
+        lastFrom: last ? (last.sender === 'me' ? 'student' : 'us') : '',
+        lastBody: last ? String(last.body || '').slice(0, 140) : '',
+        lastAt: last ? last.created_at : '',
+        waitingSince: waiting || '',
+        waitingHours: waiting ? Math.floor((now - new Date(waiting).getTime()) / 36e5) : 0,
+        /* How much of the talking each side has done. A counsellor whose
+           thread is nine messages from the student and one from them is not
+           having a conversation. */
+        fromUs: msgs.filter(m => m.sender === 'them').length,
+        fromThem: msgs.filter(m => m.sender === 'me').length,
+        guidance: notes.length,
+        guidanceUnread: notes.filter(n => !n.seen).length,
+      };
+    }).filter(r => r.messages > 0);
+
+    rows.sort((a, b) => b.waitingHours - a.waitingHours
+      || String(b.lastAt).localeCompare(String(a.lastAt)));
+
+    return json(res, 200, {
+      conversations: rows,
+      counsellors: db.counsellors().map(c => ({ id: c.id, name: c.name })),
+      summary: {
+        total: rows.length,
+        waiting: rows.filter(r => !!r.waitingSince).length,
+        late: rows.filter(r => r.waitingHours >= 24).length,
+        /* Per counsellor, because "this counsellor has nine students waiting"
+           is the sentence an administrator is looking for. */
+        byCounsellor: Object.values(rows.reduce((m, r) => {
+          const k = r.counsellor ? String(r.counsellor.id) : 'none';
+          if (!m[k]) {
+            m[k] = { id: r.counsellor ? r.counsellor.id : null,
+              name: r.counsellor ? r.counsellor.name : 'Nobody assigned',
+              threads: 0, late: 0, fromUs: 0, fromThem: 0 };
+          }
+          m[k].threads++;
+          m[k].fromUs += r.fromUs;
+          m[k].fromThem += r.fromThem;
+          if (r.waitingHours >= 24) m[k].late++;
+          return m;
+        }, {})).sort((a, b) => b.late - a.late || b.threads - a.threads),
+      },
+    });
+  }));
+
+  /*
+   * A word to the counsellor, about this student, that the student never sees.
+   *
+   * It is a separate table rather than a message with a different sender,
+   * because "remember to filter this one out" is a rule that gets forgotten
+   * exactly once — and the thing that leaks is a manager telling somebody
+   * their tone was wrong.
+   */
+  route('POST', /^\/api\/staff\/student\/(\d+)\/guide$/,
+    caseworkOnly(async (req, res, s, m) => {
+      if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+      const id = Number(m[1]);
+      const st = db.studentById(id);
+      if (!st) return json(res, 404, { error: 'No such student' });
+      const b = await readJson(req);
+      const body = String(b.body || '').trim().slice(0, 2000);
+      if (!body) return json(res, 422, { error: 'Nothing to say' });
+      if (!st.counsellor_id) {
+        return json(res, 409, {
+          error: 'Nobody is looking after ' + st.name + ' yet, so there is nobody to tell. '
+               + 'Assign a counsellor first.',
+        });
+      }
+      db.addStaffNote(id, s.id, st.counsellor_id, body);
+      db.log(s.name, 'guided a counsellor',
+        (db.studentById(st.counsellor_id) || {}).name + ' — about ' + st.name);
+      /* Straight to their screen if they are on it. A note about a
+         conversation that arrives after the conversation is over is a note
+         about nothing. */
+      live.toStaff(st.counsellor_id, 'guidance', { studentId: id, studentName: st.name });
+      return json(res, 200, { notes: db.staffNotes(id).map(guideShape) });
+    }));
+
+  const guideShape = n => ({
+    id: n.id, body: n.body, at: n.created_at, seen: !!n.seen,
+    from: (db.studentById(n.from_id) || {}).name || 'An administrator',
+  });
+
+  /* What has been said to me, and marking it read. A counsellor opening the
+     student's file has seen it. */
+  route('GET', /^\/api\/staff\/student\/(\d+)\/guidance$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const notes = db.staffNotes(id);
+      if (s.role !== 'admin') db.markStaffNotesSeen(id, s.id);
+      return json(res, 200, { notes: notes.map(guideShape) });
     }));
 
   route('GET', '/api/staff/orders', caseworkOnly(async (req, res, s) => {

@@ -199,4 +199,23 @@ CSS = """
 .ord-plan li i{font-style:normal;font-size:11.4px;color:var(--muted);text-align:right}
 .ord-plan li.done i{color:#14603a}
 @media (max-width:520px){ .ord-plan li{grid-template-columns:1fr auto} .ord-plan li i{display:none} }
+
+/* ------------------------------------------------- conversations, overseen */
+.convwho{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.cw{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff}
+.cw.hot{border-color:#f0c8c4;background:#fdf6f5}
+.cw b{display:block;font:700 13.2px/1.4 var(--sans);color:var(--navy-900)}
+.cw span{display:block;font-size:11.8px;color:var(--muted);margin-top:2px}
+.cw.hot span{color:#7a2118;font-weight:600}
+.cw i{display:block;font-style:normal;font-size:11.2px;color:var(--muted);margin-top:4px}
+tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
+
+/* An administrator's word to the counsellor. It sits above the thread on the
+   student's file, where the conversation it is about is. */
+.guide{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:13px 15px;margin:0 0 13px}
+.guide b{display:block;font:700 11.6px/1.5 var(--sans);letter-spacing:.05em;
+  text-transform:uppercase;color:#8a5a0b;margin-bottom:4px}
+.guide p{margin:0;font-size:13.2px;line-height:1.65;color:#5b4409}
+.guide small{display:block;margin-top:7px;font-size:11.2px;color:#8a5a0b}
 """

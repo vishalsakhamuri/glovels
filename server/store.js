@@ -123,6 +123,21 @@ CREATE TABLE IF NOT EXISTS enquiries (
    asks, and it cannot be answered by a status field — a status says where
    something got to, not how much work went into getting it there. One row per
    call, message or note, so the count is real. */
+/* An administrator's word to a counsellor about one student.
+   NOT a message — a message is something the student can read, and the whole
+   point of this is that they cannot. It is a separate table rather than a
+   sender value on the messages table because "remember to filter this one out"
+   is a rule that gets forgotten exactly once, and the thing that leaks is a
+   manager telling somebody their tone was wrong. */
+CREATE TABLE IF NOT EXISTS staff_notes (
+  id          INTEGER PRIMARY KEY,
+  student_id  INTEGER NOT NULL,
+  from_id     INTEGER NOT NULL,
+  to_id       INTEGER,
+  body        TEXT NOT NULL,
+  seen        INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS lead_notes (
   id          INTEGER PRIMARY KEY,
   lead_id     INTEGER NOT NULL,
@@ -366,7 +381,7 @@ function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
     'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
-    'chats', 'chat_messages', 'posts', 'lead_notes'];
+    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -928,6 +943,26 @@ function open(dir) {
     countStudents: () => db.all('SELECT * FROM students WHERE id > ?', 0).length,
 
     /* ---- the blog ---- */
+
+    /* ---- what an administrator has said to a counsellor ---- */
+
+    staffNotes: id => db.all('SELECT * FROM staff_notes WHERE student_id = ? ORDER BY id asc',
+      Number(id)),
+    staffNotesFor: toId => db.all('SELECT * FROM staff_notes WHERE to_id = ? ORDER BY id desc',
+      Number(toId)),
+    addStaffNote(studentId, fromId, toId, body) {
+      db.run(`INSERT INTO staff_notes (student_id, from_id, to_id, body, seen, created_at)
+              VALUES (?, ?, ?, ?, ?, ?)`,
+        Number(studentId), Number(fromId), toId == null ? null : Number(toId),
+        String(body), 0, now());
+      return db.all('SELECT * FROM staff_notes WHERE student_id = ? ORDER BY id asc',
+        Number(studentId));
+    },
+    markStaffNotesSeen(studentId, toId) {
+      db.all('SELECT * FROM staff_notes WHERE student_id = ?', Number(studentId))
+        .filter(n => Number(n.to_id) === Number(toId) && !n.seen)
+        .forEach(n => db.run('UPDATE staff_notes SET seen = ? WHERE id = ?', 1, Number(n.id)));
+    },
 
     allPosts: () => db.all('SELECT * FROM posts WHERE id > ? ORDER BY id desc', 0),
     /* Published only, newest first. The list a visitor sees is decided here

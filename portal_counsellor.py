@@ -225,6 +225,12 @@ function paintRecord(r) {
       '</div>' +
 
       '<section class="pane active" id="t-chat">' +
+        /* What an administrator has said about this conversation, above the
+           conversation. The student never sees it — it is not on their record
+           and not in their messages. */
+        (r.guidance || []).map(g =>
+          '<div class="guide"><b>' + esc(g.from) + ' &middot; about this student</b>' +
+          '<p>' + esc(g.body) + '</p><small>' + timeAgo(g.at) + '</small></div>').join('') +
         '<div id="thread" style="height:min(400px,46vh);overflow-y:auto;display:flex;' +
           'flex-direction:column;gap:12px;padding:4px 2px 12px"></div>' +
         '<div id="typing" style="font:400 11.6px/1.6 var(--sans);color:var(--muted);height:18px"></div>' +

@@ -162,6 +162,40 @@ BODY = """
         No money moves on this site yet: an amount here is what was agreed, not what was
         collected.</p>
     </div>
+
+    <!-- Every conversation, and how long it has been waiting.
+         An administrator could already open any student's file — one at a time,
+         having first guessed which one to open. That is not oversight. -->
+    <div class="p-sec" id="everyChat">
+      <div class="p-sec-head"><h2>Conversations</h2>
+        <span id="chatLate" hidden class="st bad" style="text-transform:none;
+          letter-spacing:0"></span>
+        <label style="margin-left:auto;display:flex;gap:7px;align-items:center;
+          font:600 12.4px/1.4 var(--sans);color:var(--navy-800)">
+          <input type="checkbox" id="onlyWaiting"> Only ones waiting on us</label>
+      </div>
+
+      <div class="p-card" style="margin-bottom:14px">
+        <b style="display:block;font:700 12.4px/1 var(--sans);letter-spacing:.07em;
+          text-transform:uppercase;color:var(--muted);margin-bottom:11px">By counsellor</b>
+        <div class="convwho" id="convWho"></div>
+      </div>
+
+      <div class="p-card" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="margin:0">
+          <thead><tr><th>Student</th><th>Counsellor</th><th>Last said</th>
+            <th>Waiting</th><th>Balance</th><th></th></tr></thead>
+          <tbody id="convRows"></tbody>
+        </table>
+      </div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        <b>Waiting</b> is how long since the student wrote and nobody answered. A thread where
+        we spoke last is not waiting on anybody, whatever its age. <b>Balance</b> is how many
+        messages each side has sent &mdash; nine from them and one from us is not a
+        conversation. <b>Guide</b> writes a note to the counsellor about this student that the
+        student never sees.
+      </p>
+    </div>
 """
 
 SCRIPT = r"""
@@ -690,4 +724,115 @@ $('#pRole').addEventListener('change', syncRole);
 addEventListener('keydown', e => {
   if (e.key === 'Escape') $('#personModal').classList.remove('on');
 });
+
+/* ------------------------------------------------- reading the conversations */
+/*
+ * "Admin should be able to see all the chats, everything related to the
+ * student. In case a counsellor is not writing messages correctly he should be
+ * able to guide him."
+ *
+ * The list, not the search: which threads are waiting, on whom, and for how
+ * long. Opening one goes to the student's file, where the whole conversation
+ * is; guiding one writes a note the student never sees.
+ */
+let CONVS = [], CONV_SUM = {}, onlyWaiting = false;
+
+const ago = iso => {
+  if (!iso) return '';
+  const mins = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return mins + ' min';
+  const h = Math.floor(mins / 60);
+  if (h < 24) return h + 'h';
+  return Math.floor(h / 24) + 'd';
+};
+
+function paintConvs() {
+  const rows = CONVS.filter(c => !onlyWaiting || !!c.waitingSince);
+  const late = (CONV_SUM.late || 0);
+  const chip = $('#chatLate');
+  if (chip) {
+    chip.hidden = !late;
+    chip.textContent = late + (late === 1 ? ' has been waiting over a day'
+                                          : ' have been waiting over a day');
+  }
+
+  $('#convWho').innerHTML = (CONV_SUM.byCounsellor || []).map(p =>
+    '<div class="cw' + (p.late ? ' hot' : '') + '">' +
+      '<b>' + esc(p.name) + '</b>' +
+      '<span>' + p.threads + ' thread' + (p.threads === 1 ? '' : 's') +
+        (p.late ? ' · ' + p.late + ' waiting over a day' : '') + '</span>' +
+      '<i>' + p.fromUs + ' from us · ' + p.fromThem + ' from them</i>' +
+    '</div>').join('')
+    || '<p style="margin:0;color:var(--muted);font-size:12.6px">No conversations yet.</p>';
+
+  $('#convRows').innerHTML = rows.map(c =>
+    '<tr' + (c.waitingHours >= 24 ? ' class="late"' : '') + '>' +
+      '<td><b>' + esc(c.name) + '</b>' +
+        '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
+        esc(c.email) + '</span></td>' +
+      '<td style="font-size:12.6px">' + (c.counsellor ? esc(c.counsellor.name)
+        : '<span style="color:#b03a2e;font-weight:700">nobody</span>') + '</td>' +
+      '<td style="max-width:330px"><span style="font-size:12.4px;color:var(--muted)">' +
+        (c.lastFrom === 'student' ? 'They: ' : 'Us: ') + '</span>' +
+        '<span style="font-size:12.7px">' + esc(c.lastBody) + '</span>' +
+        '<span style="display:block;font-size:11.4px;color:var(--muted)">' +
+        ago(c.lastAt) + '</span></td>' +
+      /* Waiting is whether the student spoke last, not how long ago. A message
+         from ten minutes ago that nobody has answered is waiting; saying
+         "answered" because it is under an hour old is the screen lying to make
+         itself look better. */
+      '<td>' + (c.waitingSince
+        ? '<span class="st ' + (c.waitingHours >= 24 ? 'bad' : 'wait') + '">' +
+          ago(c.waitingSince) + '</span>'
+        : '<span class="st ok">answered</span>') + '</td>' +
+      '<td style="font-size:12.4px;white-space:nowrap">' + c.fromUs + ' / ' + c.fromThem +
+        (c.guidance ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
+          c.guidance + ' note' + (c.guidance === 1 ? '' : 's') +
+          (c.guidanceUnread ? ' · ' + c.guidanceUnread + ' unread' : '') + '</span>'
+          : '') + '</td>' +
+      '<td style="white-space:nowrap">' +
+        '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + c.id +
+          '">Read it</a> ' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-guide="' + c.id +
+          '">Guide</button></td>' +
+    '</tr>').join('')
+    || '<tr><td colspan="6" style="padding:22px;color:var(--muted)">' +
+       (CONVS.length ? 'Nothing is waiting on us.' : 'No conversations yet.') + '</td></tr>';
+}
+
+async function loadConvs() {
+  try {
+    const r = await api('GET', '/api/staff/conversations');
+    CONVS = r.conversations;
+    CONV_SUM = r.summary;
+    paintConvs();
+  } catch (e) { /* not an administrator: the section stays empty */ }
+}
+
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'onlyWaiting') { onlyWaiting = e.target.checked; paintConvs(); }
+});
+
+document.addEventListener('click', async e => {
+  const g = e.target.closest('[data-guide]');
+  if (!g) return;
+  const c = CONVS.find(x => String(x.id) === g.dataset.guide);
+  if (!c) return;
+  if (!c.counsellor) {
+    toast('Nobody is looking after ' + c.name + ' yet, so there is nobody to tell.');
+    return;
+  }
+  const body = prompt('A note to ' + c.counsellor.name + ' about ' + c.name
+    + '.\nThe student never sees this.');
+  if (!body || !body.trim()) return;
+  try {
+    await api('POST', '/api/staff/student/' + c.id + '/guide', { body: body.trim() });
+    toast('Sent to ' + c.counsellor.name + '. It is on the student\'s file for them, '
+      + 'and nowhere the student can reach.');
+    await loadConvs();
+  } catch (err) { toast(err.message); }
+});
+
+loadConvs();
 """
