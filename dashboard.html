@@ -1120,12 +1120,47 @@ $('#slWrap').innerHTML = shown.length
    counsellor is actually assigned, and it is labelled as such rather than
    inventing a person. The prototype's "Avg. response: 15 min" is dropped: it is
    a service claim nobody is measuring yet. */
-$('#couns').innerHTML =
-    '<span class="c-av">' + (paid ? 'GC' : '—') + '</span>'
-  + '<div><span class="c-lbl">Your counsellor</span>'
-  + '<b>' + (paid ? 'Assigned after your call' : 'Not assigned yet') + '</b>'
-  + '<span class="c-sub">Mon–Sat, 9:30–19:30 IST</span></div>'
-  + '<a class="btn btn-green btn-sm" href="messages.html">Message</a>';
+(function () {
+  /* The counsellor, read from the server rather than guessed from whether they
+     paid.
+
+     This card was prototype markup that never asked who the counsellor was. It
+     printed "Not assigned yet" to anybody who had not paid and "Assigned after
+     your call" to everybody who had — so a student WITH a named counsellor, who
+     had been messaging her for a week, still read "Assigned after your call" on
+     the screen they open every morning. /api/state has carried
+     `counsellor: {name, id}` the whole time. */
+  var c = (window.__GLOVELS || {}).counsellor;
+  var initials = function (n) {
+    /* One word or three, this has to produce one or two letters and never the
+       string "undefined", which is what (parts[1] || '')[0] gives for a
+       counsellor called Kavya with no surname on file. */
+    var parts = String(n || '').trim().split(/\s+/).filter(Boolean);
+    var a = (parts[0] || '')[0] || 'G';
+    var b = (parts[1] || '')[0] || '';
+    return (a + b).toUpperCase();
+  };
+  var name, av, sub;
+  if (c && c.name) {
+    name = esc(c.name);
+    av = initials(c.name);
+    sub = 'Mon–Sat, 9:30–19:30 IST';
+  } else if (paid) {
+    name = 'Assigned after your call';
+    av = '—';
+    sub = 'Usually within one working day';
+  } else {
+    name = 'Not assigned yet';
+    av = '—';
+    sub = 'Mon–Sat, 9:30–19:30 IST';
+  }
+  $('#couns').innerHTML =
+      '<span class="c-av">' + av + '</span>'
+    + '<div><span class="c-lbl">Your counsellor</span>'
+    + '<b>' + name + '</b>'
+    + '<span class="c-sub">' + sub + '</span></div>'
+    + '<a class="btn btn-green btn-sm" href="messages.html">Message</a>';
+})();
 
 $('#avatar').textContent = (first || 'G').slice(0, 1).toUpperCase()
   + ((user.name || order.name || '').split(' ')[1] || '').slice(0, 1).toUpperCase();

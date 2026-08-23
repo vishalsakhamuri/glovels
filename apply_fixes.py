@@ -3961,6 +3961,68 @@ def header_fits():
 header_fits()
 
 
+# ------------------------------------------------------------- dashboard.html
+#
+# The counsellor card asked whether they had paid, not who their counsellor is.
+#
+# It printed "Not assigned yet" to anybody unpaid and "Assigned after your call"
+# to everybody else — so a student with a named counsellor she had been messaging
+# for a week still read "Assigned after your call" every time she opened the
+# dashboard. /api/state has carried `counsellor: {name, id}` since the portal was
+# built; this screen simply never read it.
+patch(
+    "dashboard.html",
+    "the counsellor card names the counsellor",
+    """$('#couns').innerHTML =
+    '<span class="c-av">' + (paid ? 'GC' : '\u2014') + '</span>'
+  + '<div><span class="c-lbl">Your counsellor</span>'
+  + '<b>' + (paid ? 'Assigned after your call' : 'Not assigned yet') + '</b>'
+  + '<span class="c-sub">Mon\u2013Sat, 9:30\u201319:30 IST</span></div>'
+  + '<a class="btn btn-green btn-sm" href="messages.html">Message</a>';""",
+    """(function () {
+  /* The counsellor, read from the server rather than guessed from whether they
+     paid.
+
+     This card was prototype markup that never asked who the counsellor was. It
+     printed "Not assigned yet" to anybody who had not paid and "Assigned after
+     your call" to everybody who had — so a student WITH a named counsellor, who
+     had been messaging her for a week, still read "Assigned after your call" on
+     the screen they open every morning. /api/state has carried
+     `counsellor: {name, id}` the whole time. */
+  var c = (window.__GLOVELS || {}).counsellor;
+  var initials = function (n) {
+    /* One word or three, this has to produce one or two letters and never the
+       string "undefined", which is what (parts[1] || '')[0] gives for a
+       counsellor called Kavya with no surname on file. */
+    var parts = String(n || '').trim().split(/\s+/).filter(Boolean);
+    var a = (parts[0] || '')[0] || 'G';
+    var b = (parts[1] || '')[0] || '';
+    return (a + b).toUpperCase();
+  };
+  var name, av, sub;
+  if (c && c.name) {
+    name = esc(c.name);
+    av = initials(c.name);
+    sub = 'Mon\u2013Sat, 9:30\u201319:30 IST';
+  } else if (paid) {
+    name = 'Assigned after your call';
+    av = '\u2014';
+    sub = 'Usually within one working day';
+  } else {
+    name = 'Not assigned yet';
+    av = '\u2014';
+    sub = 'Mon\u2013Sat, 9:30\u201319:30 IST';
+  }
+  $('#couns').innerHTML =
+      '<span class="c-av">' + av + '</span>'
+    + '<div><span class="c-lbl">Your counsellor</span>'
+    + '<b>' + name + '</b>'
+    + '<span class="c-sub">' + sub + '</span></div>'
+    + '<a class="btn btn-green btn-sm" href="messages.html">Message</a>';
+})();""",
+    marker="var c = (window.__GLOVELS || {}).counsellor;",
+)
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and
