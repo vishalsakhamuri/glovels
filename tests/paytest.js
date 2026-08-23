@@ -248,8 +248,12 @@ async function boot(port, env) {
     check('the office sees both of these payments',
       mine.length === 2 && mine.every(o => o.status === 'paid'),
       mine.map(o => o.reference + ':' + o.status).join(' '));
-    check('and neither has an account behind it yet',
-      mine.every(o => !o.studentId), book.guests + ' guest orders in all');
+    /* The opposite of what this used to assert, and the better answer: an order
+       now MAKES the account, so there is no such thing as an order nobody can
+       be called up on. That gap — four services bought and nobody attached —
+       is what the office reported. */
+    check('and each one has an account behind it already',
+      mine.every(o => o.studentId), book.guests + ' orders with nobody attached');
     await browser.close();
 
     /* ===================== and with no keys, the site works as it always did = */

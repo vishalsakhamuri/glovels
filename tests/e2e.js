@@ -24,7 +24,10 @@ const VISITOR = { name: 'Ananya Rao', phone: '9812' + String(stamp).slice(-6),
 const watch = (page, errs) => {
   page.on('pageerror', e => errs.push('pageerror: ' + String(e).slice(0, 160)));
   page.on('console', m => m.type() === 'error'
-    && !/ERR_TUNNEL|fonts\.googleapis|favicon|net::ERR/.test(m.text())
+    /* A 403 while an account still holds a password we generated is the wall
+       working, not a fault — the browser logs the status before the page reads
+       it and shows the change-password screen. */
+    && !/ERR_TUNNEL|fonts\.googleapis|favicon|net::ERR|status of 403/.test(m.text())
     && errs.push('console: ' + m.text().slice(0, 160)));
 };
 
@@ -115,20 +118,40 @@ const watch = (page, errs) => {
   const ref = (conf.match(/GLV-\d+/) || [])[0];
   check('the purchase is confirmed with a reference', !!ref, conf.slice(0, 100));
 
-  /* =============================================== 5. they become a student */
-  console.log('\n=== then signs up ===');
-  await p.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
-  await p.waitForTimeout(1200);
-  await p.click('#tab-signup');
-  await p.fill('#lName', VISITOR.name);
-  await p.fill('#lEmail', VISITOR.email);
-  await p.fill('#lPhone', VISITOR.phone);
-  await p.fill('#lPass', VISITOR.pass);
-  const terms = await p.$('#terms');
-  if (terms) await terms.check().catch(() => {});
-  await p.click('#submit-btn');
+  /* ============ 5. the order made them a student — they just have to set a password */
+  console.log('\n=== the purchase made their account ===');
+  /* No sign-up step any more. Buying creates the account; the password we
+     generated goes by email, and the portal opens nothing until it has been
+     replaced. */
+  await p.goto(BASE + '/dashboard', { waitUntil: 'domcontentloaded' });
+  await p.waitForTimeout(2500);
+  /* The portal sends them to the sign-in page to replace the password we made
+     for them, rather than letting them into an empty dashboard. */
+  check('the purchase created their account and signed them in',
+    /change=1/.test(p.url()) || await p.isVisible('#cNow'), p.url());
+
+  /* The emailed password is not readable from a test, so this follows the path
+     a student takes when the email has not arrived: the office sends them a
+     link. Which is the thing the office asked for. */
+  const office = await browser.newContext();
+  await office.request.post(BASE + '/api/auth/login',
+    { data: { email: 'admin@glovels.com', password: 'glovels123' } });
+  const list = await (await office.request.get(BASE + '/api/staff/students')).json();
+  const mine = (list.students || []).find(x => x.email === VISITOR.email);
+  check('the office can see them on the roster already', !!mine, VISITOR.email);
+
+  const invite = await (await office.request.post(
+    BASE + '/api/staff/students/' + mine.id + '/invite')).json();
+  check('and can send them a way in', !!invite.link, invite.mode);
+
+  await p.goto(invite.link.replace(/^https?:\/\/[^/]+/, BASE), { waitUntil: 'domcontentloaded' });
+  await p.waitForTimeout(1800);
+  await p.fill('#rPass', VISITOR.pass);
+  await p.fill('#rPass2', VISITOR.pass);
+  await p.click('#rGo');
   await p.waitForURL(/dashboard/, { timeout: 12000 }).catch(() => {});
-  check('sign-up lands on the dashboard', /dashboard/.test(p.url()), p.url());
+  check('the link lets them choose a password and lands on the dashboard',
+    /dashboard/.test(p.url()), p.url());
 
   await p.waitForTimeout(2500);
   const dash = await p.textContent('body');

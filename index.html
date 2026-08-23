@@ -1818,10 +1818,20 @@ $('#buyPay').onclick = () => {
     /* No email is sent from here, and buying does not create an account. Telling
        somebody who has just paid to "check your inbox" for login details that
        will never arrive is the worst sentence on the site. Say what actually
+    /* No email is sent from here, and buying does not create an account. Telling
+       somebody who has just paid to "check your inbox" for login details that
+       will never arrive is the worst sentence on the site. Say what actually
        happens instead, and put the button right there. */
     const acct = $('#buyAcct');
     if (acct) {
-      acct.innerHTML = d.linkedToAccount
+      acct.innerHTML = d.accountCreated
+        ? '<b>Your dashboard is ready</b><span>We made your account with <b>'
+          + esc(buyer.email) + '</b> and you are signed in on this device now. '
+          + 'A link to choose your password is on its way to that address, so you can get '
+          + 'back in from anywhere else. '
+          + '<a href="dashboard.html" style="font-weight:700;color:var(--blue-deep)">Open my '
+          + 'dashboard</a></span>'
+        : d.linkedToAccount
         ? '<b>It is on your account already</b><span>You were signed in, so your order and '
           + 'your ' + (buying.publicUnis || 'matched') + ' universities are in your dashboard now. '
           + '<a href="dashboard.html" style="font-weight:700;color:var(--blue-deep)">Open my '

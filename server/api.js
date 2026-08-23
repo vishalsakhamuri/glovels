@@ -96,6 +96,25 @@ const hashPassword = (pw, salt) =>
   crypto.scryptSync(String(pw), salt, 64, { N: 16384, r: 8, p: 1 }).toString('hex');
 
 const newSalt = () => crypto.randomBytes(16).toString('hex');
+
+/*
+ * A password somebody will have to read out over a bad phone line.
+ *
+ * base64url gives 0/O and l/1/I in the same string, which is fine for a machine
+ * and miserable for a counsellor dictating it to a student in a noisy office.
+ * These are the letters and digits that survive being spoken, grouped so the
+ * eye can hold them: `nutmeg-4718-cobalt`.
+ *
+ * Three groups of that shape is about 40 bits — weak as a permanent password
+ * and entirely adequate for one that must be replaced at first sign-in, which
+ * is enforced rather than suggested.
+ */
+const PW_WORDS = ['amber', 'basalt', 'cobalt', 'cedar', 'delta', 'ember', 'flint', 'garnet',
+  'harbour', 'indigo', 'jasper', 'kestrel', 'lantern', 'meadow', 'nutmeg', 'onyx',
+  'pepper', 'quartz', 'rowan', 'saffron', 'topaz', 'umber', 'violet', 'willow'];
+const pick = arr => arr[crypto.randomInt(arr.length)];
+const newPassword = () =>
+  pick(PW_WORDS) + '-' + String(crypto.randomInt(1000, 9999)) + '-' + pick(PW_WORDS);
 const newToken = () => crypto.randomBytes(32).toString('hex');
 
 const safeEqual = (a, b) => {
@@ -275,6 +294,43 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     }
   }
   const clearFailures = key => attempts.delete(key);
+
+  /*
+   * Slowing down the things a robot does, on the endpoints anybody can reach.
+   *
+   * The honeypot catches the lazy ones — a script that fills every field it
+   * finds, including the one no human can see. It does nothing about a script
+   * written for THIS form, and once a site is indexed those arrive.
+   *
+   * So: a plain per-address budget on the public write endpoints. It is
+   * generous enough that a family sharing an office connection never meets it,
+   * and mean enough that a loop posting a thousand enquiries stops after a
+   * handful. In memory, and honest about it — it resets on restart, and a real
+   * front door would put a CDN in front as well.
+   */
+  const posts = new Map();
+  function floodedBy(ip, what, limit, windowMs) {
+    const now = Date.now();
+    const key = what + ':' + ip;
+    const rec = posts.get(key);
+    if (!rec || now - rec.first > windowMs) {
+      posts.set(key, { n: 1, first: now });
+      if (posts.size > 5000) {
+        for (const [k, v] of posts) if (now - v.first > windowMs) posts.delete(k);
+      }
+      return false;
+    }
+    rec.n++;
+    return rec.n > limit;
+  }
+
+  /* One shape of answer for every flood, so a script learns nothing from the
+     difference between "too many" and "we ignored you". */
+  const slowDown = res => json(res, 429, {
+    ok: false,
+    error: 'That is a lot of messages in a short time. Wait a few minutes, '
+         + 'or call us on +91 70933 14089 — a person answers faster than this form.',
+  });
   const clientIp = req =>
     String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
     || (req.socket && req.socket.remoteAddress) || 'unknown';
@@ -296,6 +352,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
   const route = (method, pattern, handler, opts) =>
     ROUTES.push({ method, pattern, handler,
       auth: !(opts && opts.open), soft: !!(opts && opts.soft) });
+
+  /* The three things an account with a temporary password may still do. */
+  const CHANGE_ALLOWED = new Set([
+    '/api/auth/change', '/api/auth/logout', '/api/auth/me',
+  ]);
 
   /* ---------------------------------------------------------------- auth */
 
@@ -600,6 +661,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
     if (!validPhone(phone)) return json(res, 422, { error: 'A 10-digit Indian mobile, please' });
 
+    /* Ten an hour. Somebody genuinely buying a package and then three services
+       makes four in a minute; a script making orders forever creates accounts
+       and sends email, which is the expensive kind of junk. */
+    if (floodedBy(clientIp(req), 'order', 10, 60 * 60 * 1000)) return slowDown(res);
+
     const s = me(req);
     const reference = 'GLV-' + crypto.randomInt(1000, 9999);
     const gross = (pkg ? pkg.paise : 0) + items.reduce((t, x) => t + x.paise, 0);
@@ -651,6 +717,59 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       }
     }
 
+    /*
+     * The account is made here, not asked for later.
+     *
+     * A guest used to finish the checkout and be told to go and sign up. Some
+     * did. The ones who did not had paid for universities they could not see,
+     * and the office had an order with nobody attached to it — which is exactly
+     * what "no account yet" in the order book has been counting.
+     *
+     * So: if they are not signed in and that email has no account, we make one.
+     * They are signed in on this browser straight away, because this is the
+     * browser that just placed the order, and a set-password link goes to the
+     * email so they can get back in from anywhere else.
+     *
+     * NOT if an account already exists on that address. Creating a session for
+     * an existing account because somebody typed its address into a checkout
+     * would be a way into it.
+     */
+    let created = null;
+    let inviteLink = '';
+    let sessionCookieHeader = null;
+    if (!s && !db.studentByEmail(email)) {
+      /* A password nobody will ever use or see. The account is unusable until
+         the set-password link is followed, which is the point — there is no
+         weak default sitting on it. */
+      const salt = newSalt();
+      const temp = newPassword();
+      created = db.createStudent(email, name, tenDigits(phone) ? '+91' + tenDigits(phone) : '',
+        hashPassword(temp, salt), salt);
+      db.setMustChange(created.id, true);
+      db.claimOrders(created.id, email);
+      seedMessages(created);
+
+      /* Both ways in, because they fail differently. The password is what a
+         counsellor reads out when a student phones to say nothing arrived; the
+         link is what works when they have forgotten it. Neither survives first
+         use — the account demands its own password either way. */
+      const invite = newToken();
+      /* Days, not the 30 minutes a forgotten password gets. This one is an
+         invitation — it may sit unread over a weekend, and a student coming
+         back to a dead link after paying is the worst version of this. */
+      db.createReset(invite, created.id, 60 * 24 * 7);
+      inviteLink = siteUrl + '/login?token=' + invite;
+      mail.send(Object.assign({ to: created.email }, EMAILS.credentials({
+        name: created.name, email: created.email, password: temp, siteUrl,
+        role: 'student', madeBy: '',
+      }))).catch(() => {});
+
+      const sess = newToken();
+      db.createSession(sess, created.id, 30);
+      sessionCookieHeader = sessionCookie(sess, 30);
+      db.log('system', 'Account created at checkout', email + ' — ' + reference);
+    }
+
     const tax = Math.round(gross - gross / (1 + GST_RATE));
 
     /* The receipt is the message that tells a guest how to get into the portal
@@ -665,13 +784,17 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       reference, package: label, publicUnis: pkg ? pkg.publicUnis : 0,
       grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax,
       services: items.map(x => ({ id: x.id, name: x.name, level: x.level, priceInr: x.paise / 100 })),
-      linkedToAccount: !!s,
+      linkedToAccount: !!s || !!created,
+      /* So the confirmation can say "your dashboard is ready" rather than
+         "now go and make an account", which is what it said to somebody whose
+         account had just been made for them. */
+      accountCreated: !!created,
       createdAt: order.created_at,
       /* Present only when there is genuinely a card form to open. The page
          decides which confirmation to show from this and nothing else. */
       razorpay: rzp,
       status: rzp ? 'awaiting' : 'owing',
-    });
+    }, sessionCookieHeader ? { 'Set-Cookie': sessionCookieHeader } : undefined);
   }, { open: true });
 
   /*
@@ -784,6 +907,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
   const enquiry = async (req, res) => {
     const b = await readJson(req);
     if (b.website) return json(res, 200, { ok: true });          // honeypot
+    /* Six an hour from one address. A real person sending a second enquiry
+       because they forgot to mention their intake is normal; a seventh in the
+       same hour is not a person. */
+    if (floodedBy(clientIp(req), 'enq', 6, 60 * 60 * 1000)) return slowDown(res);
     const name = String(b.name || '').trim();
     const email = String(b.email || '').trim();
     const phone = String(b.phone || '').trim();
@@ -877,6 +1004,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (s && s.role === 'student') return json(res, 200, studentThread(s));
 
     const b = await readJson(req);
+    /* Three new conversations an hour from one address. A student who closes
+       the tab and comes back is fine; a script opening threads in a loop fills
+       the office's screen with nothing. */
+    if (floodedBy(clientIp(req), 'chat', 3, 60 * 60 * 1000)) return slowDown(res);
     const name = String(b.name || '').trim().slice(0, 80);
     const contact = String(b.contact || '').trim().slice(0, 120);
     if (!name) return json(res, 422, { error: 'Your name, so we know who we are talking to.' });
@@ -1192,6 +1323,43 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
   /* ------------------------------------------------------- password reset */
 
+  /*
+   * Choosing your own password, from inside the session.
+   *
+   * Separate from /api/auth/reset, which takes an emailed token and belongs to
+   * somebody who is locked out. This one belongs to somebody already signed in
+   * with a password we gave them, and it asks for that password again — so a
+   * borrowed laptop with a live session cannot be used to take the account
+   * over.
+   */
+  route('POST', '/api/auth/change', async (req, res, s) => {
+    const b = await readJson(req);
+    const current = String(b.current || '');
+    const pw = String(b.password || '');
+
+    const floor = s.role && s.role !== 'student' ? 10 : 8;
+    if (pw.length < floor) {
+      return json(res, 422, { error: 'Use at least ' + floor + ' characters.' });
+    }
+    if (!safeEqual(hashPassword(current, s.pass_salt), s.pass_hash)) {
+      return json(res, 401, { error: 'That is not your current password.' });
+    }
+    if (pw === current) {
+      return json(res, 422, { error: 'That is the password you were given. Pick a different one.' });
+    }
+
+    const salt = newSalt();
+    /* setPassword drops every session, including this one — which is right
+       after a password change, but it would sign them out of the browser they
+       are standing in front of. So a fresh session is issued immediately. */
+    db.setPassword(s.id, hashPassword(pw, salt), salt);
+    db.setMustChange(s.id, false);
+    const token = newToken();
+    db.createSession(token, s.id, 30);
+    db.log(s.name, 'chose their own password', '');
+    return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(token, 30) });
+  });
+
   route('POST', '/api/auth/forgot', async (req, res) => {
     const b = await readJson(req);
     const email = String(b.email || '').trim().toLowerCase();
@@ -1207,7 +1375,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     const token = newToken();
     db.createReset(token, s.id, 30);
-    const link = siteUrl + '/reset?token=' + token;
+    const link = siteUrl + '/login?token=' + token;
     mail.send(Object.assign({ to: s.email },
       EMAILS.passwordReset({ name: s.name, link, minutes: 30 }))).catch(() => {});
     return answer();
@@ -1222,6 +1390,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     const salt = newSalt();
     db.setPassword(s.id, hashPassword(pw, salt), salt);   // also drops every session
+    /* They have chosen this one themselves, so whatever we gave them before is
+       spent. */
+    db.setMustChange(s.id, false);
     const token = newToken();
     db.createSession(token, s.id, 30);
     return json(res, 200, { user: publicStudent(db.studentById(s.id)) },
@@ -1506,6 +1677,53 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     });
   }));
 
+  /*
+   * Send a student their way in.
+   *
+   * The office could create an account and see its password once, on one
+   * screen, and then had to get it to the student somehow — read out over the
+   * phone, typed into WhatsApp. This does it properly: a link that sets a
+   * password, good for seven days, used once.
+   *
+   * The link comes back in the response as well as going by email, because
+   * email does not leave this building until SMTP is configured. Telling the
+   * office "sent" while the message sits in a folder would be a lie they only
+   * discover when a student says they never got it — so the answer says which
+   * of the two actually happened, and hands over the link either way.
+   */
+  route('POST', /^\/api\/staff\/students\/(\d+)\/invite$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      const student = db.studentById(id);
+      if (!student) return json(res, 404, { error: 'No such student.' });
+
+      /* A counsellor may only do this for their own. The rule is the same one
+         that governs every other student action, and it is enforced here
+         rather than by hiding the button. */
+      if (s.role !== 'admin' && Number(student.counsellor_id) !== s.id) {
+        return json(res, 403, { error: 'That student is not assigned to you.' });
+      }
+
+      const token = newToken();
+      db.createReset(token, student.id, 60 * 24 * 7);
+      const link = siteUrl + '/login?token=' + token;
+
+      const out = await mail.send(Object.assign({ to: student.email }, EMAILS.invite({
+        name: student.name, email: student.email, link, days: 7, siteUrl,
+      }))).catch(e => ({ ok: false, mode: 'error', error: e.message }));
+
+      db.log(s.name, 'Sign-in link sent', student.email
+        + (out && out.mode === 'smtp' ? ' — by email' : ' — written to the outbox'));
+
+      return json(res, 200, {
+        email: student.email,
+        link,
+        sent: !!(out && out.ok && out.mode === 'smtp'),
+        mode: (out && out.mode) || 'unknown',
+        days: 7,
+      });
+    }));
+
   /* --------------------------------------------------------------- people */
   /*
    * Adding a counsellor.
@@ -1554,7 +1772,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     /* A password nobody has chosen, shown once. An admin inventing passwords
        for their staff is how "Glovels@123" ends up on four accounts. */
-    const password = String(b.password || '') || crypto.randomBytes(9).toString('base64url');
+    const password = String(b.password || '') || newPassword();
     /* A student's own sign-up accepts eight; holding an account made FOR them
        to a longer one would mean a counsellor reading out a password the
        student could not then choose for themselves. */
@@ -1567,6 +1785,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     }
     const salt = newSalt();
     const person = db.createStudent(email, name, phone, hashPassword(password, salt), salt, role);
+    /* We chose this password, so it opens exactly one thing: the screen that
+       replaces it. */
+    db.setMustChange(person.id, true);
+    mail.send(Object.assign({ to: person.email }, EMAILS.credentials({
+      name: person.name, email: person.email, password, siteUrl,
+      role: role === 'student' ? 'student' : role, madeBy: s.name,
+    }))).catch(() => {});
 
     /* An editor with no permissions can sign in and see nothing, which reads as
        a broken account rather than a careful one. If none were asked for, give
@@ -1657,13 +1882,24 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const person = db.studentById(id);
     if (!person) return json(res, 404, { error: 'No such person' });
 
-    const password = crypto.randomBytes(9).toString('base64url');
+    const password = newPassword();
     const salt = newSalt();
     /* setPassword also drops every session that person has open. That is the
        point of resetting a password, and doing it quietly would not be. */
     db.setPassword(id, hashPassword(password, salt), salt);
-    db.log(s.name, 'password reset', person.name);
-    return json(res, 200, { password, name: person.name });
+    db.setMustChange(id, true);
+    const out = await mail.send(Object.assign({ to: person.email }, EMAILS.credentials({
+      name: person.name, email: person.email, password, siteUrl,
+      role: person.role || 'student', madeBy: s.name,
+    }))).catch(e => ({ ok: false, mode: 'error' }));
+    db.log(s.name, 'password reset', person.name
+      + (out && out.mode === 'smtp' ? ' — emailed' : ' — written to the outbox'));
+    return json(res, 200, {
+      password, name: person.name, email: person.email,
+      /* So the screen can say "read it to them" rather than "we sent it", when
+         nothing was sent. */
+      sent: !!(out && out.ok && out.mode === 'smtp'),
+    });
   }));
 
   /* ---------------------------------------------------- the office's side */
@@ -2676,6 +2912,23 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
            throws ERR_HTTP_HEADERS_SENT and takes the server down. Every exit
            from this function must say whether it answered. */
         if (!s) { json(res, 401, { error: 'Please sign in' }); return true; }
+
+        /*
+         * A password somebody else chose opens nothing but the door to changing
+         * it.
+         *
+         * Enforced here rather than by showing a screen, because a screen is a
+         * suggestion — the API underneath it would still answer. Until the flag
+         * is cleared this account can change its password, read who it is, and
+         * sign out. Nothing else.
+         */
+        if (s.must_change && !CHANGE_ALLOWED.has(pathname)) {
+          json(res, 403, {
+            error: 'Choose your own password before you go any further.',
+            mustChange: true,
+          });
+          return true;
+        }
       }
       try {
         await r.handler(req, res, s, m);

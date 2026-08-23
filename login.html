@@ -259,7 +259,64 @@ function forgotBox(message){
    form. A separate page would be a second copy of this one's markup to keep in
    step, for one field. */
 (function () {
-  const token = new URLSearchParams(location.search).get('token');
+  const q = new URLSearchParams(location.search);
+
+  /* Signed in, but on a password somebody else chose. The server refuses every
+     other endpoint until this is done, so there is nothing else to offer. */
+  if (q.get('change') === '1') {
+    const card = document.querySelector('.auth-card') || document.body;
+    const next = q.get('next') || 'dashboard.html';
+    card.innerHTML =
+      '<h2 id="form-title">Choose your own password</h2>' +
+      '<p class="sub">The one you signed in with was made for you and sent by email, so it ' +
+      'is not private. Nothing else opens until this is done.</p>' +
+      '<form id="changeForm" novalidate>' +
+        '<div class="field"><label for="cNow">The password you were given</label>' +
+          '<input type="password" id="cNow" autocomplete="current-password"></div>' +
+        '<div class="field"><label for="cNew">Your new password</label>' +
+          '<input type="password" id="cNew" autocomplete="new-password" ' +
+          'placeholder="At least 8 characters"></div>' +
+        '<div class="field"><label for="cAgain">Type it again</label>' +
+          '<input type="password" id="cAgain" autocomplete="new-password"></div>' +
+        '<button type="submit" class="btn-primary" id="cGo">Save and carry on →</button>' +
+      '</form>' +
+      '<p id="cMsg" role="alert" style="display:none;margin:12px 0 0;padding:11px 13px;' +
+        'border-radius:10px;font:600 13px/1.5 system-ui,sans-serif;background:#fdf3f2;' +
+        'border:1px solid #f0c8c4;color:#7a2118"></p>';
+
+    const say = m => {
+      const el = document.getElementById('cMsg');
+      el.textContent = m; el.style.display = m ? 'block' : 'none';
+    };
+
+    document.getElementById('changeForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const now = document.getElementById('cNow').value;
+      const a = document.getElementById('cNew').value;
+      const b = document.getElementById('cAgain').value;
+      if (a.length < 8) return say('Use at least 8 characters.');
+      if (a !== b) return say('The two do not match.');
+      const btn = document.getElementById('cGo');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      say('');
+      try {
+        const r = await fetch('/api/auth/change', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current: now, password: a }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'That did not save.');
+        location.replace(next);
+      } catch (err) {
+        btn.disabled = false; btn.textContent = 'Save and carry on →';
+        say(err.message);
+      }
+    });
+    return;
+  }
+
+  const token = q.get('token');
   if (!token) return;
   const card = document.querySelector('.auth-card') || document.body;
   card.innerHTML =
@@ -419,6 +476,9 @@ function forgotPassword(){
 
 function switchTab(which){
   const signup = which==='signup';
+  /* The card has been replaced by a password form — there are no tabs to
+     switch, and nothing below this line has anything to act on. */
+  if (!document.getElementById('tab-signin')) return;
   document.getElementById('tab-signin').classList.toggle('active',!signup);
   document.getElementById('tab-signup').classList.toggle('active',signup);
   document.querySelectorAll('.signup-only').forEach(e=>e.style.display=signup?'block':'none');
@@ -458,6 +518,13 @@ switchTab('signin');
 /* ---- integration: validation, terms, and a session ---------------------- */
 const $ = s => document.querySelector(s);
 const DEMO = {"email": "student@glovels.com", "pass": "glovels123", "name": "Demo Student", "dash": "/dashboard"};
+
+/* Turned into a password form by one of the two branches above. None of the
+   sign-in wiring below has anything to bind to, and binding to null throws
+   before the form's own submit handler is ever reached. */
+if (!document.getElementById('fillDemo')) {
+  /* Nothing further on this page applies. */
+} else {
 
 $('#fillDemo').onclick = () => {
   /* A real account, created by the server on its first run and populated with a
@@ -586,6 +653,8 @@ document.querySelectorAll('.btn-social').forEach(b => {
   b.setAttribute('aria-disabled', 'true');
   b.title = 'Not connected yet — use your email and password below';
 });
+} /* end of the sign-in wiring */
+
 document.querySelectorAll('.pw-row a').forEach(a => a.onclick = e => {
   e.preventDefault();
   forgotPassword();

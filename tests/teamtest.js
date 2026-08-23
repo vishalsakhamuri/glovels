@@ -15,6 +15,19 @@ const ADMIN_PW = 'a-long-admin-password-9f2c';
 const ok = [], bad = [];
 const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + note : ''));
 
+
+/*
+ * A password we generated opens one thing: the screen that replaces it. Every
+ * account created by the office now arrives in that state, so a test that signs
+ * in and immediately uses the API has to do what a real person would do first.
+ */
+const settleIn = async (ctx, email, given, chosen) => {
+  await ctx.request.post(BASE + '/api/auth/login', { data: { email, password: given } });
+  const r = await ctx.request.post(BASE + '/api/auth/change',
+    { data: { current: given, password: chosen } });
+  return r;
+};
+
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
@@ -41,6 +54,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   /* ------------------------------------------------- create a counsellor */
   await page.click('#addPerson');
   await page.waitForSelector('#pName');
+  /* The modal is animated in. Typing into a field that is still moving lands
+     the text in whichever element is under the cursor when the frame settles —
+     which is how "Kavya Reddy" and the email address ended up concatenated in
+     the name box. */
+  await page.waitForTimeout(500);
   await page.fill('#pName', 'Kavya Reddy');
   await page.fill('#pEmail', 'kavya@glovels.com');
   await page.fill('#pPhone', '9876543210');
@@ -63,6 +81,14 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const kl = await kavya.request.post(BASE + '/api/auth/login',
     { data: { email: 'kavya@glovels.com', password } });
   check('the new counsellor can sign in with it', kl.ok(), kl.status());
+
+  /* And can do nothing at all until they have replaced it. */
+  const walled = await kavya.request.get(BASE + '/api/staff/students');
+  check('but a password we chose opens nothing else', walled.status() === 403, walled.status());
+  const KAVYA_PW = 'kavya-chose-this-one';
+  const changed = await kavya.request.post(BASE + '/api/auth/change',
+    { data: { current: password, password: KAVYA_PW } });
+  check('choosing their own opens the rest', changed.ok(), changed.status());
   const kme = await (await kavya.request.get(BASE + '/api/staff/me')).json();
   check('and lands as a counsellor', kme.user && kme.user.role === 'counsellor',
     kme.user && kme.user.role);
@@ -105,12 +131,17 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const oldPw = await browser.newContext();
   check('the old password stops working',
     !(await oldPw.request.post(BASE + '/api/auth/login',
-      { data: { email: 'kavya@glovels.com', password } })).ok());
+      { data: { email: 'kavya@glovels.com', password: KAVYA_PW } })).ok());
   check('the session it had is dead',
     !(await kavya.request.get(BASE + '/api/staff/me')).ok());
   check('the new password works',
     (await oldPw.request.post(BASE + '/api/auth/login',
       { data: { email: 'kavya@glovels.com', password: reset.password } })).ok());
+  check('and a reset password is temporary too',
+    (await oldPw.request.get(BASE + '/api/staff/me')).status() === 403,
+    'the account must choose its own again');
+  await oldPw.request.post(BASE + '/api/auth/change',
+    { data: { current: reset.password, password: 'kavya-chose-again-x' } });
 
   /* ---------------------------------------- an editor sees the site only */
   const ed = await ctx.request.post(BASE + '/api/staff/people', {
@@ -124,6 +155,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const edLogin = await editor.request.post(BASE + '/api/auth/login',
     { data: { email: 'priya@glovels.com', password: edPw } });
   check('the editor can sign in', edLogin.ok(), edLogin.status());
+  /* Same rule for every role: the password we generated has to go first. */
+  await editor.request.post(BASE + '/api/auth/change',
+    { data: { current: edPw, password: 'priya-chose-this-one' } });
   const edMe = await (await editor.request.get(BASE + '/api/staff/me')).json();
   check('the editor is an editor with the content permission',
     edMe.user.role === 'editor' && edMe.user.perms.join() === 'content',
@@ -167,8 +201,13 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
 
   /* --------------------------- a counsellor has neither permission by default */
   const kav2 = await browser.newContext();
+  /* The password chosen a few lines above, not the reset one — that has been
+     spent. Signing in with a spent password gets a session that can only reach
+     the change screen, and every check below would read 403 for the wrong
+     reason: it would look like the permission rule working when it was the
+     first-login rule. */
   await kav2.request.post(BASE + '/api/auth/login',
-    { data: { email: 'kavya@glovels.com', password: reset.password } });
+    { data: { email: 'kavya@glovels.com', password: 'kavya-chose-again-x' } });
   check('a plain counsellor cannot change the home page',
     (await kav2.request.put(BASE + '/api/staff/content/stats',
       { data: { value: [{ num: '1', label: 'no' }] } })).status() === 403);

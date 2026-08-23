@@ -467,6 +467,17 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
+
+
+
+
+
+
+
+
+
+
         <div class="demo-strip"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span><b>Demo screen.</b> This
       fills in as your application progresses. Nothing here reaches a server yet.</span></div>
 
@@ -488,6 +499,17 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
     <table class="tbl"><thead><tr><th>Country</th><th>Work rights</th><th>Intakes</th>
       <th>Tests</th></tr></thead><tbody><tr><td><b>🇩🇪 Germany</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Winter: 15 Jul . Summer: 15 Jan</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.5 overall, no band below 6.0 (or TOEFL iBT 88) · German A1-A2 expected for daily life · GRE only for a few TU programmes</td></tr><tr><td><b>🇨🇦 Canada</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep, Jan and May intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.5 overall, no band below 6.0</td></tr><tr><td><b>🇬🇧 United Kingdom</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep and Jan intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS UKVI 6.5, no band below 6.0</td></tr><tr><td><b>🇮🇪 Ireland</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep intake, rolling</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.5 overall</td></tr><tr><td><b>🇵🇱 Poland</b></td><td>Full-time permitted for students</td><td style="font-size:12.4px">Oct and Feb intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.0, or a medium-of-instruction letter</td></tr><tr><td><b>🇪🇸 Spain</b></td><td>30 hrs/week permitted</td><td style="font-size:12.4px">Sep and Feb intakes</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.0</td></tr><tr><td><b>🇮🇹 Italy</b></td><td>20 hrs/week during term</td><td style="font-size:12.4px">Sep intake, Universitaly deadlines apply</td><td style="font-size:12.4px;color:var(--muted)">IELTS 6.0</td></tr></tbody></table>
 
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   
   
   
@@ -585,7 +607,8 @@ const api = async (method, path, body, isForm) => {
   const r = await fetch(path, opts);
   if (r.status === 401) { location.href = 'login.html?next=' + encodeURIComponent(location.pathname); throw new Error('signed out'); }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(data.error || ('HTTP ' + r.status)), { status: r.status, data });
+  if (!r.ok) throw Object.assign(new Error(data.error || ('HTTP ' + r.status)),
+    { status: r.status, data, mustChange: !!data.mustChange });
   return data;
 };
 
@@ -673,12 +696,28 @@ addEventListener('beforeunload', () => { if (ONLINE && flushTimer) { clearTimeou
 
 /* Boot: who is this, and what have they got. Signed out goes to the sign-in
    page rather than showing an empty portal that looks broken. */
+
+/*
+ * An account still holding a password we generated goes to one place.
+ *
+ * This used to replace the body of whatever portal screen you were on, which
+ * left that screen's own scripts running against elements that no longer
+ * existed — a TypeError on the dashboard, from code that had every right to
+ * assume its own page was still there. The form lives on the sign-in page
+ * instead, which is where every other password form already is.
+ */
+function mustChangeScreen() {
+  const here = location.pathname + location.search;
+  location.replace('login.html?change=1&next=' + encodeURIComponent(here));
+}
+
 async function boot(run) {
   let state = null;
   try {
     state = await api('GET', '/api/state');
   } catch (e) {
     if (e.message === 'signed out') return;
+    if (e.mustChange) return mustChangeScreen({ role: 'student' });
     try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }
     offlineNotice('the Glovels server is not running.');
     ORDER = DB.order || {};

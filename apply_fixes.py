@@ -282,7 +282,15 @@ patch("index.html", "the confirmation tells a guest to create their account",
 
 patch("index.html", "fill in the account step once the server has answered",
       "    ref = d.reference;                       /* the server's reference, not ours */\n    $('#buyRef') && ($('#buyRef').textContent = ref);\n",
-      "    ref = d.reference;                       /* the server's reference, not ours */\n    $('#buyRef') && ($('#buyRef').textContent = ref);\n\n    /* No email is sent from here, and buying does not create an account. Telling\n       somebody who has just paid to \"check your inbox\" for login details that\n       will never arrive is the worst sentence on the site. Say what actually\n       happens instead, and put the button right there. */\n    const acct = $('#buyAcct');\n    if (acct) {\n      acct.innerHTML = d.linkedToAccount\n        ? '<b>It is on your account already</b><span>You were signed in, so your order and '\n          + 'your ' + (buying.publicUnis || 'matched') + ' universities are in your dashboard now. '\n          + '<a href=\"dashboard.html\" style=\"font-weight:700;color:var(--blue-deep)\">Open my '\n          + 'dashboard</a></span>'\n        : '<b>Create your account to open your dashboard</b><span>Use <b>' + esc(buyer.email)\n          + '</b> \\u2014 this order is already waiting on it, and your universities are attached '\n          + 'the moment you sign up. It takes ten seconds.<br>'\n          + '<a class=\"btn btn-primary btn-sm\" style=\"margin-top:9px\" href=\"login.html?signup=1&amp;email='\n          + encodeURIComponent(buyer.email) + '\">Create my account</a></span>';\n    }\n")
+      "    ref = d.reference;                       /* the server's reference, not ours */\n    $('#buyRef') && ($('#buyRef').textContent = ref);\n\n    /* No email is sent from here, and buying does not create an account. Telling\n       somebody who has just paid to \"check your inbox\" for login details that\n       will never arrive is the worst sentence on the site. Say what actually\n       happens instead, and put the button right there. */\n    const acct = $('#buyAcct');\n    if (acct) {\n      acct.innerHTML = d.linkedToAccount\n        ? '<b>It is on your account already</b><span>You were signed in, so your order and '\n          + 'your ' + (buying.publicUnis || 'matched') + ' universities are in your dashboard now. '\n          + '<a href=\"dashboard.html\" style=\"font-weight:700;color:var(--blue-deep)\">Open my '\n          + 'dashboard</a></span>'\n        : '<b>Create your account to open your dashboard</b><span>Use <b>' + esc(buyer.email)\n          + '</b> \\u2014 this order is already waiting on it, and your universities are attached '\n          + 'the moment you sign up. It takes ten seconds.<br>'\n          + '<a class=\"btn btn-primary btn-sm\" style=\"margin-top:9px\" href=\"login.html?signup=1&amp;email='\n          + encodeURIComponent(buyer.email) + '\">Create my account</a></span>';\n    }\n",
+      # Its own result, not its `new`. Two later patches rewrite this region —
+      # the Razorpay wait and the account-created wording — so `new` stops
+      # being present verbatim, this patch believes it never ran, and appends
+      # the whole block a second time. `const acct` then exists twice and the
+      # SyntaxError takes out EVERY script on the home page: no finder, no
+      # services grid, no checkout. Nothing on the page works, and nothing in
+      # the build output says so.
+      marker="const acct = $('#buyAcct');")
 
 # `ref` was a const built from Math.random(); the server now issues it.
 patch("index.html", "the order reference is the server's",
@@ -2725,6 +2733,204 @@ patch(
       }
     }""",
     marker="an order that\n       was never paid must not show a confirmation",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# The confirmation stops telling people to do what has already been done.
+#
+# It said "Create your account to open your dashboard" and offered a sign-up
+# button. The account is now made during the checkout and the buyer is signed in
+# on the spot, so that sentence sent somebody who already had a dashboard off to
+# make a second one — and the sign-up form would have refused them, because the
+# email was taken. By their own order, a minute earlier.
+patch(
+    "index.html",
+    "the confirmation knows the account already exists",
+    """      acct.innerHTML = d.linkedToAccount
+        ? '<b>It is on your account already</b><span>You were signed in, so your order and '""",
+    """      acct.innerHTML = d.accountCreated
+        ? '<b>Your dashboard is ready</b><span>We made your account with <b>'
+          + esc(buyer.email) + '</b> and you are signed in on this device now. '
+          + 'A link to choose your password is on its way to that address, so you can get '
+          + 'back in from anywhere else. '
+          + '<a href="dashboard.html" style="font-weight:700;color:var(--blue-deep)">Open my '
+          + 'dashboard</a></span>'
+        : d.linkedToAccount
+        ? '<b>It is on your account already</b><span>You were signed in, so your order and '""",
+    # Two guards, because this one bit. The marker stops a re-run, and `old` is
+    # the ONLY shape the original had — but a half-applied run left the file
+    # holding both versions, `const acct` declared twice, and a SyntaxError that
+    # took out every script on the home page: no services grid, no finder, no
+    # checkout. A patch that can double a block has to be checked for its
+    # result, not just for its anchor.
+    marker="d.accountCreated",
+)
+
+
+# ------------------------------------------------------------ dashboard.html
+#
+# The dashboard honours the change-your-password wall.
+#
+# It is the designer's own file, wrapped once and thereafter carried forward, so
+# edits to the wrapper in build_portal.py never reach it again. Without this the
+# dashboard was the one portal screen that met the server's 403, ignored it, and
+# rendered an empty page — "No package yet" to somebody who had just bought a
+# package and could not think why.
+patch(
+    "dashboard.html",
+    "the dashboard shows the password screen rather than an empty page",
+    """    if (r.status === 401) {
+      location.href = 'login.html?next=' + encodeURIComponent('/dashboard');
+      return;
+    }""",
+    """    if (r.status === 401) {
+      location.href = 'login.html?next=' + encodeURIComponent('/dashboard');
+      return;
+    }
+    if (r.status === 403) {
+      const why = await r.json().catch(function () { return {}; });
+      if (why && why.mustChange) return mustChangeScreen({ role: 'student' });
+    }""",
+    marker="if (why && why.mustChange) return mustChangeScreen",
+)
+
+
+# ---------------------------------------------------------------- login.html
+#
+# Choosing your own password, on the page where passwords are chosen.
+#
+# login.html already turns itself into a set-a-password form when it arrives
+# with ?token=. This is the other half: ?change=1, for somebody who is signed in
+# on a password we generated and has to replace it before anything opens.
+patch(
+    "login.html",
+    "the sign-in page can take a first-login password change",
+    """(function () {
+  const token = new URLSearchParams(location.search).get('token');
+  if (!token) return;""",
+    """(function () {
+  const q = new URLSearchParams(location.search);
+
+  /* Signed in, but on a password somebody else chose. The server refuses every
+     other endpoint until this is done, so there is nothing else to offer. */
+  if (q.get('change') === '1') {
+    const card = document.querySelector('.auth-card') || document.body;
+    const next = q.get('next') || 'dashboard.html';
+    card.innerHTML =
+      '<h2 id="form-title">Choose your own password</h2>' +
+      '<p class="sub">The one you signed in with was made for you and sent by email, so it ' +
+      'is not private. Nothing else opens until this is done.</p>' +
+      '<form id="changeForm" novalidate>' +
+        '<div class="field"><label for="cNow">The password you were given</label>' +
+          '<input type="password" id="cNow" autocomplete="current-password"></div>' +
+        '<div class="field"><label for="cNew">Your new password</label>' +
+          '<input type="password" id="cNew" autocomplete="new-password" ' +
+          'placeholder="At least 8 characters"></div>' +
+        '<div class="field"><label for="cAgain">Type it again</label>' +
+          '<input type="password" id="cAgain" autocomplete="new-password"></div>' +
+        '<button type="submit" class="btn-primary" id="cGo">Save and carry on →</button>' +
+      '</form>' +
+      '<p id="cMsg" role="alert" style="display:none;margin:12px 0 0;padding:11px 13px;' +
+        'border-radius:10px;font:600 13px/1.5 system-ui,sans-serif;background:#fdf3f2;' +
+        'border:1px solid #f0c8c4;color:#7a2118"></p>';
+
+    const say = m => {
+      const el = document.getElementById('cMsg');
+      el.textContent = m; el.style.display = m ? 'block' : 'none';
+    };
+
+    document.getElementById('changeForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const now = document.getElementById('cNow').value;
+      const a = document.getElementById('cNew').value;
+      const b = document.getElementById('cAgain').value;
+      if (a.length < 8) return say('Use at least 8 characters.');
+      if (a !== b) return say('The two do not match.');
+      const btn = document.getElementById('cGo');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      say('');
+      try {
+        const r = await fetch('/api/auth/change', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current: now, password: a }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'That did not save.');
+        location.replace(next);
+      } catch (err) {
+        btn.disabled = false; btn.textContent = 'Save and carry on →';
+        say(err.message);
+      }
+    });
+    return;
+  }
+
+  const token = q.get('token');
+  if (!token) return;""",
+    marker="q.get('change') === '1'",
+)
+
+
+# ---------------------------------------------------------------- login.html
+#
+# The sign-in tabs stop shouting when they are not there.
+#
+# This page rewrites itself into a password form twice over — once for an
+# emailed reset link, once for a first-login change — and both replace the card
+# that holds the Sign in / Create account tabs. The page's own switchTab() then
+# runs on load, finds nothing, and throws. It has been throwing on every reset
+# link since reset links existed; nobody saw it because the form still worked
+# and the error only shows in the console.
+patch(
+    "login.html",
+    "the tab switcher tolerates a page that has become a password form",
+    """function switchTab(which){
+  const signup = which==='signup';
+  document.getElementById('tab-signin').classList.toggle('active',!signup);""",
+    """function switchTab(which){
+  const signup = which==='signup';
+  /* The card has been replaced by a password form — there are no tabs to
+     switch, and nothing below this line has anything to act on. */
+  if (!document.getElementById('tab-signin')) return;
+  document.getElementById('tab-signin').classList.toggle('active',!signup);""",
+    marker="there are no tabs to",
+)
+
+
+# ---------------------------------------------------------------- login.html
+#
+# And the rest of the sign-in page tolerates it too.
+#
+# Same cause as the tab switcher: when this page has turned itself into a
+# password form, the sign-in card is gone and every handler bound to it is
+# binding to null. One guard, at the point where the page decides which of its
+# two lives it is living.
+patch(
+    "login.html",
+    "the sign-in handlers stand down on a password form",
+    """$('#fillDemo').onclick = () => {""",
+    """/* Turned into a password form by one of the two branches above. None of the
+   sign-in wiring below has anything to bind to, and binding to null throws
+   before the form's own submit handler is ever reached. */
+if (!document.getElementById('fillDemo')) {
+  /* Nothing further on this page applies. */
+} else {
+
+$('#fillDemo').onclick = () => {""",
+    marker="Turned into a password form by one of the two branches above",
+)
+
+patch(
+    "login.html",
+    "and the guard is closed at the end of that script",
+    """document.querySelectorAll('.pw-row a').forEach(a => a.onclick = e => {""",
+    """} /* end of the sign-in wiring */
+
+document.querySelectorAll('.pw-row a').forEach(a => a.onclick = e => {""",
+    marker="end of the sign-in wiring",
 )
 
 

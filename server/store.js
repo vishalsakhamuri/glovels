@@ -262,6 +262,10 @@ function sqliteDriver(file) {
    "ALTER TABLE orders ADD COLUMN gateway_order_id TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE orders ADD COLUMN gateway_payment_id TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE orders ADD COLUMN paid_at TEXT NOT NULL DEFAULT ''",
+   /* A password somebody else chose is a password that has been read aloud, or
+      typed into WhatsApp, or left sitting in an inbox. It gets one use: this
+      flag makes the account refuse to do anything until its owner replaces it. */
+   "ALTER TABLE students ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
@@ -769,6 +773,11 @@ function open(dir) {
       db.run('UPDATE password_resets SET used = ? WHERE token = ?', 1, String(token));
       return this.studentById(r.student_id);
     },
+    /* Set when we generate a password for somebody; cleared the moment they
+       choose their own. */
+    setMustChange: (id, on) =>
+      db.run('UPDATE students SET must_change = ? WHERE id = ?', on ? 1 : 0, Number(id)),
+
     setPassword(studentId, hash, salt) {
       db.run('UPDATE students SET pass_hash = ?, pass_salt = ? WHERE id = ?',
         hash, salt, Number(studentId));

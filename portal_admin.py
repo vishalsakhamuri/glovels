@@ -188,8 +188,11 @@ function row(s) {
     '<td><select data-assign="' + s.id + '" style="padding:7px 9px;font:600 12.4px/1.3 var(--sans);' +
       'border:1.5px solid ' + (s.counsellor ? '#d8dde4' : '#e0b4ae') + ';border-radius:8px;' +
       'background:' + (s.counsellor ? 'var(--paper)' : '#fdf3f2') + '">' + opts + '</select></td>' +
-    '<td><a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + s.id + '">Open' +
-      (s.unread ? ' <span class="st wait" style="margin-left:5px">' + s.unread + '</span>' : '') + '</a></td>' +
+    '<td style="white-space:nowrap"><a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + s.id + '">Open' +
+      (s.unread ? ' <span class="st wait" style="margin-left:5px">' + s.unread + '</span>' : '') + '</a>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-invite="' + s.id +
+        '" style="margin-left:6px" title="Email them a link to set their password">' +
+        'Send sign-in link</button></td>' +
     '</tr>';
 }
 
@@ -244,6 +247,70 @@ document.addEventListener('click', e => {
   $('#findStudent').value = '';
   paint();
   $('#everyStudent').scrollIntoView({behavior: 'smooth', block: 'start'});
+});
+
+/* --------------------------------------------------- sending a student their way in */
+
+/*
+ * A link, not a password.
+ *
+ * The office could make an account and read its password off one screen, then
+ * had to get it to the student somehow. This emails a set-password link — and
+ * because email does not leave the building until SMTP is configured, it also
+ * puts the link on screen to be copied into WhatsApp. Saying "sent" while the
+ * message sits in a folder is a lie the office would only discover when a
+ * student says they never got it.
+ */
+async function sendInvite(id, btn) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Sending\u2026';
+  try {
+    const r = await api('POST', '/api/staff/students/' + id + '/invite');
+    const row = btn.closest('tr');
+    const cell = row.querySelector('td');
+    const note = document.createElement('div');
+    note.style.cssText = 'margin-top:7px;padding:9px 11px;border-radius:9px;font:600 11.8px/1.5 '
+      + 'var(--sans);background:' + (r.sent ? '#eef8f2' : '#fbf1da') + ';border:1px solid '
+      + (r.sent ? '#bfe0cc' : '#e6d5a8') + ';color:' + (r.sent ? '#14603a' : '#7a4f08')
+      + ';white-space:normal;max-width:340px';
+    note.innerHTML = r.sent
+      ? 'Emailed to <b>' + esc(r.email) + '</b>. The link lasts ' + r.days + ' days.'
+      : '<b>Email is not connected yet</b>, so this was written to the outbox instead. '
+        + 'Send them this link — it lasts ' + r.days + ' days and works once:'
+        + '<div style="margin-top:7px;display:flex;gap:6px;align-items:center">'
+        + '<input readonly value="' + esc(r.link) + '" style="flex:1;min-width:0;padding:6px 8px;'
+        + 'font:400 11px/1.4 var(--mono,monospace);border:1px solid #e6d5a8;border-radius:7px;'
+        + 'background:#fff">'
+        + '<button type="button" class="btn btn-ghost btn-sm" data-copy>Copy</button></div>';
+
+    const old = cell.querySelector('[data-invite-note]');
+    if (old) old.remove();
+    note.setAttribute('data-invite-note', '1');
+    cell.appendChild(note);
+  } catch (e) {
+    alert(e.message || 'That did not send.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+document.addEventListener('click', e => {
+  const inv = e.target.closest('[data-invite]');
+  if (inv) { sendInvite(inv.dataset.invite, inv); return; }
+
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    const box = copy.previousElementSibling;
+    box.select();
+    /* execCommand, not navigator.clipboard: the office may well be on plain
+       http on a laptop inside the building, where the clipboard API is not
+       available at all and the button would silently do nothing. */
+    try { document.execCommand('copy'); copy.textContent = 'Copied'; }
+    catch (err) { copy.textContent = 'Press \u2318C'; }
+    setTimeout(() => { copy.textContent = 'Copy'; }, 2200);
+  }
 });
 
 /* ------------------------------------------------------------- the orders */

@@ -159,7 +159,7 @@ const PROD = {
        to ourselves went with the stub it was attached to. Testing for a note on
        a page that no longer needs one is testing the wrong thing. */
     const fileCopy = await (await browser.newContext()).newPage();
-    await fileCopy.goto('file://' + ROOT + '/careers.html', { waitUntil: 'load' });
+    await fileCopy.goto('file://' + require('path').join(__dirname, '..') + '/careers.html', { waitUntil: 'load' });
     await fileCopy.waitForTimeout(500);
     check('but the office still sees them on the copy it opens from disk',
       (await fileCopy.$$eval('.towrite',

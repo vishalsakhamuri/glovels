@@ -483,7 +483,8 @@ const api = async (method, path, body, isForm) => {
   const r = await fetch(path, opts);
   if (r.status === 401) { location.href = 'login.html?next=' + encodeURIComponent(location.pathname); throw new Error('signed out'); }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(data.error || ('HTTP ' + r.status)), { status: r.status, data });
+  if (!r.ok) throw Object.assign(new Error(data.error || ('HTTP ' + r.status)),
+    { status: r.status, data, mustChange: !!data.mustChange });
   return data;
 };
 
@@ -571,12 +572,28 @@ addEventListener('beforeunload', () => { if (ONLINE && flushTimer) { clearTimeou
 
 /* Boot: who is this, and what have they got. Signed out goes to the sign-in
    page rather than showing an empty portal that looks broken. */
+
+/*
+ * An account still holding a password we generated goes to one place.
+ *
+ * This used to replace the body of whatever portal screen you were on, which
+ * left that screen's own scripts running against elements that no longer
+ * existed — a TypeError on the dashboard, from code that had every right to
+ * assume its own page was still there. The form lives on the sign-in page
+ * instead, which is where every other password form already is.
+ */
+function mustChangeScreen() {
+  const here = location.pathname + location.search;
+  location.replace('login.html?change=1&next=' + encodeURIComponent(here));
+}
+
 async function boot(run) {
   let state = null;
   try {
     state = await api('GET', '/api/state');
   } catch (e) {
     if (e.message === 'signed out') return;
+    if (e.mustChange) return mustChangeScreen({ role: 'student' });
     try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }
     offlineNotice('the Glovels server is not running.');
     ORDER = DB.order || {};

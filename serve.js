@@ -292,6 +292,20 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
 
+  /*
+   * /reset is the sign-in page.
+   *
+   * The set-a-new-password form lives on login.html, which reads the token out
+   * of the query string — one page rather than two copies of the same markup.
+   * The emails, though, were built with `/reset?token=…`, and nothing serves
+   * that: every reset link ever sent pointed at a 404. The links are written
+   * correctly now, and this keeps the ones already in people's inboxes working.
+   */
+  if (pathname === '/reset') {
+    return send(res, 302, '', 'text/html',
+      { Location: '/login' + (query ? '?' + query : '') });
+  }
+
   /* Ahead of the static files, so the generated answer wins over the one on
      disk rather than depending on which is found first. */
   if (pathname === '/robots.txt') return send(res, 200, robotsTxt(), TYPES['.txt']);

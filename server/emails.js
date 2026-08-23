@@ -92,6 +92,89 @@ Glovels
     };
   },
 
+  /*
+   * The account we made for somebody, and how they get into it.
+   *
+   * A password is never in this email. It is not squeamishness: email is stored
+   * unencrypted on several machines and forwarded without thinking, and a
+   * password that has been emailed is a password that stays readable in an
+   * inbox for years. A link that works once and expires cannot be reused by
+   * whoever reads the mailbox next.
+   */
+  invite({ name, email, link, days, siteUrl, reference }) {
+    const first = String(name || '').split(' ')[0] || 'there';
+    const bought = reference
+      ? `Your order ${reference} is already on it, along with the universities it unlocked.`
+      : 'Your counsellor set it up for you.';
+    return {
+      subject: 'Your Glovels account — choose a password',
+      text: `Hi ${first},
+
+We have made your Glovels account. ${bought}
+
+Choose your password here — the link works once and lasts ${days} days:
+${link}
+
+Your sign-in email is ${email}.
+
+Inside you will find your shortlist, your documents, your deadlines and a direct line to your counsellor.
+
+If you did not ask for this, ignore it — the link expires on its own and nothing happens.
+
+Glovels
++91 70933 14089`,
+      html: shell('Your account is ready',
+        p(`Hi ${esc(first)},`) +
+        p(`We have made your Glovels account. ${esc(bought)}`) +
+        button(link, 'Choose my password') +
+        rows([['Your sign-in email', email], ['This link lasts', days + ' days']]) +
+        p('Inside you will find your shortlist, your documents, your deadlines and a direct '
+          + 'line to your counsellor.') +
+        small('The link works once. If you did not ask for this, ignore it — it expires on '
+          + 'its own and nothing happens.')),
+    };
+  },
+
+  /*
+   * The account, and the password to open it with once.
+   *
+   * A password in an email is a password that stays readable in a mailbox for
+   * years, so this one is built to be replaced: the account refuses to do
+   * anything until the person has chosen their own, and the message says so
+   * plainly rather than burying it.
+   */
+  credentials({ name, email, password, siteUrl, role, madeBy }) {
+    const first = String(name || '').split(' ')[0] || 'there';
+    const what = role === 'student' || !role
+      ? 'your Glovels student account'
+      : 'your Glovels ' + role + ' account';
+    const who = madeBy ? ` ${madeBy} set it up for you.` : '';
+    return {
+      subject: 'Your Glovels sign-in',
+      text: `Hi ${first},
+
+We have made ${what}.${who}
+
+Sign in: ${siteUrl}/login
+Email:    ${email}
+Password: ${password}
+
+That password is temporary. The first time you sign in you will be asked to choose your own, and nothing works until you do — so this message stops being useful the moment you have used it. Delete it then.
+
+Glovels
++91 70933 14089`,
+      html: shell('Your Glovels sign-in',
+        p(`Hi ${esc(first)},`) +
+        p(`We have made ${esc(what)}.${esc(who)}`) +
+        rows([['Email', email], ['Temporary password', password]]) +
+        button(siteUrl + '/login', 'Sign in and choose a password') +
+        p('<b>That password is temporary.</b> The first time you sign in you will be asked to '
+          + 'choose your own, and nothing works until you do.') +
+        small('Which means this message stops being useful the moment you have used it. '
+          + 'Delete it then.')),
+    };
+  },
+
   orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl,
     hasAccount, services }) {
     const first = String(name || '').split(' ')[0] || 'there';

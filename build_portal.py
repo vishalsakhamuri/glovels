@@ -92,6 +92,22 @@ def sidebar(active):
 # loader. Sharing the shell is what stops the internal screens looking like a
 # different product built by a different team.
 
+MUST_CHANGE_JS = """
+/*
+ * An account still holding a password we generated goes to one place.
+ *
+ * This used to replace the body of whatever portal screen you were on, which
+ * left that screen's own scripts running against elements that no longer
+ * existed — a TypeError on the dashboard, from code that had every right to
+ * assume its own page was still there. The form lives on the sign-in page
+ * instead, which is where every other password form already is.
+ */
+function mustChangeScreen() {
+  const here = location.pathname + location.search;
+  location.replace('login.html?change=1&next=' + encodeURIComponent(here));
+}
+"""
+
 STAFF_NAV = [
     ("counsellor", "i-chat",   "Conversations"),
     ("chat",       "i-globe",  "Website chat"),
@@ -158,7 +174,15 @@ const api = async (method, path, body) => {{
   const r = await fetch(path, opts);
   if (r.status === 401) {{ location.href = 'login.html?next=' + encodeURIComponent(location.pathname); throw new Error('signed out'); }}
   const data = await r.json().catch(() => ({{}}));
-  if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  if (!r.ok) {{
+    const err = new Error(data.error || ('HTTP ' + r.status));
+    /* Carried through rather than parsed out of the message. The server sets
+       this on every route while an account still holds a password somebody
+       else chose, and the boot turns it into the one screen that account can
+       use. */
+    if (data.mustChange) err.mustChange = true;
+    throw err;
+  }}
   return data;
 }};
 function toast(msg) {{
@@ -204,12 +228,14 @@ function connectLive(handlers) {{
     ES.addEventListener(ev, e => handlers[ev](JSON.parse(e.data))));
 }}
 
+{MUST_CHANGE_JS}
 async function staffBoot(run) {{
   let me;
   try {{
     me = await api('GET', '/api/staff/me');
   }} catch (e) {{
     if (e.message === 'signed out') return;
+    if (e.mustChange) return mustChangeScreen({{ role: 'staff' }});
     document.querySelector('.p-main').innerHTML =
       '<div class="sl-empty" style="margin-top:40px"><b>This screen is for Glovels staff</b>' +
       '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';
@@ -317,7 +343,8 @@ const api = async (method, path, body, isForm) => {{
   const r = await fetch(path, opts);
   if (r.status === 401) {{ location.href = 'login.html?next=' + encodeURIComponent(location.pathname); throw new Error('signed out'); }}
   const data = await r.json().catch(() => ({{}}));
-  if (!r.ok) throw Object.assign(new Error(data.error || ('HTTP ' + r.status)), {{ status: r.status, data }});
+  if (!r.ok) throw Object.assign(new Error(data.error || ('HTTP ' + r.status)),
+    {{ status: r.status, data, mustChange: !!data.mustChange }});
   return data;
 }};
 
@@ -405,12 +432,14 @@ addEventListener('beforeunload', () => {{ if (ONLINE && flushTimer) {{ clearTime
 
 /* Boot: who is this, and what have they got. Signed out goes to the sign-in
    page rather than showing an empty portal that looks broken. */
+{MUST_CHANGE_JS}
 async function boot(run) {{
   let state = null;
   try {{
     state = await api('GET', '/api/state');
   }} catch (e) {{
     if (e.message === 'signed out') return;
+    if (e.mustChange) return mustChangeScreen({{ role: 'student' }});
     try {{ DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {{}}; }} catch (x) {{ DB = {{}}; }}
     offlineNotice('the Glovels server is not running.');
     ORDER = DB.order || {{}};
@@ -485,6 +514,14 @@ async function __dashBoot(main) {
     if (r.status === 401) {
       location.href = 'login.html?next=' + encodeURIComponent('/dashboard');
       return;
+    }
+    /* An account still holding a password we generated. The server refuses
+       every other endpoint until it is replaced, so showing the dashboard would
+       show an empty one — which is exactly what it did: "No package yet" to
+       somebody who had just bought a package. */
+    if (r.status === 403) {
+      const why = await r.json().catch(function () { return {}; });
+      if (why && why.mustChange) return mustChangeScreen({ role: 'student' });
     }
     if (r.ok) {
       const s = await r.json();
@@ -738,7 +775,25 @@ def main():
         i = dash.index("<script>", dash.index("</style>"))
         j = dash.index("</script>", i)
         inner = dash[i + len("<script>"):j]
-        dash = dash[:i] + "<script>\n" + DASH_BOOT_PREFIX + inner + DASH_BOOT_SUFFIX + dash[j:]
+        # The dashboard is the designer's own file wrapped rather than generated,
+        # so it does not go through page() and has to be handed the shared
+        # password screen explicitly. Without it, a student signing in for the
+        # first time lands on the one portal page that cannot ask them to
+        # choose a password.
+        dash = dash[:i] + "<script>\n" + DASH_BOOT_PREFIX + inner \
+            + DASH_BOOT_SUFFIX + dash[j:]
+
+    # Separately, and unconditionally: the wrap above only happens once, and on
+    # every build after the first this file arrives already wrapped. The shared
+    # password screen has to be put in either way, or the dashboard becomes the
+    # one portal page that cannot ask a first-time student to choose one.
+    # Replaced, not skipped-if-present. This file persists between builds, so a
+    # guard that only ever ADDS leaves whatever version happened to be written
+    # the first time — including a broken one.
+    dash = re.sub(r"<script>\s*/\*\s*\n \* The password we gave you.*?</script>\n",
+                  "", dash, flags=re.S)
+    k = dash.index("<script>", dash.index("</style>"))
+    dash = dash[:k] + "<script>\n" + MUST_CHANGE_JS + "</script>\n" + dash[k:]
 
     dash = dash.replace(
         "Demo dashboard \u2014 sign-in is not live, and everything\n"
