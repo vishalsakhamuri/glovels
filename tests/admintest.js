@@ -104,9 +104,11 @@ const names = page => page.$$eval('#rows tr',
   /* -------------------------------------------------- out to another screen */
   await page.click('[data-go="enquiries"]');
   await page.waitForTimeout(2500);
-  check('Enquiries leaves for the chat screen', /\/chat/.test(page.url()), page.url());
-  check('and opens the enquiry book, not the chats',
-    await page.isVisible('#enqRows'), page.url());
+  /* It used to land on the chat screen's second tab. Every enquiry, from every
+     source, is one book now, and that is where the counter goes. */
+  check('Enquiries leaves for the lead book', /\/leads/.test(page.url()), page.url());
+  check('and the leads are listed there',
+    (await page.$$('#leadRows tr')).length > 0, page.url());
 
   /* ------------------------ the one with nowhere to go is not a button */
   await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });

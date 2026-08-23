@@ -46,6 +46,7 @@ run gatetest.js     8099
 run shortlisttest.js 8099
 run applytest.js    8099
 run blogtest.js     8099
+run leadtest.js     8099
 run sheettest.js    8099
 run servicetest.js  8086
 run showcasetest.js 8089

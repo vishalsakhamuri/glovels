@@ -223,6 +223,7 @@ function robotsTxt() {
     'Disallow: /home',
     'Disallow: /catalogue',
     'Disallow: /blog-admin',
+    'Disallow: /leads',
     'Disallow: /login',
     'Allow: /',
     '',
@@ -235,7 +236,7 @@ function robotsTxt() {
    404.html, which exists to be reached by accident. */
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
-  'chat', 'home', 'catalogue', 'blog-admin', 'login', '404']);
+  'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'login', '404']);
 
 function sitemapXml() {
   const pages = [];

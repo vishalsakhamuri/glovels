@@ -236,7 +236,8 @@ document.addEventListener('click', e => {
   if (!go) return;
   const what = go.dataset.go;
 
-  if (what === 'enquiries') { location.href = 'chat.html#enquiries'; return; }
+  /* The enquiry book moved: every lead, from every source, is in one place. */
+  if (what === 'enquiries') { location.href = 'leads.html'; return; }
   if (what === 'orders') {
     $('#everyOrder').scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;

@@ -171,7 +171,7 @@ const PROD = {
       .map(f => f.slice(0, -5))
       .filter(s => !['dashboard', 'profile', 'documents', 'messages', 'applications',
         'universities', 'scholarships', 'visa', 'admin', 'counsellor', 'chat', 'home',
-        'catalogue', 'blog-admin', 'login', '404', 'index'].includes(s));
+        'catalogue', 'blog-admin', 'leads', 'login', '404', 'index'].includes(s));
     const missing = [], thin = [];
     for (const s of pages) {
       await page.goto('http://localhost:8071/' + s, { waitUntil: 'load' });

@@ -50,6 +50,18 @@ BODY = """
 
     <!-- ------------------------------------------------------- the forms -->
     <section class="pane" id="t-enq">
+      <div class="p-card" style="margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap;
+        align-items:center">
+        <div style="flex:1;min-width:260px">
+          <b style="display:block;font:700 13.4px/1.45 var(--sans);color:var(--navy-900)">
+            These are also in the Leads book, with everything else</b>
+          <span style="font-size:12.3px;color:var(--muted);line-height:1.6">
+            Facebook, WhatsApp, Google, the blog and the chats, in one list \u2014 with who
+            owns each one, how many times we have followed up, and why the ones that did
+            not convert did not convert.</span>
+        </div>
+        <a class="btn btn-primary btn-sm" href="leads.html">Open the Leads book</a>
+      </div>
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
           <thead><tr><th>Who</th><th>How to reach them</th><th>Where from</th>

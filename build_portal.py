@@ -49,6 +49,21 @@ GLOBE = (
 if 'id="i-globe"' not in SPRITE:
     SPRITE = SPRITE.replace("</defs>", GLOBE + "</defs>")
 
+# Two more the donor page never needed — the Blog and Leads screens. A <use> on
+# a symbol that is not there renders nothing at all: no icon, no error, and a
+# nav item sitting in a blank space where every other item has a picture, which
+# reads as broken rather than as missing.
+EXTRA_ICONS = {
+    "i-book": '<symbol id="i-book" viewBox="0 0 24 24">'
+              '<path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/>'
+              '<path d="M19 16H6a2 2 0 0 0-2 2"/></symbol>',
+    "i-chart": '<symbol id="i-chart" viewBox="0 0 24 24">'
+               '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>',
+}
+for _id, _svg in EXTRA_ICONS.items():
+    if f'id="{_id}"' not in SPRITE:
+        SPRITE = SPRITE.replace("</defs>", _svg + "</defs>")
+
 # The nav, declared once. `slug` marks the active item.
 NAV = [
     ("dashboard",    "i-grid",   "Dashboard"),
@@ -111,6 +126,7 @@ function mustChangeScreen() {
 STAFF_NAV = [
     ("counsellor", "i-chat",   "Conversations"),
     ("chat",       "i-globe",  "Website chat"),
+    ("leads",      "i-chart",  "Leads"),
     ("home",       "i-file",   "Home page"),
     # The public blog lives at blog.html, so the screen that writes it cannot.
     ("blog-admin", "i-book",   "Blog"),
@@ -253,9 +269,14 @@ async function staffBoot(run) {{
   const perms = me.user.perms || [];
   const allowed = {{
     counsellor: me.user.role !== 'editor',
+    chat: me.user.role !== 'editor',
+    /* The lead book is casework — an editor is on this site to change the
+       website, not to be handed somebody's phone number. */
+    leads: me.user.role !== 'editor',
     admin: me.user.role === 'admin',
     catalogue: perms.indexOf('catalogue') >= 0,
     home: perms.indexOf('content') >= 0,
+    'blog-admin': perms.indexOf('content') >= 0,
   }};
   $$('.p-nav a').forEach(a => {{
     const slug = (a.getAttribute('href') || '').replace('.html', '');
@@ -728,6 +749,15 @@ def main():
         "the site. What you change here is what the next visitor reads.",
         portal_home.BODY, portal_home.SCRIPT, "Counsellor"), encoding="utf-8")
     written.append("home.html")
+
+    import portal_leads
+    (HERE / "leads.html").write_text(staff_page(
+        "leads", "Leads", "Leads",
+        "Everybody who has asked us something \u2014 the website, the chat box, a blog "
+        "post, Facebook, WhatsApp, Google, or a call somebody took \u2014 in one book, "
+        "with what was said and what happens next.",
+        portal_leads.BODY, portal_leads.SCRIPT, "Counsellor"), encoding="utf-8")
+    written.append("leads.html")
 
     import portal_blog
     (HERE / "blog-admin.html").write_text(staff_page(

@@ -557,11 +557,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (!validPhone(phone)) return json(res, 422, { error: 'That does not look like an Indian mobile number' });
 
     const where = (p.university || '') + (p.program ? ' — ' + p.program : '');
+    const from = sourceOf(req, b);
     const record = {
       name, email, phone: '+91' + tenDigits(phone),
       destination: p.country || '',
       consent: b.consent || '',
       note: 'Wants to apply: ' + where,
+      source: from.source, campaign: from.campaign,
       sourcePage: b.sourcePage || '/', referrer: b.referrer || '',
     };
     db.addEnquiry(record);
@@ -1004,6 +1006,75 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
   /* ----------------------------------------------------------- enquiries */
 
+  /*
+   * Where a lead came from.
+   *
+   * Every enquiry landed in one undifferentiated list, so "how many did
+   * Facebook bring us, and how many of those converted" had no answer — the
+   * money going into ads was being judged on a feeling.
+   *
+   * Two things are read, and they answer different questions. The page they
+   * were on when they filled the form carries the campaign parameters, because
+   * the browser sends the full URL of that page as Referer on the POST. The
+   * `referrer` the page reports is where they came from BEFORE they landed —
+   * facebook.com, a Google search. Either can name the source; the campaign
+   * only ever comes from the first.
+   */
+  const HOSTS = [
+    [/(?:^|\.)(?:facebook|fb|m\.facebook)\.com$/i, 'facebook'],
+    [/(?:^|\.)instagram\.com$/i, 'instagram'],
+    [/(?:^|\.)(?:wa\.me|whatsapp\.com|api\.whatsapp\.com)$/i, 'whatsapp'],
+    [/(?:^|\.)google\./i, 'google'],
+    [/(?:^|\.)bing\.com$/i, 'bing'],
+    [/(?:^|\.)(?:youtube\.com|youtu\.be)$/i, 'youtube'],
+    [/(?:^|\.)linkedin\.com$/i, 'linkedin'],
+    [/(?:^|\.)(?:x\.com|twitter\.com|t\.co)$/i, 'x'],
+    [/(?:^|\.)quora\.com$/i, 'quora'],
+    [/(?:^|\.)reddit\.com$/i, 'reddit'],
+  ];
+  const SOURCES = new Set(['website', 'blog', 'chat', 'facebook', 'instagram', 'whatsapp',
+    'google', 'bing', 'youtube', 'linkedin', 'x', 'quora', 'reddit', 'phone', 'walk-in',
+    'referral', 'other']);
+
+  const paramsOf = u => {
+    try { return new URL(u).searchParams; } catch (e) { return new URLSearchParams(); }
+  };
+  const hostOf = u => { try { return new URL(u).hostname; } catch (e) { return ''; } };
+
+  function sourceOf(req, b) {
+    /* Said outright — a counsellor logging a call, or a form that knows. */
+    const said = String(b.source || '').trim().toLowerCase();
+    if (SOURCES.has(said)) return { source: said, campaign: String(b.campaign || '').slice(0, 90) };
+
+    const here = String(req.headers.referer || '');
+    const q = paramsOf(here);
+    const campaign = String(q.get('utm_campaign') || q.get('utm_content') || '').slice(0, 90);
+
+    const utm = String(q.get('utm_source') || '').toLowerCase();
+    if (utm) {
+      for (const [re, name] of HOSTS) if (re.test(utm) || utm === name) return { source: name, campaign };
+      if (SOURCES.has(utm)) return { source: utm, campaign };
+      return { source: 'other', campaign: campaign || utm.slice(0, 90) };
+    }
+    /* The click ids, for when the utm tags were forgotten — which is most of
+       the time, because they are added by hand. */
+    if (q.get('gclid') || q.get('gad_source')) return { source: 'google', campaign };
+    if (q.get('fbclid')) return { source: 'facebook', campaign };
+
+    const from = hostOf(String(b.referrer || ''));
+    if (from && !/glovels/i.test(from)) {
+      for (const [re, name] of HOSTS) if (re.test(from)) return { source: name, campaign };
+      return { source: 'other', campaign: campaign || from.slice(0, 90) };
+    }
+
+    /* Nothing external: it is the site itself, and which part of it. */
+    const how = String(b.consent || '').toLowerCase();
+    if (how === 'chat') return { source: 'chat', campaign };
+    if (how === 'blog') return { source: 'blog', campaign };
+    return { source: 'website', campaign };
+  }
+
+
   const enquiry = async (req, res) => {
     const b = await readJson(req);
     if (b.website) return json(res, 200, { ok: true });          // honeypot
@@ -1025,10 +1096,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
        nothing. */
     const said = String(b.message || b.note || '').trim().slice(0, 400);
     const about = String(b.note || '').trim().slice(0, 200);
+    const from = sourceOf(req, b);
     const record = {
       name, email, phone: '+91' + tenDigits(phone),
       destination: b.destination, consent: b.consent,
       note: about && said && said !== about ? about + ' — “' + said + '”' : (about || said),
+      source: from.source, campaign: from.campaign,
       sourcePage: b.sourcePage, referrer: b.referrer,
     };
     db.addEnquiry(record);
@@ -1145,9 +1218,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     /* A chat is a lead. It goes in the enquiries book the same as the form, so
        nobody has to remember to look in two places for the same person. */
     try {
+      const from = sourceOf(req, { consent: 'chat', referrer: b.referrer });
       db.addEnquiry({
         name, phone: phone ? '+91' + phone : '', email: isEmail ? contact.toLowerCase() : '',
         destination: '', consent: 'chat', sourcePage: String(b.page || '').slice(0, 200),
+        source: from.source, campaign: from.campaign,
         referrer: String(req.headers.referer || '').slice(0, 200),
       });
     } catch (e) { /* a lead that could not be filed must not lose the chat */ }
@@ -2146,10 +2221,352 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     enquiries: db.allEnquiries().slice(0, 200).map(e => ({
       id: e.id, name: e.name, phone: e.phone, email: e.email,
       destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
-      note: e.note || '',
+      note: e.note || '', source: e.source || 'website', status: e.status || 'new',
       page: e.source_page || '', at: e.created_at,
     })),
   })));
+
+  /* ------------------------------------------------------------- the leads */
+  /*
+   * Every enquiry in one place, with what happened to it.
+   *
+   * They were already all in one table — the form, the chat box, the blog, the
+   * Apply button — and that table was shown as a COUNT on a dashboard and, for
+   * a while, as a read-only list. Nothing recorded who was chasing a lead, how
+   * many times they had called, or why one did not convert. So the questions
+   * the office actually asks — is Facebook worth it, are we following up, what
+   * do we keep losing on — had no answer anywhere in the system.
+   *
+   * A lead is the enquiry row plus a thread of notes. The note thread is what
+   * makes "how many follow-ups" a real number rather than a feeling.
+   */
+
+  const LEAD_STATUS = ['new', 'contacted', 'following', 'converted', 'lost'];
+  /* The reasons a lead does not convert, as a list rather than free text —
+     free text cannot be counted, and counting them is the point. `other`
+     carries the note. */
+  const LOST_REASONS = ['budget', 'went-elsewhere', 'deferred', 'not-eligible',
+    'no-response', 'changed-plan', 'other'];
+
+  const leadShape = (e, counts, people) => {
+    const owner = e.owner_id ? people.get(Number(e.owner_id)) : null;
+    const c = counts[String(e.id)] || { n: 0, last: '', lastWho: '' };
+    return {
+      id: e.id, name: e.name, phone: e.phone, email: e.email,
+      destination: e.destination || '',
+      source: e.source || 'website', campaign: e.campaign || '',
+      how: e.consent === 'chat' ? 'chat' : 'form',
+      note: e.note || '',
+      status: e.status || 'new',
+      lostReason: e.lost_reason || '',
+      ownerId: e.owner_id || null,
+      owner: owner ? owner.name : '',
+      studentId: e.student_id || null,
+      nextAt: e.next_at || '',
+      followUps: c.n, lastTouch: c.last, lastBy: c.lastWho,
+      page: e.source_page || '', referrer: e.referrer || '',
+      at: e.created_at, updatedAt: e.updated_at || e.created_at,
+    };
+  };
+
+  /* Everybody who could own a lead, by id. Counsellors and administrators —
+     a lead handed to a website editor is a lead nobody calls. */
+  const peopleMap = () => new Map(
+    db.counsellors().concat(db.staffByRole('admin')).map(p => [Number(p.id), p]));
+
+  route('GET', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
+    const counts = db.leadNoteCounts();
+    const people = peopleMap();
+    let rows = db.allEnquiries();
+    /* A counsellor sees the ones that are theirs and the ones nobody has
+       taken. An administrator sees the book. */
+    if (s.role !== 'admin') {
+      rows = rows.filter(e => !e.owner_id || Number(e.owner_id) === Number(s.id));
+    }
+    const leads = rows.map(e => leadShape(e, counts, people));
+
+    /* The summary the office asks for, counted here so every screen showing it
+       shows the same numbers. */
+    const by = (key) => leads.reduce((m, l) => {
+      const k = l[key] || 'unknown';
+      m[k] = (m[k] || 0) + 1;
+      return m;
+    }, {});
+    const won = leads.filter(l => l.status === 'converted');
+    const bySource = {};
+    leads.forEach(l => {
+      const k = l.source || 'website';
+      if (!bySource[k]) bySource[k] = { leads: 0, converted: 0, lost: 0, followUps: 0 };
+      bySource[k].leads++;
+      bySource[k].followUps += l.followUps;
+      if (l.status === 'converted') bySource[k].converted++;
+      if (l.status === 'lost') bySource[k].lost++;
+    });
+
+    return json(res, 200, {
+      leads: leads.slice(0, 500),
+      counsellors: db.counsellors().map(c => ({ id: c.id, name: c.name })),
+      statuses: LEAD_STATUS, reasons: LOST_REASONS,
+      summary: {
+        total: leads.length,
+        byStatus: by('status'),
+        bySource,
+        byReason: leads.filter(l => l.status === 'lost')
+          .reduce((m, l) => { const k = l.lostReason || 'other'; m[k] = (m[k] || 0) + 1; return m; }, {}),
+        followUps: leads.reduce((n, l) => n + l.followUps, 0),
+        converted: won.length,
+        /* Untouched, and old enough that it is a problem rather than a queue.
+           This is the number that should make somebody uncomfortable. */
+        cold: leads.filter(l => l.status !== 'converted' && l.status !== 'lost'
+          && !l.followUps && Date.now() - new Date(l.at).getTime() > DAY).length,
+      },
+    });
+  }));
+
+  route('GET', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    const e = db.enquiryById(Number(m[1]));
+    if (!e) return json(res, 404, { error: 'No such enquiry' });
+    if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
+      return json(res, 403, { error: 'That lead belongs to somebody else' });
+    }
+    return json(res, 200, {
+      lead: leadShape(e, db.leadNoteCounts(), peopleMap()),
+      notes: db.leadNotes(e.id).map(n => ({
+        id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
+      })),
+    });
+  }));
+
+  /* A lead that arrived by phone, or on somebody's personal WhatsApp. It is
+     not in the book unless somebody puts it there, and a lead that is not in
+     the book is not followed up. */
+  route('POST', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
+    const b = await readJson(req);
+    const name = String(b.name || '').trim();
+    const phone = String(b.phone || '').trim();
+    const email = String(b.email || '').trim();
+    if (!name) return json(res, 422, { error: 'A name, at least.' });
+    if (!phone && !email) return json(res, 422, { error: 'A number or an email — otherwise there is no way to call them back.' });
+    if (email && !validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
+    if (phone && !validPhone(phone)) return json(res, 422, { error: 'That does not look like an Indian mobile number' });
+
+    const source = SOURCES.has(String(b.source || '').toLowerCase())
+      ? String(b.source).toLowerCase() : 'phone';
+    const row = db.addEnquiry({
+      name, email, phone: phone ? '+91' + tenDigits(phone) : '',
+      destination: String(b.destination || '').slice(0, 60),
+      consent: 'staff', note: String(b.note || '').trim().slice(0, 400),
+      source, campaign: String(b.campaign || '').trim().slice(0, 90),
+      sourcePage: 'added by ' + s.name, referrer: '',
+      /* Whoever writes it down owns it, unless they say otherwise. A lead
+         logged and left unowned is the one that goes cold. */
+      ownerId: b.ownerId ? Number(b.ownerId) : s.id,
+      status: 'contacted',
+    });
+    if (row) {
+      db.addLeadNote(row.id, s.name, 'added',
+        'Added by hand' + (b.note ? ' — ' + String(b.note).trim().slice(0, 300) : ''));
+      db.log(s.name, 'logged a lead', name + ' (' + source + ')');
+    }
+    return json(res, 200, { lead: row ? leadShape(row, db.leadNoteCounts(), peopleMap()) : null });
+  }));
+
+  route('PUT', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    const e = db.enquiryById(Number(m[1]));
+    if (!e) return json(res, 404, { error: 'No such enquiry' });
+    if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
+      return json(res, 403, { error: 'That lead belongs to somebody else' });
+    }
+    const b = await readJson(req);
+    const status = LEAD_STATUS.includes(b.status) ? b.status : (e.status || 'new');
+    const reason = status === 'lost'
+      ? (LOST_REASONS.includes(b.lostReason) ? b.lostReason : 'other')
+      : '';
+    /* Lost, and no reason chosen. The list exists so the reasons can be
+       counted; free text and a shrug cannot be. */
+    if (status === 'lost' && !b.lostReason) {
+      return json(res, 422, { error: 'Say why it did not convert — that is the half of this worth recording.' });
+    }
+    let ownerId = e.owner_id;
+    if (b.ownerId !== undefined) {
+      ownerId = b.ownerId ? Number(b.ownerId) : null;
+      if (ownerId && !db.studentById(ownerId)) return json(res, 404, { error: 'No such person' });
+      if (s.role !== 'admin' && ownerId && Number(ownerId) !== Number(s.id)) {
+        return json(res, 403, { error: 'Only an administrator can hand a lead to somebody else.' });
+      }
+    }
+
+    const row = db.updateEnquiry(e.id, {
+      source: b.source && SOURCES.has(String(b.source).toLowerCase())
+        ? String(b.source).toLowerCase() : (e.source || 'website'),
+      campaign: b.campaign !== undefined ? String(b.campaign).slice(0, 90) : (e.campaign || ''),
+      ownerId, status, lostReason: reason,
+      nextAt: b.nextAt !== undefined ? String(b.nextAt).slice(0, 30) : (e.next_at || ''),
+      studentId: e.student_id,
+      note: b.note !== undefined ? String(b.note).slice(0, 400) : (e.note || ''),
+      destination: b.destination !== undefined
+        ? String(b.destination).slice(0, 60) : (e.destination || ''),
+    });
+
+    /* What changed, on the thread, so the history reads as a history rather
+       than as a field that is different today. */
+    const said = [];
+    if ((e.status || 'new') !== status) {
+      said.push('Moved to ' + status + (reason ? ' (' + reason.replace(/-/g, ' ') + ')' : ''));
+    }
+    if (Number(e.owner_id || 0) !== Number(ownerId || 0)) {
+      const who = ownerId ? (db.studentById(ownerId) || {}).name : 'nobody';
+      said.push('Given to ' + who);
+    }
+    if ((e.next_at || '') !== (row.next_at || '') && row.next_at) {
+      said.push('Next follow-up ' + row.next_at);
+    }
+    if (said.length) db.addLeadNote(e.id, s.name, 'change', said.join('. '));
+
+    return json(res, 200, {
+      lead: leadShape(row, db.leadNoteCounts(), peopleMap()),
+      notes: db.leadNotes(e.id).map(n => ({
+        id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
+      })),
+    });
+  }));
+
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/note$/, caseworkOnly(async (req, res, s, m) => {
+    const e = db.enquiryById(Number(m[1]));
+    if (!e) return json(res, 404, { error: 'No such enquiry' });
+    if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
+      return json(res, 403, { error: 'That lead belongs to somebody else' });
+    }
+    const b = await readJson(req);
+    const body = String(b.body || '').trim().slice(0, 2000);
+    if (!body) return json(res, 422, { error: 'Nothing to record.' });
+    const kind = ['call', 'whatsapp', 'email', 'meeting', 'note'].includes(b.kind)
+      ? b.kind : 'note';
+    db.addLeadNote(e.id, s.name, kind, body);
+
+    /* Writing down what you said to somebody IS contacting them — a lead that
+       has a call logged against it is not "new" any more, and leaving it as
+       new is how the untouched count lies. */
+    const next = {};
+    if ((e.status || 'new') === 'new') next.status = 'contacted';
+    if (!e.owner_id) next.ownerId = s.id;
+    if (Object.keys(next).length) {
+      db.updateEnquiry(e.id, Object.assign({
+        source: e.source, campaign: e.campaign, ownerId: e.owner_id,
+        status: e.status || 'new', lostReason: e.lost_reason, nextAt: e.next_at,
+        studentId: e.student_id, note: e.note, destination: e.destination,
+      }, next));
+    }
+    if (b.nextAt !== undefined) {
+      const row0 = db.enquiryById(e.id);
+      db.updateEnquiry(e.id, {
+        source: row0.source, campaign: row0.campaign, ownerId: row0.owner_id,
+        status: row0.status, lostReason: row0.lost_reason,
+        nextAt: String(b.nextAt).slice(0, 30), studentId: row0.student_id,
+        note: row0.note, destination: row0.destination,
+      });
+    }
+
+    const row = db.enquiryById(e.id);
+    return json(res, 200, {
+      lead: leadShape(row, db.leadNoteCounts(), peopleMap()),
+      notes: db.leadNotes(e.id).map(n => ({
+        id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
+      })),
+    });
+  }));
+
+
+  /*
+   * A lead becomes a student.
+   *
+   * This is the moment the business has been waiting for and there was no
+   * button for it: a counsellor who talked somebody round had to go to a
+   * different screen, retype the name, the email and the number they were
+   * looking at, and hope they matched — and the lead stayed sitting in the
+   * book as "new" forever, so the conversion rate was always zero.
+   *
+   * The account is made with a password nobody chose, which opens exactly one
+   * thing: the screen that replaces it. The details are emailed. The lead is
+   * marked converted and tied to the student, so the two are the same person
+   * from here on.
+   */
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/convert$/, caseworkOnly(async (req, res, s, m) => {
+    const e = db.enquiryById(Number(m[1]));
+    if (!e) return json(res, 404, { error: 'No such enquiry' });
+    if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
+      return json(res, 403, { error: 'That lead belongs to somebody else' });
+    }
+    const b = await readJson(req);
+    const name = String(b.name || e.name || '').trim().slice(0, 80);
+    const email = String(b.email || e.email || '').trim().toLowerCase();
+    const phone = String(b.phone || e.phone || '').replace(/\D/g, '').slice(-10);
+
+    if (!name) return json(res, 422, { error: 'They need a name' });
+    if (!validEmail(email)) {
+      return json(res, 422, {
+        error: 'An account needs an email address — that is what they sign in with. '
+             + 'Ask them for one and put it on the lead first.',
+      });
+    }
+
+    /* Already has an account: tie the lead to it rather than refusing, because
+       the person exists either way and two records for one student is worse
+       than one that was made twice. */
+    let person = db.studentByEmail(email);
+    let password = '';
+    let made = false;
+    if (person) {
+      if (person.role !== 'student') {
+        return json(res, 409, { error: 'That email address belongs to a staff account.' });
+      }
+    } else {
+      password = newPassword();
+      const salt = newSalt();
+      person = db.createStudent(email, name, phone ? '+91' + phone : '',
+        hashPassword(password, salt), salt, 'student');
+      db.setMustChange(person.id, true);
+      made = true;
+      mail.send(Object.assign({ to: person.email }, EMAILS.credentials({
+        name: person.name, email: person.email, password, siteUrl,
+        role: 'student', madeBy: s.name,
+      }))).catch(() => {});
+      /* Any order already filed under that address — somebody who paid on the
+         website before anybody talked to them — belongs to this account. */
+      try { db.claimOrders(person.id, email); } catch (err) { /* not fatal */ }
+      seedMessages(person);
+    }
+
+    /* Whoever converted them looks after them, unless an administrator did it,
+       in which case the lead's owner does. */
+    const owner = s.role === 'counsellor' ? s.id
+      : (e.owner_id && (db.studentById(e.owner_id) || {}).role === 'counsellor'
+          ? Number(e.owner_id) : null);
+    if (owner) { try { db.assignCounsellor(person.id, owner); } catch (err) { /* not fatal */ } }
+
+    const row = db.updateEnquiry(e.id, {
+      source: e.source, campaign: e.campaign, ownerId: e.owner_id || s.id,
+      status: 'converted', lostReason: '', nextAt: '',
+      studentId: person.id, note: e.note, destination: e.destination,
+    });
+    db.addLeadNote(e.id, s.name, 'converted',
+      made ? 'Converted. Account made for ' + email + ' and the sign-in details emailed.'
+           : 'Converted. They already had an account on ' + email + '.');
+    db.log(s.name, 'converted a lead', name + ' — ' + email);
+
+    return json(res, 200, {
+      lead: leadShape(row, db.leadNoteCounts(), peopleMap()),
+      notes: db.leadNotes(e.id).map(n => ({
+        id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
+      })),
+      student: { id: person.id, name: person.name, email: person.email },
+      accountCreated: made,
+      /* Shown once, on the screen, because email to a wrong address is the
+         normal failure and a counsellor sitting with the student on the phone
+         can read it out. */
+      password: password || '',
+    });
+  }));
 
   route('GET', /^\/api\/staff\/chat\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const c = db.chatById(Number(m[1]));

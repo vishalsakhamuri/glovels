@@ -118,6 +118,19 @@ CREATE TABLE IF NOT EXISTS enquiries (
   referrer    TEXT,
   created_at  TEXT NOT NULL
 );
+/* What was said to a lead, and when.
+   "How many follow-ups have we done" is the question the office actually
+   asks, and it cannot be answered by a status field — a status says where
+   something got to, not how much work went into getting it there. One row per
+   call, message or note, so the count is real. */
+CREATE TABLE IF NOT EXISTS lead_notes (
+  id          INTEGER PRIMARY KEY,
+  lead_id     INTEGER NOT NULL,
+  who         TEXT NOT NULL,
+  kind        TEXT NOT NULL DEFAULT 'note',
+  body        TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS programmes (
   id          TEXT PRIMARY KEY,
   program     TEXT NOT NULL,
@@ -303,6 +316,22 @@ function sqliteDriver(file) {
       at which university they pressed Apply on. A lead that says only "someone
       from Hyderabad" is a lead the counsellor has to start from nothing. */
    "ALTER TABLE enquiries ADD COLUMN note TEXT NOT NULL DEFAULT ''",
+   /* Where the lead came from — a Facebook ad, a WhatsApp message, a Google
+      search, the chat box, a blog post, or somebody who walked in. Every
+      enquiry landed in one undifferentiated list, so "which of these is
+      working" had no answer at all. Detected from the page and the referrer
+      where it can be, set by hand where it cannot. */
+   "ALTER TABLE enquiries ADD COLUMN source TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE enquiries ADD COLUMN campaign TEXT NOT NULL DEFAULT ''",
+   /* Whose it is, where it got to, and why it stopped. A lead nobody owns is a
+      lead nobody calls. */
+   "ALTER TABLE enquiries ADD COLUMN owner_id INTEGER",
+   "ALTER TABLE enquiries ADD COLUMN status TEXT NOT NULL DEFAULT 'new'",
+   "ALTER TABLE enquiries ADD COLUMN lost_reason TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE enquiries ADD COLUMN next_at TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE enquiries ADD COLUMN student_id INTEGER",
+   "ALTER TABLE enquiries ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
+   "CREATE INDEX IF NOT EXISTS idx_lead_notes ON lead_notes(lead_id)",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
@@ -324,7 +353,7 @@ function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
     'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
-    'chats', 'chat_messages', 'posts'];
+    'chats', 'chat_messages', 'posts', 'lead_notes'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -826,12 +855,53 @@ function open(dir) {
 
     /* ---- enquiries ---- */
     addEnquiry(e) {
-      db.run(`INSERT INTO enquiries (name, phone, email, destination, consent, source_page, referrer, note, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      const t = now();
+      db.run(`INSERT INTO enquiries (name, phone, email, destination, consent, source_page,
+                referrer, note, source, campaign, status, owner_id, lost_reason, next_at,
+                student_id, updated_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         e.name, e.phone, e.email, e.destination || '', e.consent || '',
-        e.sourcePage || '', e.referrer || '', e.note || '', now());
+        e.sourcePage || '', e.referrer || '', e.note || '',
+        e.source || 'website', e.campaign || '', e.status || 'new',
+        e.ownerId == null ? null : Number(e.ownerId), '', e.nextAt || '',
+        e.studentId == null ? null : Number(e.studentId), t, t);
+      return db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)[0] || null;
     },
     allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
+    enquiryById: id => db.one('SELECT * FROM enquiries WHERE id = ?', Number(id)),
+    updateEnquiry(id, e) {
+      db.run(`UPDATE enquiries SET source = ?, campaign = ?, owner_id = ?, status = ?,
+                lost_reason = ?, next_at = ?, student_id = ?, note = ?, destination = ?,
+                updated_at = ? WHERE id = ?`,
+        e.source || '', e.campaign || '', e.ownerId == null ? null : Number(e.ownerId),
+        e.status || 'new', e.lostReason || '', e.nextAt || '',
+        e.studentId == null ? null : Number(e.studentId), e.note || '',
+        e.destination || '', now(), Number(id));
+      return db.one('SELECT * FROM enquiries WHERE id = ?', Number(id));
+    },
+    leadNotes: id => db.all('SELECT * FROM lead_notes WHERE lead_id = ? ORDER BY id asc',
+      Number(id)),
+    addLeadNote(leadId, who, kind, body) {
+      db.run(`INSERT INTO lead_notes (lead_id, who, kind, body, created_at)
+              VALUES (?, ?, ?, ?, ?)`,
+        Number(leadId), String(who || ''), String(kind || 'note'), String(body || ''), now());
+      return db.all('SELECT * FROM lead_notes WHERE lead_id = ? ORDER BY id asc', Number(leadId));
+    },
+    /* Every note on every lead in one read. Asking per lead meant one query
+       per row to draw a list of two hundred. */
+    leadNoteCounts() {
+      const out = {};
+      db.all('SELECT * FROM lead_notes WHERE id > ?', 0).forEach(n => {
+        const k = String(n.lead_id);
+        if (!out[k]) out[k] = { n: 0, last: '', lastWho: '' };
+        out[k].n++;
+        if (String(n.created_at) > out[k].last) {
+          out[k].last = n.created_at;
+          out[k].lastWho = n.who;
+        }
+      });
+      return out;
+    },
     countStudents: () => db.all('SELECT * FROM students WHERE id > ?', 0).length,
 
     /* ---- the blog ---- */
