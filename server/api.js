@@ -476,6 +476,105 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     return json(res, 200, { added: n, shortlist: stateFor(s).shortlist });
   });
 
+  /*
+   * Applying, from the finder on the home page.
+   *
+   * "Apply Now" did two untrue things. On a private university — the ones the
+   * site says are free to view and free to apply to — it opened the packages
+   * section, which is the paywall, for something nothing is charged for. And
+   * on a public one, for somebody who had actually paid, it opened a box that
+   * said "Demo. Nothing has been filed." Both buttons went nowhere.
+   *
+   * One endpoint answers both now, and what it does depends on who is asking:
+   *
+   *   signed in      the university goes on their real shortlist and their
+   *                  counsellor is told. That is what applying means here.
+   *   not signed in  their details are taken and it becomes an enquiry with
+   *                  the programme written on it, which a counsellor picks up
+   *                  from the same book every other lead arrives in.
+   *
+   * A public university still needs a package — the quota is counted here, in
+   * universities, the same way the package card counts it. A private one never
+   * does, whoever is asking.
+   */
+  route('POST', '/api/apply', async (req, res, s) => {
+    const b = await readJson(req);
+    const p = lookup(String(b.id || ''));
+    if (!p) return json(res, 404, { error: 'No such programme' });
+
+    if (s && s.role === 'student') {
+      if (p.isPublic) {
+        const earned = db.ordersFor(s.id)
+          .filter(o => o.status === 'paid' || o.status === 'owing');
+        const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
+        const list = db.getShortlist(s.id);
+        const already = list.some(x => String(x.prog_id) === String(p.id));
+        /* Counted in universities, not rows: a second course at a university
+           already on the list costs nothing, exactly as the package says. */
+        const unis = new Set(list.filter(x => x.is_public).map(x => x.university));
+        if (!already && !unis.has(p.university) && unis.size >= quota) {
+          return json(res, 402, {
+            error: quota
+              ? 'Your package covers ' + quota + ' public universit'
+                + (quota === 1 ? 'y' : 'ies') + ', and they are all on your list. '
+                + 'Your counsellor can swap one, or a larger package adds more.'
+              : 'Public universities are covered by a package. Private ones are free '
+                + 'to apply to and always will be.',
+            needsPackage: true,
+          });
+        }
+      }
+      const had = db.getShortlist(s.id).some(x => String(x.prog_id) === String(p.id));
+      db.addShortlist(s.id, p);
+      if (!had) {
+        db.addMessage(s.id, 'me', 'I would like to apply to '
+          + (p.university || '') + (p.program ? ' — ' + p.program : '') + '.');
+        db.log(s.name, 'applied', (p.university || p.id));
+      }
+      return json(res, 200, {
+        applied: true, signedIn: true, already: had,
+        university: p.university, program: p.program,
+        shortlist: stateFor(s).shortlist,
+      });
+    }
+
+    /* Nobody signed in. Without contact details there is nothing to act on, so
+       say so rather than storing an application against no one — the page asks
+       for them and calls back. */
+    const name = String(b.name || '').trim();
+    const email = String(b.email || '').trim();
+    const phone = String(b.phone || '').trim();
+    if (!name || !email || !phone) {
+      return json(res, 200, {
+        needDetails: true, isPublic: !!p.isPublic,
+        university: p.isPublic ? '' : p.university,
+        program: p.isPublic ? '' : p.program,
+      });
+    }
+    if (floodedBy(clientIp(req), 'apply', 8, 60 * 60 * 1000)) return slowDown(res);
+    if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
+    if (!validPhone(phone)) return json(res, 422, { error: 'That does not look like an Indian mobile number' });
+
+    const where = (p.university || '') + (p.program ? ' — ' + p.program : '');
+    const record = {
+      name, email, phone: '+91' + tenDigits(phone),
+      destination: p.country || '',
+      consent: b.consent || '',
+      note: 'Wants to apply: ' + where,
+      sourcePage: b.sourcePage || '/', referrer: b.referrer || '',
+    };
+    db.addEnquiry(record);
+    mail.send(Object.assign({ to: mail.office, replyTo: email },
+      EMAILS.enquiryToOffice(record))).catch(() => {});
+    mail.send(Object.assign({ to: email },
+      EMAILS.enquiryToStudent({ name, destination: record.destination }))).catch(() => {});
+
+    return json(res, 200, {
+      applied: true, signedIn: false,
+      university: p.university, program: p.program,
+    });
+  }, { open: true, soft: true });
+
   /* -------------------------------------------------------- applications */
 
   route('PUT', /^\/api\/applications\/(.+)$/, async (req, res, s, m) => {
@@ -2037,6 +2136,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     enquiries: db.allEnquiries().slice(0, 200).map(e => ({
       id: e.id, name: e.name, phone: e.phone, email: e.email,
       destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
+      note: e.note || '',
       page: e.source_page || '', at: e.created_at,
     })),
   })));

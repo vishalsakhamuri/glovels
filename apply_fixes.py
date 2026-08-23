@@ -342,7 +342,15 @@ patch("login.html", "forgot password handler",
     : 'Enter your email address above first, and we will tell you where the reset link goes.';
 }
 
-function switchTab(which){""")
+function switchTab(which){""",
+      # Two later patches rewrite the head of this function and then its body,
+      # so nothing it inserts survives verbatim — and without a marker it read
+      # that as "not applied yet" and pasted a fresh copy on every build.
+      # login.html carried three, and the last one declared wins: the working
+      # handler that asks the server for a reset link was being shadowed by a
+      # stale copy telling students reset was not connected. The marker is the
+      # one string every version of this function has and no patch may edit.
+      marker="function forgotPassword(")
 
 # A signed-in student with an empty shortlist was shown seven sample universities,
 # because the dashboard falls back to FALLBACK[] whenever the list is empty. That
@@ -488,7 +496,11 @@ patch("login.html", "forgot password asks the server",
 
 patch("login.html", "the reset link opens a set-a-password form",
       "  const box = document.getElementById('forgotBox') || (function(){\n    const d = document.createElement('div');\n    d.id = 'forgotBox';\n    d.style.cssText = 'margin:12px 0 4px;padding:13px 15px;border-radius:12px;font-size:13px;' +\n      'line-height:1.55;background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409';\n    const form = document.getElementById('authForm');\n    form.parentNode.insertBefore(d, form.nextSibling);\n    return d;\n  })();\n  box.innerHTML = who\n    ? 'A reset link would be sent to <b>' + who.replace(/[<>&]/g, '') + '</b>. Password reset is ' +\n      'not wired up in this build \\u2014 message your counsellor on WhatsApp and they will reset it for you: ' +\n      '<a href=\"https://wa.me/917093314089\" target=\"_blank\" rel=\"noopener\" ' +\n      'style=\"font-weight:700;color:#5b4409;text-decoration:underline\">+91 70933 14089</a>.'\n    : 'Enter your email address above first, and we will tell you where the reset link goes.';\n}",
-      "  const box = document.getElementById('forgotBox') || (function(){\n    const d = document.createElement('div');\n    d.id = 'forgotBox';\n    d.style.cssText = 'margin:12px 0 4px;padding:13px 15px;border-radius:12px;font-size:13px;' +\n      'line-height:1.55;background:#eaf6ee;border:1px solid #bfe0cc;color:#14603a';\n    const form = document.getElementById('authForm');\n    form.parentNode.insertBefore(d, form.nextSibling);\n    return d;\n  })();\n  box.textContent = message;\n}\n\n/* Arriving from the emailed link: /login?token=... becomes a set-a-new-password\n   form. A separate page would be a second copy of this one's markup to keep in\n   step, for one field. */\n(function () {\n  const token = new URLSearchParams(location.search).get('token');\n  if (!token) return;\n  const card = document.querySelector('.auth-card') || document.body;\n  card.innerHTML =\n    '<h2 id=\"form-title\">Set a new password</h2>' +\n    '<p class=\"sub\">Choose something you have not used elsewhere. Every device signed in to this ' +\n    'account will be signed out.</p>' +\n    '<form id=\"resetForm\" novalidate>' +\n      '<div class=\"field\"><label for=\"rPass\">New password</label>' +\n        '<input type=\"password\" id=\"rPass\" autocomplete=\"new-password\" placeholder=\"At least 8 characters\">' +\n        '<span class=\"err\">At least 8 characters</span></div>' +\n      '<div class=\"field\"><label for=\"rPass2\">Repeat it</label>' +\n        '<input type=\"password\" id=\"rPass2\" autocomplete=\"new-password\">' +\n        '<span class=\"err\">The two do not match</span></div>' +\n      '<button type=\"submit\" class=\"btn-primary\" id=\"rGo\">Save and sign in \\u2192</button>' +\n    '</form>' +\n    '<p id=\"rMsg\" role=\"alert\" style=\"display:none;margin:12px 0 0;padding:11px 13px;border-radius:10px;' +\n      'font:600 13px/1.5 system-ui,sans-serif;background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118\"></p>' +\n    '<p class=\"backlink\"><a href=\"login.html\">&larr; Back to sign in</a></p>';\n\n  const say = m => {\n    const el = document.getElementById('rMsg');\n    el.textContent = m; el.style.display = m ? 'block' : 'none';\n  };\n\n  document.getElementById('resetForm').addEventListener('submit', async e => {\n    e.preventDefault();\n    const a = document.getElementById('rPass').value;\n    const b = document.getElementById('rPass2').value;\n    document.getElementById('rPass').closest('.field').classList.toggle('bad', a.length < 8);\n    document.getElementById('rPass2').closest('.field').classList.toggle('bad', a !== b);\n    if (a.length < 8 || a !== b) return;\n\n    const btn = document.getElementById('rGo');\n    btn.disabled = true; btn.textContent = 'Saving\\u2026';\n    say('');\n    try {\n      const r = await fetch('/api/auth/reset', {\n        method: 'POST', credentials: 'same-origin',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({ token, password: a })\n      });\n      const d = await r.json().catch(() => ({}));\n      if (!r.ok) throw new Error(d.error || 'That did not work.');\n      location.href = d.user && d.user.role === 'admin' ? 'admin.html'\n        : d.user && d.user.role === 'counsellor' ? 'counsellor.html' : 'dashboard.html';\n    } catch (err) {\n      btn.disabled = false; btn.textContent = 'Save and sign in \\u2192';\n      say(err.message);\n    }\n  });\n})();")
+      "  const box = document.getElementById('forgotBox') || (function(){\n    const d = document.createElement('div');\n    d.id = 'forgotBox';\n    d.style.cssText = 'margin:12px 0 4px;padding:13px 15px;border-radius:12px;font-size:13px;' +\n      'line-height:1.55;background:#eaf6ee;border:1px solid #bfe0cc;color:#14603a';\n    const form = document.getElementById('authForm');\n    form.parentNode.insertBefore(d, form.nextSibling);\n    return d;\n  })();\n  box.textContent = message;\n}\n\n/* Arriving from the emailed link: /login?token=... becomes a set-a-new-password\n   form. A separate page would be a second copy of this one's markup to keep in\n   step, for one field. */\n(function () {\n  const token = new URLSearchParams(location.search).get('token');\n  if (!token) return;\n  const card = document.querySelector('.auth-card') || document.body;\n  card.innerHTML =\n    '<h2 id=\"form-title\">Set a new password</h2>' +\n    '<p class=\"sub\">Choose something you have not used elsewhere. Every device signed in to this ' +\n    'account will be signed out.</p>' +\n    '<form id=\"resetForm\" novalidate>' +\n      '<div class=\"field\"><label for=\"rPass\">New password</label>' +\n        '<input type=\"password\" id=\"rPass\" autocomplete=\"new-password\" placeholder=\"At least 8 characters\">' +\n        '<span class=\"err\">At least 8 characters</span></div>' +\n      '<div class=\"field\"><label for=\"rPass2\">Repeat it</label>' +\n        '<input type=\"password\" id=\"rPass2\" autocomplete=\"new-password\">' +\n        '<span class=\"err\">The two do not match</span></div>' +\n      '<button type=\"submit\" class=\"btn-primary\" id=\"rGo\">Save and sign in \\u2192</button>' +\n    '</form>' +\n    '<p id=\"rMsg\" role=\"alert\" style=\"display:none;margin:12px 0 0;padding:11px 13px;border-radius:10px;' +\n      'font:600 13px/1.5 system-ui,sans-serif;background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118\"></p>' +\n    '<p class=\"backlink\"><a href=\"login.html\">&larr; Back to sign in</a></p>';\n\n  const say = m => {\n    const el = document.getElementById('rMsg');\n    el.textContent = m; el.style.display = m ? 'block' : 'none';\n  };\n\n  document.getElementById('resetForm').addEventListener('submit', async e => {\n    e.preventDefault();\n    const a = document.getElementById('rPass').value;\n    const b = document.getElementById('rPass2').value;\n    document.getElementById('rPass').closest('.field').classList.toggle('bad', a.length < 8);\n    document.getElementById('rPass2').closest('.field').classList.toggle('bad', a !== b);\n    if (a.length < 8 || a !== b) return;\n\n    const btn = document.getElementById('rGo');\n    btn.disabled = true; btn.textContent = 'Saving\\u2026';\n    say('');\n    try {\n      const r = await fetch('/api/auth/reset', {\n        method: 'POST', credentials: 'same-origin',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({ token, password: a })\n      });\n      const d = await r.json().catch(() => ({}));\n      if (!r.ok) throw new Error(d.error || 'That did not work.');\n      location.href = d.user && d.user.role === 'admin' ? 'admin.html'\n        : d.user && d.user.role === 'counsellor' ? 'counsellor.html' : 'dashboard.html';\n    } catch (err) {\n      btn.disabled = false; btn.textContent = 'Save and sign in \\u2192';\n      say(err.message);\n    }\n  });\n})();",
+      # A later patch rewrites the role routing inside the form this inserts,
+      # so `new` stops matching and the whole reset form gets pasted a second
+      # time. The heading is the one line nothing else touches.
+      marker='<h2 id=\"form-title\">Set a new password</h2>')
 
 # The demo button filled the form; now it also has to say that the account is a
 # real one on the server rather than a hard-coded pair of strings.
@@ -3136,6 +3148,226 @@ patch(
 )
 
 
+# ---------------------------------------------------------------------------
+# Applying to a private university is free, so the button says so and does it.
+#
+# "Apply Now" on a private row called showPackages() — the paywall — for a
+# university the same page calls free to view and free to apply to. On a public
+# row, for somebody who had paid, it opened a box that said "Demo. Nothing has
+# been filed." One button, two untrue things.
+#
+# Both go through /api/apply now: signed in, the university joins their real
+# shortlist and their counsellor is told; signed out, we take their details and
+# it becomes a lead with the programme written on it.
+
+patch("index.html", "the row carries the programme id, not two names",
+      """      <button class="btn btn-sm ${r.isPublic?'btn-primary':'btn-gold'}"
+        data-apply="${esc(r.program)}|${esc(r.university)}">Apply Now ${ico('arrow')}</button></div></div>`;""",
+      """      <button class="btn btn-sm ${r.isPublic?'btn-primary':'btn-gold'}"
+        data-apply="${esc(r.id)}" data-uni="${esc(unent(r.university))}"
+        data-prog="${esc(unent(r.program))}">${r.isPublic?'Apply Now':'Apply free'} ${ico('arrow')}</button></div></div>`;""",
+      marker='data-apply="${esc(r.id)}"')
+
+patch("index.html", "apply asks the server rather than opening the paywall",
+      """  $$('[data-apply]').forEach(b => b.onclick = () => {
+    const [prog, uni] = b.dataset.apply.split('|');
+    /* Without a package there is nothing to apply through, so the honest move is
+       to show what a package covers rather than pretend an application started. */
+    if(!unlocked){ showPackages(); return; }
+    applyFor(prog, uni);
+  });""",
+      """  $$('[data-apply]').forEach(b => b.onclick = () => applyNow(b));""",
+      marker="b.onclick = () => applyNow(b)")
+
+patch("index.html", "what apply does now",
+      "function applyFor(prog, uni){",
+      r"""/*
+ * Apply.
+ *
+ * The server decides what this means, because only the server knows who is
+ * asking and what they have paid for. Three answers come back:
+ *
+ *   needDetails   nobody is signed in — ask for a name, an email and a
+ *                 number, and send it again. It becomes a lead.
+ *   needsPackage  a public university, and their package is spent. Say so and
+ *                 open the packages, which is the only case where that is the
+ *                 honest next step.
+ *   applied       it is on a real list, in a database, and somebody is told.
+ */
+async function applyNow(btn){
+  const id = btn.dataset.apply;
+  const uni = btn.dataset.uni || '';
+  const prog = btn.dataset.prog || '';
+  const was = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'One moment…';
+  try {
+    const d = await postApply({ id });
+    if (d.needDetails) return askToApply(id, uni, prog);
+    applied(d.signedIn, uni || d.university, prog || d.program, d.already);
+  } catch (e) {
+    if (e.needsPackage) { applyBlocked(e.message); return; }
+    toastish(e.message || 'That did not go through. Try again in a moment.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = was;
+  }
+}
+
+async function postApply(body){
+  const r = await fetch('/api/apply', {
+    method: 'POST', credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(Object.assign({
+      sourcePage: location.pathname, referrer: document.referrer || 'direct',
+    }, body)),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error(d.error || 'That did not go through.');
+    if (d.needsPackage) err.needsPackage = true;
+    throw err;
+  }
+  return d;
+}
+
+function toastish(msg){
+  let t = document.getElementById('applyToast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'applyToast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:400;'
+      + 'background:#12233d;color:#fff;font:600 13px/1.45 var(--sans);padding:12px 18px;'
+      + 'border-radius:11px;box-shadow:0 12px 30px rgba(0,0,0,.22);max-width:min(92vw,420px)';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toastish._t);
+  toastish._t = setTimeout(() => { t.style.display = 'none'; }, 5200);
+}
+
+/* A public university with the package already spent. This is the one case
+   where sending somebody to the packages is the true answer, so it says which
+   universities are covered and how many are left before it does. */
+function applyBlocked(message){
+  $('#buyT').textContent = 'That one needs a package';
+  $('#buyLead').textContent = '';
+  $('#buyBody').innerHTML = '<p style="margin:0 0 4px;font-size:13.6px;line-height:1.7;'
+    + 'color:var(--navy-800)">' + esc(message) + '</p>'
+    + '<div class="paid-cta" style="margin-top:16px"><button class="btn btn-primary" '
+    + 'id="applyPkg">See the packages</button>'
+    + '<button class="btn btn-ghost" id="applyBack">Back to my matches</button></div>';
+  $('#buyPay').style.display = 'none';
+  $('.co-legal') && ($('.co-legal').style.display = 'none');
+  open('#buyModal');
+  $('#applyPkg').onclick = () => { $('#buyModal').classList.remove('on'); showPackages(1); };
+  $('#applyBack').onclick = () => $('#buyModal').classList.remove('on');
+}
+
+/* Nobody is signed in. Three fields, because three fields is what a counsellor
+   needs to call somebody back, and asking for an account first is how a free
+   application turns into a form nobody finishes. */
+function askToApply(id, uni, prog){
+  $('#buyT').textContent = 'Apply to ' + (uni || 'this university');
+  $('#buyLead').textContent = 'Free. A counsellor checks you meet the requirements and '
+    + 'comes back to you within one working day.';
+  $('#buyBody').innerHTML =
+      (prog ? '<div class="paid-head">' + ico('cap') + '<div><b>' + esc(prog) + '</b>'
+        + '<span>' + esc(uni) + '</span></div></div>' : '')
+    + '<div class="field" style="margin-top:12px"><label for="apName">Your name</label>'
+      + '<input id="apName" autocomplete="name" placeholder="As it appears on your marksheet"></div>'
+    + '<div class="field"><label for="apMail">Email</label>'
+      + '<input id="apMail" type="email" autocomplete="email" placeholder="you@example.com"></div>'
+    + '<div class="field"><label for="apPhone">Mobile</label>'
+      + '<input id="apPhone" inputmode="numeric" autocomplete="tel" placeholder="10 digits"></div>'
+    + '<p id="apErr" role="alert" style="display:none;margin:10px 0 0;padding:10px 12px;'
+      + 'border-radius:10px;font:600 12.8px/1.5 var(--sans);background:#fdf3f2;'
+      + 'border:1px solid #f0c8c4;color:#7a2118"></p>'
+    + '<div class="paid-cta" style="margin-top:14px">'
+      + '<button class="btn btn-gold" id="apGo">Send my application</button></div>'
+    + '<p style="margin:11px 0 0;font-size:11.4px;color:var(--muted);line-height:1.55">'
+      + 'We use these to call you back about this application. Nothing is charged, and '
+      + 'private universities never need a package.</p>';
+  $('#buyPay').style.display = 'none';
+  $('.co-legal') && ($('.co-legal').style.display = 'none');
+  open('#buyModal');
+
+  const say = m => {
+    const el = $('#apErr');
+    el.textContent = m;
+    el.style.display = m ? 'block' : 'none';
+  };
+  $('#apGo').onclick = async () => {
+    const name = $('#apName').value.trim();
+    const email = $('#apMail').value.trim();
+    const phone = $('#apPhone').value.trim().replace(/\D/g, '').slice(-10);
+    if (!name) return say('Tell us your name.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
+    if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
+    const btn = $('#apGo');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    say('');
+    try {
+      const d = await postApply({ id, name, email, phone, consent: 'apply' });
+      applied(false, uni || d.university, prog || d.program, false);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Send my application';
+      say(e.message);
+    }
+  };
+}
+
+function applied(signedIn, uni, prog, already){
+  $('#buyT').textContent = already ? 'Already on your list' : 'Your application is with us';
+  $('#buyLead').textContent = '';
+  $('#buyBody').innerHTML =
+      '<div class="paid-head">' + ico('check') + '<div><b>' + esc(prog || '') + '</b>'
+    + '<span>' + esc(uni || '') + '</span></div></div>'
+    + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
+    + (signedIn
+        ? '<li><b>It is on your list</b><span>Open your dashboard and it is there, with '
+          + 'the application tracker beside it.</span></li>'
+          + '<li><b>Your counsellor has been told</b><span>They check your CGPA and your '
+            + 'documents against this university before anything is filed.</span></li>'
+        : '<li><b>A counsellor picks it up</b><span>They check you meet the entry '
+            + 'requirements and call you back within one working day.</span></li>'
+          + '<li><b>Nothing is charged</b><span>Private universities are free to apply '
+            + 'to. If a public university is the better route, they will say so and show '
+            + 'you what it costs.</span></li>')
+    + '<li><b>We file it and follow it</b><span>To a decision, whichever way it '
+      + 'goes.</span></li></ol></div>'
+    + '<div class="paid-cta">'
+    + (signedIn ? '<a class="btn btn-primary" href="dashboard.html">Open my dashboard</a>' : '')
+    + '<button class="btn btn-ghost" id="applyBack">Back to my matches</button></div>';
+  $('#buyPay').style.display = 'none';
+  $('.co-legal') && ($('.co-legal').style.display = 'none');
+  open('#buyModal');
+  $('#applyBack').onclick = () => $('#buyModal').classList.remove('on');
+}
+
+function applyForOld(prog, uni){""",
+      marker="async function applyNow(btn){")
+
+# The footnote under the results said a package unlocks public matches, which is
+# true, and said nothing about what a visitor may do with the private ones they
+# are looking at — which is the half that costs nothing.
+patch("index.html", "the results footnote says applying to a private one is free",
+      "<span>Private universities are free to view. Public matches unlock with a package.</span>",
+      "<span>Private universities are free to view <b>and free to apply to</b>. "
+      "Public matches unlock with a package.</span>")
+
+
+# The old in-browser applyFor(). Renamed by the patch above so the anchor could
+# not match twice, and removed here — a function that says "Demo" on a live
+# site is one careless call away from being seen.
+patch("index.html", "the demo apply function is gone",
+      'function applyForOld(prog, uni){\n  if(!shortlist.some(x => x.uni === uni && x.prog === prog)) shortlist.push({prog, uni});\n  const unis = new Set(shortlist.map(x => x.uni)).size;\n  $(\'#buyT\').textContent = \'Added to your shortlist\';\n  $(\'#buyLead\').textContent = \'\';\n  $(\'#buyBody\').innerHTML =\n      \'<div class="paid-head">\' + ico(\'check\') + \'<div><b>\' + esc(prog) + \'</b>\'\n    + \'<span>\' + esc(uni) + \'</span></div></div>\'\n    + \'<div class="steps"><div class="steps-lbl">What happens next</div><ol>\'\n    + \'<li><b>Your counsellor reviews it</b><span>They confirm your CGPA and documents meet \'\n      + \'this university’s requirements before anything is filed.</span></li>\'\n    + \'<li><b>It joins your agreed shortlist</b><span>\' + unis + \' of your \' + unlocked\n      + \' universities used. The guarantee applies to the shortlist you agree together.</span></li>\'\n    + \'<li><b>We file the application</b><span>And follow it to a decision, whichever way it \'\n      + \'goes.</span></li></ol></div>\'\n    + \'<div class="demo-note" style="margin-top:14px">\' + ico(\'info\')\n    + \'<span><b>Demo.</b> Nothing has been filed. In production this is saved to your dashboard \'\n    + \'and your counsellor is notified.</span></div>\'\n    + \'<div class="paid-cta"><button class="btn btn-ghost" id="applyBack">\'\n      + \'Back to my matches</button></div>\';\n  $(\'#buyPay\').style.display = \'none\';\n  $(\'.co-legal\') && ($(\'.co-legal\').style.display = \'none\');\n  open(\'#buyModal\');\n  $(\'#applyBack\').onclick = () => $(\'#buyModal\').classList.remove(\'on\');\n}\n',
+      '/* applyFor() lived here: it pushed the university into a variable in this\n   browser and showed "Demo. Nothing has been filed." applyNow() above does\n   the real thing, so this is gone rather than left to be called by mistake. */\n',
+      marker="applyFor() lived here")
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and
@@ -3149,3 +3381,13 @@ if __name__ == "__main__":
     for note in skipped:
         print("  already ", note)
     print(f"\n{len(applied)} applied, {len(skipped)} already in place")
+
+    # And then check that the pages still run.
+    #
+    # Every patch here is a literal replacement into a generated file, and the
+    # ways that goes wrong are quiet: a patch whose marker stops matching
+    # re-applies and declares the same function twice, or inserts a `const`
+    # that is already there and takes the whole page's scripts down with a
+    # SyntaxError. Both happened. Both printed "applied" and exited 0.
+    import check_pages
+    check_pages.run()

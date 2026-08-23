@@ -4,7 +4,7 @@
 # Order matters less than isolation: several of these delete universities or
 # rewrite the home page, and a suite that inherits another's leftovers passes or
 # fails for reasons that have nothing to do with the code.
-cd "$(dirname "$0")" || exit 1
+cd /home/claude/glovels || exit 1
 PASS=0; FAIL=0; REPORT=/tmp/testreport.txt
 : > "$REPORT"
 
@@ -44,6 +44,7 @@ run ordertest.js    8099
 run admintest.js    8099
 run gatetest.js     8099
 run shortlisttest.js 8099
+run applytest.js    8099
 run sheettest.js    8099
 run servicetest.js  8086
 run showcasetest.js 8089

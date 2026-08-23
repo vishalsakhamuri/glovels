@@ -2904,6 +2904,42 @@
    "sectionLabel": ""
   },
   {
+   "key": "results|button|d01f2cac|0",
+   "section": "results",
+   "kind": "text",
+   "element": "button",
+   "original": "Private",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|small|a3732585|0",
+   "section": "results",
+   "kind": "text",
+   "element": "small",
+   "original": "free to view, with prices",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|button|ccdfbfa0|0",
+   "section": "results",
+   "kind": "text",
+   "element": "button",
+   "original": "Public",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|small|588ca973|0",
+   "section": "results",
+   "kind": "text",
+   "element": "small",
+   "original": "tuition-free or close to it",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
    "key": "results|button|31f1fa93|0",
    "section": "results",
    "kind": "text",
@@ -2913,11 +2949,29 @@
    "sectionLabel": ""
   },
   {
-   "key": "results|span|49bbf82b|0",
+   "key": "results|span|c5ad0302|0",
    "section": "results",
    "kind": "text",
    "element": "span",
-   "original": "Private universities are free to view. Public matches unlock with a package.",
+   "original": "Private universities are free to view",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|b|cb5e222a|0",
+   "section": "results",
+   "kind": "text",
+   "element": "b",
+   "original": "and free to apply to",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|span|55b7872a|0",
+   "section": "results",
+   "kind": "text",
+   "element": "span",
+   "original": ". Public matches unlock with a package.",
    "note": "",
    "sectionLabel": ""
   },

@@ -266,6 +266,10 @@ function sqliteDriver(file) {
       typed into WhatsApp, or left sitting in an inbox. It gets one use: this
       flag makes the account refuse to do anything until its owner replaces it. */
    "ALTER TABLE students ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0",
+   /* What this enquiry is about, in the enquirer's own terms — which programme
+      at which university they pressed Apply on. A lead that says only "someone
+      from Hyderabad" is a lead the counsellor has to start from nothing. */
+   "ALTER TABLE enquiries ADD COLUMN note TEXT NOT NULL DEFAULT ''",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
@@ -789,10 +793,10 @@ function open(dir) {
 
     /* ---- enquiries ---- */
     addEnquiry(e) {
-      db.run(`INSERT INTO enquiries (name, phone, email, destination, consent, source_page, referrer, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      db.run(`INSERT INTO enquiries (name, phone, email, destination, consent, source_page, referrer, note, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         e.name, e.phone, e.email, e.destination || '', e.consent || '',
-        e.sourcePage || '', e.referrer || '', now());
+        e.sourcePage || '', e.referrer || '', e.note || '', now());
     },
     allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
     countStudents: () => db.all('SELECT * FROM students WHERE id > ?', 0).length,

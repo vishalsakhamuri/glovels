@@ -261,23 +261,27 @@ Glovels
     };
   },
 
-  enquiryToOffice({ name, phone, email, destination, sourcePage }) {
+  enquiryToOffice({ name, phone, email, destination, sourcePage, note }) {
+    /* `note` carries what they were looking at when they asked — the
+       university and programme they pressed Apply on. A lead that says only
+       which country is a lead the counsellor starts from nothing. */
     return {
-      subject: `Counselling request — ${name}`,
-      text: `A counselling request came in from the website.
+      subject: note ? `${note} — ${name}` : `Counselling request — ${name}`,
+      text: `A ${note ? 'request to apply' : 'counselling request'} came in from the website.
 
 Name         ${name}
 Mobile       ${phone}
 Email        ${email}
-Destination  ${destination || 'Not specified'}
+Destination  ${destination || 'Not specified'}${note ? `
+About        ${note}` : ''}
 Page         ${sourcePage || '/'}
 
 They are expecting a call back within one working day.`,
-      html: shell('Counselling request',
+      html: shell(note ? 'Request to apply' : 'Counselling request',
         rows([
           ['Name', name], ['Mobile', phone], ['Email', email],
-          ['Destination', destination || 'Not specified'], ['Page', sourcePage || '/'],
-        ]) +
+          ['Destination', destination || 'Not specified'],
+        ].concat(note ? [['About', note]] : []).concat([['Page', sourcePage || '/']])) +
         p('They are expecting a call back within one working day.')),
     };
   },

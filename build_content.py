@@ -304,6 +304,33 @@ def testimonials(s):
     return out
 
 
+def carry_over(doc):
+    """Keep what the office wrote and this script cannot see."""
+    try:
+        was = json.loads(OUT.read_text(encoding="utf-8"))
+    except Exception:
+        return doc                      # no previous file: nothing to keep
+
+    def merge_list(new_items, old_items, key="id"):
+        by_id = {x.get(key): x for x in old_items if isinstance(x, dict)}
+        for item in new_items:
+            prev = by_id.get(item.get(key))
+            if not prev:
+                continue
+            for k, v in prev.items():
+                if k not in item:
+                    item[k] = v
+
+    for block in ("packages", "services"):
+        if isinstance(doc.get(block), dict) and isinstance(was.get(block), dict):
+            merge_list(doc[block].get("items") or [], was[block].get("items") or [])
+
+    for k, v in was.items():
+        if k not in doc:
+            doc[k] = v
+    return doc
+
+
 def main():
     s = INDEX.read_text(encoding="utf-8")
     doc = {
@@ -337,6 +364,19 @@ def main():
         if not n:
             sys.exit(f"REFUSED: extracted 0 {name} from index.html. That is a broken pattern, "
                      f"not an empty page — writing this would blank the home page.")
+
+    # Anything the office wrote that this script cannot read back out of
+    # index.html.
+    #
+    # The package terms — the guarantee, what voids it, how to claim — are
+    # authored in the Home page screen and live nowhere in the markup, so a
+    # rebuild wrote a packages block without them and the Refund page's
+    # per-package terms silently emptied. The page still loaded. The guarantee
+    # the Boarding Pass card sells just stopped being written down anywhere.
+    #
+    # So: a field present in the file and absent from the extraction is kept,
+    # matched by id. Extraction wins wherever it has something to say.
+    doc = carry_over(doc)
 
     text = json.dumps(doc, indent=1, ensure_ascii=False)
     tmp = OUT.with_suffix(".json.tmp")

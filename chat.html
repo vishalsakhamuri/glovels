@@ -797,46 +797,7 @@ async function openChat(id) {
   paintList();
   const r = await api('GET', '/api/staff/chat/' + id);
   paintChat(r.chat);
-  await async function loadEnquiries() {
-  const r = await api('GET', '/api/staff/enquiries');
-  $('#nEnq').textContent = r.enquiries.length;
-  $('#enqRows').innerHTML = r.enquiries.map(e =>
-    '<tr>' +
-      '<td><b>' + esc(e.name || 'no name') + '</b>' +
-        (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
-          esc(e.destination) + '</span>' : '') + '</td>' +
-      '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
-        (e.phone && e.email ? '<br>' : '') +
-        (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
-        (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
-      '</td>' +
-      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
-      '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
-                                 : '<span class="st none">Form</span>') + '</td>' +
-      '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +
-    '</tr>').join('')
-    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">Nothing yet.</td></tr>';
-}
-
-document.addEventListener('click', e => {
-  const t = e.target.closest('.tab[data-t]');
-  if (!t) return;
-  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
-  $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
-});
-
-/* Arriving from the Enquiries counter on the Organisation screen. The hash is
-   how one screen hands off to a tab on another without inventing a router. */
-if (location.hash === '#enquiries') {
-  const tab = $('.tab[data-t="enq"]');
-  if (tab) {
-    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === tab)));
-    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-enq'));
-  }
-}
-
-loadList();
-loadEnquiries();
+  await loadList();
 }
 
 async function loadList() {
@@ -870,46 +831,7 @@ document.addEventListener('submit', async e => {
   try {
     const r = await api('POST', '/api/staff/chat/' + openId + '/reply', {body});
     paintChat(r.chat);
-    await async function loadEnquiries() {
-  const r = await api('GET', '/api/staff/enquiries');
-  $('#nEnq').textContent = r.enquiries.length;
-  $('#enqRows').innerHTML = r.enquiries.map(e =>
-    '<tr>' +
-      '<td><b>' + esc(e.name || 'no name') + '</b>' +
-        (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
-          esc(e.destination) + '</span>' : '') + '</td>' +
-      '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
-        (e.phone && e.email ? '<br>' : '') +
-        (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
-        (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
-      '</td>' +
-      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
-      '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
-                                 : '<span class="st none">Form</span>') + '</td>' +
-      '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +
-    '</tr>').join('')
-    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">Nothing yet.</td></tr>';
-}
-
-document.addEventListener('click', e => {
-  const t = e.target.closest('.tab[data-t]');
-  if (!t) return;
-  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
-  $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
-});
-
-/* Arriving from the Enquiries counter on the Organisation screen. The hash is
-   how one screen hands off to a tab on another without inventing a router. */
-if (location.hash === '#enquiries') {
-  const tab = $('.tab[data-t="enq"]');
-  if (tab) {
-    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === tab)));
-    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-enq'));
-  }
-}
-
-loadList();
-loadEnquiries();
+    await loadList();
   } catch (err) { toast(err.message); box.value = body; }
 });
 
@@ -925,46 +847,10 @@ document.addEventListener('keydown', e => {
    remember to refresh, which is not what anybody means by live chat. */
 connectLive({
   chat: async () => {
-    await async function loadEnquiries() {
-  const r = await api('GET', '/api/staff/enquiries');
-  $('#nEnq').textContent = r.enquiries.length;
-  $('#enqRows').innerHTML = r.enquiries.map(e =>
-    '<tr>' +
-      '<td><b>' + esc(e.name || 'no name') + '</b>' +
-        (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
-          esc(e.destination) + '</span>' : '') + '</td>' +
-      '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
-        (e.phone && e.email ? '<br>' : '') +
-        (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
-        (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
-      '</td>' +
-      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
-      '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
-                                 : '<span class="st none">Form</span>') + '</td>' +
-      '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +
-    '</tr>').join('')
-    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">Nothing yet.</td></tr>';
-}
-
-document.addEventListener('click', e => {
-  const t = e.target.closest('.tab[data-t]');
-  if (!t) return;
-  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
-  $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
-});
-
-/* Arriving from the Enquiries counter on the Organisation screen. The hash is
-   how one screen hands off to a tab on another without inventing a router. */
-if (location.hash === '#enquiries') {
-  const tab = $('.tab[data-t="enq"]');
-  if (tab) {
-    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === tab)));
-    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-enq'));
-  }
-}
-
-loadList();
-loadEnquiries();
+    await loadList();
+    /* A chat is written into the enquiries book too, so the count on the tab
+       goes stale the moment one arrives unless it is read again here. */
+    loadEnquiries();
     if (openId) {
       const r = await api('GET', '/api/staff/chat/' + openId);
       paintChat(r.chat);
@@ -978,6 +864,8 @@ async function loadEnquiries() {
   $('#enqRows').innerHTML = r.enquiries.map(e =>
     '<tr>' +
       '<td><b>' + esc(e.name || 'no name') + '</b>' +
+        (e.note ? '<br><span style="font-size:11.8px;color:var(--navy-800);' +
+          'font-weight:600">' + esc(e.note) + '</span>' : '') +
         (e.destination ? '<br><span style="font-size:11.6px;color:var(--muted)">' +
           esc(e.destination) + '</span>' : '') + '</td>' +
       '<td>' + (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +

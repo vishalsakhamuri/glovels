@@ -565,9 +565,20 @@ def catalogue():
     here means the portal shows a student exactly the programmes the site
     matched them to, with one source of truth for both.
     """
+    import html as _html
     import json
 
     index = (HERE / "index.html").read_text(encoding="utf-8")
+
+    def unent(v):
+        """&amp; is an ampersand.
+
+        These names are lifted out of HTML, where an ampersand is written as an
+        entity. Stored as-is they go into the database as "AI &amp;amp; Machine
+        Learning" and reach the page escaped a second time — which is exactly
+        what three programme names did. Fixing the file by hand worked until the
+        next build wrote it back."""
+        return _html.unescape(v) if isinstance(v, str) else v
 
     def const(name):
         i = index.index(f"const {name} =")
@@ -605,9 +616,9 @@ def catalogue():
             }
         cat.append({
             "id": str(p["id"]),
-            "program": u["program"],
-            "university": u["university"],
-            "city": u.get("city", ""),
+            "program": unent(u["program"]),
+            "university": unent(u["university"]),
+            "city": unent(u.get("city", "")),
             "country": p["country"],
             "level": p.get("level", ""),
             "field": p.get("field", ""),
@@ -629,10 +640,10 @@ def catalogue():
              "deadlineNote", "documents", "hasPublicTrack", "tuitionFree", "region"]
     slim = {}
     for c, v in countries.items():
-        row = {"code": v["code"], "name": v["name"], "flag": v["flag"]}
+        row = {"code": v["code"], "name": unent(v["name"]), "flag": v["flag"]}
         for f in FACTS:
             if f in v:
-                row[f] = v[f]
+                row[f] = unent(v[f])
         slim[c] = row
     return cat, slim
 
@@ -743,6 +754,11 @@ def main():
     main_html = donor[donor.index('<main class="p-main">'):donor.index("</main>")]
     # drop the shell's own top block; page() supplies it
     inner = main_html.split("</div>", 3)[-1]
+    # Trimmed, because this page is its own donor: page() puts a newline either
+    # side of what it is given, and next build that newline is part of `inner`
+    # again. Two blank lines a build, for as long as anybody keeps building.
+    inner = re.sub(r"\A(?:[ \t]*\n)+", "", inner)
+    inner = re.sub(r"\s+\Z", "\n", inner)
     visa = page("visa", "Visa &amp; enrollment", "Visa &amp; enrollment",
                 "What happens between your offer letter and your first week abroad.",
                 inner)
@@ -790,8 +806,14 @@ def main():
     # Replaced, not skipped-if-present. This file persists between builds, so a
     # guard that only ever ADDS leaves whatever version happened to be written
     # the first time — including a broken one.
-    dash = re.sub(r"<script>\s*/\*\s*\n \* The password we gave you.*?</script>\n",
-                  "", dash, flags=re.S)
+    # Matched on the CODE, not on the prose above it. The first version of this
+    # keyed off the comment — "The password we gave you…" — and the comment was
+    # then rewritten, so the removal silently stopped matching and every build
+    # bolted on another copy: dashboard.html carried three. A marker has to be
+    # something that cannot be edited without noticing.
+    dash = re.sub(
+        r"<script>(?:(?!</script>)[\s\S])*function mustChangeScreen\(\)"
+        r"(?:(?!</script>)[\s\S])*</script>\n?", "", dash)
     k = dash.index("<script>", dash.index("</style>"))
     dash = dash[:k] + "<script>\n" + MUST_CHANGE_JS + "</script>\n" + dash[k:]
 
