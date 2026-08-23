@@ -288,6 +288,43 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "When do I get paid?", "acceptedAnswer": {"@type": "Answer", "text": "Within 30 days of your referral's purchase being verified."}}, {"@type": "Question", "name": "How many people can I refer?", "acceptedAnswer": {"@type": "Answer", "text": "As many as you like. There is no cap on referrals or on total earnings."}}, {"@type": "Question", "name": "Can I refer myself?", "acceptedAnswer": {"@type": "Answer", "text": "No. Self-referrals and referrals within the same household do not qualify."}}, {"@type": "Question", "name": "What if my referral cancels?", "acceptedAnswer": {"@type": "Answer", "text": "The reward is reversed, because it is paid on a completed purchase."}}, {"@type": "Question", "name": "What about services over ₹50,000?", "acceptedAnswer": {"@type": "Answer", "text": "Ask us before your referral pays. We agree the amount in writing rather than leaving it to a table that stops at ₹49,999."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +358,27 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Refer a friend</h1><p>Students who came through a referral are our largest source of admissions.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>The referral terms: what the referrer gets, what the friend gets, when it pays out, and the conditions. This is a commercial offer, so it needs exact wording. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Refer somebody, get paid</h2>
+  <p>If you know somebody planning to study, work or travel abroad, send them to us. When they buy a service, you get cashback. There is no cap on how many people you can refer.</p>
+  <ul><li><b>Register</b> — sign up and get your own referral link</li><li><b>Share it</b> — with friends, classmates, colleagues or family</li><li><b>They buy</b> — your referral signs up through your link and completes a purchase</li><li><b>You get paid</b> — once the purchase is verified, the cashback is credited automatically. Nothing to chase</li></ul>
+  <h2>What you earn</h2>
+  <ul><li>Service value ₹15,000 – ₹29,999 — <b>₹2,000</b></li><li>Service value ₹30,000 – ₹49,999 — <b>₹2,500</b></li><li>Service value ₹50,000 and above — <b>ask us</b>; we agree the amount before your referral pays, in writing</li></ul>
+  <div class="pagenote">Only confirmed and paid purchases qualify. If a service is refunded or cancelled, the reward is reversed with it.</div>
+  <h2>What counts</h2>
+  <ul><li><b>Visas</b> — tourist and visit, business, student, work, dependent, job seeker</li><li><b>Test preparation</b> — IELTS, TOEFL, PTE, GRE, GMAT and German</li><li><b>Migration</b> — Canada PR, Australia PR, UK skilled migration, German work pathways</li><li><b>Specialist routes</b> — digital nomad visas, investor and entrepreneur applications</li></ul>
+  <h2>The rules, in full</h2>
+  <ul><li>Your referral must sign up through your link before they pay — a referral claimed afterwards cannot be verified and will not be paid</li><li>You cannot refer yourself, or somebody in your own household paying for you</li><li>One reward per referred person, on their first paid service</li><li>Rewards are paid within 30 days of the purchase being verified</li><li>Cancelled or refunded purchases reverse the reward</li><li>We may vary or end the programme, but never for a referral already registered and paid</li></ul>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>When do I get paid?</summary><p>Within 30 days of your referral's purchase being verified.</p></details>
+  <details><summary>How many people can I refer?</summary><p>As many as you like. There is no cap on referrals or on total earnings.</p></details>
+  <details><summary>Can I refer myself?</summary><p>No. Self-referrals and referrals within the same household do not qualify.</p></details>
+  <details><summary>What if my referral cancels?</summary><p>The reward is reversed, because it is paid on a completed purchase.</p></details>
+  <details><summary>What about services over ₹50,000?</summary><p>Ask us before your referral pays. We agree the amount in writing rather than leaving it to a table that stops at ₹49,999.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

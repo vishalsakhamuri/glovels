@@ -288,6 +288,43 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What CRS score do I need?", "acceptedAnswer": {"@type": "Answer", "text": "Above 470 is generally competitive in a general draw. Category-based draws — healthcare, STEM, trades, French — often go considerably lower, which is why the category you target matters as much as the score itself."}}, {"@type": "Question", "name": "Do I need a job offer?", "acceptedAnswer": {"@type": "Answer", "text": "No. Express Entry is designed to work without one. A job offer can add points but is not a requirement for Federal Skilled Worker or Canadian Experience Class."}}, {"@type": "Question", "name": "How much does French help?", "acceptedAnswer": {"@type": "Answer", "text": "Strong French can add up to 50 CRS points, and there are French-language draws with markedly lower cut-offs. For many profiles it is the single largest available gain."}}, {"@type": "Question", "name": "How much proof of funds do I need?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on family size and is revised every year. A single applicant needs roughly CAD 14,000; each additional family member raises it."}}, {"@type": "Question", "name": "Can I still apply after 40?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, but the CRS age points are gone, so the realistic route is a provincial nomination, a job offer, or a category-based draw in your occupation."}}, {"@type": "Question", "name": "How long does it take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months once a complete application is submitted. Getting to that point — language test, ECA, documents — usually takes another three to six."}}, {"@type": "Question", "name": "When can I apply for citizenship?", "acceptedAnswer": {"@type": "Answer", "text": "After 1,095 days of physical residence within the preceding five years."}}, {"@type": "Question", "name": "Is the PR card the same as PR status?", "acceptedAnswer": {"@type": "Answer", "text": "No. The card is valid five years and is a travel document; your status continues as long as you meet the residency obligation."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +358,39 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Canada PR — Express Entry</h1><p>CRS scoring, ECA, language tests and keeping a profile live across draws.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>Current CRS cut-offs move constantly, so this page needs a review date on it. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>What permanent residence actually gives you</h2>
+  <p>Canada is one of the most transparent immigration systems in the world, and it is designed to attract skilled people rather than to keep them out. A permanent resident has almost every right a citizen has — work anywhere, free public schooling for your children, universal healthcare — and can apply for citizenship after three years of residence within a five-year window.</p>
+  <p>The system is points-based and province-driven, which means it is predictable. That is the part most people miss: your score is something you can work on, not something that happens to you.</p>
+  <ul><li>A stable economy with sustained demand for skilled professionals</li><li>Free public education for children and universal healthcare</li><li>A strong passport and the global mobility that comes with it</li><li>The right to sponsor a spouse, children and parents</li><li>Citizenship eligibility after 1,095 days of residence in five years</li></ul>
+  <h2>Express Entry, and the CRS</h2>
+  <p>Express Entry is the federal system that manages three categories: Federal Skilled Worker, Canadian Experience Class and Federal Skilled Trades. You create a profile, the Comprehensive Ranking System scores it, and the highest-ranked profiles receive an Invitation to Apply at each draw.</p>
+  <p>A CRS above 470 is generally competitive in a general draw, but category-based draws — healthcare, STEM, trades, transport, agriculture, French — routinely go lower. Which draw you are aiming at changes what score you need, and that is a strategy decision, not an arithmetic one.</p>
+  <ul><li>Check eligibility against the category you are targeting</li><li>Sit a language test — IELTS or CELPIP for English, TEF or TCF for French</li><li>Get an Educational Credential Assessment (ECA) for a foreign degree</li><li>Create the Express Entry profile and receive a CRS score</li><li>Receive an Invitation to Apply, then file the full PR application</li></ul>
+  <div class="pagenote">Where CRS points are usually found: language retakes, spouse points, correctly mapped work experience, French, and a provincial nomination — which alone is worth 600 points.</div>
+  <h2>The three federal categories</h2>
+  <ul><li><b>Federal Skilled Worker.</b> For professionals outside Canada. At least one year of skilled work experience in TEER 0–3, CLB 7 language, an ECA for a foreign degree, proof of funds, and a minimum of 67 on the FSW grid.</li><li><b>Canadian Experience Class.</b> For people who already have one year of skilled Canadian work experience in the last three. CLB 7 for TEER 0/1 or CLB 5 for TEER 2/3, and no proof of funds if you are working in Canada. Processing tends to be faster.</li><li><b>Federal Skilled Trades.</b> A Canadian job offer or trade certification, two years of relevant experience, CLB 5 speaking and listening, CLB 4 reading and writing.</li></ul>
+  <h2>Provincial Nominee Programs</h2>
+  <p>Provinces nominate candidates against their own labour shortages, either through an Express Entry-linked stream — which adds 600 CRS points and makes an invitation effectively certain — or through a direct provincial stream outside Express Entry entirely.</p>
+  <p>Ontario, Alberta, British Columbia, Saskatchewan, Manitoba, Nova Scotia and New Brunswick all run active programmes with different occupation lists. Matching your profile to the right province is usually the highest-value work in the whole file.</p>
+  <h2>What you will need</h2>
+  <ul><li>Passport</li><li>Language test results — IELTS, CELPIP, TEF or TCF</li><li>Educational Credential Assessment report</li><li>Educational certificates and transcripts</li><li>Work experience letters, written to the format IRCC expects</li><li>Proof of funds — roughly CAD 14,000 for a single applicant, more per family member, revised annually</li><li>Police clearance certificates for every country you have lived in</li><li>Medical examination</li><li>Provincial nomination, where you have one</li></ul>
+  <h2>How long it takes</h2>
+  <p>Six to twelve months is typical from a complete profile to a decision, depending on pathway and on how complete the file was when it went in. The language test and the ECA are the front-loaded items — start them before anything else, because everything downstream waits on them.</p>
+  <div class="pagenote">There is no official age limit, but CRS points start falling after 30 and drop sharply after 40. If you are over 40, the route is usually a provincial nomination or a job offer rather than a general draw.</div>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>What CRS score do I need?</summary><p>Above 470 is generally competitive in a general draw. Category-based draws — healthcare, STEM, trades, French — often go considerably lower, which is why the category you target matters as much as the score itself.</p></details>
+  <details><summary>Do I need a job offer?</summary><p>No. Express Entry is designed to work without one. A job offer can add points but is not a requirement for Federal Skilled Worker or Canadian Experience Class.</p></details>
+  <details><summary>How much does French help?</summary><p>Strong French can add up to 50 CRS points, and there are French-language draws with markedly lower cut-offs. For many profiles it is the single largest available gain.</p></details>
+  <details><summary>How much proof of funds do I need?</summary><p>It depends on family size and is revised every year. A single applicant needs roughly CAD 14,000; each additional family member raises it.</p></details>
+  <details><summary>Can I still apply after 40?</summary><p>Yes, but the CRS age points are gone, so the realistic route is a provincial nomination, a job offer, or a category-based draw in your occupation.</p></details>
+  <details><summary>How long does it take?</summary><p>Typically 6 to 12 months once a complete application is submitted. Getting to that point — language test, ECA, documents — usually takes another three to six.</p></details>
+  <details><summary>When can I apply for citizenship?</summary><p>After 1,095 days of physical residence within the preceding five years.</p></details>
+  <details><summary>Is the PR card the same as PR status?</summary><p>No. The card is valid five years and is a travel document; your status continues as long as you meet the residency obligation.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

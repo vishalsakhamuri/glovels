@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is the income-based tuition system?", "acceptedAnswer": {"@type": "Answer", "text": "Italian public universities set fees according to a declared family income band, evidenced by an ISEE Parificato document. Getting that document right is often worth more than a scholarship."}}, {"@type": "Question", "name": "Do I need Italian?", "acceptedAnswer": {"@type": "Answer", "text": "Not for the growing number of English-taught programmes. Yes for daily life, and for most part-time work."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is the income-based tuition system?", "acceptedAnswer": {"@type": "Answer", "text": "Italian public universities set fees according to a declared family income band, evidenced by an ISEE Parificato document. Getting that document right is often worth more than a scholarship."}}, {"@type": "Question", "name": "Do I need Italian?", "acceptedAnswer": {"@type": "Answer", "text": "Not for the growing number of English-taught programmes. Yes for daily life, and for most part-time work."}}, {"@type": "Question", "name": "What is Universitaly?", "acceptedAnswer": {"@type": "Answer", "text": "The national portal where non-EU students complete pre-enrolment before applying for a student visa. It is mandatory and it is not optional paperwork."}}, {"@type": "Question", "name": "How many hours can I work?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 20 hours a week during the academic period."}}, {"@type": "Question", "name": "When do I apply for the residence permit?", "acceptedAnswer": {"@type": "Answer", "text": "Within eight working days of arriving in Italy. This is a short window and missing it causes real problems."}}, {"@type": "Question", "name": "Can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — a 12-month job-seeker permit, convertible to a work permit once you are hired."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is the income-based tuition system?", "acceptedAnswer": {"@type": "Answer", "text": "Italian public universities set fees according to a declared family income band, evidenced by an ISEE Parificato document. Getting that document right is often worth more than a scholarship."}}, {"@type": "Question", "name": "Do I need Italian?", "acceptedAnswer": {"@type": "Answer", "text": "Not for the growing number of English-taught programmes. Yes for daily life, and for most part-time work."}}, {"@type": "Question", "name": "What is Universitaly?", "acceptedAnswer": {"@type": "Answer", "text": "The national portal where non-EU students complete pre-enrolment before applying for a student visa. It is mandatory and it is not optional paperwork."}}, {"@type": "Question", "name": "How many hours can I work?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 20 hours a week during the academic period."}}, {"@type": "Question", "name": "When do I apply for the residence permit?", "acceptedAnswer": {"@type": "Answer", "text": "Within eight working days of arriving in Italy. This is a short window and missing it causes real problems."}}, {"@type": "Question", "name": "Can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — a 12-month job-seeker permit, convertible to a work permit once you are hired."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -337,6 +376,39 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
      Budget around ₹65,000 a month for living costs.</p>
   <h2>Documents</h2>
   <ul><li>Passport</li><li>Marksheets</li><li>Declaration of Value</li><li>Universitaly receipt</li></ul>
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why Italy</h2>
+  <p>Italian public universities charge tuition on a sliding scale based on family income, which for many Indian families lands well below the headline figure. On top of that sits a substantial regional scholarship system that is genuinely worth applying for.</p>
+  <p>The University of Bologna, Sapienza in Rome, Politecnico di Milano and Politecnico di Torino rank among Europe's top universities. Italy is strongest in design, fashion, architecture, engineering, fine arts, automotive design, food science, archaeology and cultural studies — fields where the country itself is the argument.</p>
+  <p>Many programmes are taught entirely in English, particularly at master's level, and the number is growing.</p>
+  <h2>Life in Italy</h2>
+  <p>Milan, Rome, Florence, Turin, Bologna and Naples each offer something different, and cost accordingly — Milan and Rome are notably more expensive than the smaller university towns.</p>
+  <p>University cafeterias serve cheap meals, travel passes are discounted, and museums, theatres and cultural sites reduce their prices for students, which adds up to a real difference in the monthly figure. Accommodation is university residences, private student apartments, shared flats or homestays; residences are limited, so most students share.</p>
+  <p>You can register with the Italian National Health Service (SSN) or hold private insurance. Either gives you access to care.</p>
+  <h2>Intakes</h2>
+  <ul><li><b>September / October — the primary intake.</b> Most undergraduate and postgraduate programmes.</li><li><b>February / March — secondary.</b> Selected institutions, limited programmes, second semester start.</li></ul>
+  <div class="pagenote">Admissions for September often open in early spring, and Universitaly pre-enrolment opens around the same time. Begin at least 9 to 12 months ahead.</div>
+  <h2>Language requirements</h2>
+  <ul><li><b>Italian-taught programmes</b> — usually B2, by CILS, CELI, PLIDA or a university test</li><li><b>English-taught programmes</b> — IELTS, TOEFL, PTE or Cambridge, typically B2 for undergraduate and C1 for competitive postgraduate</li><li><b>Medicine</b> — additional entrance tests such as the IMAT</li></ul>
+  <div class="pagenote">A2 Italian is generally the minimum for long-term residence options later, so it is worth starting even on an English-taught course.</div>
+  <h2>Universitaly, and the visa</h2>
+  <p>Italy has a step most countries do not: Universitaly pre-enrolment, a national portal that non-EU students must complete before applying for the visa. Getting it wrong delays everything downstream, which is why we treat it as its own milestone rather than paperwork.</p>
+  <p>More than 90 days of study needs the long-stay national study visa — the D visa.</p>
+  <ul><li>Admission letter from an Italian university</li><li>Completed Universitaly pre-enrolment</li><li>Proof of financial resources</li><li>Proof of accommodation</li><li>Health insurance</li><li>Valid passport and academic records</li><li>Visa fee</li></ul>
+  <div class="pagenote">On arrival you must apply for the permesso di soggiorno — the residence permit — within eight working days. Eight, not thirty.</div>
+  <h2>After you graduate</h2>
+  <p>Graduates can apply for a job-seeking and business start-up residence permit, valid for up to 12 months, to look for qualified work or start something. On a suitable offer it converts to a work permit, a highly skilled residence permit, or an EU Blue Card where the salary and qualification criteria are met.</p>
+  <p>Some study years count toward permanent residence, though typically only partially — which is worth knowing at the start rather than discovering at the end.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>What is the income-based tuition system?</summary><p>Italian public universities set fees according to a declared family income band, evidenced by an ISEE Parificato document. Getting that document right is often worth more than a scholarship.</p></details>
+  <details><summary>Do I need Italian?</summary><p>Not for the growing number of English-taught programmes. Yes for daily life, and for most part-time work.</p></details>
+  <details><summary>What is Universitaly?</summary><p>The national portal where non-EU students complete pre-enrolment before applying for a student visa. It is mandatory and it is not optional paperwork.</p></details>
+  <details><summary>How many hours can I work?</summary><p>Up to 20 hours a week during the academic period.</p></details>
+  <details><summary>When do I apply for the residence permit?</summary><p>Within eight working days of arriving in Italy. This is a short window and missing it causes real problems.</p></details>
+  <details><summary>Can I stay after graduating?</summary><p>Yes — a 12-month job-seeker permit, convertible to a work permit once you are hired.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
   <p style="margin-top:26px"><a class="btn btn-primary" href="index.html#results">
     See programmes in Italy <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
 </div></section>

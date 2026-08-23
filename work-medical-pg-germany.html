@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is my Indian MBBS valid in Germany?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, subject to Approbation — the licence verification process. Recognition is not automatic, but Indian degrees are routinely recognised."}}, {"@type": "Question", "name": "What German level do I need?", "acceptedAnswer": {"@type": "Answer", "text": "B2 general German for the visa, and C1 Fachsprachprüfung — the medical language exam — for licensing. Both, not one or the other."}}, {"@type": "Question", "name": "What is the Kenntnisprüfung?", "acceptedAnswer": {"@type": "Answer", "text": "A medical knowledge test, required when the curriculum assessment finds gaps between your MBBS and the German standard. It is not required for everybody."}}, {"@type": "Question", "name": "Are there tuition fees for medical PG?", "acceptedAnswer": {"@type": "Answer", "text": "No. Residency training is paid employment."}}, {"@type": "Question", "name": "How much will I earn during residency?", "acceptedAnswer": {"@type": "Answer", "text": "Roughly €2,500 to €4,000 a month, rising with experience and shift allowances."}}, {"@type": "Question", "name": "How long does the specialisation take?", "acceptedAnswer": {"@type": "Answer", "text": "Four to six years, depending on the specialty."}}, {"@type": "Question", "name": "Can I bring my family?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, once you meet the visa and income requirements — generally after you hold a work residence permit rather than during preparation."}}, {"@type": "Question", "name": "Is permanent residence possible?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Doctors typically move to an EU Blue Card and then to permanent residence, often within 21 to 33 months of qualified employment."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is my Indian MBBS valid in Germany?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, subject to Approbation — the licence verification process. Recognition is not automatic, but Indian degrees are routinely recognised."}}, {"@type": "Question", "name": "What German level do I need?", "acceptedAnswer": {"@type": "Answer", "text": "B2 general German for the visa, and C1 Fachsprachprüfung — the medical language exam — for licensing. Both, not one or the other."}}, {"@type": "Question", "name": "What is the Kenntnisprüfung?", "acceptedAnswer": {"@type": "Answer", "text": "A medical knowledge test, required when the curriculum assessment finds gaps between your MBBS and the German standard. It is not required for everybody."}}, {"@type": "Question", "name": "Are there tuition fees for medical PG?", "acceptedAnswer": {"@type": "Answer", "text": "No. Residency training is paid employment."}}, {"@type": "Question", "name": "How much will I earn during residency?", "acceptedAnswer": {"@type": "Answer", "text": "Roughly €2,500 to €4,000 a month, rising with experience and shift allowances."}}, {"@type": "Question", "name": "How long does the specialisation take?", "acceptedAnswer": {"@type": "Answer", "text": "Four to six years, depending on the specialty."}}, {"@type": "Question", "name": "Can I bring my family?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, once you meet the visa and income requirements — generally after you hold a work residence permit rather than during preparation."}}, {"@type": "Question", "name": "Is permanent residence possible?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Doctors typically move to an EU Blue Card and then to permanent residence, often within 21 to 33 months of qualified employment."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is my Indian MBBS valid in Germany?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, subject to Approbation — the licence verification process. Recognition is not automatic, but Indian degrees are routinely recognised."}}, {"@type": "Question", "name": "What German level do I need?", "acceptedAnswer": {"@type": "Answer", "text": "B2 general German for the visa, and C1 Fachsprachprüfung — the medical language exam — for licensing. Both, not one or the other."}}, {"@type": "Question", "name": "What is the Kenntnisprüfung?", "acceptedAnswer": {"@type": "Answer", "text": "A medical knowledge test, required when the curriculum assessment finds gaps between your MBBS and the German standard. It is not required for everybody."}}, {"@type": "Question", "name": "Are there tuition fees for medical PG?", "acceptedAnswer": {"@type": "Answer", "text": "No. Residency training is paid employment."}}, {"@type": "Question", "name": "How much will I earn during residency?", "acceptedAnswer": {"@type": "Answer", "text": "Roughly €2,500 to €4,000 a month, rising with experience and shift allowances."}}, {"@type": "Question", "name": "How long does the specialisation take?", "acceptedAnswer": {"@type": "Answer", "text": "Four to six years, depending on the specialty."}}, {"@type": "Question", "name": "Can I bring my family?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, once you meet the visa and income requirements — generally after you hold a work residence permit rather than during preparation."}}, {"@type": "Question", "name": "Is permanent residence possible?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Doctors typically move to an EU Blue Card and then to permanent residence, often within 21 to 33 months of qualified employment."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +360,34 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Medical PG in Germany</h1><p>For Indian doctors: recognition, language and the route to a paid residency.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>The live site says “Free Medical PG with Salary in Germany”. That is a strong claim about a regulated pathway — the page needs the exact conditions, who qualifies, how long recognition takes, and what Glovels does versus what the doctor must do. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>What this route actually is</h2>
+  <p>Postgraduate medical training in Germany is paid employment, not a tuition-based degree. You work as an Assistenzarzt in a hospital, you are paid a salary, and after four to six years you sit for your Facharzt — the German specialist qualification, which is recognised across Europe and the Gulf.</p>
+  <p>More than 57,000 foreign doctors work in Germany, over 32,000 of them from outside the EU, including thousands of Indian doctors. This is a well-worn path, not an experiment.</p>
+  <div class="pagenote">There are no tuition fees for medical PG in Germany. Residents earn roughly €2,500–€4,000 a month, with annual increments, paid leave, insurance and pension.</div>
+  <h2>Your MBBS is recognised — but you need Approbation</h2>
+  <p>An Indian MBBS is accepted in Germany, but it does not by itself let you practise. Approbation is the state licence, and getting it is the whole of the work. It runs in five steps:</p>
+  <ul><li><b>German to B2</b>, then <b>C1 Fachsprachprüfung</b> — the medical language exam. Both are required; the second is specific to clinical communication.</li><li><b>Document submission</b> to the state Approbation authority for equivalency evaluation.</li><li><b>Curriculum assessment</b> — your MBBS syllabus is compared against the German standard.</li><li><b>If gaps are found</b>, either the Kenntnisprüfung (a medical knowledge test) or an Anpassungslehrgang (a supervised adaptation period).</li><li><b>Approbation granted</b> — the full licence to practise.</li></ul>
+  <h2>What the authority will ask for</h2>
+  <ul><li>MBBS degree and transcript</li><li>Internship completion certificate</li><li>NMC registration certificate</li><li>Passport</li><li>German language certificates — B2 and C1 medical</li><li>Police clearance certificate</li><li>Medical fitness certificate</li><li>Curriculum details of your MBBS</li><li>Certified German translations of everything</li><li>CV and motivation letter</li></ul>
+  <h2>The order it happens in</h2>
+  <ul><li>Free profile evaluation</li><li>German language training, B2 then C1 medical</li><li>Documentation prepared and translated</li><li>Visa processing</li><li>Arrival in Germany</li><li>Approbation application submitted</li><li>Fachsprachprüfung — and Kenntnisprüfung if required</li><li>Approbation received</li><li>Residency position applied for (Assistenzarzt)</li><li>Facharzt after four to six years</li></ul>
+  <h2>What we do, and what you do</h2>
+  <p>We handle the language training to B2 and C1 medical, the certified translations, the Approbation application and its authority, the visa file, and the arrival — accommodation, city registration, and the hospital applications afterwards.</p>
+  <p>You do the exams. Nobody can sit the Fachsprachprüfung for you, and no consultancy can shorten the recognition timeline. Anyone who tells you otherwise is selling something.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Is my Indian MBBS valid in Germany?</summary><p>Yes, subject to Approbation — the licence verification process. Recognition is not automatic, but Indian degrees are routinely recognised.</p></details>
+  <details><summary>What German level do I need?</summary><p>B2 general German for the visa, and C1 Fachsprachprüfung — the medical language exam — for licensing. Both, not one or the other.</p></details>
+  <details><summary>What is the Kenntnisprüfung?</summary><p>A medical knowledge test, required when the curriculum assessment finds gaps between your MBBS and the German standard. It is not required for everybody.</p></details>
+  <details><summary>Are there tuition fees for medical PG?</summary><p>No. Residency training is paid employment.</p></details>
+  <details><summary>How much will I earn during residency?</summary><p>Roughly €2,500 to €4,000 a month, rising with experience and shift allowances.</p></details>
+  <details><summary>How long does the specialisation take?</summary><p>Four to six years, depending on the specialty.</p></details>
+  <details><summary>Can I bring my family?</summary><p>Yes, once you meet the visa and income requirements — generally after you hold a work residence permit rather than during preparation.</p></details>
+  <details><summary>Is permanent residence possible?</summary><p>Yes. Doctors typically move to an EU Blue Card and then to permanent residence, often within 21 to 33 months of qualified employment.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

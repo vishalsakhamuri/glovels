@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Which exam do you prepare me for?", "acceptedAnswer": {"@type": "Answer", "text": "Goethe-Institut or telc, depending on the level and what your university, employer or licensing authority accepts. We tell you which one you need before you enrol, not after."}}, {"@type": "Question", "name": "How long does a level take?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on hours per week and how much you practise outside class. A1 to B1 in under a year is realistic for a student who turns up and does the work."}}, {"@type": "Question", "name": "Do I need German for an English-taught master's?", "acceptedAnswer": {"@type": "Answer", "text": "Not for admission. For a part-time job, a flat and a graduate job, yes — and starting after you arrive is starting late."}}, {"@type": "Question", "name": "Online or classroom?", "acceptedAnswer": {"@type": "Answer", "text": "Both run live with a trainer. Online suits people already working; classroom suits people who need the room to keep them honest."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Which exam do you prepare me for?", "acceptedAnswer": {"@type": "Answer", "text": "Goethe-Institut or telc, depending on the level and what your university, employer or licensing authority accepts. We tell you which one you need before you enrol, not after."}}, {"@type": "Question", "name": "How long does a level take?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on hours per week and how much you practise outside class. A1 to B1 in under a year is realistic for a student who turns up and does the work."}}, {"@type": "Question", "name": "Do I need German for an English-taught master's?", "acceptedAnswer": {"@type": "Answer", "text": "Not for admission. For a part-time job, a flat and a graduate job, yes — and starting after you arrive is starting late."}}, {"@type": "Question", "name": "Online or classroom?", "acceptedAnswer": {"@type": "Answer", "text": "Both run live with a trainer. Online suits people already working; classroom suits people who need the room to keep them honest."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Which exam do you prepare me for?", "acceptedAnswer": {"@type": "Answer", "text": "Goethe-Institut or telc, depending on the level and what your university, employer or licensing authority accepts. We tell you which one you need before you enrol, not after."}}, {"@type": "Question", "name": "How long does a level take?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on hours per week and how much you practise outside class. A1 to B1 in under a year is realistic for a student who turns up and does the work."}}, {"@type": "Question", "name": "Do I need German for an English-taught master's?", "acceptedAnswer": {"@type": "Answer", "text": "Not for admission. For a part-time job, a flat and a graduate job, yes — and starting after you arrive is starting late."}}, {"@type": "Question", "name": "Online or classroom?", "acceptedAnswer": {"@type": "Answer", "text": "Both run live with a trainer. Online suits people already working; classroom suits people who need the room to keep them honest."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +360,24 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>German classes — A1 to B2</h1><p>Goethe and telc aligned, live with a trainer, one level at a time.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>Batch timings, trainer certification and exam-registration support. Level prices are on the home page and come from the workbook. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why German, beyond the requirement</h2>
+  <p>Roughly 95 million people speak German as a first language. It is official in Germany, Austria and Liechtenstein and co-official in Switzerland, Luxembourg and Belgium — seven countries, and the largest economy in Europe.</p>
+  <p>For our students it is rarely about the language itself. A1 gets you through the visa interview and the first month. B1 gets you a part-time job. B2 gets you hired after graduation, and in nursing and medicine it is the licence itself.</p>
+  <h2>What each level gives you</h2>
+  <ul><li><b>A1 — the foundation.</b> Greetings, family, home, travel, eating, health, work. Enough to open a bank account and register your address without help.</li><li><b>A2 — everyday competence.</b> Conjunctions, relative clauses, simple past, adjective endings. Cooking, jobs, neighbours, appointments, opinions.</li><li><b>B1 — the working level.</b> Passive voice, past perfect, future tense. Job applications, banks, housing, healthcare, conflict. This is the level at which daily life stops being an effort.</li><li><b>B2 — professional.</b> Fluent enough to work in German, argue a position and follow a fast conversation. Required for nursing recognition, and for most graduate employment.</li></ul>
+  <h2>How the classes run</h2>
+  <p>Live with a trainer, one level at a time, online or in the classroom in Hyderabad. Every level is aligned to the Goethe-Institut and telc exams, and we register you for the exam rather than leaving you to work out the process. Class work is dialogue, listening, presentation, reading, group discussion and written practice — not grammar drills at a whiteboard.</p>
+  <p>Classroom students get Wi-Fi, air conditioning, books and tea. It sounds trivial until you have sat through a three-hour class without them.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Which exam do you prepare me for?</summary><p>Goethe-Institut or telc, depending on the level and what your university, employer or licensing authority accepts. We tell you which one you need before you enrol, not after.</p></details>
+  <details><summary>How long does a level take?</summary><p>It depends on hours per week and how much you practise outside class. A1 to B1 in under a year is realistic for a student who turns up and does the work.</p></details>
+  <details><summary>Do I need German for an English-taught master's?</summary><p>Not for admission. For a part-time job, a flat and a graduate job, yes — and starting after you arrive is starting late.</p></details>
+  <details><summary>Online or classroom?</summary><p>Both run live with a trainer. Online suits people already working; classroom suits people who need the room to keep them honest.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

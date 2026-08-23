@@ -155,11 +155,14 @@ const PROD = {
     check('no "To write" notes are published to visitors',
       notes.length === 0, notes.join(' '));
 
-    /* careers.html, not terms.html — Terms has since been written, and its note
-       to ourselves went with the stub it was attached to. Testing for a note on
-       a page that no longer needs one is testing the wrong thing. */
+    /* blog.html, not careers.html and not terms.html. Both of those have since
+       been written, and each one's note to ourselves went with the stub it was
+       attached to — testing for a note on a page that no longer needs one is
+       testing the wrong thing. Blog's note is still true: the six posts are
+       waiting to be pasted into the sheet, and the office needs to keep seeing
+       that until they are. */
     const fileCopy = await (await browser.newContext()).newPage();
-    await fileCopy.goto('file:///home/claude/glovels/build/careers.html', { waitUntil: 'load' });
+    await fileCopy.goto('file:///home/claude/glovels/build/blog.html', { waitUntil: 'load' });
     await fileCopy.waitForTimeout(500);
     check('but the office still sees them on the copy it opens from disk',
       (await fileCopy.$$eval('.towrite',

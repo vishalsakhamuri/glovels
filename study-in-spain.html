@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need Spanish?", "acceptedAnswer": {"@type": "Answer", "text": "Not for an English-taught master's, but Spain is a country where daily life runs in Spanish. A2 before you arrive makes the first six months a great deal easier."}}, {"@type": "Question", "name": "Can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Spain offers a job-search residence permit after graduating, and the route from qualified work to residence is straightforward."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need Spanish?", "acceptedAnswer": {"@type": "Answer", "text": "Not for an English-taught master's, but Spain is a country where daily life runs in Spanish. A2 before you arrive makes the first six months a great deal easier."}}, {"@type": "Question", "name": "Can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — a 12-month job-search residence permit, which converts to a work permit once you have an offer."}}, {"@type": "Question", "name": "How many hours can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 30 hours a week, provided the work does not clash with your study schedule."}}, {"@type": "Question", "name": "What is the TIE?", "acceptedAnswer": {"@type": "Answer", "text": "The Foreigners' Identity Card, applied for within 30 days of arriving. It is what makes your residence legal for the rest of the course."}}, {"@type": "Question", "name": "Which cities are affordable?", "acceptedAnswer": {"@type": "Answer", "text": "Valencia, Seville and Granada are materially cheaper than Madrid and Barcelona for the same standard of living."}}, {"@type": "Question", "name": "Can I travel around Europe on a Spanish student visa?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Spain is in the Schengen area."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need Spanish?", "acceptedAnswer": {"@type": "Answer", "text": "Not for an English-taught master's, but Spain is a country where daily life runs in Spanish. A2 before you arrive makes the first six months a great deal easier."}}, {"@type": "Question", "name": "Can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — a 12-month job-search residence permit, which converts to a work permit once you have an offer."}}, {"@type": "Question", "name": "How many hours can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 30 hours a week, provided the work does not clash with your study schedule."}}, {"@type": "Question", "name": "What is the TIE?", "acceptedAnswer": {"@type": "Answer", "text": "The Foreigners' Identity Card, applied for within 30 days of arriving. It is what makes your residence legal for the rest of the course."}}, {"@type": "Question", "name": "Which cities are affordable?", "acceptedAnswer": {"@type": "Answer", "text": "Valencia, Seville and Granada are materially cheaper than Madrid and Barcelona for the same standard of living."}}, {"@type": "Question", "name": "Can I travel around Europe on a Spanish student visa?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Spain is in the Schengen area."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -337,6 +376,36 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
      Budget around ₹60,000 a month for living costs.</p>
   <h2>Documents</h2>
   <ul><li>Passport</li><li>Marksheets</li><li>IELTS</li><li>NIE appointment</li><li>Insurance</li></ul>
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why Spain</h2>
+  <p>Spain offers academic quality, cultural immersion and affordability in one place. Its universities are active in European research networks, Erasmus+ mobility and industry partnerships, and Spanish degrees are recognised across Europe and beyond.</p>
+  <p>Public university tuition is moderate, living costs are manageable and transport is cheap. Programmes come taught in Spanish, in English, or bilingually — and the number of English-taught master's programmes keeps rising, particularly in business, engineering, tourism and international relations.</p>
+  <p>Madrid, Barcelona, Valencia, Seville and Málaga are international hubs in their own right, which matters for what you do after the degree as much as during it. Spain is strong in business, tourism and hospitality, architecture, the arts and increasingly renewable energy.</p>
+  <h2>Life in Spain</h2>
+  <p>Warm climate, coastline, historic architecture, and a social life that happens outdoors. Living costs run below most Western European capitals, and vary sharply within the country: Madrid and Barcelona are expensive, Valencia, Seville and Granada considerably less so.</p>
+  <p>Accommodation is dormitories, private student residences, homestays, or — most commonly — a piso compartido, a shared flat, which is both the cheapest and the fastest way to end up with Spanish friends. Metro, tram, bus and rail networks connect the cities and the regions.</p>
+  <h2>Intakes</h2>
+  <ul><li><b>September / October — the primary intake.</b> Most bachelor's and master's programmes begin in the autumn semester.</li><li><b>February — secondary.</b> Limited programmes, mostly at master's level.</li><li>Private universities and business schools run rolling intakes with multiple deadlines.</li></ul>
+  <div class="pagenote">Applications for September usually open between January and April. Start 8 to 12 months ahead.</div>
+  <h2>Language requirements</h2>
+  <ul><li><b>Spanish-taught programmes</b> — B1 to B2 minimum, by DELE, SIELE or an institutional test; C1 for some advanced fields</li><li><b>English-taught programmes</b> — IELTS, TOEFL, PTE or equivalent, typically IELTS 6.0 to 6.5</li></ul>
+  <div class="pagenote">Many universities run language preparation courses before or alongside the degree.</div>
+  <h2>What the visa needs</h2>
+  <p>Non-EU students need a long-stay student visa — the type D.</p>
+  <ul><li>Acceptance letter from a recognised Spanish institution</li><li>Proof of financial means for living expenses</li><li>Proof of accommodation in Spain</li><li>Valid passport and academic transcripts</li><li>Health insurance covering the whole stay</li><li>Police clearance certificate, for long-term stays</li><li>Visa fee</li></ul>
+  <div class="pagenote">Once in Spain you must apply for the Foreigners' Identity Card (TIE) within 30 days of entry. Missing that window is the most common avoidable problem students have here.</div>
+  <h2>After you graduate</h2>
+  <p>Spain grants a job-search residence permit — the estancia por búsqueda de empleo — valid for 12 months, which lets you look for qualified work or start a business, and converts to a work permit on a suitable offer. Graduates meeting the salary and qualification thresholds can also go for the EU Blue Card, which carries mobility across other member states.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Do I need Spanish?</summary><p>Not for an English-taught master's, but Spain is a country where daily life runs in Spanish. A2 before you arrive makes the first six months a great deal easier.</p></details>
+  <details><summary>Can I stay after graduating?</summary><p>Yes — a 12-month job-search residence permit, which converts to a work permit once you have an offer.</p></details>
+  <details><summary>How many hours can I work while studying?</summary><p>Up to 30 hours a week, provided the work does not clash with your study schedule.</p></details>
+  <details><summary>What is the TIE?</summary><p>The Foreigners' Identity Card, applied for within 30 days of arriving. It is what makes your residence legal for the rest of the course.</p></details>
+  <details><summary>Which cities are affordable?</summary><p>Valencia, Seville and Granada are materially cheaper than Madrid and Barcelona for the same standard of living.</p></details>
+  <details><summary>Can I travel around Europe on a Spanish student visa?</summary><p>Yes. Spain is in the Schengen area.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
   <p style="margin-top:26px"><a class="btn btn-primary" href="index.html#results">
     See programmes in Spain <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
 </div></section>

@@ -305,6 +305,43 @@ html.review-copy .towrite{display:block !important}
 .ct-sent b{display:block;font-size:14.6px;margin-bottom:3px}
 .ct-sent span{font-size:13.2px;line-height:1.6}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is the first consultation free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Profile evaluation and the first counselling session cost nothing."}}, {"@type": "Question", "name": "How quickly do you reply?", "acceptedAnswer": {"@type": "Answer", "text": "Within one working day to email, and usually the same day to a phone call."}}, {"@type": "Question", "name": "Can I visit the office without an appointment?", "acceptedAnswer": {"@type": "Answer", "text": "You can, but booking means a counsellor is free when you arrive rather than in another meeting."}}, {"@type": "Question", "name": "Do you work with students outside Hyderabad?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Most of the process runs online through the student portal, and a good share of our students never come to the office."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -339,6 +376,27 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 </div></section>
 
 <section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Hyderabad</h2>
+  <p>Plot 60, H. No. 1-102, 1st Floor, Madhapur, Hyderabad 500081, Telangana. The landmark is Metro Pillar C1734, behind Big C Mobiles.</p>
+  <p>Nearest metro: Durgam Cheruvu, exit gate B. Nearest bus stop: Madhapur Petrol Bunk.</p>
+  <ul><li>Phone: <a href="tel:+917839399999">+91 78393 99999</a></li><li>Email: <a href="mailto:info@glovels.com">info@glovels.com</a></li></ul>
+  <h2>Munich</h2>
+  <p>Our German office supports students once they arrive — APS and Anerkennung questions, blocked accounts, city registration, and the things nobody warns you about in the first fortnight.</p>
+  <ul><li>Phone: <a href="tel:+498920194090">+49 89 2019 4090</a></li><li>Mobile: <a href="tel:+4915563541873">+49 155 6354 1873</a></li></ul>
+  <h2>What to expect when you write</h2>
+  <ul><li>A reply within one working day, from a person rather than a queue</li><li>A free profile evaluation before any conversation about fees</li><li>No obligation, and no pressure to decide in the same call</li></ul>
+  <div class="pagenote">Already a student with us? Sign in to the portal and message your counsellor there — it keeps everything on your file, where the whole team can see it.</div>
+  <h2>For admissions and partnerships</h2>
+  <ul><li>General enquiries — <a href="mailto:info@glovels.com">info@glovels.com</a></li><li>Careers — <a href="mailto:careers@glovels.com">careers@glovels.com</a></li></ul>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Is the first consultation free?</summary><p>Yes. Profile evaluation and the first counselling session cost nothing.</p></details>
+  <details><summary>How quickly do you reply?</summary><p>Within one working day to email, and usually the same day to a phone call.</p></details>
+  <details><summary>Can I visit the office without an appointment?</summary><p>You can, but booking means a counsellor is free when you arrive rather than in another meeting.</p></details>
+  <details><summary>Do you work with students outside Hyderabad?</summary><p>Yes. Most of the process runs online through the student portal, and a good share of our students never come to the office.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
   <div class="factbox"><div><span><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Hyderabad</span><b>Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</b></div><div><span><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Munich</span><b>München, Germany</b></div>
     <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span><b><a href="mailto:info@glovels.com">info@glovels.com</a></b></div>
     <div><span><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg> Hours</span><b>Mon–Sat, 9:30–19:30 IST</b></div>
@@ -383,8 +441,6 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <p class="ct-err" id="ctErr" role="alert" hidden></p>
     <button class="btn btn-green" id="ctGo" type="submit">Send</button>
   </form>
-
-  <div class="towrite"><b>To write</b>A phone number for: Hyderabad, Munich. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div>
 </div></section>
 
 <div class="cta-band"><div class="wrap">

@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How long can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Two years on the Third Level Graduate Programme after a master's, one year after a bachelor's."}}, {"@type": "Question", "name": "Is Ireland in the Schengen area?", "acceptedAnswer": {"@type": "Answer", "text": "No. An Irish study visa does not give you Schengen travel, which surprises people who have planned weekend trips around it."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How long can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Two years on the Third Level Graduate Programme after a master's, one year after a bachelor's."}}, {"@type": "Question", "name": "Is Ireland in the Schengen area?", "acceptedAnswer": {"@type": "Answer", "text": "No. An Irish study visa does not give you Schengen travel, which surprises people who have planned weekend trips around it."}}, {"@type": "Question", "name": "How many hours can I work?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 20 hours a week during term and up to 40 hours during holidays."}}, {"@type": "Question", "name": "Which courses do international students take?", "acceptedAnswer": {"@type": "Answer", "text": "Engineering, IT, business, data science, finance, biotechnology, nursing and hospitality are the most in demand."}}, {"@type": "Question", "name": "Do I need health insurance?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Private medical insurance is mandatory for the whole of your stay."}}, {"@type": "Question", "name": "Can I bring dependants?", "acceptedAnswer": {"@type": "Answer", "text": "Students on postgraduate programmes may, under certain conditions."}}, {"@type": "Question", "name": "How competitive is admission?", "acceptedAnswer": {"@type": "Answer", "text": "Competitive at the top universities, particularly for STEM and business. Applying early is the main thing within your control."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How long can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Two years on the Third Level Graduate Programme after a master's, one year after a bachelor's."}}, {"@type": "Question", "name": "Is Ireland in the Schengen area?", "acceptedAnswer": {"@type": "Answer", "text": "No. An Irish study visa does not give you Schengen travel, which surprises people who have planned weekend trips around it."}}, {"@type": "Question", "name": "How many hours can I work?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 20 hours a week during term and up to 40 hours during holidays."}}, {"@type": "Question", "name": "Which courses do international students take?", "acceptedAnswer": {"@type": "Answer", "text": "Engineering, IT, business, data science, finance, biotechnology, nursing and hospitality are the most in demand."}}, {"@type": "Question", "name": "Do I need health insurance?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Private medical insurance is mandatory for the whole of your stay."}}, {"@type": "Question", "name": "Can I bring dependants?", "acceptedAnswer": {"@type": "Answer", "text": "Students on postgraduate programmes may, under certain conditions."}}, {"@type": "Question", "name": "How competitive is admission?", "acceptedAnswer": {"@type": "Answer", "text": "Competitive at the top universities, particularly for STEM and business. Applying early is the main thing within your control."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -337,6 +376,38 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
      Budget around ₹90,000 a month for living costs.</p>
   <h2>Documents</h2>
   <ul><li>Passport</li><li>Marksheets</li><li>IELTS</li><li>Fee receipt</li><li>Insurance</li></ul>
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why Ireland</h2>
+  <p>Ireland is the only English-speaking country left in the EU, which is a strategic advantage rather than a slogan: an internationally recognised degree, taught in English, with access to the European job market attached to it.</p>
+  <p>The job market is the other half of the argument. Google, Meta, Apple, Microsoft, Pfizer, Amazon, Intel, Deloitte and EY all run European headquarters or major operations here, in a country of five million people. That density produces internships and graduate roles at a rate the population would not suggest.</p>
+  <p>Teaching emphasises critical thinking, industry-aligned curriculum and practical work — real projects, placements and research collaboration in technology, pharmaceuticals, finance, business analytics and data science.</p>
+  <h2>Life in Ireland</h2>
+  <p>Dublin, Cork, Galway and Limerick are the student cities. Dublin is the most expensive by a wide margin and its accommodation market is genuinely tight — student residences, shared apartments, private rentals and homestays all fill early, and planning ahead is not optional advice here.</p>
+  <p>Private medical insurance is required for the whole of your stay. Universities run on-campus health centres, counselling and student support alongside it. Part-time work is available and commonly used to manage living costs.</p>
+  <h2>Intakes</h2>
+  <ul><li><b>September — the primary intake.</b> The largest, with the widest choice of programmes at every level.</li><li><b>January — secondary.</b> Selected bachelor's, master's and diploma programmes.</li><li>Some private institutions offer additional start dates through the year.</li></ul>
+  <div class="pagenote">Apply 6 to 12 months ahead. Seats are limited and visa processing is the part that runs out of time, not admission.</div>
+  <h2>English requirements</h2>
+  <ul><li><b>IELTS Academic</b> — 6.0 overall with no band below 5.5 for bachelor's; 6.5 with no band below 6.0 for master's</li><li><b>PTE Academic</b> — typically 50–58 for bachelor's, 58–65+ for master's</li><li><b>TOEFL iBT</b> — equivalent scores accepted for most programmes</li><li><b>Duolingo</b> — accepted by many institutions for admission, but may not be accepted for the visa</li></ul>
+  <div class="pagenote">Nursing, medicine and teaching ask for higher English scores than the general bar. Students with prior English-medium education are exempt at some universities.</div>
+  <h2>What the study visa needs</h2>
+  <p>More than 90 days of study needs the Irish Study Visa — the D visa.</p>
+  <ul><li>Offer letter from a recognised institution</li><li>Evidence of tuition paid — at minimum the first instalment</li><li>Proof of funds for living expenses and remaining tuition</li><li>Medical insurance</li><li>Passport, academic transcripts and English test results</li><li>A statement of purpose setting out your study goals and plans</li></ul>
+  <div class="pagenote">After you arrive you must register with Irish immigration to get your Irish Residence Permit (IRP).</div>
+  <h2>After you graduate</h2>
+  <p>The Third Level Graduate Programme lets you stay and work full-time: up to 12 months after a Level 8 bachelor's degree, up to 24 months after a Level 9 master's or higher.</p>
+  <p>From there the route runs into a Critical Skills Employment Permit, a General Employment Permit, or long-term residence. It is one of the more clearly structured paths in Europe from student to settled professional.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>How long can I stay after graduating?</summary><p>Two years on the Third Level Graduate Programme after a master's, one year after a bachelor's.</p></details>
+  <details><summary>Is Ireland in the Schengen area?</summary><p>No. An Irish study visa does not give you Schengen travel, which surprises people who have planned weekend trips around it.</p></details>
+  <details><summary>How many hours can I work?</summary><p>Up to 20 hours a week during term and up to 40 hours during holidays.</p></details>
+  <details><summary>Which courses do international students take?</summary><p>Engineering, IT, business, data science, finance, biotechnology, nursing and hospitality are the most in demand.</p></details>
+  <details><summary>Do I need health insurance?</summary><p>Yes. Private medical insurance is mandatory for the whole of your stay.</p></details>
+  <details><summary>Can I bring dependants?</summary><p>Students on postgraduate programmes may, under certain conditions.</p></details>
+  <details><summary>How competitive is admission?</summary><p>Competitive at the top universities, particularly for STEM and business. Applying early is the main thing within your control.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
   <p style="margin-top:26px"><a class="btn btn-primary" href="index.html#results">
     See programmes in Ireland <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
 </div></section>

@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is German language mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. B1 as a minimum and B2 in most states, for both recognition and employment. There is no route around it."}}, {"@type": "Question", "name": "What is the salary range?", "acceptedAnswer": {"@type": "Answer", "text": "€2,500 to €3,500 a month to start, rising with experience and shift allowances."}}, {"@type": "Question", "name": "How long does the whole process take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, covering documentation, recognition and the visa."}}, {"@type": "Question", "name": "Can I apply without work experience?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Many hospitals hire fresh graduates provided the qualification is recognised."}}, {"@type": "Question", "name": "Can I bring my family?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, after you hold the work permit and meet the income and accommodation requirements."}}, {"@type": "Question", "name": "Can I stay permanently?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Nurses can apply for permanent residence after the required period of work and the required German level."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is German language mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. B1 as a minimum and B2 in most states, for both recognition and employment. There is no route around it."}}, {"@type": "Question", "name": "What is the salary range?", "acceptedAnswer": {"@type": "Answer", "text": "€2,500 to €3,500 a month to start, rising with experience and shift allowances."}}, {"@type": "Question", "name": "How long does the whole process take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, covering documentation, recognition and the visa."}}, {"@type": "Question", "name": "Can I apply without work experience?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Many hospitals hire fresh graduates provided the qualification is recognised."}}, {"@type": "Question", "name": "Can I bring my family?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, after you hold the work permit and meet the income and accommodation requirements."}}, {"@type": "Question", "name": "Can I stay permanently?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Nurses can apply for permanent residence after the required period of work and the required German level."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is German language mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. B1 as a minimum and B2 in most states, for both recognition and employment. There is no route around it."}}, {"@type": "Question", "name": "What is the salary range?", "acceptedAnswer": {"@type": "Answer", "text": "€2,500 to €3,500 a month to start, rising with experience and shift allowances."}}, {"@type": "Question", "name": "How long does the whole process take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, covering documentation, recognition and the visa."}}, {"@type": "Question", "name": "Can I apply without work experience?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Many hospitals hire fresh graduates provided the qualification is recognised."}}, {"@type": "Question", "name": "Can I bring my family?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, after you hold the work permit and meet the income and accommodation requirements."}}, {"@type": "Question", "name": "Can I stay permanently?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Nurses can apply for permanent residence after the required period of work and the required German level."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +360,30 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Nursing jobs in Germany</h1><p>Recognition, B2 German and the work visa, in the order they have to happen.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>Anerkennung, the language requirement, employer introductions and the visa. Careful with wording: Glovels supports the process, it does not place people in jobs. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>The shortage is the opportunity</h2>
+  <p>About 1.3 million nurses work in Germany, and more than 35,000 posts are unfilled — a figure projected to pass 200,000 by 2030. Hospitals, clinics and elderly-care homes are recruiting internationally because they have no alternative.</p>
+  <p>For a qualified Indian nurse that means a stable salary, a regulated 38–40 hour week with night and weekend allowances, and a route to permanent residence.</p>
+  <div class="pagenote">Starting salaries run about €2,500–€3,500 a month, rising with experience and shift allowances. Living costs are typically €800–€1,200 a month depending on the city.</div>
+  <h2>What you need</h2>
+  <ul><li><b>A nursing qualification</b> — B.Sc or M.Sc Nursing, or a GNM diploma</li><li><b>German</b> — B1 minimum, and B2 in most federal states</li><li><b>Medical fitness certificate</b></li><li><b>Police clearance certificate</b></li></ul>
+  <h2>Anerkennung — getting your qualification recognised</h2>
+  <p>Your Indian qualification has to be formally recognised before you can work as a registered nurse. The authority compares your training against the German standard; where gaps exist, you complete either an adaptation period (Anpassungslehrgang) or a knowledge test (Kenntnisprüfung).</p>
+  <p>Recognition takes two to six months, depending on the federal state and — mostly — on whether your file was complete when it went in.</p>
+  <ul><li>10th and 12th certificates, nursing degree or diploma, transcripts</li><li>Internship and clinical training details</li><li>German language certificate, B1 or B2</li><li>Employment and experience certificates, if you have them</li><li>Medical fitness and police clearance certificates</li><li>CV and motivation letter</li><li>Certified German translations of all of it</li></ul>
+  <h2>How we help</h2>
+  <ul><li>German language training to B1 and B2, including medical German</li><li>Certified translations and document standardisation</li><li>Choosing the right recognition authority and preparing the application</li><li>Introductions to hospitals, nursing homes and care centres, and interview preparation</li><li>The visa file, the embassy appointment and pre-departure briefing</li><li>After arrival: accommodation, city registration, support through the adaptation period, and the PR pathway</li></ul>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Is German language mandatory?</summary><p>Yes. B1 as a minimum and B2 in most states, for both recognition and employment. There is no route around it.</p></details>
+  <details><summary>What is the salary range?</summary><p>€2,500 to €3,500 a month to start, rising with experience and shift allowances.</p></details>
+  <details><summary>How long does the whole process take?</summary><p>Typically 6 to 12 months, covering documentation, recognition and the visa.</p></details>
+  <details><summary>Can I apply without work experience?</summary><p>Yes. Many hospitals hire fresh graduates provided the qualification is recognised.</p></details>
+  <details><summary>Can I bring my family?</summary><p>Yes, after you hold the work permit and meet the income and accommodation requirements.</p></details>
+  <details><summary>Can I stay permanently?</summary><p>Yes. Nurses can apply for permanent residence after the required period of work and the required German level.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

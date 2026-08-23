@@ -288,6 +288,43 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Why does an APS take so long?", "acceptedAnswer": {"@type": "Answer", "text": "It is a document verification with a queue, not a form. Start it the moment Germany is on your shortlist — it is the item most likely to cost you an intake."}}, {"@type": "Question", "name": "What is the difference between a conditional and an unconditional offer?", "acceptedAnswer": {"@type": "Answer", "text": "A conditional offer still depends on something — a final transcript, a language score. An unconditional offer is yours outright and is what most visa applications need."}}, {"@type": "Question", "name": "Is a Duolingo score enough?", "acceptedAnswer": {"@type": "Answer", "text": "For admission at many universities, yes. For several visa routes, no. Check the visa rule before you book, not after."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +358,23 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Glossary</h1><p>APS, ECTS, Sperrkonto, VPD, uni-assist — the words nobody explains.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>Definitions for every term used across the site. Worth doing properly: these are the queries students search for, and a glossary earns traffic on its own. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Applications and admission</h2>
+  <ul><li><b>APS</b> — Akademische Prüfstelle. The German certificate verifying that your Indian degree is genuine. Mandatory for German university applications and one of the longest lead items in the whole file.</li><li><b>CAS</b> — Confirmation of Acceptance for Studies. The reference number a UK university issues once you accept an offer. You cannot apply for the visa without one.</li><li><b>Conditional offer</b> — an offer that becomes real once you meet a stated condition, usually a final transcript or a language score.</li><li><b>ECTS</b> — the European credit system. 60 credits is one academic year, and it is what makes credits transfer between EU countries.</li><li><b>Intake</b> — the month a course starts. Most countries run a large autumn intake and a smaller winter one.</li><li><b>LOR</b> — letter of recommendation, from a professor or an employer.</li><li><b>SOP</b> — statement of purpose. The essay explaining why this course, why this country, and why you.</li><li><b>Uni-Assist</b> — the shared application service many German universities use to check foreign qualifications.</li><li><b>Universitaly</b> — the Italian national portal where non-EU students complete pre-enrolment before applying for a visa.</li><li><b>VPD</b> — Vorprüfungsdokumentation. Uni-Assist's preliminary review document, converting your grades to the German scale.</li></ul>
+  <h2>Tests and language</h2>
+  <ul><li><b>CEFR</b> — the European framework for language levels, A1 to C2. A1 is a beginner; B2 is what most universities and employers mean by 'you can work in this language'.</li><li><b>CLB</b> — Canadian Language Benchmarks. Canada converts your IELTS or CELPIP result into a CLB level, and immigration rules are written in CLB, not band scores.</li><li><b>Duolingo English Test</b> — accepted for admission by many universities, not accepted for several visa routes. Check both.</li><li><b>IELTS / TOEFL / PTE</b> — the three main English tests. Scores are valid two years.</li><li><b>GRE / GMAT / SAT</b> — graduate, business school and US undergraduate admission tests. GRE and GMAT scores are valid five years.</li><li><b>TestDaF / DSH / telc</b> — German-language tests for admission to German-taught programmes.</li><li><b>DELF / TEF</b> — French certifications. DELF for university, TEF for immigration.</li></ul>
+  <h2>Money</h2>
+  <ul><li><b>Blocked account</b> — a German bank account holding a year's living costs, released to you monthly. Proof of funds for the visa.</li><li><b>Proof of funds</b> — evidence that you can pay tuition and live for the first year. Every country has its own figure and its own rules about whose money counts.</li><li><b>Semester contribution</b> — the administrative fee German public universities charge instead of tuition. It usually includes a public transport pass.</li><li><b>Sponsor</b> — the person funding your study, usually a parent. Their documents get scrutinised as closely as yours.</li><li><b>Tuition</b> — what the course costs. At many European public universities this is zero or close to it, which is the entire reason we push them.</li></ul>
+  <h2>Visas and after</h2>
+  <ul><li><b>Biometrics</b> — fingerprints and a photograph, taken at a visa centre as part of the application.</li><li><b>CRS</b> — Comprehensive Ranking System. The score Canada ranks Express Entry candidates by.</li><li><b>ECA</b> — Educational Credential Assessment. Canada's check that your foreign degree is equivalent to a Canadian one.</li><li><b>EOI</b> — Expression of Interest. The profile you lodge before being invited to apply, used by Australia and by several Canadian provinces.</li><li><b>EU Blue Card</b> — a work and residence permit for highly qualified non-EU professionals, with mobility across member states.</li><li><b>PGWP</b> — Post-Graduation Work Permit. Canada's post-study work route, and not every institution qualifies for it.</li><li><b>PNP</b> — Provincial Nominee Program. A Canadian province nominating you, worth 600 CRS points.</li><li><b>Permesso di soggiorno</b> — the Italian residence permit, applied for within eight working days of arrival.</li><li><b>Skills Assessment</b> — Australia's mandatory check that your qualifications and experience match your nominated occupation.</li><li><b>TIE</b> — Spain's Foreigners' Identity Card, applied for within 30 days of arriving.</li></ul>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Why does an APS take so long?</summary><p>It is a document verification with a queue, not a form. Start it the moment Germany is on your shortlist — it is the item most likely to cost you an intake.</p></details>
+  <details><summary>What is the difference between a conditional and an unconditional offer?</summary><p>A conditional offer still depends on something — a final transcript, a language score. An unconditional offer is yours outright and is what most visa applications need.</p></details>
+  <details><summary>Is a Duolingo score enough?</summary><p>For admission at many universities, yes. For several visa routes, no. Check the visa rule before you book, not after.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

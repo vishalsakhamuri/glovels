@@ -288,6 +288,43 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Where are you based?", "acceptedAnswer": {"@type": "Answer", "text": "Madhapur, Hyderabad, with an office in Munich, Germany."}}, {"@type": "Question", "name": "Do you charge for the first consultation?", "acceptedAnswer": {"@type": "Answer", "text": "No. Profile evaluation and the first counselling session are free."}}, {"@type": "Question", "name": "Do you only work with expensive universities?", "acceptedAnswer": {"@type": "Answer", "text": "The opposite. Public universities with low or no tuition are the core of what we do, and we will tell you when a course costs nothing."}}, {"@type": "Question", "name": "Can I see my application progress?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Every student gets a portal login showing applications, documents, payments and the full conversation with their counsellor."}}, {"@type": "Question", "name": "Who will I actually be dealing with?", "acceptedAnswer": {"@type": "Answer", "text": "One named counsellor, assigned after your evaluation, who stays with your file to the end."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -322,6 +359,28 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 </div></section>
 
 <section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>What we do</h2>
+  <p>Glovels Overseas Consultants is a study and work abroad consultancy based in Hyderabad, with an office in Munich. We handle the whole journey under one roof: profile evaluation, university shortlisting, applications, test preparation, language classes, visa filing and support after you land.</p>
+  <p>The office in Germany is not decoration. It is why we can say something useful about a blocked account, an APS certificate or an Anerkennung file — and why our students have somebody to call once they are there.</p>
+  <h2>What we are trying to do</h2>
+  <p>To help students go abroad on the strength of good information rather than good marketing. That means telling you when a programme is a bad fit, when a country is the wrong choice for your budget, and when the honest answer is to wait a cycle and apply properly.</p>
+  <div class="pagenote">Public universities are the product. Where a course is free or close to it, we say so — our fee is for getting you in, not for steering you somewhere expensive.</div>
+  <h2>What we cover</h2>
+  <ul><li><b>Study abroad</b> — Germany, Canada, the UK, Ireland, Poland, Spain, Italy and more</li><li><b>Work abroad</b> — Medical PG, nursing and pharma roles in Germany, and the Germany Opportunity Card</li><li><b>Migration</b> — Canada PR and Australia PR through the skilled streams</li><li><b>Test preparation</b> — IELTS, TOEFL, PTE, GRE, GMAT and SAT</li><li><b>Language</b> — German and French, A1 to B2, with certified instructors</li><li><b>In India</b> — APS certificates, attestation, notary, translation, SOP assistance and forex</li><li><b>Once you are there</b> — post-study work visa help, accommodation and job search support</li></ul>
+  <h2>How we work</h2>
+  <ul><li><b>Free profile evaluation</b> before anybody talks about money</li><li><b>A named counsellor</b>, not a queue — the same person from shortlist to visa</li><li><b>A student portal</b> where you can see every application, document and message, at any hour</li><li><b>Written scope</b> — the package terms are on the site, and you accept them at payment rather than discovering them later</li></ul>
+  <h2>The numbers</h2>
+  <ul><li>More than 2,000 institutions on the catalogue</li><li>Around 160,000 programmes searchable by budget, intake and entry bar</li><li>Eight countries covered end to end</li></ul>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Where are you based?</summary><p>Madhapur, Hyderabad, with an office in Munich, Germany.</p></details>
+  <details><summary>Do you charge for the first consultation?</summary><p>No. Profile evaluation and the first counselling session are free.</p></details>
+  <details><summary>Do you only work with expensive universities?</summary><p>The opposite. Public universities with low or no tuition are the core of what we do, and we will tell you when a course costs nothing.</p></details>
+  <details><summary>Can I see my application progress?</summary><p>Yes. Every student gets a portal login showing applications, documents, payments and the full conversation with their counsellor.</p></details>
+  <details><summary>Who will I actually be dealing with?</summary><p>One named counsellor, assigned after your evaluation, who stays with your file to the end.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
   <p class="lead">Glovels is your trusted partner in your study and work abroad journey — a
     one-stop shop for overseas education, work visas, language classes and test preparation.</p>
   <h2>What we do</h2>
@@ -340,7 +399,6 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <p>Integrity, transparency and personalised guidance. We specialise in <b>public university
     admissions</b>, where tuition is free or close to it — which means we are paid for the
     work of getting you in, not for steering you somewhere expensive.</p>
-  <div class="towrite"><b>To write</b>The founding story, the team, and the number of admissions on record. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div>
 </div></section>
 
 <div class="cta-band"><div class="wrap">

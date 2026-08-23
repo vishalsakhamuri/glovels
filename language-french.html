@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "DELF or TEF?", "acceptedAnswer": {"@type": "Answer", "text": "DELF for studying in France. TEF for Canadian immigration. If you need both, do TEF second — the preparation overlaps and the scoring is more forgiving."}}, {"@type": "Question", "name": "What level does Campus France expect?", "acceptedAnswer": {"@type": "Answer", "text": "B2 for a French-taught programme. English-taught programmes in France do not require it, though daily life still does."}}, {"@type": "Question", "name": "Does French help with Canada PR?", "acceptedAnswer": {"@type": "Answer", "text": "Substantially. French proficiency carries additional points under Express Entry, and there are French-specific draws with lower cut-offs."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "DELF or TEF?", "acceptedAnswer": {"@type": "Answer", "text": "DELF for studying in France. TEF for Canadian immigration. If you need both, do TEF second — the preparation overlaps and the scoring is more forgiving."}}, {"@type": "Question", "name": "What level does Campus France expect?", "acceptedAnswer": {"@type": "Answer", "text": "B2 for a French-taught programme. English-taught programmes in France do not require it, though daily life still does."}}, {"@type": "Question", "name": "Does French help with Canada PR?", "acceptedAnswer": {"@type": "Answer", "text": "Substantially. French proficiency carries additional points under Express Entry, and there are French-specific draws with lower cut-offs."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "DELF or TEF?", "acceptedAnswer": {"@type": "Answer", "text": "DELF for studying in France. TEF for Canadian immigration. If you need both, do TEF second — the preparation overlaps and the scoring is more forgiving."}}, {"@type": "Question", "name": "What level does Campus France expect?", "acceptedAnswer": {"@type": "Answer", "text": "B2 for a French-taught programme. English-taught programmes in France do not require it, though daily life still does."}}, {"@type": "Question", "name": "Does French help with Canada PR?", "acceptedAnswer": {"@type": "Answer", "text": "Substantially. French proficiency carries additional points under Express Entry, and there are French-specific draws with lower cut-offs."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +360,24 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>French classes — A1 to B2</h1><p>DELF aligned, for Campus France applicants.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>Batch timings and how this fits a Campus France timeline. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why French</h2>
+  <p>About 300 million people speak French, and it is official in 29 countries across every continent. It is a working language of the UN, UNESCO, NATO and the Red Cross.</p>
+  <p>For our students there are two practical reasons: studying in France through Campus France, and Canadian immigration, where French proficiency is worth a substantial number of points under Express Entry.</p>
+  <h2>The two exams, and which one you need</h2>
+  <p><b>DELF</b> is the French Ministry of Education's certification, recognised worldwide and valid for life. Four levels — A1, A2, B1, B2 — each testing listening, reading, writing and speaking separately. This is the one for university admission.</p>
+  <p><b>TEF</b> is administered by the Paris Chamber of Commerce and is the one used for immigration, particularly to Canada. It scores you on a scale from A1 to C2 rather than passing or failing a level.</p>
+  <div class="pagenote">Choose the exam for the purpose, not the other way round. A DELF B2 does not help a Canadian points calculation, and a TEF score is not what a French university asks for.</div>
+  <h2>The levels</h2>
+  <ul><li><b>A1 — beginner.</b> Everyday expressions, introducing yourself, simple questions about where you live and who you know.</li><li><b>A2 — elementary.</b> Routine tasks, short social exchanges, describing daily life, work and surroundings.</li><li><b>B1 — moderate.</b> Handling most situations while travelling, holding a conversation on familiar topics, expressing an opinion.</li><li><b>B2 — the university level.</b> Fluent enough for regular interaction with native speakers without strain on either side, and for defending an argument.</li><li><b>C1 and C2</b> — fluent and expert. Rarely required for admission, occasionally for employment.</li></ul>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>DELF or TEF?</summary><p>DELF for studying in France. TEF for Canadian immigration. If you need both, do TEF second — the preparation overlaps and the scoring is more forgiving.</p></details>
+  <details><summary>What level does Campus France expect?</summary><p>B2 for a French-taught programme. English-taught programmes in France do not require it, though daily life still does.</p></details>
+  <details><summary>Does French help with Canada PR?</summary><p>Substantially. French proficiency carries additional points under Express Entry, and there are French-specific draws with lower cut-offs.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

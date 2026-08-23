@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need six points if I am already a recognised skilled worker?", "acceptedAnswer": {"@type": "Answer", "text": "No. Pathway 1 does not use the points system, though you still have to meet the financial and basic requirements."}}, {"@type": "Question", "name": "Is German mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "You need German at A1 or English at B2. German is not strictly required if your English is strong — but it is what decides whether you find qualified work once you are there."}}, {"@type": "Question", "name": "Is there an age limit?", "acceptedAnswer": {"@type": "Answer", "text": "No fixed upper limit, but the points reward youth: more points under 35, fewer between 35 and 40, none above 40."}}, {"@type": "Question", "name": "Can my family come with me?", "acceptedAnswer": {"@type": "Answer", "text": "Generally not on the Opportunity Card itself. Once you secure a job and move to a work permit or EU Blue Card, family reunification opens."}}, {"@type": "Question", "name": "Is there an annual cap?", "acceptedAnswer": {"@type": "Answer", "text": "No publicly advertised hard cap. The card exists to increase Germany's intake of qualified non-EU professionals."}}, {"@type": "Question", "name": "Where do I apply from?", "acceptedAnswer": {"@type": "Answer", "text": "The country where you legally reside — for most of our students, the German mission responsible for their region in India."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need six points if I am already a recognised skilled worker?", "acceptedAnswer": {"@type": "Answer", "text": "No. Pathway 1 does not use the points system, though you still have to meet the financial and basic requirements."}}, {"@type": "Question", "name": "Is German mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "You need German at A1 or English at B2. German is not strictly required if your English is strong — but it is what decides whether you find qualified work once you are there."}}, {"@type": "Question", "name": "Is there an age limit?", "acceptedAnswer": {"@type": "Answer", "text": "No fixed upper limit, but the points reward youth: more points under 35, fewer between 35 and 40, none above 40."}}, {"@type": "Question", "name": "Can my family come with me?", "acceptedAnswer": {"@type": "Answer", "text": "Generally not on the Opportunity Card itself. Once you secure a job and move to a work permit or EU Blue Card, family reunification opens."}}, {"@type": "Question", "name": "Is there an annual cap?", "acceptedAnswer": {"@type": "Answer", "text": "No publicly advertised hard cap. The card exists to increase Germany's intake of qualified non-EU professionals."}}, {"@type": "Question", "name": "Where do I apply from?", "acceptedAnswer": {"@type": "Answer", "text": "The country where you legally reside — for most of our students, the German mission responsible for their region in India."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need six points if I am already a recognised skilled worker?", "acceptedAnswer": {"@type": "Answer", "text": "No. Pathway 1 does not use the points system, though you still have to meet the financial and basic requirements."}}, {"@type": "Question", "name": "Is German mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "You need German at A1 or English at B2. German is not strictly required if your English is strong — but it is what decides whether you find qualified work once you are there."}}, {"@type": "Question", "name": "Is there an age limit?", "acceptedAnswer": {"@type": "Answer", "text": "No fixed upper limit, but the points reward youth: more points under 35, fewer between 35 and 40, none above 40."}}, {"@type": "Question", "name": "Can my family come with me?", "acceptedAnswer": {"@type": "Answer", "text": "Generally not on the Opportunity Card itself. Once you secure a job and move to a work permit or EU Blue Card, family reunification opens."}}, {"@type": "Question", "name": "Is there an annual cap?", "acceptedAnswer": {"@type": "Answer", "text": "No publicly advertised hard cap. The card exists to increase Germany's intake of qualified non-EU professionals."}}, {"@type": "Question", "name": "Where do I apply from?", "acceptedAnswer": {"@type": "Answer", "text": "The country where you legally reside — for most of our students, the German mission responsible for their region in India."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +360,30 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Germany Opportunity Card</h1><p>The points-based route to look for work in Germany on the ground.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>The points table, who qualifies, funds needed, and how long it takes. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>What the Opportunity Card is</h2>
+  <p>The Chancenkarte is a residence permit that lets a qualified non-EU professional enter Germany to look for work — without a job offer first. It came into force in 2024 as part of Germany's reformed skilled immigration rules.</p>
+  <ul><li>Enter Germany with no prior job offer</li><li>Stay for up to 12 months initially</li><li>Work part-time, up to 20 hours a week, while you search</li><li>Take trial jobs of up to two weeks per employer</li><li>Convert to a work permit or EU Blue Card once you are hired</li></ul>
+  <h2>Two ways to qualify</h2>
+  <p><b>Pathway 1 — recognised skilled worker.</b> A university degree, or a vocational qualification of at least two years, fully recognised as equivalent to the German qualification. No points needed.</p>
+  <p><b>Pathway 2 — the points route.</b> A qualification, plus German at A1 or English at B2, plus at least six points from: partial recognition of your qualification, a shortage occupation, work experience (two years, or five), German language level, English at C1 or above, age (under 35, or 35–40), a previous continuous six-month stay in Germany, or an eligible spouse.</p>
+  <h2>Occupations in demand</h2>
+  <ul><li>Nursing and healthcare</li><li>Engineering — mechanical, electrical, civil, automotive</li><li>IT and software development</li><li>Logistics, warehousing and transport</li><li>Skilled trades — electricians, welders, mechatronics</li><li>Green energy and renewables</li><li>Robotics, automation and Industry 4.0</li></ul>
+  <h2>Money, and how long it takes</h2>
+  <p>You must show funds covering about twelve months of living costs. The official monthly benchmark is updated periodically; for 2026 it is €1,091 net a month. It can be proven by a blocked account, a formal declaration of commitment from a sponsor, bank savings, a part-time job offer, or a combination.</p>
+  <p>The visa fee is around €75 for adults, and processing runs from about four weeks to three months once a complete file is submitted.</p>
+  <div class="pagenote">Your occupation does not have to be on the shortage list. You can still reach six points through experience, age, language and previous stays.</div>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Do I need six points if I am already a recognised skilled worker?</summary><p>No. Pathway 1 does not use the points system, though you still have to meet the financial and basic requirements.</p></details>
+  <details><summary>Is German mandatory?</summary><p>You need German at A1 or English at B2. German is not strictly required if your English is strong — but it is what decides whether you find qualified work once you are there.</p></details>
+  <details><summary>Is there an age limit?</summary><p>No fixed upper limit, but the points reward youth: more points under 35, fewer between 35 and 40, none above 40.</p></details>
+  <details><summary>Can my family come with me?</summary><p>Generally not on the Opportunity Card itself. Once you secure a job and move to a work permit or EU Blue Card, family reunification opens.</p></details>
+  <details><summary>Is there an annual cap?</summary><p>No publicly advertised hard cap. The card exists to increase Germany's intake of qualified non-EU professionals.</p></details>
+  <details><summary>Where do I apply from?</summary><p>The country where you legally reside — for most of our students, the German mission responsible for their region in India.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

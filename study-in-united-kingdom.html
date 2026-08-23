@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is a three-year Indian degree enough for a UK master's?", "acceptedAnswer": {"@type": "Answer", "text": "For most programmes, yes. This is the main structural difference from Germany, where a three-year degree needs a bridge."}}, {"@type": "Question", "name": "How long must I hold the funds?", "acceptedAnswer": {"@type": "Answer", "text": "28 consecutive days, ending no more than 31 days before you apply. The balance must not dip below the required amount on any day in that window — one dip and the clock restarts."}}, {"@type": "Question", "name": "Can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Generally 20 hours a week during term and full-time during vacations, on a student visa at degree level."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How long does a UK master's take?", "acceptedAnswer": {"@type": "Answer", "text": "One year for most programmes, which is the single biggest cost advantage the UK has."}}, {"@type": "Question", "name": "Can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — part-time during term and full-time during breaks, depending on your visa conditions."}}, {"@type": "Question", "name": "Is the Graduate Route still available?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Eligible graduates can stay two years, or three after a PhD."}}, {"@type": "Question", "name": "Can I study in the UK without IELTS?", "acceptedAnswer": {"@type": "Answer", "text": "Some universities accept alternative tests or proof of English-medium education. Not all do, so confirm before you rely on it."}}, {"@type": "Question", "name": "What is a CAS?", "acceptedAnswer": {"@type": "Answer", "text": "The Confirmation of Acceptance for Studies, issued by your university. You cannot apply for the visa without it."}}, {"@type": "Question", "name": "What is the IHS?", "acceptedAnswer": {"@type": "Answer", "text": "The Immigration Health Surcharge, paid with the visa application. It gives you NHS healthcare for the duration of your stay."}}, {"@type": "Question", "name": "Can I bring dependants?", "acceptedAnswer": {"@type": "Answer", "text": "Under current rules, mainly for postgraduate research programmes and selected master's programmes. This has tightened and is worth checking against the rules on the day you apply."}}, {"@type": "Question", "name": "How early should I apply?", "acceptedAnswer": {"@type": "Answer", "text": "Eight to twelve months before the intake."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How long does a UK master's take?", "acceptedAnswer": {"@type": "Answer", "text": "One year for most programmes, which is the single biggest cost advantage the UK has."}}, {"@type": "Question", "name": "Can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — part-time during term and full-time during breaks, depending on your visa conditions."}}, {"@type": "Question", "name": "Is the Graduate Route still available?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Eligible graduates can stay two years, or three after a PhD."}}, {"@type": "Question", "name": "Can I study in the UK without IELTS?", "acceptedAnswer": {"@type": "Answer", "text": "Some universities accept alternative tests or proof of English-medium education. Not all do, so confirm before you rely on it."}}, {"@type": "Question", "name": "What is a CAS?", "acceptedAnswer": {"@type": "Answer", "text": "The Confirmation of Acceptance for Studies, issued by your university. You cannot apply for the visa without it."}}, {"@type": "Question", "name": "What is the IHS?", "acceptedAnswer": {"@type": "Answer", "text": "The Immigration Health Surcharge, paid with the visa application. It gives you NHS healthcare for the duration of your stay."}}, {"@type": "Question", "name": "Can I bring dependants?", "acceptedAnswer": {"@type": "Answer", "text": "Under current rules, mainly for postgraduate research programmes and selected master's programmes. This has tightened and is worth checking against the rules on the day you apply."}}, {"@type": "Question", "name": "How early should I apply?", "acceptedAnswer": {"@type": "Answer", "text": "Eight to twelve months before the intake."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -337,6 +376,38 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
      Budget around ₹110,000 a month for living costs.</p>
   <h2>Documents</h2>
   <ul><li>Passport</li><li>Marksheets</li><li>IELTS UKVI</li><li>CAS letter</li><li>Bank statements</li></ul>
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why the UK</h2>
+  <p>The UK is a leading education hub for three reasons that all point the same way: academic rigour, global recognition, and degrees that are shorter than almost anywhere else. Most bachelor's degrees run three years and many master's run one — which makes a UK education cost-effective in a way the headline tuition figure does not show.</p>
+  <p>Its universities are known for research leadership and industry partnership. Students get state-of-the-art labs, professional training and skills that line up with what global employers are actually hiring for. Oxford, Cambridge, Imperial College London, UCL and the London School of Economics are here, and so are dozens of institutions below that tier which place graduates just as reliably.</p>
+  <p>The multicultural environment matters more than it sounds. A UK campus puts you among students from everywhere, which is the same condition you will work in afterwards.</p>
+  <ul><li>One-year master's degrees — less tuition, less living cost, a year earlier into work</li><li>The Graduate Route: stay and work after you finish, no job offer needed</li><li>Strong routes into technology, finance, healthcare, engineering, public policy, media and the creative industries</li><li>Part-time work during term and full-time during holidays, subject to your visa conditions</li></ul>
+  <h2>Life in the UK</h2>
+  <p>You can pick a large city — London, Edinburgh, Manchester, Birmingham, Glasgow — or a student town like Oxford, Cambridge, York, Bath or Warwick, and the difference in cost is substantial. London is consistently the most expensive place to study in the country.</p>
+  <p>Accommodation is university halls, private student residences or a shared flat. Public transport is developed everywhere and student discounts on it are real. Universities run academic counselling, mental health support, careers services, clubs and societies, and these are used, not decorative.</p>
+  <p>Students on long-term visas pay the Immigration Health Surcharge, which buys access to the NHS for the length of the stay. Part-time work in retail, hospitality, administration, tutoring and on campus is common and helps with the monthly numbers.</p>
+  <h2>Intakes</h2>
+  <ul><li><b>September — the main intake.</b> The widest course availability at every level, and the most competition.</li><li><b>January — the second major intake.</b> Popular for master's programmes, business courses and selected undergraduate degrees.</li><li><b>May — limited.</b> Certain universities only, mostly business, IT, healthcare and specific postgraduate courses.</li></ul>
+  <div class="pagenote">Begin 8 to 12 months before your target intake, and earlier again for the competitive universities.</div>
+  <h2>English requirements</h2>
+  <p>IELTS Academic, PTE Academic and TOEFL iBT are accepted almost everywhere; the Duolingo English Test is accepted by many universities for admission. Typical bars are IELTS 6.0 to 6.5 for a bachelor's and 6.5 to 7.0 for a master's, with health sciences and competitive programmes asking for more.</p>
+  <p>Some universities waive the test entirely for students who studied in English medium for a qualifying period. Whether yours does is worth checking before you book an exam.</p>
+  <h2>What the Student visa needs</h2>
+  <ul><li>Confirmation of Acceptance for Studies (CAS) from your university</li><li>Financial proof covering tuition and living expenses</li><li>Evidence of English proficiency</li><li>Tuberculosis test, for applicants from certain countries</li><li>Valid passport</li><li>Visa fee and the Immigration Health Surcharge</li></ul>
+  <h2>After you graduate</h2>
+  <p>The Graduate Route lets you stay and work with no job offer required and no restriction on sector: two years after a bachelor's or master's, three years after a PhD. It is the cleanest post-study route in Europe and it is what makes the one-year master's arithmetic work.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>How long does a UK master's take?</summary><p>One year for most programmes, which is the single biggest cost advantage the UK has.</p></details>
+  <details><summary>Can I work while studying?</summary><p>Yes — part-time during term and full-time during breaks, depending on your visa conditions.</p></details>
+  <details><summary>Is the Graduate Route still available?</summary><p>Yes. Eligible graduates can stay two years, or three after a PhD.</p></details>
+  <details><summary>Can I study in the UK without IELTS?</summary><p>Some universities accept alternative tests or proof of English-medium education. Not all do, so confirm before you rely on it.</p></details>
+  <details><summary>What is a CAS?</summary><p>The Confirmation of Acceptance for Studies, issued by your university. You cannot apply for the visa without it.</p></details>
+  <details><summary>What is the IHS?</summary><p>The Immigration Health Surcharge, paid with the visa application. It gives you NHS healthcare for the duration of your stay.</p></details>
+  <details><summary>Can I bring dependants?</summary><p>Under current rules, mainly for postgraduate research programmes and selected master's programmes. This has tightened and is worth checking against the rules on the day you apply.</p></details>
+  <details><summary>How early should I apply?</summary><p>Eight to twelve months before the intake.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
   <p style="margin-top:26px"><a class="btn btn-primary" href="index.html#results">
     See programmes in United Kingdom <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
 </div></section>

@@ -288,6 +288,43 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How many points do I need?", "acceptedAnswer": {"@type": "Answer", "text": "65 is the minimum to be eligible. Invitations in most occupations require considerably more, and the number moves with demand."}}, {"@type": "Question", "name": "Is there an age limit?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You must be under 45 at the time of invitation, and points begin falling from 33. Age is the one factor nothing else compensates for."}}, {"@type": "Question", "name": "Do I need a job offer?", "acceptedAnswer": {"@type": "Answer", "text": "No. The General Skilled Migration programme is designed to work without one."}}, {"@type": "Question", "name": "Which English tests are accepted?", "acceptedAnswer": {"@type": "Answer", "text": "IELTS, PTE Academic, TOEFL iBT and Cambridge English. PTE is often the faster route to a Superior score for Indian applicants."}}, {"@type": "Question", "name": "How long does a Skills Assessment take?", "acceptedAnswer": {"@type": "Answer", "text": "Six to twelve weeks, depending on the authority. Start it first — everything else waits on it."}}, {"@type": "Question", "name": "What is SkillSelect?", "acceptedAnswer": {"@type": "Answer", "text": "The system you lodge your Expression of Interest through. It ranks EOIs and issues invitations; you cannot apply for the visa without being invited."}}, {"@type": "Question", "name": "Can my partner and children come?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Partners and dependent children are included in the same application, and your partner has full work rights on grant."}}, {"@type": "Question", "name": "Do PR holders get Medicare?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, from the grant of permanent residence."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +358,37 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Australia PR — skilled migration</h1><p>Occupation lists, skills assessment, EOI and state nomination.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>The occupation list changes each year — date this page and review it annually. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why Australia</h2>
+  <p>Australia runs one of the most structured and transparent skilled migration systems anywhere. It is points-based and it publishes its rules: skills, age, English, occupation demand. High salaries, strong worker protections, Medicare, free public schooling and a clear route to citizenship are what people are actually buying.</p>
+  <ul><li>Live and work anywhere in Australia on subclass 189 or 190</li><li>Medicare — the public healthcare system — from the day PR is granted</li><li>Free public schooling for children</li><li>Include your partner and dependent children in the same application</li><li>A defined pathway to citizenship</li></ul>
+  <h2>The three skilled visas</h2>
+  <ul><li><b>Subclass 189 — Skilled Independent.</b> No state nomination required, points-tested, permanent from grant, and you can live anywhere in the country.</li><li><b>Subclass 190 — Skilled Nominated.</b> Requires a state or territory nomination, which adds points and materially improves your invitation odds. Permanent from grant.</li><li><b>Subclass 491 — Skilled Work Regional.</b> State or family sponsored, a five-year provisional visa, converting to permanent residence through subclass 191 once the conditions are met.</li></ul>
+  <h2>Eligibility, plainly</h2>
+  <ul><li>Your occupation must be on the relevant Skilled Occupation List</li><li>A positive Skills Assessment from the correct assessing authority</li><li>Under 45 at the time of invitation — this one is absolute</li><li>Competent English or better</li><li>At least 65 points, though competitive invitations sit well above that</li><li>An Expression of Interest submitted through SkillSelect</li></ul>
+  <div class="pagenote">65 points makes you eligible. It does not make you competitive. The gap between those two things is where most of the planning work happens.</div>
+  <h2>Where the points come from</h2>
+  <ul><li>Age — the largest single block, and it starts falling at 33</li><li>English — Proficient and Superior are worth 10 and 20 points</li><li>Overseas and Australian work experience</li><li>Educational qualifications</li><li>The Australian study requirement</li><li>A STEM qualification bonus</li><li>Partner skills — worth having your partner assessed and tested</li><li>State nomination — 5 points on a 190, 15 on a 491</li></ul>
+  <h2>The Skills Assessment</h2>
+  <p>This is the mandatory step and the one that most often goes wrong. It is done by the authority for your occupation, not by the department, and a negative outcome stops everything.</p>
+  <ul><li><b>ACS</b> — IT professionals</li><li><b>Engineers Australia</b> — engineers</li><li><b>VETASSESS</b> — business and general professional roles</li><li><b>AHPRA</b> — healthcare</li><li><b>TRA</b> — trades</li></ul>
+  <div class="pagenote">Assessment usually takes six to twelve weeks. It has to be positive before the Expression of Interest goes in, so it sets the start date for everything else.</div>
+  <h2>What you will need, and how long</h2>
+  <ul><li>Passport</li><li>English test results — IELTS, PTE Academic, TOEFL iBT or Cambridge</li><li>Skills Assessment outcome</li><li>Educational certificates and transcripts</li><li>Work reference letters, in the form the assessing authority requires</li><li>Curriculum vitae</li><li>Police clearance certificates</li><li>Medical examination</li><li>State nomination approval, where applicable</li></ul>
+  <div class="pagenote">From invitation to grant is usually 8 to 18 months depending on subclass and nomination. The whole journey, from first assessment to visa, is realistically 18 months to two years.</div>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>How many points do I need?</summary><p>65 is the minimum to be eligible. Invitations in most occupations require considerably more, and the number moves with demand.</p></details>
+  <details><summary>Is there an age limit?</summary><p>Yes. You must be under 45 at the time of invitation, and points begin falling from 33. Age is the one factor nothing else compensates for.</p></details>
+  <details><summary>Do I need a job offer?</summary><p>No. The General Skilled Migration programme is designed to work without one.</p></details>
+  <details><summary>Which English tests are accepted?</summary><p>IELTS, PTE Academic, TOEFL iBT and Cambridge English. PTE is often the faster route to a Superior score for Indian applicants.</p></details>
+  <details><summary>How long does a Skills Assessment take?</summary><p>Six to twelve weeks, depending on the authority. Start it first — everything else waits on it.</p></details>
+  <details><summary>What is SkillSelect?</summary><p>The system you lodge your Expression of Interest through. It ranks EOIs and issues invitations; you cannot apply for the visa without being invited.</p></details>
+  <details><summary>Can my partner and children come?</summary><p>Yes. Partners and dependent children are included in the same application, and your partner has full work rights on grant.</p></details>
+  <details><summary>Do PR holders get Medicare?</summary><p>Yes, from the grant of permanent residence.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is my Indian pharmacy degree recognised?", "acceptedAnswer": {"@type": "Answer", "text": "It is assessed for equivalence through the Approbation process. Recognition is normal; automatic recognition is not."}}, {"@type": "Question", "name": "What German level do I need?", "acceptedAnswer": {"@type": "Answer", "text": "B2 general German and C1 Fachsprachprüfung."}}, {"@type": "Question", "name": "How long does Approbation take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, depending on the federal state and how complete your file is."}}, {"@type": "Question", "name": "What if I fail the knowledge examination?", "acceptedAnswer": {"@type": "Answer", "text": "It can be retaken. We prepare candidates for it specifically."}}, {"@type": "Question", "name": "Can I work while my application is processed?", "acceptedAnswer": {"@type": "Answer", "text": "In some cases, under supervision, depending on your visa type."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is my Indian pharmacy degree recognised?", "acceptedAnswer": {"@type": "Answer", "text": "It is assessed for equivalence through the Approbation process. Recognition is normal; automatic recognition is not."}}, {"@type": "Question", "name": "What German level do I need?", "acceptedAnswer": {"@type": "Answer", "text": "B2 general German and C1 Fachsprachprüfung."}}, {"@type": "Question", "name": "How long does Approbation take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, depending on the federal state and how complete your file is."}}, {"@type": "Question", "name": "What if I fail the knowledge examination?", "acceptedAnswer": {"@type": "Answer", "text": "It can be retaken. We prepare candidates for it specifically."}}, {"@type": "Question", "name": "Can I work while my application is processed?", "acceptedAnswer": {"@type": "Answer", "text": "In some cases, under supervision, depending on your visa type."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is my Indian pharmacy degree recognised?", "acceptedAnswer": {"@type": "Answer", "text": "It is assessed for equivalence through the Approbation process. Recognition is normal; automatic recognition is not."}}, {"@type": "Question", "name": "What German level do I need?", "acceptedAnswer": {"@type": "Answer", "text": "B2 general German and C1 Fachsprachprüfung."}}, {"@type": "Question", "name": "How long does Approbation take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, depending on the federal state and how complete your file is."}}, {"@type": "Question", "name": "What if I fail the knowledge examination?", "acceptedAnswer": {"@type": "Answer", "text": "It can be retaken. We prepare candidates for it specifically."}}, {"@type": "Question", "name": "Can I work while my application is processed?", "acceptedAnswer": {"@type": "Answer", "text": "In some cases, under supervision, depending on your visa type."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +360,27 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>Pharma jobs in Germany</h1><p>Approbation, language and the work visa for pharmacists.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>The recognition route for pharmacists and what the timeline realistically looks like. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why Germany for pharmacists</h2>
+  <p>More than 160,000 pharmacy professionals work in Germany across some 18,000 pharmacies, and enrolment has been falling while demand rises. The licensing route for foreign graduates is standardised and transparent, which is not true everywhere.</p>
+  <p>The licence is called Approbation, and with it you can practise independently. Without it you cannot, whatever your degree says.</p>
+  <h2>What Approbation requires</h2>
+  <ul><li><b>A recognised pharmacy degree</b> — equivalent to the German Apotheker qualification</li><li><b>B2 general German</b>, and <b>C1 Fachsprachprüfung</b> — the professional language exam for pharmacists</li><li><b>Practical training</b> — a 12-month Praktisches Jahr, if your prior training is not fully equivalent</li><li><b>Police clearance and medical fitness certificates</b></li><li><b>Certified German translations</b> of every document</li></ul>
+  <h2>The Fachsprachprüfung, in detail</h2>
+  <p>The professional language exam is three twenty-minute parts: a simulated pharmacist-to-patient conversation, pharmacy documentation, and a pharmacist-to-pharmacist or pharmacist-to-doctor exchange. It tests whether you can communicate safely in a German healthcare setting, which is a different skill from passing a C1 exam.</p>
+  <h2>If your curriculum does not match</h2>
+  <p>The authority compares your degree against the German pharmacy curriculum. Fully equivalent means you proceed to licensing. Partially equivalent means either an adaptation period or a Knowledge Examination — an oral exam covering pharmacology, pharmaceutical chemistry, pharmacy law and patient counselling. Passing it grants Approbation.</p>
+  <p>Professional experience can offset curriculum differences in many cases, which is worth arguing properly in the application rather than leaving to chance.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Is my Indian pharmacy degree recognised?</summary><p>It is assessed for equivalence through the Approbation process. Recognition is normal; automatic recognition is not.</p></details>
+  <details><summary>What German level do I need?</summary><p>B2 general German and C1 Fachsprachprüfung.</p></details>
+  <details><summary>How long does Approbation take?</summary><p>Typically 6 to 12 months, depending on the federal state and how complete your file is.</p></details>
+  <details><summary>What if I fail the knowledge examination?</summary><p>It can be retaken. We prepare candidates for it specifically.</p></details>
+  <details><summary>Can I work while my application is processed?</summary><p>In some cases, under supervision, depending on your visa type.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

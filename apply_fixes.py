@@ -3906,6 +3906,61 @@ patch("index.html", "a budget card with nothing behind it says so",
       marker=".rail-card.empty{opacity:.45")
 
 
+# ---------------------------------------------------------------------------
+# The header, at the width where it is tightest.
+#
+# Between about 1160px and 1400px the row has the logo, nine menu items and two
+# buttons in it, and nothing was allowed to wrap except the two buttons — so
+# they did. "Sign in" broke across two lines inside its own pill, which reads as
+# a broken button rather than a narrow one, and "Book Free Counselling" went to
+# two lines beside it. A laptop is exactly that width.
+#
+# Nothing wraps now, and the menu gives up its spacing first — a menu with less
+# air between items is a menu; a button reading "Sign / in" is a mistake.
+
+# Every page carries the same header, so this is a sheet appended to each of
+# them rather than a patch to one — thirty-two copies of the same rule edited
+# thirty-two times is thirty-two chances to edit thirty-one.
+NAV_RULE = """<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+"""
+
+
+def header_fits():
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-NAV-FIT" in t or "</head>" not in t or 'class="signin"' not in t:
+            continue
+        write(f, t.replace("</head>", NAV_RULE + "</head>", 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the header buttons never break across two lines")
+    else:
+        skipped.append("every page: the header buttons never break across two lines")
+
+
+header_fits()
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and

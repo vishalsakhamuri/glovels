@@ -288,6 +288,43 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "GRE or GMAT for an MBA?", "acceptedAnswer": {"@type": "Answer", "text": "Most business schools now accept both. Take the GRE if you are also applying to non-business master's programmes; take the GMAT Focus if business school is the whole plan and you are strong on data reasoning."}}, {"@type": "Question", "name": "How long are scores valid?", "acceptedAnswer": {"@type": "Answer", "text": "Five years for both the GRE and the GMAT."}}, {"@type": "Question", "name": "Is the GRE really shorter now?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — just under two hours since 2023, with one writing task instead of two. Any guide describing a 3 hour 45 minute GRE is out of date."}}, {"@type": "Question", "name": "What is Data Insights?", "acceptedAnswer": {"@type": "Answer", "text": "The GMAT Focus section combining data sufficiency, table and graphics interpretation and multi-source reasoning. It counts toward your total score, unlike the old Integrated Reasoning."}}, {"@type": "Question", "name": "Is the SAT still on paper?", "acceptedAnswer": {"@type": "Answer", "text": "No. It is digital and adaptive, taken on the Bluebook app, about two hours fourteen minutes, with no essay."}}, {"@type": "Question", "name": "Can I retake?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, all three. Most schools consider your best score, and several accept superscoring — but check each one rather than assuming."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -321,7 +358,36 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <h1>GRE, GMAT &amp; SAT</h1><p>Quant and verbal drills plus a tutor-reviewed score plan.</p>
 </div></section>
 
-<section class="block"><div class="wrap prose"><div class="towrite"><b>To write</b>Batch timings and syllabus coverage per test. This page is live on glovels.com — copy it across, or rewrite it now that public universities are the product.</div></div></section>
+<section class="block"><div class="wrap prose">
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Three different tests for three different applications</h2>
+  <p>The GRE is for graduate school generally, including many business schools. The GMAT is the business-school test specifically. The SAT is for undergraduate admission in the United States. Which one you sit follows from where you are applying, not the other way round.</p>
+  <p>All three have been redesigned in the last few years and are shorter than the versions most online material still describes. Preparing from an out-of-date guide is the most common way students waste months.</p>
+  <h2>GRE General Test</h2>
+  <p>Shortened in 2023 and now just under two hours. Three measures: Verbal Reasoning and Quantitative Reasoning, each scored 130 to 170 in one-point steps, and Analytical Writing scored 0 to 6 in half points. Total 260 to 340.</p>
+  <ul><li><b>Analytical Writing</b> — one Analyze an Issue task</li><li><b>Verbal Reasoning</b> — two sections: text completion, sentence equivalence and reading comprehension</li><li><b>Quantitative Reasoning</b> — two sections: quantitative comparison and problem solving</li></ul>
+  <div class="pagenote">Section-level adaptive: how you do on the first section decides the difficulty of the second. Scores are valid for five years.</div>
+  <h2>GMAT Focus Edition</h2>
+  <p>The GMAT was replaced by the Focus Edition, which runs about two hours fifteen minutes across three 45-minute sections and is scored 205 to 805. The Analytical Writing Assessment is gone; Data Insights is new and counts toward the total.</p>
+  <ul><li><b>Quantitative Reasoning</b> — problem solving, no geometry</li><li><b>Verbal Reasoning</b> — reading comprehension and critical reasoning</li><li><b>Data Insights</b> — data sufficiency, table analysis, graphics and multi-source reasoning</li></ul>
+  <div class="pagenote">You can review and change up to three answers per section, and you choose the section order. Both are worth practising deliberately — they are marks, not conveniences. Scores are valid five years.</div>
+  <h2>Digital SAT</h2>
+  <p>The SAT is now digital, adaptive and about two hours fourteen minutes, down from three hours. Still scored 400 to 1600, across two sections rather than three, and the essay is gone.</p>
+  <ul><li><b>Reading and Writing</b> — two modules, 32 minutes each, short passages with one question apiece</li><li><b>Math</b> — two modules, 35 minutes each, calculator permitted throughout</li></ul>
+  <div class="pagenote">Module-adaptive: the second module's difficulty depends on the first. Taken on the Bluebook app at a test centre.</div>
+  <h2>How we teach it</h2>
+  <p>Free demo class first. Then diagnostics to find where the marks actually are, small batches online or in the classroom, and full timed mocks in the real interface — the digital tests punish anyone who has only practised on paper.</p>
+  <p>For students on a package, test preparation is scheduled against the application deadlines rather than as a separate project, so the score is in hand when the shortlist needs it.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>GRE or GMAT for an MBA?</summary><p>Most business schools now accept both. Take the GRE if you are also applying to non-business master's programmes; take the GMAT Focus if business school is the whole plan and you are strong on data reasoning.</p></details>
+  <details><summary>How long are scores valid?</summary><p>Five years for both the GRE and the GMAT.</p></details>
+  <details><summary>Is the GRE really shorter now?</summary><p>Yes — just under two hours since 2023, with one writing task instead of two. Any guide describing a 3 hour 45 minute GRE is out of date.</p></details>
+  <details><summary>What is Data Insights?</summary><p>The GMAT Focus section combining data sufficiency, table and graphics interpretation and multi-source reasoning. It counts toward your total score, unlike the old Integrated Reasoning.</p></details>
+  <details><summary>Is the SAT still on paper?</summary><p>No. It is digital and adaptive, taken on the Bluebook app, about two hours fourteen minutes, with no essay.</p></details>
+  <details><summary>Can I retake?</summary><p>Yes, all three. Most schools consider your best score, and several accept superscoring — but check each one rather than assuming.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY --></div></section>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

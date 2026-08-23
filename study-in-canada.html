@@ -288,6 +288,45 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .towrite{display:none !important}
 html.review-copy .towrite{display:block !important}
 </style>
+<style>/* GLOVELS-NAV-FIT */
+/* Nothing in the header wraps. "Sign in" breaking across two lines inside its
+   own pill reads as a broken button rather than a narrow one. */
+.signin,.nav-cta .btn{white-space:nowrap}
+/* The tight band, roughly a laptop: the menu gives up its spacing first, and
+   the buttons shed a little padding rather than a line. */
+@media (max-width:1400px){
+  nav.menu{gap:clamp(9px,1.1vw,16px)}
+  nav.menu>a,.ndt{font-size:13px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:11px 16px;font-size:13.2px}
+  .signin{padding:11px 14px;font-size:13.2px}
+}
+@media (max-width:1260px){
+  nav.menu{gap:8px}
+  nav.menu>a,.ndt{font-size:12.5px}
+  .nav-cta .btn{padding:10px 13px;font-size:12.6px}
+  .signin{padding:10px 12px;font-size:12.6px}
+}
+</style>
+<style>/* GLOVELS-PAGE-COPY-CSS */
+.prose h2{margin-top:34px}
+.prose .pagenote{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
+  padding:14px 17px;margin:16px 0 0;font:600 13.6px/1.7 var(--sans);color:#5b4409}
+.pfaq{display:grid;gap:9px;margin-top:14px}
+.pfaq details{border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.pfaq summary{cursor:pointer;list-style:none;padding:14px 17px;
+  font:700 14.2px/1.5 var(--sans);color:var(--navy-900);display:flex;gap:12px;
+  align-items:flex-start;justify-content:space-between}
+.pfaq summary::-webkit-details-marker{display:none}
+.pfaq summary::after{content:"+";font:400 20px/1 var(--sans);color:var(--muted);flex:none}
+.pfaq details[open] summary::after{content:"\2013"}
+.pfaq details[open] summary{border-bottom:1px solid var(--line)}
+.pfaq details p{margin:0;padding:14px 17px;font-size:13.9px;line-height:1.72;
+  color:var(--navy-800)}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is a Provincial Attestation Letter, and do I need one?", "acceptedAnswer": {"@type": "Answer", "text": "A PAL confirms that your study permit application sits within the province's allocated quota. Most study permit applications now need one, and the institution issues it — you cannot obtain it yourself."}}, {"@type": "Question", "name": "How many hours can I work during term?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 24 hours a week during academic sessions, and full-time during scheduled breaks."}}, {"@type": "Question", "name": "Is the Student Direct Stream still available?", "acceptedAnswer": {"@type": "Answer", "text": "No. SDS was discontinued in 2024. Applications go through the standard stream, which is why the funds documentation matters more than it used to."}}, {"@type": "Question", "name": "Can my spouse work while I study?", "acceptedAnswer": {"@type": "Answer", "text": "Spousal open work permits are now restricted to the spouses of master's and doctoral students and a small set of professional programmes. It is no longer automatic."}}, {"@type": "Question", "name": "When should I start?", "acceptedAnswer": {"@type": "Answer", "text": "Nine to twelve months before your intended intake. The bottleneck is the permit, not the offer."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is a Provincial Attestation Letter, and do I need one?", "acceptedAnswer": {"@type": "Answer", "text": "A PAL confirms that your study permit application sits within the province's allocated quota. Most study permit applications now need one, and the institution issues it — you cannot obtain it yourself."}}, {"@type": "Question", "name": "How many hours can I work during term?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 24 hours a week during academic sessions, and full-time during scheduled breaks."}}, {"@type": "Question", "name": "Is the Student Direct Stream still available?", "acceptedAnswer": {"@type": "Answer", "text": "No. SDS was discontinued in 2024. Applications go through the standard stream, which is why the funds documentation matters more than it used to."}}, {"@type": "Question", "name": "Can my spouse work while I study?", "acceptedAnswer": {"@type": "Answer", "text": "Spousal open work permits are now restricted to the spouses of master's and doctoral students and a small set of professional programmes. It is no longer automatic."}}, {"@type": "Question", "name": "When should I start?", "acceptedAnswer": {"@type": "Answer", "text": "Nine to twelve months before your intended intake. The bottleneck is the permit, not the offer."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is a Provincial Attestation Letter, and do I need one?", "acceptedAnswer": {"@type": "Answer", "text": "A PAL confirms that your study permit application sits within the province's allocated quota. Most study permit applications now need one, and the institution issues it — you cannot obtain it yourself."}}, {"@type": "Question", "name": "How many hours can I work during term?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 24 hours a week during academic sessions, and full-time during scheduled breaks."}}, {"@type": "Question", "name": "Is the Student Direct Stream still available?", "acceptedAnswer": {"@type": "Answer", "text": "No. SDS was discontinued in 2024. Applications go through the standard stream, which is why the funds documentation matters more than it used to."}}, {"@type": "Question", "name": "Can my spouse work while I study?", "acceptedAnswer": {"@type": "Answer", "text": "Spousal open work permits are now restricted to the spouses of master's and doctoral students and a small set of professional programmes. It is no longer automatic."}}, {"@type": "Question", "name": "When should I start?", "acceptedAnswer": {"@type": "Answer", "text": "Nine to twelve months before your intended intake. The bottleneck is the permit, not the offer."}}]}</script>
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -337,6 +376,32 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
      Budget around ₹95,000 a month for living costs.</p>
   <h2>Documents</h2>
   <ul><li>Passport</li><li>Marksheets</li><li>IELTS</li><li>SOP</li><li>GIC certificate</li></ul>
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>Why students choose Canada</h2>
+  <p>Canada combines a high-quality education system, a multicultural environment and strong post-study work rights. Degrees are valued globally, tuition is regulated, and the co-operative education model builds paid work placements into the degree itself — so students graduate with Canadian experience as well as a Canadian qualification.</p>
+  <ul><li>Top-ranking universities and colleges with rigorous academic standards</li><li>Co-op programmes that integrate paid work placements into the degree</li><li>An inclusive social environment and regulated, predictable tuition</li><li>Strong research, innovation and entrepreneurship support</li><li>Part-time work during term and full-time during scheduled breaks</li></ul>
+  <h2>What changed between 2024 and 2026 — and why it matters</h2>
+  <p>Canada reformed its student system substantially over these two years, and most of the advice online predates it. There are now annual caps on new study permits, updated financial criteria, and a provincial attestation system on top of the federal one. The Student Direct Stream was discontinued in 2024.</p>
+  <p>The practical effect is that the college you choose matters more than it used to: not every institution is eligible for a post-graduation work permit, and a programme that does not lead to one is a different proposition entirely. This is the single thing we check first.</p>
+  <div class="pagenote">Start 9 to 12 months before your intake. The permit timeline, not the admission timeline, is what decides whether you make the intake.</div>
+  <h2>Intakes</h2>
+  <ul><li><b>Fall — September.</b> The main intake, with the widest choice of programmes and the most competition.</li><li><b>Winter — January.</b> Widely available and a genuine second chance rather than a fallback.</li><li><b>Spring/Summer — May.</b> Colleges and specialised programmes.</li></ul>
+  <h2>English, and French</h2>
+  <p>IELTS Academic is the most widely accepted: typically 6.0 overall for undergraduate study and 6.5 for postgraduate. TOEFL iBT, PTE Academic and the Duolingo English Test are accepted by many institutions, though not all. French-taught programmes may ask for TEF, TCF, DELF or DALF instead.</p>
+  <h2>What the study permit needs</h2>
+  <ul><li>Letter of Acceptance from a Designated Learning Institution (DLI)</li><li>Provincial or Territorial Attestation Letter (PAL)</li><li>Proof of funds meeting the current IRCC guideline</li><li>Valid passport</li><li>Statement of purpose, or study plan</li><li>Biometrics</li><li>Medical examination, where required</li><li>Tuition payment receipts</li></ul>
+  <h2>After you graduate</h2>
+  <p>The Post-Graduation Work Permit is an open work permit — it is not tied to one employer. The programme must run at least eight months to qualify, and master's graduates typically receive a three-year permit. You must apply within 180 days of your graduation being confirmed.</p>
+  <p>Not every college is PGWP-eligible. Check before you pay a deposit, and ask us if the answer is not obvious from the institution's own website.</p>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>What is a Provincial Attestation Letter, and do I need one?</summary><p>A PAL confirms that your study permit application sits within the province's allocated quota. Most study permit applications now need one, and the institution issues it — you cannot obtain it yourself.</p></details>
+  <details><summary>How many hours can I work during term?</summary><p>Up to 24 hours a week during academic sessions, and full-time during scheduled breaks.</p></details>
+  <details><summary>Is the Student Direct Stream still available?</summary><p>No. SDS was discontinued in 2024. Applications go through the standard stream, which is why the funds documentation matters more than it used to.</p></details>
+  <details><summary>Can my spouse work while I study?</summary><p>Spousal open work permits are now restricted to the spouses of master's and doctoral students and a small set of professional programmes. It is no longer automatic.</p></details>
+  <details><summary>When should I start?</summary><p>Nine to twelve months before your intended intake. The bottleneck is the permit, not the offer.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
   <p style="margin-top:26px"><a class="btn btn-primary" href="index.html#results">
     See programmes in Canada <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
 </div></section>
