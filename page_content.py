@@ -2379,8 +2379,15 @@ def apply_to(slug, page):
     # The stylesheet and the FAQ record, once each.
     if "GLOVELS-PAGE-COPY-CSS" not in t:
         t = t.replace("</head>", CSS + "</head>", 1)
-    t = re.sub(r'<script type="application/ld\+json">\{"@context":"https://schema\.org",'
-               r'"@type":"FAQPage".*?</script>', "", t, flags=re.S)
+    # Every FAQPage record already on the page, removed before a new one goes
+    # in. The first version of this matched `{"@context":"https://schema.org"`
+    # with no spaces, and json.dumps writes `{"@context": "https://schema.org"`
+    # WITH them — so it matched nothing, removed nothing, and every run left
+    # another copy behind. Four builds, four identical records on one page.
+    # Tolerant of whitespace now, and there is a test for the count.
+    t = re.sub(r'<script type="application/ld\+json">\s*\{\s*"@context"\s*:\s*'
+               r'"https://schema\.org"\s*,\s*"@type"\s*:\s*"FAQPage".*?</script>\n?',
+               "", t, flags=re.S)
     ld = jsonld(page)
     if ld:
         t = t.replace("</head>", ld + "\n</head>", 1)

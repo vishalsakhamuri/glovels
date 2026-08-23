@@ -384,7 +384,7 @@ function cleanLegal(v) {
   const f = v && typeof v === 'object' ? v : {};
   const o = f.officer && typeof f.officer === 'object' ? f.officer : {};
   return {
-    entity: str(f.entity, 120) || 'Glovels Consultants Private Limited',
+    entity: str(f.entity, 120) || 'Glovels Overseas Consultants Private Limited',
     cin: str(f.cin, 40).toUpperCase(),
     gstin: str(f.gstin, 20).toUpperCase(),
     /* Kept as typed, newlines and all — an address on one line is not an

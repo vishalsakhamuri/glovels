@@ -56,10 +56,15 @@ const SLUGS = [
        the worst kind of broken: nothing looks wrong anywhere. */
     const ld = await page.$$eval('script[type="application/ld+json"]',
       n => n.map(x => x.textContent));
-    const hasFaq = ld.some(t => {
+    const faqRecords = ld.filter(t => {
       try { return JSON.parse(t)['@type'] === 'FAQPage'; } catch (e) { return false; }
     });
-    if (!hasFaq) badLd.push(slug);
+    /* Exactly one. Not "at least one" — the generator appended a record on
+       every run for four builds because its removal regex was written without
+       the spaces json.dumps puts in, and nothing noticed. Counting is the only
+       check that would have caught it: the page looked right, parsed right,
+       and carried four identical records. */
+    if (faqRecords.length !== 1) badLd.push(slug + '×' + faqRecords.length);
 
     /* THE point. A page with two thousand words of copy that still carries
        "To write" tells the reader the copy is a placeholder. */
@@ -72,7 +77,7 @@ const SLUGS = [
     thin.length === 0, thin.join(' '));
   check('and questions under it, opening and closing',
     noFaq.length === 0, noFaq.join(' '));
-  check('marked up as an FAQPage, in JSON that parses',
+  check('marked up as exactly one FAQPage record, in JSON that parses',
     badLd.length === 0, badLd.join(' '));
   check('and no page still says the copy is to be written',
     stillToWrite.length === 0, stillToWrite.join(' '));
