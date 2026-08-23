@@ -2934,6 +2934,208 @@ document.querySelectorAll('.pw-row a').forEach(a => a.onclick = e => {""",
 )
 
 
+# ---------------------------------------------------------------- index.html
+#
+# Private and public become two tabs, and private opens first.
+#
+# The results were one list: private universities readable at the top, public
+# ones blurred below. A visitor's first sight of the finder was therefore a
+# column of grey bars — a paywall before anything of value. The private
+# universities are real, priced, and free to look at, so they go first and open
+# by default. The public ones keep their own tab, which is where the offer
+# lives rather than where it interrupts.
+patch(
+    "index.html",
+    "the results are split into two tabs",
+    """    <div class="banner gold" id="rBanner"></div>
+    <div class="rows-wrap" id="rowsWrap">""",
+    """    <div class="banner gold" id="rBanner"></div>
+    <div class="rtabs" role="tablist">
+      <button type="button" class="rtab on" data-rt="priv" role="tab" aria-selected="true">
+        Private <span class="rtn" id="rtnPriv">0</span>
+        <small>free to view, with prices</small></button>
+      <button type="button" class="rtab" data-rt="pub" role="tab" aria-selected="false">
+        Public <span class="rtn" id="rtnPub">0</span>
+        <small>tuition-free or close to it</small></button>
+    </div>
+    <div class="rows-wrap" id="rowsWrap">""",
+    marker='data-rt="priv"',
+)
+
+patch(
+    "index.html",
+    "the result tabs have a look",
+    ".lockword{display:inline-flex;align-items:center;gap:5px;font:700 10.6px/1 var(--sans);",
+    """.rtabs{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.rtab{appearance:none;cursor:pointer;text-align:left;flex:1;min-width:180px;
+  background:var(--paper);border:1.5px solid var(--line);border-radius:12px;
+  padding:11px 15px;font:700 14px/1.25 var(--sans);color:var(--navy-800);
+  transition:border-color .12s, background .12s, box-shadow .12s}
+.rtab:hover{border-color:var(--navy-600)}
+.rtab:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+.rtab.on{border-color:var(--navy-800);background:#fff;
+  box-shadow:inset 0 0 0 1px var(--navy-800)}
+.rtab small{display:block;margin-top:3px;font:400 11.6px/1.4 var(--sans);color:var(--muted)}
+.rtab .rtn{display:inline-block;margin-left:5px;font:700 11.4px/1 var(--sans);
+  padding:4px 7px;border-radius:20px;background:var(--cream);color:var(--navy-900)}
+.rtab.on .rtn{background:var(--navy-800);color:#fff}
+@media (max-width:520px){ .rtab{min-width:0;flex:1 1 100%} }
+.lockword{display:inline-flex;align-items:center;gap:5px;font:700 10.6px/1 var(--sans);""",
+    marker=".rtab.on .rtn{background:var(--navy-800)",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# The tabs actually filter, and the counts are real.
+patch(
+    "index.html",
+    "render splits the rows by tab",
+    """  const anyOpen = rows.some(r => !r.locked);
+  let markup = rows.length ? rows.map(rowHtml).join('')
+    : '<div class="empty"><b>Nothing matches those filters</b>Widen the field or level, or clear the CGPA band.</div>';""",
+    """  /* Counted from everything that matched, not from what this tab is showing —
+     the number on a tab is the reason to press it. */
+  const privAll = rows.filter(r => !r.isPublic);
+  const pubAll = rows.filter(r => r.isPublic);
+  $('#rtnPriv') && ($('#rtnPriv').textContent = privAll.length);
+  $('#rtnPub') && ($('#rtnPub').textContent = pubAll.length);
+  $$('.rtab').forEach(b => {
+    const on = b.dataset.rt === resTab;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+
+  const shownRows = resTab === 'pub' ? pubAll : privAll;
+  const anyOpen = shownRows.some(r => !r.locked);
+  let markup = shownRows.length ? shownRows.map(rowHtml).join('')
+    : resTab === 'priv'
+      ? '<div class="empty"><b>No private universities match those filters</b>'
+        + 'There are ' + pubAll.length + ' public ones — the other tab. Or widen the field, '
+        + 'the level, or the CGPA band.'
+        + (pubAll.length ? '<div style="margin-top:14px"><button type="button" '
+          + 'class="btn btn-ghost btn-sm" data-rt-go="pub">See the public matches'
+          + ico('arrow') + '</button></div>' : '') + '</div>'
+      : '<div class="empty"><b>No public universities match those filters</b>'
+        + 'There are ' + privAll.length + ' private ones you can read right now — the other '
+        + 'tab.' + (privAll.length ? '<div style="margin-top:14px"><button type="button" '
+          + 'class="btn btn-ghost btn-sm" data-rt-go="priv">See those' + ico('arrow')
+          + '</button></div>' : '') + '</div>';""",
+    marker="const shownRows = resTab === 'pub' ? pubAll : privAll;",
+)
+
+patch(
+    "index.html",
+    "the every-match-is-public note belongs to the public tab only",
+    """  if(rows.length && !anyOpen){""",
+    """  if(resTab === 'pub' && shownRows.length && !anyOpen){""",
+    marker="if(resTab === 'pub' && shownRows.length && !anyOpen){",
+)
+
+patch(
+    "index.html",
+    "pressing a tab changes the tab",
+    """  $$('[data-goto-pkg]').forEach(b => b.onclick = () => showPackages());""",
+    """  $$('[data-rt-go]').forEach(b => b.onclick = () => {
+    resTab = b.dataset.rtGo; render();
+  });
+  $$('[data-goto-pkg]').forEach(b => b.onclick = () => showPackages());""",
+    marker="resTab = b.dataset.rtGo; render();",
+)
+
+patch(
+    "index.html",
+    "the tab a visitor lands on is the one with something to read",
+    """function render(){
+  const list = filtered(), rows = visibleRows(list);""",
+    """/* Private first, deliberately. A visitor's first sight of the finder used to be
+   a column of blurred bars — a paywall before anything of value. These are real
+   universities with real prices and they cost nothing to show. */
+let resTab = 'priv';
+
+function render(){
+  const list = filtered(), rows = visibleRows(list);""",
+    marker="let resTab = 'priv';",
+)
+
+patch(
+    "index.html",
+    "the tab bar is wired up",
+    """$('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };""",
+    """$$('.rtab').forEach(b => b.onclick = () => { resTab = b.dataset.rt; render(); });
+$('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };""",
+    marker="$$('.rtab').forEach(b => b.onclick",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# Two things visible in one screenshot of the finder.
+#
+# "M.Sc. Robotics &amp; Intelligent Systems" — the ampersand was stored as an
+# HTML entity in the catalogue and then escaped again on the way out, so the
+# markup showed up as text. Three programme names carry it.
+#
+# And the unlocked banner read "Simulating , which covers 13" with a hole where
+# a package name should be, above the words "0 public universities unlocked"
+# while thirteen were. `paidName` is only set on the demo path; a real order
+# leaves it empty. The count was of rows visible in the CURRENT filter, which
+# is not what "unlocked" means to anybody reading it.
+patch(
+    "index.html",
+    "an ampersand in a programme name is an ampersand",
+    """function rowHtml(r){""",
+    """/* Undoes an HTML entity that was stored as data. The catalogue came from a
+   spreadsheet by way of a page, and three programme names kept the escaping
+   from that round trip — so `&amp;` was escaped again here and rendered as
+   itself. Decoding on the way in, rather than skipping the escape on the way
+   out, because the escape is what keeps a university name from being markup. */
+const unent = s => String(s == null ? '' : s)
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
+function rowHtml(r){""",
+    marker="const unent = s => String(s == null ? '' : s)",
+)
+
+patch(
+    "index.html",
+    "the unlocked banner says what is true",
+    """    const shownUnis = new Set(shown.filter(r => r.isPublic && !r.locked).map(r => r.uKey)).size;
+    return ['blue','unlock', shownUnis+' public universit'+(shownUnis===1?'y':'ies')+' unlocked',
+      '<b>Demo only — no payment was taken.</b> Simulating '+esc(paidName)+', which covers '
+      + unlocked + '. ' + (shownUnis < unlocked
+        ? 'Widen the filters to use the rest. '
+        : '') + 'Use <b>Lock again</b> above to go back to the locked view.'];""",
+    """    /* What the package bought, not what this filter happens to be showing. A
+       banner that says "0 unlocked" to somebody looking at their thirteen is
+       worse than no banner. */
+    const shownUnis = new Set(shown.filter(r => r.isPublic && !r.locked).map(r => r.uKey)).size;
+    const named = paidName ? esc(paidName) : 'your package';
+    return ['blue','unlock', unlocked+' public universit'+(unlocked===1?'y':'ies')+' unlocked',
+      named.charAt(0).toUpperCase() + named.slice(1) + ' covers ' + unlocked + '. '
+      + (shownUnis === 0
+          ? 'None of them match the filters you have set — widen them, or open the Public tab. '
+        : shownUnis < unlocked
+          ? 'You are looking at ' + shownUnis + ' of them; widen the filters for the rest. '
+          : '')
+      + 'Use <b>Lock again</b> above to go back to the locked view.'];""",
+    marker="What the package bought, not what this filter happens to be showing",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# And the decoder is actually used, on the two places a programme name is drawn.
+patch(
+    "index.html",
+    "the row uses the decoded programme name",
+    """    <div class="mname"><b>${esc(r.program)}</b><div class="msub">${esc(r.university)}${r.city?' · '+esc(r.city):''}</div></div>""",
+    """    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${esc(unent(r.university))}${r.city?' · '+esc(r.city):''}</div></div>""",
+    marker="esc(unent(r.program))",
+)
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and

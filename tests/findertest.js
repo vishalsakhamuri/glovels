@@ -133,6 +133,56 @@ const homeCounts = async ctx => {
   check('a negative exchange rate is refused rather than stored',
     !clamped.finder.fx.EUR || clamped.finder.fx.EUR > 0, String(clamped.finder.fx.EUR));
 
+  /* ---------------------------------------------- private first, then public
+     The results used to be one list with the public universities blurred at the
+     bottom, so a visitor's first sight of the finder was a column of grey bars
+     — a paywall before anything of value. */
+  const v = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } }))
+    .newPage();
+  const verrs = [];
+  v.on('pageerror', e => verrs.push(String(e)));
+  await v.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await v.waitForTimeout(2400);
+
+  check('the results have two tabs', (await v.$$('.rtab')).length === 2);
+  check('and the one that opens is Private',
+    (await v.$eval('.rtab.on', el => el.dataset.rt)) === 'priv',
+    await v.$eval('.rtab.on', el => el.dataset.rt));
+  check('so nothing a visitor sees first is blurred',
+    (await v.$$('#rowsIn .masked')).length === 0,
+    (await v.$$('#rowsIn .masked')).length + ' blurred rows');
+  check('every row on it is readable',
+    (await v.$$('#rowsIn .mrow')).length > 0,
+    (await v.$$('#rowsIn .mrow')).length + ' rows');
+
+  const pubCount = Number(await v.textContent('#rtnPub'));
+  check('the public tab says how many are behind it', pubCount > 0, pubCount);
+
+  await v.click('.rtab[data-rt="pub"]');
+  await v.waitForTimeout(700);
+  check('pressing it shows the public ones',
+    (await v.$$('#rowsIn .masked')).length > 0,
+    (await v.$$('#rowsIn .masked')).length + ' blurred');
+  check('and only the public ones — no private rows mixed in',
+    (await v.$$eval('#rowsIn .mtype.priv', els => els.length)) === 0);
+
+  await v.click('.rtab[data-rt="priv"]');
+  await v.waitForTimeout(700);
+  check('and back again shows only the private ones',
+    (await v.$$eval('#rowsIn .mtype.pub', els => els.length)) === 0);
+
+  /* An ampersand stored as an HTML entity was escaped twice and rendered as
+     "&amp;" in three programme names. */
+  await v.selectOption('#fCountry', 'DE');
+  await v.selectOption('#fLevel', 'master');
+  await v.click('#fGo');
+  await v.waitForTimeout(1600);
+  check('no HTML entity leaks into a programme name',
+    !(await v.innerText('#rowsIn')).includes('&amp;'),
+    ((await v.innerText('#rowsIn')).match(/&\w+;/) || [''])[0]);
+  check('no page errors on the finder', verrs.length === 0, verrs[0]);
+  await v.close();
+
   check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   await browser.close();

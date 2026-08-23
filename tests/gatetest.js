@@ -25,6 +25,11 @@ const asVisitor = async (browser) => {
   const p = await c.newPage();
   await p.goto(BASE + '/#results', { waitUntil: 'domcontentloaded' });
   await p.waitForTimeout(3000);
+  /* The results open on the Private tab now, so a visitor's first sight is real
+     universities rather than blurred bars. Everything this suite is about lives
+     on the other one. */
+  await p.click('.rtab[data-rt="pub"]').catch(() => {});
+  await p.waitForTimeout(900);
   const out = {
     source: await p.content(),
     results: await p.textContent('#results'),

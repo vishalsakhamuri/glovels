@@ -60,6 +60,10 @@ const watch = (page, errs) => {
   await p.waitForTimeout(2000);
   const matched = Number((await p.textContent('#rCount')).replace(/[^0-9]/g, '') || 0);
   check('the finder returns matches', matched > 0, matched + ' matches');
+  /* The Private tab opens first — real universities, readable. The gated ones
+     are the point of this check, so switch to them. */
+  await p.click('.rtab[data-rt="pub"]').catch(() => {});
+  await p.waitForTimeout(900);
   const table = await p.textContent('#rowsWrap');
   check('a public university is matched but not named',
     /Public|Unlocks with|package/i.test(table), table.slice(0, 90));

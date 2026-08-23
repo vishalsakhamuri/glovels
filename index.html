@@ -328,6 +328,20 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
    too, which is the whole thing this is here to avoid. */
 .offscreen{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
   clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+.rtabs{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.rtab{appearance:none;cursor:pointer;text-align:left;flex:1;min-width:180px;
+  background:var(--paper);border:1.5px solid var(--line);border-radius:12px;
+  padding:11px 15px;font:700 14px/1.25 var(--sans);color:var(--navy-800);
+  transition:border-color .12s, background .12s, box-shadow .12s}
+.rtab:hover{border-color:var(--navy-600)}
+.rtab:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+.rtab.on{border-color:var(--navy-800);background:#fff;
+  box-shadow:inset 0 0 0 1px var(--navy-800)}
+.rtab small{display:block;margin-top:3px;font:400 11.6px/1.4 var(--sans);color:var(--muted)}
+.rtab .rtn{display:inline-block;margin-left:5px;font:700 11.4px/1 var(--sans);
+  padding:4px 7px;border-radius:20px;background:var(--cream);color:var(--navy-900)}
+.rtab.on .rtn{background:var(--navy-800);color:#fff}
+@media (max-width:520px){ .rtab{min-width:0;flex:1 1 100%} }
 .lockword{display:inline-flex;align-items:center;gap:5px;font:700 10.6px/1 var(--sans);
   letter-spacing:.1em;text-transform:uppercase;color:#8a6a1f}
 .co-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
@@ -944,6 +958,14 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       </div>
     </div>
     <div class="banner gold" id="rBanner"></div>
+    <div class="rtabs" role="tablist">
+      <button type="button" class="rtab on" data-rt="priv" role="tab" aria-selected="true">
+        Private <span class="rtn" id="rtnPriv">0</span>
+        <small>free to view, with prices</small></button>
+      <button type="button" class="rtab" data-rt="pub" role="tab" aria-selected="false">
+        Public <span class="rtn" id="rtnPub">0</span>
+        <small>tuition-free or close to it</small></button>
+    </div>
     <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>
     <div class="rmore">
       <span class="hint" id="rHint"></span>
@@ -1469,6 +1491,15 @@ function visibleRows(list){
   return [...shownPub.map(reduce), ...shownPriv.map(p => ({...p, locked:false}))];
 }
 
+/* Undoes an HTML entity that was stored as data. The catalogue came from a
+   spreadsheet by way of a page, and three programme names kept the escaping
+   from that round trip — so `&amp;` was escaped again here and rendered as
+   itself. Decoding on the way in, rather than skipping the escape on the way
+   out, because the escape is what keeps a university name from being markup. */
+const unent = s => String(s == null ? '' : s)
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
 function rowHtml(r){
   const cc = r.country, ctry = C[cc];
   const type = `<div class="mtype ${r.isPublic?'pub':'priv'}">${r.isPublic?'Public':'Private'}</div>`;
@@ -1488,7 +1519,7 @@ function rowHtml(r){
     .toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
   return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
-    <div class="mname"><b>${esc(r.program)}</b><div class="msub">${esc(r.university)}${r.city?' · '+esc(r.city):''}</div></div>
+    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${esc(unent(r.university))}${r.city?' · '+esc(r.city):''}</div></div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice">${short(r.totalInr)}<small>${r.totalInr===0?'tuition':'total'}</small></div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
@@ -1508,12 +1539,19 @@ function banner(list, shown){
   if(!pubUnis) return ['blue','info','No public universities match yet',
     'These private matches are free to view, with prices. A counsellor can also map a pathway route.'];
   if(unlocked){
+    /* What the package bought, not what this filter happens to be showing. A
+       banner that says "0 unlocked" to somebody looking at their thirteen is
+       worse than no banner. */
     const shownUnis = new Set(shown.filter(r => r.isPublic && !r.locked).map(r => r.uKey)).size;
-    return ['blue','unlock', shownUnis+' public universit'+(shownUnis===1?'y':'ies')+' unlocked',
-      '<b>Demo only — no payment was taken.</b> Simulating '+esc(paidName)+', which covers '
-      + unlocked + '. ' + (shownUnis < unlocked
-        ? 'Widen the filters to use the rest. '
-        : '') + 'Use <b>Lock again</b> above to go back to the locked view.'];
+    const named = paidName ? esc(paidName) : 'your package';
+    return ['blue','unlock', unlocked+' public universit'+(unlocked===1?'y':'ies')+' unlocked',
+      named.charAt(0).toUpperCase() + named.slice(1) + ' covers ' + unlocked + '. '
+      + (shownUnis === 0
+          ? 'None of them match the filters you have set — widen them, or open the Public tab. '
+        : shownUnis < unlocked
+          ? 'You are looking at ' + shownUnis + ' of them; widen the filters for the rest. '
+          : '')
+      + 'Use <b>Lock again</b> above to go back to the locked view.'];
   }
   const free = (ctry && ctry.tuitionFree) || list.some(p => p.freeTuition);
   return ['gold','star','You qualify for '+pubUnis+' '+(free?'FREE ':'low-cost ')+'public universit'+(pubUnis===1?'y':'ies'),
@@ -1530,6 +1568,11 @@ function criteria(){
   return bits.join('');
 }
 
+/* Private first, deliberately. A visitor's first sight of the finder used to be
+   a column of blurred bars — a paywall before anything of value. These are real
+   universities with real prices and they cost nothing to show. */
+let resTab = 'priv';
+
 function render(){
   const list = filtered(), rows = visibleRows(list);
   const [tone,icn,title,body] = banner(list, rows);
@@ -1543,10 +1586,34 @@ function render(){
   $('#rCount').textContent = touched ? list.length+' programmes found' : rows.length+' popular programmes';
   $('#rCrit').innerHTML = touched ? criteria() : '';
   $('#relock').hidden = !unlocked;
-  const anyOpen = rows.some(r => !r.locked);
-  let markup = rows.length ? rows.map(rowHtml).join('')
-    : '<div class="empty"><b>Nothing matches those filters</b>Widen the field or level, or clear the CGPA band.</div>';
-  if(rows.length && !anyOpen){
+  /* Counted from everything that matched, not from what this tab is showing —
+     the number on a tab is the reason to press it. */
+  const privAll = rows.filter(r => !r.isPublic);
+  const pubAll = rows.filter(r => r.isPublic);
+  $('#rtnPriv') && ($('#rtnPriv').textContent = privAll.length);
+  $('#rtnPub') && ($('#rtnPub').textContent = pubAll.length);
+  $$('.rtab').forEach(b => {
+    const on = b.dataset.rt === resTab;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+
+  const shownRows = resTab === 'pub' ? pubAll : privAll;
+  const anyOpen = shownRows.some(r => !r.locked);
+  let markup = shownRows.length ? shownRows.map(rowHtml).join('')
+    : resTab === 'priv'
+      ? '<div class="empty"><b>No private universities match those filters</b>'
+        + 'There are ' + pubAll.length + ' public ones — the other tab. Or widen the field, '
+        + 'the level, or the CGPA band.'
+        + (pubAll.length ? '<div style="margin-top:14px"><button type="button" '
+          + 'class="btn btn-ghost btn-sm" data-rt-go="pub">See the public matches'
+          + ico('arrow') + '</button></div>' : '') + '</div>'
+      : '<div class="empty"><b>No public universities match those filters</b>'
+        + 'There are ' + privAll.length + ' private ones you can read right now — the other '
+        + 'tab.' + (privAll.length ? '<div style="margin-top:14px"><button type="button" '
+          + 'class="btn btn-ghost btn-sm" data-rt-go="priv">See those' + ico('arrow')
+          + '</button></div>' : '') + '</div>';
+  if(resTab === 'pub' && shownRows.length && !anyOpen){
     /* Every match is a public university, so there is nothing a visitor can read
        yet. Showing only blurred bars reads as a paywall; say what is happening. */
     markup += '<div class="empty" style="margin-top:4px"><b>Every match here is a public university</b>'
@@ -1556,6 +1623,9 @@ function render(){
       + 'Talk to a counsellor' + ico('arrow') + '</a></div></div>';
   }
   $('#rowsIn').innerHTML = markup;
+  $$('[data-rt-go]').forEach(b => b.onclick = () => {
+    resTab = b.dataset.rtGo; render();
+  });
   $$('[data-goto-pkg]').forEach(b => b.onclick = () => showPackages());
   $$('[data-req]').forEach(b => b.onclick = () => openReq(b.dataset.req));
   $$('[data-apply]').forEach(b => b.onclick = () => {
@@ -1951,6 +2021,7 @@ function applyFor(prog, uni){
   $('#applyBack').onclick = () => $('#buyModal').classList.remove('on');
 }
 
+$$('.rtab').forEach(b => b.onclick = () => { resTab = b.dataset.rt; render(); });
 $('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };
 
 /* What this visitor may see, asked once on load. The answer decides how many
