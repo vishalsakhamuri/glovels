@@ -39,8 +39,10 @@
  */
 
 const DAY = 864e5;
+const PLANS = require('./plans.js');
 
 const iso = d => new Date(d).toISOString();
+const inr = paise => '₹' + Number(Math.round((paise || 0) / 100)).toLocaleString('en-IN');
 const daysBetween = (a, b) => Math.round((new Date(a) - new Date(b)) / DAY);
 
 /* What a student has to have. Kept in step with the profile screen's own
@@ -197,6 +199,33 @@ function all(db, now) {
         });
       }
     }
+  }
+
+  /* ---- a part payment whose date has gone past ---- */
+  for (const o of db.allOrders()) {
+    if (o.status === 'paid') continue;
+    let plan = null;
+    try { plan = o.plan ? JSON.parse(o.plan) : null; } catch (e) { plan = null; }
+    if (!plan) continue;
+    const late = PLANS.overdue(plan, T);
+    if (!late.length) continue;
+    const st = o.student_id ? byId.get(Number(o.student_id)) : null;
+    const owner = st && st.counsellor_id ? Number(st.counsellor_id) : null;
+    const days = daysBetween(T, late[0].dueAt);
+    add({
+      kind: 'payment',
+      /* A week late is a conversation. A month late is a decision somebody
+         has to make about whether the work continues. */
+      urgency: days >= 30 ? 'now' : days >= 7 ? 'soon' : 'watch',
+      who: owner,
+      title: (o.name || (st && st.name) || 'A student') + ' — '
+        + inr(late.reduce((n, p) => n + Number(p.paise || 0), 0))
+        + ' overdue on ' + o.reference,
+      detail: late.map(p => p.label + ' (' + inr(p.paise) + ', due '
+        + String(p.dueAt).slice(0, 10) + ')').join(' · '),
+      subject: { studentId: o.student_id || null, reference: o.reference },
+      at: late[0].dueAt,
+    });
   }
 
   /* ---- a lead nobody has called, or a follow-up that was promised ---- */

@@ -186,4 +186,17 @@ CSS = """
   color:var(--muted)}
 .ord-a{font:700 12.4px/1.5 var(--sans);color:var(--navy-700);text-decoration:underline;
   white-space:nowrap}
+
+.ord-plan{flex-basis:100%;margin-top:10px;background:#f7f9fc;border:1px solid var(--line);
+  border-radius:11px;padding:12px 14px}
+.ord-plan > b{display:block;font:700 12.8px/1.4 var(--sans);color:var(--navy-900);
+  margin-bottom:9px}
+.ord-plan ul{display:grid;gap:7px;margin:0 0 10px;padding:0;list-style:none}
+.ord-plan li{display:grid;grid-template-columns:1fr auto 84px;gap:12px;align-items:baseline;
+  font-size:12.7px;color:var(--navy-800)}
+.ord-plan li.done{color:var(--muted)}
+.ord-plan li b{font-weight:700}
+.ord-plan li i{font-style:normal;font-size:11.4px;color:var(--muted);text-align:right}
+.ord-plan li.done i{color:#14603a}
+@media (max-width:520px){ .ord-plan li{grid-template-columns:1fr auto} .ord-plan li i{display:none} }
 """

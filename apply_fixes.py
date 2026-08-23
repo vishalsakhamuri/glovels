@@ -16,6 +16,7 @@ twice changes nothing and running it on an unpatched rebuild fixes it again.
 import os
 import pathlib
 import re
+import hashlib
 import sys
 
 import content_client
@@ -585,10 +586,38 @@ document.addEventListener('click', e => {
 
 # The loader itself, at the very end of the body, after the page's own scripts
 # have run and defined D.
-patch("index.html", "the live content loader",
-      "</body>",
-      "<script>\n" + content_client.SCRIPT.strip() + "\n</script>\n</body>",
-      marker="Glovels \u2014 live content")
+#
+# REPLACED, not skipped-if-present. index.html persists between builds, so a
+# guard that only ever adds leaves whatever version of the loader was written
+# the first time — and the loader is the thing that repaints the cards, the
+# prices and the packages from the server. An edit to content_client.py that
+# never reaches the page is the worst kind of change: the file says one thing
+# and the site does another.
+_loader = re.compile("<script>\\s*/\\*[-\\s]*\\n\\s*Glovels \u2014 live content.*?</script>\\n",
+                     re.S)
+_page = HERE / "index.html"
+_html = _page.read_text(encoding="utf-8")
+#
+# Compared by FINGERPRINT, not by text. Four later patches edit the loader in
+# place, so the copy on the page is never byte-identical to the source — and a
+# plain comparison replaced it on every single run, undoing those four and
+# re-applying them, for ever. The stamp says which version of
+# content_client.py the page was built from; equal means leave it alone.
+_stamp = hashlib.sha256(content_client.SCRIPT.encode("utf-8")).hexdigest()[:12]
+_fresh = ("<script>\n/* content_client " + _stamp + " */\n"
+          + content_client.SCRIPT.strip() + "\n</script>\n")
+_found = _loader.search(_html)
+if _found:
+    if ("/* content_client " + _stamp + " */") in _found.group(0):
+        skipped.append("index.html: the live content loader")
+    else:
+        write(_page, _html.replace(_found.group(0), _fresh, 1))
+        applied.append("index.html: the live content loader (content_client.py changed)")
+else:
+    patch("index.html", "the live content loader",
+          "</body>",
+          _fresh + "</body>",
+          marker="Glovels \u2014 live content")
 
 
 # The message when the server cannot be reached said the server was not running,
@@ -3530,6 +3559,174 @@ patch("index.html", "and sends it",
         }),""",
       marker="""          phone: $('#scPhone').value.trim(),
           /* The tick, and nothing about what it said""")
+
+
+# ---------------------------------------------------------------------------
+# Paying in parts.
+#
+# A student who has just decided to go abroad is asked for ₹74,999 in one press,
+# months before the first application is filed. Some of them can. The ones who
+# cannot do not say so — they close the tab, and it is counted as a page that
+# did not convert.
+#
+# The schedule is worked out on the server, from the server's price. The page
+# shows the same arithmetic so the choice can be made before the request, and
+# the server is what decides.
+
+patch("index.html", "the checkout arithmetic for parts",
+      """const BASE_ACCEPTANCE = 'I have read and accept the Terms of Service, the Refund '
+  + '& Cancellation policy and the Privacy policy.';""",
+      """const BASE_ACCEPTANCE = 'I have read and accept the Terms of Service, the Refund '
+  + '& Cancellation policy and the Privacy policy.';
+
+/*
+ * The instalments, mirrored from server/plans.js.
+ *
+ * Two copies of arithmetic is a risk worth naming: this one exists so the
+ * choice can be made and priced BEFORE the request, and the server's copy is
+ * the one that decides what is charged. If they ever disagree, the server
+ * wins and the student pays what the server said.
+ */
+const PART_THRESHOLD_INR = 10000;
+const PART_PHASES = [
+  { label: 'To start', percent: 40 },
+  { label: 'When your applications go in', percent: 30 },
+  { label: 'When your offer is in hand', percent: 30 },
+];
+
+function canSplit(inr){ return Number(inr || 0) > PART_THRESHOLD_INR; }
+
+function partsFor(inr){
+  if(!canSplit(inr)) return null;
+  const gross = Math.round(inr);
+  let spent = 0;
+  return PART_PHASES.map((r, i) => {
+    const last = i === PART_PHASES.length - 1;
+    const amount = last ? gross - spent : Math.round(gross * r.percent / 100);
+    spent += amount;
+    return { n: i + 1, label: r.label, inr: amount };
+  });
+}""",
+      marker="function partsFor(inr){")
+
+patch("index.html", "the checkout offers to spread it",
+      """    + '<div class="co-fields"><b>Where should we send it?</b>'
+    + '<div class="fld"><label for="rqName">Full name *</label>'
+      + '<input id="rqName" style="cursor:text" placeholder="Your name">'""",
+      """    + (partsFor(gross)
+        ? '<div class="paychoice" id="payChoice">'
+          + '<label class="paypick on"><input type="radio" name="payin" value="full" checked>'
+            + '<span><b>Pay in full</b><i>₹' + nf.format(gross) + ' today</i></span></label>'
+          + '<label class="paypick"><input type="radio" name="payin" value="parts">'
+            + '<span><b>Pay in ' + partsFor(gross).length + ' parts</b><i>₹'
+            + nf.format(partsFor(gross)[0].inr) + ' today</i></span></label>'
+          + '</div>'
+          + '<div class="paysched" id="paySched" hidden><b>How it is split</b><ul>'
+          + partsFor(gross).map(p => '<li><span>' + esc(p.label) + '</span><b>₹'
+              + nf.format(p.inr) + '</b></li>').join('')
+          + '</ul><small>Nothing is charged automatically. We ask for each part when '
+          + 'the work it pays for is done, and it is on your dashboard the whole '
+          + 'time.</small></div>'
+        : '')
+    + '<div class="co-fields"><b>Where should we send it?</b>'
+    + '<div class="fld"><label for="rqName">Full name *</label>'
+      + '<input id="rqName" style="cursor:text" placeholder="Your name">'""",
+      marker='id="payChoice"')
+
+patch("index.html", "picking parts changes what the button says",
+      """  $('#buyPay').disabled = false;
+  $('#buyPay').innerHTML = 'Confirm — ₹' + nf.format(gross);
+  open('#buyModal');
+});""",
+      """  $('#buyPay').disabled = false;
+  $('#buyPay').innerHTML = 'Confirm — ₹' + nf.format(gross);
+
+  /* The button says what is about to be charged, not what the package costs.
+     "Confirm — ₹74,999" under a chosen instalment plan is the one sentence
+     that would make somebody close the tab. */
+  const parts = partsFor(gross);
+  if (parts) {
+    $$('[name="payin"]').forEach(r => r.onchange = () => {
+      const inParts = r.value === 'parts' && r.checked;
+      $$('.paypick').forEach(l => l.classList.toggle('on',
+        l.contains(l.querySelector('input')) && l.querySelector('input').checked));
+      $('#paySched').hidden = !inParts;
+      $('#buyPay').innerHTML = 'Confirm — ₹'
+        + nf.format(inParts ? parts[0].inr : gross);
+    });
+  }
+  open('#buyModal');
+});""",
+      marker="The button says what is about to be charged")
+
+patch("index.html", "and the order says which it is",
+      """      acceptedTerms: true,
+      sourcePage: location.pathname, referrer: document.referrer || 'direct'""",
+      """      acceptedTerms: true,
+      /* Which of the two they picked. The server works the schedule out from
+         its own price — this says only "spread it", never how. */
+      payIn: (document.querySelector('[name="payin"]:checked') || {}).value === 'parts'
+        ? 'parts' : 'full',
+      sourcePage: location.pathname, referrer: document.referrer || 'direct'""",
+      marker="payIn: (document.querySelector")
+
+patch("index.html", "the confirmation says what was charged and what is left",
+      """    ref = d.reference;                       /* the server's reference, not ours */
+    $('#buyRef') && ($('#buyRef').textContent = ref);""",
+      """    ref = d.reference;                       /* the server's reference, not ours */
+    $('#buyRef') && ($('#buyRef').textContent = ref);
+    /* An order paid in parts must not show the full price as if it had been
+       taken. The server sends what it charged and what is left. */
+    if (d.plan && d.outstandingPaise) {
+      const head = $('#buyT');
+      if (head) head.textContent = 'Part 1 of ' + d.plan.length + ' — ' + buying.name;
+    }""",
+      marker="Part 1 of ' + d.plan.length")
+
+# The card says it, because a price somebody cannot afford is a card they do
+# not read to the end of.
+patch("index.html", "the package card says part payment is possible",
+      """.co-line{display:flex;justify-content:space-between;""",
+      """.paychoice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 0}
+@media (max-width:520px){ .paychoice{grid-template-columns:1fr} }
+.paypick{display:flex;gap:9px;align-items:flex-start;border:1.5px solid #d8dde4;
+  border-radius:12px;padding:12px 14px;cursor:pointer;background:#fff}
+.paypick.on{border-color:var(--navy-700);box-shadow:0 0 0 3px rgba(19,56,92,.09)}
+.paypick input{width:auto;height:auto;margin-top:3px}
+.paypick b{display:block;font:700 13.4px/1.4 var(--sans);color:var(--navy-900)}
+.paypick i{display:block;font-style:normal;font-size:12.2px;color:var(--muted);
+  margin-top:2px}
+.paysched{margin:12px 0 0;background:#f7f9fc;border:1px solid var(--line);
+  border-radius:12px;padding:13px 15px}
+.paysched b{display:block;font:700 12.2px/1 var(--sans);letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.paysched ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.paysched li{display:flex;justify-content:space-between;gap:12px;font-size:13.2px;
+  color:var(--navy-800)}
+.paysched small{display:block;margin-top:10px;font-size:11.6px;color:var(--muted);
+  line-height:1.55}
+.partline{display:flex;gap:7px;align-items:center;margin-top:9px;font:600 12.2px/1.5 var(--sans);
+  color:#14603a;background:#eaf6ee;border:1px solid #bfe0cc;border-radius:9px;
+  padding:7px 11px}
+.co-line{display:flex;justify-content:space-between;""",
+      marker=".paychoice{display:grid")
+
+
+# The three study cards in the page itself say it too. The content loader
+# repaints them from the server on every visit, but the page has to be right
+# before that arrives — and right when the server is down.
+for _pkg, _first in [("pkg-offer", "20,000"), ("pkg-boarding", "30,000")]:
+    patch(
+        "index.html",
+        "the " + _pkg + " card says part payment is possible",
+        '<div class="card-foot prow-cta"><div class="price"><span class="from">From</span>'
+        + ("₹49,999" if _pkg == "pkg-offer" else "₹74,999"),
+        '<div class="partline"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>'
+        '<span>Part payment possible — ₹' + _first + ' to start</span></div>'
+        '</div><div class="card-foot prow-cta"><div class="price"><span class="from">From</span>'
+        + ("₹49,999" if _pkg == "pkg-offer" else "₹74,999"),
+        marker="₹" + _first + " to start",
+    )
 
 
 # The summary, and it has to be the LAST thing in the file.

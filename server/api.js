@@ -27,6 +27,7 @@ const SHEET = require('./sheet.js');
 const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
+const PLANS = require('./plans.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 
 const DAY = 864e5;
@@ -45,6 +46,19 @@ const FALLBACK_PACKAGES = {
 };
 
 const GST_RATE = 0.18;
+
+/*
+ * The order states that have bought something.
+ *
+ * `paid` is obvious. `owing` counts because it is the state on a site with no
+ * gateway, where a counsellor collects and the office has decided the student
+ * may proceed. `part` counts because the student HAS paid — the first
+ * instalment is money in the account and the work has started; withholding
+ * what they bought until the last part lands would make paying in parts
+ * pointless. `awaiting` does not: a gateway is mid-collection and has confirmed
+ * nothing.
+ */
+const EARNED = new Set(['paid', 'owing', 'part']);
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -259,6 +273,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         /* What was in it. An order placed before this column existed has none,
            and shows as it always did — the package name and the total. */
         items: (() => { try { return JSON.parse(o.items || '[]') || []; } catch (e) { return []; } })(),
+        /* The schedule, for an order being paid in parts: what has been paid,
+           what is next, and when. A student who agreed to pay in three parts
+           and cannot see the other two on their own screen has been given a
+           debt rather than a plan. */
+        plan: (() => { try { return o.plan ? JSON.parse(o.plan) : null; } catch (e) { return null; } })(),
+        paidPaise: o.paid_paise || 0,
       })),
     };
   }
@@ -512,7 +532,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (s && s.role === 'student') {
       if (p.isPublic) {
         const earned = db.ordersFor(s.id)
-          .filter(o => o.status === 'paid' || o.status === 'owing');
+          .filter(o => EARNED.has(o.status));
         const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
         const list = db.getShortlist(s.id);
         const already = list.some(x => String(x.prog_id) === String(p.id));
@@ -813,6 +833,45 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     };
   }
 
+  /*
+   * Money arriving against an order that is being paid in parts.
+   *
+   * One place, because there are three ways it can arrive — the browser coming
+   * back from the card sheet, the gateway's webhook, and a counsellor writing
+   * down a bank transfer — and three copies of "mark it paid and work out
+   * whether that was the last one" is how a student ends up owing nothing and
+   * still being chased.
+   */
+  const planOf = order => {
+    try { return order.plan ? JSON.parse(order.plan) : null; } catch (e) { return null; }
+  };
+
+  function recordPayment(order, paymentId, which) {
+    const plan = planOf(order);
+    if (!plan) {
+      /* Paid in one go: the order is simply paid. */
+      db.setOrderPaid(order.reference, paymentId || '');
+      return { status: 'paid', plan: null, outstanding: 0 };
+    }
+    const part = which
+      ? plan.find(p => Number(p.n) === Number(which) && p.status !== 'paid')
+      : PLANS.nextDue(plan);
+    if (part) {
+      part.status = 'paid';
+      part.paidAt = new Date().toISOString();
+      if (paymentId) part.paymentId = String(paymentId).slice(0, 60);
+    }
+    const got = PLANS.collected(plan);
+    const left = PLANS.outstanding(plan);
+    db.setOrderPlan(order.reference, plan, got);
+    /* `part` is a status of its own. It is not `paid` — money is still owed —
+       and it is not `owing`, which would read as nothing having arrived. The
+       entitlement treats it like a paid order, because the work has started. */
+    if (left <= 0) db.setOrderPaid(order.reference, paymentId || '');
+    else db.setOrderStatus(order.reference, 'part');
+    return { status: left <= 0 ? 'paid' : 'part', plan, outstanding: left, collected: got };
+  }
+
   route('POST', '/api/orders', async (req, res) => {
     const b = await readJson(req);
 
@@ -897,8 +956,25 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     }
     const accepted = acceptanceRecord({ req, line: consentLine, pkg, name, email });
 
+    /*
+     * Paying in parts.
+     *
+     * Anything over ₹10,000 may be spread. The schedule is worked out here,
+     * from our own price and our own phases — a browser asking to pay ₹1 of
+     * ₹74,999 "in parts" is asking for the schedule to come from the request,
+     * and it does not.
+     */
+    const canSplit = pkg && PLANS.allowed(gross);
+    const inParts = canSplit && b.payIn === 'parts';
+    const plan = inParts ? PLANS.split(gross, pkg, Date.now()) : null;
+    /* The gateway collects the first part, not the total. This is the number
+       that has to be right: charging the full amount and calling it an
+       instalment is the worst possible version of this feature. */
+    const chargeNow = plan ? plan[0].paise : gross;
+
     const collecting = pay.enabled;
     const order = db.addOrder({
+      plan,
       studentId: s ? s.id : null, reference, package: label,
       publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
       status: collecting ? 'awaiting' : 'owing', kind: pkg ? 'package' : 'services',
@@ -914,11 +990,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (collecting) {
       try {
         const made = await pay.createOrder({
-          amountPaise: gross,
+          amountPaise: chargeNow,
           receipt: reference,
-          notes: { reference, email, package: label },
+          notes: { reference, email, package: label,
+            part: plan ? '1 of ' + plan.length : 'in full' },
         });
-        rzp = { orderId: made.id, keyId: pay.keyId, amountPaise: gross };
+        rzp = { orderId: made.id, keyId: pay.keyId, amountPaise: chargeNow };
         db.setOrderGateway(reference, made.id);
       } catch (e) {
         /* The gateway is down or misconfigured. The order still exists and a
@@ -1006,6 +1083,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
          decides which confirmation to show from this and nothing else. */
       razorpay: rzp,
       status: rzp ? 'awaiting' : 'owing',
+      /* The schedule, so the confirmation can say what was charged now and
+         what is left rather than showing the full price against a payment that
+         was a fraction of it. */
+      plan,
+      chargedNowPaise: chargeNow,
+      outstandingPaise: plan ? gross - plan[0].paise : 0,
+      /* Whether this could have been split, so the page knows to offer it. */
+      canSplit: !!canSplit,
     }, sessionCookieHeader ? { 'Set-Cookie': sessionCookieHeader } : undefined);
   }, { open: true });
 
@@ -1045,9 +1130,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       });
     }
 
-    db.setOrderPaid(reference, String(b.razorpay_payment_id || ''));
-    db.log('system', 'Payment confirmed', reference + ' — ' + inrOf(order.gross_paise));
-    return json(res, 200, { status: 'paid', reference });
+    const done = recordPayment(order, String(b.razorpay_payment_id || ''));
+    db.log('system', 'Payment confirmed', reference + ' — '
+      + inrOf(done.plan ? (done.collected || 0) : order.gross_paise)
+      + (done.outstanding ? ' (' + inrOf(done.outstanding) + ' still to come)' : ''));
+    return json(res, 200, {
+      status: done.status, reference,
+      outstandingPaise: done.outstanding, plan: done.plan,
+    });
   }, { open: true });
 
   /*
@@ -1088,15 +1178,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     if (event === 'payment.captured') {
       /* The amount is checked, not assumed. A payment for less than the order
-         is not that order being paid. */
-      if (Number(entity.amount || 0) !== Number(order.gross_paise || 0)) {
+         is not that order being paid — unless the order is being paid in
+         parts, in which case the amount has to match a part that is still
+         owed, and it settles THAT part rather than the order. */
+      const amount = Number(entity.amount || 0);
+      const parts = planOf(order);
+      const part = parts && parts.find(x => x.status !== 'paid' && Number(x.paise) === amount);
+      if (!part && amount !== Number(order.gross_paise || 0)) {
         db.log('system', 'Webhook amount mismatch',
-          order.reference + ': gateway says ' + entity.amount + ', order is ' + order.gross_paise);
+          order.reference + ': gateway says ' + amount + ', order is ' + order.gross_paise
+          + (parts ? ' and no unpaid part is that size' : ''));
         return json(res, 200, { ok: true, note: 'amount mismatch, left alone' });
       }
       if (order.status !== 'paid') {
-        db.setOrderPaid(order.reference, entity.id || '');
-        db.log('system', 'Payment captured', order.reference + ' — ' + inrOf(order.gross_paise));
+        const done = recordPayment(order, entity.id || '', part ? part.n : null);
+        db.log('system', 'Payment captured', order.reference + ' — ' + inrOf(amount)
+          + (done.outstanding ? ' (' + inrOf(done.outstanding) + ' still to come)' : ''));
       }
     } else if (event === 'payment.failed' && order.status !== 'paid') {
       db.setOrderStatus(order.reference, 'failed');
@@ -1152,6 +1249,52 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     }, { open: true, soft: true });
 
   route('GET', '/api/orders', async (req, res, s) => json(res, 200, { orders: stateFor(s).orders }));
+
+  /*
+   * The next part, paid by the student.
+   *
+   * A schedule the student can see and cannot act on is a bill. This makes a
+   * fresh gateway order for the part that is due — for ITS amount, worked out
+   * here — and the card sheet opens on the dashboard the same way it does at
+   * the checkout.
+   */
+  route('POST', /^\/api\/orders\/(GLV-\d+)\/pay-part$/, async (req, res, s) => {
+    const order = db.orderByReference(String(req.url.split('/')[3]));
+    if (!order) return json(res, 404, { error: 'No such order' });
+    if (Number(order.student_id) !== Number(s.id)) {
+      return json(res, 403, { error: 'That order is not yours' });
+    }
+    const plan = planOf(order);
+    if (!plan) return json(res, 409, { error: 'That order is not being paid in parts.' });
+    const part = PLANS.nextDue(plan);
+    if (!part) return json(res, 409, { error: 'It is all paid.' });
+    if (!pay.enabled) {
+      return json(res, 409, {
+        error: 'Card payment is not switched on yet. Your counsellor can take this part '
+             + 'and record it against your order.',
+      });
+    }
+    try {
+      const made = await pay.createOrder({
+        amountPaise: part.paise,
+        receipt: order.reference + '-' + part.n,
+        notes: { reference: order.reference, part: part.n + ' of ' + plan.length },
+      });
+      /* The gateway id is stored so the webhook can find this order when it
+         arrives — the webhook has nothing but the gateway's own identifiers. */
+      db.setOrderGateway(order.reference, made.id);
+      return json(res, 200, {
+        reference: order.reference,
+        razorpay: { orderId: made.id, keyId: pay.keyId, amountPaise: part.paise },
+        part: { n: part.n, label: part.label, paise: part.paise },
+      });
+    } catch (e) {
+      return json(res, 502, {
+        error: 'The card system did not answer. Try again in a minute, or your counsellor '
+             + 'can take this part over the phone.',
+      });
+    }
+  });
 
   /* ----------------------------------------------------------- enquiries */
 
@@ -1576,7 +1719,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
      * `awaiting` does not: a gateway is mid-collection and has not confirmed.
      */
     const me_orders = me_ ? db.ordersFor(me_.id) : [];
-    const earned = me_orders.filter(o => o.status === 'paid' || o.status === 'owing');
+    const earned = me_orders.filter(o => EARNED.has(o.status));
     const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
     let spent = 0;
 
@@ -2079,6 +2222,50 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
    * find out what somebody had bought. Orders placed by a visitor who had not
    * signed up were not even counted.
    */
+  /*
+   * The next part, collected by a counsellor.
+   *
+   * Bank transfer, UPI to the office account, cash at the desk — most of this
+   * money will arrive that way for a while yet. Writing it down here is what
+   * makes the student's screen and the order book agree.
+   */
+  route('POST', /^\/api\/staff\/order\/(GLV-\d+)\/part$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const order = db.orderByReference(m[1]);
+      if (!order) return json(res, 404, { error: 'No such order' });
+      const plan = planOf(order);
+      if (!plan) return json(res, 409, { error: 'That order is not being paid in parts.' });
+      const b = await readJson(req);
+      const next = PLANS.nextDue(plan);
+      if (!next && !b.n) return json(res, 409, { error: 'It is all paid.' });
+      const which = Number(b.n || 0) || (next || {}).n;
+      const part = plan.find(x => Number(x.n) === Number(which));
+      if (!part) return json(res, 404, { error: 'No such part' });
+      if (part.status === 'paid') return json(res, 409, { error: 'That part is already paid.' });
+
+      const done = recordPayment(order, String(b.note || 'collected by ' + s.name).slice(0, 60),
+        part.n);
+      db.log(s.name, 'recorded a part payment',
+        order.reference + ' — part ' + part.n + ', ' + inrOf(part.paise)
+        + (done.outstanding ? ', ' + inrOf(done.outstanding) + ' still to come' : ', settled'));
+      /* The student is told on their own thread. Money arriving is the one
+         thing nobody should have to ask about. */
+      if (order.student_id) {
+        try {
+          db.addMessage(order.student_id, 'them',
+            'Received ' + inrOf(part.paise) + ' for ' + order.reference + ' — ' + part.label
+            + '. ' + (done.outstanding
+              ? inrOf(done.outstanding) + ' left on this package.'
+              : 'That settles it, thank you.'));
+          live.toStudent(order.student_id, 'message', {});
+        } catch (e) { /* the payment is recorded either way */ }
+      }
+      return json(res, 200, {
+        reference: order.reference, status: done.status,
+        plan: done.plan, outstandingPaise: done.outstanding,
+      });
+    }));
+
   route('GET', '/api/staff/orders', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const byId = new Map(db.allStudents().map(st => [st.id, st]));
@@ -2105,6 +2292,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
           try { return o.accepted ? (JSON.parse(o.accepted).at || '') : ''; }
           catch (e) { return ''; }
         })(),
+        /* The schedule and what is still owed. An order book that shows
+           ₹74,999 against an order where ₹30,000 has arrived is a revenue
+           figure nobody can act on. */
+        plan: (() => {
+          try { return o.plan ? JSON.parse(o.plan) : null; } catch (e) { return null; }
+        })(),
+        paidPaise: o.paid_paise || 0,
         at: o.created_at,
         /* Whether this order has an account behind it yet. A guest order is not
            a problem — it is the normal path — but it is the one somebody has to

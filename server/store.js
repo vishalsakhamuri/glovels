@@ -322,6 +322,13 @@ function sqliteDriver(file) {
       words that were on the screen, the documents as they read that day, and
       a fingerprint that shows neither has been edited since. */
    "ALTER TABLE orders ADD COLUMN accepted TEXT NOT NULL DEFAULT ''",
+   /* The instalments, as JSON, and what has actually been received.
+      A schedule is not a property of the package — it is a property of THIS
+      order, agreed at the checkout and then chased for months, so it has to be
+      stored rather than recomputed from a price that may have changed twice by
+      the time the last part is collected. */
+   "ALTER TABLE orders ADD COLUMN plan TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE orders ADD COLUMN paid_paise INTEGER NOT NULL DEFAULT 0",
    /* Where the lead came from — a Facebook ad, a WhatsApp message, a Google
       search, the chat box, a blog post, or somebody who walked in. Every
       enquiry landed in one undifferentiated list, so "which of these is
@@ -667,16 +674,25 @@ function open(dir) {
     /* ---- orders ---- */
     addOrder(o) {
       db.run(`INSERT INTO orders
-        (student_id, reference, package, public_unis, gross_paise, name, email, phone, status, created_at, items, kind, accepted)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (student_id, reference, package, public_unis, gross_paise, name, email, phone, status, created_at, items, kind, accepted, plan, paid_paise)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         o.studentId ? Number(o.studentId) : null, o.reference, o.package,
         Number(o.publicUnis || 0), Number(o.grossPaise || 0),
         o.name || '', String(o.email || '').toLowerCase(), o.phone || '', o.status || 'paid', now(),
         JSON.stringify(o.items || []), o.kind || 'package',
-        o.accepted ? JSON.stringify(o.accepted) : '');
+        o.accepted ? JSON.stringify(o.accepted) : '',
+        o.plan ? JSON.stringify(o.plan) : '', Number(o.paidPaise || 0));
       return db.one('SELECT * FROM orders WHERE reference = ?', o.reference);
     },
     ordersFor: id => db.all('SELECT * FROM orders WHERE student_id = ? ORDER BY id desc', Number(id)),
+    /* The schedule and the running total, written together — a plan that says
+       a part is paid and a total that has not moved is a reconciliation nobody
+       can do. */
+    setOrderPlan(reference, plan, paidPaise) {
+      db.run('UPDATE orders SET plan = ?, paid_paise = ? WHERE reference = ?',
+        plan ? JSON.stringify(plan) : '', Number(paidPaise || 0), String(reference));
+      return db.one('SELECT * FROM orders WHERE reference = ?', String(reference));
+    },
     /*
      * EVERY order, including the ones nobody has signed up for yet.
      *

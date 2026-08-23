@@ -354,11 +354,18 @@ function paintOrders() {
         esc(o.email || '') + (o.phone ? ' \u00b7 ' + esc(o.phone) : '') + '</span></td>' +
       '<td style="max-width:320px">' + what + '</td>' +
       '<td style="text-align:right;white-space:nowrap"><b>' + inrPaise(o.grossPaise) + '</b>' +
+        /* Being paid in parts: what has arrived, and what has not. */
+        (o.plan && o.plan.length
+          ? '<span style="display:block;margin-top:2px;font-size:11.4px;color:var(--muted)">' +
+            inrPaise(o.paidPaise || 0) + ' in \u00b7 ' +
+            inrPaise((o.grossPaise || 0) - (o.paidPaise || 0)) + ' to come</span>'
+          : '') +
         /* Paid, owed, or half way through a card payment. Before there was a
            gateway every order said "paid" and none of them were; now the word
            means what it says. */
         '<span style="display:block;margin-top:3px">' + ({
           paid: '<span class="st ok">paid</span>',
+          part: '<span class="st wait">part paid</span>',
           owing: '<span class="st wait">to collect</span>',
           awaiting: '<span class="st wait">card started</span>',
           failed: '<span class="st bad">card failed</span>',

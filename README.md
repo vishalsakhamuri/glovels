@@ -298,6 +298,7 @@ Content changes — prices, copy, programmes, countries — belong in the workbo
 | `server/alerts.js` | Deadlines, silence, half-finished files and missed follow-ups |
 | `server/digest.js` | One email a morning, to the people who can act on it |
 | `server/prose.js` | What the office types, turned into what a reader sees |
+| `server/plans.js` | Paying in parts: the phases, the arithmetic, what is owed |
 | `portal_*.py` | One file per portal screen: its markup and its behaviour |
 
 **After any rebuild of the marketing pages, run both:**

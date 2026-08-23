@@ -721,6 +721,30 @@ function __dashOrders(s) {
   const WORD = { paid: 'Paid', owing: 'To pay', awaiting: 'Card started',
     failed: 'Card failed' };
 
+  /* The instalments, where the student can see them.
+     A schedule they agreed to and cannot look at is a debt, not a plan — and
+     the first question a counsellor gets is "how much is left". */
+  const schedule = o => {
+    if (!o.plan || !o.plan.length) return '';
+    const left = o.plan.filter(x => x.status !== 'paid')
+      .reduce((n, x) => n + Number(x.paise || 0), 0);
+    const next = o.plan.find(x => x.status !== 'paid');
+    return '<div class="ord-plan"><b>'
+      + (left ? money(left) + ' left of ' + money(o.grossPaise) : 'Paid in full')
+      + '</b><ul>'
+      + o.plan.map(x =>
+          '<li class="' + (x.status === 'paid' ? 'done' : '') + '">'
+          + '<span>' + esc3(x.label) + (x.dueAt && x.status !== 'paid'
+              ? ' · by ' + when(x.dueAt) : '') + '</span>'
+          + '<b>' + money(x.paise) + '</b>'
+          + '<i>' + (x.status === 'paid' ? 'paid ' + when(x.paidAt) : 'to come') + '</i>'
+          + '</li>').join('')
+      + '</ul>'
+      + (next ? '<button type="button" class="btn btn-primary btn-sm" data-paypart="'
+          + esc3(o.reference) + '">Pay ' + money(next.paise) + ' now</button>' : '')
+      + '</div>';
+  };
+
   const el = document.createElement('div');
   el.className = 'ord-card';
   el.innerHTML = '<b class="ord-h">Your orders</b><ul>'
@@ -730,8 +754,39 @@ function __dashOrders(s) {
         + '<span class="ord-r"><b>' + money(o.grossPaise) + '</b>'
         + '<span class="ord-st">' + esc3(WORD[o.status] || o.status || '') + '</span></span>'
         + '<a class="ord-a" href="/acceptance/' + encodeURIComponent(o.reference) + '">'
-        + 'What I accepted</a></li>').join('')
+        + 'What I accepted</a>'
+        + schedule(o) + '</li>').join('')
     + '</ul>';
+
+  /* Paying the next part opens the same card sheet the checkout uses. The
+     amount comes back from the server; nothing here decides what to charge. */
+  el.addEventListener('click', async ev => {
+    const b = ev.target.closest('[data-paypart]');
+    if (!b) return;
+    b.disabled = true;
+    const was = b.textContent;
+    b.textContent = 'One moment…';
+    try {
+      const r = await fetch('/api/orders/' + encodeURIComponent(b.dataset.paypart)
+        + '/pay-part', { method: 'POST', credentials: 'same-origin' });
+      const d = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(d.error || 'That did not go through.');
+      if (window.__glovelsCollect) {
+        await window.__glovelsCollect(d);
+        location.reload();
+      } else {
+        b.textContent = 'Your counsellor will take this part';
+        return;
+      }
+    } catch (e) {
+      b.disabled = false;
+      b.textContent = was;
+      const note = document.createElement('p');
+      note.style.cssText = 'margin:8px 0 0;font:600 12.4px/1.5 var(--sans);color:#7a2118';
+      note.textContent = e.message;
+      b.parentNode.appendChild(note);
+    }
+  });
   host.parentNode.insertBefore(el, host.nextSibling);
 }
 

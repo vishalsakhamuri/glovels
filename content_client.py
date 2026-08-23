@@ -62,6 +62,16 @@ SCRIPT = r"""
               : '')
           +  '</div>';
     }
+    /* "We should show it in feature part payment possible." A price somebody
+       cannot pay today is a card they stop reading, so the alternative goes on
+       the card rather than being found at the checkout. */
+    if (p.sell && Number(p.priceInr) > 10000) {
+      var first = Math.round(Number(p.priceInr) * 0.4);
+      out += '<div class="partline">'
+          +  '<svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>'
+          +  '<span>Part payment possible \u2014 \u20b9' + nf.format(first)
+          +  ' to start</span></div>';
+    }
     out += '</div><div class="card-foot prow-cta">';
     if (p.sell) {
       out += '<div class="price"><span class="from">' + E(p.priceFrom || 'From') + '</span>₹'
