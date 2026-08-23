@@ -87,31 +87,92 @@ function card(p, inList) {
       nextDeadline(p) + '</div>' : '') +
     (p.fit ? '<div class="sl-chip" style="width:fit-content">Fit score ' + p.fit + '</div>' : '') +
     '<div class="sl-go" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-      (inList
+      (inList === 'want'
+        /* Already marked, not agreed. Offering "I am interested" again on a
+           card that is IN the interested list is the screen asking for
+           something it already has. */
+        ? '<span style="font:600 12.2px/1.3 var(--sans);color:var(--muted)">'
+          + 'Waiting for your counsellor</span>'
+        : inList
         /* No Remove. The shortlist is what the package delivered and what the
            counsellor confirms with the student before anything is submitted;
            a button that silently deletes one of the universities they paid
            for, with no undo and nobody told, is not a convenience. Swapping
            one is a conversation, and Messages is one click away. */
         ? '<a class="btn btn-primary btn-sm" href="applications.html">Start application ' + ico('arrow') + '</a>'
-        : '<button type="button" class="btn btn-navy btn-sm" data-add="' + p.id + '">Add to shortlist</button>') +
+        /* Not "Add to shortlist". Pressing it does not put a university on the
+           list the office works from — it tells the counsellor you like it,
+           and saying otherwise sets up a disappointment. */
+        : '<button type="button" class="btn btn-navy btn-sm" data-add="' + p.id + '">I am interested</button>') +
       (p.url ? '<a class="btn btn-ghost btn-sm" href="' + esc(p.url) + '" target="_blank" rel="noopener">Course page</a>' : '') +
     '</div></article>';
 }
 
+/**
+ * Two lists, because they are two different things.
+ *
+ * One list conflated what a student liked the look of on a Tuesday evening
+ * with what their counsellor agreed with them and is going to apply to. Those
+ * do not carry the same weight: the second is what the package delivered, what
+ * the applications are filed against, and what any guarantee attaches to.
+ * Printing them in one grid meant a student could not tell which universities
+ * anybody was actually working on.
+ *
+ * The counsellor's list is first, because it is the answer to "what is
+ * happening with my application". Interest is below it, and is explicitly
+ * described as not yet agreed — so nobody reads a browsing session as a plan.
+ */
+const ownerOf = id => {
+  const row = (typeof SHORT_ROWS !== 'undefined' ? SHORT_ROWS : [])
+    .find(r => String(r.id) === String(id));
+  return row && row.addedBy === 'student' ? 'student' : 'office';
+};
+
 function paintMine() {
-  const ids = shortlist();
-  const items = ids.map(i => byId[i]).filter(Boolean);
+  const items = shortlist().map(i => byId[i]).filter(Boolean);
+  const mine  = items.filter(p => ownerOf(p.id) === 'student');
+  const ours  = items.filter(p => ownerOf(p.id) !== 'student');
   $('#nMine').textContent = items.length;
-  $('#mineWrap').innerHTML = items.length
-    ? '<div class="sl-grid">' + items.map(p => card(p, true)).join('') + '</div>' +
-      '<p style="margin:16px 0 0;font-size:12.4px;color:var(--muted);line-height:1.6">' +
-      'Your package covers ' + (ORDER.publicUnis || items.length) + ' universities. ' +
-      'Your counsellor confirms the final list with you before anything is submitted.</p>'
-    : '<div class="sl-empty"><b>Your shortlist is empty</b><p>Browse the programmes tab and add the ' +
-      'ones you want to apply to. Your counsellor reviews the list and tells you honestly which ' +
-      'are realistic for your profile.</p>' +
-      '<button type="button" class="btn btn-primary" data-goto="browse">Browse programmes</button></div>';
+
+  const grid = (list, withApply) =>
+    '<div class="sl-grid">' + list.map(p => card(p, withApply)).join('') + '</div>';
+
+  const head = (title, sub) =>
+    '<div style="margin:0 0 12px">'
+    + '<h3 style="margin:0;font-size:16.5px;color:var(--navy-900)">' + title + '</h3>'
+    + '<p style="margin:4px 0 0;font-size:12.6px;color:var(--muted);line-height:1.6">'
+    + sub + '</p></div>';
+
+  let html = '';
+
+  /* ---------------------------------------------- what the office is working on */
+  html += head('Your counsellor\u2019s shortlist',
+    ours.length
+      ? 'Agreed with you, and what your applications are filed against.'
+        + (ORDER.publicUnis ? ' Your package covers ' + ORDER.publicUnis + ' universities.' : '')
+      : 'Nothing here yet.');
+  html += ours.length
+    ? grid(ours, true)
+    : '<div class="sl-empty"><b>Your counsellor is still building this</b>'
+      + '<p>They confirm the list with you before anything is submitted. If you have '
+      + 'universities in mind, add them below and they will see them.</p>'
+      + '<a class="btn btn-primary" href="messages.html">Message my counsellor</a></div>';
+
+  /* -------------------------------------------------------- what the student likes */
+  html += '<div style="margin-top:30px">' + head('Universities you are interested in',
+    mine.length
+      ? 'Yours, not agreed yet. Your counsellor can see these and will tell you '
+        + 'honestly which are realistic for your profile.'
+      : 'Nothing here yet.');
+  html += mine.length
+    ? grid(mine, 'want')
+    : '<div class="sl-empty"><b>Nothing marked yet</b>'
+      + '<p>Browse the programmes tab and mark the ones you like. Your counsellor sees '
+      + 'them and can move any of them onto your real shortlist.</p>'
+      + '<button type="button" class="btn btn-ghost" data-goto="browse">Browse programmes</button></div>';
+  html += '</div>';
+
+  $('#mineWrap').innerHTML = html;
 }
 
 let shown = 12;
@@ -160,9 +221,20 @@ document.addEventListener('click', e => {
   const add = e.target.closest('[data-add]');
   if (add) {
     const ids = shortlist();
-    if (!ids.includes(add.dataset.add)) { ids.push(add.dataset.add); save(); }
+    if (!ids.includes(add.dataset.add)) {
+      ids.push(add.dataset.add);
+      /* SHORT_ROWS is what ownerOf() reads, and it is the server's answer from
+         page load. Without this the new row has no entry, ownerOf falls back to
+         'office', and the university a student just marked appears under their
+         counsellor's shortlist until they reload. */
+      if (typeof SHORT_ROWS !== 'undefined' && Array.isArray(SHORT_ROWS)) {
+        SHORT_ROWS.push(Object.assign({}, byId[add.dataset.add], { addedBy: 'student' }));
+      }
+      save();
+    }
     paintMine(); paintBrowse();
-    toast(byId[add.dataset.add].university + ' added to your shortlist.');
+    toast(byId[add.dataset.add].university
+      + ' \u2014 your counsellor can see you are interested.');
     return;
   }
 });

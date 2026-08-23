@@ -269,7 +269,10 @@ function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
   const pub = catalogue.filter(p => p.isPublic).slice(0, 5);
   const priv = catalogue.filter(p => !p.isPublic).slice(0, 2);
   const chosen = pub.concat(priv);
-  chosen.forEach(p => db.addShortlist(s.id, p));
+  /* The office's list — the same shape a purchase hands over. The last two go
+     in as the student's own interest, so the demo account shows both lists
+     rather than an empty one and a full one. */
+  chosen.forEach((p, i) => db.addShortlist(s.id, p, i >= chosen.length - 2 ? 'student' : 'office'));
 
   chosen.forEach((p, i) => {
     const st = APP_STAGES[i];

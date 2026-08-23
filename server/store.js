@@ -359,6 +359,19 @@ function sqliteDriver(file) {
    "ALTER TABLE enquiries ADD COLUMN next_at TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE enquiries ADD COLUMN student_id INTEGER",
    "ALTER TABLE enquiries ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
+   /* Who put this university on the list.
+    *
+    * One list conflated two different things: what the student liked the look
+    * of while browsing, and what their counsellor agreed with them and is
+    * going to apply to. They are not the same list and they do not carry the
+    * same weight — the second is what the package delivered and what a
+    * guarantee attaches to.
+    *
+    * Defaults to 'office' rather than 'student', because every row that
+    * already exists was written either by the purchase match or by a
+    * counsellor. Calling those 'student' would move somebody's real shortlist
+    * into a list of idle interest. */
+   "ALTER TABLE shortlist ADD COLUMN added_by TEXT NOT NULL DEFAULT 'office'",
    "CREATE INDEX IF NOT EXISTS idx_lead_notes ON lead_notes(lead_id)",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
@@ -563,13 +576,26 @@ function open(dir) {
 
     /* ---- shortlist ---- */
     getShortlist: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id)),
-    addShortlist(studentId, p) {
+    /**
+     * `by` is 'student' or 'office'.
+     *
+     * INSERT OR REPLACE, so a student marking interest in something their
+     * counsellor already shortlisted would demote it to interest. The COALESCE
+     * keeps the stronger of the two: once the office has put a university on
+     * the list, the student pressing a button cannot take it off again.
+     */
+    addShortlist(studentId, p, by) {
+      const existing = db.all(
+        'SELECT added_by FROM shortlist WHERE student_id = ? AND prog_id = ?',
+        Number(studentId), String(p.id))[0];
+      const owner = existing && existing.added_by === 'office' ? 'office'
+        : (by === 'student' ? 'student' : 'office');
       db.run(`INSERT OR REPLACE INTO shortlist
-        (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(studentId), String(p.id), p.program || '', p.university || '', p.city || '',
         p.country || '', Number(p.totalInr || 0), p.isPublic ? 1 : 0, p.url || '',
-        JSON.stringify(p.intakes || []), Number(p.fit || 0), now());
+        JSON.stringify(p.intakes || []), Number(p.fit || 0), now(), owner);
     },
     removeShortlist: (studentId, progId) =>
       db.run('DELETE FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
@@ -842,6 +868,20 @@ function open(dir) {
       db.run('UPDATE students SET counsellor_id = ? WHERE id = ?',
         counsellorId === null ? null : Number(counsellorId), Number(studentId)),
     counsellors: () => db.all("SELECT * FROM students WHERE role = ?", 'counsellor'),
+
+    /* Everybody who can carry a student: counsellors, and administrators.
+     *
+     * In a five-person office the administrator IS a counsellor for some of
+     * the students — usually the difficult ones — and there was no way to put
+     * their name on a file. The assignment dropdown listed role='counsellor'
+     * and nothing else, so those students sat unassigned, out of every
+     * caseload count and every digest, looking like nobody's problem.
+     *
+     * Kept separate from counsellors() rather than widening it, because the
+     * daily digest already reads counsellors().concat(staffByRole('admin'))
+     * and widening the first would have emailed every admin twice. */
+    caseworkers: () => db.all(
+      "SELECT * FROM students WHERE role IN ('counsellor', 'admin') ORDER BY role, name"),
     staffByRole: r => db.all('SELECT * FROM students WHERE role = ?', r),
     allStudents: () => db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student'),
 

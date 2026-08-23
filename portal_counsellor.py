@@ -297,11 +297,41 @@ function paintRecord(r) {
             'style="width:100%;padding:9px 11px;font:400 13px/1.4 var(--sans);' +
             'border:1.5px solid #d8dde4;border-radius:9px">' +
           '<div id="uniHits" style="margin-top:9px;max-height:260px;overflow-y:auto"></div></div>' +
-        (r.shortlist.length
-          ? '<ul class="doclist" id="uniList">' + r.shortlist.map(uniRow).join('') + '</ul>'
+        /* Two lists, matching what the student sees.
+         *
+         * The office's list is what applications are filed against and what the
+         * admission guarantee attaches to. Below it, the universities the
+         * student has marked themselves — which used to be mixed into the same
+         * list, so a counsellor could not tell what they had agreed from what
+         * the student had clicked on a Tuesday evening. Adding one of theirs
+         * moves it up. */
+        (r.shortlist.filter(function (p) { return p.addedBy !== 'student'; }).length
+          ? '<ul class="doclist" id="uniList">'
+            + r.shortlist.filter(function (p) { return p.addedBy !== 'student'; })
+                .map(uniRow).join('') + '</ul>'
           : '<p style="font-size:12.8px;color:var(--muted)" id="uniList">Nothing on their list ' +
             'yet. Agree one on a call, then put it here \u2014 this is what the admission ' +
             'guarantee attaches to.</p>') +
+
+        (function () {
+          const want = r.shortlist.filter(function (p) { return p.addedBy === 'student'; });
+          if (!want.length) return '';
+          return '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)">'
+            + '<b style="display:block;font-size:13.4px;color:var(--navy-900)">'
+            + want.length + ' they are interested in</b>'
+            + '<span style="display:block;font-size:12.2px;color:var(--muted);margin:3px 0 10px">'
+            + 'Marked by ' + esc(r.student.name.split(' ')[0]) + ', not agreed with anybody yet.'
+            + '</span>'
+            + '<ul class="doclist">' + want.map(function (p) {
+                return '<li style="align-items:center;gap:10px">'
+                  + '<div style="flex:1;min-width:0">'
+                  + '<b style="display:block">' + esc(p.university || p.id) + '</b>'
+                  + '<span style="display:block;font-size:12px;color:var(--muted)">'
+                  + esc(p.program || '') + ' \u00b7 ' + money(p) + '</span></div>'
+                  + '<button type="button" class="btn btn-ghost btn-sm" data-promote="'
+                  + esc(p.id) + '">Put on their shortlist</button></li>';
+              }).join('') + '</ul></div>';
+        })() +
 
         /* The drafts the student wrote in the studio. This is the copy the
            rewrite is billed against, so it belongs on the counsellor's screen
@@ -483,6 +513,26 @@ document.addEventListener('click', async e => {
     const box = $('#uniAdd');
     box.hidden = !box.hidden;
     if (!box.hidden) { $('#uniQ').focus(); searchUnis($('#uniQ').value || ''); }
+    return;
+  }
+
+  /* Moving one the student marked onto the list the office works from. The
+     same endpoint the search panel uses — the id is already in the catalogue,
+     and the server re-prices it either way. */
+  const promote = e.target.closest('[data-promote]');
+  if (promote) {
+    promote.disabled = true;
+    promote.textContent = 'Adding\u2026';
+    try {
+      await api('POST', '/api/staff/student/' + openId + '/shortlist',
+        { id: promote.dataset.promote });
+      paintRecord(await api('GET', '/api/staff/student/' + openId));
+      toast('Moved onto their shortlist.');
+    } catch (err) {
+      promote.disabled = false;
+      promote.textContent = 'Put on their shortlist';
+      toast('That did not work: ' + err.message);
+    }
     return;
   }
 

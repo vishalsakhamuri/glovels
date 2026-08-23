@@ -461,6 +461,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
+
+
 /* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
 
 /* Top bar: page title, notifications, avatar. */
@@ -1113,10 +1116,14 @@ $('#slWrap').innerHTML = shown.length
               + 'These are sample matches. Choose a package on the website and your own '
               + 'shortlist appears here.</p>'
             : ''))
-  : '<div class="sl-empty"><b>No universities shortlisted yet</b>'
-    + '<p>Find the programmes you qualify for on the website, choose a package, and they will '
-    + 'appear here with fees and deadlines.</p>'
-    + '<a class="btn btn-primary" href="index.html#results">Find my universities ' + ico('arrow')
+  /* Not "go to the website and choose a package". They are signed in — they
+     are a client, not a visitor, and the person who builds their list is their
+     counsellor. Sending them back to the marketing site to self-serve reads as
+     being handed a brochure by the firm they have already hired. */
+  : '<div class="sl-empty"><b>Your counsellor is building your list</b>'
+    + '<p>They agree it with you before anything is submitted. If you already have '
+    + 'universities in mind, mark them on My Universities and your counsellor will see them.</p>'
+    + '<a class="btn btn-primary" href="universities.html">My universities ' + ico('arrow')
     + '</a></div>';
 
 /* The counsellor card from the prototype. The name is a placeholder until a
@@ -1190,10 +1197,15 @@ $('#steps4').innerHTML = STEPS.map(([t, ok], i) =>
 
 /* The dashboard should not only report status; it should say what to do next.
    One prompt, chosen by what is actually outstanding. */
+/* Both branches point inside the portal now. The unpaid branch used to say
+   "set your destination, level and CGPA on the website" — to somebody who is
+   signed in, on a screen with a profile one click away that asks for exactly
+   those three things. */
 const next = !paid
-  ? ['Find the universities you qualify for',
-     'Set your destination, level and CGPA on the website and choose a package.',
-     'Find my universities', '/#results', 'cap']
+  ? ['Fill in your profile',
+     'Your destination, level and CGPA are what your counsellor needs to shortlist '
+     + 'for you. Eleven short sections, asked once.',
+     'Start my profile', 'profile.html', 'user']
   : ['Fill in your profile',
      'Eleven short sections. It is what we use to write your SOP, brief your '
      + 'recommenders and build your visa checklist — so it is only asked once.',

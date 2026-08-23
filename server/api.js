@@ -330,6 +330,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         id: r.prog_id, program: r.program, university: r.university, city: r.city,
         country: r.country, totalInr: r.total_inr, isPublic: !!r.is_public, url: r.url,
         fit: r.fit || null,
+        /* 'office' or 'student'. Two lists on the screen, and the screen must
+           not have to guess which is which. */
+        addedBy: r.added_by === 'student' ? 'student' : 'office',
         intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
       })),
       apps,
@@ -564,7 +567,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
        catalogue — so a fabricated price or university name cannot be stored. */
     const p = lookup(b.id);
     if (!p) return json(res, 404, { error: 'No such programme' });
-    db.addShortlist(s.id, p);
+    db.addShortlist(s.id, p, 'student');
     return json(res, 200, { shortlist: stateFor(s).shortlist });
   });
 
@@ -588,7 +591,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const b = await readJson(req);
     const ids = Array.isArray(b.ids) ? b.ids : [];
     let n = 0;
-    ids.forEach(id => { const p = lookup(id); if (p) { db.addShortlist(s.id, p); n++; } });
+    /* What the package matched. The office's list, not idle interest — it
+       is the deliverable the student paid for. */
+    ids.forEach(id => { const p = lookup(id); if (p) { db.addShortlist(s.id, p, 'office'); n++; } });
     return json(res, 200, { added: n, shortlist: stateFor(s).shortlist });
   });
 
@@ -641,7 +646,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         }
       }
       const had = db.getShortlist(s.id).some(x => String(x.prog_id) === String(p.id));
-      db.addShortlist(s.id, p);
+      db.addShortlist(s.id, p, 'student');
       if (!had) {
         db.addMessage(s.id, 'me', 'I would like to apply to '
           + (p.university || '') + (p.program ? ' — ' + p.program : '') + '.');
@@ -2073,7 +2078,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
   route('GET', '/api/staff/me', staffOnly(async (req, res, s) => json(res, 200, {
     user: publicStudent(s),
     counsellors: s.role === 'admin'
-      ? db.counsellors().map(c => ({ id: c.id, name: c.name, email: c.email }))
+      ? db.caseworkers().map(c => ({ id: c.id, name: c.name, email: c.email }))
       : [],
     live: live.counts(),
     channels: notify.status(),
@@ -2161,7 +2166,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       if (!p) return json(res, 404, { error: 'No such programme in the catalogue.' });
 
       const already = db.getShortlist(id).some(x => String(x.prog_id) === String(p.id));
-      db.addShortlist(id, p);
+      db.addShortlist(id, p, 'office');
       if (!already) {
         db.log(s.name, 'added a university', st.name + ' — ' + (p.university || p.id));
         /* The student is told, on their own thread, because a university
@@ -2349,7 +2354,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const cid = b.counsellorId === null || b.counsellorId === '' ? null : Number(b.counsellorId);
     if (cid !== null) {
       const c = db.studentById(cid);
-      if (!c || c.role !== 'counsellor') return json(res, 400, { error: 'No such counsellor' });
+      /* An administrator can be somebody's counsellor. In an office this size
+         they usually are, for the hard files. */
+      if (!c || !['counsellor', 'admin'].includes(c.role)) {
+        return json(res, 400, { error: 'That person cannot be assigned students' });
+      }
     }
     db.assignCounsellor(Number(m[1]), cid);
     return json(res, 200, { ok: true });
@@ -2358,7 +2367,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
   route('GET', '/api/staff/overview', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const students = db.allStudents();
-    const counsellors = db.counsellors();
+    const counsellors = db.caseworkers();
     const docs = students.flatMap(st => db.getDocuments(st.id));
     /* Every order, not one per student. An order placed before the buyer made
        an account belongs to nobody yet, and walking the students to find the
@@ -2496,7 +2505,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     return json(res, 200, {
       conversations: rows,
-      counsellors: db.counsellors().map(c => ({ id: c.id, name: c.name })),
+      counsellors: db.caseworkers().map(c => ({ id: c.id, name: c.name })),
       summary: {
         total: rows.length,
         waiting: rows.filter(r => !!r.waitingSince).length,
@@ -2928,8 +2937,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
   /* Everybody who could own a lead, by id. Counsellors and administrators —
      a lead handed to a website editor is a lead nobody calls. */
-  const peopleMap = () => new Map(
-    db.counsellors().concat(db.staffByRole('admin')).map(p => [Number(p.id), p]));
+  const peopleMap = () => new Map(db.caseworkers().map(p => [Number(p.id), p]));
 
   route('GET', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
     const counts = db.leadNoteCounts();
@@ -2962,7 +2970,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
 
     return json(res, 200, {
       leads: leads.slice(0, 500),
-      counsellors: db.counsellors().map(c => ({ id: c.id, name: c.name })),
+      /* The same list peopleMap() accepts as an owner. These disagreed: a lead
+         could be owned by an administrator and the dropdown that assigns one
+         did not list any, so an admin-owned lead showed as unassigned and
+         could not be handed back. */
+      counsellors: db.caseworkers().map(c => ({ id: c.id, name: c.name })),
       statuses: LEAD_STATUS, reasons: LOST_REASONS,
       summary: {
         total: leads.length,
