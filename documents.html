@@ -558,7 +558,11 @@ async function flush() {
     }
     if (Array.isArray(DB.short)) {
       for (const id of DB.short) if (!SERVER.short.includes(id)) await api('POST', '/api/shortlist', { id });
-      for (const id of SERVER.short) if (!DB.short.includes(id)) await api('DELETE', '/api/shortlist/' + encodeURIComponent(id));
+      /* Additions only. A student cannot take a university off their own
+         shortlist — it is what the package delivered and what the counsellor
+         confirms before anything is submitted — so a browser whose local copy
+         is short of the server's is a stale browser, not an instruction to
+         delete. This loop used to obey it. */
       SERVER.short = DB.short.slice();
     }
     if (DB.apps) {

@@ -1040,7 +1040,20 @@ function paintRecord(r) {
         '<h3 style="margin:0;font-size:17px">' + esc(r.student.name) + '</h3>' +
         (r.counsellor ? '<span class="pill">' + esc(r.counsellor.name) + '</span>' : '') +
         '<span class="pill" style="margin-left:auto">' + (r.orders[0] ? esc(r.orders[0].package) : 'No package') + '</span>' +
+        /* A student who cannot get in has no portal at all, and the office
+           hears about it by phone. The reset endpoint has existed all along;
+           it was only ever reachable from the staff list, which does not
+           contain students. Admins only — a counsellor resetting the password
+           of somebody else's student is not a thing that should be possible
+           without a decision. */
+        (ME === 'admin'
+          ? '<button type="button" class="btn btn-ghost btn-sm" id="pwReset">'
+            + 'Reset password</button>'
+          : '') +
       '</div>' +
+      '<p id="pwOut" style="display:none;margin:0 0 14px;padding:12px 14px;border-radius:10px;'
+        + 'background:#f1f8f3;border:1px solid #c8e3d0;color:#14603a;'
+        + 'font:600 13px/1.6 var(--sans)"></p>' +
       '<div class="out tiles" style="--tiles:4;margin:0 0 16px">' +
         '<div><b>' + r.shortlist.length + '</b><span>Shortlisted</span></div>' +
         '<div><b>' + Object.keys(r.apps).length + '</b><span>Applications</span></div>' +
@@ -1258,6 +1271,41 @@ document.addEventListener('change', async e => {
 });
 
 document.addEventListener('click', async e => {
+  /* Resetting a student's password.
+   *
+   * The new one is shown on the screen rather than only emailed, because
+   * without SMTP configured nothing is emailed at all — and the office is
+   * usually on the phone to the student when they do this. It is shown once
+   * and not stored anywhere this screen can read again.
+   */
+  const pw = e.target.closest('#pwReset');
+  if (pw) {
+    const who = ($('#pane h3') || {}).textContent || 'this student';
+    if (!confirm('Reset the password for ' + who + '?\n\nThey will be signed out '
+      + 'everywhere, and will have to choose a new one the next time they sign in.')) return;
+    pw.disabled = true;
+    const was = pw.textContent;
+    pw.textContent = 'Resetting…';
+    try {
+      const r = await api('POST', '/api/staff/people/' + openId + '/password');
+      const out = $('#pwOut');
+      out.style.display = 'block';
+      out.innerHTML = (r.sent
+        ? 'Sent to ' + esc(r.email) + '. '
+        : 'Nothing was emailed — no mail server is configured yet, so read it to them. ')
+        + 'New password: <code style="font:700 13.4px/1 ui-monospace,monospace;'
+        + 'background:#fff;border:1px solid #c8e3d0;border-radius:6px;padding:3px 7px">'
+        + esc(r.password) + '</code><br>'
+        + '<span style="font-weight:400;font-size:12.4px">They must choose their own '
+        + 'the next time they sign in, and every session they had open is now signed out.</span>';
+    } catch (err) {
+      toast('That did not work: ' + err.message);
+    }
+    pw.disabled = false;
+    pw.textContent = was;
+    return;
+  }
+
   const open = e.target.closest('#addUni');
   if (open) {
     const box = $('#uniAdd');

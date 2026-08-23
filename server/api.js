@@ -568,11 +568,20 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     return json(res, 200, { shortlist: stateFor(s).shortlist });
   });
 
-  route('DELETE', /^\/api\/shortlist\/(.+)$/, async (req, res, s, m) => {
-    db.removeShortlist(s.id, decodeURIComponent(m[1]));
-    db.removeApplication(s.id, decodeURIComponent(m[1]));
-    return json(res, 200, { shortlist: stateFor(s).shortlist });
-  });
+  /* A student cannot take a university off their own shortlist.
+   *
+   * It is what their package delivered and what the counsellor confirms with
+   * them before anything is submitted, and removing one also destroyed the
+   * application row attached to it — no undo, nobody told. The button is gone
+   * from the screen; this is the half that matters, because a screen is not a
+   * permission.
+   *
+   * The office can still remove one, from the counsellor's own route below,
+   * which is a decision somebody made rather than a mis-tap. */
+  route('DELETE', /^\/api\/shortlist\/(.+)$/, async (req, res) => json(res, 403, {
+    error: 'Your shortlist is confirmed with your counsellor. Message them to '
+         + 'swap a university and they will do it with you.',
+  }));
 
   /* Used once, right after checkout, to store what the sales page matched. */
   route('POST', '/api/shortlist/bulk', async (req, res, s) => {
@@ -2467,9 +2476,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         guidance: notes.length,
         guidanceUnread: notes.filter(n => !n.seen).length,
       };
-    }).filter(r => r.messages > 0);
+    });
 
-    rows.sort((a, b) => b.waitingHours - a.waitingHours
+    /* Every student, including the ones nobody has said a word to.
+     *
+     * This used to end `.filter(r => r.messages > 0)`, on the reasoning that a
+     * thread with no messages is not a conversation. True, and exactly
+     * backwards for the person reading this screen: a student who has been on
+     * the books a week with silence on the file is the most urgent row here,
+     * and filtering them out made them the only row an administrator could
+     * never see. Two students, no messages, an empty screen, and no way to
+     * tell that from "everything is answered".
+     *
+     * They sort to the top for the same reason. */
+    rows.sort((a, b) =>
+      (b.messages === 0) - (a.messages === 0)
+      || b.waitingHours - a.waitingHours
       || String(b.lastAt).localeCompare(String(a.lastAt)));
 
     return json(res, 200, {
@@ -2479,6 +2501,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
         total: rows.length,
         waiting: rows.filter(r => !!r.waitingSince).length,
         late: rows.filter(r => r.waitingHours >= 24).length,
+        /* Its own number, because it is its own problem. A student nobody has
+           spoken to is not a slow reply — it is a student nobody has started. */
+        silent: rows.filter(r => r.messages === 0).length,
         /* Per counsellor, because "this counsellor has nine students waiting"
            is the sentence an administrator is looking for. */
         byCounsellor: Object.values(rows.reduce((m, r) => {

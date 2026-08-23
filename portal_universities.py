@@ -88,8 +88,12 @@ function card(p, inList) {
     (p.fit ? '<div class="sl-chip" style="width:fit-content">Fit score ' + p.fit + '</div>' : '') +
     '<div class="sl-go" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       (inList
-        ? '<a class="btn btn-primary btn-sm" href="applications.html">Start application ' + ico('arrow') + '</a>' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + p.id + '">Remove</button>'
+        /* No Remove. The shortlist is what the package delivered and what the
+           counsellor confirms with the student before anything is submitted;
+           a button that silently deletes one of the universities they paid
+           for, with no undo and nobody told, is not a convenience. Swapping
+           one is a conversation, and Messages is one click away. */
+        ? '<a class="btn btn-primary btn-sm" href="applications.html">Start application ' + ico('arrow') + '</a>'
         : '<button type="button" class="btn btn-navy btn-sm" data-add="' + p.id + '">Add to shortlist</button>') +
       (p.url ? '<a class="btn btn-ghost btn-sm" href="' + esc(p.url) + '" target="_blank" rel="noopener">Course page</a>' : '') +
     '</div></article>';
@@ -160,12 +164,6 @@ document.addEventListener('click', e => {
     paintMine(); paintBrowse();
     toast(byId[add.dataset.add].university + ' added to your shortlist.');
     return;
-  }
-  const rm = e.target.closest('[data-rm]');
-  if (rm) {
-    DB.short = shortlist().filter(i => i !== rm.dataset.rm); save();
-    paintMine(); paintBrowse();
-    toast('Removed from your shortlist.');
   }
 });
 ['fCountry','fBand','fType','fSort'].forEach(id =>

@@ -226,7 +226,15 @@ function row(s) {
       (s.unread ? ' <span class="st wait" style="margin-left:5px">' + s.unread + '</span>' : '') + '</a>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-invite="' + s.id +
         '" style="margin-left:6px" title="Email them a link to set their password">' +
-        'Send sign-in link</button></td>' +
+        'Send sign-in link</button>' +
+      /* The link is the polite route and needs a working inbox. This is the one
+         for the student on the phone saying they cannot get in — the office
+         reads them the new password and they choose their own on the way in.
+         The endpoint has existed all along; it was only reachable from the
+         staff list, which does not contain students. */
+      '<button type="button" class="btn btn-ghost btn-sm" data-pwreset="' + s.id +
+        '" style="margin-left:6px" title="Generate a new password and read it to them">' +
+        'Reset password</button></td>' +
     '</tr>';
 }
 
@@ -331,9 +339,61 @@ async function sendInvite(id, btn) {
   }
 }
 
+/**
+ * Reset a student's password, and read it to them.
+ *
+ * "Send sign-in link" is the polite route and it needs a working inbox. This
+ * is the one for the student on the phone who cannot get in: a new password on
+ * the screen, every session they had signed out, and a forced change the next
+ * time they use it — so what the office reads down the phone stops working the
+ * moment they are in.
+ *
+ * Shown in the row rather than in a dialog, because a dialog is dismissed by
+ * accident and the password is shown exactly once.
+ */
+async function resetPassword(id, btn) {
+  const row = btn.closest('tr');
+  const who = (row.querySelector('td b') || {}).textContent || 'this student';
+  if (!confirm('Reset the password for ' + who + '?\n\nThey will be signed out '
+    + 'everywhere, and will have to choose a new one the next time they sign in.')) return;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Resetting\u2026';
+  try {
+    const r = await api('POST', '/api/staff/people/' + id + '/password');
+    const cell = row.querySelector('td');
+    const note = document.createElement('div');
+    note.style.cssText = 'margin-top:7px;padding:9px 11px;border-radius:9px;font:600 11.8px/1.6 '
+      + 'var(--sans);background:#eef8f2;border:1px solid #bfe0cc;color:#14603a;'
+      + 'white-space:normal;max-width:340px';
+    note.innerHTML = (r.sent
+        ? 'Emailed to <b>' + esc(r.email) + '</b>. '
+        : '<b>Email is not connected yet</b>, so nothing was sent \u2014 read this to them. ')
+      + 'New password:<div style="margin-top:7px;display:flex;gap:6px;align-items:center">'
+      + '<input readonly value="' + esc(r.password) + '" style="flex:1;min-width:0;padding:6px 8px;'
+      + 'font:700 12px/1.4 var(--mono,ui-monospace,monospace);border:1px solid #bfe0cc;'
+      + 'border-radius:7px;background:#fff">'
+      + '<button type="button" class="btn btn-ghost btn-sm" data-copy>Copy</button></div>'
+      + '<div style="margin-top:6px;font-weight:400;font-size:11.4px">Shown once. They choose '
+      + 'their own the next time they sign in.</div>';
+    const old = cell.querySelector('[data-pw-note]');
+    if (old) old.remove();
+    note.setAttribute('data-pw-note', '1');
+    cell.appendChild(note);
+  } catch (e) {
+    alert(e.message || 'That did not work.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
 document.addEventListener('click', e => {
   const inv = e.target.closest('[data-invite]');
   if (inv) { sendInvite(inv.dataset.invite, inv); return; }
+
+  const pwr = e.target.closest('[data-pwreset]');
+  if (pwr) { resetPassword(pwr.dataset.pwreset, pwr); return; }
 
   const copy = e.target.closest('[data-copy]');
   if (copy) {
@@ -750,11 +810,16 @@ const ago = iso => {
 function paintConvs() {
   const rows = CONVS.filter(c => !onlyWaiting || !!c.waitingSince);
   const late = (CONV_SUM.late || 0);
+  const silent = (CONV_SUM.silent || 0);
   const chip = $('#chatLate');
   if (chip) {
-    chip.hidden = !late;
-    chip.textContent = late + (late === 1 ? ' has been waiting over a day'
-                                          : ' have been waiting over a day');
+    /* Two different problems, and the one nobody has started is the worse of
+       them, so it is said first. */
+    const parts = [];
+    if (silent) parts.push(silent + ' not started');
+    if (late) parts.push(late + ' waiting over a day');
+    chip.hidden = !parts.length;
+    chip.textContent = parts.join(' · ');
   }
 
   $('#convWho').innerHTML = (CONV_SUM.byCounsellor || []).map(p =>
@@ -767,25 +832,35 @@ function paintConvs() {
     || '<p style="margin:0;color:var(--muted);font-size:12.6px">No conversations yet.</p>';
 
   $('#convRows').innerHTML = rows.map(c =>
-    '<tr' + (c.waitingHours >= 24 ? ' class="late"' : '') + '>' +
+    '<tr' + (c.waitingHours >= 24 || c.messages === 0 ? ' class="late"' : '') + '>' +
       '<td><b>' + esc(c.name) + '</b>' +
         '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
         esc(c.email) + '</span></td>' +
       '<td style="font-size:12.6px">' + (c.counsellor ? esc(c.counsellor.name)
         : '<span style="color:#b03a2e;font-weight:700">nobody</span>') + '</td>' +
-      '<td style="max-width:330px"><span style="font-size:12.4px;color:var(--muted)">' +
-        (c.lastFrom === 'student' ? 'They: ' : 'Us: ') + '</span>' +
-        '<span style="font-size:12.7px">' + esc(c.lastBody) + '</span>' +
-        '<span style="display:block;font-size:11.4px;color:var(--muted)">' +
-        ago(c.lastAt) + '</span></td>' +
+      /* A student nobody has written to has no "last said", and printing an
+         empty cell reads as a loading bug. Say the thing instead — it is the
+         most actionable row on this screen. */
+      '<td style="max-width:330px">' + (c.messages === 0
+        ? '<span style="font-size:12.7px;color:#b03a2e;font-weight:700">'
+          + 'Nothing said yet</span>'
+          + '<span style="display:block;font-size:11.4px;color:var(--muted)">'
+          + 'Nobody has written to this student</span>'
+        : '<span style="font-size:12.4px;color:var(--muted)">'
+          + (c.lastFrom === 'student' ? 'They: ' : 'Us: ') + '</span>'
+          + '<span style="font-size:12.7px">' + esc(c.lastBody) + '</span>'
+          + '<span style="display:block;font-size:11.4px;color:var(--muted)">'
+          + ago(c.lastAt) + '</span>') + '</td>' +
       /* Waiting is whether the student spoke last, not how long ago. A message
          from ten minutes ago that nobody has answered is waiting; saying
          "answered" because it is under an hour old is the screen lying to make
          itself look better. */
-      '<td>' + (c.waitingSince
-        ? '<span class="st ' + (c.waitingHours >= 24 ? 'bad' : 'wait') + '">' +
-          ago(c.waitingSince) + '</span>'
-        : '<span class="st ok">answered</span>') + '</td>' +
+      '<td>' + (c.messages === 0
+        ? '<span class="st bad">not started</span>'
+        : c.waitingSince
+          ? '<span class="st ' + (c.waitingHours >= 24 ? 'bad' : 'wait') + '">' +
+            ago(c.waitingSince) + '</span>'
+          : '<span class="st ok">answered</span>') + '</td>' +
       '<td style="font-size:12.4px;white-space:nowrap">' + c.fromUs + ' / ' + c.fromThem +
         (c.guidance ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
           c.guidance + ' note' + (c.guidance === 1 ? '' : 's') +
@@ -793,7 +868,7 @@ function paintConvs() {
           : '') + '</td>' +
       '<td style="white-space:nowrap">' +
         '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + c.id +
-          '">Read it</a> ' +
+          '">' + (c.messages === 0 ? 'Open' : 'Read it') + '</a> ' +
         '<button type="button" class="btn btn-ghost btn-sm" data-guide="' + c.id +
           '">Guide</button></td>' +
     '</tr>').join('')

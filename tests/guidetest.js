@@ -63,11 +63,21 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
 
   check('the conversations are on the Organisation screen',
     (await page.$$('#convRows tr[class], #convRows tr')).length >= 1);
-  const rowText = await page.textContent('#convRows');
+  /* This student's row, not the first row. The list carries every student now,
+     including the ones nobody has written to — they sort to the top, because a
+     student nobody has started is the most urgent thing on the screen — so
+     "the first row" is no longer this one, and clicking it guides somebody
+     else's counsellor. */
+  const myRow = page.locator('#convRows tr', { hasText: 'Vishal' });
+  const rowText = await myRow.first().textContent();
   check('naming the student and the counsellor',
     rowText.includes('Vishal') && rowText.includes('Kavya'), rowText.slice(0, 80));
   check('and saying it is waiting rather than answered',
     !/answered/.test(rowText), rowText.replace(/\s+/g, ' ').slice(0, 140));
+  check('a student nobody has written to is on the list too, not filtered out',
+    (await page.textContent('#convRows')).includes('Nothing said yet')
+      || (list.conversations || []).every(c => c.messages > 0),
+    'silent=' + list.summary.silent);
   check('the by-counsellor summary is drawn',
     (await page.$$('#convWho .cw')).length >= 1);
   check('there is a way to read the whole thread',
@@ -75,7 +85,7 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
 
   /* ------------------------------------------------------------- guiding */
   check('and a way to guide the counsellor', (await page.$$('[data-guide]')).length >= 1);
-  await page.click('[data-guide]');
+  await page.click('[data-guide="' + me.user.id + '"]');
   await page.waitForTimeout(1800);
   const after = await (await admin.request.get(BASE + '/api/staff/conversations')).json();
   const row = (after.conversations || []).find(c => c.id === me.user.id);
