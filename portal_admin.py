@@ -576,7 +576,12 @@ $('#findStudent').addEventListener('input', e => { filter = e.target.value; pain
 async function paintPeople() {
   const r = await api('GET', '/api/staff/people');
   PEOPLE = r.people;
-  COUNSELLORS = PEOPLE.filter(p => p.role === 'counsellor')
+  /* Counsellors and administrators. In an office this size the administrator
+     IS somebody's counsellor, usually for the difficult files, and the server
+     accepts either — this filter was the only thing still saying otherwise, so
+     those students stayed unassigned and out of every caseload count. Website
+     editors are excluded: a student handed to one is a student nobody rings. */
+  COUNSELLORS = PEOPLE.filter(p => p.role === 'counsellor' || p.role === 'admin')
     .map(p => ({ id: p.id, name: p.name, caseload: p.caseload }));
 
   $('#counsellors').innerHTML = PEOPLE.map(p =>

@@ -71,6 +71,7 @@ NAV = [
     ("documents",    "i-file",   "Documents"),
     ("universities", "i-cap",    "My Universities"),
     ("applications", "i-plane",  "Applications"),
+    ("services",     "i-star",   "Services"),
     ("scholarships", "i-wallet", "Scholarships"),
     ("visa",         "i-shield", "Visa &amp; Enrollment"),
     ("messages",     "i-chat",   "Messages"),
@@ -554,6 +555,7 @@ async function boot(run) {{
     ORDER = DB.order || {{}};
     USER = DB.user || {{}};
     HANDOVER_KEYS = Array.isArray(DB.short) ? DB.short.slice() : [];
+  ORDERS = (DB.user && DB.user.orders) || [];
     return run();
   }}
   USER  = state.user  || {{}};
@@ -570,6 +572,10 @@ async function boot(run) {{
     order:   state.order,
   }};
   SHORT_ROWS = state.shortlist;
+  /* Every order this student has placed, with what was in each. The Services
+     screen needs it to mark what they have already bought; nothing else reads
+     it, and it costs nothing — /api/state already carried it. */
+  ORDERS = state.orders || [];
   HANDOVER_KEYS = DB.short.slice();
   SERVER = {{
     profile: JSON.parse(JSON.stringify(DB.profile)),
@@ -582,7 +588,7 @@ async function boot(run) {{
   run();
 }}
 
-let USER = {{}}, ORDER = {{}}, HANDOVER_KEYS = [], SHORT_ROWS = [], COUNSELLOR = null;
+let USER = {{}}, ORDER = {{}}, HANDOVER_KEYS = [], SHORT_ROWS = [], COUNSELLOR = null, ORDERS = [];
 {script}
 
 /* Opened by double-clicking rather than through start.command. The portal has
@@ -926,7 +932,7 @@ def data_js():
 def main():
     import portal_profile, portal_documents, portal_universities
     import portal_applications, portal_scholarships, portal_messages
-    import portal_visa
+    import portal_visa, portal_services
 
     DATA = data_js()
 
@@ -946,6 +952,9 @@ def main():
         ("visa", "Visa &amp; enrollment", "Visa &amp; enrollment",
          "The papers the consulate wants, uploaded once and checked by your counsellor.",
          portal_visa),
+        ("services", "Services", "Services",
+         "Everything we do, with the price on the front of the card.",
+         portal_services),
         ("scholarships", "Scholarships", "Scholarships",
          "Checked against your profile, so you only spend time on the ones you can win.",
          portal_scholarships),

@@ -496,6 +496,11 @@ function makeContent({ db, file }) {
       + 'is empty too. Run: python3 build_content.py');
   }
 
+  /* What content.json shipped, before the database had an opinion. A migration
+     that adds newly-shipped rows to an existing deployment needs to see this;
+     everything else should go through get(). */
+  const shipped = () => defaults;
+
   const get = key => {
     const clean = CLEAN[key];
     if (!clean) return null;
@@ -546,6 +551,7 @@ function makeContent({ db, file }) {
     KEYS,
     SHEETS,
     get,
+    shipped,
     text,
     overrides,
 

@@ -24,6 +24,36 @@ const overflow = page =>
   page.evaluate(() =>
     document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+/**
+ * Anything INSIDE the page that scrolls sideways without being asked to.
+ *
+ * The check above measures the document, and the document was fine — 390 wide
+ * on a 390 screen — while the results list inside it needed 533 and scrolled.
+ * One nudge of a thumb and the university name was off the left edge, leaving a
+ * price and a button belonging to nothing. That is what a student saw, and this
+ * suite passed the whole time.
+ *
+ * A table or a code block with `overflow-x: auto` is a deliberate scroller and
+ * is left alone. An element that overflows its own box while its overflow is
+ * `visible` is a layout that does not fit.
+ */
+const innerOverflow = page =>
+  page.evaluate(() => {
+    const out = [];
+    document.querySelectorAll('body *').forEach(el => {
+      if (el.clientWidth < 120) return;                 /* too small to judge */
+      if (el.scrollWidth <= el.clientWidth + 2) return;
+      /* Only `visible`. `auto` and `scroll` are deliberate scrollers; `hidden`
+         and `clip` are deliberate truncation — an ellipsised programme name is
+         wider than its box by design and no thumb can move it. `visible` is the
+         one that escapes and makes something outside scroll, which is the bug. */
+      if (getComputedStyle(el).overflowX !== 'visible') return;
+      out.push((el.tagName + '.' + String(el.className || '').split(' ')[0])
+        + ' ' + el.scrollWidth + '/' + el.clientWidth);
+    });
+    return out.slice(0, 4);
+  });
+
 (async () => {
   const browser = await chromium.launch();
 
@@ -53,6 +83,11 @@ const overflow = page =>
         await page.waitForTimeout(1600);
         const over = await overflow(page);
         check(url + ' fits ' + label, over === 0, over + 'px of sideways scroll');
+        if (mobile) {
+          const inner = await innerOverflow(page);
+          check(url + ' has nothing scrolling sideways inside it on ' + label,
+            inner.length === 0, inner.join(', '));
+        }
         await page.close();
       }
     }

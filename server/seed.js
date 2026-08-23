@@ -242,6 +242,63 @@ function bumpBrowseCaps({ db, content }) {
   return true;
 }
 
+/*
+ * Services shipped since this database was seeded.
+ *
+ * content.json is read once, on the first run. After that the database is the
+ * truth — which is right, because the office edits these from the Home page
+ * screen and a redeploy must not undo that. The cost is that a service added
+ * to the shipped list after a deployment exists nowhere on that deployment,
+ * and there is no message anywhere saying so.
+ *
+ * This adds only the ids the database has never seen, and never touches one it
+ * already has: a price the office changed, a description they rewrote, or a
+ * service they deliberately hid all survive. New arrivals come in hidden —
+ * `active: false` — because a service on the site with a price of "on request"
+ * and nobody briefed to answer is worse than one that is not there yet. The
+ * office turns each on when it is ready to sell.
+ */
+function addMissingServices({ db, content }) {
+  const shipped = (content && content.services && content.services.items) || [];
+  if (!shipped.length) return 0;
+  const live = db.content('services');
+  if (!live || !Array.isArray(live.items)) return 0;   /* first run seeds it whole */
+
+  /* Two things have to be true before a service is added: the database has
+     never had it, AND we have never offered it before.
+     
+     The second half matters more than it looks. Without it, a service the
+     office deliberately deleted comes back on the next deploy, hidden, and
+     comes back again on the one after that — for ever, because "not in the
+     database" is exactly what deleting it achieved. The record of what has
+     been offered is what tells those two states apart. */
+  const offered = new Set(((db.content('servicesOffered') || {}).ids) || []);
+  const have = new Set(live.items.map(x => String(x.id)));
+  const fresh = shipped
+    .filter(x => !have.has(String(x.id)) && !offered.has(String(x.id)))
+    .map(x => Object.assign({}, x, { active: false }));
+
+  /* Written whether or not anything was added, so the first run after this
+     ships does not treat every existing service as new next time. */
+  db.setContent('servicesOffered',
+    { ids: shipped.map(x => String(x.id)) }, 'system');
+  if (!fresh.length) return 0;
+
+  /* Tabs too, or a service in a new category is in the database and on no
+     screen — the chips are markup and the grid filters by them. */
+  const tabs = (live.tabs || []).slice();
+  const tabKeys = new Set(tabs.map(t => String(t.key)));
+  ((content.services.tabs) || []).forEach(t => {
+    if (!tabKeys.has(String(t.key))) tabs.push(t);
+  });
+
+  db.setContent('services', { tabs, items: live.items.concat(fresh) }, 'system');
+  db.log('system', 'new services available',
+    fresh.length + ' added, hidden until the office turns them on: '
+    + fresh.map(x => x.name).join(', '));
+  return fresh.length;
+}
+
 function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
   if (db.studentByEmail(DEMO_EMAIL)) return null;
   /* A shared test link overrides this, so the three demo accounts are not
@@ -360,4 +417,5 @@ function seedAdmin({ db, admin, hashPassword, newSalt, reset }) {
 }
 
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
+  addMissingServices,
   DEMO_EMAIL, DEMO_PASSWORD };

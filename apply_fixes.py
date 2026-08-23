@@ -703,7 +703,53 @@ patch("index.html", "the services grid takes its list from the server",
 };
 
 render(); plan();
-})();""")
+})();""",
+      # Marked, because a LATER patch edits the tail this one inserts — the
+      # count-the-tabs wrapper below replaces `render(); plan();\n})();` with
+      # something longer. Without a marker, `new` is no longer present
+      # verbatim, this patch decides it never ran, and fails on an anchor its
+      # own successor consumed. Mark on the line nothing else touches.
+      marker="window.__glovelsSetServices = function (list) {")
+
+
+# ---------------------------------------------------------------------------
+# The number on each services chip.
+#
+# It was written into the markup by the build — "Most Booked 9" — and the list
+# it counts comes from the database at runtime. So the first service the office
+# added made the chip wrong, and nothing anywhere would say so: nine is a
+# perfectly plausible number for a tab holding eleven things. Counted from the
+# array that is actually rendered, and recounted whenever that array is
+# replaced. A tab with nothing behind it hides itself.
+patch("index.html", "the services chips count what is actually there",
+      """  render(); plan();
+};
+
+render(); plan();
+})();""",
+      """  render(); plan();
+};
+
+function countTabs() {
+  document.querySelectorAll('[data-cat]').forEach(function (b) {
+    const n = SERVICES.filter(function (s) {
+      return (s.cats || []).includes(b.dataset.cat);
+    }).length;
+    const el = b.querySelector('.n');
+    if (el) el.textContent = n;
+    /* A tab with nothing behind it is a dead end. */
+    b.hidden = n === 0;
+  });
+}
+const __setSvc = window.__glovelsSetServices;
+window.__glovelsSetServices = function (list) {
+  __setSvc(list);
+  countTabs();
+};
+
+render(); plan(); countTabs();
+})();""",
+      marker="function countTabs() {")
 
 
 # ---------------------------------------------------------------------------
@@ -3959,6 +4005,54 @@ def header_fits():
 
 
 header_fits()
+
+
+# ---------------------------------------------------------------------------
+# A grid column that is wider than the grid.
+#
+# `grid-template-columns: 1fr` is shorthand for `minmax(auto, 1fr)`, and `auto`
+# means min-content — so one long unbreakable thing inside a card makes the
+# TRACK wider than the container, and the container scrolls sideways. On a
+# 360px phone the dashboard's three-up block needed 337 in a 324 box.
+#
+# The page itself never overflowed, so every check that measured the document
+# said it was fine. This is the same class of bug as the results list: what
+# scrolls is inside, not the page.
+#
+# minmax(0, 1fr) says the track may shrink below its content, and min-width:0
+# says the same thing to the flex and grid children inside it.
+GRID_RULE = """<style>/* GLOVELS-GRID-FIT */
+.p-cols{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)}
+.p-cols>*{min-width:0}
+.p-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1000px){
+  .p-cols,.p-cols-3{grid-template-columns:minmax(0,1fr)}
+}
+/* A flex row with a fixed-size ring beside a paragraph. Same failure in the
+   other layout mode: the text does not shrink below its longest word, so on a
+   narrow phone the row is wider than the card. Below 520px the ring goes above
+   the words instead of beside them. */
+.ring-row>*{min-width:0}
+@media(max-width:520px){ .ring-row{flex-wrap:wrap;gap:12px} }
+</style>
+"""
+
+
+def grids_fit():
+    n = 0
+    for f in sorted(HERE.glob("*.html")):
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-GRID-FIT" in t or "</head>" not in t or "p-cols" not in t:
+            continue
+        write(f, t.replace("</head>", GRID_RULE + "</head>", 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): a grid column can no longer be wider than its grid")
+    else:
+        skipped.append("every page: a grid column can no longer be wider than its grid")
+
+
+grids_fit()
 
 
 # ------------------------------------------------------------- dashboard.html

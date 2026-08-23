@@ -154,6 +154,9 @@ const adminSeed = seed.seedAdmin({ db, admin: CFG.admin, hashPassword, newSalt,
    behind seedDemo: these are real pages with real titles, not demo data. */
 const importedPosts = seed.seedPosts({ db, root: ROOT });
 seed.bumpBrowseCaps({ db });
+/* Services shipped since this database was seeded. Added hidden — the office
+   turns each on when there is somebody briefed to sell it. */
+const newServices = seed.addMissingServices({ db, content: content.shipped() });
 
 /*
  * One email a morning, to the people who can do something about it.
@@ -759,7 +762,8 @@ ${configure.describe(CFG)}
   Email: ${mail.mode === 'smtp' ? 'sending through ' + (process.env.SMTP_HOST || 'mail.env')
     : 'written to data/outbox/ as .eml files (no mail.env yet)'}.
   WhatsApp: ${notify.whatsappReady ? 'configured' : 'off — the messenger works without it'}.
-${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
+${newServices ? `  ${newServices} new service(s) added to the catalogue, hidden until you turn them\n`
+  + `  on in Home page \u2192 Services.\n` : ''}${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
     student     ${seeded.email}      ${seeded.shortlisted} universities, 6 documents, 1 paid order
     counsellor  ${seeded.counsellor}       answers the chat — open /counsellor
     admin       ${seeded.admin}        assigns counsellors — open /admin

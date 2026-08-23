@@ -414,6 +414,18 @@
     "colour": "#0e5f73",
     "icon": "bank",
     "label": "Loan / financial services"
+   },
+   {
+    "key": "migrate",
+    "colour": "#7a3f2b",
+    "icon": "shield",
+    "label": "Work & migrate"
+   },
+   {
+    "key": "onshore",
+    "colour": "#2b5f3a",
+    "icon": "globe",
+    "label": "After you arrive"
    }
   ],
   "items": [
@@ -1018,6 +1030,226 @@
       "url": "https://www.educare24.com/?vkn=88966"
      }
     ]
+   },
+   {
+    "id": "jobseeker",
+    "sort": 27,
+    "active": true,
+    "name": "Job Seeker Visa",
+    "desc": "Germany, Austria, Sweden and Portugal. Eligibility check, document file, appointment and the job-search plan for once you land.",
+    "meta": "Until visa decision",
+    "cats": [
+     "migrate"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "oppcard",
+    "sort": 28,
+    "active": true,
+    "name": "Germany Opportunity Card",
+    "desc": "The points assessment, the funds route that suits you, and the whole Chancenkarte file — including what to do in the twelve months it buys you.",
+    "meta": "4 weeks to 3 months",
+    "cats": [
+     "migrate"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "canadapr",
+    "sort": 29,
+    "active": true,
+    "name": "Canada PR — Express Entry",
+    "desc": "CRS scoring and where your points actually are, ECA, language strategy, provincial nomination mapping and the full PR filing.",
+    "meta": "6–12 months",
+    "cats": [
+     "migrate"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "auspr",
+    "sort": 30,
+    "active": true,
+    "name": "Australia PR — Skilled Migration",
+    "desc": "Occupation list check, skills assessment with the right authority, points planning, EOI through SkillSelect and state nomination strategy.",
+    "meta": "8–18 months",
+    "cats": [
+     "migrate"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "medpg",
+    "sort": 31,
+    "active": true,
+    "name": "Medical PG in Germany",
+    "desc": "Approbation, the language route to C1 Fachsprachprüfung, and placement into a paid Assistenzarzt post. No tuition — it is a salaried job.",
+    "meta": "Until you start the post",
+    "cats": [
+     "migrate"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "nursing",
+    "sort": 32,
+    "active": true,
+    "name": "Nursing & Pharma Jobs in Germany",
+    "desc": "Recognition of your qualification, German to B2, employer matching and the work visa, end to end.",
+    "meta": "Until you start the post",
+    "cats": [
+     "migrate"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "tourist",
+    "sort": 33,
+    "active": true,
+    "name": "Visitor & Tourist Visa",
+    "desc": "Schengen and other short-stay visas — itinerary, funds, cover letter and appointment. For parents at a graduation, too.",
+    "meta": "2–4 weeks",
+    "cats": [
+     "migrate"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "accom",
+    "sort": 34,
+    "active": true,
+    "name": "Accommodation Search",
+    "desc": "A room or flat before you land, the deposit and contract read for you, and the city registration you have to do in the first fortnight.",
+    "meta": "Before you fly",
+    "cats": [
+     "onshore"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "jobsearch",
+    "sort": 35,
+    "active": true,
+    "name": "Job Search Support Abroad",
+    "desc": "CV rewritten to the local format, applications targeted at employers who sponsor, and interview practice in the language you will be interviewed in.",
+    "meta": "3 months of support",
+    "cats": [
+     "onshore"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
+   },
+   {
+    "id": "pswv",
+    "sort": 36,
+    "active": true,
+    "name": "Post-Study Work Visa",
+    "desc": "Switching from a student permit to a post-study or job-seeking permit, filed in the window that actually applies to your destination.",
+    "meta": "Before your student permit ends",
+    "cats": [
+     "onshore"
+    ],
+    "posTop": 0,
+    "isFree": false,
+    "priceInr": 0,
+    "priceLabel": "Price on request",
+    "badge": "",
+    "ai": "",
+    "ctaLabel": "Ask a counsellor",
+    "ctaHref": "#counsel",
+    "ctaGreen": false,
+    "levels": [],
+    "partners": []
    }
   ]
  },
@@ -3409,6 +3641,33 @@
    "sectionLabel": "Book exactly what you need — every price upfront"
   },
   {
+   "key": "services|span|dbc51e80|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "Work",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|e8cde87e|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "migrate",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
+   "key": "services|span|4f75f3b1|0",
+   "section": "services",
+   "kind": "text",
+   "element": "span",
+   "original": "After you arrive",
+   "note": "",
+   "sectionLabel": "Book exactly what you need — every price upfront"
+  },
+  {
    "key": "services|span|ca0a79bd|0",
    "section": "services",
    "kind": "text",
@@ -5074,11 +5333,11 @@
    "sectionLabel": ""
   },
   {
-   "key": "footer|div|b0c3735e|0",
+   "key": "footer|div|a0973956|0",
    "section": "footer",
    "kind": "text",
    "element": "div",
-   "original": "© 2024–26 Glovels Consultants Private Limited. All rights reserved.",
+   "original": "© 2024–26 Glovels Overseas Consultants Private Limited. All rights reserved.",
    "note": "",
    "sectionLabel": ""
   },
