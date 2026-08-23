@@ -496,6 +496,55 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .sla{display:inline-flex;align-items:center;gap:6px;font:700 11px/1 var(--sans);
   padding:6px 10px;border-radius:999px;background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc}
 .sla.late{background:#fdf6e6;color:#8a6a1f;border-color:#e6d5a8}
+
+/* ------------------------------------------------------------------ alerts */
+/* The bell in the top bar. It is not decoration: the number on it is how many
+   things are late, and it is on every staff screen because "everyone should be
+   alerted" cannot mean "on the one screen they remembered to open". */
+.bell{position:relative;display:grid;place-items:center;width:34px;height:34px;
+  border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer;
+  color:var(--navy-700);margin-left:8px}
+.bell:hover{background:#f4f7fb}
+.bell .ico{width:17px;height:17px}
+.bell-n{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:999px;background:#c0392b;color:#fff;font:800 10.6px/18px var(--sans);
+  text-align:center;box-shadow:0 0 0 2px #fff}
+.bell-n.quiet{background:var(--navy-700)}
+.bell-panel{position:fixed;top:58px;right:18px;z-index:300;width:min(430px,calc(100vw - 30px));
+  max-height:min(72vh,640px);overflow-y:auto;background:#fff;border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 18px 44px rgba(11,30,49,.18);padding:6px}
+.bell-panel h4{margin:0;padding:13px 14px 9px;font:700 12.4px/1 var(--sans);
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.al{display:block;width:100%;text-align:left;padding:11px 13px;border:0;border-radius:11px;
+  background:none;cursor:pointer;border-bottom:1px solid var(--line)}
+.al:last-child{border-bottom:0}
+.al:hover{background:#f7f9fc}
+.al b{display:block;font:700 13.1px/1.45 var(--sans);color:var(--navy-900);margin-bottom:3px}
+.al span{display:block;font-size:12.2px;line-height:1.55;color:var(--muted)}
+.al i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;
+  vertical-align:1px;background:var(--navy-700)}
+.al.now i{background:#c0392b}
+.al.soon i{background:#c9821a}
+.al.watch i{background:#7d8b9a}
+.bell-empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:12.9px;
+  line-height:1.65}
+.bell-who{display:flex;gap:8px;flex-wrap:wrap;padding:9px 13px 12px;border-bottom:1px solid var(--line)}
+.bell-who span{font:600 11.8px/1.5 var(--sans);color:var(--navy-800);background:#f0f4f9;
+  border-radius:999px;padding:3px 10px}
+.bell-who span.hot{background:#fdecea;color:#7a2118}
+
+/* ------------------------------------------------- what we still need from you */
+.todo-card{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:14px;
+  padding:18px 20px;margin:0 0 20px}
+.todo-head b{display:block;font:700 15.4px/1.35 var(--disp,inherit);color:#5b4409;
+  margin-bottom:4px}
+.todo-head span{display:block;font-size:12.9px;line-height:1.6;color:#7a5f13}
+.todo-bar{height:7px;border-radius:5px;background:#efe0bc;margin:13px 0 12px;overflow:hidden}
+.todo-bar i{display:block;height:100%;border-radius:5px;background:#c9821a}
+.todo-card ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.todo-card li{font-size:13.1px;line-height:1.6;color:#5b4409}
+.todo-card li b{color:#3f2f06}
+.todo-card a{font-weight:700;color:#8a5a0b;text-decoration:underline;white-space:nowrap}
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-google" viewBox="0 0 24 24"></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.7 5.5 6 .9-4.3 4.3 1 6-5.4-2.9-5.4 2.9 1-6L3.3 10l6-.9z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-plane" viewBox="0 0 24 24"><path d="M10.2 12.6 3 10.4l1-2 4.8.6 3.6-3.6 1.9.6-1.4 4.2 4.4.5 1.4-1.9 1.6.5-1.1 3 1.1 3-1.6.5-1.4-1.9-4.4.5 1.4 4.2-1.9.6-3.6-3.6-4.8.6-1-2z"/></symbol><symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></symbol><symbol id="i-wa" viewBox="0 0 24 24"><path d="M12 3.8a8 8 0 0 0-6.8 12.2L4 20.4l4.5-1.2A8 8 0 1 0 12 3.8Z"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 16H6a2 2 0 0 0-2 2"/></symbol><symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol></defs></svg>
@@ -512,8 +561,14 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
     <div class="p-bar">
       <span class="p-bar-title" id="crumb">Home page</span>
       <span class="sla" id="liveDot">connecting…</span>
+      <button type="button" class="bell" id="bell" aria-expanded="false"
+        aria-controls="bellPanel" title="What needs doing">
+        <svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
+        <span class="bell-n" id="bellN" hidden>0</span></button>
       <span class="p-av" id="staffAv">—</span>
     </div>
+    <div class="bell-panel" id="bellPanel" hidden role="dialog"
+      aria-label="What needs doing"></div>
     <div class="p-top">
       <div><h1>Home page</h1><p>The packages, the figures, the questions, the stories and every word on the front of the site. What you change here is what the next visitor reads.</p></div>
     </div>
@@ -1088,7 +1143,83 @@ async function staffBoot(run) {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
     location.href = 'login.html';
   };
+  bell(me);
   run(me);
+}
+
+/*
+ * The bell.
+ *
+ * On every staff screen, because "everyone should be alerted so that tasks are
+ * completed on time" cannot mean "on the one screen they remembered to open".
+ * The number is how many things are late — deadlines coming, students who have
+ * been waiting for a reply, files that are still short, follow-ups somebody
+ * promised. Pressing one goes to the thing rather than to a list about it.
+ */
+async function bell(me) {
+  const b = $('#bell'), n = $('#bellN'), panel = $('#bellPanel');
+  if (!b) return;
+  /* A website editor has no students and no leads; the endpoint would refuse
+     them and the bell would sit there permanently empty. */
+  if (me.user.role === 'editor') { b.remove(); return; }
+
+  let openNow = false;
+
+  const paint = d => {
+    const c = d.counts || {};
+    const hot = c.now || 0;
+    n.hidden = !c.total;
+    n.textContent = c.total > 99 ? '99+' : c.total;
+    n.className = 'bell-n' + (hot ? '' : ' quiet');
+    b.title = c.total
+      ? c.total + ' thing(s) need doing' + (hot ? ', ' + hot + ' of them late' : '')
+      : 'Nothing is waiting';
+
+    const who = (d.byPerson || []).length
+      ? '<div class="bell-who">' + d.byPerson.map(p =>
+          '<span class="' + (p.now ? 'hot' : '') + '">' + esc(p.name) + ' ' + p.total
+          + (p.now ? ' · ' + p.now + ' late' : '') + '</span>').join('') + '</div>'
+      : '';
+
+    panel.innerHTML = '<h4>What needs doing</h4>' + who
+      + ((d.alerts || []).map(a =>
+          '<button type="button" class="al ' + esc(a.urgency) + '" '
+          + 'data-student="' + esc((a.subject || {}).studentId || '') + '" '
+          + 'data-lead="' + esc((a.subject || {}).leadId || '') + '">'
+          + '<b><i></i>' + esc(a.title) + '</b><span>' + esc(a.detail) + '</span></button>'
+        ).join('')
+        || '<p class="bell-empty"><b>Nothing is waiting.</b><br>No deadline inside six '
+           + 'weeks, nobody waiting on a reply, and every follow-up is on time.</p>');
+  };
+
+  const load = async () => {
+    try { paint(await api('GET', '/api/staff/alerts')); }
+    catch (e) { /* signed out, or not this account's screen */ }
+  };
+
+  b.onclick = () => {
+    openNow = !openNow;
+    panel.hidden = !openNow;
+    b.setAttribute('aria-expanded', String(openNow));
+    if (openNow) load();
+  };
+  document.addEventListener('click', e => {
+    if (!openNow) return;
+    if (e.target.closest('#bellPanel') || e.target.closest('#bell')) return;
+    openNow = false; panel.hidden = true; b.setAttribute('aria-expanded', 'false');
+  });
+  panel.addEventListener('click', e => {
+    const a = e.target.closest('.al');
+    if (!a) return;
+    if (a.dataset.lead) location.href = 'leads.html';
+    else if (a.dataset.student) location.href = 'counsellor.html#s' + a.dataset.student;
+  });
+
+  load();
+  /* Every five minutes. A deadline does not move, but a student's message
+     does, and a bell that is only right when the page was loaded is a bell
+     that stops being looked at. */
+  setInterval(load, 300000);
 }
 
 let C = null, TEXT = null, editing = null;

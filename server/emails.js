@@ -345,4 +345,9 @@ Read it and reply here: ${siteUrl}/messages`,
   },
 };
 
+/* The wrapper, exported on its own. The daily digest builds its own body — a
+   list that changes shape every morning — and still has to look like every
+   other email this site sends. */
+T.shell = shell;
+
 module.exports = T;

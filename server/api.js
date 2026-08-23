@@ -25,6 +25,7 @@ const EMAILS = require('./emails.js');
 const SHEET = require('./sheet.js');
 const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
+const ALERTS = require('./alerts.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 
 const DAY = 864e5;
@@ -238,6 +239,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
       })),
       apps,
       docs,
+      /* What is still missing from their own file, named. "Your profile is 62%
+         complete" is a number; "we still need your Class 12 marksheet and your
+         date of birth" is something somebody can act on in a minute. */
+      todo: ALERTS.forStudent(db, s),
       saved: db.getSaved(s.id),
       drafts: draftsFor(s.id),
       msgs: db.getMessages(s.id).map(m => ({ who: m.sender, t: m.body, file: m.file, at: m.created_at })),
@@ -3669,6 +3674,42 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     db.deletePost(p.id);
     db.log(s.name, 'deleted a draft', p.title);
     return json(res, 200, { deleted: true, posts: db.allPosts().map(x => postShape(x, false)) });
+  }));
+
+  /* -------------------------------------------------------------- alerts */
+  /*
+   * What needs doing, and who it needs doing by.
+   *
+   * Four things went wrong quietly and none of them was visible anywhere: a
+   * deadline arriving, a counsellor going silent on a student, a profile that
+   * stays half-empty and blocks the visa, and a follow-up somebody promised
+   * and forgot. Every one of them was found out about by being told.
+   *
+   * Computed on read. An alert is a fact about the data — "this deadline is in
+   * six days" — and a stored copy of a fact is a copy that is wrong the moment
+   * somebody uploads the document.
+   */
+  route('GET', '/api/staff/alerts', caseworkOnly(async (req, res, s) => {
+    const list = ALERTS.forStaff(db, s);
+    return json(res, 200, {
+      alerts: list.slice(0, 200),
+      counts: ALERTS.counts(list),
+      /* An administrator is answerable for the counsellors, so the split by
+         person is theirs — it is the only view that shows a counsellor with
+         nine unanswered students. */
+      byPerson: s.role === 'admin'
+        ? Object.values(list.reduce((m, a) => {
+            const k = String(a.who || 'nobody');
+            if (!m[k]) {
+              const p = a.who ? db.studentById(a.who) : null;
+              m[k] = { id: a.who || null, name: p ? p.name : 'Nobody assigned', now: 0, total: 0 };
+            }
+            m[k].total++;
+            if (a.urgency === 'now') m[k].now++;
+            return m;
+          }, {})).sort((x, y) => y.now - x.now || y.total - x.total)
+        : [],
+    });
   }));
 
   /* ------------------------------------------------------------ dispatch */

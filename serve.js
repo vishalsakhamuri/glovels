@@ -155,6 +155,22 @@ const adminSeed = seed.seedAdmin({ db, admin: CFG.admin, hashPassword, newSalt,
 const importedPosts = seed.seedPosts({ db, root: ROOT });
 seed.bumpBrowseCaps({ db });
 
+/*
+ * One email a morning, to the people who can do something about it.
+ *
+ * The bell in the operations site tells somebody who is already looking. This
+ * is for the deadline that arrives on a day nobody opens the screen, which is
+ * the day it matters. With no SMTP configured the mailer writes .eml files to
+ * data/outbox, so this works from today and starts arriving in inboxes the day
+ * the mail details are filled in.
+ */
+const digest = require('./server/digest.js');
+digest.start({
+  db, mail, siteUrl: SITE_URL,
+  hour: process.env.DIGEST_HOUR_IST ? Number(process.env.DIGEST_HOUR_IST) : 9,
+  shell: require('./server/emails.js').shell,
+});
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',

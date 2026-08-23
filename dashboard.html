@@ -442,6 +442,11 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
+
+
+
+
 /* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
 
 /* Top bar: page title, notifications, avatar. */
@@ -548,6 +553,55 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .sla{display:inline-flex;align-items:center;gap:6px;font:700 11px/1 var(--sans);
   padding:6px 10px;border-radius:999px;background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc}
 .sla.late{background:#fdf6e6;color:#8a6a1f;border-color:#e6d5a8}
+
+/* ------------------------------------------------------------------ alerts */
+/* The bell in the top bar. It is not decoration: the number on it is how many
+   things are late, and it is on every staff screen because "everyone should be
+   alerted" cannot mean "on the one screen they remembered to open". */
+.bell{position:relative;display:grid;place-items:center;width:34px;height:34px;
+  border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer;
+  color:var(--navy-700);margin-left:8px}
+.bell:hover{background:#f4f7fb}
+.bell .ico{width:17px;height:17px}
+.bell-n{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:999px;background:#c0392b;color:#fff;font:800 10.6px/18px var(--sans);
+  text-align:center;box-shadow:0 0 0 2px #fff}
+.bell-n.quiet{background:var(--navy-700)}
+.bell-panel{position:fixed;top:58px;right:18px;z-index:300;width:min(430px,calc(100vw - 30px));
+  max-height:min(72vh,640px);overflow-y:auto;background:#fff;border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 18px 44px rgba(11,30,49,.18);padding:6px}
+.bell-panel h4{margin:0;padding:13px 14px 9px;font:700 12.4px/1 var(--sans);
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.al{display:block;width:100%;text-align:left;padding:11px 13px;border:0;border-radius:11px;
+  background:none;cursor:pointer;border-bottom:1px solid var(--line)}
+.al:last-child{border-bottom:0}
+.al:hover{background:#f7f9fc}
+.al b{display:block;font:700 13.1px/1.45 var(--sans);color:var(--navy-900);margin-bottom:3px}
+.al span{display:block;font-size:12.2px;line-height:1.55;color:var(--muted)}
+.al i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;
+  vertical-align:1px;background:var(--navy-700)}
+.al.now i{background:#c0392b}
+.al.soon i{background:#c9821a}
+.al.watch i{background:#7d8b9a}
+.bell-empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:12.9px;
+  line-height:1.65}
+.bell-who{display:flex;gap:8px;flex-wrap:wrap;padding:9px 13px 12px;border-bottom:1px solid var(--line)}
+.bell-who span{font:600 11.8px/1.5 var(--sans);color:var(--navy-800);background:#f0f4f9;
+  border-radius:999px;padding:3px 10px}
+.bell-who span.hot{background:#fdecea;color:#7a2118}
+
+/* ------------------------------------------------- what we still need from you */
+.todo-card{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:14px;
+  padding:18px 20px;margin:0 0 20px}
+.todo-head b{display:block;font:700 15.4px/1.35 var(--disp,inherit);color:#5b4409;
+  margin-bottom:4px}
+.todo-head span{display:block;font-size:12.9px;line-height:1.6;color:#7a5f13}
+.todo-bar{height:7px;border-radius:5px;background:#efe0bc;margin:13px 0 12px;overflow:hidden}
+.todo-bar i{display:block;height:100%;border-radius:5px;background:#c9821a}
+.todo-card ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.todo-card li{font-size:13.1px;line-height:1.6;color:#5b4409}
+.todo-card li b{color:#3f2f06}
+.todo-card a{font-weight:700;color:#8a5a0b;text-decoration:underline;white-space:nowrap}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
@@ -693,6 +747,10 @@ async function __dashBoot(main) {
       location.href = 'login.html?next=' + encodeURIComponent('/dashboard');
       return;
     }
+    /* An account still holding a password we generated. The server refuses
+       every other endpoint until it is replaced, so showing the dashboard would
+       show an empty one — which is exactly what it did: "No package yet" to
+       somebody who had just bought a package. */
     if (r.status === 403) {
       const why = await r.json().catch(function () { return {}; });
       if (why && why.mustChange) return mustChangeScreen({ role: 'student' });
@@ -706,6 +764,7 @@ async function __dashBoot(main) {
       localStorage.setItem('glovels_order', JSON.stringify(s.order || {}));
       localStorage.setItem('glovels_shortlist', JSON.stringify(s.shortlist || []));
       window.__GLOVELS = s;
+      __dashTodo(s);
     }
   } catch (e) {
     /* Server down: fall through to whatever this browser last saw, and say so
@@ -719,6 +778,49 @@ async function __dashBoot(main) {
   }
   main();
 }
+/*
+ * What we still need from them, on the screen they land on.
+ *
+ * A half-finished profile holds up the university application and then the
+ * visa, and the student is not being obstructive — nobody has told them which
+ * four boxes are empty. "Your profile is 62% complete" is a number; "we still
+ * need your Class 12 marksheet and your date of birth" is something somebody
+ * can finish in a minute.
+ *
+ * It stays until the file is complete, which is the point: this is the polite
+ * version of chasing somebody, and it chases every time they open the page.
+ */
+function __dashTodo(s) {
+  const t = s && s.todo;
+  if (!t) return;
+  const gaps = t.profileMissing || [], docs = t.documentsMissing || [];
+  if (!gaps.length && !docs.length) return;
+  const main = document.querySelector('.p-main') || document.body;
+  const host = main.querySelector('.p-top') || main.firstElementChild;
+  if (!host) return;
+  const esc2 = x => String(x == null ? '' : x)
+    .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const line = (n, what, list, href, cta) =>
+    '<li><b>' + n + ' ' + what + '</b> — ' + esc2(list.slice(0, 5).join(', '))
+    + (list.length > 5 ? ', and ' + (list.length - 5) + ' more' : '')
+    + ' <a href="' + href + '">' + cta + '</a></li>';
+
+  const el = document.createElement('div');
+  el.className = 'todo-card';
+  el.innerHTML =
+      '<div class="todo-head"><b>Your file is ' + t.complete + '% complete</b>'
+    + '<span>Applications cannot be filed, and a visa cannot be applied for, until it is '
+    + 'finished. Nothing here takes long.</span></div>'
+    + '<div class="todo-bar"><i style="width:' + t.complete + '%"></i></div>'
+    + '<ul>'
+    + (gaps.length ? line(gaps.length, gaps.length === 1 ? 'thing about you'
+        : 'things about you', gaps, 'profile.html', 'Fill these in') : '')
+    + (docs.length ? line(docs.length, docs.length === 1 ? 'document' : 'documents',
+        docs, 'documents.html', 'Upload them') : '')
+    + '</ul>';
+  host.parentNode.insertBefore(el, host.nextSibling);
+}
+
 function __dashMain() {
 
 (function(){

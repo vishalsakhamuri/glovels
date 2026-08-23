@@ -118,4 +118,53 @@ CSS = """
 .sla{display:inline-flex;align-items:center;gap:6px;font:700 11px/1 var(--sans);
   padding:6px 10px;border-radius:999px;background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc}
 .sla.late{background:#fdf6e6;color:#8a6a1f;border-color:#e6d5a8}
+
+/* ------------------------------------------------------------------ alerts */
+/* The bell in the top bar. It is not decoration: the number on it is how many
+   things are late, and it is on every staff screen because "everyone should be
+   alerted" cannot mean "on the one screen they remembered to open". */
+.bell{position:relative;display:grid;place-items:center;width:34px;height:34px;
+  border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer;
+  color:var(--navy-700);margin-left:8px}
+.bell:hover{background:#f4f7fb}
+.bell .ico{width:17px;height:17px}
+.bell-n{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:999px;background:#c0392b;color:#fff;font:800 10.6px/18px var(--sans);
+  text-align:center;box-shadow:0 0 0 2px #fff}
+.bell-n.quiet{background:var(--navy-700)}
+.bell-panel{position:fixed;top:58px;right:18px;z-index:300;width:min(430px,calc(100vw - 30px));
+  max-height:min(72vh,640px);overflow-y:auto;background:#fff;border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 18px 44px rgba(11,30,49,.18);padding:6px}
+.bell-panel h4{margin:0;padding:13px 14px 9px;font:700 12.4px/1 var(--sans);
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.al{display:block;width:100%;text-align:left;padding:11px 13px;border:0;border-radius:11px;
+  background:none;cursor:pointer;border-bottom:1px solid var(--line)}
+.al:last-child{border-bottom:0}
+.al:hover{background:#f7f9fc}
+.al b{display:block;font:700 13.1px/1.45 var(--sans);color:var(--navy-900);margin-bottom:3px}
+.al span{display:block;font-size:12.2px;line-height:1.55;color:var(--muted)}
+.al i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;
+  vertical-align:1px;background:var(--navy-700)}
+.al.now i{background:#c0392b}
+.al.soon i{background:#c9821a}
+.al.watch i{background:#7d8b9a}
+.bell-empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:12.9px;
+  line-height:1.65}
+.bell-who{display:flex;gap:8px;flex-wrap:wrap;padding:9px 13px 12px;border-bottom:1px solid var(--line)}
+.bell-who span{font:600 11.8px/1.5 var(--sans);color:var(--navy-800);background:#f0f4f9;
+  border-radius:999px;padding:3px 10px}
+.bell-who span.hot{background:#fdecea;color:#7a2118}
+
+/* ------------------------------------------------- what we still need from you */
+.todo-card{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:14px;
+  padding:18px 20px;margin:0 0 20px}
+.todo-head b{display:block;font:700 15.4px/1.35 var(--disp,inherit);color:#5b4409;
+  margin-bottom:4px}
+.todo-head span{display:block;font-size:12.9px;line-height:1.6;color:#7a5f13}
+.todo-bar{height:7px;border-radius:5px;background:#efe0bc;margin:13px 0 12px;overflow:hidden}
+.todo-bar i{display:block;height:100%;border-radius:5px;background:#c9821a}
+.todo-card ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.todo-card li{font-size:13.1px;line-height:1.6;color:#5b4409}
+.todo-card li b{color:#3f2f06}
+.todo-card a{font-weight:700;color:#8a5a0b;text-decoration:underline;white-space:nowrap}
 """

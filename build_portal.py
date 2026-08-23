@@ -168,8 +168,14 @@ def staff_page(slug, title, h1, sub, body, script, role_note):
     <div class="p-bar">
       <span class="p-bar-title" id="crumb">{h1}</span>
       <span class="sla" id="liveDot">connecting\u2026</span>
+      <button type="button" class="bell" id="bell" aria-expanded="false"
+        aria-controls="bellPanel" title="What needs doing">
+        <svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
+        <span class="bell-n" id="bellN" hidden>0</span></button>
       <span class="p-av" id="staffAv">\u2014</span>
     </div>
+    <div class="bell-panel" id="bellPanel" hidden role="dialog"
+      aria-label="What needs doing"></div>
     <div class="p-top">
       <div><h1>{h1}</h1><p>{sub}</p></div>
     </div>
@@ -288,7 +294,83 @@ async function staffBoot(run) {{
     await fetch('/api/auth/logout', {{ method: 'POST', credentials: 'same-origin' }});
     location.href = 'login.html';
   }};
+  bell(me);
   run(me);
+}}
+
+/*
+ * The bell.
+ *
+ * On every staff screen, because "everyone should be alerted so that tasks are
+ * completed on time" cannot mean "on the one screen they remembered to open".
+ * The number is how many things are late — deadlines coming, students who have
+ * been waiting for a reply, files that are still short, follow-ups somebody
+ * promised. Pressing one goes to the thing rather than to a list about it.
+ */
+async function bell(me) {{
+  const b = $('#bell'), n = $('#bellN'), panel = $('#bellPanel');
+  if (!b) return;
+  /* A website editor has no students and no leads; the endpoint would refuse
+     them and the bell would sit there permanently empty. */
+  if (me.user.role === 'editor') {{ b.remove(); return; }}
+
+  let openNow = false;
+
+  const paint = d => {{
+    const c = d.counts || {{}};
+    const hot = c.now || 0;
+    n.hidden = !c.total;
+    n.textContent = c.total > 99 ? '99+' : c.total;
+    n.className = 'bell-n' + (hot ? '' : ' quiet');
+    b.title = c.total
+      ? c.total + ' thing(s) need doing' + (hot ? ', ' + hot + ' of them late' : '')
+      : 'Nothing is waiting';
+
+    const who = (d.byPerson || []).length
+      ? '<div class="bell-who">' + d.byPerson.map(p =>
+          '<span class="' + (p.now ? 'hot' : '') + '">' + esc(p.name) + ' ' + p.total
+          + (p.now ? ' · ' + p.now + ' late' : '') + '</span>').join('') + '</div>'
+      : '';
+
+    panel.innerHTML = '<h4>What needs doing</h4>' + who
+      + ((d.alerts || []).map(a =>
+          '<button type="button" class="al ' + esc(a.urgency) + '" '
+          + 'data-student="' + esc((a.subject || {{}}).studentId || '') + '" '
+          + 'data-lead="' + esc((a.subject || {{}}).leadId || '') + '">'
+          + '<b><i></i>' + esc(a.title) + '</b><span>' + esc(a.detail) + '</span></button>'
+        ).join('')
+        || '<p class="bell-empty"><b>Nothing is waiting.</b><br>No deadline inside six '
+           + 'weeks, nobody waiting on a reply, and every follow-up is on time.</p>');
+  }};
+
+  const load = async () => {{
+    try {{ paint(await api('GET', '/api/staff/alerts')); }}
+    catch (e) {{ /* signed out, or not this account's screen */ }}
+  }};
+
+  b.onclick = () => {{
+    openNow = !openNow;
+    panel.hidden = !openNow;
+    b.setAttribute('aria-expanded', String(openNow));
+    if (openNow) load();
+  }};
+  document.addEventListener('click', e => {{
+    if (!openNow) return;
+    if (e.target.closest('#bellPanel') || e.target.closest('#bell')) return;
+    openNow = false; panel.hidden = true; b.setAttribute('aria-expanded', 'false');
+  }});
+  panel.addEventListener('click', e => {{
+    const a = e.target.closest('.al');
+    if (!a) return;
+    if (a.dataset.lead) location.href = 'leads.html';
+    else if (a.dataset.student) location.href = 'counsellor.html#s' + a.dataset.student;
+  }});
+
+  load();
+  /* Every five minutes. A deadline does not move, but a student's message
+     does, and a bell that is only right when the page was loaded is a bell
+     that stops being looked at. */
+  setInterval(load, 300000);
 }}
 {script}
 
@@ -555,6 +637,7 @@ async function __dashBoot(main) {
       localStorage.setItem('glovels_order', JSON.stringify(s.order || {}));
       localStorage.setItem('glovels_shortlist', JSON.stringify(s.shortlist || []));
       window.__GLOVELS = s;
+      __dashTodo(s);
     }
   } catch (e) {
     /* Server down: fall through to whatever this browser last saw, and say so
@@ -568,6 +651,49 @@ async function __dashBoot(main) {
   }
   main();
 }
+/*
+ * What we still need from them, on the screen they land on.
+ *
+ * A half-finished profile holds up the university application and then the
+ * visa, and the student is not being obstructive — nobody has told them which
+ * four boxes are empty. "Your profile is 62% complete" is a number; "we still
+ * need your Class 12 marksheet and your date of birth" is something somebody
+ * can finish in a minute.
+ *
+ * It stays until the file is complete, which is the point: this is the polite
+ * version of chasing somebody, and it chases every time they open the page.
+ */
+function __dashTodo(s) {
+  const t = s && s.todo;
+  if (!t) return;
+  const gaps = t.profileMissing || [], docs = t.documentsMissing || [];
+  if (!gaps.length && !docs.length) return;
+  const main = document.querySelector('.p-main') || document.body;
+  const host = main.querySelector('.p-top') || main.firstElementChild;
+  if (!host) return;
+  const esc2 = x => String(x == null ? '' : x)
+    .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const line = (n, what, list, href, cta) =>
+    '<li><b>' + n + ' ' + what + '</b> — ' + esc2(list.slice(0, 5).join(', '))
+    + (list.length > 5 ? ', and ' + (list.length - 5) + ' more' : '')
+    + ' <a href="' + href + '">' + cta + '</a></li>';
+
+  const el = document.createElement('div');
+  el.className = 'todo-card';
+  el.innerHTML =
+      '<div class="todo-head"><b>Your file is ' + t.complete + '% complete</b>'
+    + '<span>Applications cannot be filed, and a visa cannot be applied for, until it is '
+    + 'finished. Nothing here takes long.</span></div>'
+    + '<div class="todo-bar"><i style="width:' + t.complete + '%"></i></div>'
+    + '<ul>'
+    + (gaps.length ? line(gaps.length, gaps.length === 1 ? 'thing about you'
+        : 'things about you', gaps, 'profile.html', 'Fill these in') : '')
+    + (docs.length ? line(docs.length, docs.length === 1 ? 'document' : 'documents',
+        docs, 'documents.html', 'Upload them') : '')
+    + '</ul>';
+  host.parentNode.insertBefore(el, host.nextSibling);
+}
+
 function __dashMain() {
 """
 
@@ -838,6 +964,20 @@ def main():
         # choose a password.
         dash = dash[:i] + "<script>\n" + DASH_BOOT_PREFIX + inner \
             + DASH_BOOT_SUFFIX + dash[j:]
+
+    else:
+        # Already wrapped by an earlier build. The wrap happens once; the
+        # PREFIX changes — it is where the student's record is loaded and where
+        # anything that has to run before their own page does goes. A guard
+        # that only ever adds leaves whatever version was written the first
+        # time, which is how the "what we still need from you" card was written
+        # here and never appeared on a single screen.
+        # Matched on the boot function, not on the comment: "injected by
+        # build_portal.py" also heads the CSS block above, and cutting from
+        # there swallowed the stylesheet.
+        start = dash.index("/* ---- injected by build_portal.py: load this student")
+        end = dash.index("function __dashMain() {") + len("function __dashMain() {")
+        dash = dash[:start] + DASH_BOOT_PREFIX.strip() + dash[end:]
 
     # Separately, and unconditionally: the wrap above only happens once, and on
     # every build after the first this file arrives already wrapped. The shared

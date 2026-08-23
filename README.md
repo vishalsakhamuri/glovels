@@ -295,6 +295,9 @@ Content changes — prices, copy, programmes, countries — belong in the workbo
 | `build_portal.py` | Builds the portal screens from one shared shell |
 | `build_blog.py` | Cuts the blog page and one post into templates the server fills |
 | `check_pages.py` | Every inline script parses, and no function is declared twice |
+| `server/alerts.js` | Deadlines, silence, half-finished files and missed follow-ups |
+| `server/digest.js` | One email a morning, to the people who can act on it |
+| `server/prose.js` | What the office types, turned into what a reader sees |
 | `portal_*.py` | One file per portal screen: its markup and its behaviour |
 
 **After any rebuild of the marketing pages, run both:**
