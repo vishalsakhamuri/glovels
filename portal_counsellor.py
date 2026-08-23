@@ -54,6 +54,9 @@ BODY = """
 
 SCRIPT = r"""
 let STUDENTS = [];
+/* The record currently open, so the row renderer can read this student's
+   application stages without every caller threading them through. */
+let CASE = null;
 let openId = null;
 let ME = null;
 let filter = '';
@@ -142,7 +145,46 @@ function docRow(d) {
         '" style="margin-left:8px">Query</button>') + '</li>';
 }
 
+/* The five stages, the same five the student's own tracker draws. Kept here as
+   the same list rather than a second one, because two lists that must agree
+   eventually will not. */
+const APP_STAGES = ['Documents collected', 'Application drafted', 'Submitted',
+  'Under review', 'Decision'];
+
+/* One row on the student's list: what it is, where it has got to, and the two
+   things a counsellor does to it. */
+function uniRow(p) {
+  const a = (CASE && CASE.apps && CASE.apps[p.id]) || { stage: 0, outcome: '' };
+  const done = a.outcome === 'offer' ? 'ok' : a.outcome === 'rejected' ? 'bad' : '';
+
+  const options = APP_STAGES.map((n, i) =>
+    '<option value="' + i + '"' + (i === Number(a.stage || 0) ? ' selected' : '') + '>' +
+    esc(n) + '</option>').join('');
+
+  return '<li style="align-items:flex-start;gap:10px">' +
+    '<div style="flex:1;min-width:0">' +
+      '<b style="display:block">' + esc(p.university || p.id) + '</b>' +
+      '<span style="display:block;font-size:12px;color:var(--muted)">' +
+        esc(p.program || '') + ' \u00b7 ' + money(p) + '</span>' +
+    '</div>' +
+    '<select data-stage="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
+      'var(--sans);border:1.5px solid #d8dde4;border-radius:8px;background:var(--paper)">' +
+      options + '</select>' +
+    '<select data-outcome="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
+      'var(--sans);border:1.5px solid ' + (done === 'bad' ? '#e0b4ae' : '#d8dde4') +
+      ';border-radius:8px;background:var(--paper)">' +
+      '<option value=""' + (!a.outcome ? ' selected' : '') + '>No decision yet</option>' +
+      '<option value="offer"' + (a.outcome === 'offer' ? ' selected' : '') + '>Offer</option>' +
+      '<option value="rejected"' + (a.outcome === 'rejected' ? ' selected' : '') +
+        '>Rejected</option>' +
+    '</select>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-unidrop="' + esc(p.id) +
+      '" title="Take this off their list">Remove</button>' +
+    '</li>';
+}
+
 function paintRecord(r) {
+  CASE = r;
   const p = r.profile || {};
   const facts = [
     ['Email', r.student.email], ['Mobile', r.student.phone || '—'],
@@ -205,12 +247,29 @@ function paintRecord(r) {
             '<ul class="doclist" id="docs">' + (r.docs.length ? r.docs.map(docRow).join('')
               : '<li><span>Nothing uploaded yet</span></li>') + '</ul></div>' +
         '</div>' +
-        '<h3 style="font-size:14.5px;margin:18px 0 10px">Shortlist</h3>' +
+        /* The list, and the controls that run it. This is the counsellor's
+           actual job: agree a shortlist on a call, put it here, and move each
+           one along as it goes. Before this the student had to add their own
+           universities from a finder, having just been told which ones over
+           the phone — and the five-stage tracker on their screen sat at zero
+           for everybody, because nothing could move it. */
+        '<div style="display:flex;align-items:baseline;gap:10px;margin:18px 0 10px">' +
+          '<h3 style="font-size:14.5px;margin:0">Their universities</h3>' +
+          '<span style="font-size:11.8px;color:var(--muted)">' + r.shortlist.length +
+            ' on the list</span>' +
+          '<button type="button" class="btn btn-primary btn-sm" id="addUni" ' +
+            'style="margin-left:auto">+ Add a university</button></div>' +
+        '<div id="uniAdd" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;' +
+          'background:var(--paper);border:1px solid var(--line)">' +
+          '<input id="uniQ" placeholder="Search the catalogue — university, course or country" ' +
+            'style="width:100%;padding:9px 11px;font:400 13px/1.4 var(--sans);' +
+            'border:1.5px solid #d8dde4;border-radius:9px">' +
+          '<div id="uniHits" style="margin-top:9px;max-height:260px;overflow-y:auto"></div></div>' +
         (r.shortlist.length
-          ? '<ul class="doclist">' + r.shortlist.map(p =>
-              '<li><span style="flex:1">' + esc(p.program) + ' · <b>' + esc(p.university) + '</b></span>' +
-              '<span class="st none" style="text-transform:none;letter-spacing:0">' + money(p) + '</span></li>').join('') + '</ul>'
-          : '<p style="font-size:12.8px;color:var(--muted)">Nothing shortlisted yet.</p>') +
+          ? '<ul class="doclist" id="uniList">' + r.shortlist.map(uniRow).join('') + '</ul>'
+          : '<p style="font-size:12.8px;color:var(--muted)" id="uniList">Nothing on their list ' +
+            'yet. Agree one on a call, then put it here \u2014 this is what the admission ' +
+            'guarantee attaches to.</p>') +
 
         /* The drafts the student wrote in the studio. This is the copy the
            rewrite is billed against, so it belongs on the counsellor's screen
@@ -265,6 +324,124 @@ function paintRecord(r) {
 /* Typing hints are throttled: one every 1.5s is enough to show the dots, and
    one per keystroke would be a request per character. */
 let lastPing = 0;
+/* ------------------------------------------- running the student's list */
+
+const refreshCase = async () => {
+  if (openId) paintRecord(await api('GET', '/api/staff/student/' + openId));
+};
+
+/* The catalogue, fetched once and searched in the browser. It is 171 rows —
+   small enough that a round trip per keystroke would be the slower answer. */
+let CATALOGUE = null;
+async function catalogue() {
+  if (!CATALOGUE) {
+    const d = await api('GET', '/api/staff/catalogue');
+    /* Only what is actually on offer. Offering a counsellor a university that
+       has been switched off is offering them a row the student will never be
+       able to see. */
+    CATALOGUE = (d.programmes || []).filter(p => p.active !== false);
+  }
+  return CATALOGUE;
+}
+
+let uniTimer = null;
+async function searchUnis(q) {
+  const box = $('#uniHits');
+  const term = q.trim().toLowerCase();
+  if (term.length < 2) {
+    box.innerHTML = '<p style="margin:0;font-size:12.2px;color:var(--muted)">' +
+      'Type two letters or more.</p>';
+    return;
+  }
+  const all = await catalogue();
+  const on = new Set(((CASE && CASE.shortlist) || []).map(x => String(x.id)));
+  const hits = all.filter(p =>
+    ((p.university || '') + ' ' + (p.program || '') + ' ' + (p.country || ''))
+      .toLowerCase().includes(term)).slice(0, 24);
+
+  box.innerHTML = hits.length
+    ? '<ul class="doclist" style="margin:0">' + hits.map(p =>
+        '<li><div style="flex:1;min-width:0"><b style="display:block">' +
+        esc(p.university || p.id) + '</b><span style="display:block;font-size:11.8px;' +
+        'color:var(--muted)">' + esc(p.name || p.program || '') + ' \u00b7 ' +
+        esc(p.country || '') + '</span></div>' +
+        (on.has(String(p.id))
+          ? '<span class="st ok">on their list</span>'
+          : '<button type="button" class="btn btn-primary btn-sm" data-uniadd="' +
+            esc(p.id) + '">Add</button>') + '</li>').join('') + '</ul>'
+    : '<p style="margin:0;font-size:12.2px;color:var(--muted)">Nothing matches that.</p>';
+}
+
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'uniQ') {
+    clearTimeout(uniTimer);
+    uniTimer = setTimeout(() => searchUnis(e.target.value), 220);
+  }
+});
+
+document.addEventListener('change', async e => {
+  const st = e.target.closest('[data-stage]');
+  const oc = e.target.closest('[data-outcome]');
+  if (!st && !oc) return;
+  const id = (st || oc).dataset.stage || (st || oc).dataset.outcome;
+  const row = e.target.closest('li');
+  const stage = Number((row.querySelector('[data-stage]') || {}).value || 0);
+  const outcome = (row.querySelector('[data-outcome]') || {}).value || '';
+  try {
+    const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +
+      encodeURIComponent(id), { stage, outcome });
+    if (r.moved) toast('The student has been told.');
+    await refreshCase();
+  } catch (err) {
+    alert(err.message || 'That did not save.');
+  }
+});
+
+document.addEventListener('click', async e => {
+  const open = e.target.closest('#addUni');
+  if (open) {
+    const box = $('#uniAdd');
+    box.hidden = !box.hidden;
+    if (!box.hidden) { $('#uniQ').focus(); searchUnis($('#uniQ').value || ''); }
+    return;
+  }
+
+  const add = e.target.closest('[data-uniadd]');
+  if (add) {
+    add.disabled = true;
+    try {
+      await api('POST', '/api/staff/student/' + openId + '/shortlist',
+        { id: add.dataset.uniadd });
+      await refreshCase();
+      /* The panel stays open — a counsellor agreeing a shortlist on a call is
+         adding five, not one. */
+      $('#uniAdd').hidden = false;
+      searchUnis($('#uniQ').value || '');
+      toast('Added, and the student has been told.');
+    } catch (err) {
+      add.disabled = false;
+      alert(err.message || 'That did not add.');
+    }
+    return;
+  }
+
+  const drop = e.target.closest('[data-unidrop]');
+  if (drop) {
+    /* No confirm dialog: it is one row, it is reversible by adding it back, and
+       a dialog on every remove makes agreeing a shortlist of ten a chore. */
+    drop.disabled = true;
+    try {
+      await api('DELETE', '/api/staff/student/' + openId + '/shortlist/' +
+        encodeURIComponent(drop.dataset.unidrop));
+      await refreshCase();
+      toast('Taken off their list.');
+    } catch (err) {
+      drop.disabled = false;
+      alert(err.message || 'That did not remove.');
+    }
+  }
+});
+
 function ping() {
   const now = Date.now();
   if (now - lastPing < 1500 || !openId) return;

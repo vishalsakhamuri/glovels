@@ -1537,6 +1537,109 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     });
   }));
 
+  /*
+   * The counsellor runs the student's list.
+   *
+   * This is the actual job. A counsellor agrees a shortlist on the phone and
+   * then had no way to put it anywhere — the student had to add each university
+   * themselves, from a finder, having just been told which ones over a call.
+   * The agreed shortlist is also what the admission guarantee attaches to, so
+   * "agreed" needs to mean a row in a database rather than a memory of a
+   * conversation.
+   *
+   * The programme is looked up in OUR catalogue by id, exactly as it is for a
+   * student, so a counsellor cannot invent a university or a fee either.
+   */
+  route('POST', /^\/api\/staff\/student\/(\d+)\/shortlist$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const st = db.studentById(id);
+      if (!st) return json(res, 404, { error: 'No such student' });
+
+      const b = await readJson(req);
+      const p = lookup(String(b.id || ''));
+      if (!p) return json(res, 404, { error: 'No such programme in the catalogue.' });
+
+      const already = db.getShortlist(id).some(x => String(x.prog_id) === String(p.id));
+      db.addShortlist(id, p);
+      if (!already) {
+        db.log(s.name, 'added a university', st.name + ' — ' + (p.university || p.id));
+        /* The student is told, on their own thread, because a university
+           appearing on their list without explanation is unsettling — and
+           because this is the counsellor doing visible work. */
+        db.addMessage(id, 'them', 'I have added ' + (p.university || p.id)
+          + (p.name ? ' — ' + p.name : '') + ' to your list.');
+        live.toStudent(id, 'shortlist', {});
+      }
+      return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
+    }));
+
+  route('DELETE', /^\/api\/staff\/student\/(\d+)\/shortlist\/(.+)$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const st = db.studentById(id);
+      if (!st) return json(res, 404, { error: 'No such student' });
+
+      const progId = decodeURIComponent(m[2]);
+      const row = db.getShortlist(id).find(x => String(x.prog_id) === progId);
+      db.removeShortlist(id, progId);
+      /* The application goes with it. A tracker for a university nobody is
+         applying to any more is a row that will be wrong forever. */
+      db.removeApplication(id, progId);
+      if (row) {
+        db.log(s.name, 'removed a university', st.name + ' — ' + (row.university || progId));
+        db.addMessage(id, 'them', 'I have taken ' + (row.university || progId) + ' off your list.');
+        live.toStudent(id, 'shortlist', {});
+      }
+      return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
+    }));
+
+  /*
+   * Where each application has got to.
+   *
+   * The student's own screen has always shown a five-stage tracker; nobody
+   * could move it. So it sat at stage zero for every student on the site while
+   * their counsellor filed applications, and the one question a student asks —
+   * "where is mine up to" — had no answer on the screen built to answer it.
+   */
+  route('PUT', /^\/api\/staff\/student\/(\d+)\/application\/(.+)$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const st = db.studentById(id);
+      if (!st) return json(res, 404, { error: 'No such student' });
+
+      const progId = decodeURIComponent(m[2]);
+      const row = db.getShortlist(id).find(x => String(x.prog_id) === progId);
+      if (!row) return json(res, 404, { error: 'That is not on this student\'s list.' });
+
+      const b = await readJson(req);
+      const stage = Math.max(0, Math.min(4, Math.round(Number(b.stage) || 0)));
+      const outcome = /^(offer|rejected)$/.test(String(b.outcome || ''))
+        ? String(b.outcome) : '';
+
+      const before = db.getApplications(id).find(a => String(a.prog_id) === progId);
+      db.putApplication(id, progId, stage, outcome);
+
+      const words = ['Documents collected', 'Application drafted', 'Submitted',
+        'Under review', 'Decision'][stage];
+      const said = outcome === 'offer' ? 'an offer from ' + (row.university || progId)
+        : outcome === 'rejected' ? (row.university || progId) + ' has said no'
+        : (row.university || progId) + ': ' + words;
+
+      /* Only when it actually moved. A counsellor tidying up ten rows should
+         not send a student ten messages saying nothing changed. */
+      const moved = !before || before.stage !== stage || before.outcome !== outcome;
+      if (moved) {
+        db.log(s.name, 'moved an application', st.name + ' — ' + said);
+        db.addMessage(id, 'them', 'Update on your applications — ' + said + '.');
+        live.toStudent(id, 'apps', {});
+      }
+      return json(res, 200, { apps: stateFor(st).apps, moved });
+    }));
+
   route('POST', /^\/api\/staff\/student\/(\d+)\/message$/, caseworkOnly(async (req, res, s, m) => {
     const id = Number(m[1]);
     if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });

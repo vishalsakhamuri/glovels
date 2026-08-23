@@ -426,6 +426,7 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
 /* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
 
 /* Top bar: page title, notifications, avatar. */
@@ -651,6 +652,22 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   </main>
 </div>
 
+<script>
+
+/*
+ * An account still holding a password we generated goes to one place.
+ *
+ * This used to replace the body of whatever portal screen you were on, which
+ * left that screen's own scripts running against elements that no longer
+ * existed — a TypeError on the dashboard, from code that had every right to
+ * assume its own page was still there. The form lives on the sign-in page
+ * instead, which is where every other password form already is.
+ */
+function mustChangeScreen() {
+  const here = location.pathname + location.search;
+  location.replace('login.html?change=1&next=' + encodeURIComponent(here));
+}
+</script>
 <script>
 
 /*

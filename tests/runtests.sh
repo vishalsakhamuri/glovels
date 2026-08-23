@@ -43,6 +43,7 @@ run findertest.js   8099
 run ordertest.js    8099
 run admintest.js    8099
 run gatetest.js     8099
+run shortlisttest.js 8099
 run sheettest.js    8099
 run servicetest.js  8086
 run showcasetest.js 8089
