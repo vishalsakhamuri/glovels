@@ -3,10 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Your dashboard | Glovels</title>
-<meta name="description" content="Your shortlisted universities, application tracker, documents and deadlines.">
-<meta name="robots" content="noindex,nofollow">
-<link rel="icon" href="favicon.png">
+<title>{{HEAD_TITLE}}</title>
+<meta name="description" content="{{DESC}}">
+{{KEYWORDS}}<link rel="canonical" href="{{CANONICAL}}">
+{{ROBOTS}}
+<meta property="og:type" content="{{OG_TYPE}}">
+<meta property="og:site_name" content="Glovels">
+<meta property="og:title" content="{{OG_TITLE}}">
+<meta property="og:description" content="{{DESC}}">
+<meta property="og:url" content="{{CANONICAL}}">
+{{OG_IMAGE}}<meta name="twitter:card" content="{{TWITTER_CARD}}">
+<meta name="twitter:title" content="{{OG_TITLE}}">
+<meta name="twitter:description" content="{{DESC}}">
+{{JSONLD}}
+
+<link rel="icon" href="../favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -189,870 +200,227 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .dlogo .logo-img{width:74px;height:33px}
 @media (max-width:1240px){.nav .logo-img{width:81px;height:36px}}
 
-/* ------------------------------------------------------- portal chrome ---- */
-.p-shell{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
-.p-side{background:var(--navy-900);color:#c8d6e4;padding:20px 16px;display:flex;
-  flex-direction:column;gap:6px}
-.p-logo{background:#fff;border-radius:10px;padding:9px 12px;width:fit-content;margin-bottom:20px}
-.p-logo .logo-img{width:88px;height:39px}
-.p-nav{display:flex;flex-direction:column;gap:3px}
-.p-nav a{display:flex;align-items:center;gap:10px;font:600 13.4px/1 var(--sans);color:#c8d6e4;
-  padding:12px 12px;border-radius:10px;transition:.15s}
-.p-nav a:hover{background:rgba(255,255,255,.07);color:#fff}
-.p-nav a.on{background:var(--blue-deep);color:#fff}
-.p-nav a .ico{font-size:17px}
-.p-nav .soon{margin-left:auto;font:800 8.4px/1 var(--sans);letter-spacing:.1em;
-  text-transform:uppercase;background:rgba(255,255,255,.12);padding:4px 6px;border-radius:4px}
-.p-side-foot{margin-top:auto;padding-top:18px;border-top:1px solid rgba(255,255,255,.12)}
-.p-side-foot a{display:flex;align-items:center;gap:9px;font:600 12.8px/1 var(--sans);
-  color:#9fb1c4;padding:10px 12px;border-radius:9px}
-.p-side-foot a:hover{color:#fff;background:rgba(255,255,255,.07)}
-.p-main{background:var(--cream);padding:26px 30px 50px;min-width:0}
-.p-top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:22px}
-.p-top h1{font-size:clamp(22px,2.4vw,29px);color:var(--navy-900)}
-.p-top p{margin:5px 0 0;font-size:13.6px;color:var(--muted)}
-.p-top .btn{margin-left:auto}
-.p-sec{margin-bottom:26px}
-.p-sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:13px}
-.p-sec-head h2{font-size:18px;color:var(--navy-900)}
-.p-sec-head a{margin-left:auto;font:700 12.6px/1 var(--sans);color:var(--blue-deep)}
-
-/* -------------------------------------------------- shortlisted cards ---- */
-.sl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
-.sl{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 17px;
-  display:flex;flex-direction:column;box-shadow:var(--sh-1)}
-.sl-flag{font-size:20px}
-.sl h3{font-size:14.8px;color:var(--navy-900);margin:9px 0 3px;line-height:1.3}
-.sl .uni{font-size:12.8px;color:var(--navy-700)}
-.sl .city{font-size:11.8px;color:var(--muted);margin-top:2px}
-.sl-tag{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);
-  background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc;padding:5px 8px;
-  border-radius:var(--r-pill);margin:11px 0 9px;width:fit-content}
-.sl-meta{font-size:12.2px;color:var(--navy-800);margin-top:3px}
-.sl-meta b{font-weight:600}
-.sl-go{margin-top:auto;padding-top:12px;display:inline-flex;align-items:center;gap:6px;
-  font:700 12.2px/1 var(--sans);color:var(--blue-deep)}
-.sl.pending{border-style:dashed;background:#fbfaf6;align-items:center;text-align:center;
-  justify-content:center;gap:5px}
-.sl.pending .ico{font-size:22px;color:var(--gold-deep)}
-.sl.pending b{font-family:var(--disp);font-size:15px;color:var(--navy-900)}
-.sl.pending p{margin:0;font-size:12.2px;color:var(--muted);line-height:1.5}
-.sl-chip{font:700 10.6px/1 var(--sans);background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8;
-  padding:6px 9px;border-radius:var(--r-pill);margin-top:8px}
-.sl-empty{background:var(--paper);border:1px dashed #cfd6de;border-radius:var(--r-lg);
-  padding:30px;text-align:center}
-.sl-empty b{display:block;font-family:var(--disp);font-size:18px;color:var(--navy-900);
-  margin-bottom:7px}
-.sl-empty p{margin:0 auto 16px;font-size:13.4px;color:var(--muted);max-width:52ch;line-height:1.6}
-
-/* --------------------------------------------------------- lower cards ---- */
-.p-cols{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
-.p-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:18px 19px;box-shadow:var(--sh-1)}
-.p-card h3{font-size:15.5px;color:var(--navy-900);margin-bottom:14px;display:flex;
-  align-items:center;gap:9px}
-.p-card h3 .pill{margin-left:auto}
-.track{list-style:none;margin:0;padding:0;display:grid;gap:13px}
-.track li{display:flex;gap:11px;align-items:flex-start;font-size:12.6px;color:var(--muted)}
-.track li b{display:block;font-size:13.4px;color:var(--navy-900);font-weight:600}
-.track .dot{width:20px;height:20px;border-radius:50%;flex:none;border:2px solid var(--line);
-  margin-top:1px;display:grid;place-items:center}
-.track li.done .dot{background:var(--blue-deep);border-color:var(--blue-deep);color:#fff}
-.track li.done .dot .ico{font-size:12px}
-.track li.now .dot{border-color:var(--gold);background:#fdf6e6}
-.bar{height:7px;border-radius:99px;background:#e8ebef;overflow:hidden;margin-bottom:16px}
-.bar span{display:block;height:100%;border-radius:99px;
-  background:linear-gradient(90deg,var(--blue-deep),var(--gold))}
-.ring-row{display:flex;align-items:center;gap:16px}
-.ring{width:78px;height:78px;flex:none}
-.ring circle{fill:none;stroke-width:9}
-.ring .bg{stroke:#e8ebef}
-.ring .fg{stroke:var(--blue-deep);stroke-linecap:round;transform:rotate(-90deg);
-  transform-origin:50% 50%}
-.ring-lbl{font:700 17px/1 var(--sans);fill:var(--navy-900)}
-.doclist{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:12.6px}
-.doclist li{display:flex;align-items:center;gap:8px;color:var(--navy-800)}
-.doclist .st{margin-left:auto;font:700 9.6px/1 var(--sans);letter-spacing:.08em;
-  text-transform:uppercase;padding:4px 7px;border-radius:var(--r-pill)}
-.st.ok{background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc}
-.st.wait{background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8}
-.st.none{background:#f2f4f7;color:var(--muted);border:1px solid var(--line)}
-.msg{display:flex;gap:11px;align-items:flex-start;background:var(--cream);
-  border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;font-size:12.8px;
-  color:var(--navy-800);line-height:1.55}
-.msg .av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
-  color:#fff;font:700 12px/1 var(--sans);background:linear-gradient(160deg,var(--navy-600),var(--navy-800))}
-.msg b{display:block;font-size:12.6px;color:var(--navy-900);margin-bottom:2px}
-.deadline{display:flex;align-items:baseline;gap:10px;font-size:12.8px;color:var(--navy-800);
-  padding:9px 0;border-bottom:1px solid var(--line)}
-.deadline:last-child{border-bottom:0}
-.deadline .d{margin-left:auto;font:700 12px/1 var(--sans);color:var(--gold-deep);white-space:nowrap}
-
-/* --------------------------------------------------------------- login ---- */
-.auth{display:grid;grid-template-columns:1.05fr .95fr;min-height:100vh}
-.auth-brand{padding:44px 46px;color:#fff;position:relative;overflow:hidden;
-  background:radial-gradient(800px 400px at 84% 8%,rgba(28,77,120,.6),transparent 60%),
-             linear-gradient(165deg,var(--navy-900),var(--navy-800) 55%,var(--navy-700));
-  display:flex;flex-direction:column}
-.auth-brand::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:60px 60px;
-  -webkit-mask-image:radial-gradient(70% 60% at 40% 30%,#000,transparent);
-  mask-image:radial-gradient(70% 60% at 40% 30%,#000,transparent)}
-.auth-brand>*{position:relative;z-index:1}
-.auth-brand .logo-img{width:104px;height:46px}
-.auth-brand .blogo{background:#fff;border-radius:12px;padding:10px 14px;width:fit-content}
-.auth-brand h1{font-size:clamp(26px,2.8vw,36px);line-height:1.14;color:#fff;margin-top:auto;
-  max-width:22ch}
-.auth-brand p{color:#c8d6e4;font-size:14.6px;margin:14px 0 0;max-width:44ch;line-height:1.6}
-.auth-list{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:10px}
-.auth-list li{display:flex;gap:10px;font-size:13.4px;color:#dbe5ef}
-.auth-list .ico{font-size:16px;color:var(--gold-soft);flex:none;margin-top:1px}
-.auth-form{display:grid;place-items:center;padding:40px 24px;background:var(--cream)}
-.auth-card{width:min(400px,100%)}
-.auth-card h2{font-size:24px;color:var(--navy-900)}
-.auth-card .sub{font-size:13.4px;color:var(--muted);margin:6px 0 22px}
-.fld{margin-bottom:14px}
-.fld label{display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
+header.site{position:sticky;top:0;z-index:100;background:rgba(247,245,239,.94);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:clamp(12px,2vw,30px);height:76px;max-width:var(--maxw);
+  margin:0 auto;padding:0 var(--wrap)}
+nav.menu{display:flex;align-items:center;gap:clamp(10px,1.6vw,24px);margin-right:auto}
+nav.menu>a,.ndt{font:600 13.6px/1 var(--sans);color:var(--navy-800);white-space:nowrap;
+  background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.nav-drop{position:relative}
+.mega{position:absolute;top:calc(100% + 16px);left:-18px;min-width:250px;background:var(--paper);
+  border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--sh-3);opacity:0;
+  visibility:hidden;transform:translateY(-6px);transition:.18s;z-index:60;max-height:70vh;overflow:auto}
+.nav-drop.open>.mega{opacity:1;visibility:visible;transform:none}
+.mega a{display:block;padding:9px 12px;border-radius:9px;font-size:13.4px;color:var(--navy-800)}
+.mega a:hover{background:var(--cream);color:var(--blue-deep)}
+.nav-cta{display:flex;gap:10px;align-items:center}
+.signin{font:700 13.6px/1 var(--sans);color:var(--navy-800);border:1px solid rgba(13,35,56,.4);
+  background:var(--paper);padding:11px 17px;border-radius:var(--r-pill)}
+.burger{display:none;background:none;border:1px solid var(--line);border-radius:10px;width:44px;
+  height:40px;align-items:center;justify-content:center;cursor:pointer;color:var(--navy-800)}
+.mobile-menu{position:fixed;inset:0 0 0 auto;width:min(370px,88vw);background:var(--paper);z-index:130;
+  transform:translateX(102%);transition:transform .26s;padding:18px 22px 40px;overflow-y:auto}
+.mobile-menu.open{transform:none}
+.mm-item{border-bottom:1px solid var(--line)}
+.mmt{width:100%;display:flex;justify-content:space-between;background:none;border:0;padding:14px 0;
+  font:700 14.5px/1 var(--sans);color:var(--navy-800);cursor:pointer}
+.mm-sub{display:none;padding:0 0 12px 4px}
+.mm-item.open .mm-sub{display:block}
+.mm-sub a{display:block;padding:8px 0;font-size:13.4px;color:var(--muted)}
+.mobile-menu>a:not(.btn){display:block;padding:14px 0;border-bottom:1px solid var(--line);
+  color:var(--navy-800);font-weight:600}
+.scrim{position:fixed;inset:0;background:rgba(11,30,49,.44);z-index:120;opacity:0;
+  pointer-events:none;transition:opacity .24s}
+.scrim.on{opacity:1;pointer-events:auto}
+.page-hero{background:linear-gradient(165deg,var(--navy-900),var(--navy-800) 55%,var(--navy-700));
+  color:#fff;padding:44px 0 40px}
+.page-hero h1{font-size:clamp(28px,3.6vw,42px);line-height:1.1;color:#fff;max-width:20ch}
+.page-hero p{color:#c8d6e4;font-size:15.5px;max-width:62ch;margin:12px 0 0}
+.crumbs{font-size:12.4px;color:#9fb1c4;margin-bottom:14px}
+.crumbs a{color:#c8d6e4}
+.prose{max-width:70ch;margin:0 auto}
+.prose h2{font-size:24px;margin:30px 0 10px}
+.prose h3{font-size:18px;margin:22px 0 8px}
+.prose p{font-size:15px;line-height:1.7;color:var(--ink);margin:0 0 14px}
+.prose ul{margin:0 0 16px;padding-left:20px}
+.prose li{font-size:15px;line-height:1.7;margin-bottom:7px}
+.prose .lead{font-size:17px;line-height:1.65;color:var(--navy-800)}
+.factbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;
+  margin:22px 0}
+.factbox div{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
+  padding:13px 14px}
+.factbox span{display:block;font:800 8.8px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
   color:var(--muted);margin-bottom:6px}
-.fld input{width:100%;height:48px;padding:0 13px;font:500 14.4px/1 var(--sans);
-  border:1.5px solid #d8dde4;border-radius:12px;background:var(--paper);color:var(--navy-900)}
-.fld input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 4px rgba(26,79,180,.14)}
-.fld.bad input{border-color:#c0392b;background:#fdf3f2}
-.fld .err{display:none;font-size:11.6px;color:#c0392b;margin-top:5px}
-.fld.bad .err{display:block}
-.pw-wrap{position:relative}
-.pw-wrap button{position:absolute;right:6px;top:6px;height:36px;width:38px;border:0;
-  background:none;color:var(--muted);cursor:pointer;border-radius:9px}
-.auth-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  font-size:12.6px;margin:-4px 0 18px}
-.auth-row a{color:var(--blue-deep);font-weight:600}
-.auth-or{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);
-  font-size:11.6px;letter-spacing:.06em;text-transform:uppercase}
-.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
-.btn-google{width:100%;background:var(--paper);color:var(--navy-900);border:1.5px solid #d8dde4}
-.btn-google:hover{border-color:var(--navy-800)}
-.auth-swap{text-align:center;font-size:13px;color:var(--muted);margin-top:20px}
-.auth-swap button{background:none;border:0;color:var(--blue-deep);font:700 13px/1 var(--sans);
-  cursor:pointer;text-decoration:underline}
-.demo-bar{background:#fdf0d6;border:1px solid #e8c88a;color:#7a4f08;border-radius:var(--r);
-  padding:12px 14px;font-size:12.4px;line-height:1.55;margin-bottom:20px}
-.demo-bar b{display:block;margin-bottom:3px}
-.demo-bar{display:flex;gap:10px;align-items:flex-start}
-.demo-bar>.ico{font-size:16px;flex:none;margin-top:2px}
-.creds{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-.creds div{background:rgba(255,255,255,.65);border:1px solid #e8c88a;border-radius:8px;padding:7px 10px}
-.creds span{display:block;font:800 8.6px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#9a7420;margin-bottom:3px}
-.creds code{font:600 12.6px/1 ui-monospace,Menlo,monospace;color:#5b4409}
-.p-demo{background:#fdf0d6;border-bottom:1px solid #e8c88a;color:#7a4f08;
-  font:600 11.8px/1.5 var(--sans);padding:9px var(--wrap);text-align:center}
-
-@media (max-width:980px){.auth{grid-template-columns:1fr}.auth-brand{padding:30px 26px}
-  .auth-brand h1{margin-top:26px}.p-cols{grid-template-columns:1fr}}
-@media (max-width:860px){
-  .p-shell{grid-template-columns:1fr}
-  .p-side{flex-direction:row;align-items:center;gap:4px;padding:12px 14px;overflow-x:auto}
-  .p-logo{margin:0 12px 0 0;flex:none}
-  .p-nav{flex-direction:row;gap:2px}
-  .p-nav a{padding:10px 11px;white-space:nowrap}
-  .p-nav .soon{display:none}
-  .p-side-foot{margin:0 0 0 auto;padding:0;border:0;flex:none}
-  .p-main{padding:20px 18px 40px}
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
-
-/* Top bar: page title, notifications, avatar. */
-.p-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.p-bar-title{font:800 11.4px/1 var(--sans);letter-spacing:.13em;text-transform:uppercase;
-  color:var(--muted)}
-.p-bell{margin-left:auto;position:relative;width:36px;height:36px;border-radius:50%;
-  border:1px solid var(--line);background:var(--paper);color:var(--navy-700);cursor:pointer;
-  display:grid;place-items:center;transition:.16s}
-.p-bell:hover{border-color:var(--blue);color:var(--blue-deep)}
-.p-bell .dot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;
-  background:var(--gold-deep);border:1.5px solid var(--paper)}
-.p-av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
-  font:700 12.4px/1 var(--sans);color:#fff;
-  background:linear-gradient(160deg,var(--navy-600),var(--navy-800))}
-
-/* The package the student is actually on, in the sidebar under the logo. */
-.plan-badge{margin:14px 14px 0;padding:11px 13px;border-radius:12px;
-  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14)}
-.plan-badge b{display:block;font:700 13px/1.25 var(--sans);color:#fff}
-.plan-badge span{display:block;margin-top:3px;font-size:11.4px;line-height:1.4;
-  color:rgba(255,255,255,.62)}
-
-/* "Do this next." One prompt, and it has to look like the most actionable thing
-   on the page — otherwise it is just another card. */
-.nextup{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  background:linear-gradient(120deg,#f4f8ff,#eef3fc);
-  border:1.5px solid #c9dbf7;border-radius:var(--r-lg,16px);padding:16px 18px;
-  margin-bottom:20px;box-shadow:var(--sh-1,0 2px 10px rgba(11,30,49,.06))}
-.nextup>.ico{font-size:26px;color:var(--blue-deep);flex:none}
-.nextup>div{flex:1;min-width:220px}
-.nextup b{display:block;font-family:var(--disp);font-size:16px;color:var(--navy-900);
+.factbox b{font-size:14.6px;color:var(--navy-900);font-weight:600}
+.towrite{background:#fdf0d6;border:1px solid #e8c88a;color:#7a4f08;border-radius:var(--r);
+  padding:13px 15px;font-size:13px;margin:16px 0}
+.towrite b{display:block;margin-bottom:4px}
+.postcard{display:block;background:var(--paper);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:20px 22px;margin-bottom:14px;transition:.18s}
+.postcard:hover{transform:translateY(-2px);box-shadow:var(--sh-2)}
+.postcard h3{font-size:18px;color:var(--navy-900);margin-bottom:7px}
+.postcard p{font-size:13.6px;color:var(--muted);line-height:1.6;margin:0}
+.postmeta{font:700 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--blue-deep);margin-bottom:9px}
+.cta-band{background:var(--paper);border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);padding:30px 0;text-align:center}
+.cta-band h2{font-size:24px;margin-bottom:8px}
+.cta-band p{color:var(--muted);margin:0 0 16px}
+footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9c8d8;
+  padding:36px 0 0;font-size:13.2px}
+.fgrid{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr;gap:26px}
+.fcol h4{font:800 10.6px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:#fff;
+  margin-bottom:13px}
+.fcol a{display:block;padding:5px 0;color:#b9c8d8;font-size:12.9px}
+.fcol a:hover{color:#fff}
+.flogo{display:inline-flex;background:var(--paper);border-radius:12px;padding:9px 14px}
+.office{max-width:330px;line-height:1.55;margin-top:16px;color:#9fb1c4}
+.office b{display:block;color:#fff;font-size:12.4px;letter-spacing:.04em;text-transform:uppercase;
   margin-bottom:3px}
-.nextup span{font-size:12.8px;line-height:1.55;color:var(--muted)}
-.nextup .btn{flex:none}
+.fbot{margin-top:30px;border-top:1px solid rgba(255,255,255,.12);padding:16px 0 24px;
+  font-size:12.2px;color:#8ba0b4}
+@media (max-width:1160px){nav.menu,.nav-cta .signin{display:none}.burger{display:flex}
+  .nav-cta{margin-left:auto}}
+@media (max-width:1000px){.fgrid{grid-template-columns:1fr 1fr 1fr}}
+@media (max-width:640px){.fgrid{grid-template-columns:1fr 1fr}}
 
-/* Counsellor card. */
-.couns{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-  background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg,16px);
-  padding:15px 17px;box-shadow:var(--sh-1,0 2px 10px rgba(11,30,49,.06))}
-.couns .c-av{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;
-  font:700 14px/1 var(--sans);color:#fff;
-  background:linear-gradient(160deg,var(--navy-600),var(--navy-800))}
-.couns>div{flex:1;min-width:150px}
-.c-lbl{display:block;font:800 9.6px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:4px}
-.couns b{display:block;font-size:14px;color:var(--navy-900);line-height:1.3}
-.c-sub{display:block;margin-top:3px;font-size:11.8px;color:var(--muted)}
-
-/* The four-step strip. A step that has not happened must not look like one that
-   has, so the difference is fill and colour, not a tick alone. */
-.steps4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
-.step4{background:var(--paper);border:1px solid var(--line);border-radius:13px;
-  padding:12px 14px;box-shadow:var(--sh-1,0 2px 10px rgba(11,30,49,.06))}
-.step4 .s-n{display:block;font:800 9.4px/1 var(--sans);letter-spacing:.12em;
-  text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.step4 b{display:flex;align-items:center;gap:6px;font-size:13.4px;color:var(--navy-800);
-  font-weight:600;line-height:1.3}
-.step4.done{background:#eaf6ee;border-color:#bfe0cc}
-.step4.done .s-n{color:#2c7a53}
-.step4.done b{color:#14603a}
-.step4.done .ico{font-size:14px;color:var(--green)}
-@media(max-width:900px){ .steps4{grid-template-columns:repeat(2,1fr)} }
-@media(max-width:520px){ .steps4{grid-template-columns:1fr} }
-
-/* Shortlist as a vertical list rather than a grid — the newer layout.
-   Two lines per row: what it is and what it costs on the first, where it is on
-   the second. `order` rather than a grid because the card's children are four
-   different divs with no distinguishing hook between the two .sl-meta lines. */
-.rows-list{display:grid;gap:12px}
-.rows-list .sl{flex-direction:row;flex-wrap:wrap;align-items:center;
-  gap:5px 16px;padding:14px 18px}
-.rows-list .sl>.sl-flag{order:1;font-size:18px}
-.rows-list .sl>h3{order:2;margin:0}
-.rows-list .sl>.uni{order:3;margin:0;font-weight:600}
-.rows-list .sl>.uni::before{content:"·";margin-right:11px;color:var(--muted);font-weight:400}
-.rows-list .sl>.city{order:4;margin:0}
-.rows-list .sl>.sl-tag{order:5;margin:0}
-.rows-list .sl>.sl-meta{order:6;margin:0;white-space:nowrap}
-.rows-list .sl>.sl-go{order:7;margin:0 0 0 auto;padding:0}
-@media(max-width:760px){
-  .rows-list .sl>.sl-go{margin-left:0;flex-basis:100%;padding-top:8px}
-  .rows-list .sl>.uni::before{content:none}
-}
-
-/* Order summary rows: label left, figure right, on one baseline. */
-.rc{display:flex;align-items:baseline;gap:12px;font-size:13px;color:var(--navy-800);
-  padding:8px 0;border-bottom:1px solid var(--line)}
-.rc:last-child{border-bottom:0}
-.rc b{margin-left:auto;font-weight:700;color:var(--navy-900);white-space:nowrap}
-.rc.sub{font-size:12.2px;color:var(--muted)}
-.rc.sub b{font-weight:600;color:var(--muted)}
-
-.p-cols-3{grid-template-columns:repeat(3,1fr)}
-@media(max-width:1000px){ .p-cols-3{grid-template-columns:1fr} }
-
-/* Status pills sit inside table cells here, where the column can be narrow
-   enough to break "On the site" across two lines. They are labels, not prose. */
-.tbl .st{white-space:nowrap;display:inline-block}
-.tbl td{vertical-align:middle}
-
-/* The 24-hour shortlist promise, counting down. Amber once it is close, because
-   a countdown that looks the same at 20 hours and at 20 minutes is decoration. */
-.sla{display:inline-flex;align-items:center;gap:6px;font:700 11px/1 var(--sans);
-  padding:6px 10px;border-radius:999px;background:#eaf6ee;color:#14603a;border:1px solid #bfe0cc}
-.sla.late{background:#fdf6e6;color:#8a6a1f;border-color:#e6d5a8}
+.blogform{background:var(--paper);border:1px solid var(--line);border-radius:16px;
+  padding:26px 26px 24px;box-shadow:var(--sh-1)}
+.blogform h2{font-size:22px;margin:0 0 6px}
+.blogform > p{font-size:13.8px;color:var(--muted);line-height:1.65;margin:0 0 18px}
+.blogform .field{margin-bottom:13px}
+.blogform label{display:block;font:700 12.4px/1.4 var(--sans);color:var(--navy-800);
+  margin-bottom:5px}
+.blogform input,.blogform textarea{width:100%;padding:11px 13px;border:1.5px solid #d8dde4;
+  border-radius:10px;font:400 14px/1.55 var(--sans);background:#fff;color:var(--navy-900)}
+.blogform input:focus,.blogform textarea:focus{outline:none;border-color:var(--blue-deep,#1c4d78)}
+.blogform textarea{resize:vertical}
+.bf-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+@media (max-width:560px){ .bf-grid{grid-template-columns:1fr} }
+.blogform .btn{width:100%;margin-top:5px}
+.bf-note{margin:12px 0 0;font:600 13px/1.55 var(--sans);display:none;padding:11px 13px;
+  border-radius:10px}
+.bf-note.ok{display:block;background:#eaf6ee;border:1px solid #bfe0cc;color:#14603a}
+.bf-note.bad{display:block;background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118}
+.bf-fine{margin:11px 0 0;font-size:11.4px;color:var(--muted);line-height:1.55;text-align:center}
+.prose blockquote{margin:18px 0;padding:2px 0 2px 18px;border-left:3px solid var(--gold,#c9a227)}
+.prose blockquote p{margin:0;font-style:italic;color:var(--navy-800)}
+.postcard .postmeta .live{color:#14603a}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
 </style>
+<style>/* GLOVELS-TOWRITE-RULE */
+.towrite{display:none !important}
+html.review-copy .towrite{display:block !important}
+</style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-google" viewBox="0 0 24 24"></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.7 5.5 6 .9-4.3 4.3 1 6-5.4-2.9-5.4 2.9 1-6L3.3 10l6-.9z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-plane" viewBox="0 0 24 24"><path d="M10.2 12.6 3 10.4l1-2 4.8.6 3.6-3.6 1.9.6-1.4 4.2 4.4.5 1.4-1.9 1.6.5-1.1 3 1.1 3-1.6.5-1.4-1.9-4.4.5 1.4 4.2-1.9.6-3.6-3.6-4.8.6-1-2z"/></symbol><symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-wa" viewBox="0 0 24 24"><path d="M12 3.8a8 8 0 0 0-6.8 12.2L4 20.4l4.5-1.2A8 8 0 1 0 12 3.8Z"/></symbol></defs></svg>
-
-<div class="p-shell">
-  <aside class="p-side">
-    <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
-    <nav class="p-nav"><a href="dashboard.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Dashboard</a><a href="profile.html"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg> My Profile</a><a href="documents.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Documents</a><a href="universities.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> My Universities</a><a href="applications.html"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Applications</a><a href="scholarships.html"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Scholarships</a><a href="visa.html"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Visa &amp; Enrollment</a><a href="messages.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Messages</a></nav>
-    <div class="p-side-foot">
-      <div class="plan-badge" id="planBadge"></div>
-      <a href="login.html" id="signOut"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Switch role / log out</a>
-    </div>
-  </aside>
-
-  <main class="p-main">
-    <div class="p-bar">
-      <span class="p-bar-title">Dashboard</span>
-      <button class="p-bell" id="bell" aria-label="Notifications"><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
-        <span class="dot" id="bellDot" hidden></span></button>
-      <span class="p-av" id="avatar">—</span>
-    </div>
-
-    <div class="p-demo"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> Signed in. Your shortlist, order, documents and messages are stored on the
-      Glovels server against your account — not in this browser. Payment is not connected yet, so orders are recorded but nothing is charged.</div>
-
-    <div id="nextUp"></div>
-
-    <div class="p-top">
-      <div>
-        <h1 id="hello">Welcome back</h1>
-        <p id="helloSub">Here is where your application stands today.</p>
-      </div>
-      <div class="couns" id="couns"></div>
-    </div>
-
-    <div class="steps4" id="steps4"></div>
-
-    <div id="receipt" class="p-sec"></div>
-
-    <section class="p-sec">
-      <div class="p-sec-head">
-        <h2>Your shortlisted universities</h2>
-        <a href="index.html#results">See all matches <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </div>
-      <div id="slWrap"></div>
-    </section>
-
-    <section class="p-sec" id="draftsSec" hidden>
-      <div class="p-sec-head">
-        <h2>Your SOP and LOR drafts</h2>
-        <a href="index.html#services">Write another <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </div>
-      <div id="draftWrap"></div>
-    </section>
-
-    <section class="p-sec" id="boughtSec" hidden>
-      <div class="p-sec-head">
-        <h2>What you have bought</h2>
-        <a href="index.html#services">Add a service <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </div>
-      <div id="boughtWrap"></div>
-    </section>
-
-    <div class="p-cols">
-      <div class="p-card">
-        <h3><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Application tracker <span class="pill" id="trackPill"></span></h3>
-        <div class="bar"><span id="trackBar" style="width:0%"></span></div>
-        <ul class="track" id="trackList"></ul>
-      </div>
-
-      <div class="p-card">
-        <h3><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Your journey</h3>
-        <ul class="track" id="journey"></ul>
-      </div>
-    </div>
-
-    <div class="p-cols p-cols-3" style="margin-top:16px">
-      <div class="p-card">
-        <h3><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Funding &amp; scholarships</h3>
-        <ul class="doclist" style="gap:12px"><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Scholarship Shortlisting</b><br><span style="font-size:11.8px;color:var(--muted)">Every scholarship you are eligible for, ranked by award size and deadline, with the el</span></span><span class="st none">Paid</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Education Loan Assistance</b><br><span style="font-size:11.8px;color:var(--muted)">Compare offers from partner lenders, prepare the file and track sanction until disburs</span></span><span class="st ok">Free</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Scholarship: End-to-End</b><br><span style="font-size:11.8px;color:var(--muted)">We write and file every scholarship application on your shortlist, then follow up on d</span></span><span class="st none">Paid</span></li></ul>
-        <p style="font-size:11.6px;color:var(--muted);margin:13px 0 0;line-height:1.55">
-          Scholarship deadlines differ by course, so they are checked per university once your
-          shortlist is agreed rather than listed generically here.</p>
-      </div>
-
-      <div class="p-card">
-        <h3><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Document readiness</h3>
-        <div class="ring-row">
-          <svg class="ring" viewBox="0 0 100 100" role="img"
-            aria-label="25 percent of documents ready">
-            <circle class="bg" cx="50" cy="50" r="42"/>
-            <circle class="fg" cx="50" cy="50" r="42"
-              stroke-dasharray="264"
-              stroke-dashoffset="198"/>
-            <text class="ring-lbl" x="50" y="56" text-anchor="middle">25%</text>
-          </svg>
-          <ul class="doclist"><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>Passport</span><span class="st ok">Verified</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>10th &amp; 12th marksheets</span><span class="st ok">Verified</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>Degree transcripts</span><span class="st wait">In review</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>IELTS scorecard</span><span class="st wait">In review</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>Resume</span><span class="st none">Not uploaded</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>Statement of purpose</span><span class="st none">Not uploaded</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>Recommendation letters</span><span class="st none">Not uploaded</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span>Financial documents</span><span class="st none">Not uploaded</span></li></ul>
-        </div>
-      </div>
-
-      <div class="p-card">
-        <h3><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg> Deadlines to watch</h3>
-        <div id="deadlines"></div>
-        <div class="msg" style="margin-top:16px">
-          <span class="av">C</span>
-          <div><b>Your counsellor</b>Once your documents are in, I will confirm the shortlist with
-            you on a call and we will file in deadline order.
-            <a href="messages.html" style="display:inline-block;margin-top:7px;
-              font-weight:700;color:var(--blue-deep)">Reply <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
-        </div>
-      </div>
-    </div>
-  </main>
-</div>
-
-<script>
-
-/*
- * An account still holding a password we generated goes to one place.
- *
- * This used to replace the body of whatever portal screen you were on, which
- * left that screen's own scripts running against elements that no longer
- * existed — a TypeError on the dashboard, from code that had every right to
- * assume its own page was still there. The form lives on the sign-in page
- * instead, which is where every other password form already is.
- */
-function mustChangeScreen() {
-  const here = location.pathname + location.search;
-  location.replace('login.html?change=1&next=' + encodeURIComponent(here));
-}
+<script>/* GLOVELS-REVIEW-COPY */
+/* Opened from disk = the office reviewing this. Served over http = a visitor.
+   Only the first sees the notes we left ourselves. */
+if (location.protocol === 'file:') document.documentElement.className += ' review-copy';
 </script>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7 2 2 0 0 1 6.5 3.5Z"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 16H6a2 2 0 0 0-2 2"/></symbol><symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 9.6 12 4l9 5.6"/><path d="M5 10v9M19 10v9M9.5 10v9M14.5 10v9M2.5 20h19"/></symbol></defs></svg>
+<header class="site">
+  <div class="nav"><a class="logo" href="../index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a>
+    <nav class="menu" aria-label="Main"><a href="../about-us.html">About Us</a><div class="nav-drop"><button class="ndt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="../study-in-germany.html">Study in Germany</a><a href="../study-in-canada.html">Study in Canada</a><a href="../study-in-united-kingdom.html">Study in United Kingdom</a><a href="../study-in-ireland.html">Study in Ireland</a><a href="../study-in-poland.html">Study in Poland</a><a href="../study-in-spain.html">Study in Spain</a><a href="../study-in-italy.html">Study in Italy</a></div></div><div class="nav-drop"><button class="ndt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="../work-medical-pg-germany.html">Medical PG in Germany</a><a href="../work-nursing-germany.html">Nursing Jobs in Germany</a><a href="../work-opportunity-card.html">Germany Opportunity Card</a><a href="../work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="nav-drop"><button class="ndt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="../migrate-canada-pr.html">Canada PR</a><a href="../migrate-australia-pr.html">Australia PR</a></div></div><div class="nav-drop"><button class="ndt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="../test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="../test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="../language-german.html">German classes</a><a href="../language-french.html">French classes</a></div></div><a href="../index.html#services">Services</a><a href="../index.html#packages">Packages</a><a href="../blog.html">Blog</a><a href="../contact-us.html">Contact</a></nav>
+    <div class="nav-cta">
+      <a class="signin" href="../login.html">Sign in</a>
+      <a class="btn btn-green" href="../index.html#counsel">Book Free Counselling</a>
+      <button class="burger" id="burger" aria-label="Open menu"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+    </div>
+  </div>
+</header>
+<div class="scrim" id="scrim"></div>
+<aside class="mobile-menu" id="mm" aria-label="Menu">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <a class="logo" href="../index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a><button class="sheet-close" id="mmClose" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+  <a href="../about-us.html">About Us</a><div class="mm-item"><button class="mmt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="../study-in-germany.html">Study in Germany</a><a href="../study-in-canada.html">Study in Canada</a><a href="../study-in-united-kingdom.html">Study in United Kingdom</a><a href="../study-in-ireland.html">Study in Ireland</a><a href="../study-in-poland.html">Study in Poland</a><a href="../study-in-spain.html">Study in Spain</a><a href="../study-in-italy.html">Study in Italy</a></div></div><div class="mm-item"><button class="mmt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="../work-medical-pg-germany.html">Medical PG in Germany</a><a href="../work-nursing-germany.html">Nursing Jobs in Germany</a><a href="../work-opportunity-card.html">Germany Opportunity Card</a><a href="../work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="mm-item"><button class="mmt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="../migrate-canada-pr.html">Canada PR</a><a href="../migrate-australia-pr.html">Australia PR</a></div></div><div class="mm-item"><button class="mmt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="../test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="../test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="../language-german.html">German classes</a><a href="../language-french.html">French classes</a></div></div><a href="../index.html#services">Services</a><a href="../index.html#packages">Packages</a><a href="../blog.html">Blog</a><a href="../contact-us.html">Contact</a><a href="../login.html">Sign in</a>
+  <a class="btn btn-green" href="../index.html#counsel" style="margin-top:16px;color:#fff">
+    Book Free Counselling</a>
+</aside>
+
+<section class="page-hero"><div class="wrap">
+  <div class="crumbs"><a href="../index.html">Home</a> / <a href="../blog.html">Blog</a></div>
+  <h1>{{H1}}</h1><p>{{DATELINE}}</p>
+</div></section>
+
+<section class="block"><div class="wrap prose" id="article">{{BODY}}<p style="margin-top:30px"><a class="btn btn-ghost" href="../blog.html">All posts</a></p></div></section>
+<section class="block alt" id="ask">
+  <div class="wrap" style="max-width:760px">
+    <div class="blogform">
+      <h2>Ask us about this</h2>
+      <p>A counsellor who works on this every day, not a chatbot. We reply within one
+        working day, and there is nothing to pay for the conversation.</p>
+      <form id="postForm" novalidate>
+        <div class="bf-grid">
+          <div class="field"><label for="bfName">Your name</label>
+            <input id="bfName" name="name" autocomplete="name" required></div>
+          <div class="field"><label for="bfPhone">Mobile</label>
+            <input id="bfPhone" name="phone" inputmode="numeric" autocomplete="tel"
+              placeholder="10 digits" required></div>
+        </div>
+        <div class="field"><label for="bfMail">Email</label>
+          <input id="bfMail" name="email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="bfMsg">What would you like to know?</label>
+          <textarea id="bfMsg" name="message" rows="3"
+            placeholder="Optional — your CGPA, your intake, the course you have in mind"></textarea></div>
+        <button class="btn btn-green" type="submit" id="bfGo">Ask a counsellor</button>
+        <p class="bf-note" id="bfMsgOut" role="status"></p>
+        <p class="bf-fine">We use this to reply to you about this question. Nothing else.</p>
+      </form>
+    </div>
+  </div>
+</section>
+
+
+<div class="cta-band"><div class="wrap">
+  <h2>Not sure where you stand?</h2>
+  <p>Forty-five minutes with a counsellor, your marksheets read properly, no obligation.</p>
+  <a class="btn btn-green" href="../index.html#counsel">Book free counselling <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+</div></div>
+
+<footer class="site"><div class="wrap">
+  <div class="fgrid">
+    <div class="fcol">
+      <div class="flogo"><a class="logo" href="../index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a></div>
+      <p style="margin:13px 0 0;max-width:320px;line-height:1.55;color:#9fb1c4">Study &amp; Work
+        Abroad Consultancy helping students and professionals build a global future.</p>
+      <div class="office"><b>Hyderabad</b>Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</div><div class="office"><b>Munich</b>München, Germany</div>
+      <div class="office"><b>Email</b><a href="mailto:info@glovels.com" style="color:#c8d6e4">info@glovels.com</a></div>
+    </div>
+    <div class="fcol"><h4>Study abroad</h4><a href="../study-in-germany.html">Study in Germany</a><a href="../study-in-canada.html">Study in Canada</a><a href="../study-in-united-kingdom.html">Study in United Kingdom</a><a href="../study-in-ireland.html">Study in Ireland</a><a href="../study-in-poland.html">Study in Poland</a><a href="../study-in-spain.html">Study in Spain</a><a href="../index.html#catalogue">Browse the catalogue</a></div><div class="fcol"><h4>Work &amp; migrate</h4><a href="../work-medical-pg-germany.html">Medical PG in Germany</a><a href="../work-nursing-germany.html">Nursing Jobs in Germany</a><a href="../work-opportunity-card.html">Germany Opportunity Card</a><a href="../work-pharma-germany.html">Pharma Jobs in Germany</a><a href="../migrate-canada-pr.html">Canada PR</a><a href="../migrate-australia-pr.html">Australia PR</a></div><div class="fcol"><h4>Company</h4><a href="../about-us.html">About Us</a><a href="../careers.html">Careers</a><a href="../blog.html">Blog</a><a href="../refer.html">Refer a friend</a><a href="../glossary.html">Glossary</a><a href="../contact-us.html">Contact Us</a></div><div class="fcol"><h4>Legal</h4><a href="../terms.html">Terms of Use</a><a href="../privacy.html">Privacy Policy</a><a href="../refunds.html">Refund &amp; Cancellation</a><a href="../grievance.html">Grievance Redressal</a><a href="../disclaimers.html">Disclaimers</a></div>
+  </div>
+  <div class="fbot">&copy; 2024–26 Glovels Consultants Private Limited. All rights reserved.</div>
+</div></footer>
+
 <script>
-
-/* ---- injected by build_portal.py: load this student's real record first ---- */
-async function __dashBoot(main) {
-  try {
-    const r = await fetch('/api/state', { credentials: 'same-origin' });
-    if (r.status === 401) {
-      location.href = 'login.html?next=' + encodeURIComponent('/dashboard');
-      return;
-    }
-    if (r.status === 403) {
-      const why = await r.json().catch(function () { return {}; });
-      if (why && why.mustChange) return mustChangeScreen({ role: 'student' });
-    }
-    if (r.ok) {
-      const s = await r.json();
-      /* Written into the keys the dashboard already reads, so its own code did
-         not have to change. These are a cache of the server's answer, not the
-         source of truth — the server is. */
-      localStorage.setItem('glovels_user', JSON.stringify(s.user || {}));
-      localStorage.setItem('glovels_order', JSON.stringify(s.order || {}));
-      localStorage.setItem('glovels_shortlist', JSON.stringify(s.shortlist || []));
-      window.__GLOVELS = s;
-    }
-  } catch (e) {
-    /* Server down: fall through to whatever this browser last saw, and say so
-       rather than showing a stale screen that claims to be live. */
-    const d = document.querySelector('.p-demo');
-    if (d) {
-      d.style.background = '#fdf6e6';
-      d.textContent = 'The Glovels server is not running, so this is the last view '
-        + 'cached in this browser. Start it with start.command and reload.';
-    }
-  }
-  main();
-}
-function __dashMain() {
-
 (function(){
-const $ = s => document.querySelector(s);
-const nf = new Intl.NumberFormat('en-IN');
-const C = {"DE": {"name": "Germany", "flag": "🇩🇪"}, "CA": {"name": "Canada", "flag": "🇨🇦"}, "GB": {"name": "United Kingdom", "flag": "🇬🇧"}, "IE": {"name": "Ireland", "flag": "🇮🇪"}, "PL": {"name": "Poland", "flag": "🇵🇱"}, "ES": {"name": "Spain", "flag": "🇪🇸"}, "IT": {"name": "Italy", "flag": "🇮🇹"}};
-const FALLBACK = [{"program": "IT Security", "university": "University of Lubeck", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Systems Engineering", "university": "University Paderborn", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-05-31"}, {"season": "summer", "deadline": "2026-11-30"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "MSc Autonomy Technologies", "university": "FAU Erlangen-Nuremberg", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Engineering (M. Eng.)", "university": "University of Rostock", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Engineering and Information Technology", "university": "RWTH Aachen University", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-03-01"}, {"season": "summer", "deadline": "2026-09-01"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Foundation Year — Business", "university": "Arden University", "city": "Coventry", "country": "GB", "totalInr": 275000, "isPublic": false, "intakes": [{"season": "winter", "deadline": "2026-08-31"}], "fit": 80, "why": ["Comfortably meets academics", "Within budget", "Work rights during study"], "months": 12, "feeEur": 1250, "semesters": 2}, {"program": "MSc Computer Science", "university": "Vistula University", "city": "Warsaw", "country": "PL", "totalInr": 899800, "isPublic": false, "intakes": [{"season": "winter", "deadline": "2026-07-01"}], "fit": 75, "why": ["Comfortably meets academics", "Within budget", "Work rights during study"], "months": 24, "feeEur": 2045, "semesters": 4}];
-const DEMO_EMAIL = "student@glovels.com";
-/* The demo account gets a worked example: an Offer Letter order and a shortlist.
-   Anyone who pays on the website overrides it with their own. */
-const DEMO_ORDER = { reference: 'GLV-2041', package: 'Offer Letter', publicUnis: 10,
-  name: "Demo Student", email: DEMO_EMAIL, demo: true };
-const ico = n => '<svg class="ico" aria-hidden="true"><use href="#i-' + n + '"/></svg>';
-const esc = s => String(s).replace(/[&<>"]/g, c =>
-  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
-/* What the sales site left behind. PROD: GET /api/dashboard — the server decides
-   what this student may see, and none of this is read from the browser. */
-let user = {}, order = {}, list = [];
-try {
-  user  = JSON.parse(localStorage.getItem('glovels_user')  || '{}');
-  order = JSON.parse(localStorage.getItem('glovels_order') || '{}');
-  list  = JSON.parse(localStorage.getItem('glovels_shortlist') || '[]');
-} catch(e) { /* private browsing: fall through to the sample */ }
-
-if(!order.package && (user.email || '').toLowerCase() === DEMO_EMAIL){
-  order = DEMO_ORDER;
-  if(!list.length) list = FALLBACK;
-}
-const paid = !!order.package;
-const first = (user.name || order.name || '').trim().split(' ')[0];
-$('#hello').textContent = first ? 'Welcome back, ' + first : 'Welcome back';
-
-const signedIn = !!(window.__GLOVELS && window.__GLOVELS.user);
-const shown = list.length ? list : (signedIn ? [] : FALLBACK);
-const usingSample = !list.length && !signedIn;
-const quota = order.publicUnis || 0;
-
-$('#helloSub').textContent = paid
-  ? 'Here is where your application stands — ' + order.package + ', '
-    + shown.length + ' universit' + (shown.length === 1 ? 'y' : 'ies') + ' shortlisted.'
-  : 'Here is where your application stands today.';
-
-const money = p => p.totalInr === 0 ? '\u20B90 tuition'
-  : '\u2248 \u20B9' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L total';
-const dateOf = p => {
-  const now = new Date();
-  const ds = (p.intakes || []).map(i => {
-    const d = new Date(i.deadline);
-    if (isNaN(d)) return null;
-    while (d < now) d.setFullYear(d.getFullYear() + 1);
-    return d;
-  }).filter(Boolean).sort((a, b) => a - b);
-  return ds[0] ? ds[0].toLocaleDateString('en-GB',
-    {day:'numeric', month:'short', year:'numeric'}) : '';
-};
-
-function card(p){
-  const c = C[p.country] || {name:'', flag:''};
-  return '<article class="sl"><span class="sl-flag">' + c.flag + '</span>'
-    + '<h3>' + esc(p.program) + '</h3>'
-    + '<div class="uni">' + esc(p.university) + '</div>'
-    + (p.city ? '<div class="city">' + esc(p.city) + ', ' + esc(c.name) + '</div>'
-              : '<div class="city">' + esc(c.name) + '</div>')
-    + '<span class="sl-tag">' + ico('check') + 'Matched \u00b7 '
-      + (p.isPublic ? 'Public' : 'Private') + '</span>'
-    + '<div class="sl-meta">Tuition: <b>' + money(p) + '</b></div>'
-    + (dateOf(p) ? '<div class="sl-meta">Deadline: <b>' + dateOf(p) + '</b></div>' : '')
-    + '<a class="sl-go" href="applications.html">Continue application ' + ico('arrow')
-    + '</a></article>';
-}
-
-/* The 24-hour promise, from the student's side. Only shown when a package is
-   active and the quota is not yet filled — otherwise it would be a countdown to
-   nothing. */
-/* The 24-hour clock, from the student's side. The spec has the same SLA showing
-   three ways: a countdown here, a timer on the counsellor's queue, and an
-   on-time percentage for the admin. All three must read one clock, so the
-   deadline is derived from the order rather than from when this page loaded. */
-function slaLeft(){
-  if(!order.paidAt) return null;
-  const due = new Date(order.paidAt).getTime() + 24 * 3600 * 1000;
-  const ms = due - Date.now();
-  if(ms <= 0) return {late:true, text:'overdue'};
-  const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
-  return {late:false, text: h ? h + 'h ' + m + 'm left' : m + 'm left'};
-}
-
-const remaining = Math.max(0, quota - new Set(shown.map(p => p.university)).size);
-const sla = slaLeft();
-const pending = (paid && remaining)
-  ? '<article class="sl pending">' + ico('clock')
-    + '<b>' + remaining + ' more being finalised</b>'
-    + '<p>Your counsellor is checking eligibility for the rest of your ' + quota
-    + '. They will appear here and we will message you.</p>'
-    + '<span class="sl-chip' + (sla && sla.late ? ' late' : '') + '">'
-      + (sla ? (sla.late ? 'Overdue — we will chase this' : 'Within 24 hours · '
-               + sla.text) : 'Available within 24 hours') + '</span></article>'
-  : '';
-
-/* Someone who has just paid should be able to see what they paid. Without this
-   the only trace of a 74,999 rupee order is a package name on a progress bar. */
-if(paid && order.grossPaise){
-  const gross = order.grossPaise / 100;
-  const tax = Math.round(gross - gross / 1.18);
-  $('#receipt').innerHTML =
-      '<div class="p-card"><h3>' + ico('check') + ' Your order'
-    + '<span class="pill" style="margin-left:auto">' + (order.reference || '') + '</span></h3>'
-    + '<div class="rc"><span>' + esc(order.package) + '</span><b>₹'
-      + nf.format(gross) + '</b></div>'
-    + '<div class="rc sub"><span>Taxable value</span><span>₹'
-      + nf.format(gross - tax) + '</span></div>'
-    + '<div class="rc sub"><span>GST @ 18%</span><span>₹' + nf.format(tax) + '</span></div>'
-    + '<div class="rc sub"><span>Paid</span><span>'
-      + new Date(order.paidAt || Date.now()).toLocaleDateString('en-GB',
-          {day:'numeric', month:'short', year:'numeric'}) + '</span></div>'
-    + '<p style="font-size:11.6px;color:var(--muted);margin:12px 0 0">A GST invoice is emailed '
-    + 'to ' + esc(order.email || 'you') + '. Demo order — no payment was taken.</p></div>';
-}
-
-$('#slWrap').innerHTML = shown.length
-  ? '<div class="rows-list">' + shown.map(card).join('') + '</div>' + pending
-    + (order.demo
-        ? '<p style="font-size:12.4px;color:var(--muted);margin:12px 0 0">'
-          + 'The demo student\'s worked example. Pay with <b>' + DEMO_EMAIL + '</b> on the '
-          + 'website and your own order replaces it.</p>'
-        : (usingSample
-            ? '<p style="font-size:12.4px;color:var(--muted);margin:12px 0 0">'
-              + 'These are sample matches. Choose a package on the website and your own '
-              + 'shortlist appears here.</p>'
-            : ''))
-  : '<div class="sl-empty"><b>No universities shortlisted yet</b>'
-    + '<p>Find the programmes you qualify for on the website, choose a package, and they will '
-    + 'appear here with fees and deadlines.</p>'
-    + '<a class="btn btn-primary" href="index.html#results">Find my universities ' + ico('arrow')
-    + '</a></div>';
-
-/* The counsellor card from the prototype. The name is a placeholder until a
-   counsellor is actually assigned, and it is labelled as such rather than
-   inventing a person. The prototype's "Avg. response: 15 min" is dropped: it is
-   a service claim nobody is measuring yet. */
-$('#couns').innerHTML =
-    '<span class="c-av">' + (paid ? 'GC' : '—') + '</span>'
-  + '<div><span class="c-lbl">Your counsellor</span>'
-  + '<b>' + (paid ? 'Assigned after your call' : 'Not assigned yet') + '</b>'
-  + '<span class="c-sub">Mon–Sat, 9:30–19:30 IST</span></div>'
-  + '<a class="btn btn-green btn-sm" href="messages.html">Message</a>';
-
-$('#avatar').textContent = (first || 'G').slice(0, 1).toUpperCase()
-  + ((user.name || order.name || '').split(' ')[1] || '').slice(0, 1).toUpperCase();
-
-$('#planBadge').innerHTML = paid
-  ? '<b>' + esc(order.package) + '</b><span>' + (order.publicUnis || 0)
-    + ' universities · ' + (shown[0] && shown[0].intakes && shown[0].intakes[0]
-        ? shown[0].intakes[0].season + ' intake' : 'this intake') + '</span>'
-  : '<b>No package yet</b><span>Choose one to unlock your matches</span>';
-
-/* Four steps, ticked only where the thing has actually happened. The prototype
-   showed "Profile filled" ticked; that screen does not exist yet, so ticking it
-   would be telling the student they had done something they had not. */
-const STEPS = [
-  ['Enrolled', paid],
-  ['Payment', paid],
-  ['Profile filled', false],
-  ['Shortlist ready', paid && shown.length > 0],
-];
-$('#steps4').innerHTML = STEPS.map(([t, ok], i) =>
-  '<div class="step4' + (ok ? ' done' : '') + '">'
-  + '<span class="s-n">Step ' + (i + 1) + '</span>'
-  + '<b>' + t + (ok ? ' ' + ico('check') : '') + '</b></div>').join('');
-
-/* The dashboard should not only report status; it should say what to do next.
-   One prompt, chosen by what is actually outstanding. */
-const next = !paid
-  ? ['Find the universities you qualify for',
-     'Set your destination, level and CGPA on the website and choose a package.',
-     'Find my universities', '/#results', 'cap']
-  : ['Fill in your profile',
-     'Eleven short sections. It is what we use to write your SOP, brief your '
-     + 'recommenders and build your visa checklist — so it is only asked once.',
-     'Start my profile', 'profile.html', 'user'];
-$('#nextUp').innerHTML =
-    '<div class="nextup">' + ico(next[4])
-  + '<div><b>Next: ' + next[0] + '</b><span>' + next[1] + '</span></div>'
-  + '<a class="btn btn-primary" href="' + next[3] + '"'
-  + '>' + next[2] + '</a></div>';
-
-/* Tracker and journey reflect what has actually happened, so the screen cannot
-   claim progress the student has not made. */
-const steps = [
-  ['Enrolled', paid ? (order.package + ' \u00b7 ' + (order.reference || '')) : 'Not yet',  paid],
-  ['Profile completed', 'Eleven sections, once', false],
-  ['Shortlist agreed', shown.length && paid
-      ? shown.length + ' of ' + quota + ' matched' : 'After your counsellor call', false],
-  ['Applications filed', 'In deadline order', false],
-  ['Visa and departure', 'After your offer', false],
-];
-const doneN = steps.filter(s => s[2]).length;
-$('#trackBar').style.width = Math.round(100 * doneN / steps.length) + '%';
-$('#trackPill').textContent = doneN + ' of ' + steps.length + ' done';
-$('#trackList').innerHTML = steps.map(([t, sub, ok], i) =>
-  '<li class="' + (ok ? 'done' : (i === doneN ? 'now' : '')) + '">'
-  + '<span class="dot">' + (ok ? ico('check') : '') + '</span>'
-  + '<span><b>' + t + '</b>' + esc(sub) + '</span></li>').join('');
-
-const JOURNEY = [
-  ['<svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>'.replace(/'/g, ''), 'Enroll and pay', paid ? 'Done' : 'Choose a package'],
-  ['', 'Fill your profile', 'So we only ask once'],
-  ['', 'Shortlist and apply', 'Agreed with your counsellor'],
-  ['', 'Visa and fly', 'Blocked account, insurance, tickets'],
-];
-$('#journey').innerHTML = JOURNEY.map(([_, t, sub], i) =>
-  '<li class="' + (i === 0 && paid ? 'done' : (i === (paid ? 1 : 0) ? 'now' : '')) + '">'
-  + '<span class="dot">' + (i === 0 && paid ? ico('check') : '') + '</span>'
-  + '<span><b>' + t + '</b>' + sub + '</span></li>').join('');
-
-const dl = shown.filter(p => dateOf(p))
-  .sort((a, b) => new Date(a.intakes[0].deadline) - new Date(b.intakes[0].deadline))
-  .slice(0, 5);
-$('#deadlines').innerHTML = dl.length
-  ? dl.map(p => '<div class="deadline"><span>' + esc(p.university) + '</span>'
-      + '<span class="d">' + dateOf(p) + '</span></div>').join('')
-  : '<p style="font-size:12.6px;color:var(--muted);margin:0">Deadlines appear once your '
-    + 'shortlist is agreed.</p>';
-
-$('#signOut').onclick = () => {
-  try { localStorage.removeItem('glovels_user'); } catch(e) {}
-};
-})();
-
-}
-__dashBoot(function () { __dashMain();
-/* Every order, newest first, with what was in it. */
-(function () {
-  var st = window.__GLOVELS;
-  var sec = document.getElementById('boughtSec');
-  var wrap = document.getElementById('boughtWrap');
-  if (!sec || !wrap || !st || !st.orders || !st.orders.length) return;
-
-  var esc = function (s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-    });
-  };
-  var rupees = new Intl.NumberFormat('en-IN');
-  var money = function (paise) { return '₹' + rupees.format(Math.round(paise / 100)); };
-  var day = function (iso) {
-    return new Date(iso || Date.now()).toLocaleDateString('en-GB',
-      { day: 'numeric', month: 'short', year: 'numeric' });
-  };
-
-  wrap.innerHTML = st.orders.map(function (o) {
-    var items = o.items || [];
-    return '<div class="p-card" style="margin-bottom:10px">' +
-      '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' +
-        '<b style="font:700 14.4px/1.4 var(--sans);color:var(--navy-900)">' +
-          esc(o.package) + '</b>' +
-        '<span class="pill">' + esc(o.reference) + '</span>' +
-        '<span style="margin-left:auto;font:700 14px/1.4 var(--sans);color:var(--navy-900)">' +
-          money(o.grossPaise) + '</span>' +
-      '</div>' +
-      '<span style="display:block;margin-top:3px;font-size:12.2px;color:var(--muted)">' +
-        (o.publicUnis ? o.publicUnis + ' public universities unlocked · ' : '') +
-        'Paid ' + day(o.paidAt) + '</span>' +
-      (items.length
-        ? '<ul class="doclist" style="margin:12px 0 0">' + items.map(function (it) {
-            return '<li><span style="flex:1">' + esc(it.name) +
-              (it.level ? ' <span style="color:var(--muted)">(' + esc(it.level) + ')</span>' : '') +
-              '</span><span class="st none" style="text-transform:none;letter-spacing:0">' +
-              money(it.paise) + '</span></li>';
-          }).join('') + '</ul>'
-        : '') +
-      '</div>';
-  }).join('');
-  sec.hidden = false;
-}());
-
-/* The studio's drafts, from the same /api/state the rest of this screen uses.
-   Hidden entirely when there are none: an empty card that says "nothing here"
-   on a dashboard the student sees every day is just clutter. */
-(function () {
-  var st = window.__GLOVELS;
-  var sec = document.getElementById('draftsSec');
-  var wrap = document.getElementById('draftWrap');
-  if (!sec || !wrap || !st || !st.drafts || !st.drafts.length) return;
-
-  var esc = function (s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-    });
-  };
-  var when = function (iso) {
-    var s = Math.round((Date.now() - new Date(iso)) / 1000);
-    var n = function (v, word) { return v + ' ' + word + (v === 1 ? '' : 's') + ' ago'; };
-    if (s < 60) return 'just now';
-    if (s < 3600) return n(Math.floor(s / 60), 'minute');
-    if (s < 86400) return n(Math.floor(s / 3600), 'hour');
-    var d = Math.floor(s / 86400);
-    return d === 1 ? 'yesterday' : n(d, 'day');
-  };
-
-  wrap.innerHTML = st.drafts.slice(0, 8).map(function (d, i) {
-    return '<details class="p-card" ' + (i === 0 ? 'open ' : '') +
-      'style="margin-bottom:10px">' +
-      '<summary style="cursor:pointer;font:700 13.6px/1.5 var(--sans);color:var(--navy-900)">' +
-        (d.kind === 'lor' ? 'Letter of recommendation' : 'Statement of purpose') +
-        (d.programme ? ' &middot; ' + esc(d.programme) : '') +
-        (d.university ? ', ' + esc(d.university) : '') +
-        '<span style="font-weight:600;color:var(--muted)"> &mdash; ' + d.words +
-        ' words, ' + when(d.at) + '</span></summary>' +
-      d.paragraphs.map(function (t) {
-        return '<p style="margin:12px 0 0;font-size:13.4px;line-height:1.75">' + esc(t) + '</p>';
-      }).join('') +
-      '<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:14px">' +
-        '<button type="button" class="btn btn-ghost btn-sm" data-copy="' + i + '">Copy</button>' +
-        '<a class="btn btn-ghost btn-sm" href="messages.html">Ask my counsellor to rewrite it</a>' +
-      '</div>' +
-      '<p style="margin:12px 0 0;font-size:11.6px;color:var(--muted)">' + esc(d.caveat) + '</p>' +
-      '</details>';
-  }).join('');
-  sec.hidden = false;
-
-  wrap.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-copy]');
-    if (!b) return;
-    var d = st.drafts[Number(b.dataset.copy)];
-    var text = d.paragraphs.join('\n\n');
-    var done = function () { b.textContent = 'Copied'; };
-    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
-    else {
-      var ta = document.createElement('textarea');
-      ta.value = text; document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); done(); } catch (err) {}
-      ta.remove();
-    }
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  let t = null;
+  $$('.nav-drop').forEach(d => {
+    d.addEventListener('pointerenter', e => { if(e.pointerType === 'touch') return;
+      clearTimeout(t); $$('.nav-drop.open').forEach(o => o !== d && o.classList.remove('open'));
+      d.classList.add('open'); });
+    d.addEventListener('pointerleave', e => { if(e.pointerType === 'touch') return;
+      t = setTimeout(() => d.classList.remove('open'), 180); });
+    d.querySelector('.ndt').onclick = () => {
+      const was = d.classList.contains('open');
+      $$('.nav-drop.open').forEach(o => o.classList.remove('open'));
+      d.classList.toggle('open', !was); };
   });
-}());
-});
+  $('#burger').onclick = () => { $('#mm').classList.add('open'); $('#scrim').classList.add('on'); };
+  const shut = () => { $('#mm').classList.remove('open'); $('#scrim').classList.remove('on'); };
+  $('#mmClose').onclick = shut; $('#scrim').onclick = shut;
+  $$('.mmt').forEach(x => x.onclick = () => {
+    const i = x.closest('.mm-item'), was = i.classList.contains('open');
+    $$('.mm-item.open').forEach(o => o.classList.remove('open'));
+    i.classList.toggle('open', !was); });
+  addEventListener('keydown', e => e.key === 'Escape' && shut());
+})();
 </script>
 <script>
 /* This runs at the end of <body>, so document.body already exists. It waited
@@ -1089,114 +457,7 @@ if (location.protocol === 'file:') {
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }
 </script>
-<script>
-/* The bell. It reads /api/state, which the dashboard has already fetched, and
-   says what is actually waiting on this student — unread messages, documents
-   that were sent back, the next deadline. The dot appears only when there is
-   something, because a dot that is always on is a dot nobody looks at. */
-(function () {
-  var bell = document.getElementById('bell');
-  if (!bell) return;
-
-  var panel = null;
-  var esc = function (t) {
-    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
-      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
-    });
-  };
-
-  function items(st) {
-    var out = [];
-    if (st.unread) {
-      out.push({ href: 'messages.html', what: st.unread + ' new message'
-        + (st.unread === 1 ? '' : 's') + ' from your counsellor', urgent: true });
-    }
-    Object.keys(st.docs || {}).forEach(function (k) {
-      var d = st.docs[k];
-      if (d.status === 'no') {
-        out.push({ href: 'documents.html',
-          what: esc(d.file) + ' was sent back — it needs uploading again', urgent: true });
-      }
-    });
-    var wait = Object.keys(st.docs || {}).filter(function (k) {
-      return st.docs[k].status === 'wait';
-    }).length;
-    if (wait) {
-      out.push({ href: 'documents.html',
-        what: wait + ' document' + (wait === 1 ? ' is' : 's are') + ' with your counsellor to check' });
-    }
-
-    /* The nearest deadline that has not gone. The pages roll a past deadline
-       forward a year so nothing reads as expired; do the same here, or the
-       soonest thing showing is always the one furthest in the past. */
-    var now = new Date(), soonest = null;
-    (st.shortlist || []).forEach(function (p) {
-      (p.intakes || []).forEach(function (i) {
-        var d = new Date(i.deadline);
-        if (isNaN(d)) return;
-        while (d < now) d.setFullYear(d.getFullYear() + 1);
-        if (!soonest || d < soonest.at) soonest = { at: d, p: p };
-      });
-    });
-    if (soonest) {
-      var days = Math.round((soonest.at - now) / 86400000);
-      out.push({ href: 'universities.html',
-        what: esc(soonest.p.university) + ' closes in ' + days + ' day' + (days === 1 ? '' : 's'),
-        urgent: days <= 30 });
-    }
-    if (!(st.profile && Object.keys(st.profile).length)) {
-      out.push({ href: 'profile.html', what: 'Your profile is empty — it is what the shortlist is built from' });
-    }
-    return out;
-  }
-
-  function draw(list) {
-    if (panel) panel.remove();
-    panel = document.createElement('div');
-    panel.style.cssText = 'position:absolute;top:46px;right:0;z-index:300;width:min(360px,86vw);'
-      + 'background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:8px;'
-      + 'box-shadow:0 18px 44px rgba(11,30,49,.18);text-align:left';
-    panel.innerHTML = list.length
-      ? list.map(function (i) {
-          return '<a href="' + i.href + '" style="display:block;padding:11px 13px;border-radius:10px;'
-            + 'font:600 13px/1.5 system-ui,sans-serif;text-decoration:none;text-align:left;'
-            + 'color:' + (i.urgent ? '#7a2118' : '#1b3a5c') + '">' + i.what + '</a>';
-        }).join('')
-      : '<p style="margin:0;padding:16px 14px;font:500 13px/1.55 system-ui,sans-serif;color:#6b7684">'
-        + 'Nothing needs you right now.</p>';
-    bell.style.position = 'relative';
-    bell.appendChild(panel);
-  }
-
-  bell.addEventListener('click', function (e) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (panel) { panel.remove(); panel = null; return; }
-    draw([{ href: '#', what: 'Looking…' }]);
-    fetch('/api/state', { credentials: 'same-origin' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (st) { if (st) draw(items(st)); })
-      .catch(function () { draw([]); });
-  });
-  document.addEventListener('click', function () {
-    if (panel) { panel.remove(); panel = null; }
-  });
-
-  /* The dot, from the same source, once, on load. */
-  fetch('/api/state', { credentials: 'same-origin' })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (st) {
-      var dot = bell.querySelector('.dot');
-      if (!dot || !st) return;
-      /* The `hidden` ATTRIBUTE, not style.display. The markup ships the dot
-         with hidden on it, and hidden beats an inline display:'' — setting the
-         style looked right in the code and did nothing on the screen. */
-      dot.hidden = !items(st).some(function (i) { return i.urgent; });
-    })
-    .catch(function () {});
-}());
-</script>
-<script>window.__glovelsChatMode="portal";</script>
+<script>window.__glovelsChatMode="site";</script>
 <script>
 /* GLOVELS-CHAT-WIDGET */
 (function () {
@@ -1615,6 +876,52 @@ if (location.protocol === 'file:') {
       }
     })
     .catch(function () {});
+}());
+</script>
+
+<script>
+(function () {
+  var f = document.getElementById('postForm');
+  if (!f) return;
+  var out = document.getElementById('bfMsgOut');
+  var say = function (msg, good) {
+    out.textContent = msg;
+    out.className = 'bf-note ' + (good ? 'ok' : 'bad');
+  };
+  f.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var name = f.name.value.trim();
+    var email = f.email.value.trim();
+    var phone = f.phone.value.trim().replace(/\D/g, '').slice(-10);
+    if (!name) return say('Tell us your name.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
+    if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
+    var btn = document.getElementById('bfGo');
+    btn.disabled = true; btn.textContent = 'Sending\u2026';
+    try {
+      var r = await fetch('/api/enquiries', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: name, email: email, phone: phone,
+          /* Which article they were reading. Without it the office gets a name
+             and a number and has to ask what it is about. */
+          note: 'From the blog: ' + document.title.replace(/ \| Glovels$/, ''),
+          message: f.message.value.trim(),
+          consent: 'blog',
+          sourcePage: location.pathname,
+          referrer: document.referrer || 'direct'
+        })
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(d.error || 'That did not go through.');
+      f.reset();
+      say('Thank you \u2014 a counsellor will come back to you within one working day.', 1);
+    } catch (err) {
+      say(err.message + ' You can also reach us on WhatsApp.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Ask a counsellor';
+    }
+  });
 }());
 </script>
 </body>

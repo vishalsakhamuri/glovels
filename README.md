@@ -293,6 +293,8 @@ Content changes — prices, copy, programmes, countries — belong in the workbo
 | `content_client.py` | The script the home page runs to paint itself from the server |
 | `portal_home.py` | The Home page screen in the operations site |
 | `build_portal.py` | Builds the portal screens from one shared shell |
+| `build_blog.py` | Cuts the blog page and one post into templates the server fills |
+| `check_pages.py` | Every inline script parses, and no function is declared twice |
 | `portal_*.py` | One file per portal screen: its markup and its behaviour |
 
 **After any rebuild of the marketing pages, run both:**
@@ -301,6 +303,7 @@ Content changes — prices, copy, programmes, countries — belong in the workbo
 python3 apply_fixes.py     # re-applies the hand fixes to index.html etc.
 python3 build_portal.py    # rebuilds the portal screens and catalogue.json
 python3 build_content.py   # re-reads the home page's own content into content.json
+python3 build_blog.py      # re-cuts the blog templates from the pages
 ```
 
 All three are safe to run twice — they check for their own result first.

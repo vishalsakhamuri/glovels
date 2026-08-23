@@ -1189,8 +1189,8 @@
    "fast": "48-hr",
    "start": "Start here"
   },
-  "browsePublic": 3,
-  "browsePrivate": 2,
+  "browsePublic": 12,
+  "browsePrivate": 24,
   "cgpaFull": 7.5,
   "cgpaPartial": 7.0,
   "fx": {

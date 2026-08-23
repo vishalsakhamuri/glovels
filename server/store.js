@@ -162,6 +162,39 @@ CREATE TABLE IF NOT EXISTS content (
   who         TEXT,
   updated_at  TEXT NOT NULL
 );
+/* A blog post.
+ *
+ * The six posts on glovels.com today are static HTML with a headline, a lead
+ * paragraph and a note to ourselves where the article should be. Nobody
+ * without a text editor and a deploy can write one, which is the same as
+ * saying nobody can.
+ *
+ * The SEO fields are columns rather than a JSON blob because they are the
+ * point: the title Google prints, the sentence under it, the words we are
+ * trying to rank for, and the picture that shows when the link is pasted into
+ * WhatsApp. A writer who has to open a second screen to fill them in does not
+ * fill them in.
+ */
+CREATE TABLE IF NOT EXISTS posts (
+  id           INTEGER PRIMARY KEY,
+  slug         TEXT NOT NULL UNIQUE,
+  title        TEXT NOT NULL,
+  excerpt      TEXT,
+  body         TEXT,
+  cover        TEXT,
+  author       TEXT,
+  tag          TEXT,
+  status       TEXT NOT NULL DEFAULT 'draft',
+  meta_title   TEXT,
+  meta_desc    TEXT,
+  keywords     TEXT,
+  og_image     TEXT,
+  read_mins    INTEGER NOT NULL DEFAULT 0,
+  published_at TEXT,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  updated_by   TEXT
+);
 CREATE TABLE IF NOT EXISTS password_resets (
   token       TEXT PRIMARY KEY,
   student_id  INTEGER NOT NULL,
@@ -291,7 +324,7 @@ function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
     'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
-    'chats', 'chat_messages'];
+    'chats', 'chat_messages', 'posts'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -800,6 +833,45 @@ function open(dir) {
     },
     allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
     countStudents: () => db.all('SELECT * FROM students WHERE id > ?', 0).length,
+
+    /* ---- the blog ---- */
+
+    allPosts: () => db.all('SELECT * FROM posts WHERE id > ? ORDER BY id desc', 0),
+    /* Published only, newest first. The list a visitor sees is decided here
+       rather than by a filter in a browser, because a draft that reaches the
+       page is published whatever the badge on it says. */
+    livePosts() {
+      return db.all('SELECT * FROM posts WHERE status = ?', 'published')
+        .filter(p => p.body && String(p.body).trim())
+        .sort((a, b) => String(b.published_at || b.created_at)
+          .localeCompare(String(a.published_at || a.created_at)));
+    },
+    postById: id => db.one('SELECT * FROM posts WHERE id = ?', Number(id)),
+    postBySlug: slug => db.one('SELECT * FROM posts WHERE slug = ?', String(slug)),
+    addPost(p) {
+      const t = now();
+      db.run(`INSERT INTO posts (slug, title, excerpt, body, cover, author, tag, status,
+                meta_title, meta_desc, keywords, og_image, read_mins, published_at,
+                created_at, updated_at, updated_by)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        p.slug, p.title, p.excerpt || '', p.body || '', p.cover || '', p.author || '',
+        p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
+        p.keywords || '', p.ogImage || '', Number(p.readMins || 0),
+        p.publishedAt || '', p.createdAt || t, t, p.updatedBy || '');
+      return db.one('SELECT * FROM posts WHERE slug = ?', p.slug);
+    },
+    updatePost(id, p) {
+      db.run(`UPDATE posts SET slug = ?, title = ?, excerpt = ?, body = ?, cover = ?,
+                author = ?, tag = ?, status = ?, meta_title = ?, meta_desc = ?,
+                keywords = ?, og_image = ?, read_mins = ?, published_at = ?,
+                updated_at = ?, updated_by = ? WHERE id = ?`,
+        p.slug, p.title, p.excerpt || '', p.body || '', p.cover || '', p.author || '',
+        p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
+        p.keywords || '', p.ogImage || '', Number(p.readMins || 0),
+        p.publishedAt || '', now(), p.updatedBy || '', Number(id));
+      return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
+    },
+    deletePost: id => db.run('DELETE FROM posts WHERE id = ?', Number(id)),
   };
 }
 

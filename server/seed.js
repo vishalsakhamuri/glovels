@@ -159,6 +159,89 @@ function seedCatalogue({ db, catalogue, countries }) {
   return catalogue.length;
 }
 
+/*
+ * The six posts that were already on the site, brought in as drafts.
+ *
+ * They are static HTML files carrying a headline, a lead paragraph and a note
+ * to ourselves where the article should be. Read once, on a database that has
+ * no posts yet, so the blog screen opens on six half-written posts to finish
+ * rather than on an empty list — and so the titles and descriptions somebody
+ * wrote for search do not have to be typed again.
+ *
+ * Drafts, every one. None of them has a body, and a published post with no
+ * words is a headline with a URL on it.
+ */
+function seedPosts({ db, root }) {
+  if (db.allPosts().length) return 0;
+  const dir = path.join(root, 'post');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.html') && !f.startsWith('_')); }
+  catch (e) { return 0; }
+
+  const pick = (html, re) => { const m = re.exec(html); return m ? m[1] : ''; };
+  const unent = s => decodeEntities(String(s || '')).replace(/\s+/g, ' ').trim();
+  let n = 0;
+
+  for (const f of files.sort()) {
+    let html;
+    try { html = fs.readFileSync(path.join(dir, f), 'utf8'); } catch (e) { continue; }
+    const slug = f.slice(0, -5);
+    const title = unent(pick(html, /<h1>([\s\S]*?)<\/h1>/))
+      || unent(pick(html, /<title>([\s\S]*?)(?: \| Glovels)?<\/title>/));
+    if (!title) continue;
+    const desc = unent(pick(html, /<meta name="description" content="([^"]*)"/));
+    const lead = unent(pick(html, /<p class="lead">([\s\S]*?)<\/p>/));
+    /* The dateline reads "2026-07-16 &middot; 7 min". Only the date is worth
+       keeping — the reading time is computed from the words once there are
+       any. */
+    const when = pick(html, /<h1>[\s\S]*?<\/h1><p>(\d{4}-\d{2}-\d{2})/);
+
+    db.addPost({
+      slug, title,
+      excerpt: lead || desc,
+      body: '',
+      status: 'draft',
+      metaTitle: '',
+      metaDesc: desc,
+      keywords: '',
+      author: '',
+      createdAt: when ? when + 'T09:00:00.000Z' : undefined,
+      updatedBy: 'imported from the site',
+    });
+    n++;
+  }
+  if (n) db.log('system', 'blog imported', n + ' posts from the pages already on the site');
+  return n;
+}
+
+/*
+ * Two numbers that stopped making sense when the results grew tabs.
+ *
+ * A visitor who has typed nothing sees a sample of the catalogue. It used to
+ * be one mixed column — three public rows and two private ones, five rows,
+ * fine. Then private and public were split into their own tabs, and the tab
+ * that opens by default opens on two rows: not a sample, a shrug. The list
+ * scrolls, so the rest cost nothing to show.
+ *
+ * The shipped defaults are changed in content.json, which fixes it for a
+ * database that has never had the Finder screen saved. This is for the ones
+ * that have: it corrects the pair ONLY if it is still exactly the pair we
+ * shipped, and it runs once, so an office that deliberately sets three and two
+ * tomorrow keeps them.
+ */
+function bumpBrowseCaps({ db, content }) {
+  if (db.content('finderCapsV2')) return false;
+  db.setContent('finderCapsV2', { done: true }, 'system');
+  const f = db.content('finder');
+  if (!f || typeof f !== 'object') return false;
+  if (Number(f.browsePublic) !== 3 || Number(f.browsePrivate) !== 2) return false;
+  const next = Object.assign({}, f, { browsePublic: 12, browsePrivate: 24 });
+  db.setContent('finder', next, 'system');
+  db.log('system', 'browse sample widened',
+    'the results split into two tabs, and the private tab opened on two rows');
+  return true;
+}
+
 function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
   if (db.studentByEmail(DEMO_EMAIL)) return null;
   /* A shared test link overrides this, so the three demo accounts are not
@@ -273,4 +356,5 @@ function seedAdmin({ db, admin, hashPassword, newSalt, reset }) {
   return { created: true, email: admin.email };
 }
 
-module.exports = { run, seedCatalogue, seedAdmin, DEMO_EMAIL, DEMO_PASSWORD };
+module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
+  DEMO_EMAIL, DEMO_PASSWORD };

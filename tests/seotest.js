@@ -17,7 +17,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = require('path').join(__dirname, '..');
+const ROOT = '/home/claude/glovels/build';
 const ok = [], bad = [];
 const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + note : ''));
 
@@ -159,7 +159,7 @@ const PROD = {
        to ourselves went with the stub it was attached to. Testing for a note on
        a page that no longer needs one is testing the wrong thing. */
     const fileCopy = await (await browser.newContext()).newPage();
-    await fileCopy.goto('file://' + require('path').join(__dirname, '..') + '/careers.html', { waitUntil: 'load' });
+    await fileCopy.goto('file:///home/claude/glovels/build/careers.html', { waitUntil: 'load' });
     await fileCopy.waitForTimeout(500);
     check('but the office still sees them on the copy it opens from disk',
       (await fileCopy.$$eval('.towrite',
@@ -171,7 +171,7 @@ const PROD = {
       .map(f => f.slice(0, -5))
       .filter(s => !['dashboard', 'profile', 'documents', 'messages', 'applications',
         'universities', 'scholarships', 'visa', 'admin', 'counsellor', 'chat', 'home',
-        'catalogue', 'login', '404', 'index'].includes(s));
+        'catalogue', 'blog-admin', 'login', '404', 'index'].includes(s));
     const missing = [], thin = [];
     for (const s of pages) {
       await page.goto('http://localhost:8071/' + s, { waitUntil: 'load' });

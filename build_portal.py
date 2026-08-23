@@ -112,6 +112,8 @@ STAFF_NAV = [
     ("counsellor", "i-chat",   "Conversations"),
     ("chat",       "i-globe",  "Website chat"),
     ("home",       "i-file",   "Home page"),
+    # The public blog lives at blog.html, so the screen that writes it cannot.
+    ("blog-admin", "i-book",   "Blog"),
     ("catalogue",  "i-cap",    "Catalogue"),
     ("admin",      "i-grid",   "Organisation"),
 ]
@@ -726,6 +728,14 @@ def main():
         "the site. What you change here is what the next visitor reads.",
         portal_home.BODY, portal_home.SCRIPT, "Counsellor"), encoding="utf-8")
     written.append("home.html")
+
+    import portal_blog
+    (HERE / "blog-admin.html").write_text(staff_page(
+        "blog-admin", "Blog", "Blog",
+        "Write a post, fill in what Google and WhatsApp show, and put it on the site. "
+        "There is nothing to deploy \u2014 Publish is the deploy.",
+        portal_blog.BODY, portal_blog.SCRIPT, "Website editor"), encoding="utf-8")
+    written.append("blog-admin.html")
 
     import portal_catalogue
     (HERE / "catalogue.html").write_text(staff_page(

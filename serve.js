@@ -53,6 +53,7 @@ const mailer = require('./server/mail.js');
 const notifier = require('./server/notify.js');
 const { Live } = require('./server/live.js');
 const { makeContent } = require('./server/content.js');
+const PROSE = require('./server/prose.js');
 
 /* catalogue.json is now the SEED, not the source of truth. Once it is in the
    database the staff screens own it, and this file is only read again on a
@@ -149,6 +150,10 @@ const seeded = CFG.seedDemo
   : null;
 const adminSeed = seed.seedAdmin({ db, admin: CFG.admin, hashPassword, newSalt,
   reset: CFG.admin.reset });
+/* The blog posts already on the site, brought in as drafts to finish. Not
+   behind seedDemo: these are real pages with real titles, not demo data. */
+const importedPosts = seed.seedPosts({ db, root: ROOT });
+seed.bumpBrowseCaps({ db });
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -217,6 +222,7 @@ function robotsTxt() {
     'Disallow: /chat',
     'Disallow: /home',
     'Disallow: /catalogue',
+    'Disallow: /blog-admin',
     'Disallow: /login',
     'Allow: /',
     '',
@@ -229,7 +235,7 @@ function robotsTxt() {
    404.html, which exists to be reached by accident. */
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
-  'chat', 'home', 'catalogue', 'login', '404']);
+  'chat', 'home', 'catalogue', 'blog-admin', 'login', '404']);
 
 function sitemapXml() {
   const pages = [];
@@ -242,12 +248,31 @@ function sitemapXml() {
         continue;
       }
       if (!name.endsWith('.html')) continue;
+      if (name.startsWith('_')) continue;          // templates, not pages
       const slug = name.slice(0, -5);
       if (!prefix && PORTAL_PAGES.has(slug)) continue;
       pages.push(prefix === '' && slug === 'index' ? '' : prefix + slug);
     }
   };
   walk(ROOT, '');
+  /* The blog comes from the database, not from the files still sitting in
+     post/. A draft has an address that works for staff and must not be in
+     here — a sitemap is a list of pages we are asking to have indexed. */
+  /* A draft written in the editor has an address that works for staff and must
+     not be listed — a sitemap is a request to index. The static files that are
+     already live stay, because they are already live; they are dropped the
+     moment the post that replaces them is published. */
+  const live = new Set(db.livePosts().map(p => 'post/' + p.slug));
+  const drafted = new Set(db.allPosts().filter(p => p.status !== 'published')
+    .map(p => 'post/' + p.slug));
+  for (let i = pages.length - 1; i >= 0; i--) {
+    const p = pages[i];
+    if (!p.startsWith('post/')) continue;
+    if (live.has(p)) continue;
+    if (drafted.has(p) && fs.existsSync(path.join(ROOT, p + '.html'))) continue;
+    pages.splice(i, 1);
+  }
+  live.forEach(p => { if (!pages.includes(p)) pages.push(p); });
   pages.sort();
   const base = CFG.siteUrl || '';
   return '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -271,6 +296,186 @@ function sitemapXml() {
  * robots.txt, one place, so the two can never disagree. The portal pages and
  * the 404 keep theirs whatever happens.
  */
+/*
+ * The blog, rendered here rather than shipped as files.
+ *
+ * Six static post pages is what a blog looks like when only a developer can
+ * write one. The posts live in the database now, and /blog and /post/<slug>
+ * are built from two templates on every request.
+ *
+ * Rendered on the SERVER, deliberately. A blog that paints itself from an API
+ * after the page loads is a blog Google reads as an empty page and WhatsApp
+ * previews as a headline with no description. The title, the description, the
+ * keywords, the canonical, the Open Graph tags and the Article JSON-LD are in
+ * the HTML before it leaves this process.
+ */
+const esc = PROSE.esc;
+
+/* Who is asking, for the one case a page needs to know: a draft post is shown
+   to staff and to nobody else. The API does its own session handling; this is
+   the same cookie read the same way, and it is read-only. */
+function whoIsIt(req) {
+  const raw = req.headers.cookie || '';
+  const hit = /(?:^|;\s*)glovels_session=([^;]+)/.exec(raw);
+  if (!hit) return null;
+  try { return db.sessionStudent(decodeURIComponent(hit[1])); } catch (e) { return null; }
+}
+let TPL = { post: null, index: null, at: 0 };
+
+function templates() {
+  /* Re-read when the file on disk is newer, so a rebuild shows up without a
+     restart, and cached otherwise — this is on the path of every blog page. */
+  const a = path.join(ROOT, 'post', '_post.tpl.html');
+  const b = path.join(ROOT, '_blog.tpl.html');
+  try {
+    const at = Math.max(fs.statSync(a).mtimeMs, fs.statSync(b).mtimeMs);
+    if (!TPL.post || at > TPL.at) {
+      TPL = { post: fs.readFileSync(a, 'utf8'), index: fs.readFileSync(b, 'utf8'), at };
+    }
+  } catch (e) {
+    return null;                      // templates not built: fall through to files
+  }
+  return TPL;
+}
+
+const shownDate = iso => {
+  const d = new Date(iso || Date.now());
+  return isNaN(d) ? '' : d.toLocaleDateString('en-GB',
+    { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+/** Fill the holes. Anything not supplied becomes an empty string, never "undefined". */
+function fill(tpl, holes) {
+  /* [A-Z0-9_], not [A-Z_]: the first version could not see {{H1}}, so every
+     post shipped with the literal characters {{H1}} where its headline goes. */
+  return tpl.replace(/\{\{([A-Z0-9_]+)\}\}/g, (m, k) =>
+    (Object.prototype.hasOwnProperty.call(holes, k) ? String(holes[k] == null ? '' : holes[k]) : ''));
+}
+
+const absolute = p => (CFG.siteUrl || '') + p;
+
+function metaHoles({ title, desc, canonical, keywords, image, type, jsonld, indexable }) {
+  return {
+    HEAD_TITLE: esc(title) + ' | Glovels',
+    OG_TITLE: esc(title),
+    DESC: esc(desc),
+    CANONICAL: esc(canonical),
+    KEYWORDS: keywords ? '<meta name="keywords" content="' + esc(keywords) + '">\n' : '',
+    /* A draft being previewed must never be indexed, whatever the site
+       setting says — the whole point of a preview is that it is not published. */
+    ROBOTS: (CFG.allowIndexing && indexable)
+      ? '<meta name="robots" content="index,follow,max-image-preview:large">'
+      : '<meta name="robots" content="noindex,nofollow">',
+    OG_TYPE: type || 'website',
+    OG_IMAGE: image
+      ? '<meta property="og:image" content="' + esc(image) + '">\n'
+      : '',
+    TWITTER_CARD: image ? 'summary_large_image' : 'summary',
+    JSONLD: jsonld
+      ? '<script type="application/ld+json">' + JSON.stringify(jsonld)
+        .replace(/</g, '\\u003c') + '</script>'
+      : '',
+  };
+}
+
+function postPage(post, isDraft) {
+  const t = templates();
+  if (!t) return null;
+  const url_ = absolute('/post/' + post.slug);
+  const title = post.meta_title || post.title;
+  const desc = post.meta_desc || post.excerpt || PROSE.summarise(post.body);
+  const image = post.og_image || post.cover || '';
+
+  const body =
+      (post.excerpt ? '<p class="lead">' + esc(post.excerpt) + '</p>' : '')
+    + (isDraft
+        ? '<div style="margin:0 0 18px;padding:12px 15px;border-radius:11px;'
+          + 'background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;'
+          + 'font:600 13px/1.6 system-ui,sans-serif">This is a draft. It is not on the '
+          + 'site, it is not in the sitemap, and search engines are told to skip it.</div>'
+        : '')
+    + PROSE.render(post.body);
+
+  return fill(t.post, Object.assign(metaHoles({
+    title, desc, canonical: url_, keywords: post.keywords, image,
+    type: 'article', indexable: !isDraft,
+    jsonld: {
+      '@context': 'https://schema.org', '@type': 'BlogPosting',
+      headline: post.title, description: desc, url: url_,
+      datePublished: post.published_at || post.created_at,
+      dateModified: post.updated_at || post.published_at || post.created_at,
+      author: { '@type': 'Organization', name: post.author || 'Glovels' },
+      publisher: { '@type': 'Organization', name: 'Glovels' },
+      mainEntityOfPage: url_,
+      image: image || undefined,
+      keywords: post.keywords || undefined,
+    },
+  }), {
+    H1: esc(post.title),
+    DATELINE: esc(shownDate(post.published_at || post.created_at))
+      + ' &middot; ' + (post.read_mins || 1) + ' min read'
+      + (post.author ? ' &middot; ' + esc(post.author) : ''),
+    BODY: body,
+  }));
+}
+
+/*
+ * What the blog index lists.
+ *
+ * Published posts, and the pages that are ALREADY on glovels.com — the six
+ * static files that were the blog before this. Those came in as drafts to
+ * finish, and dropping them off the index the day the database took over would
+ * quietly take six live pages off the site. They stay listed, and still serve
+ * from their file, until the post that replaces them is published; then the
+ * database version wins and the file is never reached again.
+ */
+function blogList() {
+  const live = db.livePosts();
+  const shown = new Set(live.map(p => p.slug));
+  const stillOnDisk = db.allPosts().filter(p =>
+    !shown.has(p.slug) && p.status !== 'published'
+    && fs.existsSync(path.join(ROOT, 'post', p.slug + '.html')));
+  return live.concat(stillOnDisk).sort((a, b) =>
+    String(b.published_at || b.created_at).localeCompare(String(a.published_at || a.created_at)));
+}
+
+function blogIndexPage(posts) {
+  const t = templates();
+  if (!t) return null;
+  const cards = posts.map(p =>
+    '<a class="postcard" href="post/' + esc(p.slug) + '">'
+    + '<div class="postmeta">' + esc(shownDate(p.published_at || p.created_at))
+      + ' &middot; ' + (p.read_mins || 1) + ' min'
+      + (p.tag ? ' &middot; ' + esc(p.tag) : '') + '</div>'
+    + '<h3>' + esc(p.title) + '</h3>'
+    + '<p>' + esc(p.excerpt || PROSE.summarise(p.body)) + '</p></a>').join('');
+
+  return fill(t.index, Object.assign(metaHoles({
+    title: 'Blog — study-abroad guides for Indian students',
+    desc: 'Guides on public universities, blocked accounts, CGPA cut-offs and '
+        + 'deadlines — the questions students actually ask.',
+    canonical: absolute('/blog'),
+    keywords: 'study abroad blog, public universities germany, blocked account, '
+            + 'student visa india',
+    type: 'website', indexable: true,
+    jsonld: {
+      '@context': 'https://schema.org', '@type': 'Blog',
+      name: 'Glovels blog', url: absolute('/blog'),
+      blogPost: posts.slice(0, 20).map(p => ({
+        '@type': 'BlogPosting', headline: p.title,
+        url: absolute('/post/' + p.slug),
+        datePublished: p.published_at || p.created_at,
+      })),
+    },
+  }), {
+    H1: 'The blog',
+    DATELINE: 'Guides on public universities, blocked accounts, CGPA cut-offs and '
+      + 'deadlines — the questions students actually ask.',
+    BODY: cards || '<p style="color:var(--muted)">Nothing published yet. '
+      + 'The first guides are being written.</p>',
+  }));
+}
+
 const NOINDEX = /<meta name="robots" content="noindex,nofollow"\s*\/?>/i;
 
 function forIndexing(html, slug) {
@@ -313,6 +518,37 @@ const server = http.createServer(async (req, res) => {
     if (!CFG.allowIndexing) return notFound(res);
     return send(res, 200, sitemapXml(), TYPES['.xml']);
   }
+
+  /*
+   * /blog and /post/<slug>, from the database.
+   *
+   * Ahead of the static files on purpose: the six .html files are still on
+   * disk, and whichever answers first is what the world reads. The database is
+   * the one the office can edit.
+   */
+  if (pathname === '/blog' || pathname === '/blog.html') {
+    const html = blogIndexPage(blogList());
+    if (html) return send(res, 200, html, TYPES['.html']);
+  }
+  const postUrl = /^\/post\/([a-z0-9-]{1,90})(?:\.html)?$/.exec(pathname);
+  if (postUrl) {
+    const post = db.postBySlug(postUrl[1]);
+    if (post && post.body && String(post.body).trim()) {
+      /* A draft is visible to staff, so Preview shows the real page rather
+         than an approximation of it, and to nobody else. */
+      const who = post.status === 'published' ? null : whoIsIt(req);
+      if (post.status === 'published' || (who && who.role !== 'student')) {
+        const html = postPage(post, post.status !== 'published');
+        if (html) return send(res, 200, html, TYPES['.html']);
+      }
+      if (post.status !== 'published') return notFound(res);
+    }
+  }
+
+  /* A file whose name starts with an underscore is a template, not a page.
+     /post/_post.tpl answered 200 and served the blog template with {{H1}} in
+     it — a page with holes where the words go, on a public address. */
+  if (/(?:^|\/)_/.test(pathname)) return notFound(res);
 
   // The database and anything a student uploaded are never served as files.
   if (pathname.startsWith('/data/') || pathname.startsWith('/server/')

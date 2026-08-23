@@ -3368,6 +3368,16 @@ patch("index.html", "the demo apply function is gone",
       '/* applyFor() lived here: it pushed the university into a variable in this\n   browser and showed "Demo. Nothing has been filed." applyNow() above does\n   the real thing, so this is gone rather than left to be called by mistake. */\n',
       marker="applyFor() lived here")
 
+# The results box was tall enough for four rows, which was the whole browse
+# list. It is eighteen now, and a window onto four of eighteen with a scrollbar
+# is a smaller window than the screen can afford.
+patch("index.html", "the results box shows more of what it has",
+      ".rows{max-height:340px;overflow-y:auto;scrollbar-gutter:stable;padding-right:4px}",
+      ".rows{max-height:min(62vh,560px);overflow-y:auto;scrollbar-gutter:stable;"
+      "padding-right:4px}\n"
+      "@media (max-width:700px){ .rows{max-height:min(70vh,520px)} }")
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and

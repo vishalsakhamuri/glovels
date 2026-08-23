@@ -24,6 +24,7 @@ const path = require('path');
 const EMAILS = require('./emails.js');
 const SHEET = require('./sheet.js');
 const WRITING = require('./writing.js');
+const PROSE = require('./prose.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 
 const DAY = 864e5;
@@ -1016,9 +1017,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     if (!name || !phone || !email) return json(res, 422, { ok: false, error: 'Name, phone and email are required' });
     if (!validEmail(email)) return json(res, 422, { ok: false, error: 'That email address is not valid' });
     if (!validPhone(phone)) return json(res, 422, { ok: false, error: 'That does not look like an Indian mobile number' });
+    /* What it is about, in their words or in the page's.
+       Every form on the site writes here, and until now they all wrote the
+       same shape: a name, a number and a country. A lead from a blog post that
+       does not say which post, or from a form where somebody typed a question
+       that was then thrown away, is a lead the counsellor starts from
+       nothing. */
+    const said = String(b.message || b.note || '').trim().slice(0, 400);
+    const about = String(b.note || '').trim().slice(0, 200);
     const record = {
       name, email, phone: '+91' + tenDigits(phone),
       destination: b.destination, consent: b.consent,
+      note: about && said && said !== about ? about + ' — “' + said + '”' : (about || said),
       sourcePage: b.sourcePage, referrer: b.referrer,
     };
     db.addEnquiry(record);
@@ -3093,6 +3103,156 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     });
     return json(res, 200, { ok: true });
   }, { open: true });
+
+  /* ---------------------------------------------------------------- blog */
+  /*
+   * Writing and publishing, without a developer.
+   *
+   * The six posts on the site today are static HTML files with a headline, a
+   * lead paragraph and a note to ourselves where the article should be. The
+   * office cannot write a seventh, cannot finish any of the six, and cannot
+   * correct a fee that changed — the only route is a text editor and a deploy.
+   *
+   * The SEO fields sit on the same form as the words, because that is the only
+   * way they get filled in. A separate "SEO settings" screen is a screen
+   * nobody opens.
+   */
+
+  const postShape = (p, full) => {
+    const o = {
+      id: p.id, slug: p.slug, title: p.title,
+      excerpt: p.excerpt || '', tag: p.tag || '', author: p.author || '',
+      status: p.status, readMins: p.read_mins || 0,
+      publishedAt: p.published_at || '', updatedAt: p.updated_at,
+      updatedBy: p.updated_by || '', cover: p.cover || '',
+      metaTitle: p.meta_title || '', metaDesc: p.meta_desc || '',
+      keywords: p.keywords || '', ogImage: p.og_image || '',
+      words: String(p.body || '').trim().split(/\s+/).filter(Boolean).length,
+    };
+    if (full) { o.body = p.body || ''; o.html = PROSE.render(p.body); }
+    return o;
+  };
+
+  /* What a visitor may read. Published, and with something in it — a post with
+     an empty body is a headline with a URL, which is worse than no post. */
+  route('GET', '/api/posts', async (req, res) => json(res, 200, {
+    posts: db.livePosts().map(p => postShape(p, false)),
+  }), { open: true });
+
+  route('GET', /^\/api\/posts\/([a-z0-9-]{1,90})$/, async (req, res, s, m) => {
+    const p = db.postBySlug(m[1]);
+    /* A draft is readable by the person writing it and by nobody else, which
+       is what makes Preview honest — it is the same renderer and the same
+       route, so what they see is what gets published. */
+    const staff = me(req);
+    const mayPreview = staff && staff.role !== 'student';
+    if (!p || (p.status !== 'published' && !mayPreview)) {
+      return json(res, 404, { error: 'No such post' });
+    }
+    return json(res, 200, { post: postShape(p, true), draft: p.status !== 'published' });
+  }, { open: true, soft: true });
+
+  /* ---- and the side that writes them ---- */
+
+  route('GET', '/api/staff/posts', needs('content', async (req, res) => json(res, 200, {
+    posts: db.allPosts().map(p => postShape(p, false)),
+  })));
+
+  route('GET', /^\/api\/staff\/post\/(\d+)$/, needs('content', async (req, res, s, m) => {
+    const p = db.postById(Number(m[1]));
+    if (!p) return json(res, 404, { error: 'No such post' });
+    return json(res, 200, { post: postShape(p, true) });
+  }));
+
+  /* One shape for save and for publish: the status is a field on the form, not
+     a different endpoint, so "publish" cannot mean something the save did not
+     see. */
+  const readPost = async (req, s, existing) => {
+    const b = await readJson(req);
+    const title = String(b.title || '').trim().slice(0, 180);
+    const body = String(b.body || '');
+    const wants = b.status === 'published' ? 'published' : 'draft';
+
+    if (!title) return { error: 'A post needs a headline.' };
+    if (wants === 'published' && !body.trim()) {
+      return { error: 'There is nothing in the body. A published post with no words is a '
+        + 'headline with a URL on it.' };
+    }
+
+    let slug = PROSE.slugify(b.slug || title);
+    const clash = db.postBySlug(slug);
+    if (clash && (!existing || clash.id !== existing.id)) {
+      /* Two posts cannot share an address. Rather than refuse and make somebody
+         invent one, take the next one along. */
+      let n = 2;
+      while (db.postBySlug(slug + '-' + n)) n++;
+      slug = slug + '-' + n;
+    }
+
+    const excerpt = String(b.excerpt || '').trim() || PROSE.summarise(body, 200);
+    return {
+      post: {
+        slug, title, body, excerpt,
+        cover: String(b.cover || '').trim().slice(0, 400),
+        author: String(b.author || s.name || '').trim().slice(0, 90),
+        tag: String(b.tag || '').trim().slice(0, 60),
+        status: wants,
+        /* Empty is not a mistake to refuse — it is the common case, and the
+           right answer is the headline and the first two sentences rather than
+           an empty <title> or a description Google writes for us. */
+        metaTitle: String(b.metaTitle || '').trim().slice(0, 200),
+        metaDesc: String(b.metaDesc || '').trim().slice(0, 320),
+        keywords: String(b.keywords || '').split(',').map(x => x.trim())
+          .filter(Boolean).slice(0, 25).join(', '),
+        ogImage: String(b.ogImage || '').trim().slice(0, 400),
+        readMins: PROSE.readingMinutes(body),
+        publishedAt: wants === 'published'
+          ? ((existing && existing.published_at) || new Date().toISOString())
+          : (existing ? existing.published_at || '' : ''),
+        updatedBy: s.name,
+      },
+    };
+  };
+
+  route('POST', '/api/staff/posts', needs('content', async (req, res, s) => {
+    const r = await readPost(req, s, null);
+    if (r.error) return json(res, 422, { error: r.error });
+    const row = db.addPost(r.post);
+    db.log(s.name, r.post.status === 'published' ? 'published a post' : 'started a post',
+      r.post.title);
+    return json(res, 200, { post: postShape(row, true) });
+  }));
+
+  route('PUT', /^\/api\/staff\/post\/(\d+)$/, needs('content', async (req, res, s, m) => {
+    const was = db.postById(Number(m[1]));
+    if (!was) return json(res, 404, { error: 'No such post' });
+    const r = await readPost(req, s, was);
+    if (r.error) return json(res, 422, { error: r.error });
+    const row = db.updatePost(was.id, r.post);
+    db.log(s.name,
+      was.status !== 'published' && r.post.status === 'published' ? 'published a post'
+        : r.post.status === 'published' ? 'edited a live post' : 'saved a draft',
+      r.post.title);
+    return json(res, 200, { post: postShape(row, true) });
+  }));
+
+  route('DELETE', /^\/api\/staff\/post\/(\d+)$/, needs('content', async (req, res, s, m) => {
+    const p = db.postById(Number(m[1]));
+    if (!p) return json(res, 404, { error: 'No such post' });
+    /* A published post has an address people have shared and Google has
+       indexed. Taking it off the site is unpublishing; deleting the row is only
+       for something that was never live. */
+    if (p.status === 'published') {
+      db.updatePost(p.id, Object.assign(postShape(p, true), {
+        status: 'draft', body: p.body, updatedBy: s.name,
+      }));
+      db.log(s.name, 'took a post off the site', p.title);
+      return json(res, 200, { unpublished: true, posts: db.allPosts().map(x => postShape(x, false)) });
+    }
+    db.deletePost(p.id);
+    db.log(s.name, 'deleted a draft', p.title);
+    return json(res, 200, { deleted: true, posts: db.allPosts().map(x => postShape(x, false)) });
+  }));
 
   /* ------------------------------------------------------------ dispatch */
 

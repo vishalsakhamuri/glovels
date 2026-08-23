@@ -114,8 +114,14 @@ def finder_block(s):
     return {
         "gate": mode.group(1) if mode else "gated",
         "badges": badges,
-        "browsePublic": st.get("browsePublic", 3),
-        "browsePrivate": st.get("browsePrivate", 2),
+        # How many rows a visitor who has typed nothing sees. Twelve and
+        # twenty-four rather than three and two: those numbers were set when
+        # the browse list was one mixed column of five rows. Private is its
+        # own tab now, and a tab that opens on two rows reads as "that is all
+        # there is" rather than as a sample — the list scrolls, so the rest
+        # cost nothing to offer.
+        "browsePublic": st.get("browsePublic", 12),
+        "browsePrivate": st.get("browsePrivate", 24),
         "cgpaFull": st.get("cgpaFull", 7.5),
         "cgpaPartial": st.get("cgpaPartial", 6),
         "fx": st.get("fx", {"INR": 1}),

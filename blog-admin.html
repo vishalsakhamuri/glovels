@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Conversations | Glovels</title>
+<title>Blog | Glovels</title>
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -502,69 +502,95 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 <div class="p-shell">
   <aside class="p-side">
     <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
-    <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">Counsellor</span></div>
-    <nav class="p-nav"><a href="counsellor.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Conversations</a><a href="chat.html"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Website chat</a><a href="home.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Home page</a><a href="blog-admin.html"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Blog</a><a href="catalogue.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Catalogue</a><a href="admin.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Organisation</a></nav>
+    <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">Website editor</span></div>
+    <nav class="p-nav"><a href="counsellor.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Conversations</a><a href="chat.html"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Website chat</a><a href="home.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Home page</a><a href="blog-admin.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Blog</a><a href="catalogue.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Catalogue</a><a href="admin.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Organisation</a></nav>
     <div class="p-side-foot">
       <a href="#" id="staffOut"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
     </div>
   </aside>
   <main class="p-main">
     <div class="p-bar">
-      <span class="p-bar-title" id="crumb">Conversations</span>
+      <span class="p-bar-title" id="crumb">Blog</span>
       <span class="sla" id="liveDot">connecting…</span>
       <span class="p-av" id="staffAv">—</span>
     </div>
     <div class="p-top">
-      <div><h1>Conversations</h1><p>Your students, and the thread with each of them. Messages arrive without a refresh.</p></div>
+      <div><h1>Blog</h1><p>Write a post, fill in what Google and WhatsApp show, and put it on the site. There is nothing to deploy — Publish is the deploy.</p></div>
     </div>
 
     <style>
-      /* Counter tiles. The column count was an inline style on every one of
-         these, which beats any media query — so a row of four or five tiles
-         pushed the page sideways on a phone. The count is a custom property
-         now, and the row folds to two, then one, as the screen narrows. */
       .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
       @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
       @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
+
+      .blog-cols{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+      @media (max-width:1000px){ .blog-cols{grid-template-columns:1fr} }
+
+      .plist{list-style:none;margin:0;padding:0;max-height:72vh;overflow-y:auto}
+      .plist li{padding:12px 15px;border-bottom:1px solid var(--line);cursor:pointer;
+        display:flex;flex-direction:column;gap:4px}
+      .plist li:hover{background:#f7f9fc}
+      .plist li.on{background:#f0f5fb;box-shadow:inset 3px 0 0 var(--navy-700)}
+      .plist b{font:700 13px/1.42 var(--sans);color:var(--navy-900)}
+      .plist span{font-size:11.6px;color:var(--muted)}
+
+      .ed .field{margin-bottom:14px}
+      .ed label{display:block;font:700 12.4px/1.4 var(--sans);color:var(--navy-800);
+        margin-bottom:5px}
+      .ed label small{font-weight:600;color:var(--muted);letter-spacing:0}
+      .ed input,.ed textarea,.ed select{width:100%;padding:10px 12px;border:1.5px solid #d8dde4;
+        border-radius:10px;font:400 13.6px/1.6 var(--sans);background:#fff;color:var(--navy-900)}
+      .ed textarea{resize:vertical}
+      .ed textarea#pBody{min-height:46vh;font:400 14px/1.75 ui-monospace,SFMono-Regular,
+        Menlo,monospace}
+      .ed .two{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+      @media (max-width:640px){ .ed .two{grid-template-columns:1fr} }
+
+      /* What Google prints. A description is a sentence written to a length,
+         and a writer who cannot see the length writes the wrong one. */
+      .serp{border:1px solid var(--line);border-radius:12px;padding:15px 17px;
+        background:#fff;margin:0 0 16px}
+      .serp .u{font-size:12.4px;color:#1a6b3c;word-break:break-all}
+      .serp .t{font:400 18px/1.35 var(--sans);color:#1a0dab;margin:3px 0 3px}
+      .serp .d{font-size:13px;line-height:1.58;color:#4d5156}
+      .cnt{float:right;font:600 11.4px/1.4 var(--sans);color:var(--muted)}
+      .cnt.over{color:#b03a2e}
+      .cnt.good{color:#14603a}
+
+      .helpbox{background:#f7f9fc;border:1px solid var(--line);border-radius:11px;
+        padding:13px 15px;font-size:12.3px;line-height:1.65;color:var(--navy-800)}
+      .helpbox code{background:#eef2f7;padding:1px 5px;border-radius:5px;
+        font:600 11.8px/1.4 ui-monospace,monospace}
+      .stpill{display:inline-block;padding:2px 9px;border-radius:999px;
+        font:700 10.6px/1.7 var(--sans);letter-spacing:.06em;text-transform:uppercase}
+      .stpill.live{background:#e6f4ec;color:#14603a}
+      .stpill.draft{background:#fdf6e6;color:#8a5a0b}
     </style>
 
-    <style>
-      /* A fixed-width aside beside the main column. The width used to be an
-         inline style, which beats the media query that collapses .p-cols on a
-         narrow screen — so this page scrolled sideways on every phone. The
-         width lives in a class now, and stands down under 980px. */
-      .p-cols.aside{grid-template-columns:var(--aside,270px) 1fr}
-      @media (max-width:980px){ .p-cols.aside{grid-template-columns:1fr} }
-      @media (max-width:980px){ .p-cols.aside>*{position:static !important} }
-      /* A grid child is min-width:auto by default, so one wide thing inside
-         the thread — a long link, an avatar row — sets the floor for the whole
-         column and the page scrolls. Nothing here needs to be wider than the
-         screen. */
-      .p-cols.aside>*{min-width:0}
-    </style>
+    <div class="out tiles" style="--tiles:4;margin:0 0 18px">
+      <div><b id="kLive">—</b><span>On the site</span></div>
+      <div><b id="kDraft">—</b><span>Drafts</span></div>
+      <div><b id="kEmpty">—</b><span>Written but empty</span></div>
+      <div><b id="kWords">—</b><span>Words published</span></div>
+    </div>
 
-    <div class="p-cols aside" style="--aside:320px;align-items:start;gap:16px">
-
-      <div class="p-card" style="padding:0;overflow:hidden">
-        <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;
-          align-items:center;gap:9px">
-          <b style="font-size:14px;color:var(--navy-900)">My students</b>
-          <span class="pill" id="caseCount" style="margin-left:auto">0</span>
+    <div class="blog-cols">
+      <div class="p-card" style="padding:0">
+        <div style="padding:12px 15px;border-bottom:1px solid var(--line);display:flex;
+          gap:10px;align-items:center">
+          <b style="font:700 12.4px/1 var(--sans);letter-spacing:.07em;
+            text-transform:uppercase;color:var(--muted)">Posts</b>
+          <button type="button" class="btn btn-primary btn-sm" id="newPost"
+            style="margin-left:auto">+ New</button>
         </div>
-        <div style="padding:11px 13px;border-bottom:1px solid var(--line)">
-          <input id="findStudent" placeholder="Search by name or email" style="width:100%;
-            padding:9px 11px;font:400 13px/1.4 var(--sans);color:var(--navy-900);
-            border:1.5px solid #d8dde4;border-radius:9px">
-        </div>
-        <div id="caseList" style="max-height:min(620px,66vh);overflow-y:auto"></div>
+        <ul class="plist" id="postList"></ul>
       </div>
 
-      <div id="pane">
-        <div class="sl-empty" style="margin:0">
-          <b>Pick a student</b>
-          <p>Their profile, documents, shortlist and your conversation with them all open here.
-            Anything a student sends arrives without you refreshing.</p>
-        </div>
+      <div class="p-card ed" id="editor">
+        <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.7">
+          Pick a post on the left, or start a new one.<br><br>
+          What you write here is the page. There is no second step and nothing to deploy —
+          Publish puts it on glovels.com, and Save keeps it out of sight until you are ready.</p>
       </div>
     </div>
 
@@ -694,500 +720,272 @@ async function staffBoot(run) {
   run(me);
 }
 
-let STUDENTS = [];
-/* The record currently open, so the row renderer can read this student's
-   application stages without every caller threading them through. */
-let CASE = null;
-let openId = null;
-let ME = null;
-let filter = '';
+let POSTS = [], openId = null, dirty = false;
 
-/* ------------------------------------------------------------------ caseload */
-
-function row(s) {
-  const initials = s.name.trim().split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase();
-  const last = s.lastMessage;
-  const preview = last
-    ? (last.who === 'me' ? '' : 'You: ') + (last.body || 'sent a file').slice(0, 46)
-    : 'No messages yet';
-  return '<button type="button" data-open="' + s.id + '" style="' +
-    'display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;cursor:pointer;' +
-    'border:0;border-bottom:1px solid var(--line);background:' +
-      (s.id === openId ? 'var(--cream)' : 'transparent') + ';padding:12px 14px">' +
-    '<span style="width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;' +
-      'color:#fff;font:700 12px/1 var(--sans);background:linear-gradient(160deg,var(--navy-600),var(--navy-800))">' +
-      esc(initials) + '</span>' +
-    '<span style="flex:1;min-width:0">' +
-      '<b style="display:block;font:600 13.4px/1.3 var(--sans);color:var(--navy-900)">' + esc(s.name) + '</b>' +
-      '<span style="display:block;font:400 12px/1.45 var(--sans);color:var(--muted);' +
-        'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(preview) + '</span>' +
-      (s.package ? '<span class="sl-chip" style="margin-top:6px;display:inline-block">' + esc(s.package) + '</span>' : '') +
-    '</span>' +
-    '<span style="flex:none;text-align:right">' +
-      (s.unread ? '<span style="display:inline-block;min-width:20px;padding:2px 6px;border-radius:99px;' +
-        'background:var(--blue);color:#fff;font:800 10.5px/1.5 var(--sans)">' + s.unread + '</span>'
-        : '<span style="font:400 10.5px/1.5 var(--sans);color:var(--muted)">' +
-          (last ? timeAgo(last.at) : '') + '</span>') +
-    '</span></button>';
-}
-
-function paintCase() {
-  const q = filter.toLowerCase();
-  const list = STUDENTS.filter(s =>
-    !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q));
-  $('#caseCount').textContent = STUDENTS.length +
-    (STUDENTS.reduce((a, s) => a + s.unread, 0) ? ' · ' + STUDENTS.reduce((a, s) => a + s.unread, 0) + ' unread' : '');
-  $('#caseList').innerHTML = list.map(row).join('') ||
-    '<p style="padding:20px 16px;margin:0;font-size:12.8px;color:var(--muted);line-height:1.6">' +
-    (STUDENTS.length
-      ? 'Nobody matches that search.'
-      : 'No students are assigned to you yet. An admin assigns them from the Organisation screen.') +
-    '</p>';
-}
-
-async function loadCase() {
-  const r = await api('GET', '/api/staff/students');
-  STUDENTS = r.students;
-  ME = r.role;
-  paintCase();
-}
-
-/* --------------------------------------------------------------- the record */
-
-const money = p => p.totalInr === 0 ? '₹0 tuition'
-  : '≈ ₹' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L';
-
-function bubble(m) {
-  const fromStudent = m.who === 'me';     /* 'me' is always the student's side */
-  return '<div style="display:flex;gap:10px;' + (fromStudent ? '' : 'flex-direction:row-reverse') + '">' +
-    '<span style="width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;' +
-      'color:#fff;font:700 11px/1 var(--sans);background:' +
-      (fromStudent ? 'linear-gradient(160deg,var(--navy-600),var(--navy-800))'
-                   : 'linear-gradient(160deg,var(--blue),var(--blue-deep))') + '">' +
-      (fromStudent ? 'S' : 'You') + '</span>' +
-    '<div style="max-width:70%"><div style="background:' + (fromStudent ? 'var(--cream)' : '#eaf1fd') +
-      ';border:1px solid ' + (fromStudent ? 'var(--line)' : '#c2d6f5') + ';border-radius:14px;' +
-      'padding:10px 13px;font-size:13.2px;line-height:1.6;color:var(--navy-800)">' +
-      (m.file ? '<div style="display:flex;align-items:center;gap:7px;font-weight:600;color:var(--blue-deep)">' +
-        ico('file') + esc(m.file) + '</div>' : '') + esc(m.t || '') + '</div>' +
-      '<div style="font:400 10.4px/1.6 var(--sans);color:var(--muted);margin-top:3px;' +
-        (fromStudent ? '' : 'text-align:right') + '">' + timeAgo(m.at) + '</div></div></div>';
-}
-
-function docRow(d) {
-  const L = {ok: 'Verified', wait: 'In review', none: 'Not uploaded'};
-  return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
-    '<span style="flex:1">' + esc(d.file) + '</span>' +
-    '<span class="st ' + d.status + '">' + L[d.status] + '</span>' +
-    (d.status === 'wait'
-      ? '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
-        '" style="margin-left:8px">Verify</button>'
-      : '<button type="button" class="btn btn-ghost btn-sm" data-unverify="' + esc(d.key) +
-        '" style="margin-left:8px">Query</button>') + '</li>';
-}
-
-/* The five stages, the same five the student's own tracker draws. Kept here as
-   the same list rather than a second one, because two lists that must agree
-   eventually will not. */
-const APP_STAGES = ['Documents collected', 'Application drafted', 'Submitted',
-  'Under review', 'Decision'];
-
-/* One row on the student's list: what it is, where it has got to, and the two
-   things a counsellor does to it. */
-function uniRow(p) {
-  const a = (CASE && CASE.apps && CASE.apps[p.id]) || { stage: 0, outcome: '' };
-  const done = a.outcome === 'offer' ? 'ok' : a.outcome === 'rejected' ? 'bad' : '';
-
-  const options = APP_STAGES.map((n, i) =>
-    '<option value="' + i + '"' + (i === Number(a.stage || 0) ? ' selected' : '') + '>' +
-    esc(n) + '</option>').join('');
-
-  return '<li style="align-items:flex-start;gap:10px">' +
-    '<div style="flex:1;min-width:0">' +
-      '<b style="display:block">' + esc(p.university || p.id) + '</b>' +
-      '<span style="display:block;font-size:12px;color:var(--muted)">' +
-        esc(p.program || '') + ' \u00b7 ' + money(p) + '</span>' +
-    '</div>' +
-    '<select data-stage="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
-      'var(--sans);border:1.5px solid #d8dde4;border-radius:8px;background:var(--paper)">' +
-      options + '</select>' +
-    '<select data-outcome="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
-      'var(--sans);border:1.5px solid ' + (done === 'bad' ? '#e0b4ae' : '#d8dde4') +
-      ';border-radius:8px;background:var(--paper)">' +
-      '<option value=""' + (!a.outcome ? ' selected' : '') + '>No decision yet</option>' +
-      '<option value="offer"' + (a.outcome === 'offer' ? ' selected' : '') + '>Offer</option>' +
-      '<option value="rejected"' + (a.outcome === 'rejected' ? ' selected' : '') +
-        '>Rejected</option>' +
-    '</select>' +
-    '<button type="button" class="btn btn-ghost btn-sm" data-unidrop="' + esc(p.id) +
-      '" title="Take this off their list">Remove</button>' +
-    '</li>';
-}
-
-function paintRecord(r) {
-  CASE = r;
-  const p = r.profile || {};
-  const facts = [
-    ['Email', r.student.email], ['Mobile', r.student.phone || '—'],
-    ['Degree', p.d_course ? p.d_course + ' · ' + (p.d_uni || '') : 'Not filled in'],
-    ['CGPA', p.d_cgpa || '—'],
-    ['English', p.e_test ? p.e_test + ' ' + (p.e_score || '') : 'Not taken'],
-    ['Destination', p.g_country || '—'],
-    ['Intake', p.g_intake || '—'],
-    ['Budget', p.b_total || '—'],
-  ];
-  const filled = Object.values(p).filter(v => String(v || '').trim()).length;
-
-  $('#pane').innerHTML =
-    '<div class="p-card" style="margin-bottom:16px">' +
-      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
-        '<h3 style="margin:0;font-size:17px">' + esc(r.student.name) + '</h3>' +
-        (r.counsellor ? '<span class="pill">' + esc(r.counsellor.name) + '</span>' : '') +
-        '<span class="pill" style="margin-left:auto">' + (r.orders[0] ? esc(r.orders[0].package) : 'No package') + '</span>' +
-      '</div>' +
-      '<div class="out tiles" style="--tiles:4;margin:0 0 16px">' +
-        '<div><b>' + r.shortlist.length + '</b><span>Shortlisted</span></div>' +
-        '<div><b>' + Object.keys(r.apps).length + '</b><span>Applications</span></div>' +
-        '<div><b>' + r.docs.filter(d => d.status === 'ok').length + '/' + r.docs.length + '</b><span>Docs verified</span></div>' +
-        '<div><b>' + filled + '</b><span>Profile fields</span></div>' +
-      '</div>' +
-      '<div class="tabs" style="margin-bottom:14px">' +
-        '<button class="tab" data-t="chat" aria-selected="true">' + ico('chat') + ' Conversation</button>' +
-        '<button class="tab" data-t="file" aria-selected="false">' + ico('user') + ' Their file</button>' +
-      '</div>' +
-
-      '<section class="pane active" id="t-chat">' +
-        '<div id="thread" style="height:min(400px,46vh);overflow-y:auto;display:flex;' +
-          'flex-direction:column;gap:12px;padding:4px 2px 12px"></div>' +
-        '<div id="typing" style="font:400 11.6px/1.6 var(--sans);color:var(--muted);height:18px"></div>' +
-        '<form id="reply" style="display:flex;gap:9px;align-items:flex-end;border-top:1px solid var(--line);' +
-          'padding-top:12px">' +
-          '<textarea id="rbox" rows="1" placeholder="Reply to ' + esc(r.student.name.split(" ")[0]) + '…" style="flex:1;' +
-            'resize:none;max-height:130px;padding:11px 12px;font:400 13.4px/1.5 var(--sans);' +
-            'color:var(--navy-900);border:1.5px solid #d8dde4;border-radius:12px"></textarea>' +
-          '<button type="submit" class="btn btn-primary btn-sm">Send</button>' +
-        '</form>' +
-        '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">' +
-          ['I have your documents — I will confirm your shortlist on a call tomorrow.',
-           'Please start the APS certificate this week. It takes 6–8 weeks and blocks the German application.',
-           'Your transcripts are verified. Next: the blocked account.',
-           'I have added two more universities to your shortlist — have a look and tell me what you think.']
-            .map(q => '<button type="button" class="btn btn-ghost btn-sm" data-canned="' + esc(q) + '">' +
-              esc(q.slice(0, 34)) + '…</button>').join('') +
-        '</div>' +
-      '</section>' +
-
-      '<section class="pane" id="t-file">' +
-        '<div class="p-cols" style="align-items:start">' +
-          '<div><h3 style="font-size:14.5px;margin-bottom:10px">Profile</h3>' +
-            '<ul class="doclist">' + facts.map(([k, v]) =>
-              '<li><span style="color:var(--muted);min-width:92px">' + esc(k) + '</span>' +
-              '<span class="st none" style="margin-left:auto;max-width:60%;text-transform:none;' +
-              'letter-spacing:0;font-weight:600">' + esc(v) + '</span></li>').join('') + '</ul></div>' +
-          '<div><h3 style="font-size:14.5px;margin-bottom:10px">Documents</h3>' +
-            '<ul class="doclist" id="docs">' + (r.docs.length ? r.docs.map(docRow).join('')
-              : '<li><span>Nothing uploaded yet</span></li>') + '</ul></div>' +
-        '</div>' +
-        /* The list, and the controls that run it. This is the counsellor's
-           actual job: agree a shortlist on a call, put it here, and move each
-           one along as it goes. Before this the student had to add their own
-           universities from a finder, having just been told which ones over
-           the phone — and the five-stage tracker on their screen sat at zero
-           for everybody, because nothing could move it. */
-        '<div style="display:flex;align-items:baseline;gap:10px;margin:18px 0 10px">' +
-          '<h3 style="font-size:14.5px;margin:0">Their universities</h3>' +
-          '<span style="font-size:11.8px;color:var(--muted)">' + r.shortlist.length +
-            ' on the list</span>' +
-          '<button type="button" class="btn btn-primary btn-sm" id="addUni" ' +
-            'style="margin-left:auto">+ Add a university</button></div>' +
-        '<div id="uniAdd" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;' +
-          'background:var(--paper);border:1px solid var(--line)">' +
-          '<input id="uniQ" placeholder="Search the catalogue — university, course or country" ' +
-            'style="width:100%;padding:9px 11px;font:400 13px/1.4 var(--sans);' +
-            'border:1.5px solid #d8dde4;border-radius:9px">' +
-          '<div id="uniHits" style="margin-top:9px;max-height:260px;overflow-y:auto"></div></div>' +
-        (r.shortlist.length
-          ? '<ul class="doclist" id="uniList">' + r.shortlist.map(uniRow).join('') + '</ul>'
-          : '<p style="font-size:12.8px;color:var(--muted)" id="uniList">Nothing on their list ' +
-            'yet. Agree one on a call, then put it here \u2014 this is what the admission ' +
-            'guarantee attaches to.</p>') +
-
-        /* The drafts the student wrote in the studio. This is the copy the
-           rewrite is billed against, so it belongs on the counsellor's screen
-           rather than in an email the student has to be asked for. */
-        '<h3 style="font-size:14.5px;margin:18px 0 10px">Drafts from the studio' +
-          (r.drafts && r.drafts.length
-            ? ' <span class="st none" style="text-transform:none;letter-spacing:0">' +
-              r.drafts.length + '</span>' : '') + '</h3>' +
-        ((r.drafts && r.drafts.length)
-          ? r.drafts.slice(0, 6).map((d, i) =>
-              '<details' + (i === 0 ? ' open' : '') + ' style="border:1px solid var(--line);' +
-                'border-radius:10px;padding:10px 13px;margin-bottom:8px;background:var(--paper)">' +
-              '<summary style="cursor:pointer;font:700 12.8px/1.5 var(--sans);color:var(--navy-900)">' +
-                (d.kind === 'lor' ? 'Letter of recommendation' : 'Statement of purpose') +
-                ' \u00b7 ' + esc(d.programme || 'no programme given') +
-                (d.university ? ', ' + esc(d.university) : '') +
-                ' <span style="font-weight:600;color:var(--muted)">' + d.words + ' words, ' +
-                timeAgo(d.at) + '</span></summary>' +
-              d.paragraphs.map(t => '<p style="margin:11px 0 0;font-size:13px;line-height:1.7">' +
-                esc(t) + '</p>').join('') +
-              '<p style="margin:12px 0 0;font-size:11.6px;color:var(--muted)">' +
-                esc(d.caveat) + '</p></details>').join('')
-          : '<p style="font-size:12.8px;color:var(--muted)">They have not written one yet. ' +
-            'The studio is on the home page, under the SOP and LOR cards.</p>') +
-      '</section>' +
-    '</div>';
-
-  const th = $('#thread');
-  th.innerHTML = r.msgs.map(bubble).join('');
-  th.scrollTop = th.scrollHeight;
-
-  const box = $('#rbox');
-  box.addEventListener('input', () => {
-    box.style.height = 'auto';
-    box.style.height = Math.min(130, box.scrollHeight) + 'px';
-    ping();
-  });
-  box.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#reply').requestSubmit(); }
-  });
-  $('#reply').addEventListener('submit', async e => {
-    e.preventDefault();
-    const v = box.value.trim();
-    if (!v) return;
-    box.value = '';
-    box.style.height = 'auto';
-    await sendReply(v);
-  });
-  box.focus();
-}
-
-/* Typing hints are throttled: one every 1.5s is enough to show the dots, and
-   one per keystroke would be a request per character. */
-let lastPing = 0;
-/* ------------------------------------------- running the student's list */
-
-const refreshCase = async () => {
-  if (openId) paintRecord(await api('GET', '/api/staff/student/' + openId));
+const fmtWhen = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('en-IN',
+    { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-/* The catalogue, fetched once and searched in the browser. It is 171 rows —
-   small enough that a round trip per keystroke would be the slower answer. */
-let CATALOGUE = null;
-async function catalogue() {
-  if (!CATALOGUE) {
-    const d = await api('GET', '/api/staff/catalogue');
-    /* Only what is actually on offer. Offering a counsellor a university that
-       has been switched off is offering them a row the student will never be
-       able to see. */
-    CATALOGUE = (d.programmes || []).filter(p => p.active !== false);
-  }
-  return CATALOGUE;
+/* Kept in step with the server's slugify. A writer who sees one address here
+   and another one on the live post has been lied to by the screen. */
+const slugify = s => String(s || '').toLowerCase()
+  .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+  .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '').slice(0, 80) || 'post';
+
+function paintList() {
+  const live = POSTS.filter(p => p.status === 'published');
+  const draft = POSTS.filter(p => p.status !== 'published');
+  $('#kLive').textContent = live.length;
+  $('#kDraft').textContent = draft.length;
+  $('#kEmpty').textContent = POSTS.filter(p => !p.words).length;
+  $('#kWords').textContent = live.reduce((n, p) => n + (p.words || 0), 0)
+    .toLocaleString('en-IN');
+
+  $('#postList').innerHTML = POSTS.map(p =>
+    '<li data-post="' + p.id + '"' + (p.id === openId ? ' class="on"' : '') + '>'
+    + '<b>' + esc(p.title) + '</b>'
+    + '<span><span class="stpill ' + (p.status === 'published' ? 'live">On the site'
+        : 'draft">Draft') + '</span> '
+      + (p.words ? p.words.toLocaleString('en-IN') + ' words' : 'no words yet')
+      + ' &middot; ' + fmtWhen(p.updatedAt) + '</span></li>').join('')
+    || '<li style="cursor:default;color:var(--muted);font-size:12.6px">'
+       + 'Nothing here yet. Press New.</li>';
 }
 
-let uniTimer = null;
-async function searchUnis(q) {
-  const box = $('#uniHits');
-  const term = q.trim().toLowerCase();
-  if (term.length < 2) {
-    box.innerHTML = '<p style="margin:0;font-size:12.2px;color:var(--muted)">' +
-      'Type two letters or more.</p>';
-    return;
-  }
-  const all = await catalogue();
-  const on = new Set(((CASE && CASE.shortlist) || []).map(x => String(x.id)));
-  const hits = all.filter(p =>
-    ((p.university || '') + ' ' + (p.program || '') + ' ' + (p.country || ''))
-      .toLowerCase().includes(term)).slice(0, 24);
+/* ---------------------------------------------------------------- the form */
 
-  box.innerHTML = hits.length
-    ? '<ul class="doclist" style="margin:0">' + hits.map(p =>
-        '<li><div style="flex:1;min-width:0"><b style="display:block">' +
-        esc(p.university || p.id) + '</b><span style="display:block;font-size:11.8px;' +
-        'color:var(--muted)">' + esc(p.name || p.program || '') + ' \u00b7 ' +
-        esc(p.country || '') + '</span></div>' +
-        (on.has(String(p.id))
-          ? '<span class="st ok">on their list</span>'
-          : '<button type="button" class="btn btn-primary btn-sm" data-uniadd="' +
-            esc(p.id) + '">Add</button>') + '</li>').join('') + '</ul>'
-    : '<p style="margin:0;font-size:12.2px;color:var(--muted)">Nothing matches that.</p>';
-}
+function editor(p) {
+  const isNew = !p.id;
+  $('#editor').innerHTML =
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;'
+        + 'padding-bottom:13px;border-bottom:1px solid var(--line);margin-bottom:16px">'
+      + '<b style="font:700 15px/1.3 var(--disp,inherit);color:var(--navy-900)">'
+        + (isNew ? 'New post' : esc(p.title)) + '</b>'
+      + '<span class="stpill ' + (p.status === 'published' ? 'live">On the site'
+          : 'draft">Draft') + '</span>'
+      + '<span style="flex:1"></span>'
+      + (isNew ? '' : '<a class="btn btn-ghost btn-sm" id="pView" target="_blank" '
+        + 'href="/post/' + esc(p.slug) + '">View the page</a>')
+      + (isNew ? '' : '<button type="button" class="btn btn-ghost btn-sm" id="pDrop">'
+        + (p.status === 'published' ? 'Take off the site' : 'Delete') + '</button>')
+      + '</div>'
 
-document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'uniQ') {
-    clearTimeout(uniTimer);
-    uniTimer = setTimeout(() => searchUnis(e.target.value), 220);
-  }
-});
+    + '<div class="field"><label for="pTitle">Headline</label>'
+      + '<input id="pTitle" value="' + esc(p.title || '') + '" '
+      + 'placeholder="What a student would type into Google"></div>'
 
-document.addEventListener('change', async e => {
-  const st = e.target.closest('[data-stage]');
-  const oc = e.target.closest('[data-outcome]');
-  if (!st && !oc) return;
-  const id = (st || oc).dataset.stage || (st || oc).dataset.outcome;
-  const row = e.target.closest('li');
-  const stage = Number((row.querySelector('[data-stage]') || {}).value || 0);
-  const outcome = (row.querySelector('[data-outcome]') || {}).value || '';
-  try {
-    const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +
-      encodeURIComponent(id), { stage, outcome });
-    if (r.moved) toast('The student has been told.');
-    await refreshCase();
-  } catch (err) {
-    alert(err.message || 'That did not save.');
-  }
-});
+    + '<div class="two">'
+      + '<div class="field"><label for="pSlug">Address <small>glovels.com/post/…</small></label>'
+        + '<input id="pSlug" value="' + esc(p.slug || '') + '"></div>'
+      + '<div class="field"><label for="pTag">Topic <small>optional</small></label>'
+        + '<input id="pTag" value="' + esc(p.tag || '') + '" '
+        + 'placeholder="Germany, Visa, Money…"></div>'
+    + '</div>'
 
-document.addEventListener('click', async e => {
-  const open = e.target.closest('#addUni');
-  if (open) {
-    const box = $('#uniAdd');
-    box.hidden = !box.hidden;
-    if (!box.hidden) { $('#uniQ').focus(); searchUnis($('#uniQ').value || ''); }
-    return;
-  }
+    + '<div class="field"><label for="pExcerpt">The line under the headline'
+      + '<small> — shown on the blog list and at the top of the post</small></label>'
+      + '<textarea id="pExcerpt" rows="2" placeholder="Leave it empty and we use your '
+      + 'first two sentences.">' + esc(p.excerpt || '') + '</textarea></div>'
 
-  const add = e.target.closest('[data-uniadd]');
-  if (add) {
-    add.disabled = true;
-    try {
-      await api('POST', '/api/staff/student/' + openId + '/shortlist',
-        { id: add.dataset.uniadd });
-      await refreshCase();
-      /* The panel stays open — a counsellor agreeing a shortlist on a call is
-         adding five, not one. */
-      $('#uniAdd').hidden = false;
-      searchUnis($('#uniQ').value || '');
-      toast('Added, and the student has been told.');
-    } catch (err) {
-      add.disabled = false;
-      alert(err.message || 'That did not add.');
-    }
-    return;
-  }
+    + '<div class="field"><label for="pBody">The post'
+      + '<span class="cnt" id="cWords">0 words</span></label>'
+      + '<textarea id="pBody" placeholder="Write it the way you would type it.">'
+      + esc(p.body || '') + '</textarea></div>'
 
-  const drop = e.target.closest('[data-unidrop]');
-  if (drop) {
-    /* No confirm dialog: it is one row, it is reversible by adding it back, and
-       a dialog on every remove makes agreeing a shortlist of ten a chore. */
-    drop.disabled = true;
-    try {
-      await api('DELETE', '/api/staff/student/' + openId + '/shortlist/' +
-        encodeURIComponent(drop.dataset.unidrop));
-      await refreshCase();
-      toast('Taken off their list.');
-    } catch (err) {
-      drop.disabled = false;
-      alert(err.message || 'That did not remove.');
-    }
-  }
-});
+    + '<div class="helpbox" style="margin-bottom:20px">'
+      + '<b>Four things the box understands.</b> '
+      + '<code>## Heading</code> makes a heading &middot; '
+      + '<code>- item</code> on its own line makes a list &middot; '
+      + '<code>[words](https://…)</code> makes a link &middot; '
+      + '<code>**bold**</code>. A blank line starts a new paragraph. '
+      + 'Anything else is printed as you typed it.'
+    + '</div>'
 
-function ping() {
-  const now = Date.now();
-  if (now - lastPing < 1500 || !openId) return;
-  lastPing = now;
-  api('POST', '/api/staff/student/' + openId + '/typing').catch(() => {});
-}
+    + '<h3 style="font:700 14.6px/1.3 var(--sans);color:var(--navy-900);margin:0 0 4px">'
+      + 'How it looks in Google and on WhatsApp</h3>'
+    + '<p style="margin:0 0 13px;font-size:12.3px;color:var(--muted);line-height:1.6">'
+      + 'This is the whole of what somebody sees before they decide whether to click. '
+      + 'Leave a box empty and we use the headline and your first two sentences — which '
+      + 'is better than nothing and worse than writing it.</p>'
 
-async function sendReply(body) {
-  const th = $('#thread');
-  try {
-    const r = await api('POST', '/api/staff/student/' + openId + '/message', { body });
-    th.insertAdjacentHTML('beforeend', bubble(r.msg));
-    th.scrollTop = th.scrollHeight;
-    const s = STUDENTS.find(x => x.id === openId);
-    if (s) { s.lastMessage = { who: 'them', body, at: r.msg.at }; s.unread = 0; paintCase(); }
-  } catch (e) {
-    toast('That did not send: ' + e.message);
-  }
-}
+    + '<div class="serp"><div class="u" id="sU">glovels.com/post/…</div>'
+      + '<div class="t" id="sT">—</div><div class="d" id="sD">—</div></div>'
 
-async function open(id) {
-  openId = id;
-  paintCase();
-  $('#pane').innerHTML = '<div class="p-card"><p style="margin:0;color:var(--muted)">Opening…</p></div>';
-  try {
-    paintRecord(await api('GET', '/api/staff/student/' + id));
-    const s = STUDENTS.find(x => x.id === id);
-    if (s) { s.unread = 0; paintCase(); }
-  } catch (e) {
-    $('#pane').innerHTML = '<div class="sl-empty"><b>Could not open that record</b><p>' + esc(e.message) + '</p></div>';
-  }
-}
+    + '<div class="field"><label for="pMetaTitle">Title for search'
+      + '<small> — leave empty to use the headline</small>'
+      + '<span class="cnt" id="cTitle">0 / 60</span></label>'
+      + '<input id="pMetaTitle" value="' + esc(p.metaTitle || '') + '"></div>'
 
-/* --------------------------------------------------------------- behaviour */
+    + '<div class="field"><label for="pMetaDesc">The sentence under it'
+      + '<span class="cnt" id="cDesc">0 / 155</span></label>'
+      + '<textarea id="pMetaDesc" rows="2">' + esc(p.metaDesc || '') + '</textarea></div>'
 
-document.addEventListener('click', async e => {
-  const o = e.target.closest('[data-open]');
-  if (o) return open(Number(o.dataset.open));
+    + '<div class="two">'
+      + '<div class="field"><label for="pKeywords">Keywords <small>comma separated</small></label>'
+        + '<input id="pKeywords" value="' + esc(p.keywords || '') + '" '
+        + 'placeholder="study in germany, blocked account, public university"></div>'
+      + '<div class="field"><label for="pOg">Picture for the link preview '
+        + '<small>optional</small></label>'
+        + '<input id="pOg" value="' + esc(p.ogImage || '') + '" '
+        + 'placeholder="https://www.glovels.com/og/blocked-account.jpg"></div>'
+    + '</div>'
 
-  const t = e.target.closest('.tab[data-t]');
-  if (t) {
-    $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
-    $$('#pane .pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
-    return;
-  }
-  const c = e.target.closest('[data-canned]');
-  if (c) { $('#rbox').value = c.dataset.canned; $('#rbox').focus(); return; }
+    + '<p id="pErr" role="alert" style="display:none;margin:0 0 12px;padding:11px 13px;'
+      + 'border-radius:10px;font:600 12.9px/1.55 var(--sans);background:#fdf3f2;'
+      + 'border:1px solid #f0c8c4;color:#7a2118"></p>'
 
-  const v = e.target.closest('[data-verify]') || e.target.closest('[data-unverify]');
-  if (v && openId) {
-    const key = v.dataset.verify || v.dataset.unverify;
-    const status = v.dataset.verify ? 'ok' : 'wait';
-    try {
-      await api('POST', '/api/staff/student/' + openId + '/document/' + encodeURIComponent(key), { status });
-      toast(status === 'ok' ? 'Marked verified — the student sees it straight away.'
-                            : 'Sent back for another look.');
-      paintRecord(await api('GET', '/api/staff/student/' + openId));
-      $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x.dataset.t === 'file')));
-      $$('#pane .pane').forEach(x => x.classList.toggle('active', x.id === 't-file'));
-    } catch (err) { toast(err.message); }
-  }
-});
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;'
+      + 'padding-top:14px;border-top:1px solid var(--line)">'
+      + '<button type="button" class="btn btn-ghost" id="pSave">Save</button>'
+      + '<button type="button" class="btn btn-primary" id="pPub">'
+        + (p.status === 'published' ? 'Save and keep it live' : 'Publish to the site')
+        + '</button>'
+      + '<span id="pSaid" style="font:600 12.6px/1.5 var(--sans);color:#14603a"></span>'
+    + '</div>';
 
-$('#findStudent').addEventListener('input', e => { filter = e.target.value; paintCase(); });
-
-/* ------------------------------------------------------------------- boot */
-
-staffBoot(async me => {
-  await loadCase();
-
-  connectLive({
-    message(d) {
-      /* Someone wrote. If their conversation is open, drop it straight into the
-         thread; otherwise bump their unread count so it is visible in the list. */
-      const s = STUDENTS.find(x => x.id === d.studentId);
-      if (s) {
-        s.lastMessage = { who: d.msg.who, body: d.msg.t, at: d.msg.at };
-        if (d.studentId !== openId && d.msg.who === 'me') s.unread = (s.unread || 0) + 1;
-        paintCase();
-      } else {
-        loadCase();      // a student who was just assigned to us
-      }
-      if (d.studentId === openId && d.msg.who === 'me') {
-        const th = $('#thread');
-        if (th) {
-          th.insertAdjacentHTML('beforeend', bubble(d.msg));
-          th.scrollTop = th.scrollHeight;
-        }
-      }
-    },
-    typing(d) {
-      if (d.studentId !== openId) return;
-      const el = $('#typing');
-      if (!el) return;
-      el.textContent = (d.from || 'They').split(' ')[0] + ' is typing…';
-      clearTimeout(el._h);
-      el._h = setTimeout(() => { el.textContent = ''; }, 2500);
-    },
+  ['pTitle', 'pSlug', 'pExcerpt', 'pBody', 'pMetaTitle', 'pMetaDesc'].forEach(id => {
+    const el = $('#' + id);
+    el.addEventListener('input', () => { dirty = true; preview(); });
   });
+  /* The address follows the headline until somebody types their own. An
+     address that quietly stops matching the headline is how a post ends up at
+     /post/untitled-2. */
+  $('#pTitle').addEventListener('input', () => {
+    if (!$('#pSlug').dataset.touched && (!p.id || !p.slug)) {
+      $('#pSlug').value = slugify($('#pTitle').value);
+      preview();
+    }
+  });
+  $('#pSlug').addEventListener('input', () => { $('#pSlug').dataset.touched = '1'; });
 
-  /* Deep link: /counsellor?student=3 opens straight into that conversation. */
-  const want = Number(new URLSearchParams(location.search).get('student'));
-  if (want && STUDENTS.some(s => s.id === want)) open(want);
-  else if (STUDENTS.length === 1) open(STUDENTS[0].id);
+  $('#pSave').onclick = () => save('draft', p);
+  $('#pPub').onclick = () => save('published', p);
+  if ($('#pDrop')) $('#pDrop').onclick = () => drop(p);
+  preview();
+}
+
+function count(el, n, limit, low) {
+  el.textContent = n + ' / ' + limit;
+  el.className = 'cnt' + (n > limit ? ' over' : n >= low ? ' good' : '');
+}
+
+function preview() {
+  const title = $('#pMetaTitle').value.trim() || $('#pTitle').value.trim();
+  const body = $('#pBody').value;
+  const desc = $('#pMetaDesc').value.trim() || $('#pExcerpt').value.trim()
+    || body.split(/\n\s*\n/).filter(x => !/^\s*(#|-|\d+[.)]|>)/.test(x))[0] || '';
+  const slug = $('#pSlug').value.trim() || slugify($('#pTitle').value);
+
+  $('#sU').textContent = 'glovels.com/post/' + slug;
+  $('#sT').textContent = (title || 'Your headline') + ' | Glovels';
+  $('#sD').textContent = desc.slice(0, 300) || 'The sentence a student reads before deciding '
+    + 'whether to click.';
+
+  count($('#cTitle'), ($('#pMetaTitle').value.trim() || $('#pTitle').value.trim()).length, 60, 25);
+  count($('#cDesc'), ($('#pMetaDesc').value.trim() || desc).length, 155, 70);
+  const words = body.trim() ? body.trim().split(/\s+/).length : 0;
+  $('#cWords').textContent = words.toLocaleString('en-IN') + ' words · about '
+    + Math.max(1, Math.round(words / 220)) + ' min';
+}
+
+function body() {
+  return {
+    title: $('#pTitle').value.trim(),
+    slug: $('#pSlug').value.trim(),
+    tag: $('#pTag').value.trim(),
+    excerpt: $('#pExcerpt').value.trim(),
+    body: $('#pBody').value,
+    metaTitle: $('#pMetaTitle').value.trim(),
+    metaDesc: $('#pMetaDesc').value.trim(),
+    keywords: $('#pKeywords').value.trim(),
+    ogImage: $('#pOg').value.trim(),
+  };
+}
+
+async function save(status, p) {
+  const err = $('#pErr');
+  err.style.display = 'none';
+  const data = Object.assign(body(), { status });
+  const btn = status === 'published' ? $('#pPub') : $('#pSave');
+  const was = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const r = p.id
+      ? await api('PUT', '/api/staff/post/' + p.id, data)
+      : await api('POST', '/api/staff/posts', data);
+    dirty = false;
+    openId = r.post.id;
+    await load();
+    editor(r.post);
+    $('#pSaid').textContent = status === 'published'
+      ? 'On the site — glovels.com/post/' + r.post.slug
+      : 'Saved. Not on the site.';
+    setTimeout(() => { if ($('#pSaid')) $('#pSaid').textContent = ''; }, 6000);
+  } catch (e) {
+    err.textContent = e.message;
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+}
+
+async function drop(p) {
+  /* Unpublishing is one press; deleting something that was live is not
+     offered at all, because the address has been shared and indexed. */
+  const live = p.status === 'published';
+  if (!live && !confirm('Delete “' + p.title + '”? It was never on the site, '
+      + 'so nothing links to it.')) return;
+  const r = await api('DELETE', '/api/staff/post/' + p.id);
+  POSTS = r.posts;
+  openId = live ? p.id : null;
+  paintList();
+  if (live) { const now = POSTS.find(x => x.id === p.id); if (now) open_(now.id); }
+  else $('#editor').innerHTML = '<p style="margin:0;font-size:13px;color:var(--muted)">'
+    + 'Deleted. Pick another post, or start a new one.</p>';
+}
+
+async function open_(id) {
+  if (dirty && !confirm('You have unsaved changes. Leave them?')) return;
+  const r = await api('GET', '/api/staff/post/' + id);
+  openId = id;
+  dirty = false;
+  paintList();
+  editor(r.post);
+}
+
+async function load() {
+  const r = await api('GET', '/api/staff/posts');
+  POSTS = r.posts;
+  paintList();
+}
+
+document.addEventListener('click', e => {
+  const row = e.target.closest('[data-post]');
+  if (row) return open_(Number(row.dataset.post));
+  if (e.target.closest('#newPost')) {
+    if (dirty && !confirm('You have unsaved changes. Leave them?')) return;
+    openId = null;
+    dirty = false;
+    paintList();
+    editor({ status: 'draft' });
+    $('#pTitle').focus();
+  }
 });
+
+/* A tab closed mid-post is a post lost. The browser's own prompt is the only
+   one that fires reliably here. */
+addEventListener('beforeunload', e => {
+  if (!dirty) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+load();
 
 
 /* Opened by double-clicking rather than through start.command. The portal has
@@ -1224,6 +1022,427 @@ if (location.protocol === 'file:') {
   document.body.appendChild(b);
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }
+</script>
+<script>window.__glovelsChatMode="site";</script>
+<script>
+/* GLOVELS-CHAT-WIDGET */
+(function () {
+  if (window.__glovelsChat) return;
+  window.__glovelsChat = true;
+  if (location.protocol === 'file:') return;   /* no server behind it */
+
+  var MODE = window.__glovelsChatMode === 'portal' ? 'portal' : 'site';
+  var OPEN_KEY = 'glovels_chat_open';
+  var state = { started: false, signedIn: false, msgs: [], unread: 0, name: '' };
+  var es = null, panel = null, dot = null, wa = null;
+
+  /* Baked in at build time and replaced by whatever the office has set on the
+     Finder & contact tab. Having a number here means the button works on the
+     first paint rather than appearing a second later, and still works if that
+     request fails. */
+  var WA_NUMBER = '917093314089';
+
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+
+  var css = document.createElement('style');
+  css.textContent = [
+    '.gv-chat-fab{position:fixed;right:20px;bottom:20px;z-index:9998;display:flex;',
+      'align-items:center;gap:9px;padding:13px 18px;border:0;border-radius:999px;',
+      'background:#0b1e31;color:#fff;font:700 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif;',
+      'cursor:pointer;box-shadow:0 8px 26px rgba(11,30,49,.28)}',
+    '.gv-chat-fab:hover{background:#13385c}',
+    /* The corner holds a stack, not one button: WhatsApp first because it is
+       the one people recognise, the chat under it in a quieter weight. */
+    '.gv-corner{position:fixed;right:20px;bottom:20px;z-index:9998;display:flex;',
+      'flex-direction:column;align-items:flex-end;gap:9px}',
+    '.gv-wa{display:inline-flex;align-items:center;gap:9px;padding:13px 18px;border:0;',
+      'border-radius:999px;background:#25d366;color:#08301a;text-decoration:none;',
+      'font:700 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;',
+      'box-shadow:0 8px 26px rgba(6,70,38,.32)}',
+    '.gv-wa:hover{background:#1fbe5a}',
+    '.gv-corner .gv-chat-fab{position:static;box-shadow:0 6px 18px rgba(11,30,49,.22);',
+      'padding:10px 15px;font-size:13px;background:#fff;color:#13385c;',
+      'border:1.5px solid #d3dbe4}',
+    '.gv-corner .gv-chat-fab:hover{background:#f4f7fb}',
+    '.gv-corner .gv-dot{top:-4px;right:-4px}',
+    /* A class that sets display beats the browser's own rule for [hidden], so
+       hiding the button by setting .hidden left it sitting on top of the open
+       panel, swallowing clicks meant for Send. Both of these are load-bearing. */
+    '.gv-chat-fab[hidden]{display:none}',
+    '.gv-chat[hidden]{display:none}',
+    '.gv-chat-fab .gv-dot{position:absolute;top:-3px;right:-3px;width:13px;height:13px;',
+      'border-radius:50%;background:#c0392b;border:2px solid #fff}',
+    '.gv-chat{position:fixed;right:20px;bottom:20px;z-index:9999;width:min(370px,calc(100vw - 32px));',
+      'max-height:min(620px,calc(100vh - 40px));display:flex;flex-direction:column;',
+      'background:#fff;border-radius:16px;overflow:hidden;',
+      'box-shadow:0 18px 50px rgba(11,30,49,.32);font:400 14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}',
+    '.gv-chat header{background:#0b1e31;color:#fff;padding:15px 17px;display:flex;',
+      'align-items:flex-start;gap:10px}',
+    '.gv-chat header b{display:block;font-size:14.5px;line-height:1.35}',
+    '.gv-chat header span{display:block;font-size:12.1px;opacity:.78;line-height:1.5;margin-top:2px}',
+    '.gv-chat header button{margin-left:auto;background:transparent;border:0;color:#fff;',
+      'font-size:20px;line-height:1;cursor:pointer;padding:0 2px;opacity:.85}',
+    '.gv-chat .gv-body{flex:1;overflow-y:auto;padding:16px;background:#f7f7f4;',
+      'display:flex;flex-direction:column;gap:10px;min-height:170px}',
+    '.gv-msg{max-width:82%;padding:9px 13px;border-radius:14px;font-size:13.4px;line-height:1.62;',
+      'white-space:pre-wrap;word-wrap:break-word}',
+    '.gv-msg.me{align-self:flex-end;background:#13385c;color:#fff;border-bottom-right-radius:5px}',
+    '.gv-msg.them{align-self:flex-start;background:#fff;color:#0e1a24;border:1px solid #e6e2d7;',
+      'border-bottom-left-radius:5px}',
+    '.gv-msg small{display:block;margin-top:4px;font-size:11px;opacity:.66}',
+    '.gv-note{font-size:12.2px;color:#5b6b7e;line-height:1.6;text-align:center;padding:4px 8px}',
+    '.gv-chat form{border-top:1px solid #e6e2d7;padding:12px;display:flex;flex-direction:column;gap:9px;background:#fff}',
+    '.gv-chat input,.gv-chat textarea{width:100%;padding:10px 12px;border:1.5px solid #d8dde4;',
+      'border-radius:10px;font:400 13.6px/1.5 inherit;color:#0e1a24;background:#fff;box-sizing:border-box}',
+    '.gv-chat textarea{resize:none;min-height:44px;max-height:120px}',
+    '.gv-chat input:focus,.gv-chat textarea:focus{outline:2px solid #1a4fb4;outline-offset:1px;border-color:#1a4fb4}',
+    '.gv-chat .gv-go{background:#c9a24b;color:#0b1e31;border:0;border-radius:10px;padding:11px 14px;',
+      'font:700 13.6px/1 inherit;cursor:pointer}',
+    '.gv-chat .gv-go:hover{background:#b98f34}',
+    '.gv-err{color:#7a2118;font-size:12.4px;line-height:1.5}',
+    '.gv-priv{font-size:11.2px;color:#5b6b7e;line-height:1.5}',
+    '@media (max-width:520px){.gv-chat{right:10px;left:10px;bottom:10px;width:auto}',
+      '.gv-chat-fab{right:14px;bottom:14px}}',
+  ].join('');
+  document.head.appendChild(css);
+
+  var corner = document.createElement('div');
+  corner.className = 'gv-corner';
+
+  var fab = document.createElement('button');
+  fab.type = 'button';
+  fab.className = 'gv-chat-fab';
+  fab.setAttribute('aria-label', MODE === 'portal'
+    ? 'Message your counsellor' : 'Send us a message on the site');
+  fab.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg>'
+    + '<span>' + (MODE === 'portal' ? 'Message my counsellor' : 'Send a message')
+    + '</span><span class="gv-dot" hidden></span>';
+  dot = fab.querySelector('.gv-dot');
+
+  /* What the visitor was reading, so the counsellor opens the conversation
+     already knowing what it is about. The page title is an SEO sentence and
+     makes a terrible opening line, so the first heading is preferred. */
+  function pageName() {
+    var h = document.querySelector('h1');
+    var t = h ? h.textContent : '';
+    t = String(t || '').replace(/\s+/g, ' ').trim();
+    if (t.length > 3 && t.length < 70) return t;
+    return location.pathname === '/' ? 'your website' : location.pathname.replace(/^\//, '');
+  }
+
+  function waHref() {
+    return 'https://wa.me/' + WA_NUMBER + '?text='
+      + encodeURIComponent('Hi Glovels — I was reading ' + pageName()
+        + ' on your website and I have a question.');
+  }
+
+  if (MODE === 'site') {
+    wa = document.createElement('a');
+    wa.className = 'gv-wa';
+    wa.target = '_blank';
+    wa.rel = 'noopener';
+    wa.href = waHref();
+    wa.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"'
+      + ' aria-hidden="true"><path d="M17.5 14.4c-.3-.2-1.8-.9-2-1-.3-.1-.5-.2-.7.1'
+      + '-.2.3-.7 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1'
+      + '-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6 0-.2-.7-1.6-.9-2.2'
+      + '-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.7s1.2 3.1 1.3 3.3'
+      + 'c.2.2 2.4 3.7 5.8 5.1.8.4 1.4.6 1.9.7.8.3 1.5.2 2.1.1.6-.1 1.8-.7 2.1-1.5'
+      + '.3-.7.3-1.4.2-1.5-.1-.2-.3-.2-.6-.4z"/><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22'
+      + 'l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3'
+      + 'A8.2 8.2 0 1 1 12 20.2z"/></svg>'
+      + '<span>WhatsApp us</span>';
+    corner.appendChild(wa);
+  }
+
+  var api = function (path, body) {
+    return fetch(path, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      credentials: 'same-origin',
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) throw new Error(d.error || 'That did not go through. Try again in a moment.');
+        return d;
+      });
+    });
+  };
+
+  var when = function (iso) {
+    if (!iso) return '';
+    var s = Math.round((Date.now() - new Date(iso)) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  };
+
+  function paint() {
+    if (!panel) return;
+    var body = panel.querySelector('.gv-body');
+    if (!state.started && !state.signedIn) return;
+
+    body.innerHTML = state.msgs.map(function (m) {
+      return '<div class="gv-msg ' + (m.who === 'me' ? 'me' : 'them') + '">' + esc(m.t) +
+        '<small>' + (m.who === 'me' ? 'You' : esc(m.name || 'Glovels')) + ' · ' +
+        when(m.at) + '</small></div>';
+    }).join('') || '';
+
+    if (!state.msgs.length || state.msgs.every(function (m) { return m.who === 'me'; })) {
+      body.insertAdjacentHTML('beforeend',
+        '<p class="gv-note">This goes straight to a counsellor’s screen. If nobody is at a '
+        + 'desk right now we will call you back — we have your number.</p>');
+    }
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function intro() {
+    return '<form class="gv-intro">'
+      + '<p style="margin:0;font-size:13.2px;line-height:1.6;color:#0e1a24">Ask us anything about '
+      + 'studying abroad. Tell us who you are first, so a counsellor can call you back.</p>'
+      + '<input name="name" placeholder="Your name" autocomplete="name" required>'
+      + '<input name="contact" placeholder="Mobile number or email" autocomplete="tel" required>'
+      + '<p class="gv-err" hidden></p>'
+      + '<button type="submit" class="gv-go">Start the chat</button>'
+      + '<p class="gv-priv">We use this to answer you and to call you back. Nothing else.</p>'
+      + '</form>';
+  }
+
+  function composer() {
+    return '<form class="gv-send">'
+      + '<textarea name="body" rows="2" placeholder="Type your question…" required></textarea>'
+      + '<p class="gv-err" hidden></p>'
+      + '<button type="submit" class="gv-go">Send</button>'
+      + '</form>';
+  }
+
+  function render() {
+    panel.innerHTML =
+        '<header><div><b>' + (state.signedIn ? 'Your counsellor' : 'Glovels') + '</b>'
+      + '<span>' + (state.signedIn
+          ? 'This is the same conversation as your Messages screen.'
+          : 'Mon–Sat, 10am–7pm. Replies appear here.') + '</span></div>'
+      + '<button type="button" aria-label="Close the chat">×</button></header>'
+      + '<div class="gv-body"></div>'
+      + ((state.started || state.signedIn) ? composer() : intro());
+    paint();
+
+    panel.querySelector('header button').onclick = close;
+
+    var form = panel.querySelector('form');
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      var err = form.querySelector('.gv-err');
+      err.hidden = true;
+      var go = form.querySelector('.gv-go');
+      go.disabled = true;
+
+      var done = function (d) {
+        state.started = true;
+        state.signedIn = !!d.signedIn;
+        state.msgs = d.messages || [];
+        render();
+        var box = panel.querySelector('textarea');
+        if (box) box.focus();
+        listen();
+      };
+      var failed = function (ex) {
+        err.textContent = ex.message;
+        err.hidden = false;
+        go.disabled = false;
+      };
+
+      if (form.classList.contains('gv-intro')) {
+        api('/api/chat/start', {
+          name: form.name.value, contact: form.contact.value,
+          page: location.pathname,
+        }).then(done, failed);
+      } else {
+        var text = form.body.value.trim();
+        if (!text) { go.disabled = false; return; }
+        /* Painted before the round trip so the box empties the instant Enter is
+           pressed. The server's answer replaces the list a moment later. */
+        state.msgs = state.msgs.concat([{ who: 'me', t: text, at: new Date().toISOString() }]);
+        form.body.value = '';
+        paint();
+        api('/api/chat/send', { body: text }).then(done, failed);
+      }
+    };
+
+    var ta = panel.querySelector('textarea');
+    if (ta) {
+      ta.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          panel.querySelector('form').requestSubmit
+            ? panel.querySelector('form').requestSubmit()
+            : panel.querySelector('.gv-go').click();
+        }
+      });
+      ta.addEventListener('input', function () {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(120, ta.scrollHeight) + 'px';
+      });
+    }
+  }
+
+  /* The stream. A guest listens on their own chat; a signed-in student listens
+     on the portal's stream, which is the one their counsellor replies down. */
+  function listen() {
+    if (es || !window.EventSource) return;
+    try {
+      es = new EventSource(state.signedIn ? '/api/live' : '/api/chat/live');
+    } catch (e) { return; }
+
+    var arrive = function (m) {
+      state.msgs = state.msgs.concat([m]);
+      if (!panel || panel.hidden) {
+        state.unread++;
+        if (dot) dot.hidden = false;
+      }
+      paint();
+    };
+
+    es.addEventListener('chat', function (ev) {
+      try {
+        var d = JSON.parse(ev.data);
+        if (d.who === 'them') arrive({ who: 'them', t: d.t, name: d.name, at: d.at });
+      } catch (e) {}
+    });
+    es.addEventListener('message', function (ev) {
+      try {
+        var d = JSON.parse(ev.data);
+        var m = d.msg || d;
+        if (m && m.who === 'them') arrive({ who: 'them', t: m.t, at: m.at });
+      } catch (e) {}
+    });
+  }
+
+  /* The corner hides only the chat button when the panel is open. WhatsApp
+     stays: somebody who opened the chat, read the "we will call you back" line
+     and decided they would rather have an instant reply should not have to
+     close anything to reach it. */
+  function open() {
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'gv-chat';
+      document.body.appendChild(panel);
+    }
+    panel.hidden = false;
+    fab.hidden = true;
+    state.unread = 0;
+    if (dot) dot.hidden = true;
+    try { sessionStorage.setItem(OPEN_KEY, '1'); } catch (e) {}
+    render();
+    var f = panel.querySelector('input, textarea');
+    if (f) f.focus();
+  }
+
+  function close() {
+    if (panel) panel.hidden = true;
+    fab.hidden = false;
+    try { sessionStorage.removeItem(OPEN_KEY); } catch (e) {}
+  }
+
+  fab.onclick = open;
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && panel && !panel.hidden) close();
+  });
+
+  function boot() {
+    /*
+     * One button in the corner of the marketing pages, not two.
+     *
+     * WhatsApp and "Send a message" sat stacked on top of each other, and the
+     * pair read as clutter rather than as choice. On the site the corner is
+     * WhatsApp — it is where this office actually answers people, and it is
+     * what was asked for. The chat box stays exactly where it earns its keep:
+     * inside the student portal, where it is the counsellor thread.
+     *
+     * The lead capture that made the site chat worth having has not gone with
+     * it. The contact page carries a form that writes an enquiry, and the
+     * counselling form on the home page always has.
+     */
+    if (MODE !== 'site') corner.appendChild(fab);
+    document.body.appendChild(corner);
+
+    api('/api/chat').then(function (d) {
+      state.signedIn = !!d.signedIn;
+      state.msgs = d.messages || [];
+      state.started = state.signedIn || state.msgs.length > 0 || d.id != null;
+
+      /* A portal screen with nobody signed in should not be showing a button
+         that opens somebody's counsellor thread. In practice the screen has
+         already redirected to sign-in by now; this is the belt to that brace. */
+      if (MODE === 'portal' && !state.signedIn) {
+        corner.remove();
+        return;
+      }
+
+      if (state.started) listen();
+      var wasOpen = false;
+      try { wasOpen = sessionStorage.getItem(OPEN_KEY) === '1'; } catch (e) {}
+      if (wasOpen) open();
+    }, function () { /* server down: the button still opens the intro */ });
+
+    /* The office's number, as set on the Finder & contact tab. The button
+       already works with the number baked in above; this corrects it. */
+    if (wa) {
+      fetch('/api/content', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          var n = d && d.finder && d.finder.contact && d.finder.contact.whatsapp;
+          if (n) { WA_NUMBER = n; wa.href = waHref(); }
+        })
+        .catch(function () {});
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+}());
+</script>
+<script>
+/* GLOVELS-CONTACT-LINKS */
+(function () {
+  if (location.protocol === 'file:') return;
+  fetch('/api/content', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var c = d && d.finder && d.finder.contact;
+      if (!c) return;
+      if (c.whatsapp) {
+        [].forEach.call(document.querySelectorAll('a[href*="wa.me/"]'), function (a) {
+          a.href = a.href.replace(/wa\.me\/\d+/, 'wa.me/' + c.whatsapp);
+        });
+      }
+      /* The displayed number is a line of text, so it is edited on the Page
+         text tab like every other line. Only the LINK is rewritten here — the
+         two can disagree, and if they do the text is the one people read and
+         the link is the one that fails silently. */
+      if (c.phone) {
+        [].forEach.call(document.querySelectorAll('a[href^="tel:"]'), function (a) {
+          a.href = 'tel:' + c.phone.replace(/[^0-9+]/g, '');
+        });
+      }
+      if (c.email) {
+        [].forEach.call(document.querySelectorAll('a[href^="mailto:"]'), function (a) {
+          a.href = a.href.replace(/mailto:[^?]*/, 'mailto:' + c.email);
+        });
+      }
+    })
+    .catch(function () {});
+}());
 </script>
 </body>
 </html>

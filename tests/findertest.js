@@ -52,7 +52,7 @@ const homeCounts = async ctx => {
 
   check('the tab is there', await page.isVisible('#fBrowsePub'));
   check('it is filled in from what the site shipped with',
-    (await page.inputValue('#fBrowsePub')) === '3', await page.inputValue('#fBrowsePub'));
+    (await page.inputValue('#fBrowsePub')) === '12', await page.inputValue('#fBrowsePub'));
   check('the budget bands are listed',
     (await page.$$('#bandRows input')).length >= 8,
     (await page.$$('#bandRows input')).length);
