@@ -1041,6 +1041,40 @@ function open(dir) {
     assignCounsellor: (studentId, counsellorId) =>
       db.run('UPDATE students SET counsellor_id = ? WHERE id = ?',
         counsellorId === null ? null : Number(counsellorId), Number(studentId)),
+
+    /*
+     * Whoever has the fewest students right now.
+     *
+     * A student who has just paid for a service built around a named person
+     * was being left with nobody, on their screen and on ours, until somebody
+     * in the office noticed the Unassigned counter. They would sign in, find
+     * no counsellor, and message a blank.
+     *
+     * Fewest OPEN files, not fewest ever: a counsellor who has seen a hundred
+     * students through to enrolment is not busy today because of it, and
+     * counting closed files would push everything at whoever joined last.
+     *
+     * Counsellors only, never an administrator. An admin can already see every
+     * student, so putting one on a caseload does not give them anything and
+     * does quietly make them somebody's first point of contact.
+     */
+    lightestCounsellor() {
+      const staff = db.all("SELECT * FROM students WHERE role = 'counsellor' ORDER BY id asc")
+        .filter(c => (c.status || 'active') === 'active');
+      if (!staff.length) return null;
+      const load = c => db.all(
+        "SELECT COUNT(*) AS n FROM students WHERE counsellor_id = ? AND role = 'student' "
+        + "AND (status IS NULL OR status = 'active')", Number(c.id))[0].n;
+      let best = null, least = Infinity;
+      staff.forEach(c => {
+        const n = load(c);
+        /* Ties go to the earlier id, so the same input gives the same answer
+           twice — a round robin that depends on iteration order is a round
+           robin nobody can reason about when it goes wrong. */
+        if (n < least) { least = n; best = c; }
+      });
+      return best;
+    },
     /* ------------------------------------------------------ push subscriptions */
 
     savePushSubscription(staffId, sub, agent) {

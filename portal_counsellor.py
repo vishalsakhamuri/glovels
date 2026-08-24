@@ -40,6 +40,7 @@ BODY = """
             border:1.5px solid #d8dde4;border-radius:9px">
         </div>
         <div id="caseList" style="max-height:min(620px,66vh);overflow-y:auto"></div>
+        <div id="casePager"></div>
       </div>
 
       <div id="pane">
@@ -96,12 +97,18 @@ function paintCase() {
     !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q));
   $('#caseCount').textContent = STUDENTS.length +
     (STUDENTS.reduce((a, s) => a + s.unread, 0) ? ' · ' + STUDENTS.reduce((a, s) => a + s.unread, 0) + ' unread' : '');
-  $('#caseList').innerHTML = list.map(row).join('') ||
+  /* The roster scrolls in its own pane, so a long one was never the wall of
+     page the office screens were — but it still built a button for every
+     student on every repaint, and a repaint happens on each arriving message.
+     Fifty at a time keeps that cheap, and the search is how somebody with
+     four hundred students finds one anyway. */
+  $('#caseList').innerHTML = paged('case', list).map(row).join('') ||
     '<p style="padding:20px 16px;margin:0;font-size:12.8px;color:var(--muted);line-height:1.6">' +
     (STUDENTS.length
       ? 'Nobody matches that search.'
       : 'No students are assigned to you yet. An admin assigns them from the Organisation screen.') +
     '</p>';
+  $('#casePager').innerHTML = pagerHtml('case', list.length, 'students', paintCase);
 }
 
 async function loadCase() {
@@ -676,7 +683,11 @@ document.addEventListener('click', async e => {
   }
 });
 
-$('#findStudent').addEventListener('input', e => { filter = e.target.value; paintCase(); });
+$('#findStudent').addEventListener('input', e => {
+  filter = e.target.value;
+  PAGE_AT.case = 0;
+  paintCase();
+});
 
 /* ------------------------------------------------------------------- boot */
 

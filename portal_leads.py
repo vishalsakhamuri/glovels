@@ -97,6 +97,7 @@ BODY = """
               <th>Follow-ups</th><th>Came in</th></tr></thead>
             <tbody id="leadRows"></tbody>
           </table>
+          <div id="leadPager"></div>
         </div>
 
         <div class="p-card det" id="leadPane">
@@ -204,7 +205,8 @@ function paint() {
 
   const rows = shown();
   $('#nBook').textContent = rows.length;
-  $('#leadRows').innerHTML = rows.map(l => {
+  $('#leadPager').innerHTML = pagerHtml('lead', rows.length, 'enquiries', paint);
+  $('#leadRows').innerHTML = paged('lead', rows).map(l => {
     /* Nobody has said a word to them and they came in yesterday or before.
        This is the row that should catch somebody's eye. */
     const cold = !l.followUps && l.status !== 'converted' && l.status !== 'lost'
@@ -536,9 +538,16 @@ document.addEventListener('click', e => {
     $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
   }
 });
+/* Any change to the filters puts them back on the first page. Narrowing a
+   list while standing on page five and being shown an empty table is the
+   commonest way paging goes wrong. */
 ['#fStatus', '#fSource', '#fOwner'].forEach(s =>
-  document.addEventListener('change', e => { if (e.target.matches(s)) paint(); }));
-document.addEventListener('input', e => { if (e.target.id === 'fQ') paint(); });
+  document.addEventListener('change', e => {
+    if (e.target.matches(s)) { PAGE_AT.lead = 0; paint(); }
+  }));
+document.addEventListener('input', e => {
+  if (e.target.id === 'fQ') { PAGE_AT.lead = 0; paint(); }
+});
 
 /* A lead arriving while somebody is looking at the book should appear in it. */
 connectLive({ chat: () => load() });

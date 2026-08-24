@@ -610,6 +610,47 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
   text-transform:uppercase;color:#8a5a0b;margin-bottom:4px}
 .guide p{margin:0;font-size:13.2px;line-height:1.65;color:#5b4409}
 .guide small{display:block;margin-top:7px;font-size:11.2px;color:#8a5a0b}
+
+/* ---- long lists, one page at a time ---- */
+.pgr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:11px 14px;border-top:1px solid var(--line);background:var(--paper)}
+.pgr .pgn{font:600 12.2px/1.4 var(--sans);color:var(--muted)}
+.pgr .pgg{font-size:12.2px;color:var(--muted);padding:0 2px}
+.pgb{appearance:none;cursor:pointer;background:#fff;border:1.5px solid #d8dde4;
+  border-radius:8px;padding:6px 10px;font:600 12.2px/1.2 var(--sans);
+  color:var(--navy-800);transition:border-color .12s, background .12s}
+.pgb:hover:not(:disabled){border-color:var(--navy-600);background:var(--paper)}
+.pgb:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+.pgb.on{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+.pgb:disabled{opacity:.42;cursor:default}
+@media (max-width:560px){ .pgr .pgn{width:100%} }
+
+/* ---- the office tabs ---- */
+/* Four full tables stacked on one page is thirty-four screens of scrolling at
+   131 students. One at a time, and the page is one screen again. */
+.otabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px;
+  border-bottom:1.5px solid var(--line);padding-bottom:0}
+.otab{appearance:none;cursor:pointer;background:none;border:none;
+  border-bottom:2.5px solid transparent;margin-bottom:-1.5px;
+  padding:9px 13px;font:700 13.4px/1.4 var(--sans);color:var(--muted);
+  display:flex;align-items:center;gap:7px}
+.otab:hover{color:var(--navy-800)}
+.otab[aria-selected="true"]{color:var(--navy-900);border-bottom-color:var(--navy-900)}
+.otab:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+.otab .n{font:700 11.4px/1 var(--sans);background:var(--paper);
+  border:1px solid var(--line);border-radius:999px;padding:3px 7px;color:var(--navy-800)}
+.otab[aria-selected="true"] .n{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+.opane{display:none}
+.opane.active{display:block}
+
+/* A package name is a phrase, not a word, and the chip was sized as though it
+   were one — so "Academic CV & Resume" broke out of its own background and
+   printed over the row above it. */
+.tbl .st, .tbl .chip, .tbl .sl-chip{display:inline-block;max-width:100%;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+/* And a row is read across, so its cells line up at the top rather than
+   floating in the middle of whatever the tallest one turned out to be. */
+.tbl td{vertical-align:top}
 </style><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b1e31"><link rel="apple-touch-icon" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Glovels"></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-google" viewBox="0 0 24 24"></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.7 5.5 6 .9-4.3 4.3 1 6-5.4-2.9-5.4 2.9 1-6L3.3 10l6-.9z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-plane" viewBox="0 0 24 24"><path d="M10.2 12.6 3 10.4l1-2 4.8.6 3.6-3.6 1.9.6-1.4 4.2 4.4.5 1.4-1.9 1.6.5-1.1 3 1.1 3-1.6.5-1.4-1.9-4.4.5 1.4 4.2-1.9.6-3.6-3.6-4.8.6-1-2z"/></symbol><symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></symbol><symbol id="i-wa" viewBox="0 0 24 24"><path d="M12 3.8a8 8 0 0 0-6.8 12.2L4 20.4l4.5-1.2A8 8 0 1 0 12 3.8Z"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 16H6a2 2 0 0 0-2 2"/></symbol><symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol></defs></svg>
@@ -747,6 +788,7 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
               <th>Follow-ups</th><th>Came in</th></tr></thead>
             <tbody id="leadRows"></tbody>
           </table>
+          <div id="leadPager"></div>
         </div>
 
         <div class="p-card det" id="leadPane">
@@ -832,6 +874,89 @@ const timeAgo = iso => {
   if (s < 86400) return Math.floor(s / 3600) + 'h ago';
   return Math.floor(s / 86400) + 'd ago';
 };
+
+/* ------------------------------------------------------ long lists, in pages
+ *
+ * Every office table here rendered every row it had. With four students that
+ * is obviously right and with four hundred it is obviously wrong, and there
+ * was nothing in between: the Organisation screen at 131 students was 543 rows
+ * across four stacked tables and thirty-four screens of scrolling.
+ *
+ * Two rules this follows, both learned from the cap it replaces — the
+ * catalogue used to stop at 400 rows and say nothing, so at 401 universities
+ * one of them simply was not there:
+ *
+ *   the count is always the TRUE count, never the shown count
+ *   a page that is holding rows back says so, in words, on the screen
+ *
+ * Paging happens in the browser. The list has already been fetched and the
+ * whole of it is needed for search and for the totals above it, so asking the
+ * server for twenty-five of them would be a second round trip to show less.
+ * That reasoning stops being true somewhere around two thousand students,
+ * where the fetch itself gets heavy; the honest answer then is server-side
+ * paging, not a bigger page.
+ */
+const PAGE_SIZE = 25;
+/* The conversation roster is a narrow scrolling column rather than a table, so
+   it takes more before it becomes hard to read. */
+const PAGE_SIZES = { case: 50 };
+const PAGE_AT = {}, PAGE_PAINT = {};
+const pageOf = key => PAGE_AT[key] || 0;
+
+/* The rows this page shows. Clamped, because a search can shrink the list
+   under somebody standing on page six and an unclamped slice would hand them
+   an empty table rather than the last page of results. */
+const sizeOf = key => PAGE_SIZES[key] || PAGE_SIZE;
+function paged(key, list) {
+  const n = sizeOf(key);
+  const last = Math.max(0, Math.ceil(list.length / n) - 1);
+  if (pageOf(key) > last) PAGE_AT[key] = last;
+  const from = pageOf(key) * n;
+  return list.slice(from, from + n);
+}
+
+/* The control underneath. Returns nothing at all when everything fits, so a
+   short list looks exactly as it did before. */
+function pagerHtml(key, total, noun, repaint) {
+  PAGE_PAINT[key] = repaint;
+  const n = sizeOf(key);
+  if (total <= n) return '';
+  const pages = Math.ceil(total / n), at = Math.min(pageOf(key), pages - 1);
+  const from = at * n + 1, to = Math.min(total, (at + 1) * n);
+  const btn = (to_, label, on, disabled) =>
+    '<button type="button" class="pgb' + (on ? ' on' : '') + '"' +
+    (disabled ? ' disabled' : ' data-pg="' + key + '|' + to_ + '"') + '>' + label + '</button>';
+  /* First, last, and a window around where they are. A hundred numbered
+     buttons is its own kind of unreadable. */
+  const want = new Set([0, pages - 1, at, at - 1, at + 1]);
+  const nums = [...want].filter(n => n >= 0 && n < pages).sort((a, b) => a - b);
+  let out = '', prev = -1;
+  nums.forEach(n => {
+    if (prev >= 0 && n > prev + 1) out += '<span class="pgg">…</span>';
+    out += btn(n, String(n + 1), n === at);
+    prev = n;
+  });
+  return '<div class="pgr">' +
+    '<span class="pgn">' + from + '–' + to + ' of ' + total + ' ' +
+      esc(noun || 'rows') + '</span>' +
+    '<span style="flex:1"></span>' +
+    btn(at - 1, 'Previous', false, at === 0) + out +
+    btn(at + 1, 'Next', false, at >= pages - 1) +
+    '</div>';
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-pg]');
+  if (!b) return;
+  const bits = b.dataset.pg.split('|');
+  PAGE_AT[bits[0]] = Math.max(0, Number(bits[1]) || 0);
+  const fn = PAGE_PAINT[bits[0]];
+  if (fn) fn();
+  /* Back to the top of the table, not the top of the page — a next-page click
+     that leaves you looking at the middle of the new page is disorienting. */
+  const box = b.closest('.p-sec') || b.closest('.p-card') || b.parentElement;
+  if (box && box.scrollIntoView) box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+});
 
 /* The live stream. EventSource reconnects on its own, so the only thing to do
    here is say plainly whether it is up — a chat that has quietly gone deaf
@@ -1183,7 +1308,8 @@ function paint() {
 
   const rows = shown();
   $('#nBook').textContent = rows.length;
-  $('#leadRows').innerHTML = rows.map(l => {
+  $('#leadPager').innerHTML = pagerHtml('lead', rows.length, 'enquiries', paint);
+  $('#leadRows').innerHTML = paged('lead', rows).map(l => {
     /* Nobody has said a word to them and they came in yesterday or before.
        This is the row that should catch somebody's eye. */
     const cold = !l.followUps && l.status !== 'converted' && l.status !== 'lost'
@@ -1515,9 +1641,16 @@ document.addEventListener('click', e => {
     $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
   }
 });
+/* Any change to the filters puts them back on the first page. Narrowing a
+   list while standing on page five and being shown an empty table is the
+   commonest way paging goes wrong. */
 ['#fStatus', '#fSource', '#fOwner'].forEach(s =>
-  document.addEventListener('change', e => { if (e.target.matches(s)) paint(); }));
-document.addEventListener('input', e => { if (e.target.id === 'fQ') paint(); });
+  document.addEventListener('change', e => {
+    if (e.target.matches(s)) { PAGE_AT.lead = 0; paint(); }
+  }));
+document.addEventListener('input', e => {
+  if (e.target.id === 'fQ') { PAGE_AT.lead = 0; paint(); }
+});
 
 /* A lead arriving while somebody is looking at the book should appear in it. */
 connectLive({ chat: () => load() });

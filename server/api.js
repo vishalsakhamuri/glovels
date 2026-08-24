@@ -1394,6 +1394,32 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
        the confirmation. A brand-new account has no profile yet and is picked
        up the moment they save one. */
     const buyer = s || (created ? db.studentById(created.id) : null);
+
+    /*
+     * Somebody to talk to, from the minute they pay.
+     *
+     * They were left unassigned — no counsellor on their screen, no counsellor
+     * on ours — until an administrator noticed the Unassigned counter and did
+     * it by hand. A student who has just paid ₹49,999 for a service that is
+     * substantially a named person, signing in to find nobody, is the wrong
+     * first impression to give at exactly the wrong moment.
+     *
+     * Whoever has the fewest open files takes it, so the load spreads by
+     * itself. Never reassigns: a student the office has already placed with
+     * somebody stays there, whatever else they buy.
+     */
+    let assigned = null;
+    if (buyer && !buyer.counsellor_id) {
+      const who = db.lightestCounsellor();
+      if (who) {
+        db.assignCounsellor(buyer.id, who.id);
+        buyer.counsellor_id = who.id;
+        assigned = who;
+        db.log('system', 'counsellor assigned on purchase',
+          buyer.email + ' \u2192 ' + who.name + ' (' + reference + ')');
+      }
+    }
+
     const matched = buyer ? deliverMatches(buyer) : { owed: 0, added: 0, needsProfile: false };
 
     const tax = Math.round(gross - gross / (1 + GST_RATE));

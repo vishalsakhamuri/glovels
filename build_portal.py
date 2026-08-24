@@ -242,6 +242,89 @@ const timeAgo = iso => {{
   return Math.floor(s / 86400) + 'd ago';
 }};
 
+/* ------------------------------------------------------ long lists, in pages
+ *
+ * Every office table here rendered every row it had. With four students that
+ * is obviously right and with four hundred it is obviously wrong, and there
+ * was nothing in between: the Organisation screen at 131 students was 543 rows
+ * across four stacked tables and thirty-four screens of scrolling.
+ *
+ * Two rules this follows, both learned from the cap it replaces — the
+ * catalogue used to stop at 400 rows and say nothing, so at 401 universities
+ * one of them simply was not there:
+ *
+ *   the count is always the TRUE count, never the shown count
+ *   a page that is holding rows back says so, in words, on the screen
+ *
+ * Paging happens in the browser. The list has already been fetched and the
+ * whole of it is needed for search and for the totals above it, so asking the
+ * server for twenty-five of them would be a second round trip to show less.
+ * That reasoning stops being true somewhere around two thousand students,
+ * where the fetch itself gets heavy; the honest answer then is server-side
+ * paging, not a bigger page.
+ */
+const PAGE_SIZE = 25;
+/* The conversation roster is a narrow scrolling column rather than a table, so
+   it takes more before it becomes hard to read. */
+const PAGE_SIZES = {{ case: 50 }};
+const PAGE_AT = {{}}, PAGE_PAINT = {{}};
+const pageOf = key => PAGE_AT[key] || 0;
+
+/* The rows this page shows. Clamped, because a search can shrink the list
+   under somebody standing on page six and an unclamped slice would hand them
+   an empty table rather than the last page of results. */
+const sizeOf = key => PAGE_SIZES[key] || PAGE_SIZE;
+function paged(key, list) {{
+  const n = sizeOf(key);
+  const last = Math.max(0, Math.ceil(list.length / n) - 1);
+  if (pageOf(key) > last) PAGE_AT[key] = last;
+  const from = pageOf(key) * n;
+  return list.slice(from, from + n);
+}}
+
+/* The control underneath. Returns nothing at all when everything fits, so a
+   short list looks exactly as it did before. */
+function pagerHtml(key, total, noun, repaint) {{
+  PAGE_PAINT[key] = repaint;
+  const n = sizeOf(key);
+  if (total <= n) return '';
+  const pages = Math.ceil(total / n), at = Math.min(pageOf(key), pages - 1);
+  const from = at * n + 1, to = Math.min(total, (at + 1) * n);
+  const btn = (to_, label, on, disabled) =>
+    '<button type="button" class="pgb' + (on ? ' on' : '') + '"' +
+    (disabled ? ' disabled' : ' data-pg="' + key + '|' + to_ + '"') + '>' + label + '</button>';
+  /* First, last, and a window around where they are. A hundred numbered
+     buttons is its own kind of unreadable. */
+  const want = new Set([0, pages - 1, at, at - 1, at + 1]);
+  const nums = [...want].filter(n => n >= 0 && n < pages).sort((a, b) => a - b);
+  let out = '', prev = -1;
+  nums.forEach(n => {{
+    if (prev >= 0 && n > prev + 1) out += '<span class="pgg">…</span>';
+    out += btn(n, String(n + 1), n === at);
+    prev = n;
+  }});
+  return '<div class="pgr">' +
+    '<span class="pgn">' + from + '–' + to + ' of ' + total + ' ' +
+      esc(noun || 'rows') + '</span>' +
+    '<span style="flex:1"></span>' +
+    btn(at - 1, 'Previous', false, at === 0) + out +
+    btn(at + 1, 'Next', false, at >= pages - 1) +
+    '</div>';
+}}
+
+document.addEventListener('click', e => {{
+  const b = e.target.closest('[data-pg]');
+  if (!b) return;
+  const bits = b.dataset.pg.split('|');
+  PAGE_AT[bits[0]] = Math.max(0, Number(bits[1]) || 0);
+  const fn = PAGE_PAINT[bits[0]];
+  if (fn) fn();
+  /* Back to the top of the table, not the top of the page — a next-page click
+     that leaves you looking at the middle of the new page is disorienting. */
+  const box = b.closest('.p-sec') || b.closest('.p-card') || b.parentElement;
+  if (box && box.scrollIntoView) box.scrollIntoView({{ block: 'start', behavior: 'smooth' }});
+}});
+
 /* The live stream. EventSource reconnects on its own, so the only thing to do
    here is say plainly whether it is up — a chat that has quietly gone deaf
    while still looking connected is worse than one that admits it. */

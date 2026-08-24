@@ -482,6 +482,13 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
+
+
+
+
+
+
 /* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
 
 /* Top bar: page title, notifications, avatar. */
@@ -688,6 +695,47 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
   text-transform:uppercase;color:#8a5a0b;margin-bottom:4px}
 .guide p{margin:0;font-size:13.2px;line-height:1.65;color:#5b4409}
 .guide small{display:block;margin-top:7px;font-size:11.2px;color:#8a5a0b}
+
+/* ---- long lists, one page at a time ---- */
+.pgr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:11px 14px;border-top:1px solid var(--line);background:var(--paper)}
+.pgr .pgn{font:600 12.2px/1.4 var(--sans);color:var(--muted)}
+.pgr .pgg{font-size:12.2px;color:var(--muted);padding:0 2px}
+.pgb{appearance:none;cursor:pointer;background:#fff;border:1.5px solid #d8dde4;
+  border-radius:8px;padding:6px 10px;font:600 12.2px/1.2 var(--sans);
+  color:var(--navy-800);transition:border-color .12s, background .12s}
+.pgb:hover:not(:disabled){border-color:var(--navy-600);background:var(--paper)}
+.pgb:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+.pgb.on{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+.pgb:disabled{opacity:.42;cursor:default}
+@media (max-width:560px){ .pgr .pgn{width:100%} }
+
+/* ---- the office tabs ---- */
+/* Four full tables stacked on one page is thirty-four screens of scrolling at
+   131 students. One at a time, and the page is one screen again. */
+.otabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px;
+  border-bottom:1.5px solid var(--line);padding-bottom:0}
+.otab{appearance:none;cursor:pointer;background:none;border:none;
+  border-bottom:2.5px solid transparent;margin-bottom:-1.5px;
+  padding:9px 13px;font:700 13.4px/1.4 var(--sans);color:var(--muted);
+  display:flex;align-items:center;gap:7px}
+.otab:hover{color:var(--navy-800)}
+.otab[aria-selected="true"]{color:var(--navy-900);border-bottom-color:var(--navy-900)}
+.otab:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+.otab .n{font:700 11.4px/1 var(--sans);background:var(--paper);
+  border:1px solid var(--line);border-radius:999px;padding:3px 7px;color:var(--navy-800)}
+.otab[aria-selected="true"] .n{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+.opane{display:none}
+.opane.active{display:block}
+
+/* A package name is a phrase, not a word, and the chip was sized as though it
+   were one — so "Academic CV & Resume" broke out of its own background and
+   printed over the row above it. */
+.tbl .st, .tbl .chip, .tbl .sl-chip{display:inline-block;max-width:100%;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+/* And a row is read across, so its cells line up at the top rather than
+   floating in the middle of whatever the tallest one turned out to be. */
+.tbl td{vertical-align:top}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}

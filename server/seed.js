@@ -451,6 +451,48 @@ function fixCheapestPackagePrice({ db }) {
   return n;
 }
 
+/*
+ * The packages that unlock public universities, delivering them.
+ *
+ * "University shortlist for public is not shown in the student login even
+ *  after paid… when paid in full we need to show list of public unis after the
+ *  filter criteria. Adding or removing can be done later by counsellor."
+ *
+ * `unlocks` is how many public NAMES a package reveals. `matches` is how many
+ * universities the machine actually puts on the student's shortlist when they
+ * pay. Only the ₹4,999 tier had both. ₹9,999, ₹49,999 and ₹74,999 unlocked
+ * five, ten and fifteen names with `matches` at zero — so they revealed names
+ * to anybody who went and searched the finder, and put nothing on the
+ * student's own screen. Somebody paying ₹74,999 signed in to an empty
+ * shortlist while somebody paying ₹4,999 got three universities.
+ *
+ * Only fills a zero. A package where the office has deliberately set a number
+ * is theirs, and a package that unlocks nothing is a work or migration tier
+ * with no university list to deliver.
+ */
+function packagesDeliverWhatTheyUnlock({ db }) {
+  if (db.content('packagesDeliverV1')) return 0;
+  db.setContent('packagesDeliverV1', { done: true }, 'system');
+
+  const live = db.content('packages');
+  if (!live || !Array.isArray(live.items)) return 0;
+
+  let n = 0;
+  const names = [];
+  const items = live.items.map(p => {
+    const unlocks = Number(p.unlocks || p.publicUnis || 0);
+    if (!unlocks || Number(p.matches || 0) > 0) return p;
+    n++;
+    names.push((p.title || p.id) + ' \u2192 ' + unlocks);
+    return Object.assign({}, p, { matches: unlocks });
+  });
+  if (!n) return 0;
+
+  db.setContent('packages', Object.assign({}, live, { items }), 'system');
+  db.log('system', 'packages deliver the universities they unlock', names.join(', '));
+  return n;
+}
+
 function openOnRequestServices({ db }) {
   if (db.content('servicesOnRequestV1')) return 0;
   db.setContent('servicesOnRequestV1', { done: true }, 'system');
@@ -656,6 +698,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   addEntryTiers,
   moveEntryTiersToServices,
   fixCheapestPackagePrice,
+  packagesDeliverWhatTheyUnlock,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

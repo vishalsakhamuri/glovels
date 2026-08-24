@@ -4546,6 +4546,47 @@ def the_cgpa_bar_reaches_the_filter():
 
 the_cgpa_bar_reaches_the_filter()
 
+
+def a_package_delivers_what_it_promises():
+    """
+    Every package that names public universities hands them over.
+
+    "University shortlist for public is not shown in the student login even
+     after paid… when paid in full we need to show list of public unis after
+     the filter criteria. Adding or removing can be done later by counsellor."
+
+    Only the cheapest package worked. `matches` is how many universities the
+    machine puts on the shortlist the moment somebody pays; `unlocks` is how
+    many public NAMES the package reveals. The ₹4,999 tier had both set to
+    three and delivered three. The ₹9,999, ₹49,999 and ₹74,999 tiers unlocked
+    five, ten and fifteen names and had `matches` at zero — so they revealed
+    names to anybody who went and searched the finder for them, and put nothing
+    at all on the student's own shortlist.
+
+    A student paying ₹74,999 signed in to an empty screen. That is the single
+    worst thing on this site: the most expensive thing we sell delivered less
+    than the cheapest.
+
+    It was a deliberate zero once. The comment in matches.js still says so —
+    "right for the ones where a counsellor agrees the shortlist on a call" —
+    and that was the old business, before "we do not need students to visit the
+    office or counsellors to convince students". The machine delivers now, and
+    a counsellor adds and removes from a list that already exists.
+    """
+    # Anchored on the cta, which is the one string next to publicUnis that is
+    # different for each of the three. Matching on `"publicUnis": 5` alone would
+    # be matching a number that appears all over this file.
+    for pid, n, cta in (("pkg-roadmap", 5, "Choose Roadmap"),
+                        ("pkg-offer", 10, "Choose Offer Letter"),
+                        ("pkg-boarding", 15, "Choose Boarding Pass")):
+        patch("index.html", f"{pid} delivers the {n} public universities it unlocks",
+              '"publicUnis": %d, "consent"' % n,
+              '"publicUnis": %d, "matches": %d, "consent"' % (n, n),
+              marker='"matches": %d, "consent"' % n)
+
+
+a_package_delivers_what_it_promises()
+
 instant_services_do_not_promise_a_call()
 services_carry_matches()
 

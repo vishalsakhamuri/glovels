@@ -67,6 +67,7 @@ BODY = """
             <th>Next intake</th><th>Status</th><th></th></tr></thead>
           <tbody id="progRows"></tbody>
         </table>
+        <div id="progPager"></div>
       </div>
       <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
         Anything you add here is on the home page finder straight away — no rebuild, no developer.
@@ -208,10 +209,16 @@ function paintProgs() {
     (!q || (p.university + ' ' + p.program + ' ' + (p.field || '')).toLowerCase().includes(q)));
 
   $('#nProg').textContent = PROGS.length;
-  /* What the tick boxes cover is what the search found, not the 400 drawn —
-     "select everything" that quietly means "the first 400" is a trap. */
+  /* What the tick boxes cover is what the search found, not the page drawn —
+     "select everything" that quietly means "the page you can see" is a trap.
+     This was already right when the cap was a silent 400; it stays right now
+     that the cap is a page. */
   SHOWN = list.map(p => p.id);
-  $('#progRows').innerHTML = list.slice(0, 400).map(p => {
+  /* The 400 that used to be here was a silent one: at 401 universities the
+     401st simply was not on the screen and nothing said so. A page says its
+     own size out loud and can be walked through. */
+  $('#progPager').innerHTML = pagerHtml('prog', list.length, 'programmes', paintProgs);
+  $('#progRows').innerHTML = paged('prog', list).map(p => {
     const d = destOf(p.country);
     return '<tr' + (PICKED.has(p.id) ? ' style="background:#f4f7fb"' : '') + '>' +
       '<td><input type="checkbox" data-pick="' + esc(p.id) + '"' +
@@ -229,13 +236,6 @@ function paintProgs() {
       '<td><button type="button" class="btn btn-ghost btn-sm" data-edit="' + esc(p.id) + '">Edit</button></td>' +
       '</tr>';
   }).join('') || '<tr><td colspan="8" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
-
-  if (list.length > 400) {
-    $('#progRows').insertAdjacentHTML('beforeend',
-      '<tr><td colspan="8" style="padding:14px;color:var(--muted);font-size:12.4px">' +
-      'Showing the first 400 of ' + list.length + ' — they are all still covered by the ' +
-      'tick box at the top of this column.</td></tr>');
-  }
 
   paintBulk();
   $('#kLive').textContent = PROGS.filter(p => p.active).length;
@@ -827,8 +827,10 @@ document.addEventListener('click', async e => {
 });
 
 ['q', 'fc', 'fs'].forEach(id => {
-  $('#' + id).addEventListener('input', paintProgs);
-  $('#' + id).addEventListener('change', paintProgs);
+  /* A new search starts at its first page. */
+  const go = () => { PAGE_AT.prog = 0; paintProgs(); };
+  $('#' + id).addEventListener('input', go);
+  $('#' + id).addEventListener('change', go);
 });
 addEventListener('keydown', e => {
   if (e.key === 'Escape') $('#progModal').classList.remove('on');

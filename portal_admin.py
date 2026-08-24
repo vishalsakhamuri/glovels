@@ -122,6 +122,23 @@ BODY = """
       </div>
     </div>
 
+    <!-- Four full tables on one page was thirty-four screens of scrolling at a
+         hundred and thirty students, and the fourth one may as well not have
+         existed. One at a time, with the true count on each tab. -->
+    <div class="otabs" role="tablist">
+      <button class="otab" role="tab" data-o="students" aria-selected="true">
+        Every student <span class="n">0</span></button>
+      <button class="otab" role="tab" data-o="orders" aria-selected="false">
+        Orders <span class="n">0</span></button>
+      <button class="otab" role="tab" data-o="money" aria-selected="false">
+        Money</button>
+      <button class="otab" role="tab" data-o="email" aria-selected="false">
+        Email</button>
+      <button class="otab" role="tab" data-o="chats" aria-selected="false">
+        Conversations <span class="n">0</span></button>
+    </div>
+
+    <div class="opane active" id="o-students">
     <div class="p-sec">
       <div class="p-sec-head"><h2 id="everyStudent">Every student</h2>
         <span id="onlyChip" hidden class="st wait" style="text-transform:none;letter-spacing:0;
@@ -134,6 +151,7 @@ BODY = """
             <th>Counsellor</th><th></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
+        <div id="stuPager"></div>
       </div>
     </div>
 
@@ -141,6 +159,9 @@ BODY = """
          There was nowhere at all to see these: the screen counted them, showed a
          rupee total and stopped. Somebody who had just bought four services
          could not find one of them. -->
+    </div><!-- /o-students -->
+
+    <div class="opane" id="o-orders">
     <div class="p-sec">
       <div class="p-sec-head"><h2 id="everyOrder">Orders</h2>
         <span id="ordGuests" hidden class="st wait" style="text-transform:none;
@@ -154,6 +175,7 @@ BODY = """
             <th style="text-align:right">Amount</th><th>Account</th><th>When</th></tr></thead>
           <tbody id="ordRows"></tbody>
         </table>
+        <div id="ordPager"></div>
       </div>
       <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
         An order placed before somebody signs up shows as <b>no account yet</b>. It attaches
@@ -166,6 +188,9 @@ BODY = """
     <!-- The money.
          Four numbers, and then who to ring about them. A total nobody can act
          on is a total nobody looks at twice. -->
+    </div><!-- /o-orders -->
+
+    <div class="opane" id="o-money">
     <div class="p-sec" id="theMoney">
       <div class="p-sec-head"><h2>Money</h2>
         <span id="moneyLate" hidden class="st bad"
@@ -188,6 +213,7 @@ BODY = """
                 <th>Overdue</th><th>Since</th><th></th></tr></thead>
               <tbody id="owingRows"></tbody>
             </table>
+            <div id="owingPager"></div>
           </div>
         </div>
         <div class="p-card">
@@ -201,7 +227,18 @@ BODY = """
         </div>
       </div>
 
-      <!-- Is the email actually going out?
+
+    </div>
+
+    <!-- Every conversation, and how long it has been waiting.
+         An administrator could already open any student's file — one at a time,
+         having first guessed which one to open. That is not oversight. -->
+    </div><!-- /o-money -->
+
+    <div class="opane" id="o-email">
+      <div class="p-sec">
+        <div class="p-sec-head"><h2>Email</h2></div>
+        <!-- Is the email actually going out?
            There was no way to ask this from inside the site. The mailer said
            what it was doing in one line of the server's start-up log and
            nowhere else, and because mail is never allowed to fail a request,
@@ -267,11 +304,10 @@ BODY = """
             Save and use these</button>
         </details>
       </div>
-    </div>
+      </div>
+    </div><!-- /o-email -->
 
-    <!-- Every conversation, and how long it has been waiting.
-         An administrator could already open any student's file — one at a time,
-         having first guessed which one to open. That is not oversight. -->
+    <div class="opane" id="o-chats">
     <div class="p-sec" id="everyChat">
       <div class="p-sec-head"><h2>Conversations</h2>
         <span id="chatLate" hidden class="st bad" style="text-transform:none;
@@ -293,6 +329,7 @@ BODY = """
             <th>Waiting</th><th>Balance</th><th></th></tr></thead>
           <tbody id="convRows"></tbody>
         </table>
+        <div id="convPager"></div>
       </div>
       <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
         <b>Waiting</b> is how long since the student wrote and nobody answered. A thread where
@@ -302,6 +339,7 @@ BODY = """
         student never sees.
       </p>
     </div>
+    </div><!-- /o-chats -->
 """
 
 SCRIPT = r"""
@@ -384,11 +422,17 @@ function paint() {
   $$('[data-go]').forEach(el =>
     el.classList.toggle('on', el.dataset.go === (only || 'all')));
 
-  $('#rows').innerHTML = list.map(row).join('') ||
+  $('#rows').innerHTML = paged('stu', list).map(row).join('') ||
     '<tr><td colspan="6" style="color:var(--muted);padding:22px">' +
     (only === 'unassigned' ? 'Everybody has a counsellor.'
       : only === 'docs' ? 'No documents are waiting for review.'
       : 'Nobody matches that search.') + '</td></tr>';
+  /* The count under the table is of the WHOLE filtered list, not of what is on
+     screen. A table that shows twenty-five and says twenty-five is how a cap
+     hides. */
+  $('#stuPager').innerHTML = pagerHtml('stu', list.length, 'students', paint);
+  const tab = $('.otab[data-o="students"] .n');
+  if (tab) tab.textContent = list.length;
 }
 
 /* The counters are shortcuts into this table, or out to another screen. A
@@ -404,17 +448,63 @@ document.addEventListener('click', e => {
 
   /* The enquiry book moved: every lead, from every source, is in one place. */
   if (what === 'enquiries') { location.href = 'leads.html'; return; }
-  if (what === 'orders') {
-    $('#everyOrder').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return;
-  }
+  /* These used to scroll. Now they open the tab the number lives on, which is
+     the same promise kept with less travelling. */
+  if (what === 'orders') { showTab('orders'); return; }
 
   only = what === 'all' ? '' : what;
   filter = '';
   $('#findStudent').value = '';
+  /* A counter that filters the student table has to put you on the student
+     table, or it filters something you cannot see. */
+  showTab('students');
+  PAGE_AT.stu = 0;
   paint();
-  $('#everyStudent').scrollIntoView({behavior: 'smooth', block: 'start'});
 });
+
+/* ------------------------------------------------------------------- tabs */
+function showTab(which) {
+  $$('.otab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.o === which)));
+  $$('.opane').forEach(pn => pn.classList.toggle('active', pn.id === 'o-' + which));
+  /* Where the tab bar is, not where the page happens to be scrolled. Switching
+     tab and landing half way down the new one reads as a broken click. */
+  const bar = $('.otabs');
+  if (bar && bar.getBoundingClientRect().top < 0) {
+    bar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  try { sessionStorage.setItem('gv-admin-tab', which); } catch (e) {}
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('.otab');
+  if (t) showTab(t.dataset.o);
+});
+/* A link that points at something on this screen opens the tab it is on.
+   `admin.html#theMoney` used to scroll; a section inside a closed pane cannot
+   be scrolled to, so it would have done nothing at all. */
+const TAB_OF = { everyStudent: 'students', everyOrder: 'orders',
+  theMoney: 'money', mailCard: 'email', everyChat: 'chats' };
+function tabForHash() {
+  const h = (location.hash || '').replace(/^#/, '');
+  if (!h) return '';
+  if ($('#o-' + h)) return h;                       // #students, #money…
+  if (TAB_OF[h]) return TAB_OF[h];
+  const el = document.getElementById(h);
+  const pane = el && el.closest('.opane');
+  return pane ? pane.id.replace(/^o-/, '') : '';
+}
+addEventListener('hashchange', () => {
+  const t = tabForHash();
+  if (t) showTab(t);
+});
+
+/* Reopened on the tab they left — unless a link said otherwise. An
+   administrator assigning counsellors down a long list, who clicks into a file
+   and comes back, should not have to find their way back to it. */
+try {
+  const asked = tabForHash();
+  const back = asked || sessionStorage.getItem('gv-admin-tab');
+  if (back && $('#o-' + back)) showTab(back);
+} catch (e) {}
 
 /* --------------------------------------------------- sending a student their way in */
 
@@ -739,8 +829,9 @@ async function paintMoney() {
     + esc(String(v)) + '</b></li>').join('');
 
   const rows = (MONEY.owing || []);
+  $('#owingPager').innerHTML = pagerHtml('owe', rows.length, 'to ring', paintMoney);
   $('#owingRows').innerHTML = rows.length
-    ? rows.map(r =>
+    ? paged('owe', rows).map(r =>
         '<tr' + (r.overdue ? ' class="late"' : '') + '>' +
         '<td><b>' + esc(r.name) + '</b><br>' +
           '<span style="font-size:11.6px;color:var(--muted)">' + esc(r.email) + '</span></td>' +
@@ -786,7 +877,11 @@ function paintOrders() {
   chip.hidden = !guests;
   chip.textContent = guests + (guests === 1 ? ' has no account yet' : ' have no account yet');
 
-  $('#ordRows').innerHTML = list.map(o => {
+  $('#ordPager').innerHTML = pagerHtml('ord', list.length, 'orders', paintOrders);
+  const otab = $('.otab[data-o="orders"] .n');
+  if (otab) otab.textContent = list.length;
+
+  $('#ordRows').innerHTML = paged('ord', list).map(o => {
     /* What they actually bought, by name. A row that says "services" and a
        total is no use to somebody on the phone to the person who bought it. */
     const what = o.kind === 'services'
@@ -844,7 +939,11 @@ function paintOrders() {
 }
 
 document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'findOrder') { orderFilter = e.target.value; paintOrders(); }
+  if (e.target && e.target.id === 'findOrder') {
+    orderFilter = e.target.value;
+    PAGE_AT.ord = 0;           /* a new search starts at its first page */
+    paintOrders();
+  }
 });
 
 staffBoot(async me => {
@@ -916,7 +1015,11 @@ document.addEventListener('change', async e => {
   }
 });
 
-$('#findStudent').addEventListener('input', e => { filter = e.target.value; paint(); });
+$('#findStudent').addEventListener('input', e => {
+  filter = e.target.value;
+  PAGE_AT.stu = 0;             /* a new search starts at its first page */
+  paint();
+});
 
 /* ------------------------------------------------------------------ the team */
 /*
@@ -1239,7 +1342,11 @@ function paintConvs() {
     '</div>').join('')
     || '<p style="margin:0;color:var(--muted);font-size:12.6px">No conversations yet.</p>';
 
-  $('#convRows').innerHTML = rows.map(c =>
+  $('#convPager').innerHTML = pagerHtml('conv', rows.length, 'conversations', paintConvs);
+  const ctab = $('.otab[data-o="chats"] .n');
+  if (ctab) ctab.textContent = rows.length;
+
+  $('#convRows').innerHTML = paged('conv', rows).map(c =>
     '<tr' + (c.waitingHours >= 24 || c.messages === 0 ? ' class="late"' : '') + '>' +
       '<td><b>' + esc(c.name) + '</b>' +
         '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
@@ -1294,7 +1401,11 @@ async function loadConvs() {
 }
 
 document.addEventListener('change', e => {
-  if (e.target && e.target.id === 'onlyWaiting') { onlyWaiting = e.target.checked; paintConvs(); }
+  if (e.target && e.target.id === 'onlyWaiting') {
+    onlyWaiting = e.target.checked;
+    PAGE_AT.conv = 0;
+    paintConvs();
+  }
 });
 
 document.addEventListener('click', async e => {
