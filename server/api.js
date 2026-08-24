@@ -2129,6 +2129,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: p.id, country: p.country, level: p.level, field: p.field,
         band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
         totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,
+        /* The CGPA it asks for travels even on a locked row. It is a
+           requirement, not an identity — and withholding it would mean the
+           finder filters gated rows by the country's rule while naming them by
+           their own, so a student would be shown a locked row they cannot
+           apply to and charged to unlock it. */
+        minCgpa: p.minCgpa == null ? null : p.minCgpa,
         /* uKey groups programmes by university so the page can say "12 public
            universities" without naming one. featured/featureSort say where the
            row sits, not what it is. None of the three is the name. */
@@ -4008,7 +4014,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       db.saveProgramme({
         id: r.id, program: r.program, university: r.university, city: r.city,
         country: r.country, level: r.level, field: r.field, band: want,
-        isPublic: !!r.is_public, fit: r.fit, totalInr: r.total_inr, url: r.url,
+        isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url,
         active: !!r.active, featured: !!r.featured, featureSort: r.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
       }, who);
@@ -4069,6 +4075,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       band: normBand(b.band),
       isPublic: !!b.isPublic,
       fit: Math.max(0, Math.min(100, Number(b.fit) || 0)),
+      /* Blank stays blank. An empty box means "this programme follows the
+         country's rule", and writing it as 0 would mean "takes anybody". */
+      minCgpa: (b.minCgpa === '' || b.minCgpa == null) ? null
+        : Math.max(0, Math.min(10, Number(b.minCgpa) || 0)),
       totalInr: Math.max(0, Math.round(Number(b.totalInr) || 0)),
       url: /^https?:\/\//i.test(b.url || '') ? String(b.url).slice(0, FIELD_LIMITS.url) : '',
       active: b.active !== false,
@@ -4102,7 +4112,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     programmes: db.programmes(true).map(r => ({
       id: r.id, program: r.program, university: r.university, city: r.city || '',
       country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
-      isPublic: !!r.is_public, fit: r.fit, totalInr: r.total_inr, url: r.url || '',
+      isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url || '',
       active: !!r.active, updatedAt: r.updated_at, updatedBy: r.updated_by || '',
       featured: !!r.featured, featureSort: r.feature_sort || 0,
       intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
@@ -4149,7 +4159,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       db.saveProgramme(Object.assign({}, {
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
-        isPublic: !!p.is_public, fit: p.fit, totalInr: p.total_inr, url: p.url,
+        isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
         intakes: (() => { try { return JSON.parse(p.intakes); } catch (e) { return []; } })(),
         active: false,
       }), s.name);
@@ -4224,7 +4234,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const asDraft = extra => Object.assign({
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
-        isPublic: !!p.is_public, fit: p.fit, totalInr: p.total_inr, url: p.url,
+        isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
         featured: !!p.featured, featureSort: p.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(p.intakes) || []; } catch (e) { return []; } })(),
         active: !!p.active,
@@ -4310,6 +4320,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     ['country code', 'country'], ['level', 'level'], ['field', 'field'],
     ['public university', 'isPublic'], ['total tuition inr', 'totalInr'],
     ['budget band', 'band'], ['course url', 'url'],
+    /* The two the filters read and the sheet never carried. Without them a
+       bulk upload cannot describe what the finder actually filters on, which
+       is the whole point of a bulk upload. */
+    ['minimum cgpa', 'minCgpa'], ['fit score', 'fit'],
     ['intake 1 season', 'i1s'], ['intake 1 deadline', 'i1d'],
     ['intake 2 season', 'i2s'], ['intake 2 deadline', 'i2d'],
     ['on the site', 'active'],
@@ -4322,6 +4336,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     return [
       r.id, r.program, r.university, r.city || '', r.country, r.level || '', r.field || '',
       r.is_public ? 'yes' : 'no', Number(r.total_inr || 0), r.band || '', r.url || '',
+      /* Empty rather than 0 when it has not been stated — the sheet has to be
+         able to say "follows the country rule", and a downloaded 0 typed back
+         in would mean the opposite. */
+      r.min_cgpa == null ? '' : Number(r.min_cgpa),
+      Number(r.fit || 0),
       (ins[0] && ins[0].season) || '', (ins[0] && ins[0].deadline) || '',
       (ins[1] && ins[1].season) || '', (ins[1] && ins[1].deadline) || '',
       r.active ? 'yes' : 'no',
@@ -4408,6 +4427,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         totalInr: Number(String(g('totalInr') || '0').replace(/[^0-9.]/g, '')) || 0,
         band: String(g('band') || '').trim(),
         url: g('url'),
+        minCgpa: String(g('minCgpa') || '').trim() === '' ? null
+          : Math.max(0, Math.min(10, Number(String(g('minCgpa')).replace(/[^0-9.]/g, '')) || 0)),
+        fit: String(g('fit') || '').trim() === '' ? 0
+          : Math.max(0, Math.min(100, Number(String(g('fit')).replace(/[^0-9.]/g, '')) || 0)),
         active: NO_(g('active')) ? false : true,
         featured: YES(g('featured')),
         featureSort: Number(String(g('featureSort') || '0').replace(/[^0-9]/g, '')) || 0,
@@ -4532,6 +4555,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         isPublic: NO_(g('isPublic')) ? false : YES(g('isPublic')),
         totalInr: Number(String(g('totalInr') || '0').replace(/[^0-9.]/g, '')) || 0,
         band: String(g('band') || '').trim(), url: g('url'),
+        /* Same two the plan read. A field the preview understood and the apply
+           dropped would be the worst of both: the office is shown a change
+           that then does not happen. */
+        minCgpa: String(g('minCgpa') || '').trim() === '' ? null
+          : Math.max(0, Math.min(10, Number(String(g('minCgpa')).replace(/[^0-9.]/g, '')) || 0)),
+        fit: String(g('fit') || '').trim() === '' ? 0
+          : Math.max(0, Math.min(100, Number(String(g('fit')).replace(/[^0-9.]/g, '')) || 0)),
         active: NO_(g('active')) ? false : true,
         featured: YES(g('featured')),
         featureSort: Number(String(g('featureSort') || '0').replace(/[^0-9]/g, '')) || 0,

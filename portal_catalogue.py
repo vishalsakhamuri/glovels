@@ -329,6 +329,16 @@ function openEditor(p) {
         'Whole course, in rupees. <b>0 means no tuition</b> — that is load-bearing on the site.') +
       select('Budget band', 'fBand', v.band, BANDS,
         'Leave it on the first option and it is worked out from the fee.') +
+      field('Minimum CGPA', 'fCgpa', v.minCgpa == null ? '' : v.minCgpa,
+        'type="number" min="0" max="10" step="0.1" placeholder="7.5"',
+        'On 10, for THIS programme. <b>Leave it empty</b> and the destination&rsquo;s ' +
+        'own rule applies &mdash; which is right for most rows. Fill it in where a ' +
+        'university asks for more or less than its country normally does, and the ' +
+        'finder will use this number instead.') +
+      field('Fit score', 'fFit', v.fit || 0,
+        'type="number" min="0" max="100" step="1" placeholder="80"',
+        'How realistic this is for a typical applicant, 0&ndash;100. It orders the ' +
+        'matched shortlists and breaks ties in the finder.') +
       field('Course page', 'fUrl', v.url, 'placeholder="https://…"',
         'Must start with http. Students click through to it.') +
     '</div>' +
@@ -383,6 +393,10 @@ function readEditor() {
     featured: $('#fFeatured').checked,
     featureSort: Number($('#fFeatureSort').value || 0),
     totalInr: Number($('#fFee').value || 0),
+    /* Empty stays empty — it means "follow the destination's rule", and
+       sending 0 would mean "takes anybody". */
+    minCgpa: $('#fCgpa').value.trim() === '' ? null : Number($('#fCgpa').value),
+    fit: Number($('#fFit').value || 0),
     url: $('#fUrl').value.trim(),
     active: $('#fActive').checked,
     intakes,

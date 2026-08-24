@@ -160,6 +160,13 @@ function pick(catalogue, profile, count, kind, drop) {
       && String(p.level || '').toLowerCase() !== w.level) return false;
     /* undefined — not asked. null — asked, no ceiling. */
     if (!off.has('budget') && w.ceiling && Number(p.totalInr || 0) > w.ceiling) return false;
+    /* The one constraint that is never relaxed — note it does not consult
+       `off`. Country, level and budget are preferences somebody stated and
+       might bend on. A CGPA bar is not: putting a university on a paid
+       shortlist that the student cannot apply to is not a near miss, it is
+       selling them something that does not exist. A shorter list is the right
+       answer here, every time. */
+    if (w.cgpa && p.minCgpa != null && w.cgpa < Number(p.minCgpa)) return false;
     return true;
   });
 
@@ -200,6 +207,7 @@ function pick(catalogue, profile, count, kind, drop) {
  * Budget goes first because it is the constraint most often set from a guess.
  * Country goes last because it is the one people mean most.
  */
+/* Note what is NOT in this list: the CGPA bar. See `pick`. */
 const RELAX = ['budget', 'level', 'country'];
 
 const RELAX_SAID = {

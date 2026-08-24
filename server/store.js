@@ -157,6 +157,9 @@ CREATE TABLE IF NOT EXISTS programmes (
   band        TEXT,
   is_public   INTEGER NOT NULL DEFAULT 1,
   fit         INTEGER,
+  /* The CGPA this programme asks for, on 10. NULL means it has not been
+     stated, and the country's rule applies instead. */
+  min_cgpa    REAL,
   total_inr   INTEGER NOT NULL DEFAULT 0,
   url         TEXT,
   intakes     TEXT,
@@ -304,6 +307,16 @@ function sqliteDriver(file) {
    /* Which programmes lead the showcase on the home page, and in what order.
       Chosen on the Catalogue screen. Nothing featured means the grid falls
       back to cheapest-first, which is what it always did. */
+   /* The CGPA a student needs for THIS programme, on 10.
+      The finder has always preferred a programme's own cut-off over the
+      country's — the code reads `p.minCgpa` and falls back to the country rule
+      — but the column never existed, so the preference could never fire and
+      every programme in a country shared one bar. That is wrong at the level
+      it matters: a student with 6.8 is turned away from a whole country when a
+      dozen of its universities would have taken them.
+      NULL means "not stated", which is different from 0 and is what makes the
+      country rule apply. */
+   'ALTER TABLE programmes ADD COLUMN min_cgpa REAL',
    'ALTER TABLE programmes ADD COLUMN featured INTEGER NOT NULL DEFAULT 0',
    'ALTER TABLE programmes ADD COLUMN feature_sort INTEGER NOT NULL DEFAULT 0',
    /* The entry requirements a visitor reads before deciding to pay: minimum
@@ -848,13 +861,18 @@ function open(dir) {
     },
     programme: id => db.one('SELECT * FROM programmes WHERE id = ?', String(id)),
     saveProgramme(p, who) {
+      /* Blank is not zero. A programme with no stated CGPA follows its
+         country's rule; a programme with 0 would accept anybody. Writing an
+         empty box as 0 is how a filter quietly stops filtering. */
+      const bar = (p.minCgpa === '' || p.minCgpa == null || !Number.isFinite(Number(p.minCgpa)))
+        ? null : Math.max(0, Math.min(10, Number(p.minCgpa)));
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, city, country, level, field, band, is_public, fit,
-         total_inr, url, intakes, active, featured, feature_sort, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         min_cgpa, total_inr, url, intakes, active, featured, feature_sort, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university, p.city || '', p.country,
         p.level || '', p.field || '', p.band || '', p.isPublic ? 1 : 0,
-        Number(p.fit || 0), Number(p.totalInr || 0), p.url || '',
+        Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
         p.featured ? 1 : 0, Number(p.featureSort || 0), now(), who || '');
       return this.programme(p.id);

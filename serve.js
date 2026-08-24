@@ -85,6 +85,10 @@ function liveCatalogue() {
     id: r.id, program: r.program, university: r.university, city: r.city || '',
     country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
     isPublic: !!r.is_public, fit: r.fit || null, totalInr: r.total_inr || 0,
+    /* The CGPA THIS programme asks for. The finder has always preferred it
+       over the country's rule — and never received it, because the catalogue
+       handed to the page did not carry the field. */
+    minCgpa: r.min_cgpa == null ? null : Number(r.min_cgpa),
     url: r.url || '',
     uKey: uKeyOf(r.university),
     /* The office's choice of what leads the showcase on the home page. */

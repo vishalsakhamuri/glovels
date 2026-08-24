@@ -112,7 +112,8 @@ function repairEntities(db) {
     db.saveProgramme({
       id: r.id, program: fixed.program, university: fixed.university,
       city: fixed.city, country: r.country, level: r.level, field: fixed.field,
-      band: r.band, isPublic: !!r.is_public, fit: r.fit, totalInr: r.total_inr,
+      band: r.band, isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
+      totalInr: r.total_inr,
       url: r.url, active: !!r.active, featured: !!r.featured,
       featureSort: r.feature_sort || 0,
       intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),

@@ -4496,6 +4496,56 @@ def services_carry_matches():
               matches: Number(x.matches || 0),""")
 
 
+
+def the_cgpa_bar_reaches_the_filter():
+    """
+    The finder's CGPA filter, connected to the thing it was written to read.
+
+    "CGPA is missing in the excel sheet for universities to upload… make sure
+    excel upload has all relevant fields otherwise exact filter will not work."
+
+    It was worse than missing. `filtered()` has always preferred a programme's
+    OWN cut-off over its country's — `p.minCgpa != null ? p.minCgpa : country
+    rule` — and the field behind it existed nowhere: not in the database, not in
+    the API, not in the sheet. The preference could never fire, so every
+    programme in a country shared one bar.
+
+    Two lines here are the last of it. The merge that brings live programmes
+    into the page hardcoded `minCgpa: null`, and a row the page already knew was
+    skipped entirely — so a CGPA uploaded against an existing university would
+    have been stored, shown in the editor, and still ignored by the filter.
+    """
+    patch("index.html", "a live programme carries its own CGPA bar",
+          """      band: p.band || 'u20', isPublic: !!p.isPublic, minCgpa: null,""",
+          """      band: p.band || 'u20', isPublic: !!p.isPublic,
+      /* The bar THIS programme sets, which beats its country's rule in
+         filtered(). Hardcoded null here, it could never beat anything. */
+      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),""")
+
+    patch("index.html", "and an edit to an existing one reaches the filter too",
+          """    if (known.has(String(p.id))) return;""",
+          """    if (known.has(String(p.id))) {
+      /* A row the page shipped with, edited since in the operations site. The
+         name and the fee were already refreshed above, through EXTRA_NAMES —
+         but filtered() reads D.programs, so an entry requirement corrected in
+         the office would have been stored, shown in the editor, and silently
+         ignored by the only thing that uses it. */
+      const had = D.programs.find(x => String(x.id) === String(p.id));
+      if (had) {
+        had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);
+        if (p.fit != null) had.fit = p.fit;
+        if (p.band) had.band = p.band;
+        if (p.totalInr != null) {
+          had.totalInr = p.totalInr;
+          had.freeTuition = (p.totalInr || 0) === 0;
+        }
+      }
+      return;
+    }""")
+
+
+the_cgpa_bar_reaches_the_filter()
+
 instant_services_do_not_promise_a_call()
 services_carry_matches()
 

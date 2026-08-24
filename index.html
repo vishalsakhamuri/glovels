@@ -2515,12 +2515,32 @@ render();
         totalInr: p.totalInr || 0, url: p.url || '', uKey: 'live-' + p.id,
       };
     }
-    if (known.has(String(p.id))) return;
+    if (known.has(String(p.id))) {
+      /* A row the page shipped with, edited since in the operations site. The
+         name and the fee were already refreshed above, through EXTRA_NAMES —
+         but filtered() reads D.programs, so an entry requirement corrected in
+         the office would have been stored, shown in the editor, and silently
+         ignored by the only thing that uses it. */
+      const had = D.programs.find(x => String(x.id) === String(p.id));
+      if (had) {
+        had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);
+        if (p.fit != null) had.fit = p.fit;
+        if (p.band) had.band = p.band;
+        if (p.totalInr != null) {
+          had.totalInr = p.totalInr;
+          had.freeTuition = (p.totalInr || 0) === 0;
+        }
+      }
+      return;
+    }
 
     const row = {
       id: p.id, country: p.country, level: p.level || 'master',
       fieldGroup: p.field || 'Other', field: p.field || 'Other',
-      band: p.band || 'u20', isPublic: !!p.isPublic, minCgpa: null,
+      band: p.band || 'u20', isPublic: !!p.isPublic,
+      /* The bar THIS programme sets, which beats its country's rule in
+         filtered(). Hardcoded null here, it could never beat anything. */
+      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),
       fit: p.fit || 75, uKey: 'live-' + p.id,
       intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],
       nLen: p.nLen != null ? p.nLen : String(p.program || '').length,
