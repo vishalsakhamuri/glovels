@@ -29,7 +29,31 @@ const crypto = require('crypto');
 
 /* ------------------------------------------------------------------ config */
 
-function readEnv(file) {
+/*
+ * The settings the mailer needs, from wherever they were put.
+ *
+ * This read a FILE and nothing else, while DEPLOY.md said "create mail.env, or
+ * set the same names as environment variables". The documentation promised
+ * something the code did not do, and the failure is silent by design: mail is
+ * never allowed to fail a request, so an unconfigured mailer writes .eml files
+ * to disk and reports success. Everything looked fine and nothing was
+ * delivered — password resets, receipts, the sign-in details a ₹99 buyer needs.
+ *
+ * On a hosted deployment there is no file. There is an Environment tab, which
+ * is the right place for a password: nothing on disk, nothing in a repository.
+ * So the environment is read too, and it WINS over the file — the file is a
+ * developer's convenience on a laptop, the environment is what the deployment
+ * was actually configured with.
+ */
+const MAIL_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS',
+  'MAIL_FROM', 'MAIL_TO'];
+
+/* The three without which nothing can be sent. The port is not one of them —
+   it defaults to 587 — and naming it as missing would send somebody looking
+   for a setting they do not need. */
+const REQUIRED = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
+
+function readEnv(file, env) {
   const cfg = {};
   try {
     fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach(line => {
@@ -38,7 +62,16 @@ function readEnv(file) {
       const i = t.indexOf('=');
       if (i > 0) cfg[t.slice(0, i).trim()] = t.slice(i + 1).trim();
     });
-  } catch (e) { /* no file: outbox mode */ }
+  } catch (e) { /* no file: the environment, or outbox mode */ }
+
+  const from = env || process.env;
+  MAIL_KEYS.forEach(k => {
+    const v = String(from[k] == null ? '' : from[k]).trim();
+    /* An empty variable is not a setting. Hosting panels create blank ones by
+       accident, and a blank SMTP_HOST that overrode a working file would be a
+       nasty way to turn the mail off. */
+    if (v) cfg[k] = v;
+  });
   return cfg;
 }
 
@@ -177,8 +210,8 @@ function smtpSend({ host, port, user, pass, envelopeFrom, recipients, message, t
 
 /* ------------------------------------------------------------------ facade */
 
-function open({ dir, configFile, siteUrl }) {
-  const cfg = readEnv(configFile);
+function open({ dir, configFile, siteUrl, env }) {
+  const cfg = readEnv(configFile, env);
   const outbox = path.join(dir, 'outbox');
   fs.mkdirSync(outbox, { recursive: true });
 
@@ -241,7 +274,42 @@ function open({ dir, configFile, siteUrl }) {
     }
   }
 
-  return { mode, send, office: OFFICE, from: FROM, siteUrl, recent: () => sent.slice(-20).reverse() };
+  /*
+   * What the office can be told, without telling it the password.
+   *
+   * Nobody could answer "is our email working?" from inside the site — the
+   * only place it was ever said was one line in the server's start-up log,
+   * which means asking whoever has access to the host. That is not a question
+   * anybody should have to escalate.
+   */
+  function status() {
+    return {
+      mode,
+      /* Named, so "sending through which one?" has an answer. Never the user
+         or the password. */
+      host: usable ? cfg.SMTP_HOST : '',
+      port: usable ? Number(cfg.SMTP_PORT || 587) : 0,
+      /* Which of the three REQUIRED ones is missing, so a half-filled
+         configuration says so rather than silently staying in outbox mode.
+         SMTP_PORT is not one of them — it defaults to 587. */
+      missing: REQUIRED.filter(k => !cfg[k]),
+      from: FROM,
+      office: OFFICE,
+      outbox: path.relative(process.cwd(), outbox),
+      /* How many are sitting on disk undelivered — the number that says how
+         much went nowhere while nobody was looking. */
+      waiting: (() => {
+        try { return fs.readdirSync(outbox).filter(f => f.endsWith('.eml')).length; }
+        catch (e) { return 0; }
+      })(),
+      recent: sent.slice(-8).reverse(),
+    };
+  }
+
+  return {
+    mode, send, status, office: OFFICE, from: FROM, siteUrl,
+    recent: () => sent.slice(-20).reverse(),
+  };
 }
 
-module.exports = { open, buildMessage, quotedPrintable };
+module.exports = { open, readEnv, buildMessage, quotedPrintable, MAIL_KEYS, REQUIRED };

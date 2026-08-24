@@ -2692,6 +2692,63 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     return json(res, 200, Object.assign({ gstRate: MONEY.GST_RATE }, sum));
   }));
 
+  /* ------------------------------------------------------------------ mail
+   *
+   * "Is the email connected? SMTP I connected."
+   *
+   * There was no way to answer that from inside the site. The only place the
+   * mailer ever said what it was doing was one line in the server's start-up
+   * log, so the question had to go to whoever has access to the host — and
+   * until it was asked, every undelivered password reset and order receipt
+   * looked exactly like a delivered one. Mail is never allowed to fail a
+   * request, which is right, and which is why it has to be VISIBLE instead.
+   */
+  route('GET', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    return json(res, 200, mail.status ? mail.status()
+      : { mode: mail.mode, from: mail.from, office: mail.office, recent: [] });
+  }));
+
+  /* Proving it, rather than believing it.
+   *
+   * Sent to the administrator's own address and nowhere else: a test button
+   * that can be pointed at any address is a way to send mail from this domain
+   * to a stranger, and the reply says exactly what the mail server said back,
+   * which is the only useful thing when a password or a port is wrong. */
+  route('POST', '/api/staff/mail/test', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const when = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    const out = await mail.send({
+      to: s.email,
+      subject: 'Glovels test email — ' + when,
+      text: 'This is a test, sent from the Organisation screen by ' + s.name + '.\n\n'
+        + 'If it is in your inbox, the site can email your students: password '
+        + 'resets, order receipts and the sign-in details somebody needs after '
+        + 'they pay.\n\n' + siteUrl + '\n',
+    });
+    if (out.ok && out.mode === 'smtp') {
+      db.log(s.name, 'test email sent', s.email);
+      return json(res, 200, {
+        ok: true, mode: 'smtp', to: s.email,
+        said: 'Sent. If it is not in your inbox within a minute or two, look in '
+            + 'spam — and if it is in spam, the From address is the thing to fix.',
+      });
+    }
+    if (out.mode === 'outbox') {
+      return json(res, 200, {
+        ok: false, mode: 'outbox', to: s.email,
+        said: 'Nothing was sent. There are no mail settings, so the message was '
+            + 'written to a file on the server instead. Set SMTP_HOST, SMTP_USER '
+            + 'and SMTP_PASS in the hosting environment and redeploy.',
+      });
+    }
+    db.log(s.name, 'test email failed', out.error || 'no reason given');
+    return json(res, 200, {
+      ok: false, mode: 'smtp', to: s.email, error: out.error || '',
+      said: 'The mail server refused it: ' + (out.error || 'no reason given'),
+    });
+  }));
+
   /* Closing a file.
    *
    * Two endings, and they are not the same thing. `completed` means the work

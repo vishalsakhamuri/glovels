@@ -113,7 +113,11 @@ const SITE_URL = CFG.siteUrl || ('http://localhost:' + PORT);
    want on a laptop, and what one.com forces anyway since they only accept SMTP
    from sites hosted with them. */
 const MAIL_CFG = path.join(ROOT, 'mail.env');
-const mail = mailer.open({ dir: DATA, configFile: MAIL_CFG, siteUrl: SITE_URL });
+/* The file OR the environment — the environment wins. On a hosted deployment
+   there is no file, there is an Environment tab, and that is the right place
+   for a password: nothing on disk, nothing in a repository. */
+const mail = mailer.open({ dir: DATA, configFile: MAIL_CFG, siteUrl: SITE_URL,
+  env: process.env });
 const notify = notifier.open({
   mail,
   config: (() => {
@@ -784,8 +788,8 @@ ${configure.describe(CFG)}
 
   ${db.countStudents()} account(s), ${db.programmes().length} programmes across ${db.countries().length} destinations.
   Data is stored in ${where}.${importedCat ? '\n  Catalogue imported from catalogue.json (' + importedCat + ' programmes) — it lives in the database now.' : ''}
-  Email: ${mail.mode === 'smtp' ? 'sending through ' + (process.env.SMTP_HOST || 'mail.env')
-    : 'written to data/outbox/ as .eml files (no mail.env yet)'}.
+  Email: ${mail.mode === 'smtp' ? 'sending through ' + (mail.status().host || 'mail.env')
+    : 'NOT SENDING \u2014 written to data/outbox/ as .eml files. Set SMTP_HOST,\n         SMTP_USER and SMTP_PASS in the environment (or mail.env) and restart.\n         Organisation \u2192 Email says the same thing, with a test button.'}.
   WhatsApp: ${notify.whatsappReady ? 'configured' : 'off — the messenger works without it'}.
 ${newTiers ? `  ${newTiers} entry package(s) added and live — the machine delivers them.\n` : ''}${movedTiers ? `  ${movedTiers} entry tier(s) moved into Services, where a private-university\n  shortlist belongs.\n` : ''}${newServices ? `  ${newServices} new service(s) added to the catalogue.\n` : ''}${openedServices ? `  ${openedServices} of them are priced on request and are live \u2014 the button asks a\n  counsellor.\n` : ''}${filledPosts ? `  ${filledPosts} blog post(s) written into their drafts. Read them and press Publish in\n  Blog \u2192 the post.\n` : ''}${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
     student     ${seeded.email}      ${seeded.shortlisted} universities, 6 documents, 1 paid order

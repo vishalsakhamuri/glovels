@@ -77,7 +77,10 @@ file** you can double-click and read — the same message, addressed and encoded
 way, just not sent. That is the right default on a laptop, and one.com forces it anyway
 since they only accept SMTP from sites hosted with them.
 
-To switch it on, create `mail.env` next to `serve.js`:
+To switch it on, set these as environment variables where the site is hosted — on Render,
+the Environment tab — or, on a laptop, in a `mail.env` file next to `serve.js`. Where both
+exist the environment wins, and an empty variable counts as unset rather than as an
+instruction to stop sending:
 
 ```
 SMTP_HOST=mailout.one.com
@@ -91,6 +94,9 @@ MAIL_TO=info@glovels.com
 Both `info@glovels.com` and `website@glovels.com` must be real mailboxes on the domain —
 a From address that is not a real mailbox is what gets mail treated as spam. **`mail.env`
 holds a password: keep it out of git and off any shared drive.**
+
+Whether it is actually working is answered on **Organisation → Email**, with a button that
+sends a test to your own address and prints what the mail server said back.
 
 A copy of every message is written to the outbox even when sending succeeds, so nothing
 is lost if a mail server is down.

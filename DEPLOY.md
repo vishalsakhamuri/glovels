@@ -148,7 +148,14 @@ it says what to do.
 
 ### Email
 
-Create `mail.env` next to `serve.js`, or set the same names as environment variables:
+Set these as **environment variables** in your host's dashboard — on Render that is the
+Environment tab. A password belongs there and not in a file: nothing on disk, nothing in
+the repository. On a laptop you can put the same names in a `mail.env` file next to
+`serve.js` instead; where both exist, the environment wins.
+
+All three of `SMTP_HOST`, `SMTP_USER` and `SMTP_PASS` are required. With any one of them
+missing the server does not send at all — it writes each message to `data/outbox/` and
+carries on, because mail must never fail a student's sign-up.
 
 ```
 SMTP_HOST=mailout.one.com
@@ -164,6 +171,11 @@ Railway their server will refuse it. Use a transactional provider instead — Po
 Resend, Brevo, SES — keeping `info@glovels.com` as the address the mail comes *from* and
 adding the SPF and DKIM records that provider gives you. Without mail configured, every
 message is written to `data/outbox/` as a readable `.eml` file and nothing is lost.
+
+**Check it from the site, not from the logs.** Organisation → Email says whether mail is
+going out and through which server, and has a *Send me a test email* button that reports
+what the mail server actually said back. That is the fastest way to tell a wrong password
+from a blocked host.
 
 ---
 

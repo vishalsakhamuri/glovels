@@ -200,6 +200,24 @@ BODY = """
             are not counted here.</p>
         </div>
       </div>
+
+      <!-- Is the email actually going out?
+           There was no way to ask this from inside the site. The mailer said
+           what it was doing in one line of the server's start-up log and
+           nowhere else, and because mail is never allowed to fail a request,
+           an undelivered password reset looks exactly like a delivered one. -->
+      <div class="p-card" id="mailCard" style="margin-bottom:16px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:15px">Email</h3>
+          <span class="st" id="mailMode">checking…</span>
+          <span style="flex:1"></span>
+          <button type="button" class="btn btn-ghost btn-sm" id="mailTest">
+            Send me a test email</button>
+        </div>
+        <p id="mailSays" style="margin:10px 0 0;font-size:12.6px;line-height:1.65;
+          color:var(--navy-800)"></p>
+        <ul class="doclist" id="mailMore" style="margin:10px 0 0"></ul>
+      </div>
     </div>
 
     <!-- Every conversation, and how long it has been waiting.
@@ -512,6 +530,70 @@ document.addEventListener('click', e => {
  * were the same figure until a student could be marked as having left, which is
  * why that had to exist before this screen could tell the truth.
  */
+/* ----------------------------------------------------------------- email
+ *
+ * "Is the email connected? SMTP I connected."
+ *
+ * It could not be answered from inside the site, and that is the defect —
+ * bigger than any particular setting being wrong. Mail must never fail a
+ * request (a student's sign-up cannot break because a mail server was slow),
+ * so it fails silently by design, so it has to be VISIBLE by design too.
+ */
+async function paintMail() {
+  let m;
+  try { m = await api('GET', '/api/staff/mail'); }
+  catch (e) { return; }
+
+  const live = m.mode === 'smtp';
+  const chip = $('#mailMode');
+  chip.className = 'st ' + (live ? 'ok' : 'bad');
+  chip.style.textTransform = 'none';
+  chip.style.letterSpacing = '0';
+  chip.textContent = live ? 'Sending through ' + (m.host || 'your mail server')
+                          : 'NOT sending — written to a file instead';
+
+  $('#mailSays').innerHTML = live
+    ? 'Password resets, order receipts and the sign-in details a student needs '
+      + 'after they pay are going out from <b>' + esc(m.from) + '</b>.'
+    : '<b style="color:#b03a2e">Nothing is being emailed.</b> Every message is '
+      + 'written to a file on the server instead, and nobody receives it — '
+      + 'including the password a student needs to get into the account they '
+      + 'just paid for. '
+      + (m.missing && m.missing.length
+          ? 'Missing: <b>' + m.missing.map(esc).join(', ') + '</b>. '
+          : '')
+      + 'Set them in the hosting environment and redeploy.';
+
+  $('#mailMore').innerHTML = [
+    ['From address', m.from || '—'],
+    ['Office address', m.office || '—'],
+    live ? ['Server', (m.host || '') + (m.port ? ':' + m.port : '')] : null,
+    m.waiting ? ['Messages sitting undelivered on the server', m.waiting] : null,
+    ['Sent since the last restart', (m.recent || []).length],
+  ].filter(Boolean)
+    .map(([k, v]) => '<li><span>' + esc(k) + '</span><b style="margin-left:auto">'
+      + esc(String(v)) + '</b></li>').join('');
+}
+
+document.addEventListener('click', async e => {
+  if (!e.target.closest('#mailTest')) return;
+  const b = $('#mailTest');
+  b.disabled = true;
+  const was = b.textContent;
+  b.textContent = 'Sending…';
+  try {
+    const r = await api('POST', '/api/staff/mail/test', {});
+    /* Repaint FIRST, then say what happened — the other way round and the
+       repaint overwrites the answer the person just asked for. */
+    await paintMail();
+    $('#mailSays').innerHTML = (r.ok ? '' : '<b style="color:#b03a2e">')
+      + esc(r.said) + (r.ok ? '' : '</b>')
+      + (r.ok ? ' Sent to <b>' + esc(r.to) + '</b>.' : '');
+  } catch (err) { toast(err.message); }
+  b.disabled = false;
+  b.textContent = was;
+});
+
 let MONEY = null;
 
 async function paintMoney() {
@@ -1118,4 +1200,5 @@ document.addEventListener('click', async e => {
 
 loadConvs();
 paintMoney();
+paintMail();
 """
