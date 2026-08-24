@@ -2706,6 +2706,21 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     /* A provider answering over HTTPS has already told us why in its own
        words; the only thing worth adding is which half is wrong. */
     if (/^(Brevo|Resend) said/i.test(t)) {
+      /* Read this one BEFORE the key, because it arrives as a 401 and looks
+         exactly like a wrong key while being nothing of the sort. Brevo only
+         accepts API calls from IP addresses the account has approved, and a
+         site on a hosting platform calls from one it has never seen. Sending
+         somebody to re-copy a key that was right all along is the worst kind of
+         wrong answer: it is confident, specific, and it wastes an afternoon. */
+      if (/unrecognis|unrecogniz|ip address|authorised_ip|authorized_ip|allowlist|whitelist/i.test(t)) {
+        return said + 'The key is fine \u2014 the provider is refusing the IP address '
+          + 'this site calls from. Open the link in that message and add it, or '
+          + 'switch the IP restriction off. Worth knowing: a hosting platform '
+          + 'gives a service several outbound addresses and rotates between '
+          + 'them, so an allowlist means adding all of them and revisiting it '
+          + 'whenever they change \u2014 which is how mail breaks on a day nobody is '
+          + 'looking.';
+      }
       if (/\b401\b|\b403\b|unauthor|api.?key/i.test(t)) {
         return said + 'That is the API key being rejected. Copy it again from the '
           + 'provider \u2014 it is the key, not your account password, and it is '
@@ -2837,6 +2852,16 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       + (host || 'no mail server') + (host && port ? ':' + port : '')
       + (user ? ' as ' + user : '') + (pass ? ' (new password)' : ''));
     return json(res, 200, mail.status ? mail.status() : { ok: true });
+  }));
+
+  /* The same wording the panel shows, for a reason handed in rather than one
+     that just happened. It exists so the sentence a person reads at four in the
+     morning is testable — the classification is the whole value of it, and a
+     mistake in it sends somebody to fix the wrong thing. */
+  route('POST', '/api/staff/mail/explain', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req).catch(() => ({}));
+    return json(res, 200, { said: MAILFIX(String(b.error || '').slice(0, 2000)) });
   }));
 
   /* Proving it, rather than believing it.
