@@ -4500,6 +4500,32 @@ instant_services_do_not_promise_a_call()
 services_carry_matches()
 
 
+def the_cheapest_way_to_a_public_name():
+    """
+    "Public university matches unlock with a package — from ₹9,999" — it is
+    ₹4,999.
+
+    It became ₹4,999 the moment a cheaper package revealed public names, and
+    the sentence was a hand-typed number nobody would think to change. So the
+    figure is marked up for the content loader to compute — the cheapest
+    package on sale that unlocks any public name at all — and the shipped text
+    is corrected for the case where the loader never runs.
+
+    The FAQ answer beside it carried the same number and gets the same fix.
+    """
+    patch("index.html", "the teaser names the cheapest package that unlocks a name",
+          "<p>Public university matches unlock with a package \u2014 from \u20b99,999.</p>",
+          "<p>Public university matches unlock with a package \u2014 from "
+          "<b data-pkg-from>\u20b94,999</b>.</p>")
+
+    patch("index.html", "and so does the answer about what this costs",
+          "full end-to-end packages run from \u20b99,999 to \u20b974,999",
+          "packages run from \u20b94,999 to \u20b974,999")
+
+
+the_cheapest_way_to_a_public_name()
+
+
 def entry_confirmation():
     """
     The confirmation, for a package where nobody is going to ring.

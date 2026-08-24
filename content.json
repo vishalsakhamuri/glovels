@@ -374,7 +374,7 @@
   },
   {
    "q": "How much does a study abroad consultant cost in India?",
-   "a": "Individual services start at a few hundred rupees; full end-to-end packages run from ₹9,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.",
+   "a": "Individual services start at a few hundred rupees; packages run from ₹4,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.",
    "dummy": true
   },
   {
@@ -3332,11 +3332,11 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|p|d69b43b7|0",
+   "key": "page|p|e2f420c8|0",
    "section": "page",
    "kind": "text",
    "element": "p",
-   "original": "Public university matches unlock with a package — from ₹9,999.",
+   "original": "Public university matches unlock with a package — from",
    "note": "",
    "sectionLabel": ""
   },

@@ -1098,7 +1098,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 
 <div class="pkg-teaser" id="pkgTeaser">
   <div class="wrap">
-    <p>Public university matches unlock with a package — from ₹9,999.</p>
+    <p>Public university matches unlock with a package — from <b data-pkg-from>₹4,999</b>.</p>
     <button class="btn btn-navy" data-show-packages>See our packages <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
   </div>
 </div>
@@ -1301,7 +1301,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <div class="wrap" style="max-width:860px">
     <div class="sec-head"><span class="eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> Common questions</span>
       <h2>The four things everyone asks first</h2></div>
-    <details class="faq"><summary>Can I study abroad for free?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>In Germany, public universities charge no tuition — you pay only a semester contribution of roughly €150–350. You still need living costs and a blocked account, so &quot;free&quot; means free tuition, not a free degree.</p></details><details class="faq"><summary>What CGPA do I need for a public university in Germany?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>Most public universities look for 7.5 or above on 10. Between 7.0 and 7.5 a smaller set stays open, and below 7.0 a pathway or a private university is usually the realistic route.</p></details><details class="faq"><summary>How much does a study abroad consultant cost in India?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>Individual services start at a few hundred rupees; full end-to-end packages run from ₹9,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.</p></details><details class="faq"><summary>How long does a German student visa take?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.</p></details>
+    <details class="faq"><summary>Can I study abroad for free?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>In Germany, public universities charge no tuition — you pay only a semester contribution of roughly €150–350. You still need living costs and a blocked account, so &quot;free&quot; means free tuition, not a free degree.</p></details><details class="faq"><summary>What CGPA do I need for a public university in Germany?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>Most public universities look for 7.5 or above on 10. Between 7.0 and 7.5 a smaller set stays open, and below 7.0 a pathway or a private university is usually the realistic route.</p></details><details class="faq"><summary>How much does a study abroad consultant cost in India?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>Individual services start at a few hundred rupees; packages run from ₹4,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.</p></details><details class="faq"><summary>How long does a German student visa take?<span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></summary><p>Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.</p></details>
   </div>
 </section>
 
@@ -3397,7 +3397,7 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
 
 </script>
 <script>
-/* content_client ede3545d8f34 */
+/* content_client ff40f8153a36 */
 /* ---------------------------------------------------------------------------
    Glovels — live content. Edited in the operations site, applied here.
    --------------------------------------------------------------------------- */
@@ -3705,6 +3705,26 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
               acceptance: data.packages.acceptance || '',
             };
           }));
+      }
+
+      /* "Public university matches unlock with a package — from ₹9,999."
+         It was ₹4,999 the moment a cheaper package revealed public names, and
+         the sentence was a hand-typed number that nobody would think to
+         change. So it is computed: the cheapest package on sale that unlocks
+         any public university name at all. Wrong by construction is worse than
+         wrong by accident — this one cannot drift again. */
+      var sellable = (data.packages && data.packages.items || []).filter(function (p) {
+        return p.active !== false && p.sell && Number(p.unlocks) > 0
+          && Number(p.priceInr) > 0;
+      });
+      if (sellable.length) {
+        var from = Math.min.apply(null, sellable.map(function (p) {
+          return Number(p.priceInr);
+        }));
+        var said = '\u20b9' + from.toLocaleString('en-IN');
+        Array.prototype.forEach.call(
+          document.querySelectorAll('[data-pkg-from]'),
+          function (el) { el.textContent = said; });
       }
     } catch (e) { console.warn('prices', e); }
 

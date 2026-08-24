@@ -170,6 +170,9 @@ const newTiers = seed.addEntryTiers({ db, content: content.shipped() });
    deliver private ones. Runs before addMissingServices so they arrive visible
    rather than as hidden new arrivals. */
 const movedTiers = seed.moveEntryTiersToServices({ db, content: content.shipped() });
+/* And the sentence that said the cheapest way to a public university name was
+   ₹9,999. It is ₹4,999 — only rewritten where nobody has edited that answer. */
+seed.fixCheapestPackagePrice({ db });
 /* The ones priced "on request" go straight on: there is no price to get wrong
    and the only button on them starts a conversation, which is the point. */
 const openedServices = seed.openOnRequestServices({ db });

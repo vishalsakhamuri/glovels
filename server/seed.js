@@ -419,6 +419,37 @@ function moveEntryTiersToServices({ db, content }) {
   return moved;
 }
 
+/*
+ * "Full end-to-end packages run from ₹9,999 to ₹74,999."
+ *
+ * It is ₹4,999 now — that is the cheapest package that reveals a public
+ * university name. The sentence lives in the FAQ block, which the office can
+ * edit, so this only rewrites it when it is still word for word the shipped
+ * one. An office that has rewritten that answer keeps their version; a number
+ * nobody has touched gets corrected rather than quietly staying wrong.
+ */
+function fixCheapestPackagePrice({ db }) {
+  if (db.content('faqCheapestV2')) return 0;
+  db.setContent('faqCheapestV2', { done: true }, 'system');
+
+  const live = db.content('faq');
+  if (!Array.isArray(live)) return 0;
+
+  const WAS = 'full end-to-end packages run from \u20b99,999 to \u20b974,999';
+  const NOW = 'packages run from \u20b94,999 to \u20b974,999';
+  let n = 0;
+  const next = live.map(f => {
+    if (!f || typeof f.a !== 'string' || !f.a.includes(WAS)) return f;
+    n++;
+    return Object.assign({}, f, { a: f.a.replace(WAS, NOW) });
+  });
+  if (!n) return 0;
+  db.setContent('faq', next, 'system');
+  db.log('system', 'price in the FAQ corrected',
+    'the cheapest package that reveals a public university name is \u20b94,999');
+  return n;
+}
+
 function openOnRequestServices({ db }) {
   if (db.content('servicesOnRequestV1')) return 0;
   db.setContent('servicesOnRequestV1', { done: true }, 'system');
@@ -623,6 +654,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   addMissingServices,
   addEntryTiers,
   moveEntryTiersToServices,
+  fixCheapestPackagePrice,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

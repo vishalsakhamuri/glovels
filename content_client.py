@@ -326,6 +326,26 @@ SCRIPT = r"""
             };
           }));
       }
+
+      /* "Public university matches unlock with a package — from ₹9,999."
+         It was ₹4,999 the moment a cheaper package revealed public names, and
+         the sentence was a hand-typed number that nobody would think to
+         change. So it is computed: the cheapest package on sale that unlocks
+         any public university name at all. Wrong by construction is worse than
+         wrong by accident — this one cannot drift again. */
+      var sellable = (data.packages && data.packages.items || []).filter(function (p) {
+        return p.active !== false && p.sell && Number(p.unlocks) > 0
+          && Number(p.priceInr) > 0;
+      });
+      if (sellable.length) {
+        var from = Math.min.apply(null, sellable.map(function (p) {
+          return Number(p.priceInr);
+        }));
+        var said = '\u20b9' + from.toLocaleString('en-IN');
+        Array.prototype.forEach.call(
+          document.querySelectorAll('[data-pkg-from]'),
+          function (el) { el.textContent = said; });
+      }
     } catch (e) { console.warn('prices', e); }
 
     /* The a-la-carte services grid. Same story as the packages: frozen in the
