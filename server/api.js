@@ -407,21 +407,49 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * The biggest, not the latest: somebody who buys ₹999 and then ₹99 has not
    * asked for their ten universities to be taken away.
    */
+  /* The two entry tiers began life as packages and moved to Services one patch
+     later, at Vishal's instruction — the Packages section is headed "Public
+     University Admission" and both of them deliver PRIVATE universities. An
+     order placed in the day they existed as packages still has to be honoured,
+     and it names an id that no longer exists. */
+  const RETIRED = { 'pkg-first-three': 'first-three', 'pkg-shortlist-ten': 'shortlist-ten' };
+
   function matchEntitlement(student) {
-    const items = PACKAGE_ITEMS();
-    const byId = new Map(items.map(p => [p.id, p]));
+    const pkgs = PACKAGE_ITEMS();
+    const byPkg = new Map(pkgs.map(p => [p.id, p]));
+    const svcs = SERVICES_OF();
     let best = { count: 0, kind: 'any', package: '', reference: '' };
+
+    const consider = (owed, label, reference) => {
+      if (owed.count > best.count) {
+        best = { count: owed.count, kind: owed.kind, package: label, reference };
+      }
+    };
+
     db.ordersFor(student.id).forEach(o => {
       if (!EARNED.has(o.status)) return;
-      /* By id, and by name only for orders placed before the id was recorded. */
-      const p = byId.get(o.package_id)
-        || items.find(x => x.title && x.title === o.package)
+
+      /* The package half. By id, and by name only for orders placed before the
+         id was recorded. */
+      const p = byPkg.get(o.package_id)
+        || byPkg.get(RETIRED[o.package_id] || '')
+        || pkgs.find(x => x.title && x.title === o.package)
         || null;
-      if (!p) return;
-      const owed = MATCHES.promise(p);
-      if (owed.count > best.count) {
-        best = { count: owed.count, kind: owed.kind, package: p.title, reference: o.reference };
-      }
+      if (p) consider(MATCHES.promise(p), p.title, o.reference);
+
+      /* The services half — where ₹99 and ₹999 live now. An order can hold
+         several, and each one is its own promise. */
+      let items = [];
+      try { items = JSON.parse(o.items || '[]') || []; } catch (e) { items = []; }
+      items.forEach(it => {
+        const id = String(it.id || '');
+        const svc = svcs[id] || svcs[RETIRED[id] || ''] || null;
+        if (!svc || !svc.matches) return;
+        /* A service reveals no public names — the ones that do are packages —
+           so `unlocks` is 0 and the matches are private universities. */
+        consider(MATCHES.promise({ unlocks: 0, matches: svc.matches }),
+          svc.name || it.name || 'your matching service', o.reference);
+      });
     });
     return best;
   }

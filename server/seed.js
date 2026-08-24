@@ -355,6 +355,70 @@ function addEntryTiers({ db, content }) {
   return fresh.length;
 }
 
+/*
+ * The two that turned out to be services, not packages.
+ *
+ * ₹99 and ₹999 shipped in the packages block one deploy ago and are moving to
+ * the services grid, because the packages section is headed "Public University
+ * Admission" and both of them deliver PRIVATE universities. A card that reads
+ * "3 private universities" under a tab that says public is the section
+ * contradicting itself.
+ *
+ * On a database seeded before that decision they exist as packages, and no
+ * amount of shipping the right content.json moves them — the database is the
+ * truth for these blocks, deliberately, because the office edits them. So they
+ * are taken out of the packages block by id and added to the services block
+ * from the shipped list.
+ *
+ * The office's own edits are respected in the one way that matters here: if
+ * somebody has already deleted one of these from the packages list, removing it
+ * again is a no-op, and if they have already got the service, it is not added
+ * twice.
+ */
+const MOVED_TO_SERVICES = ['pkg-first-three', 'pkg-shortlist-ten'];
+
+function moveEntryTiersToServices({ db, content }) {
+  if (db.content('entryTiersAreServices')) return 0;
+  db.setContent('entryTiersAreServices', { done: true }, 'system');
+
+  let moved = 0;
+
+  /* Out of packages. */
+  const pkgs = db.content('packages');
+  if (pkgs && Array.isArray(pkgs.items)) {
+    const keep = pkgs.items.filter(x => !MOVED_TO_SERVICES.includes(String(x.id)));
+    if (keep.length !== pkgs.items.length) {
+      moved = pkgs.items.length - keep.length;
+      db.setContent('packages', Object.assign({}, pkgs, { items: keep }), 'system');
+    }
+  }
+
+  /* Into services, visible, at the front. A hidden ₹99 card is the same as no
+     ₹99 card — there is no price to get wrong and nobody to brief, which is
+     the whole point of a tier the machine delivers. */
+  const shipped = ((content && content.services && content.services.items) || [])
+    .filter(x => Number(x.matches || 0) > 0);
+  const live = db.content('services');
+  if (shipped.length && live && Array.isArray(live.items)) {
+    const have = new Set(live.items.map(x => String(x.id)));
+    const fresh = shipped.filter(x => !have.has(String(x.id)));
+    if (fresh.length) {
+      db.setContent('services',
+        Object.assign({}, live, { items: fresh.concat(live.items) }), 'system');
+      /* And record them as offered, so addMissingServices does not see them as
+         new arrivals and add them again, hidden. */
+      const offered = new Set(((db.content('servicesOffered') || {}).ids) || []);
+      fresh.forEach(x => offered.add(String(x.id)));
+      db.setContent('servicesOffered', { ids: [...offered] }, 'system');
+      db.log('system', 'entry tiers moved to services',
+        fresh.map(x => x.name + ' (₹' + x.priceInr + ')').join(', ')
+        + ' — out of the public-university packages, into the services grid');
+      return fresh.length;
+    }
+  }
+  return moved;
+}
+
 function openOnRequestServices({ db }) {
   if (db.content('servicesOnRequestV1')) return 0;
   db.setContent('servicesOnRequestV1', { done: true }, 'system');
@@ -558,6 +622,7 @@ function seedAdmin({ db, admin, hashPassword, newSalt, reset }) {
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   addMissingServices,
   addEntryTiers,
+  moveEntryTiersToServices,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

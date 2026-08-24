@@ -203,6 +203,15 @@ function cleanService(x, n) {
     priceInr: free ? 0 : Math.max(0, Math.min(9999999, Math.round(num(x.priceInr)))),
     priceLabel: str(x.priceLabel, 40),
     badge: /^(best|start|fast|value)$/.test(str(x.badge, 10)) ? str(x.badge, 10) : '',
+    /*
+     * How many universities the system shortlists for the buyer the moment
+     * they pay, with nobody doing it by hand.
+     *
+     * The same field the packages carry, for the same reason: at ₹99 there is
+     * no room for anybody's time. Zero on every service where a person does
+     * the work, which is all of them but two.
+     */
+    matches: Math.max(0, Math.min(50, Math.round(num(x.matches)))),
     ai: /^(sop|lor|cv)$/.test(str(x.ai, 10)) ? str(x.ai, 10) : '',
     ctaLabel: str(x.ctaLabel, 40),
     ctaHref: str(x.ctaHref, 200),
@@ -473,9 +482,11 @@ const SHEETS = {
     columns: [['id', 'id'], ['service', 'name'], ['description', 'desc'],
       ['how long it takes', 'meta'], ['price inr', 'priceInr'], ['free', 'isFree'],
       ['instead of a price', 'priceLabel'], ['categories', 'cats'], ['badge', 'badge'],
+      ['matched automatically', 'matches'],
       ['button label', 'ctaLabel'], ['button link', 'ctaHref'], ['on the site', 'active']],
     row: x => [x.id, x.name, x.desc, x.meta, x.isFree ? '' : x.priceInr,
       x.isFree ? 'yes' : 'no', x.priceLabel, x.cats.join(' '), x.badge,
+      x.matches || '',
       x.ctaLabel, x.ctaHref, x.active ? 'yes' : 'no'],
     key: 'id',
     label: x => x.name || x.id,
@@ -680,6 +691,10 @@ function makeContent({ db, file }) {
           isFree: !!x.isFree,
           levels,
           ai: x.ai || '',
+          /* Travels with the price because the order endpoint has to know what
+             this sale obliges us to deliver, and it must read that from OUR
+             copy rather than from anything the page reported. */
+          matches: Number(x.matches || 0),
         };
       });
       return out;

@@ -165,6 +165,11 @@ const newServices = seed.addMissingServices({ db, content: content.shipped() });
 /* The ₹99, ₹999 and ₹4,999 tiers on a deployment seeded before they existed.
    Visible immediately — a hidden ₹99 card is the same as no ₹99 card. */
 const newTiers = seed.addEntryTiers({ db, content: content.shipped() });
+/* ₹99 and ₹999 shipped as packages one deploy ago and belong in Services — the
+   packages section is headed "Public University Admission" and those two
+   deliver private ones. Runs before addMissingServices so they arrive visible
+   rather than as hidden new arrivals. */
+const movedTiers = seed.moveEntryTiersToServices({ db, content: content.shipped() });
 /* The ones priced "on request" go straight on: there is no price to get wrong
    and the only button on them starts a conversation, which is the point. */
 const openedServices = seed.openOnRequestServices({ db });
@@ -779,7 +784,7 @@ ${configure.describe(CFG)}
   Email: ${mail.mode === 'smtp' ? 'sending through ' + (process.env.SMTP_HOST || 'mail.env')
     : 'written to data/outbox/ as .eml files (no mail.env yet)'}.
   WhatsApp: ${notify.whatsappReady ? 'configured' : 'off — the messenger works without it'}.
-${newTiers ? `  ${newTiers} entry package(s) added and live — the machine delivers them.\n` : ''}${newServices ? `  ${newServices} new service(s) added to the catalogue.\n` : ''}${openedServices ? `  ${openedServices} of them are priced on request and are live \u2014 the button asks a\n  counsellor.\n` : ''}${filledPosts ? `  ${filledPosts} blog post(s) written into their drafts. Read them and press Publish in\n  Blog \u2192 the post.\n` : ''}${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
+${newTiers ? `  ${newTiers} entry package(s) added and live — the machine delivers them.\n` : ''}${movedTiers ? `  ${movedTiers} entry tier(s) moved into Services, where a private-university\n  shortlist belongs.\n` : ''}${newServices ? `  ${newServices} new service(s) added to the catalogue.\n` : ''}${openedServices ? `  ${openedServices} of them are priced on request and are live \u2014 the button asks a\n  counsellor.\n` : ''}${filledPosts ? `  ${filledPosts} blog post(s) written into their drafts. Read them and press Publish in\n  Blog \u2192 the post.\n` : ''}${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
     student     ${seeded.email}      ${seeded.shortlisted} universities, 6 documents, 1 paid order
     counsellor  ${seeded.counsellor}       answers the chat — open /counsellor
     admin       ${seeded.admin}        assigns counsellors — open /admin

@@ -4192,7 +4192,37 @@ a_product_not_a_premises()
 # always enforced, and sits directly under Roadmap's five at ₹9,999.
 # ---------------------------------------------------------------------------
 
-ENTRY_TIERS = [
+# The one that stays here: it names PUBLIC universities, which is what the tab
+# above these cards says the section is for.
+PACKAGE_TIERS = [
+    {
+        "id": "pkg-three-public", "tab": "study", "name": "Three Public Universities",
+        "desc": "Three public universities named in full, with what each one "
+                "costs — and half an hour with a counsellor to decide what to "
+                "do about them.",
+        "priceInr": 4999, "pricePrefix": "", "priceNote": "one-time",
+        "quoteNote": "", "ribbon": "Start here",
+        "features": [
+            "3 public universities named, with fees — including the free ones",
+            "Matched to your profile, not a list everybody gets",
+            "A 30-minute counselling call",
+            "An SOP outline and your document checklist",
+            "Adjusted against any bigger package within 30 days",
+        ],
+        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
+        "sellTier": "call", "buyable": True, "publicUnis": 3, "matches": 3,
+        "consent": "This gives you three public universities matched to your "
+                   "profile and named in full, a 30-minute counselling call, an "
+                   "SOP outline and a document checklist. It does not include "
+                   "applications, visa work or any admission.",
+        "cta": "Choose Three Universities",
+    },
+]
+
+# The two that shipped here one patch ago and are moving to Services. Kept
+# verbatim, because removing them from index.html means matching the exact text
+# that put them in.
+RETIRED_PACKAGES = [
     {
         "id": "pkg-first-three", "tab": "study", "name": "First Three",
         "desc": "Three universities you actually match, each with the fee, the "
@@ -4239,50 +4269,235 @@ ENTRY_TIERS = [
                    "counselling or any admission.",
         "cta": "Choose Shortlist of Ten",
     },
+]
+
+# And where they land instead. A service, not a package — bought on its own,
+# priced on its own, and delivered by the machine rather than by a counsellor.
+#
+# `matches` is what makes that true: it is the number of universities the
+# system shortlists the moment the payment lands. The order endpoint reads it
+# from the server's own copy of this list, never from the page.
+SERVICE_TIERS = [
     {
-        "id": "pkg-three-public", "tab": "study", "name": "Three Public Universities",
-        "desc": "Three public universities named in full, with what each one "
-                "costs — and half an hour with a counsellor to decide what to "
-                "do about them.",
-        "priceInr": 4999, "pricePrefix": "", "priceNote": "one-time",
-        "quoteNote": "", "ribbon": "",
-        "features": [
-            "3 public universities named, with fees — including the free ones",
-            "Matched to your profile, not a list everybody gets",
-            "A 30-minute counselling call",
-            "An SOP outline and your document checklist",
-            "Adjusted against any bigger package within 30 days",
-        ],
-        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
-        "sellTier": "call", "buyable": True, "publicUnis": 3, "matches": 3,
-        "consent": "This gives you three public universities matched to your "
-                   "profile and named in full, a 30-minute counselling call, an "
-                   "SOP outline and a document checklist. It does not include "
-                   "applications, visa work or any admission.",
-        "cta": "Choose Three Universities",
+        "id": "first-three",
+        "name": "First Three Universities",
+        "desc": "Three universities you actually match — each with the fee, the "
+                "intake and the application deadline, and why you match it. "
+                "Picked from your profile and in your account within the minute, "
+                "with nobody needing to ring you.",
+        "meta": "Instant · no call needed",
+        "cats": ["top", "consult"], "posTop": 1,
+        "priceInr": 99, "priceLabel": "", "isFree": False,
+        "levels": [], "badge": "value", "ai": "", "matches": 3,
+        "cta": None, "ctaGreen": False, "partners": [],
+    },
+    {
+        "id": "shortlist-ten",
+        "name": "Shortlist of Ten",
+        "desc": "Ten matched universities with fees, intakes and deadlines, plus "
+                "your profile assessed against them — where you are strong, "
+                "where you are short, and what would actually raise your "
+                "chances. Saved in your account and picked again whenever you "
+                "update your profile.",
+        "meta": "Instant · re-runs when your profile changes",
+        # Both at 1, so the two matching services sit together at the head of
+        # the row rather than interleaving with the writing services that share
+        # those positions. Ties keep the order of this list.
+        "cats": ["top", "consult"], "posTop": 1,
+        "priceInr": 999, "priceLabel": "", "isFree": False,
+        "levels": [], "badge": "", "ai": "", "matches": 10,
+        "cta": None, "ctaGreen": False, "partners": [],
     },
 ]
 
 
 def entry_tiers():
     """
-    Three cards in front of Roadmap, written into `const D`.
+    One card in front of Roadmap, written into `const D`.
+
+    It was three. Vishal, looking at the Packages section on the live site:
+    "lets have it in services instead here. as this packages are only for
+    public unis" — and then, exactly: "99 and 999", "4999 we leave in this
+    packages".
+
+    He is right, and the reason is on the tab above the cards. That section is
+    headed **Public University Admission**, and two of the three tiers deliver
+    PRIVATE universities. A card that says "3 private universities" under a tab
+    that says public is not a small inconsistency — it is the section
+    contradicting itself in the two words a visitor reads first.
+
+    So ₹4,999 stays here, because naming three public universities is exactly
+    what this section is for. ₹99 and ₹999 move to Services, where an
+    a-la-carte thing you buy on its own belongs. Nothing about how they work
+    changes: the same matcher delivers them, from the same profile.
 
     The packages block in index.html is one JSON line, and the page, the
-    checkout sheet and content.json are all driven from it — so adding a
-    package here adds it everywhere, including to the price list the ORDER
-    endpoint charges from. Which is the point: there is no second place where
-    ₹99 is written down and could disagree.
+    checkout sheet and content.json are all driven from it — so a package here
+    exists everywhere, including in the price list the ORDER endpoint charges
+    from. There is no second place where ₹4,999 is written down and could
+    disagree.
     """
     import json as _json
-    payload = ", ".join(_json.dumps(p, ensure_ascii=False) for p in ENTRY_TIERS)
-    patch("index.html", "three ways in under ₹5,000",
+    payload = ", ".join(_json.dumps(p, ensure_ascii=False) for p in PACKAGE_TIERS)
+    patch("index.html", "a public-university tier under the public-university tab",
           '"packages": [{"id": "pkg-roadmap"',
           '"packages": [' + payload + ', {"id": "pkg-roadmap"',
-          marker='"id": "pkg-first-three"')
+          marker='"id": "pkg-three-public"')
+
+
+def entry_tiers_leave_the_packages():
+    """
+    And take the two private ones back out again.
+
+    They shipped in the packages block one patch ago, so on this repository
+    they are in `index.html` already and a patch that simply stops adding them
+    would leave them there for ever. This removes the exact text that put them
+    in — regenerated from the same data, so it either matches completely or
+    does nothing at all.
+    """
+    import json as _json
+    gone = ", ".join(_json.dumps(p, ensure_ascii=False) for p in RETIRED_PACKAGES)
+    path = HERE / "index.html"
+    t = path.read_text(encoding="utf-8")
+    if gone + ", " not in t:
+        skipped.append("index.html: the two private tiers are out of the packages block")
+        return
+    write(path, t.replace(gone + ", ", "", 1))
+    applied.append("index.html: the two private tiers leave the packages block")
+
+
+def entry_services():
+    """
+    ₹99 and ₹999 as services, at the top of the grid.
+
+    `const SERVICES` is the same kind of block as the packages: one JSON line
+    that the grid, the services checkout sheet and content.json all read. A
+    service added here is on sale everywhere, at a price only the server knows.
+
+    The ₹99 one leads the Most Booked row — "also 99 we show as a best thing".
+    It carries "Best value" rather than "Bestseller", because nobody has bought
+    it yet and a bestseller badge on a service with no sales is the one kind of
+    claim this site does not make.
+    """
+    import json as _json
+    payload = ", ".join(_json.dumps(x, ensure_ascii=False) for x in SERVICE_TIERS)
+    patch("index.html", "the two matching services, at the front of the grid",
+          'const SERVICES = [',
+          'const SERVICES = [' + payload + ', ',
+          marker='"id": "first-three"')
 
 
 entry_tiers()
+entry_tiers_leave_the_packages()
+entry_services()
+
+
+PKG_ROW = """<style>/* GLOVELS-PKG-ROW */
+/* Four packages, on one screen.
+
+   "We need to show 4999, 9999, 49999, 74999 in one screen. On desktop."
+
+   The grid was three fixed columns, so the fourth card dropped onto a second
+   row and the price ladder — the thing this section exists to show — could only
+   be read by scrolling. auto-fit rather than repeat(4,1fr) because the Work and
+   Migration panes hold three cards, and a three-card pane in a four-column grid
+   is three cards and a hole. auto-fit makes exactly as many columns as there
+   are cards.
+
+   The rest of this is height. Four cards side by side are narrower, so the
+   type and the spacing come down with them — enough that all four and their
+   prices land inside a laptop screen rather than a desktop one. */
+@media (min-width:1001px){
+  .pgrid{grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:13px}
+  .pgrid .pcard .card-body{padding:15px 14px 12px}
+  .pgrid .pcard .phead{margin-bottom:6px}
+  .pgrid .pcard .phead h3{font-size:16.5px;line-height:1.25}
+  .pgrid .pcard .pico{width:30px;height:30px}
+  .pgrid .pcard .pdesc{font-size:12.4px;line-height:1.5;margin:6px 0 9px}
+  .pgrid .pcard .quota{padding:6px 9px;font-size:11.6px;margin-bottom:9px}
+  .pgrid .pcard .pfeat{gap:4px}
+  .pgrid .pcard .pfeat li{font-size:12.2px;line-height:1.38;gap:7px}
+  .pgrid .pcard .pfeat li .ico{width:14px;height:14px;margin-top:1px}
+  .pgrid .pcard .pledge{padding:8px 10px;font-size:11.2px;line-height:1.4;margin-top:9px}
+  .pgrid .pcard .pledge b{font-size:11.8px;line-height:1.35;margin-bottom:3px}
+  .pgrid .pcard .pledge small{margin-top:3px;font-size:10.6px}
+  .pgrid .pcard .partline{padding:6px 12px;font-size:11px;gap:7px}
+  .pgrid .pcard .card-foot{padding:10px 14px 12px;gap:8px}
+  .pgrid .pcard .card-foot .price{margin:0}
+  .pgrid .pcard .price{font-size:22px}
+  .pgrid .pcard .price .from{font-size:10px}
+  .pgrid .pcard .price .note{font-size:10.5px}
+  .pgrid .pcard .btn{padding:8px 11px;font-size:12.6px}
+}
+/* Between a small laptop and a phone, two up reads better than four
+   squeezed — a 238px card at 1024px is a column of broken words. */
+@media (min-width:1001px) and (max-width:1180px){
+  .pgrid{grid-template-columns:repeat(2,1fr)}
+}
+</style>"""
+
+
+def packages_on_one_screen():
+    """The four cards in one row, on the one page that has packages."""
+    patch("index.html", "four packages fit on one desktop screen",
+          "</head>", PKG_ROW + "</head>", marker="GLOVELS-PKG-ROW")
+
+
+packages_on_one_screen()
+
+
+def instant_services_do_not_promise_a_call():
+    """
+    A service the machine delivers does not say a counsellor will ring.
+
+    Every service confirmation ended with "a counsellor confirms the details,
+    within one working day". On ₹99 that is the promise this whole tier exists
+    to avoid making — and one nobody could afford to keep, since the sale is
+    worth about ₹82 after tax and the gateway.
+
+    So a basket that is nothing BUT matching services says what actually
+    happens: the universities are picked as soon as the profile is answered,
+    and nobody is going to phone. A basket that mixes one in with an SOP or a
+    visa file still gets the call, because those really do need a person.
+    """
+    patch(
+        "index.html",
+        "an instant service does not promise a phone call",
+        """    steps.push(['A counsellor confirms the details',
+        'Within one working day, Mon\u2013Sat 9:30\u201319:30 IST.']);""",
+        """    /* Matching is delivered by the system, so a basket of nothing but
+       matching has nobody to wait for. Anything else in it does. */
+    if (items.every(s => s.matches)) {
+      steps.push(['Nobody needs to ring you',
+        'Your universities are picked from your profile and appear in your dashboard. '
+        + 'Answer the six profile questions and they are there within the minute.']);
+    } else {
+      steps.push(['A counsellor confirms the details',
+        'Within one working day, Mon\u2013Sat 9:30\u201319:30 IST.']);
+    }""",
+        marker="if (items.every(s => s.matches)) {",
+    )
+
+
+def services_carry_matches():
+    """
+    The grid has to know which services the machine delivers.
+
+    `const SERVICES` carries `matches` now, but the array the page rebuilds from
+    the live content endpoint is assembled field by field — and a field that is
+    not copied there does not exist after the first repaint, which is when the
+    confirmation above would quietly go back to promising a phone call.
+    """
+    patch(
+        "index.html",
+        "the live services list keeps the matching count",
+        """              isFree: !!x.isFree, levels: x.levels || [], badge: x.badge || '',""",
+        """              isFree: !!x.isFree, levels: x.levels || [], badge: x.badge || '',
+              matches: Number(x.matches || 0),""")
+
+
+instant_services_do_not_promise_a_call()
+services_carry_matches()
 
 
 def entry_confirmation():

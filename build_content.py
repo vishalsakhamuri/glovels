@@ -269,6 +269,10 @@ def services(s):
             # Shown instead of a number — "from ₹X", "priced per case".
             "priceLabel": unesc(x.get("priceLabel")),
             "badge": x.get("badge") or "",
+            # How many universities the system shortlists for the buyer the
+            # moment they pay. Zero on every service where a person does the
+            # work, which is all of them but two.
+            "matches": int(x.get("matches") or 0),
             # Which AI writer the "Try the AI draft" button opens, if any.
             "ai": x.get("ai") or "",
             "ctaLabel": unesc(cta.get("label")) if cta else "",
