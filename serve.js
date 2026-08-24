@@ -138,8 +138,13 @@ const live = new Live();
    undo a counsellor's price change. */
 const content = makeContent({ db, file: path.join(ROOT, 'content.json') });
 
+/* A phone that buzzes when a student writes. The VAPID key pair is generated on
+   first run and kept on the disk beside the database — regenerating it drops
+   every registered device silently, so it must survive a redeploy. */
+const push = require('./server/push.js').open({ db, siteUrl: SITE_URL, log: console });
+
 const api = makeApi({ db, uploadDir: UPLOADS, catalogue: liveCatalogue, countries: liveCountries,
-  mail, notify, live, siteUrl: SITE_URL, config: CFG, content });
+  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content });
 
 /* First run only: a demo account with a shortlist, documents, applications and
    an order, so there is something to look at before anyone signs up. */
@@ -180,6 +185,9 @@ const TYPES = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8', '.pdf': 'application/pdf', '.xml': 'application/xml; charset=utf-8',
+  /* Served with the right type or the browser ignores it, and "Add to Home
+     Screen" quietly falls back to a bookmark with a screenshot for an icon. */
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
 function send(res, code, body, type, extra) {

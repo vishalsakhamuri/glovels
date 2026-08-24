@@ -372,6 +372,19 @@ function sqliteDriver(file) {
     * counsellor. Calling those 'student' would move somebody's real shortlist
     * into a list of idle interest. */
    "ALTER TABLE shortlist ADD COLUMN added_by TEXT NOT NULL DEFAULT 'office'",
+   /* One row per device a member of staff has allowed notifications on. The
+      endpoint is the identity — a browser that rotates a subscription gives us
+      a new endpoint, and the old one starts returning 410, which is how dead
+      ones get cleaned up. */
+   `CREATE TABLE IF NOT EXISTS push_subs (
+      endpoint    TEXT PRIMARY KEY,
+      staff_id    INTEGER NOT NULL,
+      p256dh      TEXT NOT NULL,
+      auth        TEXT NOT NULL,
+      agent       TEXT NOT NULL DEFAULT '',
+      created_at  TEXT NOT NULL
+    )`,
+   "CREATE INDEX IF NOT EXISTS idx_push_staff ON push_subs(staff_id)",
    "CREATE INDEX IF NOT EXISTS idx_lead_notes ON lead_notes(lead_id)",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
@@ -867,6 +880,24 @@ function open(dir) {
     assignCounsellor: (studentId, counsellorId) =>
       db.run('UPDATE students SET counsellor_id = ? WHERE id = ?',
         counsellorId === null ? null : Number(counsellorId), Number(studentId)),
+    /* ------------------------------------------------------ push subscriptions */
+
+    savePushSubscription(staffId, sub, agent) {
+      db.run(`INSERT OR REPLACE INTO push_subs
+        (endpoint, staff_id, p256dh, auth, agent, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        String(sub.endpoint), Number(staffId),
+        String((sub.keys || {}).p256dh || ''), String((sub.keys || {}).auth || ''),
+        String(agent || '').slice(0, 200), now());
+    },
+    pushSubscriptions: staffId => db.all(
+      'SELECT * FROM push_subs WHERE staff_id = ?', Number(staffId))
+      .map(r => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth },
+        agent: r.agent, at: r.created_at })),
+    deletePushSubscription: endpoint =>
+      db.run('DELETE FROM push_subs WHERE endpoint = ?', String(endpoint)),
+    countPushSubscriptions: staffId => db.all(
+      'SELECT COUNT(*) AS n FROM push_subs WHERE staff_id = ?', Number(staffId))[0].n,
+
     counsellors: () => db.all("SELECT * FROM students WHERE role = ?", 'counsellor'),
 
     /* Everybody who can carry a student: counsellors, and administrators.

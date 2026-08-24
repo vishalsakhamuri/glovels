@@ -190,7 +190,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, siteUrl, config, content }) {
+function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push, siteUrl, config, content }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -818,6 +818,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     const counsellor = s.counsellor_id ? db.studentById(s.counsellor_id) : null;
     const target = counsellor || db.staffByRole('admin')[0] || null;
     if (target && !live.isOnline('staff', target.id)) {
+      /* The phone first. It is the one that arrives in seconds and the one
+         somebody is actually looking at; the email is the record and the
+         fallback for a device that never registered. Tagged per student so a
+         run of five messages replaces itself rather than stacking. */
+      if (push) {
+        push.toStaff(target.id, {
+          title: s.name,
+          body: body || ('Sent a file: ' + file),
+          url: (siteUrl || '') + '/counsellor?student=' + s.id,
+          tag: 'student-' + s.id,
+        }).catch(() => {});
+      }
       notify.notify({
         to: target.email,
         phone: target.phone,
@@ -2362,6 +2374,51 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, site
     }
     db.assignCounsellor(Number(m[1]), cid);
     return json(res, 200, { ok: true });
+  }));
+
+  /* ------------------------------------------------------ push notifications
+   *
+   * A counsellor's phone, buzzing when a student writes. The screen already
+   * streams while it is open; this is for when it is not — which on a phone is
+   * almost always.
+   *
+   * Staff only, and each subscription is stored against the person who was
+   * signed in when the browser made it. There is deliberately no way to
+   * subscribe on somebody else's behalf: a notification carrying a student's
+   * words is not something one account may arrange to send to another.
+   */
+  route('GET', '/api/push/key', staffOnly(async (req, res) =>
+    json(res, 200, { key: push ? push.publicKey : null })));
+
+  route('POST', '/api/push/subscribe', staffOnly(async (req, res, s) => {
+    if (!push) return json(res, 503, { error: 'Notifications are not configured' });
+    const b = await readJson(req);
+    const sub = b && b.subscription;
+    if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
+      return json(res, 400, { error: 'That is not a push subscription' });
+    }
+    db.savePushSubscription(s.id, sub, req.headers['user-agent'] || '');
+    db.log(s.name, 'notifications on', 'a device was registered');
+    return json(res, 200, { ok: true, devices: db.countPushSubscriptions(s.id) });
+  }));
+
+  route('POST', '/api/push/unsubscribe', staffOnly(async (req, res, s) => {
+    const b = await readJson(req);
+    if (b && b.endpoint) db.deletePushSubscription(String(b.endpoint));
+    return json(res, 200, { ok: true, devices: db.countPushSubscriptions(s.id) });
+  }));
+
+  /* Prove it reaches the phone in the person's hand, from the person's own
+     hand. "Did you get that?" is the only test that matters here, and without
+     it the first real notification is also the first test. */
+  route('POST', '/api/push/test', staffOnly(async (req, res, s) => {
+    if (!push) return json(res, 503, { error: 'Notifications are not configured' });
+    const out = await push.toStaff(s.id, {
+      title: 'Glovels',
+      body: 'Notifications are working on this device.',
+      url: (siteUrl || '') + (s.role === 'admin' ? '/admin' : '/counsellor'),
+    });
+    return json(res, 200, out);
   }));
 
   route('GET', '/api/staff/overview', caseworkOnly(async (req, res, s) => {

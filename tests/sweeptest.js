@@ -82,6 +82,13 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   check('student · Documents still has its own upload cards',
     (await stu.p.$$('[data-drop]')).length >= 8);
 
+  /* An administrator's request context, needed below to ask what the WHOLE
+     roster looks like — the counsellor's own answer cannot prove it is a
+     subset of anything. */
+  const adm0 = await browser.newContext();
+  await adm0.request.post(BASE + '/api/auth/login',
+    { data: { email: 'admin@glovels.com', password: 'glovels123' } });
+
   /* =================================================== the counsellor ===== */
   const cou = await asPage('kavya@glovels.com', 1600, 1050);
   await cou.p.goto(BASE + '/counsellor', { waitUntil: 'domcontentloaded' });
@@ -103,6 +110,43 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
     /interested in/i.test(file) || (await cou.p.$$('#uniList li')).length >= 1);
   check('counsellor · they cannot reset a password',
     !(await cou.p.isVisible('#pwReset')));
+
+  /* A counsellor sees their own students and nobody else's — by the list they
+     are given AND by putting somebody else's id in the URL, because a screen
+     that omits a row is not a permission. */
+  const mine = await (await cou.c.request.get(BASE + '/api/staff/students')).json();
+  check('counsellor · the caseload is only students assigned to them',
+    (mine.students || []).every(x => x.counsellor && /Kavya/.test(x.counsellor.name)),
+    (mine.students || []).map(x => x.counsellor && x.counsellor.name).join(','));
+
+  const everyone = await (await adm0.request.get(BASE + '/api/staff/students')).json();
+  const notTheirs = (everyone.students || [])
+    .find(x => !x.counsellor || !/Kavya/.test(x.counsellor.name));
+  check('admin · sees every student, assigned or not',
+    (everyone.students || []).length >= (mine.students || []).length,
+    (everyone.students || []).length + ' vs ' + (mine.students || []).length);
+  /* Made rather than found. A seeded database has one student, all of them
+     Kavya's, so the branch that matters would never run — and a permission
+     check that never runs is not a check. */
+  const stranger = await (await adm0.request.post(BASE + '/api/staff/people', {
+    data: { name: 'Not Hers ' + Date.now(),
+      email: 'nothers' + Date.now() + '@example.com', role: 'student' },
+  })).json();
+
+  const peek = await cou.c.request.get(BASE + '/api/staff/student/' + stranger.person.id);
+  check('counsellor · cannot open a student who is not theirs, even by id',
+    peek.status() === 403, peek.status());
+  const peekDocs = await cou.c.request.get(
+    BASE + '/api/staff/student/' + stranger.person.id + '/document/passport/file');
+  check('counsellor · nor reach their documents that way',
+    peekDocs.status() === 403, peekDocs.status());
+  const after = await (await cou.c.request.get(BASE + '/api/staff/students')).json();
+  check('counsellor · and a student assigned to nobody is not on their list',
+    !(after.students || []).some(x => x.id === stranger.person.id),
+    (after.students || []).length + ' students');
+  check('admin · but is on the admin’s',
+    ((await (await adm0.request.get(BASE + '/api/staff/students')).json()).students || [])
+      .some(x => x.id === stranger.person.id));
 
   /* ======================================================== the admin ===== */
   const adm = await asPage('admin@glovels.com', 1700, 1060);

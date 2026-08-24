@@ -160,8 +160,16 @@ def staff_page(slug, title, h1, sub, body, script, role_note):
     # dashboard, and those rules live in the injected sheet rather than the
     # donor stylesheet — so they have to come along, or the header renders as
     # three words run together.
-    import portal_dashboard_css
-    extra = "<style>" + portal_dashboard_css.CSS + "</style>"
+    import portal_dashboard_css, portal_push
+    extra = ("<style>" + portal_dashboard_css.CSS + "</style>"
+             # The manifest is what makes "Add to Home Screen" produce an app
+             # rather than a bookmark, and on an iPhone it is the precondition
+             # for notifications working at all.
+             + '<link rel="manifest" href="/manifest.webmanifest">'
+             + '<meta name="theme-color" content="#0b1e31">'
+             + '<link rel="apple-touch-icon" href="/icon-192.png">'
+             + '<meta name="apple-mobile-web-app-capable" content="yes">'
+             + '<meta name="apple-mobile-web-app-title" content="Glovels">')
     return f"""{head_for(title).replace("</head>", extra + "</head>")}
 <body>
 {SPRITE}
@@ -180,6 +188,7 @@ def staff_page(slug, title, h1, sub, body, script, role_note):
     <div class="p-top">
       <div><h1>{h1}</h1><p>{sub}</p></div>
     </div>
+{portal_push.BAR}
 {body}
   </main>
 </div>
@@ -373,6 +382,7 @@ async function bell(me) {{
      that stops being looked at. */
   setInterval(load, 300000);
 }}
+{portal_push.SCRIPT}
 {script}
 
 /* Opened by double-clicking rather than through start.command. The portal has
