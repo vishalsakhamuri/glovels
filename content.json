@@ -19,9 +19,99 @@
   ],
   "items": [
    {
-    "id": "pkg-roadmap",
+    "id": "pkg-first-three",
     "tab": "study",
     "sort": 1,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "Start here",
+    "title": "First Three",
+    "desc": "Three universities you actually match, each with the fee, the intake and the deadline. Picked from your profile and in your account within the minute.",
+    "unlocks": 0,
+    "matches": 3,
+    "features": [
+     "3 private universities matched to your profile",
+     "Fee, intake and application deadline for each",
+     "Why you match, in plain words",
+     "Delivered to your account automatically — no call needed",
+     "Adjusted against any bigger package within 30 days"
+    ],
+    "sell": true,
+    "priceInr": 99,
+    "priceFrom": "From",
+    "priceNote": "one-time",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Start at ₹99",
+    "ctaHref": "",
+    "consent": "This is a matching service. It gives you a shortlist of universities that fit your profile, with fees and deadlines. It does not include applications, documents, counselling or any admission. The shortlist is delivered to your account as soon as your profile is complete.",
+    "pledge": null
+   },
+   {
+    "id": "pkg-shortlist-ten",
+    "tab": "study",
+    "sort": 2,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Shortlist of Ten",
+    "desc": "Ten matched universities, your profile assessed against them, and the gaps named — what would actually raise your chances, not what we would like to sell you.",
+    "unlocks": 0,
+    "matches": 10,
+    "features": [
+     "10 private universities matched to your profile",
+     "Fee, intake and application deadline for each",
+     "Your profile assessed — where you are strong, where you are short",
+     "Saved in your account, and it re-runs when you update your profile",
+     "Adjusted against any bigger package within 30 days"
+    ],
+    "sell": true,
+    "priceInr": 999,
+    "priceFrom": "From",
+    "priceNote": "one-time",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Shortlist of Ten",
+    "ctaHref": "",
+    "consent": "This is a matching and assessment service. It gives you a shortlist of universities that fit your profile, with fees and deadlines, and an assessment of your profile against them. It does not include applications, documents, counselling or any admission.",
+    "pledge": null
+   },
+   {
+    "id": "pkg-three-public",
+    "tab": "study",
+    "sort": 3,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Three Public Universities",
+    "desc": "Three public universities named in full, with what each one costs — and half an hour with a counsellor to decide what to do about them.",
+    "unlocks": 3,
+    "matches": 3,
+    "features": [
+     "3 public universities named, with fees — including the free ones",
+     "Matched to your profile, not a list everybody gets",
+     "A 30-minute counselling call",
+     "An SOP outline and your document checklist",
+     "Adjusted against any bigger package within 30 days"
+    ],
+    "sell": true,
+    "priceInr": 4999,
+    "priceFrom": "From",
+    "priceNote": "one-time",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Three Universities",
+    "ctaHref": "",
+    "consent": "This gives you three public universities matched to your profile and named in full, a 30-minute counselling call, an SOP outline and a document checklist. It does not include applications, visa work or any admission.",
+    "pledge": null
+   },
+   {
+    "id": "pkg-roadmap",
+    "tab": "study",
+    "sort": 4,
     "active": true,
     "featured": false,
     "primary": false,
@@ -29,6 +119,7 @@
     "title": "Roadmap",
     "desc": "The universities you qualify for, the cost of each, and the loan that covers it.",
     "unlocks": 5,
+    "matches": 0,
     "features": [
      "Shortlist of up to 5 universities",
      "2 counselling sessions",
@@ -53,7 +144,7 @@
    {
     "id": "pkg-offer",
     "tab": "study",
-    "sort": 2,
+    "sort": 5,
     "active": true,
     "featured": true,
     "primary": true,
@@ -61,6 +152,7 @@
     "title": "Offer Letter",
     "desc": "Ten applications, executed end to end: written to your strengths, filed on time, and followed up at every step.",
     "unlocks": 10,
+    "matches": 0,
     "features": [
      "Unlimited counselling",
      "Shortlist and applications to 10 universities",
@@ -92,7 +184,7 @@
    {
     "id": "pkg-boarding",
     "tab": "study",
-    "sort": 3,
+    "sort": 6,
     "active": true,
     "featured": false,
     "primary": false,
@@ -100,6 +192,7 @@
     "title": "Boarding Pass",
     "desc": "Admission secured, or your money back - your documents in order, your funds in place, your visa applied for, and your arrival arranged before you board.",
     "unlocks": 15,
+    "matches": 0,
     "features": [
      "Everything in Offer Letter",
      "Shortlist and applications to 15 universities, across 2 intakes",
@@ -131,7 +224,7 @@
    {
     "id": "work-opportunity",
     "tab": "work",
-    "sort": 4,
+    "sort": 7,
     "active": true,
     "featured": false,
     "primary": false,
@@ -139,6 +232,7 @@
     "title": "Job Opportunity Card",
     "desc": "Get to Germany and search on the ground.",
     "unlocks": 0,
+    "matches": 0,
     "features": [
      "Eligibility Check",
      "German-format CV & LinkedIn",
@@ -159,7 +253,7 @@
    {
     "id": "work-nursing",
     "tab": "work",
-    "sort": 5,
+    "sort": 8,
     "active": true,
     "featured": true,
     "primary": true,
@@ -167,6 +261,7 @@
     "title": "Nursing & Medical",
     "desc": "Recognition, licensing and work-visa support for nurses, doctors & pharma roles.",
     "unlocks": 0,
+    "matches": 0,
     "features": [
      "German language (A1-B2) roadmap",
      "Recognition (Anerkennung) support",
@@ -188,7 +283,7 @@
    {
     "id": "work-skilled",
     "tab": "work",
-    "sort": 6,
+    "sort": 9,
     "active": true,
     "featured": false,
     "primary": false,
@@ -196,6 +291,7 @@
     "title": "Skilled Professional",
     "desc": "EU Blue Card & Opportunity Card pathway.",
     "unlocks": 0,
+    "matches": 0,
     "features": [
      "Blue Card / Opportunity Card check",
      "Credential assessment",
@@ -216,7 +312,7 @@
    {
     "id": "mig-canada",
     "tab": "migrate",
-    "sort": 7,
+    "sort": 10,
     "active": true,
     "featured": false,
     "primary": false,
@@ -224,6 +320,7 @@
     "title": "Canada Express Entry",
     "desc": "PR pathway via the federal points system.",
     "unlocks": 0,
+    "matches": 0,
     "features": [
      "CRS score assessment",
      "ECA & IELTS planning",
@@ -244,7 +341,7 @@
    {
     "id": "mig-australia",
     "tab": "migrate",
-    "sort": 8,
+    "sort": 11,
     "active": true,
     "featured": false,
     "primary": false,
@@ -252,6 +349,7 @@
     "title": "Australia PR",
     "desc": "Skilled migration under points-tested visas.",
     "unlocks": 0,
+    "matches": 0,
     "features": [
      "Points & occupation-list check",
      "Skills assessment support",
@@ -273,7 +371,7 @@
    {
     "id": "mig-docs",
     "tab": "migrate",
-    "sort": 9,
+    "sort": 12,
     "active": true,
     "featured": false,
     "primary": false,
@@ -281,6 +379,7 @@
     "title": "Documentation Plus",
     "desc": "Attestation, translation & compliance done right.",
     "unlocks": 0,
+    "matches": 0,
     "features": [
      "Document attestation",
      "Certified translations",

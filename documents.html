@@ -648,6 +648,9 @@ async function boot(run) {
     order:   state.order,
   };
   SHORT_ROWS = state.shortlist;
+  /* What an entry package owes this student and whether it has arrived. Null
+     for everybody who has not bought one. */
+  MATCHED = state.matched || null;
   /* Every order this student has placed, with what was in each. The Services
      screen needs it to mark what they have already bought; nothing else reads
      it, and it costs nothing — /api/state already carried it. */
@@ -664,7 +667,7 @@ async function boot(run) {
   run();
 }
 
-let USER = {}, ORDER = {}, HANDOVER_KEYS = [], SHORT_ROWS = [], COUNSELLOR = null, ORDERS = [];
+let USER = {}, ORDER = {}, HANDOVER_KEYS = [], SHORT_ROWS = [], COUNSELLOR = null, ORDERS = [], MATCHED = null;
 /* Catalogue, joined at build time from the sales site's programme table and
    unlocked.json. Inlined rather than fetched so the screen can paint before the
    first API round trip finishes. The server holds the same list and is the one

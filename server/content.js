@@ -81,6 +81,16 @@ function cleanPackage(p, n) {
     title: str(p.title, 60),
     desc: str(p.desc, 400),
     unlocks: Math.max(0, Math.min(999, Math.round(num(p.unlocks)))),
+    /*
+     * How many universities the machine picks for the student the moment they
+     * pay, with no counsellor involved.
+     *
+     * This is what makes a ₹99 tier possible at all: ninety-nine rupees is ₹82
+     * after tax and the gateway, so ten minutes of anybody's time turns the
+     * sale into a loss. Zero — the default, and right for every package where a
+     * counsellor agrees the shortlist on a call.
+     */
+    matches: Math.max(0, Math.min(50, Math.round(num(p.matches)))),
     features: list(p.features),
     sell,
     /* Whole rupees, and capped. A stray zero on a price is the difference
@@ -427,13 +437,15 @@ const SHEETS = {
     columns: [
       ['id', 'id'], ['tab', 'tab'], ['title', 'title'], ['description', 'desc'],
       ['price inr', 'priceInr'], ['price note', 'priceNote'],
-      ['universities revealed', 'unlocks'], ['sold online', 'sell'],
+      ['universities revealed', 'unlocks'], ['matched automatically', 'matches'],
+      ['sold online', 'sell'],
       ['ribbon', 'ribbon'], ['highlighted', 'featured'],
       ['features (one per line)', 'features'],
       ['button label', 'cta'], ['button link', 'ctaHref'], ['on the site', 'active'],
     ],
     row: p => [p.id, p.tab, p.title, p.desc, p.sell ? p.priceInr : '', p.priceNote,
-      p.unlocks || '', p.sell ? 'yes' : 'no', p.ribbon, p.featured ? 'yes' : 'no',
+      p.unlocks || '', p.matches || '', p.sell ? 'yes' : 'no', p.ribbon,
+      p.featured ? 'yes' : 'no',
       p.features.join('\n'), p.cta, p.ctaHref, p.active ? 'yes' : 'no'],
     key: 'id',
     label: p => (p.title || p.id),

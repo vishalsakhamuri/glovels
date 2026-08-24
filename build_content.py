@@ -188,6 +188,11 @@ def packages(s):
             # What the package is worth to a student, and what the server hands
             # out: the number of gated public-university names it unlocks.
             "unlocks": int(p.get("publicUnis") or 0),
+            # How many universities the system shortlists for the student the
+            # moment they pay, with no counsellor in the loop. Zero for every
+            # package where a counsellor agrees the shortlist on a call — and
+            # the reason a ₹99 tier can exist at all.
+            "matches": int(p.get("matches") or 0),
             "features": [unesc(f) for f in (p.get("features") or [])],
             "sell": sell,
             "priceInr": int(p.get("priceInr") or 0) if sell else 0,

@@ -497,7 +497,7 @@ patch("login.html", "forgot password asks the server",
 
 patch("login.html", "the reset link opens a set-a-password form",
       "  const box = document.getElementById('forgotBox') || (function(){\n    const d = document.createElement('div');\n    d.id = 'forgotBox';\n    d.style.cssText = 'margin:12px 0 4px;padding:13px 15px;border-radius:12px;font-size:13px;' +\n      'line-height:1.55;background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409';\n    const form = document.getElementById('authForm');\n    form.parentNode.insertBefore(d, form.nextSibling);\n    return d;\n  })();\n  box.innerHTML = who\n    ? 'A reset link would be sent to <b>' + who.replace(/[<>&]/g, '') + '</b>. Password reset is ' +\n      'not wired up in this build \\u2014 message your counsellor on WhatsApp and they will reset it for you: ' +\n      '<a href=\"https://wa.me/917093314089\" target=\"_blank\" rel=\"noopener\" ' +\n      'style=\"font-weight:700;color:#5b4409;text-decoration:underline\">+91 70933 14089</a>.'\n    : 'Enter your email address above first, and we will tell you where the reset link goes.';\n}",
-      "  const box = document.getElementById('forgotBox') || (function(){\n    const d = document.createElement('div');\n    d.id = 'forgotBox';\n    d.style.cssText = 'margin:12px 0 4px;padding:13px 15px;border-radius:12px;font-size:13px;' +\n      'line-height:1.55;background:#eaf6ee;border:1px solid #bfe0cc;color:#14603a';\n    const form = document.getElementById('authForm');\n    form.parentNode.insertBefore(d, form.nextSibling);\n    return d;\n  })();\n  box.textContent = message;\n}\n\n/* Arriving from the emailed link: /login?token=... becomes a set-a-new-password\n   form. A separate page would be a second copy of this one's markup to keep in\n   step, for one field. */\n(function () {\n  const token = new URLSearchParams(location.search).get('token');\n  if (!token) return;\n  const card = document.querySelector('.auth-card') || document.body;\n  card.innerHTML =\n    '<h2 id=\"form-title\">Set a new password</h2>' +\n    '<p class=\"sub\">Choose something you have not used elsewhere. Every device signed in to this ' +\n    'account will be signed out.</p>' +\n    '<form id=\"resetForm\" novalidate>' +\n      '<div class=\"field\"><label for=\"rPass\">New password</label>' +\n        '<input type=\"password\" id=\"rPass\" autocomplete=\"new-password\" placeholder=\"At least 8 characters\">' +\n        '<span class=\"err\">At least 8 characters</span></div>' +\n      '<div class=\"field\"><label for=\"rPass2\">Repeat it</label>' +\n        '<input type=\"password\" id=\"rPass2\" autocomplete=\"new-password\">' +\n        '<span class=\"err\">The two do not match</span></div>' +\n      '<button type=\"submit\" class=\"btn-primary\" id=\"rGo\">Save and sign in \\u2192</button>' +\n    '</form>' +\n    '<p id=\"rMsg\" role=\"alert\" style=\"display:none;margin:12px 0 0;padding:11px 13px;border-radius:10px;' +\n      'font:600 13px/1.5 system-ui,sans-serif;background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118\"></p>' +\n    '<p class=\"backlink\"><a href=\"login.html\">&larr; Back to sign in</a></p>';\n\n  const say = m => {\n    const el = document.getElementById('rMsg');\n    el.textContent = m; el.style.display = m ? 'block' : 'none';\n  };\n\n  document.getElementById('resetForm').addEventListener('submit', async e => {\n    e.preventDefault();\n    const a = document.getElementById('rPass').value;\n    const b = document.getElementById('rPass2').value;\n    document.getElementById('rPass').closest('.field').classList.toggle('bad', a.length < 8);\n    document.getElementById('rPass2').closest('.field').classList.toggle('bad', a !== b);\n    if (a.length < 8 || a !== b) return;\n\n    const btn = document.getElementById('rGo');\n    btn.disabled = true; btn.textContent = 'Saving\\u2026';\n    say('');\n    try {\n      const r = await fetch('/api/auth/reset', {\n        method: 'POST', credentials: 'same-origin',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({ token, password: a })\n      });\n      const d = await r.json().catch(() => ({}));\n      if (!r.ok) throw new Error(d.error || 'That did not work.');\n      location.href = d.user && d.user.role === 'admin' ? 'admin.html'\n        : d.user && d.user.role === 'counsellor' ? 'counsellor.html' : 'dashboard.html';\n    } catch (err) {\n      btn.disabled = false; btn.textContent = 'Save and sign in \\u2192';\n      say(err.message);\n    }\n  });\n})();",
+      "  const box = document.getElementById('forgotBox') || (function(){\n    const d = document.createElement('div');\n    d.id = 'forgotBox';\n    d.style.cssText = 'margin:12px 0 4px;padding:13px 15px;border-radius:12px;font-size:13px;' +\n      'line-height:1.55;background:#eaf6ee;border:1px solid #bfe0cc;color:#14603a';\n    const form = document.getElementById('authForm');\n    form.parentNode.insertBefore(d, form.nextSibling);\n    return d;\n  })();\n  box.textContent = message;\n}\n\n/* Arriving from the emailed link: /login?token=... becomes a set-a-new-password\n   form. A separate page would be a second copy of this one's markup to keep in\n   step, for one field. */\n(function () {\n  const token = new URLSearchParams(location.search).get('token');\n  if (!token) return;\n  const card = document.querySelector('.form-card') || document.querySelector('.auth-card') || document.body;\n  card.innerHTML =\n    '<h2 id=\"form-title\">Set a new password</h2>' +\n    '<p class=\"sub\">Choose something you have not used elsewhere. Every device signed in to this ' +\n    'account will be signed out.</p>' +\n    '<form id=\"resetForm\" novalidate>' +\n      '<div class=\"field\"><label for=\"rPass\">New password</label>' +\n        '<input type=\"password\" id=\"rPass\" autocomplete=\"new-password\" placeholder=\"At least 8 characters\">' +\n        '<span class=\"err\">At least 8 characters</span></div>' +\n      '<div class=\"field\"><label for=\"rPass2\">Repeat it</label>' +\n        '<input type=\"password\" id=\"rPass2\" autocomplete=\"new-password\">' +\n        '<span class=\"err\">The two do not match</span></div>' +\n      '<button type=\"submit\" class=\"btn-primary\" id=\"rGo\">Save and sign in \\u2192</button>' +\n    '</form>' +\n    '<p id=\"rMsg\" role=\"alert\" style=\"display:none;margin:12px 0 0;padding:11px 13px;border-radius:10px;' +\n      'font:600 13px/1.5 system-ui,sans-serif;background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118\"></p>' +\n    '<p class=\"backlink\"><a href=\"login.html\">&larr; Back to sign in</a></p>';\n\n  const say = m => {\n    const el = document.getElementById('rMsg');\n    el.textContent = m; el.style.display = m ? 'block' : 'none';\n  };\n\n  document.getElementById('resetForm').addEventListener('submit', async e => {\n    e.preventDefault();\n    const a = document.getElementById('rPass').value;\n    const b = document.getElementById('rPass2').value;\n    document.getElementById('rPass').closest('.field').classList.toggle('bad', a.length < 8);\n    document.getElementById('rPass2').closest('.field').classList.toggle('bad', a !== b);\n    if (a.length < 8 || a !== b) return;\n\n    const btn = document.getElementById('rGo');\n    btn.disabled = true; btn.textContent = 'Saving\\u2026';\n    say('');\n    try {\n      const r = await fetch('/api/auth/reset', {\n        method: 'POST', credentials: 'same-origin',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({ token, password: a })\n      });\n      const d = await r.json().catch(() => ({}));\n      if (!r.ok) throw new Error(d.error || 'That did not work.');\n      location.href = d.user && d.user.role === 'admin' ? 'admin.html'\n        : d.user && d.user.role === 'counsellor' ? 'counsellor.html' : 'dashboard.html';\n    } catch (err) {\n      btn.disabled = false; btn.textContent = 'Save and sign in \\u2192';\n      say(err.message);\n    }\n  });\n})();",
       # A later patch rewrites the role routing inside the form this inserts,
       # so `new` stops matching and the whole reset form gets pasted a second
       # time. The heading is the one line nothing else touches.
@@ -2907,7 +2907,7 @@ patch(
   /* Signed in, but on a password somebody else chose. The server refuses every
      other endpoint until this is done, so there is nothing else to offer. */
   if (q.get('change') === '1') {
-    const card = document.querySelector('.auth-card') || document.body;
+    const card = document.querySelector('.form-card') || document.querySelector('.auth-card') || document.body;
     const next = q.get('next') || 'dashboard.html';
     card.innerHTML =
       '<h2 id="form-title">Choose your own password</h2>' +
@@ -4154,6 +4154,253 @@ def a_product_not_a_premises():
 
 
 a_product_not_a_premises()
+
+
+# ---------------------------------------------------------------------------
+# Ninety-nine rupees.
+#
+# "4999 for 3 unis and 999 for shortlist for 10 private unis and 99 for 3 unis
+#  in private — what do u think this will do… we will have these 3 options as
+#  well so that we dont miss out anyone… 99 to 75 k we have different packages
+#  and ranges."
+#
+# What it does is not revenue. ₹99 inclusive is ₹84 after GST and about ₹82
+# after the gateway; a thousand of them is one mid package. What it buys is a
+# PAID lead — a real number, a real address, a card that worked, and somebody
+# who has already crossed from browsing to buying. That is worth far more than
+# a free enquiry form, and it is the only reason to do it.
+#
+# Which sets three constraints, and all three are visible in what is written
+# below:
+#
+#   1. NOBODY TOUCHES IT. Ten minutes of a counsellor's time turns a ₹99 sale
+#      into a loss, so the shortlist is picked and delivered by the machine
+#      (server/matches.js) in the minute after payment.
+#
+#   2. THE TIERS DIFFER IN KIND, NOT IN COUNT. "3 universities" against "10
+#      universities" makes the ₹99 eat the ₹999 — everybody takes the cheap one
+#      and then asks for more. So ₹99 is a fit report, ₹999 adds the profile
+#      assessed and the gaps named, and ₹4,999 is the first tier where a person
+#      spends time.
+#
+#   3. IT ANCHORS ₹75,000 AGAINST ₹99, so the difference has to be on the card:
+#      the cheap tiers tell you WHERE to apply, the packages DO the applying.
+#
+# The ₹99 and ₹999 tiers match private universities, whose names were never
+# gated — what is sold there is the shortlisting work, not the names. ₹4,999
+# reveals three PUBLIC university names, which is the entitlement the finder has
+# always enforced, and sits directly under Roadmap's five at ₹9,999.
+# ---------------------------------------------------------------------------
+
+ENTRY_TIERS = [
+    {
+        "id": "pkg-first-three", "tab": "study", "name": "First Three",
+        "desc": "Three universities you actually match, each with the fee, the "
+                "intake and the deadline. Picked from your profile and in your "
+                "account within the minute.",
+        "priceInr": 99, "pricePrefix": "", "priceNote": "one-time",
+        "quoteNote": "", "ribbon": "Start here",
+        "features": [
+            "3 private universities matched to your profile",
+            "Fee, intake and application deadline for each",
+            "Why you match, in plain words",
+            "Delivered to your account automatically — no call needed",
+            "Adjusted against any bigger package within 30 days",
+        ],
+        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
+        "sellTier": "instant", "buyable": True, "publicUnis": 0, "matches": 3,
+        "consent": "This is a matching service. It gives you a shortlist of "
+                   "universities that fit your profile, with fees and deadlines. "
+                   "It does not include applications, documents, counselling or "
+                   "any admission. The shortlist is delivered to your account as "
+                   "soon as your profile is complete.",
+        "cta": "Start at ₹99",
+    },
+    {
+        "id": "pkg-shortlist-ten", "tab": "study", "name": "Shortlist of Ten",
+        "desc": "Ten matched universities, your profile assessed against them, "
+                "and the gaps named — what would actually raise your chances, "
+                "not what we would like to sell you.",
+        "priceInr": 999, "pricePrefix": "", "priceNote": "one-time",
+        "quoteNote": "", "ribbon": "",
+        "features": [
+            "10 private universities matched to your profile",
+            "Fee, intake and application deadline for each",
+            "Your profile assessed — where you are strong, where you are short",
+            "Saved in your account, and it re-runs when you update your profile",
+            "Adjusted against any bigger package within 30 days",
+        ],
+        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
+        "sellTier": "instant", "buyable": True, "publicUnis": 0, "matches": 10,
+        "consent": "This is a matching and assessment service. It gives you a "
+                   "shortlist of universities that fit your profile, with fees "
+                   "and deadlines, and an assessment of your profile against "
+                   "them. It does not include applications, documents, "
+                   "counselling or any admission.",
+        "cta": "Choose Shortlist of Ten",
+    },
+    {
+        "id": "pkg-three-public", "tab": "study", "name": "Three Public Universities",
+        "desc": "Three public universities named in full, with what each one "
+                "costs — and half an hour with a counsellor to decide what to "
+                "do about them.",
+        "priceInr": 4999, "pricePrefix": "", "priceNote": "one-time",
+        "quoteNote": "", "ribbon": "",
+        "features": [
+            "3 public universities named, with fees — including the free ones",
+            "Matched to your profile, not a list everybody gets",
+            "A 30-minute counselling call",
+            "An SOP outline and your document checklist",
+            "Adjusted against any bigger package within 30 days",
+        ],
+        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
+        "sellTier": "call", "buyable": True, "publicUnis": 3, "matches": 3,
+        "consent": "This gives you three public universities matched to your "
+                   "profile and named in full, a 30-minute counselling call, an "
+                   "SOP outline and a document checklist. It does not include "
+                   "applications, visa work or any admission.",
+        "cta": "Choose Three Universities",
+    },
+]
+
+
+def entry_tiers():
+    """
+    Three cards in front of Roadmap, written into `const D`.
+
+    The packages block in index.html is one JSON line, and the page, the
+    checkout sheet and content.json are all driven from it — so adding a
+    package here adds it everywhere, including to the price list the ORDER
+    endpoint charges from. Which is the point: there is no second place where
+    ₹99 is written down and could disagree.
+    """
+    import json as _json
+    payload = ", ".join(_json.dumps(p, ensure_ascii=False) for p in ENTRY_TIERS)
+    patch("index.html", "three ways in under ₹5,000",
+          '"packages": [{"id": "pkg-roadmap"',
+          '"packages": [' + payload + ', {"id": "pkg-roadmap"',
+          marker='"id": "pkg-first-three"')
+
+
+entry_tiers()
+
+
+def entry_confirmation():
+    """
+    The confirmation, for a package where nobody is going to ring.
+
+    Every order confirmed with "a counsellor calls you within one working day".
+    On a ₹99 order that sentence is three things at once: untrue, expensive if
+    anybody acts on it, and the exact experience Vishal is trying to remove —
+    "we donot need students to visit office or counsellors have to convince
+    students. it should be straight forward and easy to select the service and
+    move forward."
+
+    So a package the machine delivers says what actually happens: the
+    universities are already there, and the only thing left is six questions if
+    they have not answered them.
+    """
+    patch("index.html", "an instant package does not promise a phone call",
+          """    + '<li><b>A counsellor calls you</b><span>Within one working day, Mon–Sat '
+      + '9:30–19:30 IST, to agree your shortlist together. That agreed shortlist is '
+      + 'what the guarantee applies to.</span></li>'""",
+          """    + (buying.matches
+      ? '<li><b>Nobody needs to ring you</b><span>This is picked and delivered by '
+        + 'the system. If you want a counsellor on it, every bigger package includes '
+        + 'one \\u2014 and what you paid today comes off the price within 30 days.'
+        + '</span></li>'
+      : '<li><b>A counsellor calls you</b><span>Within one working day, Mon–Sat '
+      + '9:30–19:30 IST, to agree your shortlist together. That agreed shortlist is '
+      + 'what the guarantee applies to.</span></li>')""",
+          marker="'<li><b>Nobody needs to ring you</b><span>")
+
+
+entry_confirmation()
+
+
+def no_password_they_never_had():
+    """
+    Do not ask somebody for a password that was never sent to them yet.
+
+    An account made at checkout is signed in on the browser that just paid, and
+    every endpoint is closed until it chooses its own password. The screen that
+    asks for that opened with "the password you were given" — which a person who
+    paid ₹99 ninety seconds ago has not read, because the email is still in
+    flight. The universities they just bought sit behind a form asking for
+    something they have never seen.
+
+    The server no longer requires it on an account in that state (proving a
+    password to a session that already holds the account proves nothing), so
+    the field is asked for only when it is genuinely the proof: somebody who
+    reached this screen on an ordinary account.
+    """
+    patch(
+        "login.html",
+        "do not demand a password that has not arrived yet",
+        """    card.innerHTML =
+      '<h2 id="form-title">Choose your own password</h2>' +
+      '<p class="sub">The one you signed in with was made for you and sent by email, so it ' +
+      'is not private. Nothing else opens until this is done.</p>' +
+      '<form id="changeForm" novalidate>' +
+        '<div class="field"><label for="cNow">The password you were given</label>' +
+          '<input type="password" id="cNow" autocomplete="current-password"></div>' +""",
+        """    /* Whether the account is on a password somebody else chose. On those the
+       old one is not asked for — it is not proof of anything, and the person
+       most likely to be here has never seen it. */
+    let firstTime = false;
+    try {
+      const who = await (await fetch('/api/auth/me', { credentials: 'same-origin' })).json();
+      firstTime = !!who.mustChange;
+    } catch (e) { /* ask for it, which is the stricter of the two */ }
+
+    card.innerHTML =
+      '<h2 id="form-title">Choose your own password</h2>' +
+      '<p class="sub">' + (firstTime
+        ? 'Your account is ready \\u2014 pick a password and everything opens. This takes ' +
+          'one moment and you will not be asked again.'
+        : 'The one you signed in with was made for you and sent by email, so it ' +
+          'is not private. Nothing else opens until this is done.') + '</p>' +
+      '<form id="changeForm" novalidate>' +
+        (firstTime ? '' :
+        '<div class="field"><label for="cNow">The password you were given</label>' +
+          '<input type="password" id="cNow" autocomplete="current-password"></div>') +""",
+        marker="let firstTime = false;",
+    )
+
+    # The handler reads a field that may no longer be on the screen.
+    patch(
+        "login.html",
+        "and does not read a field that is not there",
+        """      const now = document.getElementById('cNow').value;""",
+        """      const nowEl = document.getElementById('cNow');
+      const now = nowEl ? nowEl.value : '';""")
+
+    # `await` inside the block means the block has to be in an async function.
+    patch(
+        "login.html",
+        "the change screen can ask the server who it is",
+        """  if (q.get('change') === '1') {""",
+        """  if (q.get('change') === '1') { (async () => {""")
+    patch(
+        "login.html",
+        "and closes that function where the block ended",
+        """      }
+    });
+    return;
+  }
+
+  const token = q.get('token');""",
+        """      }
+    });
+    })();
+    return;
+  }
+
+  const token = q.get('token');""",
+        marker="    })();\n    return;")
+
+
+no_password_they_never_had()
 
 
 # The summary, and it has to be the LAST thing in the file.

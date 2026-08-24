@@ -582,6 +582,9 @@ async function boot(run) {{
     order:   state.order,
   }};
   SHORT_ROWS = state.shortlist;
+  /* What an entry package owes this student and whether it has arrived. Null
+     for everybody who has not bought one. */
+  MATCHED = state.matched || null;
   /* Every order this student has placed, with what was in each. The Services
      screen needs it to mark what they have already bought; nothing else reads
      it, and it costs nothing — /api/state already carried it. */
@@ -598,7 +601,7 @@ async function boot(run) {{
   run();
 }}
 
-let USER = {{}}, ORDER = {{}}, HANDOVER_KEYS = [], SHORT_ROWS = [], COUNSELLOR = null, ORDERS = [];
+let USER = {{}}, ORDER = {{}}, HANDOVER_KEYS = [], SHORT_ROWS = [], COUNSELLOR = null, ORDERS = [], MATCHED = null;
 {script}
 
 /* Opened by double-clicking rather than through start.command. The portal has

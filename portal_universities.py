@@ -125,13 +125,21 @@ function card(p, inList) {
 const ownerOf = id => {
   const row = (typeof SHORT_ROWS !== 'undefined' ? SHORT_ROWS : [])
     .find(r => String(r.id) === String(id));
-  return row && row.addedBy === 'student' ? 'student' : 'office';
+  if (!row) return 'office';
+  /* Three owners now, not two. 'matched' is what the machine picked the moment
+     an entry package was paid for — not the student's browsing, and not a
+     counsellor's judgement either, and saying it is one of those would be a
+     small lie on the one screen a student checks. */
+  if (row.addedBy === 'student') return 'student';
+  if (row.addedBy === 'matched') return 'matched';
+  return 'office';
 };
 
 function paintMine() {
   const items = shortlist().map(i => byId[i]).filter(Boolean);
   const mine  = items.filter(p => ownerOf(p.id) === 'student');
-  const ours  = items.filter(p => ownerOf(p.id) !== 'student');
+  const auto  = items.filter(p => ownerOf(p.id) === 'matched');
+  const ours  = items.filter(p => ownerOf(p.id) === 'office');
   $('#nMine').textContent = items.length;
 
   const grid = (list, withApply) =>
@@ -144,6 +152,27 @@ function paintMine() {
     + sub + '</p></div>';
 
   let html = '';
+
+  /* ------------------------------------------------- what the machine delivered
+     First, because it is what an entry package bought and it arrived within
+     the minute. A student who paid ₹99 at eleven at night and opens this screen
+     should see the thing they paid for at the top, not below two empty boxes. */
+  const M = (typeof MATCHED !== 'undefined' && MATCHED) ? MATCHED : null;
+  if (auto.length) {
+    html += head('Matched to your profile',
+      'Picked from what you told us — marks, budget, country and intake. '
+      + 'Update your profile and they are picked again.');
+    html += grid(auto, 'want');
+    html += '<div style="height:30px"></div>';
+  } else if (M && M.owed && M.needsProfile) {
+    /* Paid for, and waiting on them. This is the one state where saying
+       nothing would look like the money went nowhere. */
+    html += '<div class="sl-empty" style="margin-bottom:30px">'
+      + '<b>Your ' + M.owed + ' matched universities are waiting on six questions</b>'
+      + '<p>Tell us what you are applying for, where, and what you can spend, and '
+      + 'they appear here straight away. Nobody has to call you.</p>'
+      + '<a class="btn btn-primary" href="profile.html">Answer them now</a></div>';
+  }
 
   /* ---------------------------------------------- what the office is working on */
   html += head('Your counsellor\u2019s shortlist',

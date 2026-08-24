@@ -29,6 +29,7 @@ const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
 const PLANS = require('./plans.js');
 const MONEY = require('./money.js');
+const MATCHES = require('./matches.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 
 const DAY = 864e5;
@@ -333,11 +334,25 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         fit: r.fit || null,
         /* 'office' or 'student'. Two lists on the screen, and the screen must
            not have to guess which is which. */
-        addedBy: r.added_by === 'student' ? 'student' : 'office',
+        addedBy: r.added_by === 'student' ? 'student'
+          : r.added_by === 'matched' ? 'matched' : 'office',
         intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
       })),
       apps,
       docs,
+      /* What was bought that the machine delivers, and whether it has been.
+         The dashboard needs to say one of three things — it is on your
+         shortlist, it is waiting on six questions, or you have not bought one
+         — and it cannot work that out from a shortlist alone. */
+      matched: (() => {
+        const owed = matchEntitlement(s);
+        if (!owed.count) return null;
+        const got = db.getShortlist(s.id).filter(r => r.added_by === 'matched').length;
+        return {
+          owed: owed.count, kind: owed.kind, package: owed.package,
+          delivered: got, needsProfile: !MATCHES.usable(db.getProfile(s.id)),
+        };
+      })(),
       /* What is still missing from their own file, named. "Your profile is 62%
          complete" is a number; "we still need your Class 12 marksheet and your
          date of birth" is something somebody can act on in a minute. */
@@ -367,10 +382,135 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     };
   }
 
+  /* ------------------------------------------------- what the machine delivers
+   *
+   * The ₹99 tier is only possible if nobody works on it. Ninety-nine rupees
+   * inclusive is ₹84 after GST and about ₹82 after the gateway, so ten minutes
+   * of a counsellor's time turns the sale into a loss. The shortlist has to be
+   * picked and delivered by the machine, and this is where that happens.
+   *
+   * Run at three moments, all of them server-side, because a student should
+   * never have to press a button to receive something they have paid for:
+   *
+   *   when the order is placed, if their profile is already filled in;
+   *   when they save their profile, which is the usual order of events;
+   *   and on demand, for the button on the dashboard that says "run it again".
+   */
+
+  const PACKAGE_ITEMS = () => {
+    try { return (content ? (content.get('packages').items || []) : []); } catch (e) { return []; }
+  };
+
+  /**
+   * The biggest automatic shortlist this student has bought.
+   *
+   * The biggest, not the latest: somebody who buys ₹999 and then ₹99 has not
+   * asked for their ten universities to be taken away.
+   */
+  function matchEntitlement(student) {
+    const items = PACKAGE_ITEMS();
+    const byId = new Map(items.map(p => [p.id, p]));
+    let best = { count: 0, kind: 'any', package: '', reference: '' };
+    db.ordersFor(student.id).forEach(o => {
+      if (!EARNED.has(o.status)) return;
+      /* By id, and by name only for orders placed before the id was recorded. */
+      const p = byId.get(o.package_id)
+        || items.find(x => x.title && x.title === o.package)
+        || null;
+      if (!p) return;
+      const owed = MATCHES.promise(p);
+      if (owed.count > best.count) {
+        best = { count: owed.count, kind: owed.kind, package: p.title, reference: o.reference };
+      }
+    });
+    return best;
+  }
+
+  /**
+   * Pick them, and put them on the shortlist.
+   *
+   * Safe to run as often as anybody likes: the same profile over the same
+   * catalogue produces the same universities, and adding one that is already
+   * there changes nothing. Which is why "it re-runs when you update your
+   * profile" is a feature rather than a promise nobody can keep.
+   */
+  function deliverMatches(student, opts) {
+    const owed = matchEntitlement(student);
+    const out = {
+      owed: owed.count, kind: owed.kind, package: owed.package,
+      added: 0, delivered: 0, needsProfile: false,
+    };
+    if (!owed.count) return out;
+
+    const profile = db.getProfile(student.id);
+    if (!MATCHES.usable(profile)) {
+      /* Not a failure. They have paid and they will be delivered the moment
+         they say what they are looking for — which the dashboard asks them
+         for, in six questions. */
+      out.needsProfile = true;
+      return out;
+    }
+
+    const made = MATCHES.plan(cat(), profile, owed.count, owed.kind);
+    const picks = made.items;
+    const have = new Set(db.getShortlist(student.id).map(r => String(r.prog_id)));
+    picks.forEach(p => {
+      if (!have.has(String(p.id))) out.added++;
+      db.addShortlist(student.id, p, 'matched');
+    });
+    out.delivered = picks.length;
+    out.relaxed = made.relaxed;
+    out.note = made.note;
+
+    if (out.added) {
+      db.log('system', 'matches delivered',
+        student.email + ' — ' + out.added + ' of ' + owed.count
+        + ' (' + (owed.package || 'package') + ')');
+      /* And say so, in the thread they will look in. A shortlist that appears
+         silently is a shortlist somebody has to be told about on the phone. */
+      if (!(opts && opts.quiet)) {
+        db.addMessage(student.id, 'them',
+          'Your ' + out.delivered + ' matched '
+          + (owed.kind === 'public' ? 'public ' : '')
+          + (out.delivered === 1 ? 'university is' : 'universities are')
+          + ' on your shortlist now — fees, intakes and deadlines are on each one. '
+          + 'They are picked from what you told us about yourself, so if you change '
+          + 'your profile the list is picked again.'
+          /* And if we had to widen the search to fill it, say so here rather
+             than letting them work it out from a fee that is wrong. */
+          + (made.note ? ' ' + made.note : ''), '');
+      }
+    }
+    return out;
+  }
+
   /* The counsellor's first two messages. Seeded server-side on the student's
      first visit so the thread is identical on every device they sign in from. */
   function seedMessages(s) {
     if (db.getMessages(s.id).length) return;
+
+    /* Two different people are reading this.
+     *
+     * Somebody who bought a ₹49,999 package has a counsellor, and telling them
+     * one is on their file is the truth. Somebody who spent ₹99 does not — and
+     * "I will confirm the shortlist with you on a call" is exactly the promise
+     * of a phone call that the entry tiers exist to avoid making. It would also
+     * be a promise the office cannot afford to keep at that price. */
+    const entry = matchEntitlement(s).count > 0
+      && !db.ordersFor(s.id).some(o => EARNED.has(o.status) && Number(o.public_unis) >= 5);
+
+    if (entry) {
+      db.addMessage(s.id, 'them',
+        'Welcome. Your universities are picked from what you tell us about yourself, so '
+        + 'the six questions on your profile are the only thing standing between you and '
+        + 'the list — nobody has to ring you for it.', '');
+      db.addMessage(s.id, 'them',
+        'If you decide you want somebody working on the applications themselves, every '
+        + 'bigger package includes a counsellor, and what you have paid today comes off '
+        + 'the price within 30 days. No hurry, and no phone calls from us.', '');
+      return;
+    }
+
     db.addMessage(s.id, 'them',
       'Hi! I am Kavya, your counsellor for the Germany desk. I have your profile open. '
       + 'Once your documents are verified I will confirm the shortlist with you on a call.', '');
@@ -554,7 +694,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
 
   route('GET', '/api/auth/me', async (req, res) => {
     const s = me(req);
-    return json(res, 200, s ? { user: publicStudent(s) } : { user: null });
+    return json(res, 200, s
+      ? { user: publicStudent(s), mustChange: !!s.must_change }
+      : { user: null });
   }, { open: true });
 
   /* --------------------------------------------------------------- state */
@@ -571,8 +713,19 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       db.updateStudent(s.id, p.fullName || s.name,
         validPhone(p.phone) ? '+91' + tenDigits(p.phone) : s.phone);
     }
-    return json(res, 200, { ok: true });
+    /* The usual order of events: somebody buys ₹99 at eleven at night, fills
+       the profile in afterwards, and their universities are waiting when they
+       press Save. Nobody has to ask for what they already paid for. */
+    const matched = deliverMatches(s);
+    return json(res, 200, { ok: true, matched });
   });
+
+  /* Run it again — for the dashboard, and for a student who has updated their
+     profile somewhere other than the profile screen. Nothing to be paid for
+     twice: it re-picks from the same catalogue and the same answers. */
+  route('POST', '/api/matches/run', async (req, res, s) =>
+    json(res, 200, Object.assign({ shortlist: stateFor(s).shortlist },
+      deliverMatches(s))));
 
   /* ----------------------------------------------------------- shortlist */
 
@@ -1122,6 +1275,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     const order = db.addOrder({
       plan,
       studentId: s ? s.id : null, reference, package: label,
+      /* The id as well as the name. The name is editable on the Home page
+         screen; what a student is owed is not. */
+      packageId: pkg ? pkg.id : '',
       publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
       status: collecting ? 'awaiting' : 'owing', kind: pkg ? 'package' : 'services',
       items: items.map(x => ({ id: x.id, name: x.name, level: x.level, paise: x.paise })),
@@ -1205,6 +1361,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       db.log('system', 'Account created at checkout', email + ' — ' + reference);
     }
 
+    /* If they were already signed in with a profile filled in, the shortlist
+       they just bought is on their screen before they have finished reading
+       the confirmation. A brand-new account has no profile yet and is picked
+       up the moment they save one. */
+    const buyer = s || (created ? db.studentById(created.id) : null);
+    const matched = buyer ? deliverMatches(buyer) : { owed: 0, added: 0, needsProfile: false };
+
     const tax = Math.round(gross - gross / (1 + GST_RATE));
 
     /* The receipt is the message that tells a guest how to get into the portal
@@ -1216,6 +1379,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     }))).catch(() => {});
 
     return json(res, 200, {
+      /* What the machine owes them and whether it has been delivered yet, so
+         the confirmation can say "on your shortlist now" or "answer six
+         questions and they appear" rather than nothing at all. */
+      matched,
       reference, package: label, publicUnis: pkg ? pkg.publicUnis : 0,
       grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax,
       services: items.map(x => ({ id: x.id, name: x.name, level: x.level, priceInr: x.paise / 100 })),
@@ -1891,6 +2058,29 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
        worse deal than the one that was sold. Every programme at an already
        revealed university is free. */
     const named = new Set();
+
+    /* Spend the allowance on the universities they have already been given.
+     *
+     * Without this the quota is spent on whatever the browse list happens to
+     * reach first, so a student who bought "three public universities matched
+     * to you" gets three names on their shortlist and three DIFFERENT names
+     * unlocked in the finder — six universities, three of them a coincidence of
+     * scroll order, and no way to tell which three they paid for.
+     *
+     * Their own shortlist comes first. Whatever is left of the quota is spent
+     * as it always was. */
+    if (me_ && quota) {
+      const mine = new Set(db.getShortlist(me_.id)
+        .filter(r => r.is_public).map(r => String(r.prog_id)));
+      if (mine.size) {
+        for (const p of cat()) {
+          if (named.size >= quota) break;
+          if (!p.isPublic || !mine.has(String(p.id))) continue;
+          named.add(p.uKey);
+        }
+      }
+    }
+
     const mayShow = p => {
       if (named.has(p.uKey)) return true;
       if (named.size >= quota) return false;
@@ -1963,10 +2153,28 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     if (pw.length < floor) {
       return json(res, 422, { error: 'Use at least ' + floor + ' characters.' });
     }
-    if (!safeEqual(hashPassword(current, s.pass_salt), s.pass_hash)) {
-      return json(res, 401, { error: 'That is not your current password.' });
+    /*
+     * The current password, EXCEPT when there isn't one they ever knew.
+     *
+     * An account made at checkout is signed in on the browser that just paid,
+     * and its first password was generated here and emailed. Demanding it back
+     * before anything opens is a dead end for the exact person this site is now
+     * built around: somebody who paid ₹99 at eleven at night, has not opened
+     * their email, and is looking at the universities they bought behind a
+     * form asking for a password they have never seen.
+     *
+     * `must_change` means the password on this account is not private and is
+     * not theirs. Asking them to repeat it proves nothing — whoever holds this
+     * session already holds the account. So on a must-change account the new
+     * password is enough, and on every other account the old one is still
+     * required, because there the old password IS the proof.
+     */
+    if (!s.must_change) {
+      if (!safeEqual(hashPassword(current, s.pass_salt), s.pass_hash)) {
+        return json(res, 401, { error: 'That is not your current password.' });
+      }
     }
-    if (pw === current) {
+    if (current && pw === current) {
       return json(res, 422, { error: 'That is the password you were given. Pick a different one.' });
     }
 

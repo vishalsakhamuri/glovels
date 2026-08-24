@@ -263,16 +263,29 @@ function forgotBox(message){
 
   /* Signed in, but on a password somebody else chose. The server refuses every
      other endpoint until this is done, so there is nothing else to offer. */
-  if (q.get('change') === '1') {
-    const card = document.querySelector('.auth-card') || document.body;
+  if (q.get('change') === '1') { (async () => {
+    const card = document.querySelector('.form-card') || document.querySelector('.auth-card') || document.body;
     const next = q.get('next') || 'dashboard.html';
+    /* Whether the account is on a password somebody else chose. On those the
+       old one is not asked for — it is not proof of anything, and the person
+       most likely to be here has never seen it. */
+    let firstTime = false;
+    try {
+      const who = await (await fetch('/api/auth/me', { credentials: 'same-origin' })).json();
+      firstTime = !!who.mustChange;
+    } catch (e) { /* ask for it, which is the stricter of the two */ }
+
     card.innerHTML =
       '<h2 id="form-title">Choose your own password</h2>' +
-      '<p class="sub">The one you signed in with was made for you and sent by email, so it ' +
-      'is not private. Nothing else opens until this is done.</p>' +
+      '<p class="sub">' + (firstTime
+        ? 'Your account is ready \u2014 pick a password and everything opens. This takes ' +
+          'one moment and you will not be asked again.'
+        : 'The one you signed in with was made for you and sent by email, so it ' +
+          'is not private. Nothing else opens until this is done.') + '</p>' +
       '<form id="changeForm" novalidate>' +
+        (firstTime ? '' :
         '<div class="field"><label for="cNow">The password you were given</label>' +
-          '<input type="password" id="cNow" autocomplete="current-password"></div>' +
+          '<input type="password" id="cNow" autocomplete="current-password"></div>') +
         '<div class="field"><label for="cNew">Your new password</label>' +
           '<input type="password" id="cNew" autocomplete="new-password" ' +
           'placeholder="At least 8 characters"></div>' +
@@ -291,7 +304,8 @@ function forgotBox(message){
 
     document.getElementById('changeForm').addEventListener('submit', async e => {
       e.preventDefault();
-      const now = document.getElementById('cNow').value;
+      const nowEl = document.getElementById('cNow');
+      const now = nowEl ? nowEl.value : '';
       const a = document.getElementById('cNew').value;
       const b = document.getElementById('cAgain').value;
       if (a.length < 8) return say('Use at least 8 characters.');
@@ -313,12 +327,13 @@ function forgotBox(message){
         say(err.message);
       }
     });
+    })();
     return;
   }
 
   const token = q.get('token');
   if (!token) return;
-  const card = document.querySelector('.auth-card') || document.body;
+  const card = document.querySelector('.form-card') || document.querySelector('.auth-card') || document.body;
   card.innerHTML =
     '<h2 id="form-title">Set a new password</h2>' +
     '<p class="sub">Choose something you have not used elsewhere. Every device signed in to this ' +

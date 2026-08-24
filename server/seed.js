@@ -313,6 +313,48 @@ function addMissingServices({ db, content }) {
  * price, and never edited. An office that deliberately hides one of them
  * tomorrow keeps it hidden, because this never runs again.
  */
+/*
+ * The three ways in under ₹5,000, on a database that was seeded before they
+ * existed.
+ *
+ * Same rule as the services above, and the same reason: content.json is read
+ * once, on the first run, and after that the database is the truth because the
+ * office edits these prices. So a package shipped later exists nowhere on a
+ * running deployment — and this one is not a nice-to-have, it is the whole
+ * bottom of the price ladder.
+ *
+ * Unlike a new service, these go on VISIBLE. A hidden ₹99 card is the same as
+ * no ₹99 card, there is no price to get wrong (it is written here), and nobody
+ * needs briefing to sell it — that is the point of a tier the machine
+ * delivers. The `entryTiers` flag records that they have been offered, so a
+ * package the office deliberately deletes stays deleted.
+ */
+function addEntryTiers({ db, content }) {
+  const shipped = ((content && content.packages && content.packages.items) || [])
+    .filter(p => Number(p.matches || 0) > 0);
+  if (!shipped.length) return 0;
+  const live = db.content('packages');
+  if (!live || !Array.isArray(live.items)) return 0;   /* first run seeds it whole */
+
+  const offered = new Set(((db.content('entryTiers') || {}).ids) || []);
+  const have = new Set(live.items.map(x => String(x.id)));
+  const fresh = shipped.filter(x => !have.has(String(x.id)) && !offered.has(String(x.id)));
+
+  /* Written whether or not anything was added, so this never runs twice over
+     the same package. */
+  db.setContent('entryTiers', { ids: shipped.map(x => String(x.id)) }, 'system');
+  if (!fresh.length) return 0;
+
+  /* In front of everything they undercut. `sort` is renumbered per tab by the
+     content layer, so what matters here is the order of the array. */
+  const items = fresh.concat(live.items);
+  db.setContent('packages', Object.assign({}, live, { items }), 'system');
+  db.log('system', 'entry packages added',
+    fresh.map(x => x.title + ' (₹' + x.priceInr + ')').join(', ')
+    + ' — delivered by the matcher, no counsellor in the loop');
+  return fresh.length;
+}
+
 function openOnRequestServices({ db }) {
   if (db.content('servicesOnRequestV1')) return 0;
   db.setContent('servicesOnRequestV1', { done: true }, 'system');
@@ -515,6 +557,7 @@ function seedAdmin({ db, admin, hashPassword, newSalt, reset }) {
 
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   addMissingServices,
+  addEntryTiers,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

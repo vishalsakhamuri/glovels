@@ -1,0 +1,269 @@
+'use strict';
+/**
+ * Picking universities for somebody, without a person in the room.
+ *
+ * "4999 for 3 unis and 999 for shortlist for 10 private unis and 99 for 3 unis
+ *  in private… we will have these 3 options as well so that we dont miss out
+ *  anyone."
+ *
+ * The arithmetic on a ₹99 sale is what decides how this is built. Ninety-nine
+ * rupees inclusive is ₹84 after GST and about ₹82 after the gateway. If a
+ * counsellor spends ten minutes on one, the sale is a loss — so no counsellor
+ * can be in the loop at all. The shortlist has to be picked, written and
+ * delivered by the machine, in the minute after the payment, or the tier
+ * should not exist.
+ *
+ * That is the whole reason for this file. It takes the profile the student
+ * filled in, the catalogue the office maintains, and returns the N universities
+ * that actually fit — deduplicated by university, because "three universities"
+ * that turn out to be three courses at one university is not what was sold.
+ *
+ * Two rules that look like details and are not:
+ *
+ *   ONE PROGRAMME PER UNIVERSITY. The catalogue holds many courses per campus.
+ *   Sorting by fit alone returns the same university three times.
+ *
+ *   A HARD FILTER IS A PROMISE, A SOFT ONE IS A PREFERENCE. Country, level and
+ *   budget are what somebody told us about their life, and returning a ₹40 lakh
+ *   programme to a student who said "under ₹10 lakhs" is not a near miss, it is
+ *   an insult. Field of study is a preference: it is free text, people write
+ *   "AI" and mean "Computer Science", and a hard filter on it returns nothing.
+ *
+ * And one rule about what happens when nothing matches: the answer is fewer
+ * rows, never worse ones. A student who paid ₹99 and got two honest matches has
+ * had a better deal than one who got three where the third was filler.
+ */
+
+/* The budget answers on the profile screen, as rupee ceilings. `null` is "no
+   ceiling" — somebody who said "Above ₹40 Lakhs" has not ruled anything out. */
+const BUDGET_CEILING = [
+  [/under\s*₹?\s*10/i, 1000000],
+  [/10\s*[–-]\s*20/, 2000000],
+  [/20\s*[–-]\s*40/, 4000000],
+  [/above\s*₹?\s*40/i, null],
+];
+
+/* The destination answers, as the two-letter codes the catalogue uses. */
+const COUNTRY_CODE = {
+  germany: 'DE', canada: 'CA', 'united kingdom': 'GB', uk: 'GB', ireland: 'IE',
+  poland: 'PL', spain: 'ES', italy: 'IT', france: 'FR', netherlands: 'NL',
+  australia: 'AU', 'united states': 'US', usa: 'US',
+};
+
+/* The level answers, as the catalogue's level values. */
+const LEVEL = [
+  [/master/i, 'master'], [/bachelor/i, 'bachelor'], [/mba/i, 'mba'],
+  [/foundation|pathway/i, 'pathway'], [/phd|doctor/i, 'phd'],
+  [/diploma/i, 'diploma'],
+];
+
+const match1 = (table, value) => {
+  const v = String(value || '');
+  for (const [re, out] of table) if (re.test(v)) return out;
+  return null;
+};
+
+/** What the profile actually constrains. Anything blank constrains nothing. */
+function wants(profile) {
+  const p = profile || {};
+  const dest = String(p.g_country || '').trim().toLowerCase();
+  return {
+    country: dest && !/open to advice/i.test(dest) ? (COUNTRY_CODE[dest] || null) : null,
+    level: match1(LEVEL, p.g_level),
+    /* `undefined` means they did not say; `null` means they said "no ceiling". */
+    ceiling: p.b_total ? match1(BUDGET_CEILING, p.b_total) : undefined,
+    field: String(p.g_field || '').trim(),
+    intake: String(p.g_intake || '').trim(),
+    cgpa: Number(String(p.d_cgpa || '').replace(/[^\d.]/g, '')) || 0,
+  };
+}
+
+/** Enough of a profile to pick anything worth paying for. */
+function usable(profile) {
+  const w = wants(profile);
+  return !!(w.country || w.level || w.field);
+}
+
+/* Words that carry no signal in a field name, so "Data Science and Engineering"
+   and "Engineering" do not count as a match on "and". */
+const STOP = new Set(['and', 'the', 'of', 'in', 'for', 'with', 'a', 'an', 'to',
+  'science', 'studies', 'engineering', 'management']);
+
+const words = s => String(s || '').toLowerCase().split(/[^a-z0-9+]+/i)
+  .filter(w => w.length > 2 && !STOP.has(w));
+
+/**
+ * How well one programme answers what somebody asked for.
+ *
+ * The catalogue's own `fit` — the office's judgement of how hard a programme is
+ * to get into relative to a normal applicant — is the base, because it is the
+ * one number a human maintained. Everything else adjusts it.
+ */
+function score(p, w) {
+  let n = Number(p.fit || 0);
+
+  /* Field is a preference, and it is where a shortlist stops feeling random.
+     A word in common with the field they typed is worth a lot; a word in the
+     programme's own name is worth more, because that is what they will read. */
+  if (w.field) {
+    const want = words(w.field);
+    const inField = words(p.field).filter(x => want.includes(x)).length;
+    const inName = words(p.program).filter(x => want.includes(x)).length;
+    n += Math.min(3, inField) * 8 + Math.min(3, inName) * 12;
+  }
+
+  /* Free tuition is the thing this business exists to find, and a student who
+     said "under ₹10 lakhs" has told us the fee is the constraint that matters. */
+  if ((Number(p.totalInr) || 0) === 0) n += 14;
+  else if (w.ceiling && Number(p.totalInr) <= w.ceiling * 0.6) n += 6;
+
+  /* An intake they can actually apply for. A programme whose only deadline has
+     passed is a bad row however well it fits. */
+  const seasons = (p.intakes || []).map(i => String(i.season || '').toLowerCase());
+  if (w.intake) {
+    const season = /summer/i.test(w.intake) ? 'summer' : 'winter';
+    if (seasons.includes(season)) n += 10;
+  }
+
+  /* Somebody with a strong record should not open a paid shortlist to find
+     only the easy options on it; somebody without one should not open it to
+     find only the impossible ones. */
+  if (w.cgpa >= 8) n += (Number(p.fit || 0) < 70 ? 6 : 0);
+  else if (w.cgpa && w.cgpa < 7) n += (Number(p.fit || 0) >= 80 ? 6 : -6);
+
+  return n;
+}
+
+/**
+ * The picks.
+ *
+ *   catalogue  every programme, as the finder sees them
+ *   profile    what the student filled in
+ *   count      how many universities the tier they bought promises
+ *   kind       'public', 'private' or 'any'
+ *
+ * Returns programmes, best first, one per university, never more than `count`
+ * and sometimes fewer.
+ */
+function pick(catalogue, profile, count, kind, drop) {
+  const w = wants(profile);
+  const want = Math.max(0, Number(count) || 0);
+  if (!want) return [];
+  const off = new Set(drop || []);
+
+  const eligible = (catalogue || []).filter(p => {
+    if (kind === 'public' && !p.isPublic) return false;
+    if (kind === 'private' && p.isPublic) return false;
+    if (!off.has('country') && w.country
+      && String(p.country || '').toUpperCase() !== w.country) return false;
+    if (!off.has('level') && w.level
+      && String(p.level || '').toLowerCase() !== w.level) return false;
+    /* undefined — not asked. null — asked, no ceiling. */
+    if (!off.has('budget') && w.ceiling && Number(p.totalInr || 0) > w.ceiling) return false;
+    return true;
+  });
+
+  const ranked = eligible
+    .map(p => ({ p, s: score(p, w) }))
+    /* By score, then by fee, then by id — the last one only so that two runs
+       over the same catalogue return the same shortlist. A paid shortlist that
+       reshuffles when you refresh looks like it was never real. */
+    .sort((a, b) => b.s - a.s
+      || (Number(a.p.totalInr || 0) - Number(b.p.totalInr || 0))
+      || String(a.p.id).localeCompare(String(b.p.id)));
+
+  const out = [], seen = new Set();
+  for (const { p } of ranked) {
+    const key = p.uKey || p.university || p.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+    if (out.length >= want) break;
+  }
+  return out;
+}
+
+/*
+ * What to do when nothing matches, which is not a hypothetical.
+ *
+ * "Germany, master's, under ₹10 lakhs, private" describes nothing in the
+ * catalogue today — every private German master's is over ten lakhs. A student
+ * who paid for three universities and is handed zero has been robbed, however
+ * defensible the filter was.
+ *
+ * So the constraints come off in a defined order, one at a time, until there
+ * are enough rows — and WHICH ones came off is returned, so the student can be
+ * told. That is what a good counsellor does out loud: "there is nothing
+ * private in Germany under ten lakhs — here are the three closest, and here is
+ * what they actually cost."
+ *
+ * Budget goes first because it is the constraint most often set from a guess.
+ * Country goes last because it is the one people mean most.
+ */
+const RELAX = ['budget', 'level', 'country'];
+
+const RELAX_SAID = {
+  budget: 'above the budget you gave',
+  level: 'at a different level to the one you picked',
+  country: 'outside the country you picked',
+};
+
+/**
+ * The shortlist, and an honest account of how it was arrived at.
+ *
+ * Returns { items, relaxed, note }. `relaxed` is the constraints that had to
+ * come off; `note` is that said in a sentence, or empty when nothing was
+ * relaxed and the picks are exactly what was asked for.
+ */
+function plan(catalogue, profile, count, kind) {
+  const want = Math.max(0, Number(count) || 0);
+  if (!want) return { items: [], relaxed: [], note: '' };
+
+  let items = pick(catalogue, profile, want, kind, []);
+  const dropped = [];
+  for (const c of RELAX) {
+    if (items.length >= want) break;
+    dropped.push(c);
+    const wider = pick(catalogue, profile, want, kind, dropped);
+    /* Only keep the wider search if it actually found more. Dropping a
+       constraint that was not narrowing anything should not be reported as
+       though it were. */
+    if (wider.length > items.length) items = wider;
+    else dropped.pop();
+  }
+
+  const note = dropped.length
+    ? 'Nothing matched every answer you gave, so some of these are '
+      + dropped.map(c => RELAX_SAID[c]).join(', and some are ')
+      + '. The fee and the country are on each one, so you can see which.'
+    : '';
+  return { items, relaxed: dropped, note };
+}
+
+/**
+ * What a package delivers automatically.
+ *
+ * `matches` on the package says how many universities are picked for the
+ * student the moment they buy it; `unlocks` says how many PUBLIC university
+ * names that package may reveal, which is the older entitlement and the one
+ * the finder enforces. The two together decide what kind of shortlist this is:
+ *
+ *   unlocks 0, matches 3   ₹99    three private universities
+ *   unlocks 0, matches 10  ₹999   ten private universities
+ *   unlocks 3, matches 3   ₹4,999 three public universities, named
+ *
+ * A package with neither delivers nothing on its own, which is right for the
+ * ones where a counsellor agrees the shortlist on a call.
+ */
+function promise(pkg) {
+  if (!pkg) return { count: 0, kind: 'any' };
+  const unlocks = Number(pkg.unlocks || pkg.publicUnis || 0);
+  const count = Number(pkg.matches != null ? pkg.matches : 0);
+  if (!count) return { count: 0, kind: 'any' };
+  return {
+    count: unlocks ? Math.min(count, unlocks) : count,
+    kind: unlocks ? 'public' : 'private',
+  };
+}
+
+module.exports = { pick, plan, promise, wants, usable, score, RELAX };

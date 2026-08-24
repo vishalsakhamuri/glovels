@@ -344,6 +344,14 @@ function sqliteDriver(file) {
       the time the last part is collected. */
    "ALTER TABLE orders ADD COLUMN plan TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE orders ADD COLUMN paid_paise INTEGER NOT NULL DEFAULT 0",
+   /* WHICH package was bought, not just what it was called at the time.
+      An order recorded the package's title, which is editable on the Home page
+      screen — so an office that renames "Roadmap" loses the only link between
+      an order and the thing it bought. Nothing needed that link until the
+      entry tiers arrived, where what a student is owed (three matched
+      universities, or ten) is a property of the package and has to be read
+      back months later. */
+   "ALTER TABLE orders ADD COLUMN package_id TEXT NOT NULL DEFAULT ''",
    /* Where the lead came from — a Facebook ad, a WhatsApp message, a Google
       search, the chat box, a blog post, or somebody who walked in. Every
       enquiry landed in one undifferentiated list, so "which of these is
@@ -618,19 +626,28 @@ function open(dir) {
     /* ---- shortlist ---- */
     getShortlist: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id)),
     /**
-     * `by` is 'student' or 'office'.
+     * `by` is 'student', 'matched' or 'office'.
      *
      * INSERT OR REPLACE, so a student marking interest in something their
-     * counsellor already shortlisted would demote it to interest. The COALESCE
-     * keeps the stronger of the two: once the office has put a university on
-     * the list, the student pressing a button cannot take it off again.
+     * counsellor already shortlisted would demote it to interest. So the
+     * stronger claim wins, and there are three of them now:
+     *
+     *   office   a counsellor put it there, and nothing may demote it
+     *   matched  the machine picked it for a package they bought
+     *   student  they pressed the button themselves
+     *
+     * A counsellor confirming one of the machine's picks promotes it, which is
+     * exactly what confirming means. The machine re-running over a university
+     * a counsellor has already agreed does not demote it back.
      */
     addShortlist(studentId, p, by) {
       const existing = db.all(
         'SELECT added_by FROM shortlist WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(p.id))[0];
-      const owner = existing && existing.added_by === 'office' ? 'office'
-        : (by === 'student' ? 'student' : 'office');
+      const RANK = { student: 1, matched: 2, office: 3 };
+      const want = RANK[by] ? by : 'office';
+      const prior = existing && existing.added_by;
+      const owner = prior && (RANK[prior] || 0) > RANK[want] ? prior : want;
       db.run(`INSERT OR REPLACE INTO shortlist
         (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -756,9 +773,10 @@ function open(dir) {
     /* ---- orders ---- */
     addOrder(o) {
       db.run(`INSERT INTO orders
-        (student_id, reference, package, public_unis, gross_paise, name, email, phone, status, created_at, items, kind, accepted, plan, paid_paise)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (student_id, reference, package, package_id, public_unis, gross_paise, name, email, phone, status, created_at, items, kind, accepted, plan, paid_paise)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         o.studentId ? Number(o.studentId) : null, o.reference, o.package,
+        String(o.packageId || ''),
         Number(o.publicUnis || 0), Number(o.grossPaise || 0),
         o.name || '', String(o.email || '').toLowerCase(), o.phone || '', o.status || 'paid', now(),
         JSON.stringify(o.items || []), o.kind || 'package',
