@@ -861,8 +861,11 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
           <h3 style="margin:0;font-size:15px">Email</h3>
           <span class="st" id="mailMode">checking…</span>
           <span style="flex:1"></span>
+          <input id="mailTo" placeholder="send a test to… (blank = you)"
+            style="width:230px;padding:7px 10px;font:400 12.6px/1.3 var(--sans);
+            border:1.5px solid #d8dde4;border-radius:8px">
           <button type="button" class="btn btn-ghost btn-sm" id="mailTest">
-            Send me a test email</button>
+            Send a test email</button>
         </div>
         <p id="mailSays" style="margin:10px 0 0;font-size:12.6px;line-height:1.65;
           color:var(--navy-800)"></p>
@@ -874,7 +877,20 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
         <details id="mailEdit" style="margin-top:12px">
           <summary style="cursor:pointer;font:700 12.8px/1.5 var(--sans);
             color:var(--navy-900)">Change these settings</summary>
+          <!-- The way that works on a host which blocks SMTP, which this one
+               does: Render's free plan blocks ports 25, 465 and 587. -->
           <div class="two" style="margin-top:10px">
+            <div class="field"><label for="mProvider">Send over HTTPS with</label>
+              <select id="mProvider"></select></div>
+            <div class="field"><label for="mKey">API key</label>
+              <input id="mKey" type="password" autocomplete="off"
+                placeholder="paste the provider's key"></div>
+          </div>
+          <p style="margin:-2px 0 12px;font-size:11.8px;color:var(--muted);line-height:1.6">
+            Pick a provider and the mail goes out over the web on port 443, which no
+            host blocks &mdash; the four boxes below are then not used at all. Leave it
+            on <b>a mail server (SMTP)</b> to use them instead.</p>
+          <div class="two">
             <div class="field"><label for="mHost">Outgoing server</label>
               <input id="mHost" placeholder="mailout.one.com"></div>
             <div class="field"><label for="mPort">Port</label>
@@ -1556,13 +1572,15 @@ async function paintMail() {
   try { m = await api('GET', '/api/staff/mail'); }
   catch (e) { return; }
 
-  const live = m.mode === 'smtp';
+  const live = m.mode !== 'outbox';
   const chip = $('#mailMode');
   chip.className = 'st ' + (live ? 'ok' : 'bad');
   chip.style.textTransform = 'none';
   chip.style.letterSpacing = '0';
-  chip.textContent = live ? 'Sending through ' + (m.host || 'your mail server')
-                          : 'NOT sending — written to a file instead';
+  chip.textContent = m.mode === 'api'
+    ? 'Sending through ' + (m.providerLabel || 'a provider') + ' over HTTPS'
+    : m.mode === 'smtp' ? 'Sending through ' + (m.host || 'your mail server')
+                        : 'NOT sending — written to a file instead';
 
   $('#mailSays').innerHTML = live
     ? 'Password resets, order receipts and the sign-in details a student needs '
@@ -1574,13 +1592,30 @@ async function paintMail() {
       + (m.missing && m.missing.length
           ? 'Missing: <b>' + m.missing.map(esc).join(', ') + '</b>. '
           : '')
-      + 'Set them in the hosting environment and redeploy.';
+      + 'Pick a provider under <b>Change these settings</b> and paste their key '
+      + '\u2014 that route works on hosts that block mail servers, which this one does.';
 
   /* The form, filled in from what is saved — never the password. */
   const sv = m.saved || {};
   const set = (id, v) => { const el = $(id); if (el && document.activeElement !== el) el.value = v || ''; };
   set('#mHost', sv.host); set('#mPort', sv.port); set('#mUser', sv.user);
   set('#mFrom', sv.from); set('#mOffice', sv.office);
+
+  const sel = $('#mProvider');
+  if (sel && !sel.options.length) {
+    sel.innerHTML = '<option value="">a mail server (SMTP)</option>'
+      + (m.providers || []).map(p =>
+        '<option value="' + esc(p.id) + '">' + esc(p.label) + ' \u2014 over HTTPS</option>')
+        .join('');
+  }
+  if (sel && document.activeElement !== sel) sel.value = sv.provider || '';
+  const key = $('#mKey');
+  if (key && document.activeElement !== key) {
+    key.value = '';
+    key.placeholder = sv.hasApiKey
+      ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022 \u2014 saved. Leave empty to keep it.'
+      : 'paste the provider\u2019s key';
+  }
   const pw = $('#mPass');
   if (pw && document.activeElement !== pw) {
     pw.value = '';
@@ -1597,9 +1632,10 @@ async function paintMail() {
 
   $('#mailMore').innerHTML = [
     ['Where the settings come from', WHERE[m.source] || m.source || '—'],
+    m.mode === 'api' ? ['Sent over', 'HTTPS \u2014 ' + (m.providerLabel || m.provider)] : null,
     ['From address', m.from || '—'],
     ['Office address', m.office || '—'],
-    live ? ['Server', (m.host || '') + (m.port ? ':' + m.port : '')] : null,
+    m.mode === 'smtp' ? ['Server', (m.host || '') + (m.port ? ':' + m.port : '')] : null,
     m.waiting ? ['Messages sitting undelivered on the server', m.waiting] : null,
     ['Sent since the last restart', (m.recent || []).length],
   ].filter(Boolean)
@@ -1615,6 +1651,9 @@ document.addEventListener('click', async e => {
     b.textContent = 'Saving…';
     try {
       await api('PUT', '/api/staff/mail', {
+        provider: $('#mProvider').value,
+        /* Sent once, stored, never handed back — same rule as the password. */
+        apiKey: $('#mKey').value,
         host: $('#mHost').value.trim(),
         port: $('#mPort').value.trim() || 587,
         user: $('#mUser').value.trim(),
@@ -1640,13 +1679,14 @@ document.addEventListener('click', async e => {
   const was = b.textContent;
   b.textContent = 'Sending…';
   try {
-    const r = await api('POST', '/api/staff/mail/test', {});
+    const r = await api('POST', '/api/staff/mail/test',
+      { to: ($('#mailTo') && $('#mailTo').value.trim()) || '' });
     /* Repaint FIRST, then say what happened — the other way round and the
        repaint overwrites the answer the person just asked for. */
     await paintMail();
     $('#mailSays').innerHTML = (r.ok ? '' : '<b style="color:#b03a2e">')
       + esc(r.said) + (r.ok ? '' : '</b>')
-      + (r.ok ? ' Sent to <b>' + esc(r.to) + '</b>.' : '');
+      + '';
   } catch (err) { toast(err.message); }
   b.disabled = false;
   b.textContent = was;

@@ -25,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const net = require('net');
 const tls = require('tls');
+const https = require('https');
 const crypto = require('crypto');
 
 /* ------------------------------------------------------------------ config */
@@ -46,7 +47,7 @@ const crypto = require('crypto');
  * was actually configured with.
  */
 const MAIL_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS',
-  'MAIL_FROM', 'MAIL_TO'];
+  'MAIL_FROM', 'MAIL_TO', 'MAIL_PROVIDER', 'MAIL_API_KEY'];
 
 /* The three without which nothing can be sent. The port is not one of them —
    it defaults to 587 — and naming it as missing would send somebody looking
@@ -258,6 +259,93 @@ function smtpSend({ host, port, user, pass, envelopeFrom, recipients, message, t
   });
 }
 
+/* --------------------------------------------------------- the other door
+ *
+ * Render's free plan blocks outbound traffic to ports 25, 465 and 587 — every
+ * SMTP port there is — so on that plan no mail server setting can ever work,
+ * whoever the provider is. The symptom is twenty seconds of silence at connect,
+ * because the packets never leave the machine.
+ *
+ * Port 443 is not blocked and never will be: it is how the site is served. So
+ * the same email goes through the provider's ordinary HTTP API instead. Two are
+ * supported because they are the two with usable free tiers, and both are a
+ * single POST with a JSON body — no dependency, no SDK.
+ *
+ * This is the better transport anyway. A transactional provider handles
+ * bounces, complaints and reputation; a mailbox at a domain host does not.
+ */
+function postJson({ url, headers, body, timeoutMs = 20000 }) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const payload = Buffer.from(JSON.stringify(body), 'utf8');
+    const req = https.request({
+      method: 'POST',
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      headers: Object.assign({
+        'Content-Type': 'application/json',
+        'Content-Length': payload.length,
+      }, headers),
+      timeout: timeoutMs,
+    }, res => {
+      let text = '';
+      res.on('data', c => (text += c));
+      res.on('end', () => resolve({ status: res.statusCode, text }));
+    });
+    req.on('timeout', () => { req.destroy(new Error('the provider did not answer in time')); });
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
+
+/* What the provider said, when it said no. Their bodies are JSON with the
+   reason in one of three places depending on which one it is. */
+function apiReason(text) {
+  try {
+    const j = JSON.parse(text);
+    return j.message || j.error || (j.errors && JSON.stringify(j.errors)) || text;
+  } catch (e) { return String(text || '').slice(0, 300); }
+}
+
+const PROVIDERS = {
+  brevo: {
+    label: 'Brevo',
+    async send({ key, from, fromName, to, subject, text, html, replyTo }) {
+      const r = await postJson({
+        url: 'https://api.brevo.com/v3/smtp/email',
+        headers: { 'api-key': key, accept: 'application/json' },
+        body: Object.assign({
+          sender: { email: from, name: fromName || undefined },
+          to: [{ email: to }],
+          subject,
+          textContent: text || undefined,
+          htmlContent: html || undefined,
+        }, replyTo ? { replyTo: { email: replyTo } } : {}),
+      });
+      if (r.status >= 200 && r.status < 300) return { ok: true };
+      return { ok: false, error: 'Brevo said ' + r.status + ': ' + apiReason(r.text) };
+    },
+  },
+  resend: {
+    label: 'Resend',
+    async send({ key, from, fromName, to, subject, text, html, replyTo }) {
+      const r = await postJson({
+        url: 'https://api.resend.com/emails',
+        headers: { Authorization: 'Bearer ' + key },
+        body: Object.assign({
+          from: fromName ? fromName + ' <' + from + '>' : from,
+          to: [to],
+          subject,
+          text: text || undefined,
+          html: html || undefined,
+        }, replyTo ? { reply_to: replyTo } : {}),
+      });
+      if (r.status >= 200 && r.status < 300) return { ok: true };
+      return { ok: false, error: 'Resend said ' + r.status + ': ' + apiReason(r.text) };
+    },
+  },
+};
+
 /* ------------------------------------------------------------------ facade */
 
 /*
@@ -274,6 +362,8 @@ function fromOffice(saved) {
     const t = String(v == null ? '' : v).trim();
     if (t) out[k] = t;
   };
+  put('MAIL_PROVIDER', saved.provider);
+  put('MAIL_API_KEY', saved.apiKey);
   put('SMTP_HOST', saved.host);
   put('SMTP_PORT', saved.port);
   put('SMTP_USER', saved.user);
@@ -309,14 +399,26 @@ function open({ dir, configFile, siteUrl, env, stored }) {
   const office = () => { try { return fromOffice(stored ? stored() : null); } catch (e) { return {}; } };
   const cfgNow = () => Object.assign({}, base, office());
   const sourceNow = () => {
-    if (office().SMTP_HOST) return 'office';
-    const e = (env || process.env);
-    if (e && e.SMTP_HOST) return 'environment';
-    if (base.SMTP_HOST) return 'file';
+    const o = office();
+    if (o.MAIL_API_KEY || o.SMTP_HOST) return 'office';
+    const e = (env || process.env) || {};
+    if (e.MAIL_API_KEY || e.SMTP_HOST) return 'environment';
+    if (base.MAIL_API_KEY || base.SMTP_HOST) return 'file';
     return 'none';
   };
 
-  const usableOf = c => !!(c.SMTP_HOST && c.SMTP_USER && c.SMTP_PASS);
+  /* Three ways this can be set up, in order of preference:
+       api      a provider over HTTPS — works anywhere, including hosts that
+                block every SMTP port, which the free plan of this one does
+       smtp     a mail server the old way
+       outbox   nothing configured; messages are written to disk and delivered
+                to nobody, which must be said out loud rather than assumed */
+  const apiOf = c => {
+    const name = String(c.MAIL_PROVIDER || '').trim().toLowerCase();
+    return PROVIDERS[name] && c.MAIL_API_KEY ? name : '';
+  };
+  const usableOf = c => !!(apiOf(c) || (c.SMTP_HOST && c.SMTP_USER && c.SMTP_PASS));
+  const modeOf = c => (apiOf(c) ? 'api' : (c.SMTP_HOST && c.SMTP_USER && c.SMTP_PASS ? 'smtp' : 'outbox'));
   const fromOf = c => c.MAIL_FROM || 'Glovels <website@glovels.com>';
   const officeOf = c => c.MAIL_TO || 'info@glovels.com';
 
@@ -326,10 +428,11 @@ function open({ dir, configFile, siteUrl, env, stored }) {
     /* Read every time. A password corrected two minutes ago must be the one
        used now. */
     const cfg = cfgNow();
-    const usable = usableOf(cfg);
-    const mode = usable ? 'smtp' : 'outbox';
+    const mode = modeOf(cfg);
+    const usable = mode !== 'outbox';
     const FROM = fromOf(cfg);
     const fromAddress = (/<([^>]+)>/.exec(FROM) || [null, FROM])[1];
+    const fromName = (/^\s*([^<]+?)\s*</.exec(FROM) || [null, ''])[1];
 
     const stamp = new Date();
     const message = buildMessage({
@@ -358,6 +461,27 @@ function open({ dir, configFile, siteUrl, env, stored }) {
     if (!usable) {
       console.log(`  mail → ${to}  "${subject}"  (written to ${path.relative(process.cwd(), file)})`);
       return { ok: true, mode: 'outbox', file };
+    }
+
+    /* Over HTTPS, where SMTP cannot go. */
+    if (mode === 'api') {
+      const which = apiOf(cfg);
+      try {
+        const out = await PROVIDERS[which].send({
+          key: cfg.MAIL_API_KEY, from: fromAddress, fromName,
+          to, subject, text, html, replyTo,
+        });
+        if (out.ok) {
+          console.log(`  mail → ${to}  "${subject}"  (sent via ${which})`);
+          return { ok: true, mode: 'api', provider: which };
+        }
+        console.error(`  mail ✗ ${to}  "${subject}"  ${out.error}`);
+        return { ok: false, mode: 'api', provider: which, error: out.error, file };
+      } catch (e) {
+        const why = describe(e);
+        console.error(`  mail ✗ ${to}  "${subject}"  ${why}`);
+        return { ok: false, mode: 'api', provider: which, error: why, file };
+      }
     }
 
     try {
@@ -391,10 +515,14 @@ function open({ dir, configFile, siteUrl, env, stored }) {
    */
   function status() {
     const cfg = cfgNow();
-    const usable = usableOf(cfg);
-    const mode = usable ? 'smtp' : 'outbox';
+    const mode = modeOf(cfg);
+    const usable = mode !== 'outbox';
     return {
       mode,
+      /* Which provider, when it is going over HTTPS. */
+      provider: apiOf(cfg),
+      providerLabel: apiOf(cfg) ? PROVIDERS[apiOf(cfg)].label : '',
+      providers: Object.keys(PROVIDERS).map(k => ({ id: k, label: PROVIDERS[k].label })),
       /* Where the setting in force came from: the office screen, the hosting
          environment, or a file on the server. */
       source: sourceNow(),
@@ -406,16 +534,17 @@ function open({ dir, configFile, siteUrl, env, stored }) {
           host: o.SMTP_HOST || '', port: o.SMTP_PORT || '',
           user: o.SMTP_USER || '', from: o.MAIL_FROM || '',
           office: o.MAIL_TO || '', hasPassword: !!o.SMTP_PASS,
+          provider: o.MAIL_PROVIDER || '', hasApiKey: !!o.MAIL_API_KEY,
         };
       })(),
       /* Named, so "sending through which one?" has an answer. Never the user
          or the password. */
-      host: usable ? cfg.SMTP_HOST : '',
-      port: usable ? Number(cfg.SMTP_PORT || 587) : 0,
+      host: mode === 'smtp' ? cfg.SMTP_HOST : '',
+      port: mode === 'smtp' ? Number(cfg.SMTP_PORT || 587) : 0,
       /* Which of the three REQUIRED ones is missing, so a half-filled
          configuration says so rather than silently staying in outbox mode.
          SMTP_PORT is not one of them — it defaults to 587. */
-      missing: REQUIRED.filter(k => !cfg[k]),
+      missing: mode === 'api' ? [] : REQUIRED.filter(k => !cfg[k]),
       from: fromOf(cfg),
       office: officeOf(cfg),
       outbox: path.relative(process.cwd(), outbox),
@@ -434,7 +563,7 @@ function open({ dir, configFile, siteUrl, env, stored }) {
      are getters rather than values captured at start-up. */
   return {
     send, status, siteUrl,
-    get mode() { return usableOf(cfgNow()) ? 'smtp' : 'outbox'; },
+    get mode() { return modeOf(cfgNow()); },
     get from() { return fromOf(cfgNow()); },
     get office() { return officeOf(cfgNow()); },
     recent: () => sent.slice(-20).reverse(),
@@ -442,4 +571,4 @@ function open({ dir, configFile, siteUrl, env, stored }) {
 }
 
 module.exports = { open, readEnv, describe, buildMessage, quotedPrintable,
-  MAIL_KEYS, REQUIRED };
+  MAIL_KEYS, REQUIRED, PROVIDERS };

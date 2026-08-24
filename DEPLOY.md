@@ -148,6 +148,15 @@ it says what to do.
 
 ### Email
 
+**Read this before setting up SMTP on a free host.** Render's free web services block
+outbound traffic to ports 25, 465 and 587 — every SMTP port — so on a free plan no mail
+server setting can send anything, whoever the provider is. The symptom is a twenty-second
+timeout at connect. Two ways out: upgrade to a paid Render instance, or pick a provider
+over HTTPS in **Organisation → Email** (Brevo or Resend; the mail then goes out on port
+443, which is never blocked). The second is free and is the better transport anyway — a
+transactional provider handles bounces and reputation; a mailbox at a domain host does
+not.
+
 Set these as **environment variables** in your host's dashboard — on Render that is the
 Environment tab. A password belongs there and not in a file: nothing on disk, nothing in
 the repository. On a laptop you can put the same names in a `mail.env` file next to

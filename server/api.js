@@ -2701,16 +2701,39 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    */
   function MAILFIX(why) {
     const t = String(why || '');
-    const said = 'The mail server refused it: ' + (t || 'no reason given') + '. ';
+    const said = 'It did not go: ' + (t || 'no reason given') + '. ';
 
-    if (/ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|closed the connection at connecting|closed the connection at the greeting|stopped answering/i.test(t)) {
-      return said + 'That is the connection being blocked, not a wrong password '
-        + '\u2014 this server cannot reach that host at all. Check SMTP_HOST is the '
-        + 'SENDING server (one.com uses mailout.one.com or send.one.com for '
-        + 'website scripts, not mail.one.com, which is for reading mail). If it '
-        + 'is right, the host is refusing this machine: one.com only accepts '
-        + 'SMTP from sites hosted with them, so use a transactional provider '
-        + '(Brevo, Postmark, Resend, SES) still sending from your own address.';
+    /* A provider answering over HTTPS has already told us why in its own
+       words; the only thing worth adding is which half is wrong. */
+    if (/^(Brevo|Resend) said/i.test(t)) {
+      if (/\b401\b|\b403\b|unauthor|api.?key/i.test(t)) {
+        return said + 'That is the API key being rejected. Copy it again from the '
+          + 'provider \u2014 it is the key, not your account password, and it is '
+          + 'shown once when you create it.';
+      }
+      if (/\b422\b|\b400\b|sender|domain|verif/i.test(t)) {
+        return said + 'The provider will not send FROM that address until it is '
+          + 'verified. Verify the sender (or the whole domain) in their dashboard, '
+          + 'then try again \u2014 nothing here needs changing.';
+      }
+      return said + 'That wording is the provider\u2019s own.';
+    }
+
+    if (/stopped answering at connecting|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/i.test(t)) {
+      return said + 'Nothing came back at all \u2014 the connection never left this '
+        + 'machine. That is almost always the host blocking outbound mail: '
+        + 'Render\u2019s free plan blocks ports 25, 465 and 587, so on that plan NO '
+        + 'mail server setting can work, whoever the provider is. Two ways out: '
+        + 'upgrade to a paid Render instance, or switch this to a provider over '
+        + 'HTTPS above \u2014 pick Brevo or Resend, paste their API key, and it goes '
+        + 'out on port 443, which is never blocked.';
+    }
+    if (/ECONNREFUSED|closed the connection at connecting|closed the connection at the greeting/i.test(t)) {
+      return said + 'The connection was refused, which is the host turning this '
+        + 'machine away rather than a wrong password. Check the server name is '
+        + 'the SENDING one (one.com uses mailout.one.com, not mail.one.com, '
+        + 'which is for reading mail). If it is right, one.com only accepts SMTP '
+        + 'from sites hosted with them \u2014 use a provider over HTTPS above.';
     }
     if (/ENOTFOUND|getaddrinfo/i.test(t)) {
       return said + 'That hostname does not exist. Check SMTP_HOST for a typo.';
@@ -2770,6 +2793,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     const was = db.content('mail') || {};
 
     const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n || 200);
+    /* The provider over HTTPS, which is the only thing that works at all on a
+       host that blocks every SMTP port — Render's free plan blocks 25, 465 and
+       587, so on that plan no mail server setting can ever send anything. */
+    const provider = /^(brevo|resend)?$/.test(str(b.provider, 20).toLowerCase())
+      ? str(b.provider, 20).toLowerCase() : '';
+    const apiKey = String(b.apiKey == null ? '' : b.apiKey).trim();
     const host = str(b.host, 120);
     const user = str(b.user, 160);
     /* Empty means "leave it as it was" — the form never receives the stored
@@ -2790,16 +2819,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     }
 
     const next = {
-      host, port, user, from, office,
+      provider, host, port, user, from, office,
       pass: pass ? pass : (was.pass || ''),
+      /* Same rule as the password: empty means "keep what is saved", because
+         the form is never given the key back. */
+      apiKey: apiKey ? apiKey : (was.apiKey || ''),
     };
-    /* Clearing the server name clears the password with it. Leaving a stored
-       password attached to no server is a secret kept for no reason. */
+    /* Clearing the server name clears the password with it, and choosing no
+       provider clears the key. A secret kept for nothing is a secret kept for
+       somebody else. */
     if (!host) next.pass = '';
+    if (!provider) next.apiKey = '';
 
     db.setContent('mail', next, s.name);
     db.log(s.name, 'mail settings saved',
-      (host || 'cleared') + (port ? ':' + port : '')
+      (provider ? 'via ' + provider + (apiKey ? ' (new key)' : '') + '; ' : '')
+      + (host || 'no mail server') + (host && port ? ':' + port : '')
       + (user ? ' as ' + user : '') + (pass ? ' (new password)' : ''));
     return json(res, 200, mail.status ? mail.status() : { ok: true });
   }));
@@ -2812,26 +2847,47 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * which is the only useful thing when a password or a port is wrong. */
   route('POST', '/api/staff/mail/test', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req).catch(() => ({}));
+
+    /* Their own address by default, any address on request — "how to send
+       normal emails from admin panel to check whether emails are going".
+       Proving it lands in a real inbox somewhere else is the only way to know
+       the answer, and a message that reaches the sender can still be one the
+       rest of the world rejects.
+
+       Twenty an hour. This sends mail FROM the company's own domain, so it is
+       exactly the button somebody would want if they got into this account. */
+    const asked = String(b.to || '').trim().toLowerCase();
+    if (asked && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(asked)) {
+      return json(res, 400, { error: 'That is not an email address' });
+    }
+    if (asked && floodedBy('mailtest-' + s.id, 'mailtest', 20, 60 * 60 * 1000)) {
+      return slowDown(res);
+    }
+    const target = asked || s.email;
+
     const when = new Date().toISOString().replace('T', ' ').slice(0, 16);
     const out = await mail.send({
-      to: s.email,
+      to: target,
       subject: 'Glovels test email — ' + when,
       text: 'This is a test, sent from the Organisation screen by ' + s.name + '.\n\n'
-        + 'If it is in your inbox, the site can email your students: password '
+        + 'If it is in the inbox, the site can email your students: password '
         + 'resets, order receipts and the sign-in details somebody needs after '
         + 'they pay.\n\n' + siteUrl + '\n',
     });
-    if (out.ok && out.mode === 'smtp') {
-      db.log(s.name, 'test email sent', s.email);
+    if (out.ok && out.mode !== 'outbox') {
+      db.log(s.name, 'test email sent', target
+        + (out.provider ? ' via ' + out.provider : ''));
       return json(res, 200, {
-        ok: true, mode: 'smtp', to: s.email,
-        said: 'Sent. If it is not in your inbox within a minute or two, look in '
-            + 'spam — and if it is in spam, the From address is the thing to fix.',
+        ok: true, mode: out.mode, provider: out.provider || '', to: target,
+        said: 'Sent to ' + target + '. If it is not there within a minute or two, '
+            + 'look in spam \u2014 and if it is in spam, the From address is the '
+            + 'thing to fix, not the settings.',
       });
     }
     if (out.mode === 'outbox') {
       return json(res, 200, {
-        ok: false, mode: 'outbox', to: s.email,
+        ok: false, mode: 'outbox', to: target,
         said: 'Nothing was sent. There are no mail settings, so the message was '
             + 'written to a file on the server instead. Set SMTP_HOST, SMTP_USER '
             + 'and SMTP_PASS in the hosting environment and redeploy.',
@@ -2839,8 +2895,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     }
     db.log(s.name, 'test email failed', out.error || 'no reason given');
     return json(res, 200, {
-      ok: false, mode: 'smtp', to: s.email, error: out.error || '',
-      said: MAILFIX(out.error || ''),
+      ok: false, mode: out.mode, provider: out.provider || '', to: target,
+      error: out.error || '', said: MAILFIX(out.error || ''),
     });
   }));
 

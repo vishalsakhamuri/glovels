@@ -72,6 +72,15 @@ changes.)*
 
 ### Email
 
+**Read this before setting up SMTP on a free host.** Render's free web services block
+outbound traffic to ports 25, 465 and 587 — every SMTP port — so on a free plan no mail
+server setting can send anything, whoever the provider is. The symptom is a twenty-second
+timeout at connect. Two ways out: upgrade to a paid Render instance, or pick a provider
+over HTTPS in **Organisation → Email** (Brevo or Resend; the mail then goes out on port
+443, which is never blocked). The second is free and is the better transport anyway — a
+transactional provider handles bounces and reputation; a mailbox at a domain host does
+not.
+
 Until `mail.env` exists, every message is **written to `data/outbox/` as a real `.eml`
 file** you can double-click and read — the same message, addressed and encoded the same
 way, just not sent. That is the right default on a laptop, and one.com forces it anyway
