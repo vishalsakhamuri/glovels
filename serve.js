@@ -116,8 +116,13 @@ const MAIL_CFG = path.join(ROOT, 'mail.env');
 /* The file OR the environment — the environment wins. On a hosted deployment
    there is no file, there is an Environment tab, and that is the right place
    for a password: nothing on disk, nothing in a repository. */
-const mail = mailer.open({ dir: DATA, configFile: MAIL_CFG, siteUrl: SITE_URL,
-  env: process.env });
+const mail = mailer.open({
+  dir: DATA, configFile: MAIL_CFG, siteUrl: SITE_URL, env: process.env,
+  /* And whatever an administrator saved on Organisation → Email, read fresh on
+     every send so a corrected password works on the next message rather than
+     after a redeploy. */
+  stored: () => db.content('mail'),
+});
 const notify = notifier.open({
   mail,
   config: (() => {

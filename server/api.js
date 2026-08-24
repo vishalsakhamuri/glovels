@@ -2692,6 +2692,45 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     return json(res, 200, Object.assign({ gstRate: MONEY.GST_RATE }, sum));
   }));
 
+  /*
+   * A mail failure, turned into the next thing to do about it.
+   *
+   * "The mail server refused it" is true and useless. These four cases cover
+   * essentially every way this goes wrong, and each has a different fix — the
+   * first two look identical from the outside and are opposites.
+   */
+  function MAILFIX(why) {
+    const t = String(why || '');
+    const said = 'The mail server refused it: ' + (t || 'no reason given') + '. ';
+
+    if (/ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|closed the connection at connecting|closed the connection at the greeting|stopped answering/i.test(t)) {
+      return said + 'That is the connection being blocked, not a wrong password '
+        + '\u2014 this server cannot reach that host at all. Check SMTP_HOST is the '
+        + 'SENDING server (one.com uses mailout.one.com or send.one.com for '
+        + 'website scripts, not mail.one.com, which is for reading mail). If it '
+        + 'is right, the host is refusing this machine: one.com only accepts '
+        + 'SMTP from sites hosted with them, so use a transactional provider '
+        + '(Brevo, Postmark, Resend, SES) still sending from your own address.';
+    }
+    if (/ENOTFOUND|getaddrinfo/i.test(t)) {
+      return said + 'That hostname does not exist. Check SMTP_HOST for a typo.';
+    }
+    if (/\b535\b|\b534\b|\b530\b|authentication|auth failed|username and password/i.test(t)) {
+      return said + 'That is the username or the password being rejected \u2014 the '
+        + 'server is reachable. SMTP_USER is usually the full mailbox address, '
+        + 'and the password is the mailbox\u2019s own, not the control-panel login.';
+    }
+    if (/\b550\b|\b553\b|relay|not permitted|sender/i.test(t)) {
+      return said + 'The server will not send FROM that address. MAIL_FROM must be '
+        + 'a real mailbox on the domain, and usually the same account as SMTP_USER.';
+    }
+    if (/at the password|at the username|at AUTH/i.test(t)) {
+      return said + 'It closed the door at the sign-in step, which points at the '
+        + 'username or password rather than the host.';
+    }
+    return said + 'The wording above comes straight from the mail server.';
+  }
+
   /* ------------------------------------------------------------------ mail
    *
    * "Is the email connected? SMTP I connected."
@@ -2707,6 +2746,62 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     return json(res, 200, mail.status ? mail.status()
       : { mode: mail.mode, from: mail.from, office: mail.office, recent: [] });
+  }));
+
+  /*
+   * The settings themselves, typed into the site.
+   *
+   * "Also we should be able to send the email from this setting." Right — and
+   * more than convenient: a mail setting that can only be changed in a hosting
+   * dashboard, behind a redeploy, is one nobody in the office can fix. The
+   * layers are the file, then the environment, then this — the most recent
+   * deliberate act wins, and the screen says which is in force so there is no
+   * mystery about it.
+   *
+   * The password is written and never read back. The form shows whether one is
+   * set; leaving the field empty keeps the stored one, typing a new one
+   * replaces it. It is stored on the server in the same database as everything
+   * else — an environment variable is the stronger place for a secret, which is
+   * why the environment is still read and still supported.
+   */
+  route('PUT', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const was = db.content('mail') || {};
+
+    const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n || 200);
+    const host = str(b.host, 120);
+    const user = str(b.user, 160);
+    /* Empty means "leave it as it was" — the form never receives the stored
+       password, so an empty field is silence, not an instruction to erase. */
+    const pass = String(b.pass == null ? '' : b.pass);
+    const from = str(b.from, 160);
+    const office = str(b.office, 160);
+    const port = String(Math.max(1, Math.min(65535, Number(b.port) || 587)));
+
+    if (host && !/^[a-z0-9.-]+$/i.test(host)) {
+      return json(res, 400, { error: 'That is not a server name' });
+    }
+    if (from && !/[^@\s]+@[^@\s]+\.[^@\s]+/.test(from)) {
+      return json(res, 400, { error: 'The From address needs a real email address in it' });
+    }
+    if (office && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(office)) {
+      return json(res, 400, { error: 'That is not an email address' });
+    }
+
+    const next = {
+      host, port, user, from, office,
+      pass: pass ? pass : (was.pass || ''),
+    };
+    /* Clearing the server name clears the password with it. Leaving a stored
+       password attached to no server is a secret kept for no reason. */
+    if (!host) next.pass = '';
+
+    db.setContent('mail', next, s.name);
+    db.log(s.name, 'mail settings saved',
+      (host || 'cleared') + (port ? ':' + port : '')
+      + (user ? ' as ' + user : '') + (pass ? ' (new password)' : ''));
+    return json(res, 200, mail.status ? mail.status() : { ok: true });
   }));
 
   /* Proving it, rather than believing it.
@@ -2745,7 +2840,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     db.log(s.name, 'test email failed', out.error || 'no reason given');
     return json(res, 200, {
       ok: false, mode: 'smtp', to: s.email, error: out.error || '',
-      said: 'The mail server refused it: ' + (out.error || 'no reason given'),
+      said: MAILFIX(out.error || ''),
     });
   }));
 

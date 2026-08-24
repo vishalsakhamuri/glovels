@@ -139,6 +139,38 @@ function buildMessage({ from, to, replyTo, subject, text, html, messageId, date 
 
 /* -------------------------------------------------------------- SMTP client */
 
+/*
+ * What actually went wrong, in words.
+ *
+ * "The mail server refused it: no reason given" was this file's own doing.
+ * Node wraps a failed connection to a host that has several addresses — every
+ * real mail server does — in an AggregateError whose OWN message is the empty
+ * string; the reasons sit in `.errors`. Reading `e.message` gets nothing, and
+ * an empty reason is worse than a technical one: it says something is broken
+ * and nothing about what.
+ */
+function describe(e) {
+  if (!e) return 'no reason given';
+  const parts = [];
+  if (e.message) parts.push(e.message);
+  if (Array.isArray(e.errors) && e.errors.length) {
+    parts.push(e.errors
+      .map(x => (x && (x.message || x.code)) || String(x))
+      .filter(Boolean).join('; '));
+  }
+  if (!parts.length && e.code) parts.push(e.code);
+  return parts.join(' \u2014 ') || String(e) || 'no reason given';
+}
+
+/* Where the conversation had got to when it died. A mail server that closes
+   the connection at hello is blocking this machine; one that closes after AUTH
+   is rejecting the password. Same silence, opposite fixes. */
+const STAGE_NAME = [
+  'connecting', 'the greeting', 'STARTTLS', 'the encrypted greeting',
+  'AUTH LOGIN', 'the username', 'the password', 'the sender address',
+  'the recipient address', 'DATA', 'the message body',
+];
+
 function smtpSend({ host, port, user, pass, envelopeFrom, recipients, message, timeoutMs = 20000 }) {
   return new Promise((resolve, reject) => {
     const secure = Number(port) === 465;
@@ -156,10 +188,28 @@ function smtpSend({ host, port, user, pass, envelopeFrom, recipients, message, t
       err ? reject(err) : resolve(info);
     };
 
-    const timer = setTimeout(() => finish(new Error('SMTP timed out after ' + timeoutMs + 'ms')), timeoutMs);
+    const where = () => STAGE_NAME[stage] || ('step ' + stage);
+
+    const timer = setTimeout(
+      () => finish(new Error('the mail server stopped answering at ' + where()
+        + ' (waited ' + Math.round(timeoutMs / 1000) + ' seconds)')), timeoutMs);
     socket.setTimeout(timeoutMs);
-    socket.on('error', e => { clearTimeout(timer); finish(e); });
-    socket.on('timeout', () => { clearTimeout(timer); finish(new Error('SMTP socket timeout')); });
+    socket.on('error', e => {
+      clearTimeout(timer);
+      finish(new Error(describe(e) + ' (at ' + where() + ')'));
+    });
+    socket.on('timeout', () => {
+      clearTimeout(timer);
+      finish(new Error('the mail server stopped answering at ' + where()));
+    });
+    /* A server that blocks by IP address often accepts the connection and then
+       drops it without saying anything at all. Without this the promise waited
+       out the full timeout and reported nothing useful. */
+    socket.on('close', () => {
+      clearTimeout(timer);
+      finish(new Error('the mail server closed the connection at ' + where()
+        + ' without giving a reason'));
+    });
 
     const say = line => socket.write(line + '\r\n');
 
@@ -210,21 +260,77 @@ function smtpSend({ host, port, user, pass, envelopeFrom, recipients, message, t
 
 /* ------------------------------------------------------------------ facade */
 
-function open({ dir, configFile, siteUrl, env }) {
-  const cfg = readEnv(configFile, env);
+/*
+ * The settings an administrator typed into the site, as SMTP_ keys.
+ *
+ * Blank fields are dropped rather than stored as empty strings, so a half
+ * filled form falls back to whatever the environment or the file had instead
+ * of switching the mail off.
+ */
+function fromOffice(saved) {
+  const out = {};
+  if (!saved || typeof saved !== 'object') return out;
+  const put = (k, v) => {
+    const t = String(v == null ? '' : v).trim();
+    if (t) out[k] = t;
+  };
+  put('SMTP_HOST', saved.host);
+  put('SMTP_PORT', saved.port);
+  put('SMTP_USER', saved.user);
+  put('SMTP_PASS', saved.pass);
+  put('MAIL_FROM', saved.from);
+  put('MAIL_TO', saved.office);
+  return out;
+}
+
+/**
+ * The mailer.
+ *
+ * `stored` is a function returning what an administrator saved on the Email
+ * screen, and it is called on every send rather than once at start-up — so a
+ * corrected password works on the next message instead of after a redeploy.
+ * That is the whole point of the screen: this office should not have to open a
+ * hosting dashboard and wait for a restart to fix a typo.
+ *
+ * Three layers, and the later ones win: the mail.env file (a developer's
+ * laptop), the environment (how a deployment is configured), then the office's
+ * own settings (the most recent deliberate act, and the only one anybody can
+ * see from inside the site).
+ */
+function open({ dir, configFile, siteUrl, env, stored }) {
+  const base = readEnv(configFile, env);
   const outbox = path.join(dir, 'outbox');
   fs.mkdirSync(outbox, { recursive: true });
 
-  const usable = !!(cfg.SMTP_HOST && cfg.SMTP_USER && cfg.SMTP_PASS);
-  const mode = usable ? 'smtp' : 'outbox';
+  /* Which layer supplied the server we are pointing at, so the screen can say
+     where the setting in force came from — otherwise an office that saved one
+     thing while the environment says another has no way to tell which is
+     winning. */
+  const office = () => { try { return fromOffice(stored ? stored() : null); } catch (e) { return {}; } };
+  const cfgNow = () => Object.assign({}, base, office());
+  const sourceNow = () => {
+    if (office().SMTP_HOST) return 'office';
+    const e = (env || process.env);
+    if (e && e.SMTP_HOST) return 'environment';
+    if (base.SMTP_HOST) return 'file';
+    return 'none';
+  };
 
-  const FROM = cfg.MAIL_FROM || 'Glovels <website@glovels.com>';
-  const OFFICE = cfg.MAIL_TO || 'info@glovels.com';
-  const fromAddress = (/<([^>]+)>/.exec(FROM) || [null, FROM])[1];
+  const usableOf = c => !!(c.SMTP_HOST && c.SMTP_USER && c.SMTP_PASS);
+  const fromOf = c => c.MAIL_FROM || 'Glovels <website@glovels.com>';
+  const officeOf = c => c.MAIL_TO || 'info@glovels.com';
 
   const sent = [];
 
   async function send({ to, subject, text, html, replyTo }) {
+    /* Read every time. A password corrected two minutes ago must be the one
+       used now. */
+    const cfg = cfgNow();
+    const usable = usableOf(cfg);
+    const mode = usable ? 'smtp' : 'outbox';
+    const FROM = fromOf(cfg);
+    const fromAddress = (/<([^>]+)>/.exec(FROM) || [null, FROM])[1];
+
     const stamp = new Date();
     const message = buildMessage({
       from: FROM,
@@ -269,8 +375,9 @@ function open({ dir, configFile, siteUrl, env }) {
     } catch (e) {
       /* Never throw into a request handler: a student's sign-up must not fail
          because a mail server was slow. The copy is already on disk. */
-      console.error(`  mail ✗ ${to}  "${subject}"  ${e.message}  (copy kept at ${path.basename(file)})`);
-      return { ok: false, mode: 'smtp', error: e.message, file };
+      const why = describe(e);
+      console.error(`  mail ✗ ${to}  "${subject}"  ${why}  (copy kept at ${path.basename(file)})`);
+      return { ok: false, mode: 'smtp', error: why, file };
     }
   }
 
@@ -283,8 +390,24 @@ function open({ dir, configFile, siteUrl, env }) {
    * anybody should have to escalate.
    */
   function status() {
+    const cfg = cfgNow();
+    const usable = usableOf(cfg);
+    const mode = usable ? 'smtp' : 'outbox';
     return {
       mode,
+      /* Where the setting in force came from: the office screen, the hosting
+         environment, or a file on the server. */
+      source: sourceNow(),
+      /* What the office has saved, so the form can be filled in — never the
+         password, which is stored and used and never handed back. */
+      saved: (() => {
+        const o = office();
+        return {
+          host: o.SMTP_HOST || '', port: o.SMTP_PORT || '',
+          user: o.SMTP_USER || '', from: o.MAIL_FROM || '',
+          office: o.MAIL_TO || '', hasPassword: !!o.SMTP_PASS,
+        };
+      })(),
       /* Named, so "sending through which one?" has an answer. Never the user
          or the password. */
       host: usable ? cfg.SMTP_HOST : '',
@@ -293,8 +416,8 @@ function open({ dir, configFile, siteUrl, env }) {
          configuration says so rather than silently staying in outbox mode.
          SMTP_PORT is not one of them — it defaults to 587. */
       missing: REQUIRED.filter(k => !cfg[k]),
-      from: FROM,
-      office: OFFICE,
+      from: fromOf(cfg),
+      office: officeOf(cfg),
       outbox: path.relative(process.cwd(), outbox),
       /* How many are sitting on disk undelivered — the number that says how
          much went nowhere while nobody was looking. */
@@ -306,10 +429,17 @@ function open({ dir, configFile, siteUrl, env }) {
     };
   }
 
+  /* `mode`, `from` and `office` are read as properties all over the code base
+     and are now settings that can change while the server is running, so they
+     are getters rather than values captured at start-up. */
   return {
-    mode, send, status, office: OFFICE, from: FROM, siteUrl,
+    send, status, siteUrl,
+    get mode() { return usableOf(cfgNow()) ? 'smtp' : 'outbox'; },
+    get from() { return fromOf(cfgNow()); },
+    get office() { return officeOf(cfgNow()); },
     recent: () => sent.slice(-20).reverse(),
   };
 }
 
-module.exports = { open, readEnv, buildMessage, quotedPrintable, MAIL_KEYS, REQUIRED };
+module.exports = { open, readEnv, describe, buildMessage, quotedPrintable,
+  MAIL_KEYS, REQUIRED };

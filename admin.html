@@ -867,6 +867,39 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
         <p id="mailSays" style="margin:10px 0 0;font-size:12.6px;line-height:1.65;
           color:var(--navy-800)"></p>
         <ul class="doclist" id="mailMore" style="margin:10px 0 0"></ul>
+
+        <!-- The settings themselves. A mail setting that can only be changed in
+             a hosting dashboard, behind a redeploy, is one nobody in the office
+             can fix. -->
+        <details id="mailEdit" style="margin-top:12px">
+          <summary style="cursor:pointer;font:700 12.8px/1.5 var(--sans);
+            color:var(--navy-900)">Change these settings</summary>
+          <div class="two" style="margin-top:10px">
+            <div class="field"><label for="mHost">Outgoing server</label>
+              <input id="mHost" placeholder="mailout.one.com"></div>
+            <div class="field"><label for="mPort">Port</label>
+              <input id="mPort" inputmode="numeric" placeholder="587"></div>
+          </div>
+          <div class="two">
+            <div class="field"><label for="mUser">Username</label>
+              <input id="mUser" placeholder="info@glovels.com"></div>
+            <div class="field"><label for="mPass">Password</label>
+              <input id="mPass" type="password" autocomplete="new-password"
+                placeholder="leave empty to keep the one saved"></div>
+          </div>
+          <div class="two">
+            <div class="field"><label for="mFrom">Send as</label>
+              <input id="mFrom" placeholder="Glovels &lt;info@glovels.com&gt;"></div>
+            <div class="field"><label for="mOffice">Office inbox</label>
+              <input id="mOffice" placeholder="info@glovels.com"></div>
+          </div>
+          <p style="margin:0 0 10px;font-size:11.8px;color:var(--muted);line-height:1.6">
+            Saved on your server and in force immediately — no redeploy. The password
+            is never shown again once saved; leave the box empty to keep it. What you
+            save here overrides anything set in the hosting environment.</p>
+          <button type="button" class="btn btn-primary btn-sm" id="mailSave">
+            Save and use these</button>
+        </details>
       </div>
     </div>
 
@@ -1543,7 +1576,27 @@ async function paintMail() {
           : '')
       + 'Set them in the hosting environment and redeploy.';
 
+  /* The form, filled in from what is saved — never the password. */
+  const sv = m.saved || {};
+  const set = (id, v) => { const el = $(id); if (el && document.activeElement !== el) el.value = v || ''; };
+  set('#mHost', sv.host); set('#mPort', sv.port); set('#mUser', sv.user);
+  set('#mFrom', sv.from); set('#mOffice', sv.office);
+  const pw = $('#mPass');
+  if (pw && document.activeElement !== pw) {
+    pw.value = '';
+    pw.placeholder = sv.hasPassword ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022 \u2014 saved. Leave empty to keep it.'
+                                    : 'the mailbox password';
+  }
+
+  const WHERE = {
+    office: 'set here, on this screen',
+    environment: 'set in the hosting environment',
+    file: 'set in mail.env on the server',
+    none: 'not set anywhere',
+  };
+
   $('#mailMore').innerHTML = [
+    ['Where the settings come from', WHERE[m.source] || m.source || '—'],
     ['From address', m.from || '—'],
     ['Office address', m.office || '—'],
     live ? ['Server', (m.host || '') + (m.port ? ':' + m.port : '')] : null,
@@ -1555,6 +1608,32 @@ async function paintMail() {
 }
 
 document.addEventListener('click', async e => {
+  if (e.target.closest('#mailSave')) {
+    const b = $('#mailSave');
+    b.disabled = true;
+    const was = b.textContent;
+    b.textContent = 'Saving…';
+    try {
+      await api('PUT', '/api/staff/mail', {
+        host: $('#mHost').value.trim(),
+        port: $('#mPort').value.trim() || 587,
+        user: $('#mUser').value.trim(),
+        /* Sent once, stored, and never handed back. An empty box means "keep
+           the one that is already saved", not "erase it". */
+        pass: $('#mPass').value,
+        from: $('#mFrom').value.trim(),
+        office: $('#mOffice').value.trim(),
+      });
+      await paintMail();
+      $('#mailSays').innerHTML = 'Saved, and in use from the next message. '
+        + 'Press <b>Send me a test email</b> to prove it.';
+      toast('Mail settings saved');
+    } catch (err) { toast(err.message); }
+    b.disabled = false;
+    b.textContent = was;
+    return;
+  }
+
   if (!e.target.closest('#mailTest')) return;
   const b = $('#mailTest');
   b.disabled = true;
