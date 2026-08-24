@@ -4117,6 +4117,45 @@ patch(
     marker="var c = (window.__GLOVELS || {}).counsellor;",
 )
 
+
+# ---------------------------------------------------------------------------
+# A product, not a premises.
+#
+# "A study and work abroad consultancy in Hyderabad, with an office in Munich"
+# was the first line a visitor read on the About page, and the search
+# description under every link to it. Vishal: "this is not required, write
+# something useful… when we create global brand we dont have to mention office
+# etc… its like creating a online product."
+#
+# He is right, and not only for brand reasons. The sentence describes where the
+# company keeps its desks, which is of no interest to somebody deciding whether
+# to spend ₹99, and it quietly tells a student in Vijayawada that this is a
+# thing happening somewhere else.
+#
+# The company facts have not been deleted — they moved to the Terms, where
+# somebody looking for them expects to find them.
+# ---------------------------------------------------------------------------
+
+def a_product_not_a_premises():
+    lede = ("Study and work abroad, run online — see what you qualify for, pick "
+            "what you need, and watch it happen in your account.")
+    patch("about-us.html", "About opens on the product, not the address",
+          "<h1>About Glovels</h1><p>A study and work abroad consultancy in Hyderabad, "
+          "with an office in Munich.</p>",
+          "<h1>About Glovels</h1><p>" + lede + "</p>")
+
+    desc = ("Glovels is an online service for studying and working abroad: match "
+            "yourself against 160,000 programmes, see the fees, and pick a service "
+            "from ₹99 to a full end-to-end package.")
+    old = ("Glovels is a study and work abroad consultancy in Hyderabad, specialising "
+           "in public university admissions in Germany and Europe.")
+    patch("about-us.html", "and its search description says what it is",
+          'content="' + old + '"', 'content="' + desc + '"', count=2)
+
+
+a_product_not_a_premises()
+
+
 # The summary, and it has to be the LAST thing in the file.
 #
 # It used to sit in the middle: patches were appended below it over time, and

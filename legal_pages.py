@@ -148,6 +148,20 @@ TERMS = """
 <p class="lead">These terms govern your use of this website and any service you
   buy through it. Using the site means you accept them.</p>
 """ + PARTICULARS + """
+<h2>Where we are, and how the service reaches you</h2>
+<p>Glovels is delivered online. Your shortlist, your applications, your
+  documents, your payments and your conversation with your counsellor all live
+  in your account, and everything we owe you under these terms is performed
+  there or by phone, email or video. <b>Nothing in any service we sell requires
+  you to attend an office</b>, and no counsellor may make attendance a condition
+  of anything.</p>
+<p>The company is registered in India at the address above, and its work is
+  carried out by people in India and in Germany. Where a service names a place —
+  a document collected in person, a test centre, a consulate appointment — that
+  place is stated on the service itself. Our operating address for correspondence
+  is Plot 60, H. No. 1-102, 1st Floor, Madhapur, Hyderabad 500081, Telangana,
+  India.</p>
+
 <h2>What we do, and what we do not</h2>
 <p>We are an education consultancy. We match students to universities abroad —
   public universities in particular — and we help with the work of getting there:

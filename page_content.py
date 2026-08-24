@@ -1777,29 +1777,62 @@ PAGES["test-gre-gmat-sat"] = {
 }
 
 # ------------------------------------------------------------------- About us
+#
+# Rewritten away from the office.
+#
+# What was here described a consultancy in Hyderabad with an office in Munich,
+# and then spent four paragraphs on how good the counselling is. Vishal's
+# instruction was blunt and correct: "when we create global brand we dont have
+# to mention office etc", "its like creating a online products", "we donot need
+# students to visit office or counsellors have to convince students — it should
+# be straight forward and easy to select the service and move forward."
+#
+# So this page now describes a thing you use rather than a place you go to. The
+# company facts — the registered entity, the address, the jurisdiction — did not
+# disappear: they moved to the Terms, where somebody looking for them expects to
+# find them, and where they are a legal statement rather than a sales point.
 PAGES["about-us"] = {
     "sections": [
         {
-            "h": "What we do",
+            "h": "What Glovels is",
             "p": [
-                "Glovels Overseas Consultants is a study and work abroad consultancy "
-                "based in Hyderabad, with an office in Munich. We handle the whole "
-                "journey under one roof: profile evaluation, university shortlisting, "
-                "applications, test preparation, language classes, visa filing and "
-                "support after you land.",
-                "The office in Germany is not decoration. It is why we can say "
-                "something useful about a blocked account, an APS certificate or an "
-                "Anerkennung file — and why our students have somebody to call once "
-                "they are there.",
+                "Glovels is an online service for studying and working abroad. You "
+                "answer a few questions about yourself, you see the universities you "
+                "actually qualify for and what each one costs, and you pick how much "
+                "help you want — from a ninety-nine rupee shortlist to a package that "
+                "carries your file all the way to the visa.",
+                "Everything after that happens in your account: applications, "
+                "documents, payments, and every message anybody has sent you about "
+                "your file. It is open at three in the morning, it is the same on a "
+                "phone as on a laptop, and it does not depend on somebody being at "
+                "their desk.",
             ],
         },
         {
-            "h": "What we are trying to do",
+            "h": "How it works",
+            "ul": [
+                "<b>Tell us about yourself</b> — marks, budget, country, intake. Six "
+                "questions, no call required",
+                "<b>See what you match</b> — real programmes with real fees, filtered "
+                "by what you can spend and when you want to start",
+                "<b>Pick a service</b> — priced on the page, from ₹99 to a full "
+                "end-to-end package. You know what it costs before you speak to anyone",
+                "<b>Watch it happen</b> — every application, document and decision on "
+                "one screen, with the person handling it named",
+            ],
+        },
+        {
+            "h": "Why it is built this way",
             "p": [
-                "To help students go abroad on the strength of good information rather "
-                "than good marketing. That means telling you when a programme is a bad "
-                "fit, when a country is the wrong choice for your budget, and when the "
-                "honest answer is to wait a cycle and apply properly.",
+                "The usual version of this industry runs on persuasion. You give a "
+                "form your number, somebody rings, you are invited in, and the price "
+                "arrives at the end of a conversation designed to make it feel small. "
+                "Nobody enjoys that, and it selects for whoever is best at selling "
+                "rather than whoever is best at applications.",
+                "We would rather publish the prices, publish what each one includes, "
+                "and let you start with ₹99 if that is what you want to risk on us. "
+                "If the work is good you will come back for more of it. That is the "
+                "whole strategy.",
             ],
             "note": "Public universities are the product. Where a course is free or "
                     "close to it, we say so — our fee is for getting you in, not for "
@@ -1817,22 +1850,25 @@ PAGES["about-us"] = {
                 "<b>Test preparation</b> — IELTS, TOEFL, PTE, GRE, GMAT and SAT",
                 "<b>Language</b> — German and French, A1 to B2, with certified "
                 "instructors",
-                "<b>In India</b> — APS certificates, attestation, notary, translation, "
-                "SOP assistance and forex",
-                "<b>Once you are there</b> — post-study work visa help, accommodation "
-                "and job search support",
+                "<b>Paperwork</b> — APS certificates, attestation, notary, "
+                "translation, SOP assistance and forex",
+                "<b>After you land</b> — post-study work visa help, accommodation and "
+                "job search support",
             ],
         },
         {
-            "h": "How we work",
+            "h": "What we will not do",
             "ul": [
-                "<b>Free profile evaluation</b> before anybody talks about money",
-                "<b>A named counsellor</b>, not a queue — the same person from "
-                "shortlist to visa",
-                "<b>A student portal</b> where you can see every application, document "
-                "and message, at any hour",
-                "<b>Written scope</b> — the package terms are on the site, and you "
-                "accept them at payment rather than discovering them later",
+                "<b>Promise an admission we cannot control.</b> Universities decide "
+                "admissions and consulates decide visas. Where a package carries a "
+                "guarantee, it is a promise about our fee, written down on the refund "
+                "page",
+                "<b>Hide a price until you are on a call.</b> Every service on this "
+                "site shows what it costs",
+                "<b>Push you somewhere expensive.</b> If the right answer is a free "
+                "public university, or waiting a cycle and applying properly, that is "
+                "the answer you get",
+                "<b>Ring you eleven times.</b> You choose what you buy and when",
             ],
         },
         {
@@ -1845,19 +1881,25 @@ PAGES["about-us"] = {
         },
     ],
     "faq": [
-        ("Where are you based?",
-         "Madhapur, Hyderabad, with an office in Munich, Germany."),
-        ("Do you charge for the first consultation?",
-         "No. Profile evaluation and the first counselling session are free."),
+        ("Do I have to come to an office?",
+         "No. The whole thing runs online — shortlist, applications, documents, "
+         "payments and messages all live in your account. Who we are as a company, "
+         "and where we are registered, is set out in the Terms and Conditions."),
+        ("Do I have to talk to somebody before I can buy anything?",
+         "No. Prices are on the page and you can start at ₹99 without speaking to "
+         "anyone. A counsellor is assigned when you buy something that needs one."),
+        ("What does ₹99 actually get me?",
+         "Three universities matched to your profile, with fees, intake and deadline "
+         "for each, delivered to your account. It is meant to be small enough to try."),
         ("Do you only work with expensive universities?",
          "The opposite. Public universities with low or no tuition are the core of what "
          "we do, and we will tell you when a course costs nothing."),
         ("Can I see my application progress?",
-         "Yes. Every student gets a portal login showing applications, documents, "
-         "payments and the full conversation with their counsellor."),
+         "Yes. Every student gets an account showing applications, documents, payments "
+         "and the full conversation with their counsellor."),
         ("Who will I actually be dealing with?",
-         "One named counsellor, assigned after your evaluation, who stays with your "
-         "file to the end."),
+         "One named counsellor on the packages that include counselling, who stays "
+         "with your file to the end."),
     ],
 }
 
@@ -1929,43 +1971,50 @@ PAGES["careers"] = {
 }
 
 # ------------------------------------------------------------------ Contact us
+#
+# The old version of this page opened with a landmark, a metro exit and a bus
+# stop, and its FAQ answered "can I visit without an appointment?". That is a
+# page for a shopfront. "Donot stress more on office, visits etc" — so the
+# addresses stay, because a company that hides where it is registered looks
+# like one worth hiding from, but they are facts at the bottom rather than the
+# invitation at the top.
 PAGES["contact-us"] = {
     "sections": [
         {
-            "h": "Hyderabad",
+            "h": "The fastest way to reach us",
             "p": [
-                "Plot 60, H. No. 1-102, 1st Floor, Madhapur, Hyderabad 500081, "
-                "Telangana. The landmark is Metro Pillar C1734, behind Big C Mobiles.",
-                "Nearest metro: Durgam Cheruvu, exit gate B. Nearest bus stop: Madhapur "
-                "Petrol Bunk.",
+                "If you already have an account, sign in and message your counsellor "
+                "there. It goes onto your file, the whole team can see it, and you "
+                "have a record of what was said.",
+                "If you do not, the chat on this site reaches the same people, and "
+                "anything you write there is waiting for you when you sign up.",
             ],
             "ul": [
-                "Phone: <a href=\"tel:+917839399999\">+91 78393 99999</a>",
+                "WhatsApp or phone: <a href=\"tel:+917839399999\">+91 78393 99999</a>",
                 "Email: <a href=\"mailto:info@glovels.com\">info@glovels.com</a>",
-            ],
-        },
-        {
-            "h": "Munich",
-            "p": [
-                "Our German office supports students once they arrive — APS and "
-                "Anerkennung questions, blocked accounts, city registration, and the "
-                "things nobody warns you about in the first fortnight.",
-            ],
-            "ul": [
-                "Phone: <a href=\"tel:+498920194090\">+49 89 2019 4090</a>",
-                "Mobile: <a href=\"tel:+4915563541873\">+49 155 6354 1873</a>",
+                "Germany: <a href=\"tel:+498920194090\">+49 89 2019 4090</a>",
             ],
         },
         {
             "h": "What to expect when you write",
             "ul": [
                 "A reply within one working day, from a person rather than a queue",
-                "A free profile evaluation before any conversation about fees",
-                "No obligation, and no pressure to decide in the same call",
+                "A straight answer about price and scope — both are on the site "
+                "already, so there is nothing to extract from us",
+                "No obligation, and nobody ringing you for a fortnight afterwards",
             ],
-            "note": "Already a student with us? Sign in to the portal and message your "
-                    "counsellor there — it keeps everything on your file, where the "
-                    "whole team can see it.",
+            "note": "You do not have to speak to anybody to start. Services are "
+                    "priced on the site from ₹99, and a counsellor is assigned when "
+                    "you buy something that needs one.",
+        },
+        {
+            "h": "Who you are dealing with",
+            "p": [
+                "Glovels Overseas Consultants Private Limited, registered in India, "
+                "with people in Hyderabad and in Germany. The full company details — "
+                "registered entity, address, GSTIN and jurisdiction — are set out in "
+                "the <a href=\"terms.html\">Terms and Conditions</a>.",
+            ],
         },
         {
             "h": "For admissions and partnerships",
@@ -1976,16 +2025,18 @@ PAGES["contact-us"] = {
         },
     ],
     "faq": [
-        ("Is the first consultation free?",
-         "Yes. Profile evaluation and the first counselling session cost nothing."),
+        ("Do I need to book a call before I can do anything?",
+         "No. You can answer the profile questions, see your matches and buy a "
+         "service without speaking to anybody."),
         ("How quickly do you reply?",
-         "Within one working day to email, and usually the same day to a phone call."),
-        ("Can I visit the office without an appointment?",
-         "You can, but booking means a counsellor is free when you arrive rather than "
-         "in another meeting."),
-        ("Do you work with students outside Hyderabad?",
-         "Yes. Most of the process runs online through the student portal, and a good "
-         "share of our students never come to the office."),
+         "Within one working day to email, and usually the same day to a message in "
+         "the portal or on WhatsApp."),
+        ("Is the first consultation free?",
+         "Yes. A profile evaluation costs nothing, whether or not you ever buy "
+         "anything."),
+        ("Do you work with students outside India?",
+         "Yes. Nothing about the service depends on where you are — it runs in your "
+         "account, in whatever timezone you are in."),
     ],
 }
 
