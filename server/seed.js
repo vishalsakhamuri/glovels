@@ -299,6 +299,103 @@ function addMissingServices({ db, content }) {
   return fresh.length;
 }
 
+/*
+ * The ten services that arrived switched off.
+ *
+ * addMissingServices brings a newly-shipped service to an existing deployment
+ * hidden, on the reasoning that a service on the site with nobody briefed to
+ * sell it is worse than one that is not there yet. Right in general; wrong for
+ * these ten, which carry no price at all — they say "Price on request" and the
+ * only button on them asks a counsellor. There is nothing to be briefed on and
+ * nothing to get wrong, and an enquiry is the point.
+ *
+ * One-shot, and only for services that are still exactly as they shipped: no
+ * price, and never edited. An office that deliberately hides one of them
+ * tomorrow keeps it hidden, because this never runs again.
+ */
+function openOnRequestServices({ db }) {
+  if (db.content('servicesOnRequestV1')) return 0;
+  db.setContent('servicesOnRequestV1', { done: true }, 'system');
+
+  const live = db.content('services');
+  if (!live || !Array.isArray(live.items)) return 0;
+
+  let n = 0;
+  const items = live.items.map(x => {
+    const untouched = x.active === false
+      && !Number(x.priceInr)
+      && !x.isFree
+      && /on request/i.test(String(x.priceLabel || ''));
+    if (!untouched) return x;
+    n++;
+    return Object.assign({}, x, { active: true });
+  });
+  if (!n) return 0;
+
+  db.setContent('services', { tabs: live.tabs, items }, 'system');
+  db.log('system', 'services opened',
+    n + ' priced on request \u2014 the button asks a counsellor');
+  return n;
+}
+
+/*
+ * The six posts, written into the drafts that were waiting for them.
+ *
+ * seedPosts imported the titles off the shipped pages as empty drafts, and
+ * would not run again once any post existed — so a body written later reached a
+ * fresh database and nowhere else. This fills a draft whose body is STILL
+ * EMPTY, and touches nothing else.
+ *
+ * Never overwrites. A post the office has started writing has a body, and a
+ * body means hands off, whatever we shipped. A post they published is left
+ * alone for the same reason.
+ *
+ * They arrive as drafts, not published. The words are ours to supply; the
+ * decision to put them on the site belongs to the person whose name is at the
+ * bottom of it.
+ */
+function fillEmptyPosts({ db, root }) {
+  let shipped = [];
+  try {
+    shipped = JSON.parse(fs.readFileSync(path.join(root, 'posts.json'), 'utf8'));
+  } catch (e) { return 0; }
+  if (!Array.isArray(shipped) || !shipped.length) return 0;
+
+  const have = db.allPosts();
+  let n = 0;
+
+  for (const s of shipped) {
+    const row = have.find(x => x.slug === s.slug);
+    if (!row) continue;
+    if (String(row.body || '').trim()) continue;      /* somebody has written */
+
+    db.updatePost(row.id, {
+      slug: row.slug,
+      title: s.title || row.title,
+      excerpt: s.excerpt || row.excerpt || '',
+      body: s.body || '',
+      cover: row.cover || '',
+      author: row.author || '',
+      tag: row.tag || '',
+      status: 'draft',
+      metaTitle: row.meta_title || '',
+      metaDesc: s.metaDescription || row.meta_desc || '',
+      keywords: row.keywords || '',
+      ogImage: row.og_image || '',
+      readMins: Math.max(1, Math.round(String(s.body || '').split(/\s+/).length / 200)),
+      publishedAt: row.published_at || '',
+      updatedBy: 'system',
+    });
+    n++;
+  }
+
+  if (n) {
+    db.log('system', 'blog posts written',
+      n + ' draft(s) filled in \u2014 read them and press Publish');
+  }
+  return n;
+}
+
 function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
   if (db.studentByEmail(DEMO_EMAIL)) return null;
   /* A shared test link overrides this, so the three demo accounts are not
@@ -418,4 +515,6 @@ function seedAdmin({ db, admin, hashPassword, newSalt, reset }) {
 
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   addMissingServices,
+  openOnRequestServices,
+  fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

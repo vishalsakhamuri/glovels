@@ -105,6 +105,22 @@ function render(body) {
       continue;
     }
 
+    /* A bullet that wrapped in the source.
+     *
+     * Every line was treated as its own thing, so a list item written across
+     * two lines — which is what happens the moment anybody wraps at eighty
+     * columns — put its second half OUTSIDE the list, as a paragraph between
+     * two bullets. It reads as a typesetting fault and it was in every post
+     * with a long bullet in it.
+     *
+     * An indented line while a list is open belongs to the item above it.
+     * Unindented, it is a new paragraph and the list has ended, which is what
+     * somebody writing prose after a list intends. */
+    if (list && /^\s/.test(raw) && out.length && /<\/li>$/.test(out[out.length - 1])) {
+      out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ' ' + inline(line) + '</li>');
+      continue;
+    }
+
     if (list) { flushList(); }
     para.push(line);
   }

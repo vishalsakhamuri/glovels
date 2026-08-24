@@ -195,6 +195,52 @@ const stamp = Date.now();
     { data: { title: 'Empty ' + stamp, body: '   ', status: 'published' } });
   check('an empty post cannot be published', empty.status() === 422, empty.status());
 
+  /* ------------------------------------------- the six that shipped written */
+
+  /* A bullet that wrapped in the source used to put its second half OUTSIDE
+     the list, as a paragraph between two bullets. Every line was treated as its
+     own thing, so it happened the moment anybody wrapped at eighty columns —
+     which is every post here. */
+  const shipped = await (await staff.request.get(BASE + '/api/staff/posts')).json();
+  check('the six posts arrive with words in them',
+    (shipped.posts || []).length >= 6, (shipped.posts || []).length);
+  const blank = [];
+  for (const row of (shipped.posts || [])) {
+    const full = await (await staff.request.get(BASE + '/api/staff/post/' + row.id)).json();
+    if (!String((full.post || {}).body || '').trim()) blank.push(row.slug);
+  }
+  check('and none of them is still an empty draft', blank.length === 0, blank.join(', '));
+  check('they wait as drafts rather than publishing themselves',
+    (shipped.posts || []).every(p => p.status === 'draft' || p.status === 'published'));
+
+  /* Render one and look at the shape of it. */
+  const first = (shipped.posts || []).find(p => /Expatrio/.test(p.title));
+  if (first) {
+    const full = await (await staff.request.get(BASE + '/api/staff/post/' + first.id)).json();
+    await staff.request.put(BASE + '/api/staff/post/' + first.id, {
+      data: Object.assign({}, full.post,
+        { status: 'published', publishedAt: new Date().toISOString() }),
+    });
+    const reader = await browser.newContext();
+    const rp = await reader.newPage();
+    await rp.goto(BASE + '/post/' + first.slug, { waitUntil: 'domcontentloaded' });
+    await rp.waitForTimeout(900);
+    check('a published post has headings and a list',
+      (await rp.$$('h2')).length >= 3 && (await rp.$$('li')).length >= 2);
+    check('a wrapped bullet stays inside its own list item',
+      await rp.evaluate(() => {
+        const els = [...document.querySelectorAll('.prose > *, article > *, body p, body ul')];
+        for (let i = 1; i < els.length - 1; i++) {
+          if (els[i].tagName === 'P'
+            && els[i - 1].tagName === 'UL' && els[i + 1].tagName === 'UL') return false;
+        }
+        return true;
+      }));
+    check('and the whole piece is worth reading, not a stub',
+      (await rp.textContent('body')).split(/\s+/).length > 400,
+      (await rp.textContent('body')).split(/\s+/).length + ' words');
+  }
+
   await browser.close();
   console.log('\nPASS');
   ok.forEach(x => console.log('  ✓ ' + x));

@@ -172,9 +172,13 @@ const PROD = {
     /* Every public page: a title, a description, and no noindex. */
     const pages = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'))
       .map(f => f.slice(0, -5))
+      /* Portal screens, which are behind a sign-in and are not indexed. `services`
+         joined them when the student portal got its own Services screen — it is
+         not the public services grid, which lives on the home page. */
       .filter(s => !['dashboard', 'profile', 'documents', 'messages', 'applications',
-        'universities', 'scholarships', 'visa', 'admin', 'counsellor', 'chat', 'home',
-        'catalogue', 'blog-admin', 'leads', 'login', '404', 'index'].includes(s));
+        'universities', 'scholarships', 'services', 'visa', 'admin', 'counsellor',
+        'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'login', '404',
+        'index'].includes(s));
     const missing = [], thin = [];
     for (const s of pages) {
       await page.goto('http://localhost:8071/' + s, { waitUntil: 'load' });
