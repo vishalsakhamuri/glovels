@@ -350,8 +350,16 @@ function paintLead(lead, notes) {
     + '<p id="dErr" role="alert" style="display:none;margin:0 0 10px;padding:10px 12px;'
       + 'border-radius:9px;font:600 12.6px/1.5 var(--sans);background:#fdf3f2;'
       + 'border:1px solid #f0c8c4;color:#7a2118"></p>'
-    + '<div style="display:flex;gap:9px;flex-wrap:wrap">'
+    + '<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">'
       + '<button type="button" class="btn btn-ghost btn-sm" id="dSave">Save</button>'
+      /* A duplicate, a test row, somebody who typed nonsense into the form.
+         Once a lead has become an account it is not deleted from here — the
+         account is the thing that exists now, and removing the enquiry behind
+         it loses where they came from, which is the one number the marketing
+         spend is judged on. */
+      + (lead.status === 'converted' ? ''
+          : '<button type="button" class="btn btn-ghost btn-sm" id="dDel" '
+            + 'style="color:#b03a2e">Delete</button>')
       + (lead.status === 'converted'
           ? '<span style="font:600 12.4px/2.2 var(--sans);color:#14603a">'
             + 'They have an account'
@@ -368,6 +376,7 @@ function paintLead(lead, notes) {
   $('#nBody').addEventListener('keydown', e => { if (e.key === 'Enter') note(lead); });
   $('#dSave').onclick = () => saveLead(lead);
   if ($('#dWin')) $('#dWin').onclick = () => convert(lead);
+  if ($('#dDel')) $('#dDel').onclick = () => removeLead(lead);
   const th = $('#thread');
   th.scrollTop = th.scrollHeight;
 }
@@ -402,6 +411,20 @@ async function saveLead(lead) {
     await load();
     paintLead(r.lead, r.notes);
     toast('Saved');
+  } catch (e) { say(e.message); }
+}
+
+async function removeLead(lead) {
+  say('');
+  if (!confirm('Delete ' + (lead.name || 'this enquiry') + '?\n\n'
+    + 'The follow-ups written against it go too, and this cannot be undone.')) return;
+  try {
+    await api('DELETE', '/api/staff/lead/' + lead.id);
+    openId = null;
+    await load();
+    $('#leadPane').innerHTML = '<p style="margin:0;color:var(--muted);font-size:12.8px">'
+      + 'Deleted. Pick another from the book.</p>';
+    toast('Deleted');
   } catch (e) { say(e.message); }
 }
 

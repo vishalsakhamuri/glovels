@@ -767,6 +767,14 @@ async function paintPeople() {
     '<span style="flex:1"></span>' +
     '<button type="button" class="btn btn-ghost btn-sm" data-pw="' + p.id +
       '">Reset password</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-edit="' + p.id +
+      '" style="margin-left:6px">Edit</button>' +
+    /* Not on yourself. Deleting the account you are signed in as leaves nobody
+       able to undo it, and the server refuses anyway — offering the button and
+       then refusing is worse than not offering it. */
+    (p.id === ME ? '' :
+      '<button type="button" class="btn btn-ghost btn-sm" data-del="' + p.id +
+        '" style="margin-left:6px;color:#b03a2e">Delete</button>') +
     (p.id === ME ? '' :
       '<select data-role="' + p.id + '" style="margin-left:6px;padding:6px 9px;' +
       'font:600 12.2px/1.3 var(--sans);border:1.5px solid #d8dde4;border-radius:8px">' +
@@ -867,6 +875,47 @@ document.addEventListener('click', async e => {
       btn.disabled = false;
       btn.textContent = 'Create the account';
     }
+    return;
+  }
+
+  /* Fixing a name, an email or a phone. The email is the sign-in, so a typo in
+     it locks somebody out of their own account with no way in from their side —
+     which is why this exists at all. */
+  const ed = e.target.closest('[data-edit]');
+  if (ed) {
+    const p = PEOPLE.find(x => String(x.id) === ed.dataset.edit);
+    if (!p) return;
+    const name = prompt('Name', p.name);
+    if (name === null) return;
+    const email = prompt('Email \u2014 this is what they sign in with', p.email);
+    if (email === null) return;
+    const phone = prompt('Phone', p.phone || '');
+    if (phone === null) return;
+    try {
+      await api('PUT', '/api/staff/people/' + p.id, { name, email, phone });
+      await paintPeople();
+      toast('Saved.');
+    } catch (err) { toast(err.message); }
+    return;
+  }
+
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    const p = PEOPLE.find(x => String(x.id) === del.dataset.del);
+    if (!p) return;
+    const load = p.caseload || 0;
+    if (!confirm('Delete ' + p.name + ' (' + p.email + ')?\n\n'
+      + (load ? 'Their ' + load + ' student(s) become unassigned and will need '
+                + 'somebody else.\n\n' : '')
+      + 'Everything of theirs goes with them and this cannot be undone.')) return;
+    try {
+      const r = await api('DELETE', '/api/staff/people/' + p.id);
+      await paintPeople();
+      await paintRoster();
+      toast(r.unassigned
+        ? 'Deleted. ' + r.unassigned + ' student(s) now need a counsellor.'
+        : 'Deleted.');
+    } catch (err) { alert(err.message); }
     return;
   }
 

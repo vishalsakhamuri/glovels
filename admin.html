@@ -1746,6 +1746,14 @@ async function paintPeople() {
     '<span style="flex:1"></span>' +
     '<button type="button" class="btn btn-ghost btn-sm" data-pw="' + p.id +
       '">Reset password</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-edit="' + p.id +
+      '" style="margin-left:6px">Edit</button>' +
+    /* Not on yourself. Deleting the account you are signed in as leaves nobody
+       able to undo it, and the server refuses anyway — offering the button and
+       then refusing is worse than not offering it. */
+    (p.id === ME ? '' :
+      '<button type="button" class="btn btn-ghost btn-sm" data-del="' + p.id +
+        '" style="margin-left:6px;color:#b03a2e">Delete</button>') +
     (p.id === ME ? '' :
       '<select data-role="' + p.id + '" style="margin-left:6px;padding:6px 9px;' +
       'font:600 12.2px/1.3 var(--sans);border:1.5px solid #d8dde4;border-radius:8px">' +
@@ -1846,6 +1854,47 @@ document.addEventListener('click', async e => {
       btn.disabled = false;
       btn.textContent = 'Create the account';
     }
+    return;
+  }
+
+  /* Fixing a name, an email or a phone. The email is the sign-in, so a typo in
+     it locks somebody out of their own account with no way in from their side —
+     which is why this exists at all. */
+  const ed = e.target.closest('[data-edit]');
+  if (ed) {
+    const p = PEOPLE.find(x => String(x.id) === ed.dataset.edit);
+    if (!p) return;
+    const name = prompt('Name', p.name);
+    if (name === null) return;
+    const email = prompt('Email \u2014 this is what they sign in with', p.email);
+    if (email === null) return;
+    const phone = prompt('Phone', p.phone || '');
+    if (phone === null) return;
+    try {
+      await api('PUT', '/api/staff/people/' + p.id, { name, email, phone });
+      await paintPeople();
+      toast('Saved.');
+    } catch (err) { toast(err.message); }
+    return;
+  }
+
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    const p = PEOPLE.find(x => String(x.id) === del.dataset.del);
+    if (!p) return;
+    const load = p.caseload || 0;
+    if (!confirm('Delete ' + p.name + ' (' + p.email + ')?\n\n'
+      + (load ? 'Their ' + load + ' student(s) become unassigned and will need '
+                + 'somebody else.\n\n' : '')
+      + 'Everything of theirs goes with them and this cannot be undone.')) return;
+    try {
+      const r = await api('DELETE', '/api/staff/people/' + p.id);
+      await paintPeople();
+      await paintRoster();
+      toast(r.unassigned
+        ? 'Deleted. ' + r.unassigned + ' student(s) now need a counsellor.'
+        : 'Deleted.');
+    } catch (err) { alert(err.message); }
     return;
   }
 
@@ -2063,24 +2112,6 @@ if (location.protocol === 'file:') {
   b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
     'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
     'it opens — <b>http://localhost:8080</b>';
-  document.body.appendChild(b);
-  document.body.style.paddingTop = b.offsetHeight + 'px';
-}
-</script>
-<script>
-/* GLOVELS-FILE-WARNING
-   This runs at the end of <body>, so document.body already exists. It waited
-   for DOMContentLoaded at first, which never arrived on pages where an earlier
-   script had already thrown \u2014 and a warning that only appears when nothing
-   else is wrong is a warning that never appears. */
-if (location.protocol === 'file:') {
-  var b = document.createElement('div');
-  b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:13px 18px;' +
-    'background:#7a2118;color:#fff;font:600 13.5px/1.55 system-ui,-apple-system,sans-serif;' +
-    'text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.25)';
-  b.innerHTML = '<b>This page was opened straight from the folder.</b> Links and sign-in ' +
-    'will not work. Close this tab, double-click <b>start.command</b>, and use the address ' +
-    'it opens \u2014 <b>http://localhost:8080</b>';
   document.body.appendChild(b);
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }

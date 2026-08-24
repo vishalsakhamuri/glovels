@@ -910,6 +910,87 @@ function open(dir) {
       return rows.filter(r => (r.status || 'active') === 'active');
     },
 
+    /**
+     * Edit a person's name, email or phone.
+     *
+     * The email is the sign-in, so a typo in it locks somebody out of their own
+     * account and there is no way in from their side. It has to be fixable, and
+     * it has to refuse a duplicate — two accounts on one address means the
+     * second person to sign in gets the first one's file.
+     */
+    updatePerson(id, p) {
+      const email = String(p.email || '').trim().toLowerCase();
+      if (email) {
+        const clash = db.one('SELECT id FROM students WHERE email = ? AND id != ?',
+          email, Number(id));
+        if (clash) return { error: 'Another account already uses that email address' };
+      }
+      const was = this.studentById(id);
+      if (!was) return { error: 'No such person' };
+      db.run('UPDATE students SET name = ?, email = ?, phone = ? WHERE id = ?',
+        String(p.name || was.name).slice(0, 120),
+        email || was.email,
+        String(p.phone == null ? was.phone : p.phone).slice(0, 30),
+        Number(id));
+      return { person: this.studentById(id) };
+    },
+
+    /**
+     * Delete a person, and everything of theirs.
+     *
+     * A row left behind in one of these tables is not tidy-but-harmless: an
+     * orphaned document row points at a file on disk that nobody can reach and
+     * nobody will ever delete, and an orphaned message turns up in a count.
+     *
+     * Orders are the exception and are NOT deleted — they are the financial
+     * record, they carry what somebody accepted and what they paid, and they
+     * survive the account. The caller refuses to delete anybody who has one;
+     * this is the second line of that same rule, so a future caller cannot
+     * quietly remove a paid order by removing a person.
+     */
+    deletePerson(id) {
+      const n = Number(id);
+      const orders = db.all('SELECT id FROM orders WHERE student_id = ?', n);
+      if (orders.length) return { error: 'That person has orders on file' };
+
+      [
+        'sessions', 'profiles', 'shortlist', 'applications', 'documents',
+        'messages', 'saved_scholarships', 'drafts', 'push_subs',
+      ].forEach(table => {
+        try { db.run('DELETE FROM ' + table + ' WHERE student_id = ?', n); }
+        catch (e) { /* a table this database has never had */ }
+      });
+      try { db.run('DELETE FROM staff_notes WHERE student_id = ? OR staff_id = ?', n, n); }
+      catch (e) {}
+      /* Their students become unassigned rather than disappearing with them. */
+      try { db.run('UPDATE students SET counsellor_id = NULL WHERE counsellor_id = ?', n); }
+      catch (e) {}
+      /* A lead they owned goes back in the pool, and a lead that became them
+         loses the link rather than pointing at nothing. */
+      try { db.run('UPDATE enquiries SET owner_id = NULL WHERE owner_id = ?', n); } catch (e) {}
+      try { db.run('UPDATE enquiries SET student_id = NULL WHERE student_id = ?', n); } catch (e) {}
+
+      db.run('DELETE FROM students WHERE id = ?', n);
+      return { ok: true };
+    },
+
+    countOrdersFor: id => db.all(
+      'SELECT COUNT(*) AS n FROM orders WHERE student_id = ?', Number(id))[0].n,
+    countStudentsOf: id => db.all(
+      'SELECT COUNT(*) AS n FROM students WHERE counsellor_id = ?', Number(id))[0].n,
+    countAdmins: () => db.all(
+      "SELECT COUNT(*) AS n FROM students WHERE role = 'admin'")[0].n,
+
+    /* The enquiry and the follow-ups written against it. Leaving the notes
+       behind would mean somebody's account of a phone call sitting in a table
+       attached to a lead that no longer exists — invisible, and counted. */
+    deleteLead(id) {
+      const n = Number(id);
+      try { db.run('DELETE FROM lead_notes WHERE lead_id = ?', n); } catch (e) {}
+      db.run('DELETE FROM enquiries WHERE id = ?', n);
+      return { ok: true };
+    },
+
     setStudentStatus(studentId, status, note) {
       const s = ['active', 'completed', 'left'].includes(status) ? status : 'active';
       db.run('UPDATE students SET status = ?, closed_at = ?, close_note = ? WHERE id = ?',

@@ -2901,6 +2901,95 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     });
   }));
 
+  /* Fixing a name, an email or a phone number.
+   *
+   * The email is the sign-in. A typo in it locks somebody out of their own
+   * account with no way in from their side, so it has to be fixable — and it
+   * has to refuse a duplicate, because two accounts on one address means the
+   * second person to sign in gets the first one's file.
+   */
+  route('PUT', /^\/api\/staff\/people\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const id = Number(m[1]);
+    const person = db.studentById(id);
+    if (!person) return json(res, 404, { error: 'No such person' });
+    const b = await readJson(req);
+    if (b.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(b.email).trim())) {
+      return json(res, 400, { error: 'That is not an email address' });
+    }
+    const out = db.updatePerson(id, b);
+    if (out.error) return json(res, 409, { error: out.error });
+    const changed = [
+      person.name !== out.person.name ? 'name' : '',
+      person.email !== out.person.email ? 'email' : '',
+      String(person.phone || '') !== String(out.person.phone || '') ? 'phone' : '',
+    ].filter(Boolean);
+    if (changed.length) {
+      db.log(s.name, 'details changed',
+        out.person.name + ' \u2014 ' + changed.join(', ')
+        + (changed.includes('email') ? ' (was ' + person.email + ')' : ''));
+    }
+    return json(res, 200, { person: publicStudent(out.person) });
+  }));
+
+  /* Deleting somebody.
+   *
+   * Four things this refuses, each because the alternative is worse than a
+   * cluttered list:
+   *
+   *   yourself — an admin who deletes their own account is locked out of the
+   *   site they administer, and there is nobody left to undo it;
+   *
+   *   the last admin — same outcome, one step removed;
+   *
+   *   anybody with an order — that is the financial record. It carries what
+   *   they accepted and what they paid, and it has to survive the account. Use
+   *   "Left part-way" or "Completed" on the roster instead, which closes their
+   *   access and keeps the books straight;
+   *
+   *   a person who does not exist, quietly, rather than reporting success.
+   *
+   * Everything else of theirs goes: profile, documents, messages, drafts,
+   * sessions, registered devices. An orphaned document row points at a file on
+   * disk that nobody can reach and nobody will ever delete.
+   */
+  route('DELETE', /^\/api\/staff\/people\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const id = Number(m[1]);
+    if (id === Number(s.id)) {
+      return json(res, 400, {
+        error: 'You cannot delete your own account \u2014 there would be nobody left '
+             + 'signed in to undo it. Ask another administrator.',
+      });
+    }
+    const person = db.studentById(id);
+    if (!person) return json(res, 404, { error: 'No such person' });
+
+    if (person.role === 'admin' && db.countAdmins() <= 1) {
+      return json(res, 400, {
+        error: 'That is the only administrator. Make somebody else an admin first.',
+      });
+    }
+    const orders = db.countOrdersFor(id);
+    if (orders) {
+      return json(res, 409, {
+        error: person.name + ' has ' + orders + ' order' + (orders === 1 ? '' : 's')
+             + ' on file, and an order is the financial record of what somebody '
+             + 'accepted and paid. Close the file instead \u2014 Completed, or Left '
+             + 'part-way \u2014 which ends their access and keeps the books straight.',
+        orders,
+      });
+    }
+
+    const caseload = db.countStudentsOf(id);
+    const out = db.deletePerson(id);
+    if (out.error) return json(res, 409, { error: out.error });
+    db.log(s.name, 'account deleted',
+      person.name + ' (' + person.email + ')'
+      + (caseload ? ' \u2014 ' + caseload + ' student(s) are now unassigned' : ''));
+    return json(res, 200, { ok: true, unassigned: caseload });
+  }));
+
   route('PUT', /^\/api\/staff\/people\/(\d+)\/role$/, caseworkOnly(async (req, res, s, m) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const id = Number(m[1]);
@@ -3221,6 +3310,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
       })),
     });
+  }));
+
+  /* A lead that should not be in the book: a duplicate, a test, somebody who
+     typed nonsense into the form. Kept simple — there is nothing downstream of
+     an enquiry that a deletion could orphan except its own notes. */
+  route('DELETE', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    const lead = db.enquiryById(id);
+    if (!lead) return json(res, 404, { error: 'No such enquiry' });
+    db.deleteLead(id);
+    db.log(s.name, 'lead deleted', (lead && (lead.name || lead.email)) || ('#' + id));
+    return json(res, 200, { ok: true });
   }));
 
   route('POST', /^\/api\/staff\/lead\/(\d+)\/note$/, caseworkOnly(async (req, res, s, m) => {
