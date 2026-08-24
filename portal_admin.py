@@ -163,6 +163,45 @@ BODY = """
         collected.</p>
     </div>
 
+    <!-- The money.
+         Four numbers, and then who to ring about them. A total nobody can act
+         on is a total nobody looks at twice. -->
+    <div class="p-sec" id="theMoney">
+      <div class="p-sec-head"><h2>Money</h2>
+        <span id="moneyLate" hidden class="st bad"
+          style="text-transform:none;letter-spacing:0"></span>
+      </div>
+
+      <div class="out tiles" style="--tiles:4;margin:0 0 16px">
+        <div><b id="mExpected">—</b><span>Agreed</span></div>
+        <div><b id="mReceived">—</b><span>Received</span></div>
+        <div><b id="mPending">—</b><span>Still to collect</span></div>
+        <div><b id="mLost">—</b><span>Lost to drop-off</span></div>
+      </div>
+
+      <div class="p-cols" style="align-items:start;margin-bottom:16px">
+        <div class="p-card">
+          <h3 style="margin:0 0 9px;font-size:15px">Who to ring</h3>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0">
+              <thead><tr><th>Student</th><th>Package</th><th>Outstanding</th>
+                <th>Overdue</th><th>Since</th><th></th></tr></thead>
+              <tbody id="owingRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="p-card">
+          <h3 style="margin:0 0 9px;font-size:15px">The rest of it</h3>
+          <ul class="doclist" id="moneyMore" style="margin:0"></ul>
+          <p style="margin:12px 0 0;font-size:12px;color:var(--muted);line-height:1.6">
+            Prices include GST, so the tax is inside <b>Received</b> rather than on top of
+            it &mdash; and it is worked out from money that actually arrived, never from
+            what was invoiced. Commissions from Expatrio, universities and loan referrals
+            are not counted here.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Every conversation, and how long it has been waiting.
          An administrator could already open any student's file — one at a time,
          having first guessed which one to open. That is not oversight. -->
@@ -234,7 +273,25 @@ function row(s) {
          staff list, which does not contain students. */
       '<button type="button" class="btn btn-ghost btn-sm" data-pwreset="' + s.id +
         '" style="margin-left:6px" title="Generate a new password and read it to them">' +
-        'Reset password</button></td>' +
+        'Reset password</button>' +
+      /* How a file ends. Two endings, and they are not the same: completed
+         means the work was delivered, left means they stopped part-way and
+         what is still owed becomes lost rather than pending. Nothing else in
+         the application can tell those apart, so if this control does not
+         exist the money screen cannot be honest. */
+      '<select data-close="' + s.id + '" style="margin-left:6px;padding:6px 9px;' +
+        'font:600 12.2px/1.3 var(--sans);border:1.5px solid ' +
+        (s.status === 'left' ? '#e0b4ae' : s.status === 'completed' ? '#c8e3d0' : '#d8dde4') +
+        ';border-radius:8px;background:' +
+        (s.status === 'left' ? '#fdf3f2' : s.status === 'completed' ? '#f1f8f3' : 'var(--paper)') +
+        '">' +
+        [['active', 'On the books'], ['completed', 'Completed \u2014 close'],
+         ['left', 'Left part-way \u2014 close']]
+          .map(function (r) {
+            return '<option value="' + r[0] + '"' +
+              ((s.status || 'active') === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+          }).join('') +
+      '</select></td>' +
     '</tr>';
 }
 
@@ -388,6 +445,44 @@ async function resetPassword(id, btn) {
   }
 }
 
+/* Re-read the roster and redraw it. The initial load happens inside staffBoot
+   and had no name, so nothing could ask for it again — and a select that
+   changes a row has to be able to put the row back if the change is refused. */
+async function paintRoster() {
+  try {
+    const st = await api('GET', '/api/staff/students');
+    STUDENTS = st.students;
+    paint();
+  } catch (e) { /* leave what is on the screen */ }
+}
+
+document.addEventListener('change', async e => {
+  const sel = e.target.closest('[data-close]');
+  if (!sel) return;
+  const id = sel.dataset.close;
+  const to = sel.value;
+  const row = sel.closest('tr');
+  const who = (row.querySelector('td b') || {}).textContent || 'this student';
+  const words = to === 'completed'
+    ? 'Close ' + who + '\u2019s file as completed?\n\nThey will be signed out and will '
+      + 'not be able to sign in again. Anything still owed stays owed.'
+    : to === 'left'
+      ? 'Close ' + who + '\u2019s file as left part-way?\n\nThey will be signed out, and '
+        + 'anything still owed moves from "still to collect" into "lost to drop-off".'
+      : 'Reopen ' + who + '\u2019s file? They will be able to sign in again.';
+  if (!confirm(words)) { await paintRoster(); return; }
+  const note = to === 'active' ? '' : (prompt('A note, for the record. Optional.') || '');
+  try {
+    await api('PUT', '/api/staff/student/' + id + '/status', { status: to, note });
+    toast(to === 'active' ? 'Reopened.' : 'Closed.');
+    await paintRoster();
+    await paintMoney();
+  } catch (err) {
+    toast('That did not work: ' + err.message);
+    await paintRoster();
+  }
+});
+
 document.addEventListener('click', e => {
   const inv = e.target.closest('[data-invite]');
   if (inv) { sendInvite(inv.dataset.invite, inv); return; }
@@ -407,6 +502,64 @@ document.addEventListener('click', e => {
     setTimeout(() => { copy.textContent = 'Copy'; }, 2200);
   }
 });
+
+/* ---------------------------------------------------------------- the money
+ *
+ * Four numbers, and then the list that makes them actionable.
+ *
+ * The split between "still to collect" and "lost to drop-off" is the whole
+ * point. Both are money that has not arrived; only one of them is coming. They
+ * were the same figure until a student could be marked as having left, which is
+ * why that had to exist before this screen could tell the truth.
+ */
+let MONEY = null;
+
+async function paintMoney() {
+  try { MONEY = await api('GET', '/api/staff/money'); }
+  catch (e) { return; }
+
+  $('#mExpected').textContent = inrPaise(MONEY.expected);
+  $('#mReceived').textContent = inrPaise(MONEY.received);
+  $('#mPending').textContent  = inrPaise(MONEY.pending);
+  $('#mLost').textContent     = inrPaise(MONEY.lost);
+
+  const chip = $('#moneyLate');
+  chip.hidden = !MONEY.overdue;
+  chip.textContent = inrPaise(MONEY.overdue) + ' overdue';
+
+  $('#moneyMore').innerHTML = [
+    ['GST inside what arrived', inrPaise(MONEY.gst)],
+    ['Services delivered', MONEY.services],
+    ['Orders on the book', MONEY.orders],
+    ['Students on the books', MONEY.students.active],
+    ['Files completed', MONEY.students.completed],
+    ['Students who left part-way', MONEY.students.left],
+  ].map(([k, v]) => '<li><span>' + esc(k) + '</span><b style="margin-left:auto">'
+    + esc(String(v)) + '</b></li>').join('');
+
+  const rows = (MONEY.owing || []);
+  $('#owingRows').innerHTML = rows.length
+    ? rows.map(r =>
+        '<tr' + (r.overdue ? ' class="late"' : '') + '>' +
+        '<td><b>' + esc(r.name) + '</b><br>' +
+          '<span style="font-size:11.6px;color:var(--muted)">' + esc(r.email) + '</span></td>' +
+        '<td style="font-size:12.4px">' + esc(r.package || '—') + '</td>' +
+        '<td><b>' + inrPaise(r.outstanding) + '</b><br>' +
+          '<span style="font-size:11.4px;color:var(--muted)">of ' + inrPaise(r.gross) +
+          '</span></td>' +
+        '<td>' + (r.overdue
+          ? '<span class="st bad">' + inrPaise(r.overdue) + '</span>'
+          : '<span class="st ok">on schedule</span>') + '</td>' +
+        '<td style="font-size:12.2px;color:var(--muted)">' +
+          esc(r.since ? ago(r.since) : (r.nextDue ? 'due ' + ago(r.nextDue) : '')) + '</td>' +
+        '<td style="white-space:nowrap">' + (r.studentId
+          ? '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + r.studentId +
+            '">Open</a>'
+          : '<span style="font-size:11.6px;color:var(--muted)">no account yet</span>') +
+          '</td></tr>').join('')
+    : '<tr><td colspan="6" style="padding:20px;color:var(--muted)">'
+      + 'Nothing outstanding. Everything agreed has been collected.</td></tr>';
+}
 
 /* ------------------------------------------------------------- the orders */
 
@@ -915,4 +1068,5 @@ document.addEventListener('click', async e => {
 });
 
 loadConvs();
+paintMoney();
 """

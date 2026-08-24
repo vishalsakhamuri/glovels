@@ -28,6 +28,7 @@ const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
 const PLANS = require('./plans.js');
+const MONEY = require('./money.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 
 const DAY = 864e5;
@@ -522,6 +523,20 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     if (!safeEqual(hashPassword(String(b.password || ''), s.pass_salt), s.pass_hash)) return bad();
     clearFailures('e:' + email);
     clearFailures('i:' + ip);
+
+    /* A closed file cannot sign in.
+     *
+     * Said plainly and with a way back, because the commonest reason somebody
+     * hits this is that the work finished months ago and they have come back
+     * with a question — not that they are unwelcome. The password was right;
+     * pretending it was not would send them round the reset loop for ever. */
+    if (s.role === 'student' && (s.status || 'active') !== 'active') {
+      return json(res, 403, {
+        error: 'Your Glovels file has been closed, so this account no longer opens. '
+             + 'If you need anything, write to us and we will reopen it.',
+        closed: s.status,
+      });
+    }
 
     db.claimOrders(s.id, email);
     seedMessages(s);
@@ -2105,6 +2120,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       return {
         id: st.id, name: st.name, email: st.email, phone: st.phone,
         joined: st.created_at,
+        /* Where they are in their life with us. The roster draws the closing
+           control from this, and a control that cannot see the current value
+           shows every file as open. */
+        status: st.status || 'active',
+        closedAt: st.closed_at || '',
+        closeNote: st.close_note || '',
         counsellor: c ? { id: c.id, name: c.name } : null,
         shortlist: db.getShortlist(st.id).length,
         docsTotal: docs.length,
@@ -2420,6 +2441,51 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     });
     return json(res, 200, out);
   }));
+
+  /* --------------------------------------------------------------- the money
+   *
+   * Four numbers: agreed, received, still coming, and gone. Plus who to ring,
+   * because a total nobody can act on is a total nobody looks at twice.
+   *
+   * Admins only. A counsellor seeing the whole book is a different decision
+   * from a counsellor seeing their own students, and this is the whole book.
+   */
+  route('GET', '/api/staff/money', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const sum = MONEY.summarise(db.allStudents(), db.allOrders(), Date.now());
+    return json(res, 200, Object.assign({ gstRate: MONEY.GST_RATE }, sum));
+  }));
+
+  /* Closing a file.
+   *
+   * Two endings, and they are not the same thing. `completed` means the work
+   * was delivered and there is nothing left to do — anything still owed is
+   * still owed. `left` means they stopped part-way, and what was outstanding
+   * stops being pending and becomes lost, which is the only way the office
+   * ever finds out what drop-off actually costs.
+   *
+   * Either way the account can no longer sign in, and every session it has open
+   * ends now rather than whenever the cookie happens to expire.
+   */
+  route('PUT', /^\/api\/staff\/student\/(\d+)\/status$/,
+    caseworkOnly(async (req, res, s, m) => {
+      if (s.role !== 'admin') return json(res, 403, { error: 'Only an admin can close a file' });
+      const id = Number(m[1]);
+      const st = db.studentById(id);
+      if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
+      const b = await readJson(req);
+      if (!['active', 'completed', 'left'].includes(b.status)) {
+        return json(res, 400, { error: 'Status must be active, completed or left' });
+      }
+      const was = st.status || 'active';
+      const now = db.setStudentStatus(id, b.status, b.note);
+      /* Closing signs them out. Leaving the sessions alive would mean an account
+         that cannot sign in but is still signed in, which is not closed. */
+      if (now !== 'active' && was === 'active') db.dropSessions(id);
+      db.log(s.name, now === 'active' ? 'file reopened' : 'file closed \u2014 ' + now,
+        st.name + (b.note ? ' \u2014 ' + String(b.note).slice(0, 120) : ''));
+      return json(res, 200, { id, status: now, note: b.note || '' });
+    }));
 
   route('GET', '/api/staff/overview', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });

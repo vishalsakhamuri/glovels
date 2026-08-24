@@ -384,6 +384,20 @@ function sqliteDriver(file) {
       agent       TEXT NOT NULL DEFAULT '',
       created_at  TEXT NOT NULL
     )`,
+   /* Where a student is in their life with us.
+    *
+    *   active     on the books
+    *   completed  the services were delivered and there is nothing left to do
+    *   left       they stopped part-way
+    *
+    * It is one column and it decides three things: whether they can sign in,
+    * whether they are in a counsellor's caseload, and — the one that matters to
+    * the office — whether money still owed is PENDING or LOST. Those two are
+    * the same number until somebody says which it is, and nobody ever does
+    * unless the screen asks. */
+   "ALTER TABLE students ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+   "ALTER TABLE students ADD COLUMN closed_at TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE students ADD COLUMN close_note TEXT NOT NULL DEFAULT ''",
    "CREATE INDEX IF NOT EXISTS idx_push_staff ON push_subs(staff_id)",
    "CREATE INDEX IF NOT EXISTS idx_lead_notes ON lead_notes(lead_id)",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
@@ -572,9 +586,23 @@ function open(dir) {
       const s = db.one('SELECT * FROM sessions WHERE token = ?', token);
       if (!s) return null;
       if (new Date(s.expires_at) < new Date()) { this.dropSession(token); return null; }
-      return this.studentById(s.student_id);
+      const who = this.studentById(s.student_id);
+      /* A file closed while somebody was signed in. The sessions are dropped at
+         the moment of closing, but a cookie can outlive a restore from backup or
+         a race with a request already in flight — and "closed" has to mean
+         closed on every path, not on the one we remembered to change. */
+      if (who && who.role === 'student' && (who.status || 'active') !== 'active') {
+        this.dropSession(token);
+        return null;
+      }
+      return who;
     },
     dropSession: t => db.run('DELETE FROM sessions WHERE token = ?', t),
+
+    /* Every session one person has open. Closing a file that leaves the account
+       signed in somewhere is not closing it. */
+    dropSessions: studentId =>
+      db.run('DELETE FROM sessions WHERE student_id = ?', Number(studentId)),
 
     /* ---- profile ---- */
     getProfile(studentId) {
@@ -866,11 +894,27 @@ function open(dir) {
     /* Who a counsellor may see is decided here and nowhere else. The rule is the
        assignment: a counsellor sees the students assigned to them, an admin sees
        everyone. A screen that filters the list client-side is not a permission. */
-    staffStudents(staff) {
+    /**
+     * A counsellor's caseload, or every student for an admin.
+     *
+     * Closed files are out of a counsellor's list by default — a caseload that
+     * includes everybody they have ever helped stops being a to-do list — but
+     * an admin sees them, because the admin is the one who has to find them
+     * again. `all` overrides it either way.
+     */
+    staffStudents(staff, all) {
       const rows = staff.role === 'admin'
         ? db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student')
         : db.all('SELECT * FROM students WHERE counsellor_id = ? ORDER BY id desc', Number(staff.id));
-      return rows;
+      if (all || staff.role === 'admin') return rows;
+      return rows.filter(r => (r.status || 'active') === 'active');
+    },
+
+    setStudentStatus(studentId, status, note) {
+      const s = ['active', 'completed', 'left'].includes(status) ? status : 'active';
+      db.run('UPDATE students SET status = ?, closed_at = ?, close_note = ? WHERE id = ?',
+        s, s === 'active' ? '' : now(), String(note || '').slice(0, 400), Number(studentId));
+      return s;
     },
     canSee(staff, studentId) {
       if (staff.role === 'admin') return true;
