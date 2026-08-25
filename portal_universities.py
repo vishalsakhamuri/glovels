@@ -214,6 +214,26 @@ function paintMine() {
       + '<p>Tell us what you are applying for, where, and what you can spend, and '
       + 'they appear here straight away. Nobody has to call you.</p>'
       + '<a class="btn btn-primary" href="profile.html">Answer them now</a></div>';
+  } else if (M && M.owed && M.cgpaHeld) {
+    /* Paid for, profile complete, and NOTHING the machine can honestly send.
+       The matcher used to hand over universities the student would have been
+       rejected by, because it read a programme's own CGPA bar and almost no
+       programme states one — the rule lives on the destination. Now it reads
+       the destination's rule too, and a student below every public bar in the
+       catalogue correctly gets none.
+       An empty screen after paying would be worse than the old wrong list. */
+    html += '<div class="sl-empty" style="margin-bottom:30px">'
+      + '<b>We have not put anything here, and it is not an oversight</b>'
+      + '<p>' + M.cgpaHeld + ' universit' + (M.cgpaHeld === 1 ? 'y asks' : 'ies ask')
+      + ' for a higher CGPA than the one on your profile, so '
+      + (M.cgpaHeld === 1 ? 'it is' : 'they are')
+      + ' not on your list — an application to '
+      + (M.cgpaHeld === 1 ? 'it' : 'them') + ' would be turned down on the first line '
+      + 'of the form, and your ' + esc(M.package || 'package') + ' still owes you '
+      + M.owed + '. Your counsellor can tell you which take a bridging year, and '
+      + 'which countries ask for less.</p>'
+      + '<a class="btn btn-primary" href="messages.html">Ask my counsellor</a> '
+      + '<a class="btn btn-ghost" href="profile.html">Check my marks</a></div>';
   }
 
   /* ---------------------------------------------- what the office is working on */

@@ -348,9 +348,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         const owed = matchEntitlement(s);
         if (!owed.count) return null;
         const got = db.getShortlist(s.id).filter(r => r.added_by === 'matched').length;
+        const prof = db.getProfile(s.id);
+        const usable = MATCHES.usable(prof);
+        /* Owed five and delivered none, with a complete profile, is not the
+           same screen as "waiting on six questions" — and it must not render
+           as an empty shortlist with no explanation. */
+        let held = 0;
+        if (usable && got < owed.count) {
+          try {
+            held = MATCHES.plan(cat(), prof, owed.count, owed.kind, countryMap()).cgpaHeld || 0;
+          } catch (e) { held = 0; }
+        }
         return {
           owed: owed.count, kind: owed.kind, package: owed.package,
-          delivered: got, needsProfile: !MATCHES.usable(db.getProfile(s.id)),
+          delivered: got, needsProfile: !usable,
+          /* How many universities their CGPA is keeping off the list. */
+          cgpaHeld: held,
         };
       })(),
       /* What is still missing from their own file, named. "Your profile is 62%
@@ -479,7 +492,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       return out;
     }
 
-    const made = MATCHES.plan(cat(), profile, owed.count, owed.kind);
+    /* The destinations' entry rules travel with the catalogue now. Without
+       them the matcher only ever saw a programme's OWN CGPA bar, which almost
+       no row states — the rule lives on the country — so the paid shortlist
+       ignored a requirement the free finder enforced. */
+    const made = MATCHES.plan(cat(), profile, owed.count, owed.kind, countryMap());
     const picks = made.items;
     const have = new Set(db.getShortlist(student.id).map(r => String(r.prog_id)));
     picks.forEach(p => {
@@ -489,6 +506,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     out.delivered = picks.length;
     out.relaxed = made.relaxed;
     out.note = made.note;
+    /* How many of the promised places could not be filled, and how many of
+       those the CGPA bar is holding. A shortlist of two where five were paid
+       for must account for the other three on the screen. */
+    out.short = made.short;
+    out.cgpaHeld = made.cgpaHeld;
 
     if (out.added) {
       db.log('system', 'matches delivered',
@@ -508,6 +530,37 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
              than letting them work it out from a fee that is wrong. */
           + (made.note ? ' ' + made.note : ''), '');
       }
+    } else if (!picks.length && !db.getShortlist(student.id).length) {
+      /*
+       * Nothing at all, on a package that was paid for.
+       *
+       * This is new, and it is the honest consequence of the matcher finally
+       * reading the entry rules: a student below every public bar in the
+       * catalogue used to be sold five universities that would all have
+       * rejected them on the first line of the form, and now gets none. None
+       * is the right list. SILENTLY none is not — they paid, and an empty
+       * screen with no words on it is the worst thing this site can do.
+       *
+       * So it is said out loud, in the thread, with the reason and a person to
+       * take it to. A counsellor picking this up has everything they need in
+       * the message itself.
+       */
+      const why = made.cgpaHeld
+        ? made.note
+        : 'Nothing in the catalogue matches what you have told us yet.';
+      db.log('system', 'matches delivered NOTHING',
+        student.email + ' — 0 of ' + owed.count + ' (' + (owed.package || 'package')
+        + ')' + (made.cgpaHeld ? ' — ' + made.cgpaHeld + ' held by the CGPA bar' : ''));
+      if (!(opts && opts.quiet)) {
+        db.addMessage(student.id, 'them',
+          'I have looked through the whole catalogue against your profile and I '
+          + 'cannot put a university on your shortlist honestly yet. ' + why
+          + ' Nothing is lost — your ' + (owed.package || 'package') + ' still owes you '
+          + owed.count + ', and I would rather tell you this than send you a list you '
+          + 'would be turned down by. Reply here and we will go through what does '
+          + 'work: a different country, a bridging year, or a foundation route.', '');
+      }
+      out.blocked = true;
     }
     return out;
   }

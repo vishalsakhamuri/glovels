@@ -145,7 +145,29 @@ function score(p, w) {
  * Returns programmes, best first, one per university, never more than `count`
  * and sometimes fewer.
  */
-function pick(catalogue, profile, count, kind, drop) {
+/*
+ * The CGPA a programme actually asks for.
+ *
+ * Its own bar if the catalogue states one, otherwise the destination's rule
+ * for that kind of university — which is the formula the public finder has
+ * always used, and which this file did not use at all.
+ *
+ * That gap was the whole of it. The filter below read `p.minCgpa` and nothing
+ * else, and `minCgpa` is blank on almost every row because almost no
+ * university states its own number — the rule lives on the destination. So a
+ * student with 5.0 who paid ₹9,999 was sold five German public universities
+ * that every one of them asks 7.5 for, while the free finder on the home page
+ * correctly refused to show them. The half of the site that takes money was
+ * the half that ignored the requirement.
+ */
+function barOf(p, countries) {
+  if (p.minCgpa != null && p.minCgpa !== '') return Number(p.minCgpa);
+  const c = (countries || {})[String(p.country || '').toUpperCase()] || {};
+  const own = p.isPublic ? c.minCgpaPublic : c.minCgpaPrivate;
+  return own == null || own === '' ? null : Number(own);
+}
+
+function pick(catalogue, profile, count, kind, drop, countries) {
   const w = wants(profile);
   const want = Math.max(0, Number(count) || 0);
   if (!want) return [];
@@ -165,8 +187,11 @@ function pick(catalogue, profile, count, kind, drop) {
        might bend on. A CGPA bar is not: putting a university on a paid
        shortlist that the student cannot apply to is not a near miss, it is
        selling them something that does not exist. A shorter list is the right
-       answer here, every time. */
-    if (w.cgpa && p.minCgpa != null && w.cgpa < Number(p.minCgpa)) return false;
+       answer here, every time — and relaxing the COUNTRY is the useful move
+       when this bites, because a student who cannot meet Germany's public bar
+       may comfortably meet somebody else's. */
+    const bar = barOf(p, countries);
+    if (w.cgpa && bar != null && w.cgpa < bar) return false;
     return true;
   });
 
@@ -223,16 +248,16 @@ const RELAX_SAID = {
  * come off; `note` is that said in a sentence, or empty when nothing was
  * relaxed and the picks are exactly what was asked for.
  */
-function plan(catalogue, profile, count, kind) {
+function plan(catalogue, profile, count, kind, countries) {
   const want = Math.max(0, Number(count) || 0);
-  if (!want) return { items: [], relaxed: [], note: '' };
+  if (!want) return { items: [], relaxed: [], note: '', short: 0, cgpaHeld: 0 };
 
-  let items = pick(catalogue, profile, want, kind, []);
+  let items = pick(catalogue, profile, want, kind, [], countries);
   const dropped = [];
   for (const c of RELAX) {
     if (items.length >= want) break;
     dropped.push(c);
-    const wider = pick(catalogue, profile, want, kind, dropped);
+    const wider = pick(catalogue, profile, want, kind, dropped, countries);
     /* Only keep the wider search if it actually found more. Dropping a
        constraint that was not narrowing anything should not be reported as
        though it were. */
@@ -240,12 +265,44 @@ function plan(catalogue, profile, count, kind) {
     else dropped.pop();
   }
 
-  const note = dropped.length
-    ? 'Nothing matched every answer you gave, so some of these are '
+  /* How many rows the CGPA bar alone is holding back, over everything else
+     that was allowed to relax. A list that comes up short has to be able to
+     say WHY, or the student reads it as us not trying — and "your CGPA is
+     below what these ask" is the one reason they can do something about, by
+     retaking a test, adding a bridging year, or looking somewhere else. */
+    const w = wants(profile);
+  let cgpaHeld = 0;
+  if (items.length < want && w.cgpa) {
+    const withoutBar = (catalogue || []).filter(p => {
+      if (kind === 'public' && !p.isPublic) return false;
+      if (kind === 'private' && p.isPublic) return false;
+      if (!dropped.includes('country') && w.country
+        && String(p.country || '').toUpperCase() !== w.country) return false;
+      if (!dropped.includes('level') && w.level
+        && String(p.level || '').toLowerCase() !== w.level) return false;
+      if (!dropped.includes('budget') && w.ceiling
+        && Number(p.totalInr || 0) > w.ceiling) return false;
+      const bar = barOf(p, countries);
+      return bar != null && w.cgpa < bar;          // excluded ONLY by the bar
+    });
+    cgpaHeld = new Set(withoutBar.map(p => p.university)).size;
+  }
+
+  const parts = [];
+  if (dropped.length) {
+    parts.push('Nothing matched every answer you gave, so some of these are '
       + dropped.map(c => RELAX_SAID[c]).join(', and some are ')
-      + '. The fee and the country are on each one, so you can see which.'
-    : '';
-  return { items, relaxed: dropped, note };
+      + '. The fee and the country are on each one, so you can see which.');
+  }
+  if (cgpaHeld) {
+    parts.push('Another ' + cgpaHeld + ' univers' + (cgpaHeld === 1 ? 'ity asks' : 'ities ask')
+      + ' for a higher CGPA than the one on your profile, so '
+      + (cgpaHeld === 1 ? 'it is' : 'they are') + ' not here \u2014 applying to '
+      + (cgpaHeld === 1 ? 'it' : 'them') + ' would be turned down on the first line of '
+      + 'the form. Your counsellor can tell you which of them take a bridging year.');
+  }
+  return { items, relaxed: dropped, note: parts.join(' '),
+           short: Math.max(0, want - items.length), cgpaHeld };
 }
 
 /**
@@ -274,4 +331,4 @@ function promise(pkg) {
   };
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, RELAX };
+module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX };
