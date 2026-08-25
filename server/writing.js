@@ -24,7 +24,7 @@
 /* Placeholders that collapse rather than print a gap. A sentence whose
    placeholder has no value is dropped from the draft entirely: half a sentence
    with "as " dangling at the end is worse than one paragraph fewer. */
-const FILL = /\{(programme|university|signals|motives|who|span|instance)\}/g;
+const FILL = /\{(programme|university|signals|details|motives|who|span|instance)\}/g;
 
 const clean = (v, n) => String(v == null ? '' : v)
   .replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n || 200);
@@ -79,16 +79,47 @@ function draft(bank, input, pass) {
      said is the server's, not the browser's. */
   const byKey = (list, keys) => {
     const want = new Set((keys || []).map(k => clean(k, 40)));
-    return (list || []).filter(c => want.has(c.key)).map(c => c.phrase || c.label);
+    return (list || []).filter(c => want.has(c.key));
   };
 
-  const signals = byKey(b.signals, input.signals);
-  const motives = kind === 'sop' ? byKey(b.motives, input.motives) : [];
+  const picked = byKey(b.signals, input.signals);
+  const signals = picked.map(c => c.phrase || c.label);
+  const motives = kind === 'sop'
+    ? byKey(b.motives, input.motives).map(c => c.phrase || c.label) : [];
+
+  /*
+   * What the student actually did, in their own words.
+   *
+   * Before this, a chip was a tick and nothing more: everyone who ticked "work
+   * experience" got the sentence "my time working in a real team", and the
+   * draft was structurally correct and evidentially empty. The chip now
+   * carries a question, and the answer lands here.
+   *
+   * The detail is used VERBATIM — trimmed and length-capped, never rephrased.
+   * That is the whole basis on which this studio can be pointed at a real
+   * application: the page promises it will never invent a grade, a title or a
+   * publication, and the way to keep that promise is to add nothing.
+   *
+   * Details for chips that were not ticked are dropped. A student who types
+   * into a box, unticks the chip and presses write must not find the answer in
+   * the draft anyway.
+   */
+  const given = (input.details && typeof input.details === 'object') ? input.details : {};
+  const details = picked
+    .map(c => {
+      const said = clean(given[c.key], 300);
+      /* An em dash, not a comma. The details are joined into one sentence with
+         "a, b and c", and a comma between the phrase and its detail then reads
+         as another item in that list. */
+      return said ? (c.phrase || c.label) + ' — ' + said : '';
+    })
+    .filter(Boolean);
 
   const vals = {
     programme: programme || 'this programme',
     university: university || 'your chosen university',
     signals: join(signals),
+    details: join(details),
     motives: join(motives),
     who: clean(input.who, 60),
     span: clean(input.span, 40),
@@ -103,15 +134,21 @@ function draft(bank, input, pass) {
     if (s) paras.push(s);
   };
 
+  /* The detail paragraph sits straight after the one that lists what was
+     ticked, and collapses to nothing when no box was filled in — so a student
+     who ticks and writes gets five paragraphs with evidence in them, and one
+     who only ticks gets the four they got before. */
   if (kind === 'sop') {
     add(b.openings, 0);
     add(b.background, 1);
+    add(b.detail, 5);
     add(b.motive, 2);
     add(b.fit, 3);
     add(b.closings, 4);
   } else {
     add(b.openings, 0);
     add(b.body, 1);
+    add(b.detail, 5);
     add(b.instance, 2);
     add(b.closings, 3);
   }

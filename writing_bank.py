@@ -167,6 +167,85 @@ LOR_CLOSINGS = [
 ]
 
 
+# ---------------------------------------------------------------- the detail
+#
+# The question that turns a tick into evidence.
+#
+# Every chip carried one fixed phrase and nothing else, so every student who
+# ticked "Work experience" got the words "my time working in a real team". Two
+# thousand applicants, one sentence. The draft was structurally sound and
+# completely empty — which is the one thing an SOP cannot be, because the
+# admissions officer reading it is looking for exactly the specifics the form
+# never asked for.
+#
+# So each chip now asks its own question, and the answer goes into the draft in
+# the student's own words. `ask` is the label, `eg` the placeholder. Both are
+# UI text and are safe to send to the browser; the PHRASE stays on the server,
+# because what may be claimed is the server's decision and not the page's.
+ASKS = {
+    # SOP
+    "work": ("What was the work, and where?",
+             "e.g. two years at TCS building payment reconciliation tools"),
+    "project": ("What was the project?",
+                "e.g. a Telugu OCR pipeline for handwritten land records"),
+    "research": ("What was the research about, and what came of it?",
+                 "e.g. a paper on flood prediction, presented at a college symposium"),
+    "intern": ("Where was the internship, and what did you do?",
+               "e.g. six months at Deloitte cleaning up client reporting data"),
+    "startup": ("What did you build or take on?",
+                "e.g. a Shopify store for a family business, run for 18 months"),
+    "volunteer": ("Who did you teach, and what?",
+                  "e.g. weekend maths to 30 students at a government school"),
+    "topper": ("Where did you finish, and in what?",
+               "e.g. 4th of 120 in B.Tech Computer Science, 8.7 CGPA"),
+    "gap": ("What did you do with the year?",
+            "e.g. worked to fund my studies and completed two online courses"),
+    # LOR
+    "analysis": ("What did they see you analyse?", "e.g. the load test results nobody could explain"),
+    "ownership": ("What did you take on?", "e.g. ran the database migration alone over a weekend"),
+    "team": ("Who with, and on what?", "e.g. a four-person team on the final-year build"),
+    "comm": ("What did you explain, and to whom?",
+             "e.g. presented the model to the department, twice"),
+    "initiative": ("What did you do that was not asked for?",
+                   "e.g. rewrote the test suite so the build stopped breaking"),
+    "curious": ("What were you asking about?",
+                "e.g. kept pushing on why the model failed on rural data"),
+}
+
+# The paragraph the details live in.
+#
+# Kept SEPARATE from the sentence that lists what the student ticked. Folding
+# three long specifics into "What shaped me most were ..." produces a
+# sixty-word sentence nobody finishes reading; given its own paragraph, the
+# same words read as the evidence they are. If no chip has a detail the
+# placeholder is empty and the paragraph collapses, exactly as {signals} and
+# {instance} already do.
+SOP_DETAIL = [
+    "To be specific about that: {details}. I would rather set that out plainly than "
+    "leave it to be guessed at from a list of titles.",
+
+    "In concrete terms: {details}. Those are the parts I would be happy to be asked "
+    "about in an interview, because I did the work myself.",
+
+    "The detail behind that is {details}. I have kept it factual — what I did, not "
+    "what it proves about me.",
+
+    "More precisely: {details}. None of it was remarkable on its own; together it is "
+    "why I am confident this is the right subject.",
+]
+
+LOR_DETAIL = [
+    "Specifically: {details}. I mention these because they are what I saw first hand "
+    "rather than what was reported to me.",
+
+    "In particular: {details}. I would not put my name to this letter without being "
+    "able to point to something concrete.",
+
+    "What I am referring to is {details}. That is the basis on which I make this "
+    "recommendation.",
+]
+
+
 def bank(ai_block):
     """Assemble the writing block from the page's own chip lists plus the bank.
 
@@ -174,26 +253,38 @@ def bank(ai_block):
     so the labels the student sees and the phrases the draft uses cannot drift
     apart. Everything else is authored here.
     """
-    def chips(name):
-        return [
-            {"key": c["key"], "label": c["label"], "phrase": c.get("phrase") or c["label"]}
-            for c in ai_block.get(name, [])
-        ]
+    def chips(name, asks=False):
+        out = []
+        for c in ai_block.get(name, []):
+            chip = {"key": c["key"], "label": c["label"],
+                    "phrase": c.get("phrase") or c["label"]}
+            if asks:
+                ask, eg = ASKS.get(c["key"], ("What was it, exactly?", ""))
+                chip["ask"] = ask
+                chip["eg"] = eg
+            out.append(chip)
+        return out
 
     return {
         "sop": {
-            "signals": chips("SOP signal"),
+            # The signals ask their question; the motives do not. "I want to
+            # move into this field properly" is already the answer to why —
+            # asking a student to elaborate on their own motive produces a
+            # paraphrase, not evidence.
+            "signals": chips("SOP signal", asks=True),
             "motives": chips("SOP motive"),
             "openings": SOP_OPENINGS,
             "background": SOP_BACKGROUND,
+            "detail": SOP_DETAIL,
             "motive": SOP_MOTIVE,
             "fit": SOP_FIT,
             "closings": SOP_CLOSINGS,
         },
         "lor": {
-            "signals": chips("LOR signal"),
+            "signals": chips("LOR signal", asks=True),
             "openings": LOR_OPENINGS,
             "body": LOR_BODY,
+            "detail": LOR_DETAIL,
             "instance": LOR_INSTANCE,
             "closings": LOR_CLOSINGS,
         },

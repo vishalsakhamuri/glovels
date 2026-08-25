@@ -5168,6 +5168,10 @@ patch(
     "nothing in the footer sits under the floating button",
     ".fbot{margin-top:30px;border-top:1px solid rgba(255,255,255,.12);padding:16px 0 24px;",
     ".fbot{margin-top:30px;border-top:1px solid rgba(255,255,255,.12);padding:16px 0 92px;",
+    # The contact-strip patch below rewrites the margin on this same rule, so
+    # `new` stops being present verbatim even though this ran. Match on the
+    # padding, which is the half nothing else touches.
+    marker="padding:16px 0 92px",
 )
 
 # Solid, because a logo is solid. The rest of the set is line art and shares
@@ -5310,6 +5314,119 @@ patch(
     marker=".freach{display:grid",
 )
 
+
+
+# ------------------------------------------------- the studio asks what it was
+#
+# "AI SOP – Currently only has options to select buttons for Work Exp, Final
+# year project, Research Papers etc, but doesn't let the student add the data
+# like what the work exp is, what the project is, what his research is etc"
+#
+# Correct, and it is the difference between a draft worth paying to have
+# rewritten and a form letter. The SOP tab had two text fields — Programme and
+# University — and after that only chips, each carrying one fixed phrase. So
+# every student who ticked Work experience got the words "my time working in a
+# real team". The LOR tab at least asked for one specific thing the referee
+# saw; the SOP asked for nothing at all.
+#
+# Now a ticked chip opens its own question underneath — "What was the work,
+# and where?", "What was the project?" — and the answer goes into the draft
+# verbatim. Verbatim matters: the page promises the draft will never invent a
+# grade, a title or a publication, and the only way to keep that promise is to
+# add nothing to what was typed.
+
+patch(
+    "index.html",
+    "a ticked chip asks what it actually was",
+    "  const chips = (a, group) => '<div class=\"lv-row\" style=\"margin-bottom:12px\">'\n"
+    "    + a.map(x => '<button class=\"lv\" data-chip=\"' + esc(x.key) + '\" data-group=\"' + group\n"
+    "      + '\" data-phrase=\"' + esc(x.phrase || x.label) + '\" aria-pressed=\"false\">'\n"
+    "      + esc(x.label) + '</button>').join('') + '</div>';",
+    "  const chips = (a, group) => '<div class=\"lv-row\" style=\"margin-bottom:12px\">'\n"
+    "    + a.map(x => '<button class=\"lv\" data-chip=\"' + esc(x.key) + '\" data-group=\"' + group\n"
+    "      + '\" data-phrase=\"' + esc(x.phrase || x.label) + '\" aria-pressed=\"false\">'\n"
+    "      + esc(x.label) + '</button>').join('') + '</div>'\n"
+    "    /* Only the things that are EVIDENCE get a box. A motive — \"I want to\n"
+    "       specialise deeper\" — is already its own answer, and asking a student\n"
+    "       to elaborate on it produces a paraphrase rather than a fact.\n"
+    "       Addressed by group as well as key because 'research' is a chip in\n"
+    "       both lists, and without the group a click on one opened the other. */\n"
+    "    + (group !== 'sig' ? '' : '<div class=\"lv-asks\">' + a.map(x =>\n"
+    "        '<div class=\"lv-ask\" data-ask=\"sig:' + esc(x.key) + '\" hidden>'\n"
+    "      + '<label for=\"d_' + esc(x.key) + '\">' + esc(x.ask || 'What was it, exactly?')\n"
+    "      + '</label>'\n"
+    "      + '<input id=\"d_' + esc(x.key) + '\" data-detail=\"' + esc(x.key) + '\" maxlength=\"300\"'\n"
+    "      + ' placeholder=\"' + esc(x.eg || '') + '\" style=\"cursor:text\">'\n"
+    "      + '</div>').join('') + '</div>');",
+    marker='data-ask="sig:',
+)
+
+patch(
+    "index.html",
+    "and opens it when the chip goes on",
+    "  $$('[data-chip]').forEach(b => b.onclick = () =>\n"
+    "    b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'));",
+    "  $$('[data-chip]').forEach(b => b.onclick = () => {\n"
+    "    const on = b.getAttribute('aria-pressed') !== 'true';\n"
+    "    b.setAttribute('aria-pressed', on);\n"
+    "    const box = $('.lv-ask[data-ask=\"' + b.dataset.group + ':' + b.dataset.chip + '\"]');\n"
+    "    if (!box) return;\n"
+    "    box.hidden = !on;\n"
+    "    /* Straight into the box. The whole point of this change is that the\n"
+    "       question gets answered, and a field nobody's cursor lands in does\n"
+    "       not get answered. */\n"
+    "    if (on) { const i = box.querySelector('input'); if (i) i.focus(); }\n"
+    "  });",
+    marker=".lv-ask[data-ask=",
+)
+
+# The STUDIO block above is inserted whole and guarded by a marker, so editing
+# that string does nothing to a tree where it has already been applied — which
+# is every tree. These two put the details into the request the studio sends.
+patch(
+    "index.html",
+    "the studio collects what was typed in those boxes",
+    "  const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };",
+    "  const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };\n"
+    "\n"
+    "  /* Only the boxes that are OPEN. A box filled in and then unticked must\n"
+    "     not turn up in the draft anyway — the chip is the claim, the box is\n"
+    "     only its detail. The server drops details for unticked keys too; this\n"
+    "     is the courtesy, that is the rule. */\n"
+    "  const details = {};\n"
+    "  $$('[data-detail]').forEach(i => {\n"
+    "    const box = i.closest('.lv-ask');\n"
+    "    if (box && !box.hidden && i.value.trim()) details[i.dataset.detail] = i.value.trim();\n"
+    "  });",
+    marker="const details = {};",
+)
+
+patch(
+    "index.html",
+    "and sends them with the rest",
+    "        signals: sigs, motives: picked('mot'),\n"
+    "        who: val('aiWho'), span: val('aiSpan'), instance: val('aiInst'),",
+    "        signals: sigs, motives: picked('mot'), details: details,\n"
+    "        who: val('aiWho'), span: val('aiSpan'), instance: val('aiInst'),",
+)
+
+patch(
+    "index.html",
+    "the question has a shape",
+    ".lv[aria-pressed=\"true\"] span{color:#14603a}",
+    ".lv[aria-pressed=\"true\"] span{color:#14603a}\n"
+    "/* The box a ticked chip opens. Indented and ruled on the left so it reads\n"
+    "   as belonging to the chip above it rather than as another form field. */\n"
+    ".lv-asks{display:grid;gap:9px;margin:2px 0 14px}\n"
+    ".lv-ask{padding:9px 0 2px 12px;border-left:2.5px solid var(--green)}\n"
+    ".lv-ask label{display:block;font:700 11.8px/1.35 var(--sans);color:var(--navy-800);\n"
+    "  margin-bottom:5px}\n"
+    ".lv-ask input{width:100%;padding:9px 11px;font:400 12.9px/1.4 var(--sans);\n"
+    "  color:var(--navy-900);border:1.5px solid #d8dde4;border-radius:9px;background:var(--paper)}\n"
+    ".lv-ask input::placeholder{color:#9aa3b2}\n"
+    ".lv-ask input:focus-visible{outline:none;border-color:var(--green)}",
+    marker=".lv-asks{display:grid",
+)
 
 if __name__ == "__main__":
     for a in applied:

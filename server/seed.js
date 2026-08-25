@@ -532,6 +532,57 @@ function removeTheCardsThatWereSourceCode({ db }) {
   return n;
 }
 
+/*
+ * The question each chip asks, on a deployment seeded before it existed.
+ *
+ * The studio's chips carried a label and one fixed phrase, so every student
+ * who ticked "Work experience" got the words "my time working in a real team"
+ * and the draft had no evidence in it at all. Each chip now asks what the work
+ * actually was, and there is a paragraph for the answers.
+ *
+ * Content is seeded once and then belongs to the office, so an existing
+ * database keeps the old block and the studio would ask "What was it,
+ * exactly?" for all eight chips forever. This fills in what is MISSING and
+ * nothing else: a chip that already has a question keeps it, a label or phrase
+ * somebody rewrote is never touched, and the detail paragraphs are only
+ * written if there are none.
+ */
+function chipsAskWhatItWas({ db, content }) {
+  if (db.content('chipsAskV1')) return 0;
+  db.setContent('chipsAskV1', { done: true }, 'system');
+
+  const live = db.content('writing');
+  const ship = (content && content.writing) || {};
+  if (!live || !ship.sop) return 0;
+
+  let n = 0;
+  const next = JSON.parse(JSON.stringify(live));
+
+  for (const kind of ['sop', 'lor']) {
+    const l = next[kind], s = ship[kind];
+    if (!l || !s) continue;
+
+    const byKey = new Map((s.signals || []).map(c => [c.key, c]));
+    (l.signals || []).forEach(c => {
+      const from = byKey.get(c.key);
+      if (!from) return;
+      if (!c.ask && from.ask) { c.ask = from.ask; n++; }
+      if (!c.eg && from.eg) { c.eg = from.eg; }
+    });
+
+    if (!(l.detail || []).length && (s.detail || []).length) {
+      l.detail = s.detail.slice();
+      n++;
+    }
+  }
+  if (!n) return 0;
+
+  db.setContent('writing', next, 'system');
+  db.log('system', 'the studio asks what the experience actually was',
+    n + ' field(s) filled in');
+  return n;
+}
+
 function openOnRequestServices({ db }) {
   if (db.content('servicesOnRequestV1')) return 0;
   db.setContent('servicesOnRequestV1', { done: true }, 'system');
@@ -739,6 +790,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   fixCheapestPackagePrice,
   packagesDeliverWhatTheyUnlock,
   removeTheCardsThatWereSourceCode,
+  chipsAskWhatItWas,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

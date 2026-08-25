@@ -2057,6 +2057,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       kind,
       programme: b.programme, university: b.university,
       signals: picked, motives: b.motives,
+      /* What each ticked thing actually was, in the student's own words. The
+         writer takes these verbatim and drops any whose chip is not ticked. */
+      details: b.details,
       who: b.who, span: b.span, instance: b.instance,
     }, b.pass);
 
@@ -2084,7 +2087,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   route('GET', '/api/ai/chips', async (req, res) => {
     if (!content) return noContent(res);
     const w = content.get('writing');
-    const strip = a => (a || []).map(c => ({ key: c.key, label: c.label }));
+    /* Key and label, plus the question this chip asks once it is ticked and an
+       example to put in the box. Never the phrase: what the draft is allowed
+       to SAY stays on the server, so a page cannot dictate a claim. `ask` and
+       `eg` are prompts to the student and assert nothing. */
+    const strip = a => (a || []).map(c => ({
+      key: c.key, label: c.label, ask: c.ask || '', eg: c.eg || '',
+    }));
     return json(res, 200, {
       sop: { signals: strip(w.sop.signals), motives: strip(w.sop.motives) },
       lor: { signals: strip(w.lor.signals) },

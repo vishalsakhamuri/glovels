@@ -273,6 +273,14 @@ const cleanChips = v => (Array.isArray(v) ? v : []).slice(0, 24).map((c, n) => (
     || 'c' + (n + 1),
   label: str(c.label, 60),
   phrase: str(c.phrase, 200) || str(c.label, 60),
+  /* The question this chip asks once it is ticked, and an example for the box.
+     This cleaner is the shape of the block — a field it does not name is
+     dropped on the way into the database, so leaving these out meant every
+     chip reached the studio with an empty question and the studio fell back to
+     "What was it, exactly?" for all eight. Unlike `phrase`, these two say
+     nothing on the student's behalf: they are prompts. */
+  ask: str(c.ask, 120),
+  eg: str(c.eg, 140),
 })).filter(c => c.label);
 
 /* Sentences, not lines of a list: 400 characters, and newlines collapsed by
@@ -290,6 +298,7 @@ function cleanWriting(v) {
       motives: cleanChips(sop.motives),
       openings: cleanLines(sop.openings),
       background: cleanLines(sop.background),
+      detail: cleanLines(sop.detail),
       motive: cleanLines(sop.motive),
       fit: cleanLines(sop.fit),
       closings: cleanLines(sop.closings),
@@ -298,6 +307,7 @@ function cleanWriting(v) {
       signals: cleanChips(lor.signals),
       openings: cleanLines(lor.openings),
       body: cleanLines(lor.body),
+      detail: cleanLines(lor.detail),
       instance: cleanLines(lor.instance),
       closings: cleanLines(lor.closings),
     },

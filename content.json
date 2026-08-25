@@ -1369,42 +1369,58 @@
     {
      "key": "work",
      "label": "Work experience",
-     "phrase": "my time working in a real team"
+     "phrase": "my time working in a real team",
+     "ask": "What was the work, and where?",
+     "eg": "e.g. two years at TCS building payment reconciliation tools"
     },
     {
      "key": "project",
      "label": "Final-year project",
-     "phrase": "my final-year project"
+     "phrase": "my final-year project",
+     "ask": "What was the project?",
+     "eg": "e.g. a Telugu OCR pipeline for handwritten land records"
     },
     {
      "key": "research",
      "label": "Research / paper",
-     "phrase": "the research I worked on"
+     "phrase": "the research I worked on",
+     "ask": "What was the research about, and what came of it?",
+     "eg": "e.g. a paper on flood prediction, presented at a college symposium"
     },
     {
      "key": "intern",
      "label": "Internship",
-     "phrase": "my internship"
+     "phrase": "my internship",
+     "ask": "Where was the internship, and what did you do?",
+     "eg": "e.g. six months at Deloitte cleaning up client reporting data"
     },
     {
      "key": "startup",
      "label": "Startup or freelance",
-     "phrase": "the freelance work I took on"
+     "phrase": "the freelance work I took on",
+     "ask": "What did you build or take on?",
+     "eg": "e.g. a Shopify store for a family business, run for 18 months"
     },
     {
      "key": "volunteer",
      "label": "Teaching / volunteering",
-     "phrase": "the teaching I did"
+     "phrase": "the teaching I did",
+     "ask": "Who did you teach, and what?",
+     "eg": "e.g. weekend maths to 30 students at a government school"
     },
     {
      "key": "topper",
      "label": "Top of my class",
-     "phrase": "finishing near the top of my cohort"
+     "phrase": "finishing near the top of my cohort",
+     "ask": "Where did you finish, and in what?",
+     "eg": "e.g. 4th of 120 in B.Tech Computer Science, 8.7 CGPA"
     },
     {
      "key": "gap",
      "label": "Gap year",
-     "phrase": "the year I spent away from study"
+     "phrase": "the year I spent away from study",
+     "ask": "What did you do with the year?",
+     "eg": "e.g. worked to fund my studies and completed two online courses"
     }
    ],
    "motives": [
@@ -1447,6 +1463,12 @@
     "My preparation has come from {signals}. I mention them not as a list of achievements but because they are where I found out what I am actually good at and what I still need taught.",
     "Behind this application sits {signals}. That is where my understanding of the field stopped being theoretical, and where I started to see how much I did not yet know."
    ],
+   "detail": [
+    "To be specific about that: {details}. I would rather set that out plainly than leave it to be guessed at from a list of titles.",
+    "In concrete terms: {details}. Those are the parts I would be happy to be asked about in an interview, because I did the work myself.",
+    "The detail behind that is {details}. I have kept it factual — what I did, not what it proves about me.",
+    "More precisely: {details}. None of it was remarkable on its own; together it is why I am confident this is the right subject."
+   ],
    "motive": [
     "I want to {motives}. This programme is where that becomes possible rather than aspirational.",
     "What I am setting out to do is {motives}. I have looked at how this is taught elsewhere, and the structure here is the one that matches that intention.",
@@ -1471,32 +1493,44 @@
     {
      "key": "analysis",
      "label": "Analytical rigour",
-     "phrase": "their analytical rigour"
+     "phrase": "their analytical rigour",
+     "ask": "What did they see you analyse?",
+     "eg": "e.g. the load test results nobody could explain"
     },
     {
      "key": "ownership",
      "label": "Took ownership",
-     "phrase": "the ownership they took"
+     "phrase": "the ownership they took",
+     "ask": "What did you take on?",
+     "eg": "e.g. ran the database migration alone over a weekend"
     },
     {
      "key": "team",
      "label": "Worked well in a team",
-     "phrase": "how well they worked with other people"
+     "phrase": "how well they worked with other people",
+     "ask": "Who with, and on what?",
+     "eg": "e.g. a four-person team on the final-year build"
     },
     {
      "key": "comm",
      "label": "Explained things clearly",
-     "phrase": "how clearly they explained their work"
+     "phrase": "how clearly they explained their work",
+     "ask": "What did you explain, and to whom?",
+     "eg": "e.g. presented the model to the department, twice"
     },
     {
      "key": "initiative",
      "label": "Went beyond the brief",
-     "phrase": "their habit of going past the brief"
+     "phrase": "their habit of going past the brief",
+     "ask": "What did you do that was not asked for?",
+     "eg": "e.g. rewrote the test suite so the build stopped breaking"
     },
     {
      "key": "curious",
      "label": "Asked good questions",
-     "phrase": "the quality of the questions they asked"
+     "phrase": "the quality of the questions they asked",
+     "ask": "What were you asking about?",
+     "eg": "e.g. kept pushing on why the model failed on rural data"
     }
    ],
    "openings": [
@@ -1510,6 +1544,11 @@
     "The qualities I can speak to directly are {signals}. I am describing what I observed rather than what I was told.",
     "Over that period what stood out was {signals}. I would say the same in a conversation as I am saying in writing.",
     "If I had to name what distinguishes this applicant, it would be {signals}."
+   ],
+   "detail": [
+    "Specifically: {details}. I mention these because they are what I saw first hand rather than what was reported to me.",
+    "In particular: {details}. I would not put my name to this letter without being able to point to something concrete.",
+    "What I am referring to is {details}. That is the basis on which I make this recommendation."
    ],
    "instance": [
     "One instance stays with me: {instance}.",

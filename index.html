@@ -592,6 +592,16 @@ html.review-copy .build-strip{display:block !important}
 .lv span{display:block;font-size:10.6px;color:var(--muted);font-weight:600;margin-top:2px}
 .lv[aria-pressed="true"]{border-color:var(--green);background:#eef8f2;color:#14603a}
 .lv[aria-pressed="true"] span{color:#14603a}
+/* The box a ticked chip opens. Indented and ruled on the left so it reads
+   as belonging to the chip above it rather than as another form field. */
+.lv-asks{display:grid;gap:9px;margin:2px 0 14px}
+.lv-ask{padding:9px 0 2px 12px;border-left:2.5px solid var(--green)}
+.lv-ask label{display:block;font:700 11.8px/1.35 var(--sans);color:var(--navy-800);
+  margin-bottom:5px}
+.lv-ask input{width:100%;padding:9px 11px;font:400 12.9px/1.4 var(--sans);
+  color:var(--navy-900);border:1.5px solid #d8dde4;border-radius:9px;background:var(--paper)}
+.lv-ask input::placeholder{color:#9aa3b2}
+.lv-ask input:focus-visible{outline:none;border-color:var(--green)}
 .svc-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
   margin:0 -20px;padding:13px 20px;border-radius:0 0 17px 17px;
   background:linear-gradient(#f6f9fe,#eef3fc);border-top:1px solid var(--line)}
@@ -3025,6 +3035,16 @@ async function aiDraft(kind, out) {
   }
 
   const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+
+  /* Only the boxes that are OPEN. A box filled in and then unticked must
+     not turn up in the draft anyway — the chip is the claim, the box is
+     only its detail. The server drops details for unticked keys too; this
+     is the courtesy, that is the rule. */
+  const details = {};
+  $$('[data-detail]').forEach(i => {
+    const box = i.closest('.lv-ask');
+    if (box && !box.hidden && i.value.trim()) details[i.dataset.detail] = i.value.trim();
+  });
   out.innerHTML = '<div class="ai-draft"><div class="steps-lbl">Writing…</div>'
     + '<p style="opacity:.6">One moment.</p></div>';
 
@@ -3037,7 +3057,7 @@ async function aiDraft(kind, out) {
       body: JSON.stringify({
         kind: kind,
         programme: val('aiProg'), university: val('aiUni'),
-        signals: sigs, motives: picked('mot'),
+        signals: sigs, motives: picked('mot'), details: details,
         who: val('aiWho'), span: val('aiSpan'), instance: val('aiInst'),
         pass: aiPass,
       }),
@@ -3097,7 +3117,19 @@ async function openAI(kind){
   const chips = (a, group) => '<div class="lv-row" style="margin-bottom:12px">'
     + a.map(x => '<button class="lv" data-chip="' + esc(x.key) + '" data-group="' + group
       + '" data-phrase="' + esc(x.phrase || x.label) + '" aria-pressed="false">'
-      + esc(x.label) + '</button>').join('') + '</div>';
+      + esc(x.label) + '</button>').join('') + '</div>'
+    /* Only the things that are EVIDENCE get a box. A motive — "I want to
+       specialise deeper" — is already its own answer, and asking a student
+       to elaborate on it produces a paraphrase rather than a fact.
+       Addressed by group as well as key because 'research' is a chip in
+       both lists, and without the group a click on one opened the other. */
+    + (group !== 'sig' ? '' : '<div class="lv-asks">' + a.map(x =>
+        '<div class="lv-ask" data-ask="sig:' + esc(x.key) + '" hidden>'
+      + '<label for="d_' + esc(x.key) + '">' + esc(x.ask || 'What was it, exactly?')
+      + '</label>'
+      + '<input id="d_' + esc(x.key) + '" data-detail="' + esc(x.key) + '" maxlength="300"'
+      + ' placeholder="' + esc(x.eg || '') + '" style="cursor:text">'
+      + '</div>').join('') + '</div>');
   $('#aiT').textContent = kind === 'sop' ? 'AI Statement of Purpose' : 'AI Letter of Recommendation';
   $('#aiBody').innerHTML =
       '<div class="field" style="margin-bottom:12px"><label for="aiProg">Programme</label>'
@@ -3122,8 +3154,17 @@ async function openAI(kind){
     + '<p style="font-size:11.4px;color:var(--muted);line-height:1.5;margin-top:10px">The draft only '
     + 'uses what you enter here. It will never invent a grade, a title or a publication.</p>'
     + '<div id="aiOut" style="margin-top:14px"></div>';
-  $$('[data-chip]').forEach(b => b.onclick = () =>
-    b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'));
+  $$('[data-chip]').forEach(b => b.onclick = () => {
+    const on = b.getAttribute('aria-pressed') !== 'true';
+    b.setAttribute('aria-pressed', on);
+    const box = $('.lv-ask[data-ask="' + b.dataset.group + ':' + b.dataset.chip + '"]');
+    if (!box) return;
+    box.hidden = !on;
+    /* Straight into the box. The whole point of this change is that the
+       question gets answered, and a field nobody's cursor lands in does
+       not get answered. */
+    if (on) { const i = box.querySelector('input'); if (i) i.focus(); }
+  });
   aiPass = 0;
   $('#aiGo').onclick = () => aiDraft(kind, $('#aiOut'));
   $('#aiModal').classList.add('on');
