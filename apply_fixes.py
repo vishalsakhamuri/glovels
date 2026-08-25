@@ -4688,6 +4688,212 @@ publishedNames();""",
 
 the_names_live_in_the_account_not_the_home_page()
 
+
+def the_finder_and_the_footer_stop_sharing_a_class():
+    """
+    "Find Programs" back on the same line as the filters.
+
+    Two different blocks were both styled `.fgrid`, and they wanted opposite
+    things:
+
+        .fgrid{grid-template-columns:1.12fr .9fr 1.1fr 1.08fr .8fr auto}  the finder
+        .fgrid{grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;gap:30px}   the footer
+
+    Same selector, same specificity — so the one written later wins, and the
+    footer is written later. The finder was handed a five-column grid with six
+    things to put in it, so the sixth, the button, wrapped onto a row of its
+    own. Nothing was wrong with the finder's own rule; it had simply never been
+    in force.
+
+    Scoping the footer's copy to `footer.site` rather than renaming either
+    class: the footer markup is generated in several places and the finder's
+    rule is the one that was written for this job, `auto` last column and all.
+    """
+    for old, new in (
+        ("""\n.fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;gap:30px}""",
+         """\n/* The footer's own grid. Scoped, because the finder at the top of the page
+   uses this class too and its six columns — five filters and the button —
+   were being overwritten by these five. */\nfooter.site .fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;gap:30px}"""),
+        ("""@media (max-width:1000px){.fgrid{grid-template-columns:1fr 1fr 1fr}}""",
+         """@media (max-width:1000px){footer.site .fgrid{grid-template-columns:1fr 1fr 1fr}}"""),
+        ("""@media (max-width:640px){.fgrid{grid-template-columns:1fr 1fr}}""",
+         """@media (max-width:640px){footer.site .fgrid{grid-template-columns:1fr 1fr}}"""),
+    ):
+        patch("index.html", "the footer's grid stops overwriting the finder's",
+              old, new, marker=new.strip().split("\n")[-1][:60])
+
+
+the_finder_and_the_footer_stop_sharing_a_class()
+
+
+def the_packages_look_like_the_prototype():
+    """
+    The package cards, and the lines that connect them to the tab above.
+
+    "Arrows missing here as per prototype, and texts do not look good."
+
+    Two things, both visible the moment the prototype is next to the live page.
+
+    THE CONNECTORS. In the prototype, curved lines fan out from the bottom of
+    the selected tab down to each card, each ending in a small dot. They are
+    not decoration: they are what says "these three cards are what that tab
+    means", on a screen where the tab and the cards are otherwise two unrelated
+    rows. Drawn as one SVG overlay, measured from the real positions of the tab
+    and the cards, so it survives a fourth package being added, a window being
+    resized, and a tab being switched.
+
+    THE HEADERS. Every card carried the same compass, the title was set in the
+    body font at 16px, and nothing separated it from the description — so four
+    cards read as one grey block. Now: a light tile with the card's OWN icon, a
+    serif title, and a short rule beneath it, gold on the ordinary cards and
+    blue on the featured one, which is what the prototype uses to make the
+    recommended package look chosen rather than merely outlined.
+    """
+    patch("index.html", "the packages get the prototype's card heads and connectors",
+          "</head>",
+          """<style>/* GLOVELS-PKG-LOOK */
+/* The card head. A tile, a serif title, and a rule under it — the three things
+   that stop four cards reading as one block of grey text. */
+.pgrid .phead{align-items:flex-start;gap:13px;margin-bottom:11px}
+.pgrid .pico{width:42px;height:42px;border-radius:12px;
+  background:#eaf1fd;border:1px solid #d7e3f7;color:var(--navy-800)}
+.pgrid .pico .ico{font-size:20px}
+.pgrid .pcard h3{font-family:var(--disp);font-size:19.5px;line-height:1.16;
+  color:var(--navy-900);letter-spacing:-.01em}
+/* Two lines' worth whether the title needs them or not, so the rule under it
+   lands at the same height on every card and the descriptions start level.
+   "Three Public Universities" wraps; the other three do not. */
+.pgrid .pcard h3{min-height:2.5em;display:flex;flex-direction:column;justify-content:flex-start}
+.pgrid .pcard h3::after{content:"";display:block;width:34px;height:3px;border-radius:2px;
+  margin-top:auto;background:var(--gold)}
+/* The recommended one is chosen, not merely outlined. */
+.pgrid .pcard.featured h3{color:var(--blue-deep)}
+.pgrid .pcard.featured h3::after{background:var(--blue)}
+.pgrid .pdesc{font-size:13.6px;line-height:1.62;color:#5b6b7d;margin:0 0 13px}
+
+/* Room for the connectors to be drawn in, and the overlay itself. Both only
+   on the screens wide enough to show the cards side by side — fanned lines to
+   a single stacked column would be a scribble. */
+#packages .wrap{position:relative}
+.pconn{position:absolute;left:0;top:0;width:100%;height:0;pointer-events:none;
+  overflow:visible;z-index:1;opacity:0;transition:opacity .3s}
+.pconn.on{opacity:1}
+.pconn path{fill:none;stroke:#5f7fc4;stroke-width:1.6}
+.pconn circle{fill:#3f63b0}
+@media (min-width:1001px){ #packages .pgrid{margin-top:74px} }
+@media (max-width:1000px){ .pconn{display:none} }
+</style>
+</head>""",
+          marker="GLOVELS-PKG-LOOK")
+
+    patch("index.html", "and the script that draws them",
+          "</body>",
+          """<script>/* GLOVELS-PKG-CONNECTORS */
+(function () {
+  /* Each package gets its own icon. They were all the same compass, which on a
+     row of four cards reads as a template nobody finished. Keyed on the
+     package id the buy button already carries, so this survives the content
+     being re-rendered from the office. */
+  var ICON = {
+    'pkg-three-public': 'i-list', 'pkg-roadmap': 'i-compass',
+    'pkg-offer': 'i-spark', 'pkg-boarding': 'i-plane',
+    'work-opportunity': 'i-file', 'work-nursing': 'i-shield',
+    'work-skilled': 'i-star', 'mig-canada': 'i-globe',
+    'mig-australia': 'i-globe', 'mig-docs': 'i-file'
+  };
+  function icons(root) {
+    (root || document).querySelectorAll('.pgrid .pcard').forEach(function (card) {
+      var buy = card.querySelector('[data-buy]');
+      var id = buy && buy.getAttribute('data-buy');
+      var want = ICON[id];
+      if (!want) return;
+      var use = card.querySelector('.pico use');
+      if (use) use.setAttribute('href', '#' + want);
+    });
+  }
+
+  var svg = null;
+  function draw() {
+    var sec = document.getElementById('packages');
+    if (!sec || sec.hidden) return;
+    var wrap = sec.querySelector('.wrap');
+    var tab = sec.querySelector('.tab[aria-selected="true"]');
+    var pane = sec.querySelector('.pane.active');
+    var cards = pane ? pane.querySelectorAll('.pcard') : [];
+    if (!wrap || !tab || !cards.length) return;
+    if (window.innerWidth <= 1000) { if (svg) svg.classList.remove('on'); return; }
+
+    if (!svg) {
+      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'pconn');
+      svg.setAttribute('aria-hidden', 'true');
+      wrap.appendChild(svg);
+    }
+    var W = wrap.getBoundingClientRect();
+    var T = tab.getBoundingClientRect();
+    /* Everything measured from the real elements. A hard-coded geometry breaks
+       the day a fourth package is added, which is exactly what happened. */
+    var x0 = T.left - W.left + T.width / 2;
+    var y0 = T.bottom - W.top;
+    var bottom = y0;
+    var parts = [];
+    for (var i = 0; i < cards.length; i++) {
+      var C = cards[i].getBoundingClientRect();
+      /* Clear of the ribbon. A card with a MOST POPULAR badge has it pinned to
+         the top left, and a dot landing under it looks like a rendering fault
+         rather than a connector. */
+      var off = cards[i].querySelector('.ribbon')
+        ? Math.max(C.width * 0.62, 150) : Math.min(C.width / 2, 96);
+      var x1 = C.left - W.left + off;
+      var y1 = C.top - W.top - 7;
+      if (y1 <= y0 + 6) continue;              /* nothing sensible to draw */
+      bottom = Math.max(bottom, y1);
+      var midY = y0 + (y1 - y0) * 0.62;
+      parts.push('<path d="M' + x0.toFixed(1) + ' ' + y0.toFixed(1)
+        + ' C' + x0.toFixed(1) + ' ' + midY.toFixed(1)
+        + ' ' + x1.toFixed(1) + ' ' + (y0 + (y1 - y0) * 0.42).toFixed(1)
+        + ' ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + '"/>');
+      parts.push('<circle cx="' + x1.toFixed(1) + '" cy="' + y1.toFixed(1) + '" r="3.4"/>');
+    }
+    if (!parts.length) { svg.classList.remove('on'); return; }
+    /* A small notch where they all meet, so the lines look joined to the tab
+       rather than passing under it. */
+    parts.unshift('<path d="M' + (x0 - 6) + ' ' + (y0 + 5) + 'L' + x0 + ' ' + y0
+      + 'L' + (x0 + 6) + ' ' + (y0 + 5) + '"/>');
+    svg.setAttribute('height', Math.ceil(bottom + 10));
+    svg.style.height = Math.ceil(bottom + 10) + 'px';
+    svg.innerHTML = parts.join('');
+    svg.classList.add('on');
+  }
+
+  function refresh() { icons(); draw(); }
+  var t = null;
+  function soon() { clearTimeout(t); t = setTimeout(refresh, 60); }
+
+  addEventListener('resize', soon);
+  /* The tab click, the section being revealed, and the office re-rendering the
+     packages all move the things this is measured from. */
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-ptab]') || e.target.closest('[data-show-packages]')) {
+      setTimeout(refresh, 40);
+      setTimeout(refresh, 320);
+    }
+  });
+  if (typeof MutationObserver === 'function') {
+    var sec = document.getElementById('packages');
+    if (sec) new MutationObserver(soon).observe(sec, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { refresh(); setTimeout(refresh, 700); });
+  } else { refresh(); setTimeout(refresh, 700); }
+}());
+</script>
+</body>""",
+          marker="GLOVELS-PKG-CONNECTORS")
+
+
+the_packages_look_like_the_prototype()
+
 instant_services_do_not_promise_a_call()
 services_carry_matches()
 
