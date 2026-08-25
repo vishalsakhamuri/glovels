@@ -49,33 +49,127 @@ const daysBetween = (a, b) => Math.round((new Date(a) - new Date(b)) / DAY);
    section list and the documents screen's — both are authored as data there,
    and this is the third reader of the same truth. A field that is optional
    depending on an answer is not counted as missing. */
+/*
+ * WHAT IS ACTUALLY REQUIRED DEPENDS ON WHAT THEY BOUGHT.
+ *
+ * "These are not mandatory for everyone. They are only mandatory for students
+ *  where applications are filed and the visa process is selected in the
+ *  package. For other services these are not mandatory — whatever is required
+ *  to complete the service, they need to fill it."
+ *
+ * This list used to be flat, and every one of the twenty-seven items was
+ * demanded of everybody. Somebody who paid ₹99 for three university names, or
+ * ₹599 for an SOP rewrite, signed in to "your file is 0% complete" and a
+ * demand for their Class 10 marksheet and their financial documents. Neither
+ * has anything to do with what they bought, and being told a purchase is 0%
+ * complete when it is finished and delivered is simply wrong.
+ *
+ * So every requirement carries the stage that needs it:
+ *
+ *   always  we cannot contact them or address them without it
+ *   match   the matcher reads it to pick universities
+ *   apply   a university's application form asks for it
+ *   visa    a consulate asks for it
+ *
+ * and a student is asked only for the stages their orders have actually
+ * reached. A ₹99 buyer is asked for four things. Somebody on Boarding Pass,
+ * which files applications and runs the visa, is asked for all of it — and for
+ * them the old wording is exactly right.
+ */
 const PROFILE_MUST = [
-  ['fullName', 'full name'], ['dob', 'date of birth'], ['phone', 'mobile number'],
-  ['city', 'city'],
-  ['x_board', 'Class 10 board'], ['x_year', 'Class 10 year'], ['x_score', 'Class 10 score'],
-  ['xii_board', 'Class 12 board'], ['xii_year', 'Class 12 year'], ['xii_score', 'Class 12 score'],
-  ['d_uni', 'degree university'], ['d_course', 'degree course'], ['d_year', 'degree year'],
-  ['d_cgpa', 'degree CGPA'],
-  ['g_level', 'what they want to study'], ['g_country', 'where'], ['g_intake', 'which intake'],
-  ['p_has', 'whether they have a passport'],
+  ['fullName', 'full name', ['always']],
+  ['phone', 'mobile number', ['always']],
+  /* The four the matcher reads. `usable()` in matches.js is the other reader
+     of this same truth. */
+  ['g_level', 'what they want to study', ['match', 'write', 'apply']],
+  ['g_country', 'where', ['match', 'write', 'apply']],
+  ['d_cgpa', 'degree CGPA', ['match', 'write', 'apply']],
+  ['g_intake', 'which intake', ['match', 'apply']],
+  /* What somebody writing an SOP, an LOR or a CV needs to know about them —
+     and nothing beyond it. A ₹599 SOP rewrite does not need a Class 10
+     marksheet, and asking for one is how a finished purchase reads as 0%. */
+  ['d_uni', 'degree university', ['write', 'apply']],
+  ['d_course', 'degree course', ['write', 'apply']],
+  ['d_year', 'degree year', ['write', 'apply']],
+  /* Everything a university's application form asks for on top of that. */
+  ['dob', 'date of birth', ['apply']],
+  ['city', 'city', ['apply']],
+  ['x_board', 'Class 10 board', ['apply']],
+  ['x_year', 'Class 10 year', ['apply']],
+  ['x_score', 'Class 10 score', ['apply']],
+  ['xii_board', 'Class 12 board', ['apply']],
+  ['xii_year', 'Class 12 year', ['apply']],
+  ['xii_score', 'Class 12 score', ['apply']],
+  /* And what a consulate asks for. */
+  ['p_has', 'whether they have a passport', ['visa']],
 ];
 
 const DOCS_MUST = [
-  ['passport', 'Passport'], ['x', 'Class 10 marksheet'], ['xii', 'Class 12 marksheet'],
-  ['degree', 'Degree transcripts'], ['english', 'English test scorecard'],
-  ['cv', 'Academic CV'], ['sop', 'Statement of Purpose'],
-  ['lor', 'Letters of Recommendation'], ['finance', 'Financial documents'],
+  ['x', 'Class 10 marksheet', ['apply']],
+  ['xii', 'Class 12 marksheet', ['apply']],
+  ['degree', 'Degree transcripts', ['apply']],
+  ['english', 'English test scorecard', ['apply']],
+  /* Never asked of somebody who is BUYING one of these. The CV service writes
+     the CV; demanding they upload a CV first is the screen not knowing what
+     was sold. Applications need them, so an application customer is asked. */
+  ['cv', 'Academic CV', ['apply']],
+  ['sop', 'Statement of Purpose', ['apply']],
+  ['lor', 'Letters of Recommendation', ['apply']],
+  ['passport', 'Passport', ['visa']],
+  ['finance', 'Financial documents', ['visa']],
 ];
 
-function missingFrom(profile) {
+/* Which stages this student's orders have reached. Always at least `always`,
+   because a name and a number are needed whatever was bought. */
+const STAGES = ['always', 'match', 'write', 'apply', 'visa'];
+
+function stagesFor(db, student) {
+  const on = new Set(['always']);
+  if (!db || !student) return on;
+  let orders = [];
+  try { orders = db.ordersFor(student.id) || []; } catch (e) { orders = []; }
+  orders.forEach(o => {
+    if (!EARNED_STATES.has(String(o.status))) return;
+    /* Anything that shortlists universities needs the matcher's six. */
+    if (Number(o.public_unis || 0) > 0) on.add('match');
+    let items = [];
+    try { items = JSON.parse(o.items || '[]') || []; } catch (e) { items = []; }
+    const ids = items.map(x => String(x.id || ''));
+    if (ids.some(id => /first-three|shortlist-ten|scholar/.test(id))) on.add('match');
+    /* And the two stages that are the whole reason this list is long. Read off
+       the order's own package, so a package the office renames still behaves. */
+    const pkg = String(o.package_id || o.package || '');
+    if (/offer|boarding/i.test(pkg)) { on.add('match'); on.add('apply'); }
+    if (/boarding/i.test(pkg)) on.add('visa');
+    if (ids.some(id => /^visa$/.test(id))) on.add('visa');
+    /* Writing services need to know who they are writing about, not what a
+       consulate wants. */
+    if (ids.some(id => /^(sop|lor|cv|reeval|interview|career|profile)$/.test(id))) on.add('write');
+  });
+  return on;
+}
+
+/* `paid`, `owing` and `part` are money in or money agreed. `awaiting` is a
+   gateway mid-collection and has confirmed nothing. Kept in step with EARNED
+   in api.js, which is the other reader of this rule. */
+const EARNED_STATES = new Set(['paid', 'owing', 'part']);
+
+const wanted = (list, stages) => list.filter(([, , need]) => {
+  const on = Array.isArray(need) ? need : [need || 'always'];
+  return on.some(x => x === 'always' || stages.has(x));
+});
+
+function missingFrom(profile, stages) {
   const p = profile || {};
-  return PROFILE_MUST.filter(([k]) => !String(p[k] == null ? '' : p[k]).trim())
+  const want = stages ? wanted(PROFILE_MUST, stages) : PROFILE_MUST;
+  return want.filter(([k]) => !String(p[k] == null ? '' : p[k]).trim())
     .map(([, label]) => label);
 }
 
-function missingDocs(docs) {
+function missingDocs(docs, stages) {
   const have = new Set((docs || []).map(d => String(d.doc_key || d.key)));
-  return DOCS_MUST.filter(([k]) => !have.has(k)).map(([, label]) => label);
+  const want = stages ? wanted(DOCS_MUST, stages) : DOCS_MUST;
+  return want.filter(([k]) => !have.has(k)).map(([, label]) => label);
 }
 
 /**
@@ -176,8 +270,12 @@ function all(db, now) {
     }
 
     /* ---- their file is not finished ---- */
-    const gaps = missingFrom(db.getProfile(st.id));
-    const docGaps = missingDocs(db.getDocuments(st.id));
+    /* Scoped to what they bought, like the student's own screen. Chasing an
+       SOP customer for their financial documents wastes the office's morning
+       and the student's patience. */
+    const stages = stagesFor(db, st);
+    const gaps = missingFrom(db.getProfile(st.id), stages);
+    const docGaps = missingDocs(db.getDocuments(st.id), stages);
     if (gaps.length || docGaps.length) {
       /* Only worth raising with the office once somebody has paid or been
          assigned — a browser who made an account yesterday has an empty
@@ -286,15 +384,23 @@ function forStaff(db, staff, now) {
 
 /** What one student is being asked for. Their own file, and nothing else. */
 function forStudent(db, student) {
-  const gaps = missingFrom(db.getProfile(student.id));
-  const docGaps = missingDocs(db.getDocuments(student.id));
+  const stages = stagesFor(db, student);
+  const gaps = missingFrom(db.getProfile(student.id), stages);
+  const docGaps = missingDocs(db.getDocuments(student.id), stages);
+  const wantP = wanted(PROFILE_MUST, stages).length;
+  const wantD = wanted(DOCS_MUST, stages).length;
+  const total = wantP + wantD;
   return {
     profileMissing: gaps,
     documentsMissing: docGaps,
-    /* A percentage, so the screen can show a bar rather than a scolding. */
-    complete: Math.round(
-      ((PROFILE_MUST.length - gaps.length) + (DOCS_MUST.length - docGaps.length))
-      / (PROFILE_MUST.length + DOCS_MUST.length) * 100),
+    /* Which stages are being asked for, so the screen can say WHY rather than
+       just how much is left. */
+    stages: STAGES.filter(x => stages.has(x)),
+    /* A percentage of what THIS student actually needs. Somebody who bought an
+       SOP rewrite and gave us their name and number is finished, and a bar
+       telling them they are 7% complete is the screen being wrong about their
+       own purchase. */
+    complete: total ? Math.round((total - gaps.length - docGaps.length) / total * 100) : 100,
   };
 }
 
@@ -306,6 +412,6 @@ const counts = list => list.reduce((m, a) => {
 
 module.exports = {
   all, forStaff, forStudent, counts,
-  missingFrom, missingDocs, waitingSince,
-  PROFILE_MUST, DOCS_MUST,
+  missingFrom, missingDocs, waitingSince, stagesFor,
+  PROFILE_MUST, DOCS_MUST, STAGES,
 };

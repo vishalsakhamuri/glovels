@@ -4587,6 +4587,107 @@ def a_package_delivers_what_it_promises():
 
 a_package_delivers_what_it_promises()
 
+
+def the_names_live_in_the_account_not_the_home_page():
+    """
+    A public university's name is never shown on the public page. Ever.
+
+    "Blurred LOCKED always there, and what we don't show him is universities
+     publicly. It is shown in the login after signing in."
+
+    The home page used to unlock the names in place: buy a package and the grey
+    bars in the finder turned into real universities, on the marketing page, in
+    a browser anybody could be sitting at. Two things wrong with that. It is the
+    one screen a student would never think to come back to — they close the tab
+    and the list is gone — and the names, which are the thing being sold, were
+    handed to whichever device happened to make the purchase.
+
+    So the finder stays locked for everybody, permanently, and the names live in
+    the one place that is theirs: their account. The server's rule has not
+    changed — it still only names what somebody has paid for — this stops the
+    home page from ASKING.
+
+    There is a second thing this fixes for free. The old flow also posted the
+    rows the BROWSER happened to be showing to /api/shortlist/bulk, so what
+    landed on a student's shortlist depended on which filters were set when they
+    pressed buy. With nothing unlocked there is nothing to post, and the matcher
+    on the server — which reads the profile, the budget and the entry rules — is
+    the only thing that decides. Which is what it was written to be.
+    """
+    patch("index.html", "the home page never unlocks a public name",
+          """(async function entitlement(){
+  await loadUnlocked();
+  const n = Object.keys(revealed).length;
+  if (!n) return;
+  const unis = new Set(Object.values(revealed).map(r => r.uKey));
+  unlocked = Math.max(unlocked, unis.size);
+  render();
+}());""",
+          """/* Only when the office has deliberately published the names to EVERYBODY.
+   `loadUnlocked()` is what fills `revealed`, and `revealed` is the only thing
+   that turns a locked row into a named one. In the normal "gated" mode it is
+   never called, so every public university stays blurred here for everyone —
+   including somebody who has just paid, whose names are on My Universities in
+   their account, where they can come back to them.
+   The other two modes are a different decision, made once on the Home page
+   screen: "names" and "open" mean these are public information now, and the
+   page has to honour that or the setting does nothing. */
+async function publishedNames(){
+  /* Defaulting to "gated" rather than to whatever this block can see: MODE
+     lives inside the finder's own closure and is not in scope here, and the
+     strictest reading is the safe one to guess wrong with. */
+  const g = window.__glovelsGate || 'gated';
+  if (g !== 'names' && g !== 'open') return;
+  await loadUnlocked();
+  if (!Object.keys(revealed).length) return;
+  render();
+}
+/* Asked once now, in case the page shipped in one of those modes — and again
+   when the office's own setting arrives, which happens after this line runs.
+   Checking only at load meant a gate set to "names" on the Home page screen
+   did nothing until the next deploy. */
+window.__glovelsPublishedNames = publishedNames;
+publishedNames();""",
+          marker="Only when the office has deliberately published")
+
+    patch("index.html", "a gate set in the office reaches the page it changes",
+          """  if (/^(gated|names|open)$/.test(f.gate)) window.__glovelsGate = f.gate;""",
+          """  if (/^(gated|names|open)$/.test(f.gate)) {
+    window.__glovelsGate = f.gate;
+    /* The names are fetched only in the two modes that publish them to
+       everybody, and this setting arrives after that check has already run. */
+    if (window.__glovelsPublishedNames) window.__glovelsPublishedNames();
+  }""",
+          marker="if (window.__glovelsPublishedNames) window.__glovelsPublishedNames();")
+
+    patch("index.html", "and buying one does not unlock it either",
+          """  unlocked = buying.publicUnis;
+  paidName = buying.name;
+  touched = true;
+  loadUnlocked().then(render);""",
+          """  /* Not unlocked here. What they bought is delivered to their account by the
+     server — matched against their profile rather than against whatever
+     filters this tab happened to have set — and the panel below tells them to
+     sign in and look at it. */
+  paidName = buying.name;
+  touched = true;
+  render();""")
+
+    patch("index.html", "the confirmation sends them to their account for the names",
+          """    + '<li><b>Your ' + (buying.publicUnis || 'matched') + ' universities are in your '
+      + 'dashboard</b><span>Readable with fees and deadlines, and saved — so you can '
+      + 'come back to them without searching again. They are readable below straight '
+      + 'away too.</span></li>'""",
+          """    + '<li><b>Sign in to see your ' + (buying.publicUnis || 'matched')
+      + ' universities</b><span>They are named on <b>My Universities</b> in your '
+      + 'account, with the fee, the intake and the deadline on each one \\u2014 and '
+      + 'they stay there, so you can come back to them without searching again. '
+      + 'They are not shown on this page: the list is yours, not this '
+      + 'browser\\u2019s.</span></li>'""")
+
+
+the_names_live_in_the_account_not_the_home_page()
+
 instant_services_do_not_promise_a_call()
 services_carry_matches()
 

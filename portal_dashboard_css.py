@@ -35,6 +35,29 @@ CSS = """
 .plan-badge span{display:block;margin-top:3px;font-size:11.4px;line-height:1.4;
   color:rgba(255,255,255,.62)}
 
+/* Sign out, beside their own name, at the TOP of the sidebar. It used to sit
+   at the bottom of the nav, which on a laptop is below the fold and on a phone
+   is under the entire menu — so the way to leave was the one thing on the
+   screen you had to go looking for. */
+.p-who{margin:14px 14px 0;padding:11px 13px;border-radius:12px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  display:flex;align-items:center;gap:10px}
+.p-who > b{flex:1;min-width:0;font:700 13px/1.25 var(--sans);color:#fff;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-out{display:inline-flex;align-items:center;gap:6px;flex:none;
+  font:700 11.6px/1 var(--sans);color:rgba(255,255,255,.72);
+  padding:6px 9px;border-radius:8px;text-decoration:none;
+  border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
+.p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+.p-out .ico{width:13px;height:13px}
+.plan-badge .p-out{margin-left:auto;align-self:flex-start}
+.plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.plan-badge b, .plan-badge > span{flex-basis:100%}
+.plan-badge .p-out{flex-basis:auto}
+@media (max-width:900px){
+  .p-who, .plan-badge{margin:10px 12px 0}
+}
+
 /* "Do this next." One prompt, and it has to look like the most actionable thing
    on the page — otherwise it is just another card. */
 .nextup{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
@@ -254,9 +277,44 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 /* A package name is a phrase, not a word, and the chip was sized as though it
    were one — so "Academic CV & Resume" broke out of its own background and
    printed over the row above it. */
-.tbl .st, .tbl .chip, .tbl .sl-chip{display:inline-block;max-width:100%;
+/* A package name is a phrase — "Academic CV & Resume" — and the chip was sized
+   as though it were a word, so it broke out of its own background and printed
+   over the row above. Only the ones that carry a phrase are allowed to wrap:
+   letting the short status pills wrap too turned "Private" into "Privat / e"
+   and "On the site" into three lines, which is worse than what it fixed. */
+.tbl .sl-chip, .tbl .chip{display:inline-block;max-width:100%;
   white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+.tbl .st{white-space:nowrap}
 /* And a row is read across, so its cells line up at the top rather than
    floating in the middle of whatever the tallest one turned out to be. */
 .tbl td{vertical-align:top}
+
+/* A wide table scrolls sideways INSIDE its card rather than squeezing every
+   column until the words break. Without a floor the browser keeps shrinking
+   cells to fit and there is nothing to scroll, which is how a screen ends up
+   with no scrollbar and no readable columns either. */
+.p-card > .tbl{min-width:1180px}
+
+/* And the scrolling has to be VISIBLE. macOS hides scrollbars until something
+   moves, so a table that continues past the edge looks like a table that has
+   been cut off — which is exactly what it was reported as. Three things say
+   otherwise: a scrollbar that is always drawn, a shadow on whichever edge has
+   more behind it, and a line of text under the table saying so. */
+.scrollx{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#c6ccd6 #eef1f5}
+.scrollx::-webkit-scrollbar{height:11px;-webkit-appearance:none}
+.scrollx::-webkit-scrollbar-thumb{background:#c6ccd6;border-radius:99px;
+  border:2px solid #eef1f5}
+.scrollx::-webkit-scrollbar-thumb:hover{background:#9aa3b2}
+.scrollx::-webkit-scrollbar-track{background:#eef1f5;border-radius:99px}
+
+.scrollwrap{position:relative}
+.scrollwrap::before,.scrollwrap::after{content:'';position:absolute;top:0;bottom:0;
+  width:26px;pointer-events:none;opacity:0;transition:opacity .16s;z-index:2}
+.scrollwrap::before{left:0;background:linear-gradient(90deg,rgba(11,30,49,.13),transparent)}
+.scrollwrap::after{right:0;background:linear-gradient(270deg,rgba(11,30,49,.13),transparent)}
+.scrollwrap.more-left::before{opacity:1}
+.scrollwrap.more-right::after{opacity:1}
+
+.scrollsay{margin:0;padding:8px 14px;border-top:1px solid var(--line);
+  font:600 11.8px/1.4 var(--sans);color:var(--muted);background:var(--paper)}
 """

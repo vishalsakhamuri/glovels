@@ -4402,7 +4402,20 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     /* The two the filters read and the sheet never carried. Without them a
        bulk upload cannot describe what the finder actually filters on, which
        is the whole point of a bulk upload. */
-    ['minimum cgpa', 'minCgpa'], ['fit score', 'fit'],
+    ['minimum cgpa', 'minCgpa'],
+    /* READ-ONLY, and the reason the column beside it looks empty.
+       `minimum cgpa` is an OVERRIDE: blank means "this programme follows its
+       destination's rule", which is the right answer for almost every row and
+       is why a fresh download has 171 blanks in it. That told nobody anything.
+       This column says what the bar actually IS — the programme's own if it
+       has one, the destination's if it does not — so the sheet can be read as
+       well as typed into.
+       It is deliberately not importable. Filling `minimum cgpa` with these
+       numbers on download and taking them back would silently convert every
+       "follows the rule" into a frozen per-programme number, and changing
+       Germany from 7.5 to 7.0 afterwards would then move nothing at all. */
+    ['cgpa in force', '_readonly_cgpa'],
+    ['fit score', 'fit'],
     ['intake 1 season', 'i1s'], ['intake 1 deadline', 'i1d'],
     ['intake 2 season', 'i2s'], ['intake 2 deadline', 'i2d'],
     ['on the site', 'active'],
@@ -4419,6 +4432,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          able to say "follows the country rule", and a downloaded 0 typed back
          in would mean the opposite. */
       r.min_cgpa == null ? '' : Number(r.min_cgpa),
+      (() => {
+        if (r.min_cgpa != null) return Number(r.min_cgpa);
+        const f = countryMap()[String(r.country || '').toUpperCase()] || {};
+        const own = r.is_public ? f.minCgpaPublic : f.minCgpaPrivate;
+        return own == null || own === '' ? '' : Number(own);
+      })(),
       Number(r.fit || 0),
       (ins[0] && ins[0].season) || '', (ins[0] && ins[0].deadline) || '',
       (ins[1] && ins[1].season) || '', (ins[1] && ins[1].deadline) || '',
@@ -4496,6 +4515,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         for (const h of Object.keys(o)) if (alias[h] === key) return o[h];
         return '';
       };
+      /* `cgpa in force` comes back up with the sheet and is thrown away here.
+         It exists so somebody reading the file can see what bar applies; the
+         editable column is `minimum cgpa`, and only that one is stored. */
       const draft = {
         id: String(g('id') || '').trim(),
         program: g('program'), university: g('university'), city: g('city'),

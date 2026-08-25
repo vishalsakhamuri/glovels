@@ -35,12 +35,54 @@ BODY = """
           padding:9px 12px;font:400 13px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">
         <select id="fc" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
           border:1.5px solid #d8dde4;border-radius:9px"></select>
+        <select id="fl" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px">
+          <option value="">Any level</option>
+          <option value="bachelor">Bachelor's</option>
+          <option value="master">Master's</option>
+          <option value="mba">MBA</option>
+          <option value="diploma">Diploma / PG Diploma</option>
+          <option value="pathway">Foundation / Pathway</option>
+          <option value="phd">PhD</option>
+        </select>
+        <select id="ff" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px;max-width:230px"></select>
+        <select id="ft" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px">
+          <option value="">Public and private</option>
+          <option value="pub">Public only</option>
+          <option value="pri">Private only</option>
+        </select>
+        <select id="fb" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px">
+          <option value="">Any budget</option>
+          <option value="u10">Under ₹10L</option>
+          <option value="u20">Under ₹20L</option>
+          <option value="above20">₹20L+</option>
+          <option value="elite">Top-ranked</option>
+        </select>
+        <!-- The same question the public finder asks, worded from this side of
+             the desk: not "your CGPA" but "a student with this CGPA". It shows
+             exactly what that student would be shown, which is the only way to
+             check the entry rules without making an account and paying. -->
+        <select id="fg" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px">
+          <option value="">Any CGPA</option>
+          <option value="9.5">A student with 9.0 – 10.0</option>
+          <option value="8.5">…with 8.0 – 8.9</option>
+          <option value="7.5">…with 7.5 – 7.9</option>
+          <option value="7.2">…with 7.0 – 7.4</option>
+          <option value="6.5">…with 6.0 – 6.9</option>
+          <option value="5.5">…below 6.0</option>
+        </select>
         <select id="fs" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
           border:1.5px solid #d8dde4;border-radius:9px">
           <option value="">On the site and hidden</option>
           <option value="1">On the site</option>
           <option value="0">Hidden only</option>
         </select>
+        <button type="button" class="btn btn-ghost btn-sm" id="fClear"
+          style="display:none">Clear filters</button>
         <button type="button" class="btn btn-primary btn-sm" id="addProg">+ Add a programme</button>
       </div>
 
@@ -64,6 +106,7 @@ BODY = """
             <th style="width:38px"><input type="checkbox" id="selAll"
               aria-label="Select everything this search found"></th>
             <th>Programme</th><th>Where</th><th>Type</th><th>Tuition</th>
+            <th title="The CGPA this programme asks for">CGPA</th>
             <th>Next intake</th><th>Status</th><th></th></tr></thead>
           <tbody id="progRows"></tbody>
         </table>
@@ -197,16 +240,46 @@ function nextIntake(p) {
 
 const destOf = c => DESTS.find(d => d.code === c) || {flag: '', name: c};
 
+/*
+ * The CGPA this programme actually asks for.
+ *
+ * Its own bar if the catalogue states one, otherwise the destination's rule
+ * for that kind of university — the same formula the public finder and the
+ * matcher use. Written once here so this screen cannot drift from the two that
+ * decide what a student is shown and what they are sold.
+ */
+function barOf(p) {
+  if (p.minCgpa != null && p.minCgpa !== '') return { n: Number(p.minCgpa), own: true };
+  const f = (destOf(p.country) || {}).facts || {};
+  const own = p.isPublic ? f.minCgpaPublic : f.minCgpaPrivate;
+  return own == null || own === '' ? { n: null, own: false } : { n: Number(own), own: false };
+}
+
 /* ---------------------------------------------------------------- painting */
 
 function paintProgs() {
   const q = $('#q').value.trim().toLowerCase();
   const c = $('#fc').value;
+  const lv = $('#fl').value, fd = $('#ff').value, ty = $('#ft').value,
+        bd = $('#fb').value, cg = Number($('#fg').value || 0);
   const st = $('#fs').value;
   const list = PROGS.filter(p =>
     (!c || p.country === c) &&
+    (!lv || String(p.level || '').toLowerCase() === lv) &&
+    (!fd || p.field === fd) &&
+    (!ty || (ty === 'pub' ? p.isPublic : !p.isPublic)) &&
+    (!bd || p.band === bd) &&
+    /* Exactly what the public finder does with the same number: a programme
+       whose bar is above the student's is not shown to them. Checking that
+       from the office used to mean making an account. */
+    (!cg || barOf(p).n == null || cg >= barOf(p).n) &&
     (st === '' || String(p.active ? 1 : 0) === st) &&
     (!q || (p.university + ' ' + p.program + ' ' + (p.field || '')).toLowerCase().includes(q)));
+
+  /* A filtered screen has to look filtered, or somebody reads a short list as
+     a short catalogue and starts wondering where the universities went. */
+  const on = [c, lv, fd, ty, bd, $('#fg').value, st].filter(x => x !== '' && x != null).length;
+  $('#fClear').style.display = on ? '' : 'none';
 
   $('#nProg').textContent = PROGS.length;
   /* What the tick boxes cover is what the search found, not the page drawn —
@@ -229,13 +302,27 @@ function paintProgs() {
         (p.city ? '<br><span style="font-size:11.6px;color:var(--muted)">' + esc(p.city) + '</span>' : '') + '</td>' +
       '<td>' + (p.isPublic ? '<span class="st ok">Public</span>' : '<span class="st none">Private</span>') + '</td>' +
       '<td>' + (p.totalInr === 0 ? '<span class="st ok">Free</span>' : inr(p.totalInr)) + '</td>' +
+      /* The bar, and whether it is this programme's own or its destination's.
+         The two look identical to a student and are completely different to
+         edit: one is changed here, the other on the Destinations tab and it
+         moves every university in the country. */
+      '<td style="white-space:nowrap">' + (() => {
+        const b = barOf(p);
+        if (b.n == null) return '<span style="color:var(--muted)">—</span>';
+        return b.own
+          ? '<b style="font:700 12.6px/1.4 var(--sans)">' + b.n + '</b>'
+            + '<span style="display:block;font-size:10.8px;color:var(--muted)">its own</span>'
+          : '<span style="font-size:12.6px">' + b.n + '</span>'
+            + '<span style="display:block;font-size:10.8px;color:var(--muted)">'
+            + esc(d.name || p.country) + ' rule</span>';
+      })() + '</td>' +
       '<td style="font-size:12.4px">' + nextIntake(p) + '</td>' +
       '<td>' + (p.active ? '<span class="st ok">On the site</span>' : '<span class="st wait">Hidden</span>') +
         (p.featured ? '<br><span class="st ok" style="margin-top:4px;display:inline-block">' +
           '\u2605 Showcase' + (p.featureSort ? ' #' + p.featureSort : '') + '</span>' : '') + '</td>' +
       '<td><button type="button" class="btn btn-ghost btn-sm" data-edit="' + esc(p.id) + '">Edit</button></td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="8" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
 
   paintBulk();
   $('#kLive').textContent = PROGS.filter(p => p.active).length;
@@ -272,6 +359,16 @@ function paintDests() {
   $('#fc').innerHTML = '<option value="">Every destination</option>' +
     DESTS.map(d => '<option value="' + esc(d.code) + '">' + (d.flag || '') + ' ' + esc(d.name) + '</option>').join('');
   $('#fc').value = keep;
+
+  /* The field list is built from the catalogue rather than written down, so a
+     field can never appear in the filter with nothing behind it — and a new
+     one somebody types into a programme shows up here without a developer. */
+  const keepF = $('#ff').value;
+  const fields = [...new Set(PROGS.map(p => p.field).filter(Boolean))].sort();
+  $('#ff').innerHTML = '<option value="">Any field</option>' +
+    fields.map(f => '<option value="' + esc(f) + '">' + esc(f) + ' ('
+      + PROGS.filter(p => p.field === f).length + ')</option>').join('');
+  $('#ff').value = keepF;
 }
 
 function paintLog() {
@@ -826,11 +923,17 @@ document.addEventListener('click', async e => {
   }
 });
 
-['q', 'fc', 'fs'].forEach(id => {
+['q', 'fc', 'fl', 'ff', 'ft', 'fb', 'fg', 'fs'].forEach(id => {
   /* A new search starts at its first page. */
   const go = () => { PAGE_AT.prog = 0; paintProgs(); };
   $('#' + id).addEventListener('input', go);
   $('#' + id).addEventListener('change', go);
+});
+$('#fClear').addEventListener('click', () => {
+  ['fc', 'fl', 'ff', 'ft', 'fb', 'fg', 'fs'].forEach(id => { $('#' + id).value = ''; });
+  $('#q').value = '';
+  PAGE_AT.prog = 0;
+  paintProgs();
 });
 addEventListener('keydown', e => {
   if (e.key === 'Escape') $('#progModal').classList.remove('on');

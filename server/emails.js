@@ -186,13 +186,26 @@ Glovels
     /* "Your universities" is right for a package and wrong for a receipt that
        bought an SOP rewrite. */
     const what = (services || []).length ? 'This order is' : 'Your universities are';
+    /*
+     * "User should get the message: after you sign in with the details you can
+     *  see your universities."
+     *
+     * Their names are not on the website any more and never were meant to live
+     * in one browser tab. Signing in is the whole delivery, so the email has to
+     * say it in the first line somebody reads rather than after the GST.
+     */
     const nextStep = hasAccount
-      ? `${what} in your dashboard now: ${siteUrl}/dashboard`
-      : `Create your account with this email address and ${(services || []).length
-          ? 'this order is' : 'your universities are'} attached straight away: `
-        + `${siteUrl}/login?signup=1&email=${encodeURIComponent(email)}`;
+      ? `${what} in your account. Sign in with ${email} and open My Universities:
+${siteUrl}/dashboard`
+      : `Create your account with ${email} — ${(services || []).length
+          ? 'this order is' : 'your universities are'} attached the moment you do:
+${siteUrl}/login?signup=1&email=${encodeURIComponent(email)}`;
     return {
-      subject: `Your Glovels order ${reference} — ${packageName}`,
+      /* The subject line is what decides whether this is opened at all, so it
+         says what arrived rather than filing a reference number. */
+      subject: publicUnis
+        ? `Your ${publicUnis} universities are ready — sign in to see them`
+        : `Your Glovels order ${reference} — ${packageName}`,
       text: `Hi ${first},
 
 ${(services || []).length
@@ -201,15 +214,20 @@ ${(services || []).length
 Order reference   ${reference}
 Amount            ${money(grossPaise)} (including ${money(tax)} GST)${publicUnis
   ? `
-Universities      ${publicUnis} public universities unlocked` : ''}
+Universities      ${publicUnis} public universities, named in your account` : ''}
 
 ${nextStep}
 
 What happens next:
 
-1. A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist with you. That agreed shortlist is what the guarantee applies to.
-2. Upload your documents in the portal. Start with the passport and your transcripts — the APS certificate for Germany takes 6–8 weeks, so it is the one to begin first.
-3. We file in deadline order, and follow every application up until there is a decision on record.
+1. ${publicUnis
+  ? `Sign in and open My Universities. Your ${publicUnis} universities are named there, each with the fee, the intake and the application deadline. They are not shown anywhere on the website — that list is yours.`
+  : 'A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist with you. That agreed shortlist is what the guarantee applies to.'}
+${/offer|boarding/i.test(String(packageName || ''))
+  ? `2. Upload your documents in the portal. Start with the passport and your transcripts — the APS certificate for Germany takes 6–8 weeks, so it is the one to begin first.
+3. We file in deadline order, and follow every application up until there is a decision on record.`
+  : `2. Tell us anything on your profile that has changed. The list is picked again whenever you do.
+3. Message your counsellor from inside your account if you want to talk any of them through.`}
 
 Admission is the university's decision, not ours. What we guarantee is that your file is the strongest it can be and that nothing is left unchased.
 
@@ -217,20 +235,35 @@ Glovels
 +91 70933 14089`,
       html: shell(packageName + ' is active',
         p(`Hi ${esc(first)},`) +
+        (publicUnis
+          ? p('<b>Your ' + publicUnis + ' universities are in your account.</b> Sign in '
+            + 'with <b>' + esc(email) + '</b> and open <b>My Universities</b> — each one '
+            + 'is named there, with the fee, the intake and the application deadline. '
+            + 'They are not shown anywhere on the website: that list is yours.')
+          : '') +
         rows([
           ['Order reference', reference],
           ['Package', packageName],
           ['Amount paid', money(grossPaise) + ' incl. GST'],
           ['GST @ 18%', money(tax)],
-          ['Universities unlocked', String(publicUnis)],
-        ]) +
+          /* Only when there is a number. "Universities unlocked: 0" on a
+             receipt for an SOP rewrite is a line that answers nothing. */
+        ].concat(publicUnis ? [['Universities', String(publicUnis)]] : [])) +
         (hasAccount
           ? button(siteUrl + '/dashboard', 'Open my dashboard')
           : p('Create your account with <b>' + esc(email) + '</b> and your universities are attached straight away.')
             + button(siteUrl + '/login?signup=1&email=' + encodeURIComponent(email), 'Create my account')) +
         p('<b>What happens next</b>') +
-        p('<b>1.</b> A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist. That agreed shortlist is what the guarantee applies to.') +
-        p('<b>2.</b> Upload your documents. Start with your passport and transcripts — the APS certificate for Germany takes 6–8 weeks, so begin that one first.') +
+        p(publicUnis
+          ? '<b>1.</b> Open My Universities and read them. Your counsellor can add or '
+            + 'drop any of them with you once you have looked.'
+          : '<b>1.</b> A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist. That agreed shortlist is what the guarantee applies to.') +
+        p(/offer|boarding/i.test(String(packageName || ''))
+          /* The same rule alerts.js uses to decide what a student is asked
+             for. Telling somebody on a shortlisting package to upload their
+             transcripts is asking for work nobody is going to do with. */
+          ? '<b>2.</b> Upload your documents. Start with your passport and transcripts — the APS certificate for Germany takes 6–8 weeks, so begin that one first.'
+          : '<b>2.</b> Tell us anything on your profile that has changed — the list is picked again whenever you do.') +
         p('<b>3.</b> We file in deadline order and follow every application up until a decision is on record.') +
         small('Admission is the university\'s decision, not ours. What we guarantee is that your file is the strongest it can be and that nothing is left unchased.')),
     };

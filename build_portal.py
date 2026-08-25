@@ -94,10 +94,16 @@ def sidebar(active):
     return f"""<div class="p-shell">
   <aside class="p-side">
     <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
-    <nav class="p-nav">{links}</nav>
-    <div class="p-side-foot">
-      <a href="login.html"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Switch role / log out</a>
+    <!-- Sign out belongs where somebody looks for it: beside their own name, at
+         the top. At the bottom of a nav it sits below the fold on a laptop and
+         under the whole menu on a phone, so the way to leave was the one thing
+         on the screen you had to scroll to find. -->
+    <div class="p-who">
+      <b id="whoName">—</b>
+      <a href="#" id="signOut" class="p-out">
+        <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
     </div>
+    <nav class="p-nav">{links}</nav>
   </aside>
 """
 
@@ -146,11 +152,10 @@ def staff_sidebar(active, role_note):
     return f"""<div class="p-shell">
   <aside class="p-side">
     <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
-    <div class="plan-badge"><b id="staffName">\u2014</b><span id="staffRole">{role_note}</span></div>
+    <div class="plan-badge"><b id="staffName">\u2014</b><span id="staffRole">{role_note}</span>
+      <a href="#" id="staffOut" class="p-out">
+        <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a></div>
     <nav class="p-nav">{links}</nav>
-    <div class="p-side-foot">
-      <a href="#" id="staffOut"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
-    </div>
   </aside>
 """
 
@@ -311,6 +316,60 @@ function pagerHtml(key, total, noun, repaint) {{
     btn(at + 1, 'Next', false, at >= pages - 1) +
     '</div>';
 }}
+
+/* ------------------------------------------- a table that continues sideways
+ *
+ * "The sidebar to move to the side is missing." It was not missing — macOS
+ * simply does not draw a scrollbar until something moves, so a table wider
+ * than its card reads as a table that has been cut off with no way to reach
+ * the rest of it.
+ *
+ * This wraps every horizontally scrolling card, shades whichever edge still
+ * has content behind it, and says so in words underneath. The scrollbar itself
+ * is styled to be always drawn in the sheet beside this.
+ */
+function armScroll(box) {{
+  if (!box || box.dataset.scrollArmed) return;
+  box.dataset.scrollArmed = '1';
+  box.classList.add('scrollx');
+  const wrap = document.createElement('div');
+  wrap.className = 'scrollwrap';
+  box.parentNode.insertBefore(wrap, box);
+  wrap.appendChild(box);
+  const say = document.createElement('p');
+  say.className = 'scrollsay';
+  say.hidden = true;
+  wrap.appendChild(say);
+  const paint = () => {{
+    const more = box.scrollWidth - box.clientWidth;
+    const left = box.scrollLeft;
+    wrap.classList.toggle('more-left', left > 4);
+    wrap.classList.toggle('more-right', more - left > 4);
+    say.hidden = more <= 4;
+    if (more > 4) {{
+      say.textContent = left > 4
+        ? 'Scroll sideways to see the rest of this table.'
+        : 'This table is wider than the screen \u2014 scroll sideways for the '
+          + 'remaining columns.';
+    }}
+  }};
+  box.addEventListener('scroll', paint, {{ passive: true }});
+  addEventListener('resize', paint);
+  /* The table is painted after the data arrives, so its width is not known at
+     the moment this runs. */
+  if (typeof ResizeObserver === 'function') {{
+    try {{ new ResizeObserver(paint).observe(box.firstElementChild || box); }} catch (e) {{}}
+  }}
+  setTimeout(paint, 60);
+  setTimeout(paint, 900);
+  setTimeout(paint, 2600);
+  paint();
+}}
+addEventListener('DOMContentLoaded', () => {{
+  $$('.p-card').forEach(c => {{
+    if (c.querySelector('table') && getComputedStyle(c).overflowX === 'auto') armScroll(c);
+  }});
+}});
 
 document.addEventListener('click', e => {{
   const b = e.target.closest('[data-pg]');
@@ -496,7 +555,14 @@ DEMO_STRIP = ('<div class="p-demo" id="pDemo"><svg class="ico" aria-hidden="true
 
 
 def page(slug, title, h1, sub, body, script="", topright=""):
-    return f"""{head_for(title)}
+    # The student screens are built from the donor head, which carries the
+    # designer's stylesheet and not the rules written since. Sign out beside
+    # their name at the top of the sidebar is one of those, so without this it
+    # rendered as two bare words floating above the menu.
+    import portal_dashboard_css
+    head = head_for(title).replace(
+        "</head>", "<style>" + portal_dashboard_css.CSS + "</style></head>", 1)
+    return f"""{head}
 <body>
 {SPRITE}
 {sidebar(slug)}  <main class="p-main">
@@ -684,6 +750,19 @@ async function boot(run) {{
   }};
   const avatar = $('#pAvatar');
   if (avatar && USER.name) avatar.textContent = USER.name.trim().slice(0, 1).toUpperCase();
+  /* Their own name beside the way out, at the top of the sidebar. */
+  const who = $('#whoName');
+  if (who) who.textContent = USER.name || USER.email || 'Signed in';
+  const out = $('#signOut');
+  if (out) {{
+    out.onclick = async e => {{
+      e.preventDefault();
+      try {{
+        await fetch('/api/auth/logout', {{ method: 'POST', credentials: 'same-origin' }});
+      }} catch (err) {{}}
+      location.href = 'login.html';
+    }};
+  }}
   run();
 }}
 
@@ -788,12 +867,31 @@ function __dashTodo(s) {
     + (list.length > 5 ? ', and ' + (list.length - 5) + ' more' : '')
     + ' <a href="' + href + '">' + cta + '</a></li>';
 
+  /* What this student is actually being asked for, and WHY. The old sentence —
+     "applications cannot be filed and a visa cannot be applied for" — was
+     printed to everybody, including somebody who paid ₹99 for three university
+     names and is never going to file an application through us. Being told a
+     purchase is 0% complete when it has been delivered in full is the screen
+     being wrong about their own order. */
+  const on = t.stages || [];
+  const why = on.indexOf('visa') >= 0
+    ? 'Applications cannot be filed, and a visa cannot be applied for, until it is '
+      + 'finished. Nothing here takes long.'
+    : on.indexOf('apply') >= 0
+    ? 'Applications cannot be filed until this is finished. Nothing here takes long.'
+    : on.indexOf('write') >= 0
+    ? 'This is what your writer needs to know about you before they start. '
+      + 'Nothing here takes long.'
+    : on.indexOf('match') >= 0
+    ? 'These are the answers your universities are matched against \u2014 change '
+      + 'one and the list is picked again.'
+    : 'Just enough for us to reach you.';
+
   const el = document.createElement('div');
   el.className = 'todo-card';
   el.innerHTML =
       '<div class="todo-head"><b>Your file is ' + t.complete + '% complete</b>'
-    + '<span>Applications cannot be filed, and a visa cannot be applied for, until it is '
-    + 'finished. Nothing here takes long.</span></div>'
+    + '<span>' + why + '</span></div>'
     + '<div class="todo-bar"><i style="width:' + t.complete + '%"></i></div>'
     + '<ul>'
     + (gaps.length ? line(gaps.length, gaps.length === 1 ? 'thing about you'
@@ -1197,6 +1295,69 @@ def main():
     if marker in dash:
         dash = re.sub(re.escape(marker) + r".*?</style>", "</style>", dash, count=1, flags=re.S)
     dash = dash.replace("</style>", portal_dashboard_css.CSS + "</style>", 1)
+
+    # Sign out, at the top. The dashboard is the designer's own file rather
+    # than one built by sidebar() above, so it carries its own copy of the
+    # sidebar markup and had to be moved separately — otherwise the way out
+    # sits at the top on eight screens and at the bottom on the ninth.
+    OLD_FOOT = """    <div class="p-side-foot">
+      <div class="plan-badge" id="planBadge"></div>
+      <a href="login.html" id="signOut"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Switch role / log out</a>
+    </div>"""
+    NEW_TOP = """    <div class="p-who">
+      <b id="whoName">\u2014</b>
+      <a href="#" id="signOut" class="p-out"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
+    </div>
+    <div class="plan-badge" id="planBadge"></div>"""
+    # And its own click handler, which only cleared localStorage and let the
+    # href do the navigating. The href is now "#", so without this the button
+    # would clear a key and sit there — and it never ended the SERVER session
+    # anyway, which is the thing that actually signs somebody out.
+    # The one thing they paid for, said first.
+    #
+    # "User should get the message: after you sign in with the details you can
+    #  see your universities." The prompt on this screen always said "fill in
+    #  your profile" — even to somebody whose five universities had just landed
+    #  and who had come here to look at them.
+    OLD_NEXT = """const next = !paid
+  ? ['Fill in your profile',"""
+    NEW_NEXT = """const __m = (window.__GLOVELS && window.__GLOVELS.matched) || null;
+const next = (__m && __m.delivered > 0)
+  ? ['Your ' + __m.delivered + ' universit' + (__m.delivered === 1 ? 'y is' : 'ies are')
+       + ' ready',
+     'Named, with the fee, the intake and the deadline on each one. They are yours '
+     + 'to keep \u2014 and your counsellor can add or drop any of them with you.',
+     'See my universities', 'universities.html', 'cap']
+  : (__m && __m.owed && __m.needsProfile)
+  ? ['Answer six questions and your ' + __m.owed + ' universities appear',
+     'What you are applying for, where, and what you can spend. Nobody has to ring '
+     + 'you \u2014 the list is picked the moment you save.',
+     'Answer them now', 'profile.html', 'user']
+  : !paid
+  ? ['Fill in your profile',"""
+    if OLD_NEXT in dash:
+        dash = dash.replace(OLD_NEXT, NEW_NEXT)
+
+    OLD_OUT = """$('#signOut').onclick = () => {
+  try { localStorage.removeItem('glovels_user'); } catch(e) {}
+};"""
+    NEW_OUT = """$('#signOut').onclick = async (e) => {
+  e.preventDefault();
+  try { localStorage.removeItem('glovels_user'); } catch(err) {}
+  /* The session lives on the server. Clearing a browser key and navigating
+     away left it signed in, so the next person at this machine pressed Back
+     and was in. */
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); }
+  catch (err) {}
+  location.href = 'login.html';
+};"""
+    if OLD_OUT in dash:
+        dash = dash.replace(OLD_OUT, NEW_OUT)
+
+    if OLD_FOOT in dash:
+        dash = dash.replace(OLD_FOOT, "")
+        dash = dash.replace(
+            '''<nav class="p-nav">''', NEW_TOP + '''\n    <nav class="p-nav">''', 1)
 
     # 3. the dashboard reads three localStorage keys the sales page used to write.
     #    Those are now filled from the student's account on the server before its

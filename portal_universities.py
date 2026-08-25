@@ -109,6 +109,52 @@ function clears(p) {
 function flagOf(p) { return (COUNTRIES[p.country] || {}).flag || ''; }
 function nameOf(p)  { return (COUNTRIES[p.country] || {}).name || p.country; }
 
+/* How long there is, said in the unit somebody acts on. "15 Jan 2027" is a
+   fact; "start now — that is 5 weeks away" is a decision. */
+function whenToApply(p) {
+  const d = upcoming(p);
+  if (!d) return '';
+  const days = Math.round((d - new Date()) / 86400000);
+  if (days <= 0) return 'The deadline has passed — ask your counsellor about the next intake.';
+  /* Applications are not a same-week job: documents have to be attested,
+     transcripts requested, and for Germany the APS alone takes 6–8 weeks. */
+  if (days <= 21) return 'Start today — the deadline is ' + days + ' day'
+    + (days === 1 ? '' : 's') + ' away, which is tight.';
+  if (days <= 60) return 'Start this week. ' + days + ' days left, and documents take '
+    + 'longer than people expect.';
+  if (days <= 150) return 'Begin gathering documents now — ' + Math.round(days / 7)
+    + ' weeks to the deadline.';
+  return Math.round(days / 30) + ' months to the deadline. Nothing is urgent yet.';
+}
+
+function needsBlock(p) {
+  const c = COUNTRIES[p.country] || {};
+  const docs = (c.documents || []).filter(Boolean);
+  const tests = (c.tests || []).filter(Boolean);
+  const when = whenToApply(p);
+  if (!docs.length && !tests.length && !when) return '';
+  const li = (label, list) => !list.length ? ''
+    : '<div style="margin-top:8px"><b style="display:block;font:700 10.6px/1 var(--sans);'
+      + 'letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">'
+      + label + '</b><span style="font-size:12px;line-height:1.6;color:var(--navy-800)">'
+      + list.map(esc).join(' · ') + '</span></div>';
+  return '<details class="uneeds" style="margin-top:9px">'
+    + '<summary style="cursor:pointer;font:700 12px/1.4 var(--sans);color:var(--navy-800)">'
+    + 'What it takes to apply</summary>'
+    + (when ? '<p style="margin:8px 0 0;font-size:12.2px;line-height:1.55;'
+        + 'color:var(--navy-900)"><b>' + esc(when) + '</b></p>' : '')
+    + li('Documents', docs)
+    + li('Tests', tests)
+    + (c.degreeRule ? '<div style="margin-top:8px;font-size:11.8px;line-height:1.6;'
+        + 'color:var(--muted)">' + esc(c.degreeRule) + '</div>' : '')
+    + (c.extraNote ? '<div style="margin-top:6px;font-size:11.8px;line-height:1.6;'
+        + 'color:#8a5a0b">' + esc(c.extraNote) + '</div>' : '')
+    + '<p style="margin:9px 0 0;font-size:11.4px;color:var(--muted)">These are the '
+    + esc(nameOf(p)) + ' rules, kept up to date by the office. Your counsellor files '
+    + 'each of these with you.</p>'
+    + '</details>';
+}
+
 function card(p, inList) {
   return '<article class="sl" data-id="' + p.id + '">' +
     '<span class="sl-flag">' + flagOf(p) + '</span>' +
@@ -124,12 +170,30 @@ function card(p, inList) {
     /* Said on the card, not only in the filter. A student browsing with the
        filter switched off is entitled to know which of these would turn them
        away, and a student who clears it is entitled to see that they do. */
+    /* What it actually takes to apply to this one, on the card rather than in
+       a counsellor's head. "Each university will give him deadline date etc,
+       and when to apply, and what docs are needed to apply."
+       The deadline was already here; the other two were not, and they are the
+       two that decide whether somebody starts in time. Closed by default —
+       twelve cards each shouting a document list is a wall. */
+    needsBlock(p) +
     (barOf(p) == null ? '' :
       '<div class="sl-meta" style="color:' + (clears(p) ? 'var(--muted)' : '#b42318') + '">' +
       (clears(p) ? 'Asks for ' + barOf(p) + '+ CGPA'
                  : 'Asks for ' + barOf(p) + '+ CGPA — above yours') + '</div>') +
     '<div class="sl-go" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-      (inList === 'want'
+      (inList === 'matched'
+        /* A university the package delivered. It is not "waiting" on anybody —
+           it is theirs, and the only thing they might want is a different one.
+           "He can check and, in case any changes are required, he can consult
+            the counsellor. Counsellor can add or change the universities for
+            him." So the card offers the conversation, not a delete: a student
+           removing one of the universities they paid for, with nobody told and
+           no undo, is not a convenience. */
+        ? '<a class="btn btn-ghost btn-sm" href="messages.html?about='
+          + encodeURIComponent(p.university || p.program || p.id)
+          + '">Ask about this one</a>'
+        : inList === 'want'
         /* Already marked, not agreed. Offering "I am interested" again on a
            card that is IN the interested list is the screen asking for
            something it already has. */
@@ -204,7 +268,7 @@ function paintMine() {
     html += head('Matched to your profile',
       'Picked from what you told us — marks, budget, country and intake. '
       + 'Update your profile and they are picked again.');
-    html += grid(auto, 'want');
+    html += grid(auto, 'matched');
     html += '<div style="height:30px"></div>';
   } else if (M && M.owed && M.needsProfile) {
     /* Paid for, and waiting on them. This is the one state where saying

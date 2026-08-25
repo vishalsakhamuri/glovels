@@ -495,6 +495,19 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ---- injected by build_portal.py: rules the newer dashboard markup needs ---- */
 
 /* Top bar: page title, notifications, avatar. */
@@ -517,6 +530,29 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .plan-badge b{display:block;font:700 13px/1.25 var(--sans);color:#fff}
 .plan-badge span{display:block;margin-top:3px;font-size:11.4px;line-height:1.4;
   color:rgba(255,255,255,.62)}
+
+/* Sign out, beside their own name, at the TOP of the sidebar. It used to sit
+   at the bottom of the nav, which on a laptop is below the fold and on a phone
+   is under the entire menu — so the way to leave was the one thing on the
+   screen you had to go looking for. */
+.p-who{margin:14px 14px 0;padding:11px 13px;border-radius:12px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  display:flex;align-items:center;gap:10px}
+.p-who > b{flex:1;min-width:0;font:700 13px/1.25 var(--sans);color:#fff;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-out{display:inline-flex;align-items:center;gap:6px;flex:none;
+  font:700 11.6px/1 var(--sans);color:rgba(255,255,255,.72);
+  padding:6px 9px;border-radius:8px;text-decoration:none;
+  border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
+.p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+.p-out .ico{width:13px;height:13px}
+.plan-badge .p-out{margin-left:auto;align-self:flex-start}
+.plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.plan-badge b, .plan-badge > span{flex-basis:100%}
+.plan-badge .p-out{flex-basis:auto}
+@media (max-width:900px){
+  .p-who, .plan-badge{margin:10px 12px 0}
+}
 
 /* "Do this next." One prompt, and it has to look like the most actionable thing
    on the page — otherwise it is just another card. */
@@ -737,11 +773,46 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 /* A package name is a phrase, not a word, and the chip was sized as though it
    were one — so "Academic CV & Resume" broke out of its own background and
    printed over the row above it. */
-.tbl .st, .tbl .chip, .tbl .sl-chip{display:inline-block;max-width:100%;
+/* A package name is a phrase — "Academic CV & Resume" — and the chip was sized
+   as though it were a word, so it broke out of its own background and printed
+   over the row above. Only the ones that carry a phrase are allowed to wrap:
+   letting the short status pills wrap too turned "Private" into "Privat / e"
+   and "On the site" into three lines, which is worse than what it fixed. */
+.tbl .sl-chip, .tbl .chip{display:inline-block;max-width:100%;
   white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+.tbl .st{white-space:nowrap}
 /* And a row is read across, so its cells line up at the top rather than
    floating in the middle of whatever the tallest one turned out to be. */
 .tbl td{vertical-align:top}
+
+/* A wide table scrolls sideways INSIDE its card rather than squeezing every
+   column until the words break. Without a floor the browser keeps shrinking
+   cells to fit and there is nothing to scroll, which is how a screen ends up
+   with no scrollbar and no readable columns either. */
+.p-card > .tbl{min-width:1180px}
+
+/* And the scrolling has to be VISIBLE. macOS hides scrollbars until something
+   moves, so a table that continues past the edge looks like a table that has
+   been cut off — which is exactly what it was reported as. Three things say
+   otherwise: a scrollbar that is always drawn, a shadow on whichever edge has
+   more behind it, and a line of text under the table saying so. */
+.scrollx{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#c6ccd6 #eef1f5}
+.scrollx::-webkit-scrollbar{height:11px;-webkit-appearance:none}
+.scrollx::-webkit-scrollbar-thumb{background:#c6ccd6;border-radius:99px;
+  border:2px solid #eef1f5}
+.scrollx::-webkit-scrollbar-thumb:hover{background:#9aa3b2}
+.scrollx::-webkit-scrollbar-track{background:#eef1f5;border-radius:99px}
+
+.scrollwrap{position:relative}
+.scrollwrap::before,.scrollwrap::after{content:'';position:absolute;top:0;bottom:0;
+  width:26px;pointer-events:none;opacity:0;transition:opacity .16s;z-index:2}
+.scrollwrap::before{left:0;background:linear-gradient(90deg,rgba(11,30,49,.13),transparent)}
+.scrollwrap::after{right:0;background:linear-gradient(270deg,rgba(11,30,49,.13),transparent)}
+.scrollwrap.more-left::before{opacity:1}
+.scrollwrap.more-right::after{opacity:1}
+
+.scrollsay{margin:0;padding:8px 14px;border-top:1px solid var(--line);
+  font:600 11.8px/1.4 var(--sans);color:var(--muted);background:var(--paper)}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
@@ -767,11 +838,13 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 <div class="p-shell">
   <aside class="p-side">
     <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
-    <nav class="p-nav"><a href="dashboard.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Dashboard</a><a href="profile.html"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg> My Profile</a><a href="documents.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Documents</a><a href="universities.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> My Universities</a><a href="applications.html"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Applications</a><a href="services.html"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> Services</a><a href="scholarships.html"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Scholarships</a><a href="visa.html"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Visa &amp; Enrollment</a><a href="messages.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Messages</a></nav>
-    <div class="p-side-foot">
-      <div class="plan-badge" id="planBadge"></div>
-      <a href="login.html" id="signOut"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Switch role / log out</a>
+        <div class="p-who">
+      <b id="whoName">—</b>
+      <a href="#" id="signOut" class="p-out"><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
     </div>
+    <div class="plan-badge" id="planBadge"></div>
+    <nav class="p-nav"><a href="dashboard.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Dashboard</a><a href="profile.html"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg> My Profile</a><a href="documents.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Documents</a><a href="universities.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> My Universities</a><a href="applications.html"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Applications</a><a href="services.html"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> Services</a><a href="scholarships.html"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Scholarships</a><a href="visa.html"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Visa &amp; Enrollment</a><a href="messages.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Messages</a></nav>
+
   </aside>
 
   <main class="p-main">
@@ -960,12 +1033,31 @@ function __dashTodo(s) {
     + (list.length > 5 ? ', and ' + (list.length - 5) + ' more' : '')
     + ' <a href="' + href + '">' + cta + '</a></li>';
 
+  /* What this student is actually being asked for, and WHY. The old sentence —
+     "applications cannot be filed and a visa cannot be applied for" — was
+     printed to everybody, including somebody who paid ₹99 for three university
+     names and is never going to file an application through us. Being told a
+     purchase is 0% complete when it has been delivered in full is the screen
+     being wrong about their own order. */
+  const on = t.stages || [];
+  const why = on.indexOf('visa') >= 0
+    ? 'Applications cannot be filed, and a visa cannot be applied for, until it is '
+      + 'finished. Nothing here takes long.'
+    : on.indexOf('apply') >= 0
+    ? 'Applications cannot be filed until this is finished. Nothing here takes long.'
+    : on.indexOf('write') >= 0
+    ? 'This is what your writer needs to know about you before they start. '
+      + 'Nothing here takes long.'
+    : on.indexOf('match') >= 0
+    ? 'These are the answers your universities are matched against — change '
+      + 'one and the list is picked again.'
+    : 'Just enough for us to reach you.';
+
   const el = document.createElement('div');
   el.className = 'todo-card';
   el.innerHTML =
       '<div class="todo-head"><b>Your file is ' + t.complete + '% complete</b>'
-    + '<span>Applications cannot be filed, and a visa cannot be applied for, until it is '
-    + 'finished. Nothing here takes long.</span></div>'
+    + '<span>' + why + '</span></div>'
     + '<div class="todo-bar"><i style="width:' + t.complete + '%"></i></div>'
     + '<ul>'
     + (gaps.length ? line(gaps.length, gaps.length === 1 ? 'thing about you'
@@ -1287,7 +1379,19 @@ $('#steps4').innerHTML = STEPS.map(([t, ok], i) =>
    "set your destination, level and CGPA on the website" — to somebody who is
    signed in, on a screen with a profile one click away that asks for exactly
    those three things. */
-const next = !paid
+const __m = (window.__GLOVELS && window.__GLOVELS.matched) || null;
+const next = (__m && __m.delivered > 0)
+  ? ['Your ' + __m.delivered + ' universit' + (__m.delivered === 1 ? 'y is' : 'ies are')
+       + ' ready',
+     'Named, with the fee, the intake and the deadline on each one. They are yours '
+     + 'to keep — and your counsellor can add or drop any of them with you.',
+     'See my universities', 'universities.html', 'cap']
+  : (__m && __m.owed && __m.needsProfile)
+  ? ['Answer six questions and your ' + __m.owed + ' universities appear',
+     'What you are applying for, where, and what you can spend. Nobody has to ring '
+     + 'you — the list is picked the moment you save.',
+     'Answer them now', 'profile.html', 'user']
+  : !paid
   ? ['Fill in your profile',
      'Your destination, level and CGPA are what your counsellor needs to shortlist '
      + 'for you. Eleven short sections, asked once.',
@@ -1340,8 +1444,15 @@ $('#deadlines').innerHTML = dl.length
   : '<p style="font-size:12.6px;color:var(--muted);margin:0">Deadlines appear once your '
     + 'shortlist is agreed.</p>';
 
-$('#signOut').onclick = () => {
-  try { localStorage.removeItem('glovels_user'); } catch(e) {}
+$('#signOut').onclick = async (e) => {
+  e.preventDefault();
+  try { localStorage.removeItem('glovels_user'); } catch(err) {}
+  /* The session lives on the server. Clearing a browser key and navigating
+     away left it signed in, so the next person at this machine pressed Back
+     and was in. */
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); }
+  catch (err) {}
+  location.href = 'login.html';
 };
 })();
 

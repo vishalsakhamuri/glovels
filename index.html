@@ -1489,7 +1489,12 @@ window.__glovelsSetGate = function (f) {
   /* MODE and BADGE are `const`, and PHONE/TO are read at the moment a form
      fails rather than at load, so these are held in a box the rest of the page
      reads through. */
-  if (/^(gated|names|open)$/.test(f.gate)) window.__glovelsGate = f.gate;
+  if (/^(gated|names|open)$/.test(f.gate)) {
+    window.__glovelsGate = f.gate;
+    /* The names are fetched only in the two modes that publish them to
+       everybody, and this setting arrives after that check has already run. */
+    if (window.__glovelsPublishedNames) window.__glovelsPublishedNames();
+  }
   if (f.badges) {
     Object.keys(f.badges).forEach(function (k) {
       if (BADGE[k] !== undefined && f.badges[k]) BADGE[k] = f.badges[k];
@@ -2225,10 +2230,13 @@ $('#buyPay').onclick = () => {
     } catch (e) {}
   });
 
-  unlocked = buying.publicUnis;
+  /* Not unlocked here. What they bought is delivered to their account by the
+     server — matched against their profile rather than against whatever
+     filters this tab happened to have set — and the panel below tells them to
+     sign in and look at it. */
   paidName = buying.name;
   touched = true;
-  loadUnlocked().then(render);
+  render();
 
   $('#buyT').textContent = 'Order confirmed';
   $('#buyLead').textContent = '';
@@ -2238,10 +2246,12 @@ $('#buyPay').onclick = () => {
     + ' including ₹' + nf.format(tax) + ' GST, payable to your counsellor</span></div></div>'
     + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
     + '<li id="buyAcct"><b>Setting up your dashboard\u2026</b><span>One moment.</span></li>'
-    + '<li><b>Your ' + (buying.publicUnis || 'matched') + ' universities are in your '
-      + 'dashboard</b><span>Readable with fees and deadlines, and saved — so you can '
-      + 'come back to them without searching again. They are readable below straight '
-      + 'away too.</span></li>'
+    + '<li><b>Sign in to see your ' + (buying.publicUnis || 'matched')
+      + ' universities</b><span>They are named on <b>My Universities</b> in your '
+      + 'account, with the fee, the intake and the deadline on each one \u2014 and '
+      + 'they stay there, so you can come back to them without searching again. '
+      + 'They are not shown on this page: the list is yours, not this '
+      + 'browser\u2019s.</span></li>'
     + (buying.matches
       ? '<li><b>Nobody needs to ring you</b><span>This is picked and delivered by '
         + 'the system. If you want a counsellor on it, every bigger package includes '
@@ -2457,14 +2467,27 @@ $('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };
    rows come back with a name; `unlocked` is set from that rather than from a
    package the browser thinks it bought, so an order placed on another device
    works the same as one placed in this tab. */
-(async function entitlement(){
+/* Only when the office has deliberately published the names to EVERYBODY.
+   `loadUnlocked()` is what fills `revealed`, and `revealed` is the only thing
+   that turns a locked row into a named one. In the normal "gated" mode it is
+   never called, so every public university stays blurred here for everyone —
+   including somebody who has just paid, whose names are on My Universities in
+   their account, where they can come back to them.
+   The other two modes are a different decision, made once on the Home page
+   screen: "names" and "open" mean these are public information now, and the
+   page has to honour that or the setting does nothing. */
+async function publishedNames(){
+  /* Defaulting to "gated" rather than to whatever this block can see: MODE
+     lives inside the finder's own closure and is not in scope here, and the
+     strictest reading is the safe one to guess wrong with. */
+  const g = window.__glovelsGate || 'gated';
+  if (g !== 'names' && g !== 'open') return;
   await loadUnlocked();
-  const n = Object.keys(revealed).length;
-  if (!n) return;
-  const unis = new Set(Object.values(revealed).map(r => r.uKey));
-  unlocked = Math.max(unlocked, unis.size);
+  if (!Object.keys(revealed).length) return;
   render();
-}());
+}
+window.__glovelsPublishedNames = publishedNames;
+publishedNames();
 
 render();
 

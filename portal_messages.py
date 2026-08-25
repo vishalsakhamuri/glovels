@@ -177,6 +177,25 @@ function hint(text) {
   el._h = setTimeout(() => { el.textContent = ''; }, 4000);
 }
 
+/* Arrived here from a university card: "Ask about this one". The message is
+   started for them and left UNSENT, with the cursor in it — a screen that
+   sends something on their behalf is a screen that put words in their mouth.
+   "He can check and, in case any changes are required, he can consult the
+    counsellor." This is that click. */
+(function () {
+  let about = '';
+  try { about = new URLSearchParams(location.search).get('about') || ''; } catch (e) {}
+  if (!about) return;
+  const box = $('#box');
+  if (!box) return;
+  box.value = 'About ' + about.slice(0, 120) + ' — ';
+  box.focus();
+  try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) {}
+  /* Off the address bar, so a reload does not re-fill a message they have
+     already sent or deliberately cleared. */
+  try { history.replaceState({}, '', location.pathname); } catch (e) {}
+}());
+
 $('#composer').addEventListener('submit', e => {
   e.preventDefault();
   const v = $('#box').value.trim();
