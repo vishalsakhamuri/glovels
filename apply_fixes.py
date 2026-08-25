@@ -5049,6 +5049,268 @@ no_password_they_never_had()
 # patched — but appended to `applied` after the printing had already happened.
 # The script reported "0 applied" while rewriting forty pages. A build script
 # that lies about what it did is worse than one that fails.
+
+# ---------------------------------------------------------------- index.html
+#
+# An aeroplane, a footer that is not a staircase, and the brand marks the
+# social row was drawing as six identical globes.
+
+# The 24-grid icon set is drawn for 24px. `#i-plane` is one of those — a few
+# straight segments that read as an aeroplane at the size a button needs and,
+# blown up to 190px in the hero, read as a pair of open scissors. Reported
+# twice, and unfixable by resizing: the path simply has too few points to be a
+# wing at that scale.
+#
+# So: a second aeroplane, drawn on a 64 grid as a solid top-down airliner,
+# used ONLY where it is large — the hero decoration and the two planes on the
+# journey arc. `#i-plane` keeps every small inline use, where it is fine.
+JET = (
+    '<symbol id="i-jet" viewBox="0 0 64 64">'
+    '<path d="M62 32q0-3.2-6.5-4.2L30 26.2q-13.5-.5-26.5 4.6v2.4q13 5.1 26.5 4.6l25.5-1.6Q62 35.2 62 32Z"/>'
+    '<path d="M43 29 19.8 7.3q-1-.9-2.2-.5l-1.1.4q-1.3.5-.6 1.8L27.4 29Z"/>'
+    '<path d="M43 35 19.8 56.7q-1 .9-2.2.5l-1.1-.4q-1.3-.5-.6-1.8L27.4 35Z"/>'
+    '<path d="M13.6 30 6.9 18.6q-.5-.8-1.4-.5l-.8.3q-1 .4-.5 1.3L8.6 30Z"/>'
+    '<path d="M13.6 34 6.9 45.4q-.5.8-1.4.5l-.8-.3q-1-.4-.5-1.3L8.6 34Z"/>'
+    '</symbol>'
+)
+
+# The five brand marks, solid rather than stroked, because that is what a logo
+# is. The footer drew all five with `#i-globe` — five identical circles with a
+# meridian, which is the sprite quietly telling you the icons were never made.
+BRANDS = (
+    '<symbol id="i-ig" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M8.2 2h7.6A6.2 6.2 0 0 1 22 '
+    '8.2v7.6A6.2 6.2 0 0 1 15.8 22H8.2A6.2 6.2 0 0 1 2 15.8V8.2A6.2 6.2 0 0 1 8.2 2Zm0 2A4.2 4.2 0 0 '
+    '0 4 8.2v7.6A4.2 4.2 0 0 0 8.2 20h7.6a4.2 4.2 0 0 0 4.2-4.2V8.2A4.2 4.2 0 0 0 15.8 4Zm3.8 3a5 5 0 '
+    '1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm5.3-2.7a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 '
+    '0 1 0-2.4Z"/></symbol>'
+    '<symbol id="i-fb" viewBox="0 0 24 24"><path d="M13.5 21.9V13h3l.45-3.5H13.5V7.3c0-1 .28-1.7 '
+    '1.72-1.7h1.84V2.5c-.32-.04-1.42-.14-2.7-.14-2.66 0-4.48 1.63-4.48 4.62V9.5H6.9V13h2.98v8.9z"/>'
+    '</symbol>'
+    '<symbol id="i-li" viewBox="0 0 24 24"><path d="M4.98 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 '
+    '0-5ZM3 21h4V9.5H3zM9.5 9.5h3.8v1.6h.05c.53-1 1.83-2 3.76-2 4.02 0 4.76 2.6 4.76 '
+    '5.95V21h-4v-5.3c0-1.3-.02-2.95-1.85-2.95-1.85 0-2.13 1.4-2.13 2.85V21h-4z"/></symbol>'
+    '<symbol id="i-x" viewBox="0 0 24 24"><path d="M17.53 3h3.05l-6.66 7.62L21.75 21h-6.13l-4.8-6.28L5.32 '
+    '21H2.27l7.13-8.15L2.5 3h6.28l4.34 5.74Zm-1.07 16.17h1.69L7.62 4.74H5.8Z"/></symbol>'
+    '<symbol id="i-wa2" viewBox="0 0 24 24"><path d="M12.03 2C6.6 2 2.2 6.4 2.2 11.83c0 1.94.53 3.75 '
+    '1.46 5.31L2 22l4.99-1.6a9.8 9.8 0 0 0 5.04 1.38c5.43 0 9.83-4.4 9.83-9.83S17.46 2 12.03 '
+    '2Zm5.72 13.9c-.24.68-1.42 1.3-1.95 1.35-.5.05-.96.23-3.24-.67-2.73-1.08-4.45-3.86-4.58-4.04-.13-.18-1.09-1.45-1.09-2.76 '
+    '0-1.31.69-1.96.94-2.23.24-.27.53-.34.7-.34h.5c.16 0 .38-.06.59.45.21.51.72 1.77.79 1.9.06.13.1.29.02.47-.09.18-.13.29-.26.44l-.39.46c-.13.13-.26.27-.11.53.15.26.65 '
+    '1.07 1.4 1.74.96.86 1.77 1.12 2.03 1.25.26.13.4.11.55-.07.15-.18.63-.74.8-.99.17-.26.34-.21.57-.13.24.09 '
+    '1.5.71 1.76.84.26.13.43.2.49.31.06.11.06.62-.18 1.29Z"/></symbol>'
+)
+
+patch(
+    "index.html",
+    "an aeroplane that is an aeroplane, and the five brand marks",
+    '<symbol id="i-check" viewBox="0 0 24 24">',
+    JET + BRANDS + '<symbol id="i-check" viewBox="0 0 24 24">',
+    marker='id="i-jet"',
+)
+
+patch(
+    "index.html",
+    "the hero flies the big one",
+    '<svg class="deco float" style="top:9%;right:6%;width:190px" viewBox="0 0 24 24">\n'
+    '      <use href="#i-plane"/></svg>',
+    '<svg class="deco float" style="top:9%;right:6%;width:210px" viewBox="0 0 64 64">\n'
+    '      <use href="#i-jet"/></svg>',
+)
+
+# The two on the journey arc. The rotations went with the old symbol, which
+# pointed somewhere else — this one flies nose-right at 0deg, so they are set
+# to climb along the arc rather than at the 52 and 84 degrees that had the old
+# one standing on its tail.
+patch(
+    "index.html",
+    "the two on the journey arc are aeroplanes too",
+    '<svg class="jplane near" viewBox="0 0 24 24"><use href="#i-plane"/></svg>'
+    '<svg class="jplane far" viewBox="0 0 24 24"><use href="#i-plane"/></svg>',
+    '<svg class="jplane near" viewBox="0 0 64 64"><use href="#i-jet"/></svg>'
+    '<svg class="jplane far" viewBox="0 0 64 64"><use href="#i-jet"/></svg>',
+)
+
+patch(
+    "index.html",
+    "and they are pointed along the arc, not at the sky",
+    '.jplane.near{left:19%;width:27px;transform:rotate(52deg)}\n'
+    '.jplane.far{left:59%;width:20px;transform:rotate(84deg);opacity:.74}',
+    '.jplane{fill:var(--gold-soft);stroke:none}\n'
+    '.jplane.near{left:19%;width:30px;transform:rotate(-24deg)}\n'
+    '.jplane.far{left:59%;width:21px;transform:rotate(-13deg);opacity:.74}',
+    marker=".jplane.near{left:19%;width:30px",
+)
+
+# The footer laid out as a staircase.
+#
+# `.fgrid` is two different grids: the finder at the top of the page, and the
+# footer. Patch 50 separated their COLUMNS after the finder's six-column rule
+# wrapped the finder button onto its own line. It left one property behind —
+# `align-items:end`, which the finder wants so a select and a 54px button sit
+# on the same baseline, and which the footer inherited.
+#
+# So every footer column was pushed DOWN to meet the bottom of the tallest one.
+# The brand column is 553px and the link columns are 174 to 234, so each
+# heading landed at a different height and the top right of the footer was an
+# empty band the width of four columns. Reported as "why we have space at the
+# bottom" and "lot of empty space in the footer".
+patch(
+    "index.html",
+    "the footer columns start at the top, like columns",
+    "footer.site .fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;gap:30px}",
+    "footer.site .fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;gap:30px;\n"
+    "  align-items:start}",
+)
+
+# The floating WhatsApp button is fixed to the bottom right and the footer's
+# last column ran underneath it.
+patch(
+    "index.html",
+    "nothing in the footer sits under the floating button",
+    ".fbot{margin-top:30px;border-top:1px solid rgba(255,255,255,.12);padding:16px 0 24px;",
+    ".fbot{margin-top:30px;border-top:1px solid rgba(255,255,255,.12);padding:16px 0 92px;",
+)
+
+# Solid, because a logo is solid. The rest of the set is line art and shares
+# `.ico`, so this is scoped to the social row rather than changing the class.
+patch(
+    "index.html",
+    "the social marks are filled, not stroked",
+    ".socials .ico{font-size:17px}",
+    ".socials .ico{font-size:17px;fill:currentColor;stroke:none}",
+)
+
+# And the row itself. Five globes and a speech bubble become four brand marks.
+#
+# WhatsApp comes OUT of the row: the floating green button is on every screen
+# of every page and is the channel this business answers on, so a second
+# WhatsApp icon twenty pixels away from it is the duplicate that was reported.
+# YouTube comes out because there is no Glovels channel to point at — the live
+# site's YouTube link goes to Wix's own channel, which is what an unedited
+# template link looks like. A dead social link costs more than a missing one.
+OLD_SOCIALS = (
+    '<div class="socials"><a href="https://www.instagram.com/glovelsofficial/" target="_blank" '
+    'rel="noopener" aria-label="Instagram"><svg class="ico" aria-hidden="true"><use href="#i-globe"/>'
+    '</svg></a><a href="https://www.facebook.com/GlovelsOfficial/" target="_blank" rel="noopener" '
+    'aria-label="Facebook"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></a>'
+    '<a href="https://www.linkedin.com/company/glovels/" target="_blank" rel="noopener" '
+    'aria-label="LinkedIn"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></a>'
+    '<a href="https://www.youtube.com/@GlovelsOfficial" target="_blank" rel="noopener" '
+    'aria-label="YouTube"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></a>'
+    '<a href="https://x.com/GlovelsOfficial" target="_blank" rel="noopener" aria-label="X">'
+    '<svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></a>'
+    '<a href="https://wa.me/917093314089" target="_blank" rel="noopener" aria-label="WhatsApp">'
+    '<svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg></a></div>'
+)
+NEW_SOCIALS = (
+    '<div class="socials">'
+    '<a href="https://www.instagram.com/glovelsofficial/" target="_blank" rel="noopener" '
+    'aria-label="Glovels on Instagram"><svg class="ico" aria-hidden="true"><use href="#i-ig"/></svg></a>'
+    '<a href="https://www.facebook.com/GlovelsOfficial/" target="_blank" rel="noopener" '
+    'aria-label="Glovels on Facebook"><svg class="ico" aria-hidden="true"><use href="#i-fb"/></svg></a>'
+    '<a href="https://www.linkedin.com/company/glovels/" target="_blank" rel="noopener" '
+    'aria-label="Glovels on LinkedIn"><svg class="ico" aria-hidden="true"><use href="#i-li"/></svg></a>'
+    '<a href="https://x.com/GlovelsOfficial" target="_blank" rel="noopener" '
+    'aria-label="Glovels on X"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></a>'
+    '</div>'
+)
+patch(
+    "index.html",
+    "four real brand marks, and no second WhatsApp",
+    OLD_SOCIALS,
+    NEW_SOCIALS,
+    marker='aria-label="Glovels on Instagram"',
+)
+
+# The floating button gets the real mark too.
+patch(
+    "index.html",
+    "the floating button wears the WhatsApp mark",
+    '.wa-launch .ico{font-size:26px}',
+    '.wa-launch .ico{font-size:26px;fill:currentColor;stroke:none}',
+)
+patch_re(
+    "index.html",
+    "and uses the filled symbol",
+    r'(<button[^>]*class="wa-launch"[^>]*>.*?<use href=")#i-wa(")',
+    r"\1#i-wa2\2",
+    present=lambda t: 'wa-launch' in t and '#i-wa2' in t,
+)
+
+
+
+
+# And the shape of it. Top-aligning the columns fixed the staircase and left
+# the real problem showing: one column carrying the logo, the tagline, the
+# social row, two office addresses, the email and a map card is 800px tall
+# beside link lists that are 350, so two thirds of the footer was empty and
+# the page ended in a large dark nothing.
+#
+# The addresses are not brand furniture, they are contact details — so they
+# come out of that column and run across the full width underneath, where they
+# fill the space instead of creating it. The footer loses about 400px of
+# height and gains a row that reads like a row.
+OLD_REACH = (
+    '        <div class="office"><b>Hyderabad</b>Metro Pillar C1734, Plot No 60, H No 1-102, '
+    '1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</div>'
+    '<div class="office"><b>Munich</b>München, Germany</div>'
+    '<div class="office"><b>Email</b><a href="mailto:info@glovels.com" '
+    'style="color:#c8d6e4">info@glovels.com</a></div>\n'
+    '        <div class="mapbox">\n'
+    '          <button id="mapBtn"><b><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg>'
+    ' Show the Hyderabad office on a map</b>\n'
+    '            Loading the map lets Google set cookies and see your IP, so it only loads when you\n'
+    '            ask. Opens in a new tab.</button>\n'
+    '        </div>\n'
+    '      </div>\n'
+)
+NEW_REACH = (
+    '      </div>\n'
+)
+REACH_ROW = (
+    '\n    <div class="freach">\n'
+    '      <div class="office"><b>Hyderabad</b>Metro Pillar C1734, Plot No 60, H No 1-102, '
+    '1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</div>\n'
+    '      <div class="office"><b>Munich</b>München, Germany</div>\n'
+    '      <div class="office"><b>Email</b><a href="mailto:info@glovels.com" '
+    'style="color:#c8d6e4">info@glovels.com</a></div>\n'
+    '      <div class="mapbox">\n'
+    '        <button id="mapBtn"><b><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg>'
+    ' Show the Hyderabad office on a map</b>\n'
+    '          Loading the map lets Google set cookies and see your IP, so it only loads when you\n'
+    '          ask. Opens in a new tab.</button>\n'
+    '      </div>\n'
+    '    </div>\n'
+)
+
+patch(
+    "index.html",
+    "the addresses come out of the brand column",
+    OLD_REACH,
+    NEW_REACH,
+    marker='class="freach"',
+)
+patch(
+    "index.html",
+    "and run across the width underneath",
+    '    </div>\n    <div class="fbot">',
+    '    </div>' + REACH_ROW + '    <div class="fbot">',
+    marker='class="freach"',
+)
+patch(
+    "index.html",
+    "the contact strip has a shape",
+    ".fbot{margin-top:30px;",
+    ".freach{display:grid;grid-template-columns:1.6fr 1fr 1fr 1.25fr;gap:26px;margin-top:30px;\n"
+    "  padding-top:24px;border-top:1px solid rgba(255,255,255,.1);align-items:start}\n"
+    ".freach .office,.freach .mapbox{margin-top:0;max-width:none}\n"
+    ".freach .mapbox button{padding:16px 16px;text-align:left}\n"
+    "@media (max-width:900px){.freach{grid-template-columns:1fr 1fr}}\n"
+    "@media (max-width:560px){.freach{grid-template-columns:1fr}}\n"
+    ".fbot{margin-top:24px;",
+    marker=".freach{display:grid",
+)
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

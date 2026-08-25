@@ -493,6 +493,45 @@ function packagesDeliverWhatTheyUnlock({ db }) {
   return n;
 }
 
+/*
+ * The card that showed a visitor the code that draws the card.
+ *
+ * `build_content.py` finds the home page's testimonials by looking for
+ * `<article class="card card-hover card-stack tcard">` and the FAQ by looking
+ * for `<details class="faq"><summary>`. The JavaScript that RENDERS those two
+ * blocks lives in the same page and builds that markup out of string
+ * literals — so the extractor matched its own renderer, and a fourth
+ * testimonial reading `' + E(t.route) + '` went into content.json, into the
+ * database, and onto the live home page. The FAQ carried the same phantom.
+ *
+ * The extractor is fixed, but a database seeded before that keeps its copy —
+ * content is seeded once and then belongs to the office. This takes the two
+ * rows out, and only those two: a row qualifies only if it still contains the
+ * concatenation operator and the escaper's name, which is not something
+ * anybody types into a testimonial about themselves.
+ */
+const LOOKS_LIKE_SOURCE = v =>
+  typeof v === 'string' && /\+ E\([ft]\.[a-z]+\)/.test(v);
+
+function removeTheCardsThatWereSourceCode({ db }) {
+  if (db.content('phantomCardsV1')) return 0;
+  db.setContent('phantomCardsV1', { done: true }, 'system');
+
+  let n = 0;
+  for (const key of ['testimonials', 'faq']) {
+    const live = db.content(key);
+    if (!Array.isArray(live)) continue;
+    const kept = live.filter(row =>
+      !(row && typeof row === 'object' && Object.values(row).some(LOOKS_LIKE_SOURCE)));
+    if (kept.length === live.length) continue;
+    n += live.length - kept.length;
+    db.setContent(key, kept, 'system');
+    db.log('system', 'removed a ' + key + ' row that was the renderer, not content',
+      (live.length - kept.length) + ' removed, ' + kept.length + ' left');
+  }
+  return n;
+}
+
 function openOnRequestServices({ db }) {
   if (db.content('servicesOnRequestV1')) return 0;
   db.setContent('servicesOnRequestV1', { done: true }, 'system');
@@ -699,6 +738,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   moveEntryTiersToServices,
   fixCheapestPackagePrice,
   packagesDeliverWhatTheyUnlock,
+  removeTheCardsThatWereSourceCode,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

@@ -352,13 +352,45 @@ def carry_over(doc):
     return doc
 
 
+SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>.*?</script>", re.S | re.I)
+
+
+def without_scripts(s):
+    """The page's markup, with its own JavaScript taken out.
+
+    This extractor finds testimonials by looking for
+    `<article class="card card-hover card-stack tcard">`, and the FAQ by
+    looking for `<details class="faq"><summary>`. The code that RENDERS those
+    two blocks is `content_client.py`, it is embedded in this same page, and it
+    builds that markup by concatenating string literals — so the literals match
+    the patterns and the extractor read its own renderer as content.
+
+    The result was a fourth testimonial on the live home page reading
+    `' + E(t.route) + '` where the route should be, and a matching phantom in
+    the FAQ. Both were dutifully seeded into the database and shown to
+    visitors. Nothing was wrong with the regexes and nothing was wrong with the
+    renderer; they were simply pointed at each other.
+
+    Scripts hold no content anybody edits — the studio's chip bank and the
+    finder's settings are read from their own blocks by their own readers — so
+    removing them costs nothing and closes the whole class of bug rather than
+    the two instances of it.
+    """
+    return SCRIPT_BLOCK.sub("", s)
+
+
 def main():
     s = INDEX.read_text(encoding="utf-8")
+    # The three that read MARKUP, and so must not be shown the page's own
+    # renderer. The rest read `const D`, `const SERVICES`, `const AI` and the
+    # settings block — all of which ARE script, and all of which are found by
+    # name rather than by pattern, so they take the page whole.
+    markup = without_scripts(s)
     doc = {
         "packages": packages(s),
-        "stats": stats(s),
-        "faq": faq(s),
-        "testimonials": testimonials(s),
+        "stats": stats(markup),
+        "faq": faq(markup),
+        "testimonials": testimonials(markup),
         "services": services(s),
         # What the SOP/LOR studio writes with. The chips come out of the page so
         # the label a student ticks and the phrase the draft uses cannot drift

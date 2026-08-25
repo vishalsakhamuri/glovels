@@ -381,11 +381,6 @@
    "q": "How long does a German student visa take?",
    "a": "Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.",
    "dummy": true
-  },
-  {
-   "q": "' + E(f.q)\n           + (f.dummy ? '' : '')\n           + '",
-   "a": "' + E(f.a) + '",
-   "dummy": true
   }
  ],
  "testimonials": [
@@ -411,14 +406,6 @@
    "quote": "Admitted to FAU Erlangen–Nürnberg for the M.Sc. in Information & Communication Technology.",
    "name": "Sakshi",
    "where": "Public university · Germany",
-   "dummy": true
-  },
-  {
-   "route": "' + E(t.route) + '",
-   "verified": true,
-   "quote": "' + E(t.quote) + '",
-   "name": "'\n           + E(t.name) + '",
-   "where": "' + E(t.where) + '",
    "dummy": true
   }
  ],
@@ -5069,120 +5056,39 @@
    "sectionLabel": ""
   },
   {
-   "key": "footer|attr:aria-label|0f95701b|0",
+   "key": "footer|attr:aria-label|ba4a9a0c|0",
    "section": "footer",
    "kind": "attr:aria-label",
    "element": "a",
-   "original": "Instagram",
+   "original": "Glovels on Instagram",
    "note": "the aria-label on a <a>",
    "sectionLabel": ""
   },
   {
-   "key": "footer|attr:aria-label|ac37c251|0",
+   "key": "footer|attr:aria-label|d109f3ac|0",
    "section": "footer",
    "kind": "attr:aria-label",
    "element": "a",
-   "original": "Facebook",
+   "original": "Glovels on Facebook",
    "note": "the aria-label on a <a>",
    "sectionLabel": ""
   },
   {
-   "key": "footer|attr:aria-label|2f5973bf|0",
+   "key": "footer|attr:aria-label|7636f85a|0",
    "section": "footer",
    "kind": "attr:aria-label",
    "element": "a",
-   "original": "LinkedIn",
+   "original": "Glovels on LinkedIn",
    "note": "the aria-label on a <a>",
    "sectionLabel": ""
   },
   {
-   "key": "footer|attr:aria-label|be3a531e|0",
+   "key": "footer|attr:aria-label|81ceaf70|0",
    "section": "footer",
    "kind": "attr:aria-label",
    "element": "a",
-   "original": "YouTube",
+   "original": "Glovels on X",
    "note": "the aria-label on a <a>",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|attr:aria-label|b1332787|0",
-   "section": "footer",
-   "kind": "attr:aria-label",
-   "element": "a",
-   "original": "WhatsApp",
-   "note": "the aria-label on a <a>",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|b|e9021447|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "b",
-   "original": "Hyderabad",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|div|3073d9bd|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "div",
-   "original": "Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|b|6a847485|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "b",
-   "original": "Munich",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|div|daf8dd40|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "div",
-   "original": "München, Germany",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|b|43352167|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "b",
-   "original": "Email",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|a|7bef3aba|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "a",
-   "original": "info@glovels.com",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|b|945de063|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "b",
-   "original": "Show the Hyderabad office on a map",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "footer|button|f10e3d30|0",
-   "section": "footer",
-   "kind": "text",
-   "element": "button",
-   "original": "Loading the map lets Google set cookies and see your IP, so it only loads when you ask. Opens in a new tab.",
-   "note": "",
    "sectionLabel": ""
   },
   {
@@ -5452,6 +5358,78 @@
    "kind": "text",
    "element": "a",
    "original": "Disclaimers",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|e9021447|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Hyderabad",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|div|3073d9bd|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "div",
+   "original": "Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|6a847485|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Munich",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|div|daf8dd40|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "div",
+   "original": "München, Germany",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|43352167|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Email",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|7bef3aba|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "info@glovels.com",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|b|945de063|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "b",
+   "original": "Show the Hyderabad office on a map",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|button|f10e3d30|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "button",
+   "original": "Loading the map lets Google set cookies and see your IP, so it only loads when you ask. Opens in a new tab.",
    "note": "",
    "sectionLabel": ""
   },
