@@ -414,7 +414,7 @@ const refreshCase = async () => {
 
 /* The catalogue, fetched once and searched in the browser. It is 171 rows —
    small enough that a round trip per keystroke would be the slower answer. */
-let CATALOGUE = null;
+let CATALOGUE = null, CFACTS = {};
 async function catalogue() {
   if (!CATALOGUE) {
     const d = await api('GET', '/api/staff/catalogue');
@@ -422,8 +422,27 @@ async function catalogue() {
        has been switched off is offering them a row the student will never be
        able to see. */
     CATALOGUE = (d.programmes || []).filter(p => p.active !== false);
+    /* The destinations' entry rules came down in the same response and were
+       being thrown away. They are what turns a search result into an answer. */
+    (d.countries || []).forEach(c => { CFACTS[c.code] = c.facts || {}; });
   }
   return CATALOGUE;
+}
+
+/* What this programme asks for: its own bar if the catalogue states one,
+   otherwise the destination's rule for that kind of university. Null means
+   nobody has written a rule down — say nothing rather than invent one. */
+function barOf(p) {
+  if (p.minCgpa != null && p.minCgpa !== '') return Number(p.minCgpa);
+  const f = CFACTS[p.country] || {};
+  const own = p.isPublic ? f.minCgpaPublic : f.minCgpaPrivate;
+  return own == null ? null : Number(own);
+}
+/* The student's own, off the record already open on this screen. */
+function caseCgpa() {
+  const raw = String(((CASE && CASE.profile) || {}).d_cgpa || '').trim();
+  const n = Number(raw.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 let uniTimer = null;
@@ -441,12 +460,28 @@ async function searchUnis(q) {
     ((p.university || '') + ' ' + (p.program || '') + ' ' + (p.country || ''))
       .toLowerCase().includes(term)).slice(0, 24);
 
+  /* The counsellor is not blocked from adding a university the student misses
+     the bar for — they may know about a bridging course, a foundation year, or
+     a conversation with the admissions office that no database has. They are
+     told, which is the part that was missing: a shortlist agreed on a call and
+     typed in here is the one the student pays to apply through. */
+  const mine = caseCgpa();
+  const short = p => {
+    const bar = barOf(p);
+    if (bar == null) return '';
+    return mine != null && mine < bar
+      ? '<span style="display:block;font:600 11.4px/1.4 var(--sans);color:#b42318">' +
+        'Asks for ' + bar + '+ CGPA \u2014 they have ' + mine + '</span>'
+      : '<span style="display:block;font-size:11.4px;color:var(--muted)">' +
+        'Asks for ' + bar + '+ CGPA</span>';
+  };
+
   box.innerHTML = hits.length
     ? '<ul class="doclist" style="margin:0">' + hits.map(p =>
         '<li><div style="flex:1;min-width:0"><b style="display:block">' +
         esc(p.university || p.id) + '</b><span style="display:block;font-size:11.8px;' +
         'color:var(--muted)">' + esc(p.name || p.program || '') + ' \u00b7 ' +
-        esc(p.country || '') + '</span></div>' +
+        esc(p.country || '') + '</span>' + short(p) + '</div>' +
         (on.has(String(p.id))
           ? '<span class="st ok">on their list</span>'
           : '<button type="button" class="btn btn-primary btn-sm" data-uniadd="' +

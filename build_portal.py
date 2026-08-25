@@ -665,6 +665,9 @@ async function boot(run) {{
     order:   state.order,
   }};
   SHORT_ROWS = state.shortlist;
+  /* Before the page paints. A screen that renders the snapshot and then swaps
+     it out under the reader is worse than one that waits 80ms. */
+  if (typeof loadLiveCatalogue === 'function') await loadLiveCatalogue();
   /* What an entry package owes this student and whether it has arrived. Null
      for everybody who has not bought one. */
   MATCHED = state.matched || null;
@@ -947,6 +950,7 @@ def catalogue():
 
     progs = const("P")
     countries = const("C")
+    settings = const("D").get("settings", {})
     unlocked = json.loads((HERE / "unlocked.json").read_text(encoding="utf-8"))
 
     cat = []
@@ -976,6 +980,10 @@ def catalogue():
             "band": p.get("band", ""),
             "isPublic": bool(p.get("isPublic")),
             "fit": p.get("fit"),
+            # The bar this programme sets for itself. Dropped here, the portal's
+            # Browse tab had no way to know a university would turn the student
+            # away, and cheerfully offered it to them.
+            "minCgpa": p.get("minCgpa"),
             "totalInr": u.get("totalInr", 0),
             "url": u.get("url", ""),
             "intakes": p.get("intakes", []),
@@ -996,11 +1004,17 @@ def catalogue():
             if f in v:
                 row[f] = unent(v[f])
         slim[c] = row
-    return cat, slim
+    return cat, slim, {
+        # What to use when a destination has not written its own rule down.
+        # The same two numbers the finder falls back to, carried across so the
+        # portal cannot end up looser than the page the student came from.
+        "full": settings.get("cgpaFull"),
+        "partial": settings.get("cgpaPartial"),
+    }
 
 
 def data_js():
-    cat, countries = catalogue()
+    cat, countries, cgpa = catalogue()
     import json
     return (
         "/* Catalogue, joined at build time from the sales site's programme table and\n"
@@ -1009,16 +1023,54 @@ def data_js():
         "   that prices and validates anything the browser asks it to store. */\n"
         f"const CAT = {json.dumps(cat, ensure_ascii=False)};\n"
         f"const COUNTRIES = {json.dumps(countries, ensure_ascii=False)};\n"
+        f"const CGPA_RULE = {json.dumps(cgpa)};\n"
         "\n"
         "/* POOL = the catalogue, plus anything on this student's shortlist that is no\n"
         "   longer in it. A programme withdrawn from the catalogue must not vanish from\n"
         "   the shortlist of someone who is already applying to it. Built after the boot\n"
         "   call, because that is when the shortlist arrives. */\n"
-        "let POOL = [], byId = {};\n"
+        "let POOL = [], byId = {}, LIVE_CAT = null;\n"
+        "\n"
+        "/* The catalogue as it is RIGHT NOW, not as it was when the site was last\n"
+        "   built. Without this the student's Browse tab paints a snapshot: a\n"
+        "   university the office added this morning is missing, a fee corrected last\n"
+        "   week is wrong, and a CGPA bar typed into the spreadsheet may as well not\n"
+        "   exist. The finder on the public site has read the live list for a while;\n"
+        "   the screen the student sees AFTER PAYING was the one still guessing.\n"
+        "\n"
+        "   The endpoint is the same one the public page calls, so it answers for this\n"
+        "   student's entitlement: a public university they have not unlocked comes\n"
+        "   back without its name. Where that happens the built-in name is kept —\n"
+        "   inside the portal they are signed in and the shortlist already names it —\n"
+        "   but every other field is taken from the live row, because those are what\n"
+        "   the filters read. */\n"
+        "async function loadLiveCatalogue() {\n"
+        "  try {\n"
+        "    const d = await api('GET', '/api/catalogue');\n"
+        "    LIVE_CAT = Array.isArray(d.programmes) ? d.programmes : null;\n"
+        "    if (d.countries) Object.assign(COUNTRIES, d.countries);\n"
+        "  } catch (e) { LIVE_CAT = null; }   /* offline: the snapshot is better than nothing */\n"
+        "}\n"
+        "\n"
         "function buildPool() {\n"
-        "  POOL = CAT.slice();\n"
-        "  const seen = new Set(CAT.map(p => p.id));\n"
-        "  (SHORT_ROWS || []).forEach(r => { if (!seen.has(r.id)) { POOL.push(r); seen.add(r.id); } });\n"
+        "  const built = Object.fromEntries(CAT.map(p => [String(p.id), p]));\n"
+        "  if (LIVE_CAT) {\n"
+        "    POOL = LIVE_CAT.map(r => {\n"
+        "      const was = built[String(r.id)] || {};\n"
+        "      const named = Object.assign({}, was, r);\n"
+        "      /* A masked row carries no name. Falling through to the built-in one\n"
+        "         rather than rendering an empty card. */\n"
+        "      if (!r.university) { named.university = was.university || ''; }\n"
+        "      if (!r.program) { named.program = was.program || ''; }\n"
+        "      return named;\n"
+        "    }).filter(p => p.university);\n"
+        "  } else {\n"
+        "    POOL = CAT.slice();\n"
+        "  }\n"
+        "  const seen = new Set(POOL.map(p => String(p.id)));\n"
+        "  (SHORT_ROWS || []).forEach(r => {\n"
+        "    if (!seen.has(String(r.id))) { POOL.push(r); seen.add(String(r.id)); }\n"
+        "  });\n"
         "  byId = Object.fromEntries(POOL.map(p => [p.id, p]));\n"
         "}\n"
     )
@@ -1208,9 +1260,8 @@ def main():
     # The server prices and validates against the same list the pages render,
     # so it is written out rather than duplicated by hand.
     import json as _json
-    cat, _ = catalogue()
+    cat, _countries, _ = catalogue()
     (HERE / "catalogue.json").write_text(_json.dumps(cat, ensure_ascii=False), encoding="utf-8")
-    _, _countries = catalogue()
     (HERE / "countries.json").write_text(_json.dumps(_countries, ensure_ascii=False), encoding="utf-8")
     written.append("catalogue.json + countries.json (seed for the database)")
 

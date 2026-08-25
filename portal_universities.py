@@ -25,6 +25,9 @@ BODY = """
           <div class="field"><label>University type</label><select id="fType">
             <option value="">Public and private</option><option value="pub">Public only</option>
             <option value="pri">Private only</option></select></div>
+          <div class="field"><label>Entry requirement</label><select id="fReach">
+            <option value="mine">Ones I qualify for</option>
+            <option value="all">Show every programme</option></select></div>
           <div class="field"><label>Sort by</label><select id="fSort">
             <option value="fit">Best fit</option><option value="cost">Tuition, low to high</option>
             <option value="dl">Nearest deadline</option>
@@ -71,6 +74,38 @@ function nextDeadline(p) {
   const d = upcoming(p);
   return d ? d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}) : '';
 }
+/*
+ * The CGPA a programme actually asks for — its own if it states one, otherwise
+ * the destination's rule for that kind of university.
+ *
+ * This is the same formula the public finder uses, deliberately copied rather
+ * than approximated. A student who was shown a university on glovels.com and
+ * then cannot find it after signing in has been told two different things by
+ * the same company, and the one they believe is the one that cost them money.
+ */
+function barOf(p) {
+  if (p.minCgpa != null && p.minCgpa !== '') return Number(p.minCgpa);
+  const c = COUNTRIES[p.country] || {};
+  const own = p.isPublic ? c.minCgpaPublic : c.minCgpaPrivate;
+  if (own != null) return Number(own);
+  const back = p.isPublic ? CGPA_RULE.full : CGPA_RULE.partial;
+  return back == null ? null : Number(back);
+}
+
+/* Their own, off the profile they filled in. Blank is not zero — it means
+   they have not told us, and a filter that reads it as zero would quietly
+   empty this screen for every student who skipped the field. */
+function myCgpa() {
+  const raw = String(((typeof DB !== 'undefined' && DB.profile) || {}).d_cgpa || '').trim();
+  const n = Number(raw.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function clears(p) {
+  const mine = myCgpa(), bar = barOf(p);
+  if (mine == null || bar == null) return true;   // nothing stated, nothing to fail
+  return mine >= bar;
+}
+
 function flagOf(p) { return (COUNTRIES[p.country] || {}).flag || ''; }
 function nameOf(p)  { return (COUNTRIES[p.country] || {}).name || p.country; }
 
@@ -86,6 +121,13 @@ function card(p, inList) {
     (nextDeadline(p) ? '<div class="sl-meta" style="color:var(--muted)">Next deadline: ' +
       nextDeadline(p) + '</div>' : '') +
     (p.fit ? '<div class="sl-chip" style="width:fit-content">Fit score ' + p.fit + '</div>' : '') +
+    /* Said on the card, not only in the filter. A student browsing with the
+       filter switched off is entitled to know which of these would turn them
+       away, and a student who clears it is entitled to see that they do. */
+    (barOf(p) == null ? '' :
+      '<div class="sl-meta" style="color:' + (clears(p) ? 'var(--muted)' : '#b42318') + '">' +
+      (clears(p) ? 'Asks for ' + barOf(p) + '+ CGPA'
+                 : 'Asks for ' + barOf(p) + '+ CGPA — above yours') + '</div>') +
     '<div class="sl-go" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       (inList === 'want'
         /* Already marked, not agreed. Offering "I am interested" again on a
@@ -205,11 +247,20 @@ function paintMine() {
 }
 
 let shown = 12;
+let outOfReach = 0;
 function filtered() {
   const c = $('#fCountry').value, b = $('#fBand').value, t = $('#fType').value, s = $('#fSort').value;
+  const r = ($('#fReach') || {}).value || 'mine';
   let l = POOL.filter(p =>
     (!c || p.country === c) && (!b || p.band === b) &&
     (!t || (t === 'pub' ? p.isPublic : !p.isPublic)));
+  /* Counted before it is applied, so the line under the filters can say how
+     many were held back rather than leaving the student to wonder why a
+     country they know has fifty universities is showing four. Hiding them
+     silently is the thing to avoid; hiding them is not. */
+  const short = l.filter(p => !clears(p));
+  outOfReach = short.length;
+  if (r === 'mine') l = l.filter(clears);
   const dl = p => (upcoming(p) || new Date(8640000000000)).getTime();
   l.sort((x, y) =>
     s === 'cost' ? x.totalInr - y.totalInr :
@@ -222,8 +273,15 @@ function paintBrowse() {
   const l = filtered();
   const ids = shortlist();
   $('#nAll').textContent = POOL.length;
+  const mine = myCgpa();
   $('#cCount').textContent = l.length + ' programme' + (l.length === 1 ? '' : 's') +
-    ' match — showing ' + Math.min(shown, l.length) + '.';
+    ' match — showing ' + Math.min(shown, l.length) + '.' +
+    (mine == null
+      ? '  Add your CGPA on My Profile and this list will only show what you can apply to.'
+      : ($('#fReach').value === 'mine' && outOfReach
+          ? '  ' + outOfReach + ' more ask for a higher CGPA than ' + mine +
+            ' — switch to “Show every programme” to see them.'
+          : ''));
   $('#allGrid').innerHTML = l.slice(0, shown).map(p => card(p, ids.includes(p.id))).join('');
   $('#moreBtn').style.display = shown >= l.length ? 'none' : '';
 }
@@ -267,7 +325,7 @@ document.addEventListener('click', e => {
     return;
   }
 });
-['fCountry','fBand','fType','fSort'].forEach(id =>
+['fCountry','fBand','fType','fReach','fSort'].forEach(id =>
   $('#' + id).addEventListener('change', () => { shown = 12; paintBrowse(); }));
 $('#moreBtn').addEventListener('click', () => { shown += 12; paintBrowse(); });
 

@@ -4515,12 +4515,23 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         try { return JSON.parse(existing.intakes) || []; } catch (e) { return []; }
       })();
       const asIntakes = a => (a || []).map(i => i.season + '@' + i.deadline).join(',');
+      /* Blank and 0 are different answers — "follows the country rule" and
+         "takes anybody" — so they must not compare equal, and 9.4 read back
+         from SQLite as 9.4000000000000004 must not compare different. */
+      const bar = v => (v == null || v === '' ? '' : String(Number(v)));
       const before = {
         program: existing.program, university: existing.university, city: existing.city || '',
         country: existing.country, totalInr: existing.total_inr, isPublic: !!existing.is_public,
         active: !!existing.active, url: existing.url || '',
         level: existing.level || '', field: existing.field || '', band: existing.band || '',
         featured: !!existing.featured, featureSort: existing.feature_sort || 0,
+        /* The CGPA bar and the fit score, added the moment they became columns.
+           Leaving them out of this comparison is not a cosmetic omission: a row
+           where the only edit is the CGPA reads as "already right", lands in
+           `unchanged`, and the apply pass below skips it. The office is told
+           171 rows were fine and the number they typed is thrown away without a
+           word. That is exactly what the paragraph above this one is about. */
+        minCgpa: bar(existing.min_cgpa), fit: Number(existing.fit || 0),
         intakes: asIntakes(oldIntakes),
       };
       const after = {
@@ -4529,6 +4540,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         active: clean.active, url: clean.url,
         level: clean.level, field: clean.field, band: clean.band,
         featured: clean.featured, featureSort: clean.featureSort,
+        minCgpa: bar(clean.minCgpa), fit: Number(clean.fit || 0),
         intakes: asIntakes(clean.intakes),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
