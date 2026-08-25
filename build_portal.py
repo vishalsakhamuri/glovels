@@ -24,11 +24,42 @@ DONOR = HERE / "visa.html"
 
 # --------------------------------------------------------------- shell parts
 
+# The comment this script writes at the top of every stylesheet it injects, and
+# the way to find one that a previous run left behind. The whole line, not the
+# first few words: this script signs more than one kind of injection that way,
+# and the other one is a script block with no </style> to run to.
+INJECT_MARK = ("/* ---- injected by build_portal.py: "
+               "rules the newer dashboard markup needs ---- */")
+
+
+def strip_injected(html):
+    """Take out any stylesheet an earlier run of this script put in.
+
+    The donor below is visa.html — a page this script GENERATES. So the head
+    every portal page is built from is last build's head, injected stylesheet
+    and all, and this build then injects another copy into it. Nothing ever
+    took the old one out, so the sheet stacked up once per build: five copies
+    of nine hundred lines in every staff and student page, which is most of
+    what those files weigh. The rules are identical, so nothing rendered wrong
+    and nobody noticed.
+
+    The dashboard branch at the bottom of this file has done exactly this to
+    its own copy from the beginning. This is the same two lines, applied where
+    the head is read rather than where one page is written.
+    """
+    # The whitespace in front of the marker goes too. Leaving it behind is what
+    # made this file grow by one blank line on every single build.
+    out = re.sub(r"\s*" + re.escape(INJECT_MARK) + r".*?</style>", "</style>",
+                 html, flags=re.S)
+    # Stacked copies leave the empty shells they were wrapped in behind.
+    return re.sub(r"<style>\s*</style>", "", out)
+
+
 def shell_parts():
     """head (through </head>), and the icon sprite, taken from the donor page."""
     h = DONOR.read_text(encoding="utf-8")
     head_end = h.index("</head>") + len("</head>")
-    head = h[:head_end]
+    head = strip_injected(h[:head_end])
     m = re.search(r'<svg width="0" height="0".*?</svg>', h, re.S)
     if not m:
         sys.exit("sprite not found in donor page")
@@ -1291,9 +1322,10 @@ def main():
         sys.exit("dashboard sidebar not found — check the markup before rerunning")
 
     # 2. the stylesheet for the newer blocks, which shipped with no CSS at all
-    marker = "/* ---- injected by build_portal.py"
-    if marker in dash:
-        dash = re.sub(re.escape(marker) + r".*?</style>", "</style>", dash, count=1, flags=re.S)
+    # Every copy, not the first. This file is read and written in place, so it
+    # had been stacking them up too — one behind the others, for the same
+    # reason and with the same result.
+    dash = strip_injected(dash)
     dash = dash.replace("</style>", portal_dashboard_css.CSS + "</style>", 1)
 
     # Sign out, at the top. The dashboard is the designer's own file rather

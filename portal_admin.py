@@ -166,13 +166,21 @@ BODY = """
       <div class="p-sec-head"><h2 id="everyOrder">Orders</h2>
         <span id="ordGuests" hidden class="st wait" style="text-transform:none;
           letter-spacing:0"></span>
+        <!-- Somebody has paid and nobody is dealing with them. This is the one
+             thing on the order book worth interrupting a morning for, so it is
+             a button that shows exactly those rows rather than a colour on a
+             cell you have to go looking for. -->
+        <button type="button" id="ordNone" hidden class="st bad"
+          style="border:0;cursor:pointer;text-transform:none;letter-spacing:0;
+          font:700 12.4px/1.4 var(--sans)"></button>
         <input id="findOrder" placeholder="Reference, name or email"
           style="margin-left:auto;padding:8px 11px;font:400 12.8px/1.4 var(--sans);
           border:1.5px solid #d8dde4;border-radius:9px;min-width:220px"></div>
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
           <thead><tr><th>Reference</th><th>Who</th><th>What they bought</th>
-            <th style="text-align:right">Amount</th><th>Account</th><th>When</th></tr></thead>
+            <th style="text-align:right">Amount</th><th>Account</th><th>Counsellor</th>
+            <th>When</th></tr></thead>
           <tbody id="ordRows"></tbody>
         </table>
         <div id="ordPager"></div>
@@ -350,11 +358,34 @@ const PERMS = [['content', 'Home page'], ['catalogue', 'Universities']];
 
 const inr = p => '₹' + Number(p / 100).toLocaleString('en-IN');
 
-function row(s) {
-  const opts = ['<option value="">— unassigned —</option>'].concat(
+/*
+ * The one control that hands a student to somebody, wherever the work is being
+ * looked at.
+ *
+ * It used to exist on the student list alone, which is not where anybody is
+ * standing when they decide who should deal with something. Work arrives as an
+ * order, as an enquiry or as a message, and each of those screens showed the
+ * counsellor's name as text — so the answer to "who is doing this one" was
+ * readable and unchangeable at the same time. This returns the select, and
+ * every table that knows a student id can drop it into a cell.
+ *
+ * Everything routes through the student, because that is what the server
+ * stores: there is no such thing as the counsellor for an order. Assigning
+ * from the order book assigns the person who placed it, which is what somebody
+ * looking at that row means.
+ */
+function assignCell(studentId, currentId) {
+  if (!studentId) return '';
+  const has = currentId != null && currentId !== '';
+  const opts = ['<option value="">— nobody yet —</option>'].concat(
     COUNSELLORS.map(c => '<option value="' + c.id + '"' +
-      (s.counsellor && s.counsellor.id === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>')
+      (String(c.id) === String(currentId) ? ' selected' : '') + '>' + esc(c.name) + '</option>')
   ).join('');
+  return '<select class="assign' + (has ? '' : ' none') + '" data-assign="' + studentId +
+    '">' + opts + '</select>';
+}
+
+function row(s) {
   return '<tr data-row="' + s.id + '">' +
     '<td><b>' + esc(s.name) + '</b><br><span style="font-size:11.8px;color:var(--muted)">' +
       esc(s.email) + '</span></td>' +
@@ -363,9 +394,7 @@ function row(s) {
     '<td>' + s.shortlist + '</td>' +
     '<td>' + s.docsVerified + '/' + s.docsTotal +
       (s.docsWaiting ? ' <span class="st wait" style="margin-left:5px">' + s.docsWaiting + ' waiting</span>' : '') + '</td>' +
-    '<td><select data-assign="' + s.id + '" style="padding:7px 9px;font:600 12.4px/1.3 var(--sans);' +
-      'border:1.5px solid ' + (s.counsellor ? '#d8dde4' : '#e0b4ae') + ';border-radius:8px;' +
-      'background:' + (s.counsellor ? 'var(--paper)' : '#fdf3f2') + '">' + opts + '</select></td>' +
+    '<td>' + assignCell(s.id, s.counsellor ? s.counsellor.id : null) + '</td>' +
     '<td style="white-space:nowrap"><a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + s.id + '">Open' +
       (s.unread ? ' <span class="st wait" style="margin-left:5px">' + s.unread + '</span>' : '') + '</a>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-invite="' + s.id +
@@ -855,7 +884,7 @@ async function paintMoney() {
 
 /* ------------------------------------------------------------- the orders */
 
-let ORDERS = [], orderFilter = '';
+let ORDERS = [], orderFilter = '', orderUnassigned = false;
 
 const inrPaise = p => '\u20b9' + Math.round(Number(p || 0) / 100).toLocaleString('en-IN');
 
@@ -867,15 +896,26 @@ function whenShort(iso) {
          d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+/* An order that has an account behind it and nobody looking after it. A guest
+   order is not one of these — there is no file to give anybody yet. */
+const nobodyOn = o => !!o.studentId && !o.counsellorId;
+
 function paintOrders() {
   const q = orderFilter.toLowerCase();
-  const list = ORDERS.filter(o => !q ||
-    (o.reference + ' ' + o.name + ' ' + o.email + ' ' + o.package).toLowerCase().includes(q));
+  const list = ORDERS.filter(o => (!orderUnassigned || nobodyOn(o)) && (!q ||
+    (o.reference + ' ' + o.name + ' ' + o.email + ' ' + o.package).toLowerCase().includes(q)));
 
   const guests = ORDERS.filter(o => !o.studentId).length;
   const chip = $('#ordGuests');
   chip.hidden = !guests;
   chip.textContent = guests + (guests === 1 ? ' has no account yet' : ' have no account yet');
+
+  const loose = ORDERS.filter(nobodyOn).length;
+  const none = $('#ordNone');
+  none.hidden = !loose && !orderUnassigned;
+  none.textContent = orderUnassigned
+    ? 'Showing the ' + loose + ' nobody is on ×'
+    : loose + (loose === 1 ? ' order has nobody on it' : ' orders have nobody on them');
 
   $('#ordPager').innerHTML = pagerHtml('ord', list.length, 'orders', paintOrders);
   const otab = $('.otab[data-o="orders"] .n');
@@ -918,6 +958,16 @@ function paintOrders() {
         ? '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + o.studentId +
           '">' + esc(o.studentName || 'Open') + '</a>'
         : '<span class="st wait">no account yet</span>') + '</td>' +
+      /* Who is doing this one. An order is the moment somebody has paid and is
+         waiting to be dealt with, so it is the row where the question gets
+         asked — and until this cell existed the answer had to be set two
+         screens away, on a list that is sorted by name and not by what came
+         in. A guest order has nobody to assign yet, so it says which button
+         fixes that instead of showing a select that cannot be used. */
+      '<td>' + (o.studentId
+        ? assignCell(o.studentId, o.counsellorId)
+        : '<span style="font-size:11.8px;color:var(--muted)">once they register</span>') +
+        '</td>' +
       '<td style="white-space:nowrap;color:var(--muted);font-size:12.2px">' +
         esc(whenShort(o.at)) +
         /* What they accepted, and a way to read it. An order with nothing
@@ -932,11 +982,19 @@ function paintOrders() {
         '</td>' +
       '</tr>';
   }).join('') ||
-    '<tr><td colspan="6" style="color:var(--muted);padding:22px">' +
+    '<tr><td colspan="7" style="color:var(--muted);padding:22px">' +
     (ORDERS.length ? 'No order matches that.'
       : 'No orders yet. One appears here the moment somebody buys a package or a service ' +
         'on the site \u2014 whether or not they have an account.') + '</td></tr>';
 }
+
+document.addEventListener('click', e => {
+  if (e.target && e.target.closest('#ordNone')) {
+    orderUnassigned = !orderUnassigned;
+    PAGE_AT.ord = 0;
+    paintOrders();
+  }
+});
 
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'findOrder') {
@@ -980,6 +1038,9 @@ staffBoot(async me => {
       'font-size:11.4px;opacity:.75;margin-top:3px">' + inr(ov.revenuePaise) + ' agreed</span>';
   }
   paintOrders();
+  /* And the other way round: if the conversations landed first they were
+     painted without the names. */
+  if (CONVS.length) paintConvs();
 
   ME = me.user.id;
   await paintPeople();
@@ -1007,9 +1068,23 @@ document.addEventListener('change', async e => {
     const s = STUDENTS.find(x => x.id === id);
     const c = COUNSELLORS.find(x => x.id === cid);
     if (s) s.counsellor = c ? { id: c.id, name: c.name } : null;
+    /* The same student is on three tabs, and one of them is the one being
+       looked at. Reloading the screen to make the other two agree would throw
+       away the search box, the page and the open tab, so the answer is written
+       into all three lists and all three are repainted. */
+    ORDERS.forEach(o => {
+      if (o.studentId === id) {
+        o.counsellorId = c ? c.id : null;
+        o.counsellorName = c ? c.name : '';
+      }
+    });
+    const conv = CONVS.find(x => x.id === id);
+    if (conv) conv.counsellor = c ? { id: c.id, name: c.name } : null;
     toast(c ? 'Assigned to ' + c.name + ' — they can open the file now.'
             : 'Unassigned. Nobody but an admin can open that file now.');
     paint();
+    paintOrders();
+    paintConvs();
   } catch (err) {
     toast(err.message);
   }
@@ -1351,8 +1426,11 @@ function paintConvs() {
       '<td><b>' + esc(c.name) + '</b>' +
         '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
         esc(c.email) + '</span></td>' +
-      '<td style="font-size:12.6px">' + (c.counsellor ? esc(c.counsellor.name)
-        : '<span style="color:#b03a2e;font-weight:700">nobody</span>') + '</td>' +
+      /* A thread nobody owns is the one that goes unanswered, and this screen
+         is where that is noticed. Saying "nobody" in red and making somebody
+         go and find the student on another tab to fix it is how a message sits
+         for three days. */
+      '<td>' + assignCell(c.id, c.counsellor ? c.counsellor.id : null) + '</td>' +
       /* A student nobody has written to has no "last said", and printing an
          empty cell reads as a loading bug. Say the thing instead — it is the
          most actionable row on this screen. */
@@ -1396,6 +1474,14 @@ async function loadConvs() {
     const r = await api('GET', '/api/staff/conversations');
     CONVS = r.conversations;
     CONV_SUM = r.summary;
+    /* This runs alongside the boot that fills COUNSELLORS, not after it, and
+       whichever finishes first used to win. Painting a row of assign controls
+       from an empty list gives every thread a select with one option in it and
+       the word "unassigned" against a student who has a counsellor — the
+       screen contradicting the summary directly above it. The same list comes
+       back with the conversations, so take it if the other one has not
+       arrived. */
+    if (!COUNSELLORS.length && r.counsellors) COUNSELLORS = r.counsellors;
     paintConvs();
   } catch (e) { /* not an administrator: the section stays empty */ }
 }

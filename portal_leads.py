@@ -65,12 +65,36 @@ BODY = """
       .srcbar em{font-style:normal;color:var(--muted);font-size:11.8px}
     </style>
 
+    <style>
+      /* Five numbers that were five dead rectangles. Somebody reading "5 nobody
+         has called" wants the five, and the only route to them was to work out
+         which combination of the filters below meant the same thing — so the
+         number was a fact about the business that the screen would not act on.
+         Each one narrows the book now, and says so. */
+      .out .outgo{appearance:none;font:inherit;text-align:center;cursor:pointer;
+        transition:border-color .12s, background .12s, transform .12s}
+      .out .outgo:hover{border-color:var(--navy-600);background:var(--paper);
+        transform:translateY(-1px)}
+      .out .outgo:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+      .out .outgo span{text-decoration:underline;text-decoration-color:transparent;
+        text-underline-offset:3px;transition:text-decoration-color .12s}
+      .out .outgo:hover span{text-decoration-color:currentColor}
+      .out .outgo.on{border-color:var(--navy-700);background:var(--paper);
+        box-shadow:inset 0 0 0 1px var(--navy-700)}
+      .out .outgo.on span{text-decoration-color:currentColor}
+    </style>
+
     <div class="out tiles" style="--tiles:5;margin:0 0 18px">
-      <div><b id="kAll">—</b><span>Leads</span></div>
-      <div><b id="kOpen">—</b><span>Still open</span></div>
-      <div><b id="kFollow">—</b><span>Follow-ups logged</span></div>
-      <div><b id="kWon">—</b><span>Converted</span></div>
-      <div><b id="kCold">—</b><span>Nobody has called</span></div>
+      <button type="button" class="outgo" data-tile="all">
+        <b id="kAll">—</b><span>Leads</span></button>
+      <button type="button" class="outgo" data-tile="open">
+        <b id="kOpen">—</b><span>Still open</span></button>
+      <button type="button" class="outgo" data-tile="follow">
+        <b id="kFollow">—</b><span>Followed up</span></button>
+      <button type="button" class="outgo" data-tile="won">
+        <b id="kWon">—</b><span>Converted</span></button>
+      <button type="button" class="outgo" data-tile="cold">
+        <b id="kCold">—</b><span>Nobody has called</span></button>
     </div>
 
     <div class="tabs" style="margin-bottom:16px">
@@ -89,6 +113,13 @@ BODY = """
         <span style="flex:1"></span>
         <button type="button" class="btn btn-primary btn-sm" id="addLead">+ Log a lead</button>
       </div>
+
+      <!-- Which of the five counters is holding the book down, and the way
+           back out. A filter you cannot see is a filter that makes the screen
+           look broken ten minutes later. -->
+      <button type="button" id="tileChip" hidden class="st wait"
+        style="border:0;cursor:pointer;text-transform:none;letter-spacing:0;
+        margin:0 0 12px;font:600 12.4px/1.4 var(--sans)"></button>
 
       <div class="lead-cols">
         <div class="p-card" style="padding:0;overflow-x:auto">
@@ -180,10 +211,29 @@ function fill(sel, items, keep) {
   el.value = was;
 }
 
+/* Which counter tile is held down, '' for none. */
+let tile = '';
+
+/* The five counters, as tests a lead either passes or does not. Written once
+   so the number printed on a tile and the rows revealed by pressing it cannot
+   drift apart — a tile saying 5 that opens 4 rows is worse than no tile. */
+const TILES = {
+  all:    { test: () => true, say: '' },
+  open:   { test: l => l.status !== 'converted' && l.status !== 'lost',
+            say: 'Still open' },
+  follow: { test: l => !!l.followUps, say: 'Followed up' },
+  won:    { test: l => l.status === 'converted', say: 'Converted' },
+  cold:   { test: l => !l.followUps && l.status !== 'converted' && l.status !== 'lost'
+                       && daysAgo(l.at) >= 1,
+            say: 'Nobody has called' },
+};
+
 function shown() {
   const st = $('#fStatus').value, sr = $('#fSource').value, ow = $('#fOwner').value;
   const q = $('#fQ').value.trim().toLowerCase();
+  const t = TILES[tile];
   return LEADS.filter(l => {
+    if (t && !t.test(l)) return false;
     if (st && l.status !== st) return false;
     if (sr && l.source !== sr) return false;
     if (ow === 'none' && l.ownerId) return false;
@@ -194,14 +244,43 @@ function shown() {
   });
 }
 
+function ownerCell(l) {
+  const has = l.ownerId != null && l.ownerId !== '';
+  const opts = ['<option value="">— nobody yet —</option>'].concat(
+    PEOPLE.map(p => '<option value="' + p.id + '"' +
+      (String(p.id) === String(l.ownerId) ? ' selected' : '') +
+      '>' + esc(p.name) + '</option>')
+  ).join('');
+  return '<select class="assign' + (has ? '' : ' none') + '" data-own="' + l.id + '">' +
+    opts + '</select>';
+}
+
+async function setOwner(id, value) {
+  try {
+    await api('PUT', '/api/staff/lead/' + id, { ownerId: value || null });
+    const l = LEADS.find(x => x.id === id);
+    const p = PEOPLE.find(x => String(x.id) === String(value));
+    const was = l ? l.owner : '';
+    if (l) { l.ownerId = p ? p.id : null; l.owner = p ? p.name : ''; }
+    toast(p ? 'Given to ' + p.name : 'Taken off ' + (was || 'everybody'));
+    paint();
+  } catch (e) { toast(e.message); await load(); }
+}
+
 function paint() {
-  const s = SUM || {};
-  const byStatus = s.byStatus || {};
-  $('#kAll').textContent = s.total || 0;
-  $('#kOpen').textContent = (s.total || 0) - (byStatus.converted || 0) - (byStatus.lost || 0);
-  $('#kFollow').textContent = s.followUps || 0;
-  $('#kWon').textContent = s.converted || 0;
-  $('#kCold').textContent = s.cold || 0;
+  /* Counted off the book itself rather than off the summary the server sends,
+     because pressing a tile has to open exactly the rows it counted. The two
+     used to differ in one place that mattered: "Follow-ups logged" was every
+     note ever written, so two notes against one lead read as two leads. */
+  Object.keys(TILES).forEach(k => {
+    const el = $('#k' + k[0].toUpperCase() + k.slice(1));
+    if (el) el.textContent = LEADS.filter(TILES[k].test).length;
+  });
+
+  $$('.outgo').forEach(b => b.classList.toggle('on', b.dataset.tile === tile));
+  const chip = $('#tileChip');
+  chip.hidden = !tile || tile === 'all';
+  if (!chip.hidden) chip.textContent = TILES[tile].say + ' only ×';
 
   const rows = shown();
   $('#nBook').textContent = rows.length;
@@ -227,8 +306,13 @@ function paint() {
         + (l.status === 'lost' && l.lostReason
           ? '<br><span style="font-size:11.2px;color:var(--muted)">'
             + esc(REASON_LABEL[l.lostReason] || l.lostReason) + '</span>' : '') + '</td>'
-      + '<td style="font-size:12.4px">' + (l.owner ? esc(l.owner)
-        : '<span style="color:#b03a2e;font-weight:700">nobody</span>') + '</td>'
+      /* Whose it is, and a way to make it somebody's. This control did exist —
+         inside the panel that opens when a lead is clicked, four fields down,
+         next to a Save button. Handing out a morning's enquiries meant opening
+         each one, setting a name and saving, and the column that should have
+         made that a ten-second job printed the answer in red and offered
+         nothing. It writes on change now, from the row. */
+      + '<td>' + ownerCell(l) + '</td>'
       + '<td style="font-size:12.4px">' + (l.followUps
         ? l.followUps + '<br><span style="font-size:11.2px;color:var(--muted)">last '
           + fmtWhen(l.lastTouch) + '</span>'
@@ -529,6 +613,21 @@ async function load() {
 }
 
 document.addEventListener('click', e => {
+  /* The owner select lives inside a row whose job is to open the lead. Without
+     this, choosing a name would also swap the panel out from under the hand
+     that was choosing it. */
+  if (e.target.closest('[data-own]')) return;
+
+  const t2 = e.target.closest('[data-tile]');
+  if (t2) {
+    /* Pressing the tile that is already down clears it, which is the only
+       thing anybody tries when they want the whole book back. */
+    tile = (tile === t2.dataset.tile || t2.dataset.tile === 'all') ? '' : t2.dataset.tile;
+    PAGE_AT.lead = 0;
+    return paint();
+  }
+  if (e.target.closest('#tileChip')) { tile = ''; PAGE_AT.lead = 0; return paint(); }
+
   const row = e.target.closest('[data-lead]');
   if (row) return open_(Number(row.dataset.lead));
   if (e.target.closest('#addLead')) addForm();
@@ -547,6 +646,11 @@ document.addEventListener('click', e => {
   }));
 document.addEventListener('input', e => {
   if (e.target.id === 'fQ') { PAGE_AT.lead = 0; paint(); }
+});
+
+document.addEventListener('change', e => {
+  const sel = e.target.closest('[data-own]');
+  if (sel) setOwner(Number(sel.dataset.own), sel.value);
 });
 
 /* A lead arriving while somebody is looking at the book should appear in it. */

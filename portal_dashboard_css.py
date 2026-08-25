@@ -317,4 +317,41 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 
 .scrollsay{margin:0;padding:8px 14px;border-top:1px solid var(--line);
   font:600 11.8px/1.4 var(--sans);color:var(--muted);background:var(--paper)}
+
+/* ------------------------------------------ who is doing this one ------- */
+/*
+ * The control that hands a piece of work to somebody, wherever it appears.
+ *
+ * It was first written as an inline style on one table, at the size a table
+ * cell wants to be — twelve-point text in a hundred-and-fifty-pixel box. That
+ * is fine for a column somebody reads and wrong for the control they came to
+ * the screen to USE, which is what this became once it appeared on the orders,
+ * the conversations and the leads book as well. It is the same size as a
+ * button now, wide enough for a full name without cutting it off, and it
+ * carries the arrow so it reads as something that opens rather than as a
+ * bordered label.
+ */
+select.assign{appearance:none;-webkit-appearance:none;width:100%;min-width:186px;
+  max-width:230px;padding:11px 34px 11px 13px;border-radius:10px;
+  font:600 13.4px/1.25 var(--sans);color:var(--navy-900);cursor:pointer;
+  border:1.5px solid #d3d9e2;background-color:var(--paper);
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%234a5568' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6.5 8 10.5 12 6.5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;
+  background-size:15px 15px;transition:border-color .12s, box-shadow .12s}
+select.assign:hover{border-color:var(--navy-600)}
+select.assign:focus-visible{outline:none;border-color:var(--navy-700);
+  box-shadow:0 0 0 3px rgba(26,79,180,.16)}
+
+/* Nobody is doing it. This is the state the screen exists to make obvious, so
+   it is not a pale pink hint — it is the loudest thing in the row. */
+select.assign.none{border-color:#c9453a;border-width:2px;color:#a5342b;
+  background-color:#fdf1ef;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a5342b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6.5 8 10.5 12 6.5'/%3E%3C/svg%3E")}
+select.assign.none:hover{border-color:#a5342b}
+
+/* On a phone the table scrolls sideways and a 230px control inside a cell is
+   what makes it scroll. It stands down rather than setting the floor. */
+@media (max-width:560px){
+  select.assign{min-width:150px;padding:9px 30px 9px 11px;font-size:12.6px}
+}
 """

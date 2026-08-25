@@ -3298,6 +3298,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            null. */
         studentId: o.student_id || null,
         studentName: st ? st.name : '',
+        /* Who is dealing with it. The order book is where somebody decides
+           that, so the screen needs the current answer to render the control —
+           without it every row would open on "unassigned" and the first
+           glance at the book would say nobody is doing any of it. */
+        counsellorId: st ? (st.counsellor_id || null) : null,
+        /* Not byId — that map is students only, and a counsellor is not one. */
+        counsellorName: st && st.counsellor_id
+          ? ((db.studentById(st.counsellor_id) || {}).name || '')
+          : '',
       };
     });
     return json(res, 200, {
@@ -3814,12 +3823,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     }
     const b = await readJson(req);
     const status = LEAD_STATUS.includes(b.status) ? b.status : (e.status || 'new');
+    /* A caller who says nothing about the reason keeps the one already
+       recorded. This is not politeness: the leads book now assigns an owner
+       from the row, sending ownerId and nothing else, and without this a lead
+       already marked lost would come back 422 asking why it did not convert —
+       a question it answered weeks ago. */
     const reason = status === 'lost'
-      ? (LOST_REASONS.includes(b.lostReason) ? b.lostReason : 'other')
+      ? (LOST_REASONS.includes(b.lostReason) ? b.lostReason
+         : (LOST_REASONS.includes(e.lost_reason) ? e.lost_reason : 'other'))
       : '';
-    /* Lost, and no reason chosen. The list exists so the reasons can be
-       counted; free text and a shrug cannot be. */
-    if (status === 'lost' && !b.lostReason) {
+    /* Lost, and no reason chosen — nor one on the record. The list exists so
+       the reasons can be counted; free text and a shrug cannot be. */
+    if (status === 'lost' && !b.lostReason && !e.lost_reason) {
       return json(res, 422, { error: 'Say why it did not convert — that is the half of this worth recording.' });
     }
     let ownerId = e.owner_id;
