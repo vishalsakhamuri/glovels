@@ -654,7 +654,11 @@ patch("login.html", "an editor lands right after a password reset too",
       const pm = (d.user && d.user.perms) || [];
       location.href = who === 'admin' ? 'admin.html'
         : who === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
-        : who === 'counsellor' ? 'counsellor.html' : 'dashboard.html';""")
+        : who === 'counsellor' ? 'counsellor.html' : 'dashboard.html';""",
+      # The partner patch further down rewrites this same expression to add a
+      # fifth role, so `new` stops being present verbatim even though this ran.
+      # Match on the line nothing else touches.
+      marker="const pm = (d.user && d.user.perms) || [];")
 
 
 patch("login.html", "an editor lands on the screen they were given",
@@ -667,7 +671,10 @@ patch("login.html", "an editor lands on the screen they were given",
                : role === 'editor'
                  ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
                : role === 'counsellor' ? 'counsellor.html'
-               : 'dashboard.html';""")
+               : 'dashboard.html';""",
+      # Same reason as the one above: the partner patch adds a fifth role to
+      # this expression, so match on the line it leaves alone.
+      marker="const perms = (data.user && data.user.perms) || [];")
 
 
 patch("login.html", "the demo box describes what actually happens now",
@@ -5626,6 +5633,40 @@ for _page in sorted(HERE.glob("*.html")):
         '<h4>Company</h4><a href="about-us.html">About Us</a>'
         '<a href="success-stories.html">Success stories</a>',
     )
+
+
+# ------------------------------------------------------------- partner login
+#
+# A partner signing in landed on the student dashboard — an empty portal with
+# no way to find their own students, which reads as a broken account rather
+# than a wrong turn. Two places decide where sign-in goes and both had to
+# learn the fifth role.
+patch(
+    "login.html",
+    "a partner lands in their own portal",
+    "      location.href = who === 'admin' ? 'admin.html'\n"
+    "        : who === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')\n"
+    "        : who === 'counsellor' ? 'counsellor.html' : 'dashboard.html';",
+    "      location.href = who === 'admin' ? 'admin.html'\n"
+    "        : who === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')\n"
+    "        : who === 'counsellor' ? 'counsellor.html'\n"
+    "        : who === 'partner' ? 'partner.html' : 'dashboard.html';",
+)
+patch(
+    "login.html",
+    "and so does one that has just set a password",
+    "    const home = role === 'admin' ? 'admin.html'\n"
+    "               : role === 'editor'\n"
+    "                 ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')\n"
+    "               : role === 'counsellor' ? 'counsellor.html'\n"
+    "               : 'dashboard.html';",
+    "    const home = role === 'admin' ? 'admin.html'\n"
+    "               : role === 'editor'\n"
+    "                 ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')\n"
+    "               : role === 'counsellor' ? 'counsellor.html'\n"
+    "               : role === 'partner' ? 'partner.html'\n"
+    "               : 'dashboard.html';",
+)
 
 if __name__ == "__main__":
     for a in applied:

@@ -383,7 +383,8 @@ function forgotBox(message){
       const pm = (d.user && d.user.perms) || [];
       location.href = who === 'admin' ? 'admin.html'
         : who === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
-        : who === 'counsellor' ? 'counsellor.html' : 'dashboard.html';
+        : who === 'counsellor' ? 'counsellor.html'
+        : who === 'partner' ? 'partner.html' : 'dashboard.html';
     } catch (err) {
       btn.disabled = false; btn.textContent = 'Save and sign in \u2192';
       say(err.message);
@@ -531,6 +532,7 @@ $('#authForm').addEventListener('submit', async e => {
                : role === 'editor'
                  ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
                : role === 'counsellor' ? 'counsellor.html'
+               : role === 'partner' ? 'partner.html'
                : 'dashboard.html';
     const next = new URLSearchParams(location.search).get('next');
     location.href = (next && /^\/[a-z0-9/_-]*$/i.test(next)) ? next : home;

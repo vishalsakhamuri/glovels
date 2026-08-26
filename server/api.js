@@ -2432,6 +2432,197 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     return handler(req, res, s, m);
   });
 
+  /*
+   * ======================================================== B2B partners ===
+   *
+   * "we need b2b login like we have for student where B2B counsellors can
+   * upload multiple students profiles and also track their status, shortlist
+   * unis and visa process etc from that login."
+   *
+   * A partner is an agency that sends Glovels students. It is a fifth role in
+   * the same table — sign-in, sessions and password reset come free — and the
+   * role alone is what separates it from staff: every endpoint below asks for
+   * `partner`, and `staffOnly` refuses it, so a partner cannot reach a single
+   * staff screen however the request is shaped.
+   *
+   * Vishal's four decisions, which cut this roughly in half:
+   *
+   *   "partners student will not login only partner will login and upload
+   *    files of multiple students in one login"   — the students a partner
+   *    adds are RECORDS, not accounts. No password, no invite, no dashboard.
+   *   "yes partners can see the short list of the universities"  — the public
+   *    name gate does not apply to them; they are the ones selling.
+   *   "there is no chat option for partner"  — no messaging at all.
+   *   "one login for each partner"  — no sub-users, no second permission
+   *    system inside the first.
+   *
+   * What a partner must never see is as much of the design as what they can:
+   * another partner's students, that other partners exist, the money, the
+   * leads, anything under Organisation, and the guidance notes a counsellor
+   * writes about a student. That last one is the easiest to leak and the
+   * worst to: the student never sees those, and neither does the agency.
+   */
+  const partnerOnly = handler => async (req, res, s, m) => {
+    if (!s || s.role !== 'partner') {
+      return json(res, 403, { error: 'Not your workspace' });
+    }
+    return handler(req, res, s, m);
+  };
+
+  /* One student, as an agency is allowed to see them. Everything on this
+     object is either something the partner typed or something they need in
+     order to answer "where is this one" without ringing the office. */
+  const forPartner = (st) => {
+    const docs = db.getDocuments(st.id);
+    const orders = db.ordersFor(st.id);
+    const c = st.counsellor_id ? db.studentById(st.counsellor_id) : null;
+    let profile = {};
+    try { profile = db.getProfile(st.id) || {}; } catch (e) { profile = {}; }
+    const apps = new Map(db.getApplications(st.id)
+      .map(a => [String(a.prog_id), { stage: a.stage || 0, outcome: a.outcome || '' }]));
+    return {
+      id: st.id, name: st.name, email: st.email, phone: st.phone,
+      added: st.created_at,
+      status: st.status || 'active',
+      /* The name only. A partner knowing their file is with somebody is the
+         point; a phone number for that person is how the office stops being
+         the single door it was asked to be. */
+      counsellor: c ? c.name : '',
+      package: orders[0] ? orders[0].package : '',
+      destination: profile.g_country || profile.destination || '',
+      level: profile.g_level || '',
+      field: profile.g_field || '',
+      docsTotal: docs.length,
+      docsVerified: docs.filter(d => d.status === 'ok').length,
+      docsWaiting: docs.filter(d => d.status === 'wait').length,
+      /* By name. This is the one place the gate is deliberately open — an
+         agency that cannot tell its own student which universities are on
+         their shortlist has nothing to sell. */
+      shortlist: db.getShortlist(st.id).map(r => ({
+        university: r.university, program: r.program, country: r.country,
+        isPublic: !!r.is_public, by: r.added_by || 'office',
+        /* How far this one has got. The applications table holds a stage
+           against a programme id and nothing else, so the name comes from
+           the shortlist row it belongs to — which is why this is joined here
+           rather than listed separately. */
+        stage: (apps.get(String(r.prog_id)) || {}).stage || 0,
+        outcome: (apps.get(String(r.prog_id)) || {}).outcome || '',
+      })),
+      /* One number for the row, so a list of twenty students can be read
+         without opening any of them. */
+      furthest: db.getShortlist(st.id).reduce((n, r) =>
+        Math.max(n, (apps.get(String(r.prog_id)) || {}).stage || 0), 0),
+    };
+  };
+
+  route('GET', '/api/partner/me', partnerOnly(async (req, res, s) => {
+    const mine = db.partnerStudents(s.id);
+    return json(res, 200, {
+      partner: { id: s.id, name: s.name, email: s.email, phone: s.phone, logo: s.logo || '' },
+      counts: {
+        students: mine.length,
+        unassigned: mine.filter(x => !x.counsellor_id).length,
+        shortlisted: mine.filter(x => db.getShortlist(x.id).length).length,
+      },
+    });
+  }));
+
+  route('GET', '/api/partner/students', partnerOnly(async (req, res, s) =>
+    json(res, 200, { students: db.partnerStudents(s.id).map(forPartner) })));
+
+  /*
+   * Students added by an agency, one row or two hundred.
+   *
+   * Every row is stamped with the partner's own id from the SESSION, never
+   * from the request — a partner cannot add a student to somebody else's
+   * book by editing a field. They arrive unassigned and land in the
+   * Unassigned counter on the Organisation screen, which is where Glovels
+   * hands them to a counsellor. A partner cannot assign one: that is the
+   * office's decision and it stays the office's.
+   *
+   * No password is set and no invite is sent, because these students do not
+   * sign in. The row is a normal student in every other respect, so Glovels
+   * can turn one into a real account later with the Send sign-in link button
+   * that already exists.
+   */
+  const MAX_UPLOAD = 200;
+  route('POST', '/api/partner/students', partnerOnly(async (req, res, s) => {
+    const b = await readJson(req);
+    const list = Array.isArray(b.students) ? b.students : [b];
+    if (!list.length) return json(res, 422, { error: 'Nothing to add.' });
+    if (list.length > MAX_UPLOAD) {
+      return json(res, 422, {
+        error: 'That is ' + list.length + ' rows. ' + MAX_UPLOAD + ' at a time is the limit — '
+             + 'split the file and send it in two.',
+      });
+    }
+
+    const added = [], rejected = [];
+    list.forEach((row, i) => {
+      const at = 'Row ' + (i + 1);
+      const name = String(row.name || '').trim().slice(0, 80);
+      const email = String(row.email || '').trim().toLowerCase().slice(0, 120);
+      const phone = tenDigits(row.phone) ? '+91' + tenDigits(row.phone)
+        : String(row.phone || '').trim().slice(0, 24);
+
+      if (!name) return rejected.push({ at, why: 'no name' });
+      if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) {
+        return rejected.push({ at, who: name, why: 'that is not an email address' });
+      }
+      const existing = db.studentByEmail(email);
+      if (existing) {
+        /* Already ours. Say WHOSE rather than "duplicate": an agency sending
+           somebody Glovels already has needs to know that, and an agency
+           sending the same file twice needs to know it is the same file. */
+        return rejected.push({
+          at, who: name,
+          why: Number(existing.partner_id) === Number(s.id)
+            ? 'already on your list'
+            : 'already registered with Glovels',
+        });
+      }
+
+      const salt = newSalt();
+      const person = db.createStudent(email, name, phone,
+        hashPassword(newPassword(), salt), salt);
+      /* From the session. Never from the row. */
+      db.setPartner(person.id, s.id);
+      try {
+        db.putProfile(person.id, {
+          g_country: String(row.destination || row.country || '').slice(0, 60),
+          g_level: String(row.level || '').slice(0, 40),
+          g_field: String(row.field || '').slice(0, 80),
+          g_budget: String(row.budget || '').slice(0, 40),
+          a_cgpa: String(row.cgpa || '').slice(0, 10),
+          g_intake: String(row.intake || '').slice(0, 40),
+        });
+      } catch (e) { /* the account is the thing; a profile field is not */ }
+      added.push({ id: person.id, name, email });
+    });
+
+    if (added.length) {
+      db.log(s.email, 'partner added students',
+        s.name + ' added ' + added.length + ' student(s)'
+        + (rejected.length ? ', ' + rejected.length + ' rejected' : ''));
+    }
+    return json(res, 200, { added, rejected, total: list.length });
+  }));
+
+  /* Their own mark, in their own portal. Data URL, capped: a logo, not an
+     asset library, and nothing new to authorise on the way in. */
+  route('PUT', '/api/partner/logo', partnerOnly(async (req, res, s) => {
+    const b = await readJson(req);
+    const url_ = String(b.logo || '');
+    if (url_ && !/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/.test(url_)) {
+      return json(res, 422, { error: 'That does not look like an image.' });
+    }
+    if (url_.length > 400000) {
+      return json(res, 422, { error: 'That image is too big — 300KB or under, please.' });
+    }
+    db.setLogo(s.id, url_);
+    return json(res, 200, { logo: url_ });
+  }));
+
   route('GET', '/api/staff/me', staffOnly(async (req, res, s) => json(res, 200, {
     user: publicStudent(s),
     counsellors: s.role === 'admin'
@@ -3387,13 +3578,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const rows = db.staffByRole('counsellor')
       .concat(db.staffByRole('editor'))
-      .concat(db.staffByRole('admin'));
+      .concat(db.staffByRole('admin'))
+      /* Partner agencies sit on this list too. They are not staff — every
+         staff endpoint refuses them — but this is the screen where somebody
+         creates one, and a partner nobody can see is a partner nobody can
+         reset the password of. */
+      .concat(db.staffByRole('partner'));
     return json(res, 200, {
       people: rows.map(p => ({
         id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: p.role,
         perms: db.permsOf(p),
         createdAt: p.created_at,
-        caseload: db.allStudents().filter(st => Number(st.counsellor_id) === p.id).length,
+        /* For a partner this is how many students they have introduced; for
+           everybody else it is how many files they are carrying. */
+        caseload: p.role === 'partner'
+          ? db.partnerStudentCount(p.id)
+          : db.allStudents().filter(st => Number(st.counsellor_id) === p.id).length,
       })).sort((a, b) => a.name.localeCompare(b.name)),
       me: s.id,
     });
@@ -3408,7 +3608,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
        with a walk-in should be able to make them an account there and then,
        and it is also the only way to get a test login onto a live site without
        putting a seeded password in an environment variable. */
-    const role = ['admin', 'editor', 'counsellor', 'student'].includes(b.role)
+    const role = ['admin', 'editor', 'counsellor', 'student', 'partner'].includes(b.role)
       ? b.role : 'counsellor';
     const phone = String(b.phone || '').trim();
 
@@ -3447,6 +3647,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     let perms = Array.isArray(b.perms) ? b.perms : [];
     if (role === 'editor' && !perms.length) perms = ['content'];
     if (role === 'student') perms = [];
+    /* A partner has no permissions inside Glovels at all. Not an empty list
+       by accident — an empty list on purpose, because everything they can do
+       is decided by their role and their own students, and a permission
+       granted here would be one nobody thought about. */
+    if (role === 'partner') perms = [];
     if (role !== 'admin') db.setPerms(person.id, perms);
 
     /* A student made by a COUNSELLOR is theirs — they are sitting with the
@@ -3553,6 +3758,24 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       });
     }
 
+    /* A partner agency with students on the books is not deletable, for the
+       same reason an account with orders is not: those students exist and
+       somebody introduced them. Deleting the agency would leave rows pointing
+       at an id that is gone, and no way to answer "who sent us this one". */
+    if (person.role === 'partner') {
+      const brought = db.partnerStudentCount(id);
+      if (brought) {
+        return json(res, 409, {
+          error: person.name + ' has introduced ' + brought + ' student'
+               + (brought === 1 ? '' : 's')
+               + '. Deleting the agency would leave those files with nobody they came '
+               + 'from. Reset the password to lock them out instead, or move the '
+               + 'students first.',
+          students: brought,
+        });
+      }
+    }
+
     const caseload = db.countStudentsOf(id);
     const out = db.deletePerson(id);
     if (out.error) return json(res, 409, { error: out.error });
@@ -3566,9 +3789,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const id = Number(m[1]);
     const b = await readJson(req);
-    const role = ['student', 'counsellor', 'admin', 'editor'].includes(b.role) ? b.role : null;
+    const role = ['student', 'counsellor', 'admin', 'editor', 'partner'].includes(b.role)
+      ? b.role : null;
     if (!role) {
-      return json(res, 422, { error: 'A role is student, counsellor, editor or admin' });
+      return json(res, 422, {
+        error: 'A role is student, counsellor, editor, admin or partner',
+      });
     }
 
     const person = db.studentById(id);

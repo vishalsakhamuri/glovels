@@ -423,6 +423,18 @@ function sqliteDriver(file) {
    "CREATE INDEX IF NOT EXISTS idx_lead_notes ON lead_notes(lead_id)",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
+   /* The agency that introduced this student, and it never changes.
+      DELIBERATELY separate from counsellor_id: a partner is not a replacement
+      for a Glovels counsellor, it is who the student came from. A
+      partner-sourced student has both, and anything that collapses the two
+      into one field will have to be undone the first time a partner sends
+      somebody Glovels has to work on directly. */
+   'ALTER TABLE students ADD COLUMN partner_id INTEGER',
+   /* A partner's own mark, shown in their portal in place of the Glovels one.
+      Held as a data URL rather than a file so there is no second upload path
+      to authorise, and capped small — this is a logo, not an asset library. */
+   "ALTER TABLE students ADD COLUMN logo TEXT NOT NULL DEFAULT ''",
+   "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
@@ -1110,6 +1122,41 @@ function open(dir) {
       "SELECT * FROM students WHERE role IN ('counsellor', 'admin') ORDER BY role, name"),
     staffByRole: r => db.all('SELECT * FROM students WHERE role = ?', r),
     allStudents: () => db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student'),
+
+    /* ---- partners ---- */
+    /*
+     * A B2B agency and the students it introduced.
+     *
+     * The agency is a row in this same table with role='partner', so it gets
+     * sign-in, sessions and password reset for free. What makes it a partner
+     * rather than a member of staff is the role alone — every partner-facing
+     * endpoint asks for that role and every staff endpoint refuses it.
+     */
+    partners: () => db.all("SELECT * FROM students WHERE role = ? ORDER BY name", 'partner'),
+
+    /* THE scoping query. Everything a partner is allowed to see goes through
+       this one function, so there is a single place to be wrong rather than
+       one per screen — and a partner with no id gets nothing rather than
+       everything, which is the failure mode that matters. */
+    partnerStudents: partnerId => (Number(partnerId) > 0
+      ? db.all("SELECT * FROM students WHERE role = 'student' AND partner_id = ? "
+        + 'ORDER BY id desc', Number(partnerId))
+      : []),
+
+    partnerStudentCount: partnerId => (Number(partnerId) > 0
+      ? db.all("SELECT * FROM students WHERE role = 'student' AND partner_id = ?",
+        Number(partnerId)).length
+      : 0),
+
+    setPartner(studentId, partnerId) {
+      db.run('UPDATE students SET partner_id = ? WHERE id = ?',
+        partnerId ? Number(partnerId) : null, Number(studentId));
+    },
+
+    setLogo(id, dataUrl) {
+      db.run('UPDATE students SET logo = ? WHERE id = ?',
+        String(dataUrl || ''), Number(id));
+    },
 
     /* ---- unread ---- */
     unreadForStudent: id =>

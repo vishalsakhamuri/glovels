@@ -173,16 +173,19 @@ STAFF_NAV = [
 ]
 
 
-def staff_sidebar(active, role_note):
+def staff_sidebar(active, role_note, nav=None):
+    """The staff rail. `nav` overrides the menu — a partner is not staff and
+    must not be offered a single screen that would refuse them."""
     on = ' class="on"'
     links = "".join(
         f'<a href="{slug}.html"{on if slug == active else ""}>'
         f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg> {label}</a>'
-        for slug, icon, label in STAFF_NAV
+        for slug, icon, label in (nav if nav is not None else STAFF_NAV)
     )
     return f"""<div class="p-shell">
   <aside class="p-side">
-    <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
+    <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span>
+      <img id="ownLogo" alt="" hidden></div>
     <div class="plan-badge"><b id="staffName">\u2014</b><span id="staffRole">{role_note}</span>
       <a href="#" id="staffOut" class="p-out">
         <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a></div>
@@ -191,7 +194,7 @@ def staff_sidebar(active, role_note):
 """
 
 
-def staff_page(slug, title, h1, sub, body, script, role_note):
+def staff_page(slug, title, h1, sub, body, script, role_note, nav=None, tools=True):
     # The staff screens use the same top bar, plan badge and SLA chip as the
     # dashboard, and those rules live in the injected sheet rather than the
     # donor stylesheet — so they have to come along, or the header renders as
@@ -206,25 +209,35 @@ def staff_page(slug, title, h1, sub, body, script, role_note):
              + '<link rel="apple-touch-icon" href="/icon-192.png">'
              + '<meta name="apple-mobile-web-app-capable" content="yes">'
              + '<meta name="apple-mobile-web-app-title" content="Glovels">')
+
+    # Built out here rather than inline: an f-string expression may not contain
+    # a backslash, and the live dot's ellipsis is one.
+    tool_bar = ""
+    bell_panel = ""
+    if tools:
+        tool_bar = (
+            '<span class="sla" id="liveDot">connecting\u2026</span>\n'
+            '      <button type="button" class="bell" id="bell" aria-expanded="false"\n'
+            '        aria-controls="bellPanel" title="What needs doing">\n'
+            '        <svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>\n'
+            '        <span class="bell-n" id="bellN" hidden>0</span></button>')
+        bell_panel = ('<div class="bell-panel" id="bellPanel" hidden role="dialog"\n'
+                      '      aria-label="What needs doing"></div>')
+
     return f"""{head_for(title).replace("</head>", extra + "</head>")}
 <body>
 {SPRITE}
-{staff_sidebar(slug, role_note)}  <main class="p-main">
+{staff_sidebar(slug, role_note, nav)}  <main class="p-main">
     <div class="p-bar">
       <span class="p-bar-title" id="crumb">{h1}</span>
-      <span class="sla" id="liveDot">connecting\u2026</span>
-      <button type="button" class="bell" id="bell" aria-expanded="false"
-        aria-controls="bellPanel" title="What needs doing">
-        <svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
-        <span class="bell-n" id="bellN" hidden>0</span></button>
+      {tool_bar}
       <span class="p-av" id="staffAv">\u2014</span>
     </div>
-    <div class="bell-panel" id="bellPanel" hidden role="dialog"
-      aria-label="What needs doing"></div>
+    {bell_panel}
     <div class="p-top">
       <div><h1>{h1}</h1><p>{sub}</p></div>
     </div>
-{portal_push.BAR}
+{portal_push.BAR if tools else ""}
 {body}
   </main>
 </div>
@@ -1296,6 +1309,18 @@ def main():
         "Every student, who is looking after them, and what is waiting on someone.",
         portal_admin.BODY, portal_admin.SCRIPT, "Administrator"), encoding="utf-8")
     written.append("admin.html")
+
+    # The B2B partner's screen. Its own rail with one item on it, and no bell,
+    # no live dot and no push bar — every one of those calls a staff endpoint
+    # that would refuse a partner, and a control that refuses you is worse than
+    # one that is not there.
+    import portal_partner
+    (HERE / "partner.html").write_text(staff_page(
+        "partner", "Your students", "Your students",
+        "Everyone you have sent us, and where each one has got to.",
+        portal_partner.BODY, portal_partner.SCRIPT, "Partner agency",
+        nav=[("partner", "i-list", "Your students")], tools=False), encoding="utf-8")
+    written.append("partner.html")
 
     for slug, title, h1, sub, mod in PAGES:
         # Page code runs only once the student and their data have arrived.
