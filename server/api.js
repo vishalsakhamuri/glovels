@@ -2216,6 +2216,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       return mayName ? p : {
         id: p.id, country: p.country, level: p.level, field: p.field,
         band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
+        /* Whether applying costs anything travels on a locked row, for the
+           same reason the CGPA bar does: it is a fact about what this row
+           would ask of you, not a way to tell which university it is. The
+           filter reads it, so withholding it would make a locked row vanish
+           from a filter it belongs in. */
+        feeModel: p.feeModel,
         totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,
         /* The CGPA it asks for travels even on a locked row. It is a
            requirement, not an identity — and withholding it would mean the
@@ -4660,6 +4666,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: r.id, program: r.program, university: r.university, city: r.city,
         country: r.country, level: r.level, field: r.field, band: want,
         isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url,
+      feeModel: r.fee_model || (r.is_public ? 'free' : 'package'),
         active: !!r.active, featured: !!r.featured, featureSort: r.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
       }, who);
@@ -4719,6 +4726,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       field: t('field', FIELD_LIMITS.field),
       band: normBand(b.band),
       isPublic: !!b.isPublic,
+      /* Free or charged. Like `featured`, it survives an edit that says
+         nothing about it: a sheet uploaded without the column, or a form that
+         predates it, must not silently start charging for a university we are
+         partnered with. Only when nothing is known at all does it fall back
+         to the old axis. */
+      feeModel: (b.feeModel === 'free' || b.feeModel === 'package') ? b.feeModel
+        : ((existing && existing.fee_model) ? existing.fee_model
+           : (b.isPublic ? 'free' : 'package')),
       fit: Math.max(0, Math.min(100, Number(b.fit) || 0)),
       /* Blank stays blank. An empty box means "this programme follows the
          country's rule", and writing it as 0 would mean "takes anybody". */
@@ -4758,6 +4773,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       id: r.id, program: r.program, university: r.university, city: r.city || '',
       country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
       isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url || '',
+      feeModel: r.fee_model || (r.is_public ? 'free' : 'package'),
       active: !!r.active, updatedAt: r.updated_at, updatedBy: r.updated_by || '',
       featured: !!r.featured, featureSort: r.feature_sort || 0,
       intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
@@ -4805,6 +4821,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
+        feeModel: p.fee_model || (p.is_public ? 'free' : 'package'),
         intakes: (() => { try { return JSON.parse(p.intakes); } catch (e) { return []; } })(),
         active: false,
       }), s.name);
@@ -4880,6 +4897,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
+        feeModel: p.fee_model || (p.is_public ? 'free' : 'package'),
         featured: !!p.featured, featureSort: p.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(p.intakes) || []; } catch (e) { return []; } })(),
         active: !!p.active,
@@ -4963,7 +4981,17 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   const SHEET_COLUMNS = [
     ['id', 'id'], ['programme', 'program'], ['university', 'university'], ['city', 'city'],
     ['country code', 'country'], ['level', 'level'], ['field', 'field'],
-    ['public university', 'isPublic'], ['total tuition inr', 'totalInr'],
+    ['public university', 'isPublic'],
+    /* Free or Package: what applying through us costs the student.
+       Free    we are partnered with them, or it is a German public place —
+               nothing to pay us for the application.
+       Package we are not partnered, so the application is charged for.
+       This is the column the screens filter on. Public-versus-private stays
+       beside it because it is true and the CGPA rules read it, but it is a
+       German fact — six of our seven destinations have no public row at all,
+       so it could never be what a student was asked to choose between. */
+    ['application', 'feeModel'],
+    ['total tuition inr', 'totalInr'],
     ['budget band', 'band'], ['course url', 'url'],
     /* The two the filters read and the sheet never carried. Without them a
        bulk upload cannot describe what the finder actually filters on, which
@@ -4993,7 +5021,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     try { ins = JSON.parse(r.intakes) || []; } catch (e) {}
     return [
       r.id, r.program, r.university, r.city || '', r.country, r.level || '', r.field || '',
-      r.is_public ? 'yes' : 'no', Number(r.total_inr || 0), r.band || '', r.url || '',
+      r.is_public ? 'yes' : 'no',
+      r.fee_model === 'free' ? 'Free' : 'Package',
+      Number(r.total_inr || 0), r.band || '', r.url || '',
       /* Empty rather than 0 when it has not been stated — the sheet has to be
          able to say "follows the country rule", and a downloaded 0 typed back
          in would mean the opposite. */
@@ -5068,10 +5098,43 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       fee: 'totalInr', tuition: 'totalInr', 'total tuition': 'totalInr',
       'is public': 'isPublic', type: 'isPublic', active: 'active', status: 'active',
       url: 'url', band: 'band',
+      /* Whatever somebody types at the top of that column. "Free or package"
+         is what it was called in the request; "cost" and "charge" are what a
+         person reaches for when retyping a header from memory. */
+      'free or package': 'feeModel', 'application cost': 'feeModel',
+      cost: 'feeModel', charge: 'feeModel', partnered: 'feeModel',
     });
 
     const seen = Object.keys(objects[0] || {});
     const unknown = seen.filter(h => !alias[h]);
+
+    /*
+     * Is this the catalogue sheet at all?
+     *
+     * Refusing a wrong file here, once, beats refusing it 171 times below.
+     * Somebody uploading last year's export — or a different spreadsheet
+     * entirely — should be told the file is wrong and where to get the right
+     * one, not handed a wall of identical row errors to read through.
+     */
+    const REQUIRED_COLUMNS = [
+      ['country', 'country code'], ['feeModel', 'application'],
+      ['level', 'level'], ['field', 'field'],
+      ['program', 'programme'], ['university', 'university'],
+    ];
+    const missing = REQUIRED_COLUMNS
+      .filter(([key]) => !seen.some(h => alias[h] === key))
+      .map(([, label]) => label);
+    if (missing.length) {
+      return json(res, 422, {
+        error: 'That file is not the current catalogue sheet. '
+          + (missing.length === 1
+              ? `It has no "${missing[0]}" column.`
+              : `It is missing these columns: ${missing.join(', ')}.`)
+          + ' Press Download the sheet, edit that copy, and upload it back —'
+          + ' every column has to come back up with it.',
+        missingColumns: missing,
+      });
+    }
 
     const plan = { create: [], update: [], unchanged: [], rejected: [], warned: 0, unknownColumns: unknown };
 
@@ -5081,6 +5144,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         for (const h of Object.keys(o)) if (alias[h] === key) return o[h];
         return '';
       };
+      const raw = key => String(g(key) || '').trim();
       /* `cgpa in force` comes back up with the sheet and is thrown away here.
          It exists so somebody reading the file can see what bar applies; the
          editable column is `minimum cgpa`, and only that one is stored. */
@@ -5091,6 +5155,16 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         level: String(g('level') || '').toLowerCase().trim(),
         field: g('field'),
         isPublic: NO_(g('isPublic')) ? false : YES(g('isPublic')),
+        /* A cell nobody filled in must not silently start charging for a
+           university, nor silently stop. Blank means "leave this row's answer
+           alone", which saveProgramme resolves from what is already there. */
+        feeModel: (() => {
+          const raw = String(g('feeModel') || '').trim().toLowerCase();
+          if (!raw) return '';
+          if (/^(free|yes|y|partner|partnered|nil|no charge|0)$/.test(raw)) return 'free';
+          if (/^(package|paid|charge|charged|chargeable|no|n)$/.test(raw)) return 'package';
+          return '';
+        })(),
         totalInr: Number(String(g('totalInr') || '0').replace(/[^0-9.]/g, '')) || 0,
         band: String(g('band') || '').trim(),
         url: g('url'),
@@ -5129,6 +5203,29 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       if (!draft.university) why.push('no university');
       if (!draft.country) why.push('no country code');
       else if (!db.country(draft.country)) why.push(`the destination "${draft.country}" does not exist yet`);
+      /* Everything the student filters on has to be there.
+         A blank in one of these does not fail loudly — it makes the row
+         invisible to whoever filters on it, which is worse: the office
+         believes 171 universities are on the site and a student searching
+         Ireland at master's level is shown four of them. So the file is
+         refused and the row is named.
+         `minimum cgpa` is deliberately NOT on this list. Blank there means
+         "follows the destination's rule", which is the right answer for all
+         171 rows today; requiring it would freeze a number per programme and
+         changing Germany from 7.5 to 7.0 would then move nothing at all. */
+      if (!raw('feeModel')) {
+        why.push('the application column is empty — say Free (we are partnered) '
+               + 'or Package (we are not)');
+      } else if (!draft.feeModel) {
+        why.push(`"${raw('feeModel')}" is not Free or Package`);
+      }
+      if (!draft.level) why.push('no level — the finder filters on it');
+      if (!draft.field) why.push('no field — the finder filters on it');
+      /* The budget band is deliberately NOT required. Blank there means "work
+         it out from the tuition", which is what the form's own help text
+         promises and what the row ends up carrying — so demanding it would
+         take away something that already works. Only the columns where blank
+         means "invisible to the filter" are required. */
       draft.intakes.forEach(i => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(i.deadline)) {
           why.push(`the deadline "${i.deadline}" is not YYYY-MM-DD`);
@@ -5173,6 +5270,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            171 rows were fine and the number they typed is thrown away without a
            word. That is exactly what the paragraph above this one is about. */
         minCgpa: bar(existing.min_cgpa), fit: Number(existing.fit || 0),
+        /* Same trap as the CGPA above, one column along: a sheet whose only
+           edit is Free-to-Package would come back "already right" and the
+           apply pass would skip it, so the office would be told the row was
+           fine and the cell they typed would be thrown away. */
+        feeModel: existing.fee_model || (existing.is_public ? 'free' : 'package'),
         intakes: asIntakes(oldIntakes),
       };
       const after = {
@@ -5182,6 +5284,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         level: clean.level, field: clean.field, band: clean.band,
         featured: clean.featured, featureSort: clean.featureSort,
         minCgpa: bar(clean.minCgpa), fit: Number(clean.fit || 0),
+        feeModel: clean.feeModel,
         intakes: asIntakes(clean.intakes),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
@@ -5232,6 +5335,16 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         country: String(g('country') || '').toUpperCase().trim(),
         level: String(g('level') || '').toLowerCase().trim(), field: g('field'),
         isPublic: NO_(g('isPublic')) ? false : YES(g('isPublic')),
+        /* A cell nobody filled in must not silently start charging for a
+           university, nor silently stop. Blank means "leave this row's answer
+           alone", which saveProgramme resolves from what is already there. */
+        feeModel: (() => {
+          const raw = String(g('feeModel') || '').trim().toLowerCase();
+          if (!raw) return '';
+          if (/^(free|yes|y|partner|partnered|nil|no charge|0)$/.test(raw)) return 'free';
+          if (/^(package|paid|charge|charged|chargeable|no|n)$/.test(raw)) return 'package';
+          return '';
+        })(),
         totalInr: Number(String(g('totalInr') || '0').replace(/[^0-9.]/g, '')) || 0,
         band: String(g('band') || '').trim(), url: g('url'),
         /* Same two the plan read. A field the preview understood and the apply

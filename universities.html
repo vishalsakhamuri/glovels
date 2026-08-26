@@ -791,9 +791,10 @@ select.assign.none:hover{border-color:#a5342b}
             <option value="">Any budget</option><option value="u10">Under ₹10L</option>
             <option value="u20">Under ₹20L</option><option value="above20">₹20L+</option>
             <option value="elite">Top-ranked</option></select></div>
-          <div class="field"><label>University type</label><select id="fType">
-            <option value="">Public and private</option><option value="pub">Public only</option>
-            <option value="pri">Private only</option></select></div>
+          <div class="field"><label>How you apply</label><select id="fType">
+            <option value="">Every university</option>
+            <option value="free">Fast-track — free</option>
+            <option value="package">Comprehensive filing</option></select></div>
           <div class="field"><label>Entry requirement</label><select id="fReach">
             <option value="mine">Ones I qualify for</option>
             <option value="all">Show every programme</option></select></div>
@@ -1131,6 +1132,12 @@ function barOf(p) {
 /* Their own, off the profile they filled in. Blank is not zero — it means
    they have not told us, and a filter that reads it as zero would quietly
    empty this screen for every student who skipped the field. */
+/* Free or charged, with the same fallback the server uses. The built-in
+   catalogue snapshot this page ships with predates the column, so an offline
+   student must not see every row marked charged. */
+const feeOf = p => (p.feeModel === 'free' || p.feeModel === 'package')
+  ? p.feeModel : (p.isPublic ? 'free' : 'package');
+
 function myCgpa() {
   const raw = String(((typeof DB !== 'undefined' && DB.profile) || {}).d_cgpa || '').trim();
   const n = Number(raw.replace(/[^0-9.]/g, ''));
@@ -1197,8 +1204,14 @@ function card(p, inList) {
     '<h3>' + esc(p.program) + '</h3>' +
     '<div class="uni">' + esc(p.university) + '</div>' +
     '<div class="city">' + esc([p.city, nameOf(p)].filter(Boolean).join(' · ')) + '</div>' +
-    '<span class="sl-tag">' + ico(p.isPublic ? 'check' : 'star') + ' ' +
-      (p.isPublic ? 'Public university' : 'Private university') + '</span>' +
+    /* What this row asks of the student, rather than how it is constituted.
+       Public-versus-private is a German fact — six of our seven destinations
+       have no public university at all — and it never told a student what
+       applying would cost them. */
+    '<span class="sl-tag' + (feeOf(p) === 'free' ? ' sl-free' : '') + '">'
+      + ico(feeOf(p) === 'free' ? 'check' : 'star') + ' '
+      + (feeOf(p) === 'free' ? 'Fast-track — free' : 'Comprehensive filing') + '</span>' +
+    (p.isPublic ? '<span class="sl-tag">' + ico('check') + ' Public university</span>' : '') +
     '<div class="sl-meta"><b>' + money(p) + '</b></div>' +
     (nextDeadline(p) ? '<div class="sl-meta" style="color:var(--muted)">Next deadline: ' +
       nextDeadline(p) + '</div>' : '') +
@@ -1373,7 +1386,7 @@ function filtered() {
   const r = ($('#fReach') || {}).value || 'mine';
   let l = POOL.filter(p =>
     (!c || p.country === c) && (!b || p.band === b) &&
-    (!t || (t === 'pub' ? p.isPublic : !p.isPublic)));
+    (!t || feeOf(p) === t));
   /* Counted before it is applied, so the line under the filters can say how
      many were held back rather than leaving the student to wonder why a
      country they know has fifty universities is showing four. Hiding them
@@ -1414,7 +1427,40 @@ function paintBrowse() {
   $('#fCountry').innerHTML = '<option value="">Any destination</option>' + seen.map(c =>
     '<option value="' + c + '">' + ((COUNTRIES[c] || {}).flag || '') + ' ' +
     esc((COUNTRIES[c] || {}).name || c) + '</option>').join('');
+
+  /* Start on the country the student told us they are going to.
+     "Any destination" as an opening position mixes seven countries into one
+     list, so a student going to Ireland scrolls past German universities to
+     reach the two that are theirs. They said where they are going in their
+     profile; the screen should not make them say it again. The option is
+     still there for somebody genuinely comparing. */
+  const mine = String(((typeof DB !== 'undefined' && DB.profile) || {}).g_country || '').trim();
+  if (mine) {
+    const code = seen.find(c => (COUNTRIES[c] || {}).name === mine || c === mine);
+    if (code) $('#fCountry').value = code;
+  }
 })();
+
+/* An option with nothing behind it is a trap: "Public only" on Canada
+   returned an empty screen for a year because Canada has no public row, and
+   the student is left thinking the site is broken rather than that the
+   question does not apply there. So the choices are rebuilt from what the
+   chosen destination actually holds, and the whole control stands down when
+   there is only one answer. */
+function paintTypeChoices() {
+  const c = $('#fCountry').value;
+  const here = POOL.filter(p => !c || p.country === c);
+  const kinds = new Set(here.map(feeOf));
+  const box = $('#fType').closest('.field');
+  const only = kinds.size < 2;
+  if (box) box.hidden = only;
+  if (only) { $('#fType').value = ''; return; }
+  const keep = $('#fType').value;
+  $('#fType').innerHTML = '<option value="">Every university</option>'
+    + (kinds.has('free') ? '<option value="free">Fast-track — free</option>' : '')
+    + (kinds.has('package') ? '<option value="package">Comprehensive filing</option>' : '');
+  $('#fType').value = kinds.has(keep) ? keep : '';
+}
 
 document.addEventListener('click', e => {
   const tab = e.target.closest('.tab[data-pane]');
@@ -1446,9 +1492,15 @@ document.addEventListener('click', e => {
   }
 });
 ['fCountry','fBand','fType','fReach','fSort'].forEach(id =>
-  $('#' + id).addEventListener('change', () => { shown = 12; paintBrowse(); }));
+  $('#' + id).addEventListener('change', () => {
+    /* The destination decides which of the other questions are worth asking,
+       so it repaints them before the list is redrawn. */
+    if (id === 'fCountry') paintTypeChoices();
+    shown = 12; paintBrowse();
+  }));
 $('#moreBtn').addEventListener('click', () => { shown += 12; paintBrowse(); });
 
+paintTypeChoices();
 paintMine(); paintBrowse();
 
 });

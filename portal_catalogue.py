@@ -49,7 +49,9 @@ BODY = """
           border:1.5px solid #d8dde4;border-radius:9px;max-width:230px"></select>
         <select id="ft" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
           border:1.5px solid #d8dde4;border-radius:9px">
-          <option value="">Public and private</option>
+          <option value="">Every university</option>
+          <option value="free">Fast-track — free</option>
+          <option value="package">Comprehensive filing</option>
           <option value="pub">Public only</option>
           <option value="pri">Private only</option>
         </select>
@@ -213,6 +215,11 @@ BODY = """
 SCRIPT = r"""
 let PROGS = [], DESTS = [], LOG = [], editing = null;
 
+/* Same fallback the server uses, so a row saved before the column existed
+   reads as what it has always been rather than as charged. */
+const feeOf = p => (p.feeModel === 'free' || p.feeModel === 'package')
+  ? p.feeModel : (p.isPublic ? 'free' : 'package');
+
 /* PICKED survives a repaint and a change of search: a counsellor filters to
    Poland, ticks four, filters to Spain, ticks two, and expects six. SHOWN is
    what the current search matched — every one of them, not the 400 drawn. */
@@ -267,7 +274,12 @@ function paintProgs() {
     (!c || p.country === c) &&
     (!lv || String(p.level || '').toLowerCase() === lv) &&
     (!fd || p.field === fd) &&
-    (!ty || (ty === 'pub' ? p.isPublic : !p.isPublic)) &&
+    /* Two axes on one control, because the office needs both: how the student
+       applies (which is what the site filters on) and whether the place is
+       public (which the CGPA rules still read). */
+    (!ty || (ty === 'pub' ? p.isPublic
+             : ty === 'pri' ? !p.isPublic
+             : feeOf(p) === ty)) &&
     (!bd || p.band === bd) &&
     /* Exactly what the public finder does with the same number: a programme
        whose bar is above the student's is not shown to them. Checking that
@@ -422,7 +434,16 @@ function openEditor(p) {
       select('University type', 'fPublic', v.isPublic ? '1' : '0',
         [['1', 'Public'], ['0', 'Private']],
         'Public means the tuition-free track, and it is what the finder gates behind a package.') +
-      field('Total tuition, ₹', 'fFee', v.totalInr || 0, 'type="number" min="0" step="1000"',
+      select('How the student applies', 'fFee',
+        (v.feeModel === 'free' || v.feeModel === 'package')
+          ? v.feeModel : (v.isPublic ? 'free' : 'package'),
+        [['free', 'Fast-track — free (we are partnered)'],
+         ['package', 'Comprehensive filing (we are not)']],
+        'What applying through us costs THEM. This is what the student filters on, ' +
+        'because public-versus-private only means something in Germany. Mark a ' +
+        'university free the day the partnership is signed &mdash; here, or in the ' +
+        '<b>application</b> column of the catalogue sheet.') +
+      field('Total tuition, ₹', 'fTuition', v.totalInr || 0, 'type="number" min="0" step="1000"',
         'Whole course, in rupees. <b>0 means no tuition</b> — that is load-bearing on the site.') +
       select('Budget band', 'fBand', v.band, BANDS,
         'Leave it on the first option and it is worked out from the fee.') +
@@ -487,9 +508,10 @@ function readEditor() {
     field: $('#fField').value,
     band: $('#fBand').value,
     isPublic: $('#fPublic').value === '1',
+    feeModel: $('#fFee').value === 'free' ? 'free' : 'package',
     featured: $('#fFeatured').checked,
     featureSort: Number($('#fFeatureSort').value || 0),
-    totalInr: Number($('#fFee').value || 0),
+    totalInr: Number($('#fTuition').value || 0),
     /* Empty stays empty — it means "follow the destination's rule", and
        sending 0 would mean "takes anybody". */
     minCgpa: $('#fCgpa').value.trim() === '' ? null : Number($('#fCgpa').value),

@@ -783,6 +783,36 @@ function seedAdmin({ db, admin, hashPassword, newSalt, reset }) {
   return { created: true, email: admin.email };
 }
 
+/*
+ * Every university row gets told whether applying through us costs anything.
+ *
+ * The screens used to filter on public-versus-private, which is a German
+ * distinction: of 171 rows, 153 are German public places and the other six
+ * destinations have no public row between them. So "Public only" on Canada
+ * returned nothing, and a package promising five public universities
+ * delivered nothing to anybody not going to Germany.
+ *
+ * The starting answer is read off what each row already says — a public place
+ * is free to apply to, everything else is charged. That is right for all 171
+ * today and is a starting point rather than a verdict: the column is on the
+ * catalogue sheet, so the office corrects any row by uploading it, and a
+ * university we later partner with becomes free by changing one cell.
+ */
+function everyRowSaysWhatItCosts({ db }) {
+  if (db.content('feeModelV1')) return 0;
+  db.setContent('feeModelV1', { done: true }, 'system');
+
+  let n = 0;
+  db.programmes(true).forEach(r => {
+    if (r.fee_model === 'free' || r.fee_model === 'package') return;
+    db.run("UPDATE programmes SET fee_model = ? WHERE id = ?",
+      r.is_public ? 'free' : 'package', r.id);
+    n++;
+  });
+  if (n) db.log('system', 'Application cost set on every programme', n + ' rows');
+  return n;
+}
+
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   addMissingServices,
   addEntryTiers,
@@ -791,6 +821,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   packagesDeliverWhatTheyUnlock,
   removeTheCardsThatWereSourceCode,
   chipsAskWhatItWas,
+  everyRowSaysWhatItCosts,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

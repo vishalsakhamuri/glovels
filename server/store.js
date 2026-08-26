@@ -439,6 +439,21 @@ function sqliteDriver(file) {
       the student keeps their login. Which is why this is a partner-scoped
       column and not a status on the student. */
    'ALTER TABLE students ADD COLUMN partner_closed INTEGER NOT NULL DEFAULT 0',
+   /* What applying to this university costs the student through us.
+      'free'    we are partnered, or it is a German public place — they pay
+                us nothing to apply. They still pay the university whatever
+                the university charges.
+      'package' we are not partnered, so the application is charged for.
+
+      This replaces is_public as the axis the screens filter on. is_public is
+      a German fact — 153 of the 171 rows are German public places and the
+      other six destinations have no public row at all — so "Public only" on
+      any country but Germany showed an empty screen, and a package promising
+      public universities delivered nothing there.
+
+      is_public stays: it is true, it is on the sheet, and the CGPA rules read
+      it. It is simply no longer what the student is asked to choose between. */
+   "ALTER TABLE programmes ADD COLUMN fee_model TEXT NOT NULL DEFAULT ''",
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
@@ -883,15 +898,24 @@ function open(dir) {
          empty box as 0 is how a filter quietly stops filtering. */
       const bar = (p.minCgpa === '' || p.minCgpa == null || !Number.isFinite(Number(p.minCgpa)))
         ? null : Math.max(0, Math.min(10, Number(p.minCgpa)));
+      /* Free or charged. Anything unrecognised falls back to the old axis
+         rather than to a guess: a German public place is free to apply to,
+         everything else is charged — which is what the 171 rows already on
+         the shelf mean, and what the migration writes. A sheet that does not
+         carry the column at all therefore changes nothing. */
+      const fee = /^(free|package)$/i.test(String(p.feeModel || ''))
+        ? String(p.feeModel).toLowerCase()
+        : (p.isPublic ? 'free' : 'package');
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, city, country, level, field, band, is_public, fit,
-         min_cgpa, total_inr, url, intakes, active, featured, feature_sort, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         min_cgpa, total_inr, url, intakes, active, featured, feature_sort, fee_model,
+         updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university, p.city || '', p.country,
         p.level || '', p.field || '', p.band || '', p.isPublic ? 1 : 0,
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
-        p.featured ? 1 : 0, Number(p.featureSort || 0), now(), who || '');
+        p.featured ? 1 : 0, Number(p.featureSort || 0), fee, now(), who || '');
       return this.programme(p.id);
     },
     deleteProgramme: id => db.run('DELETE FROM programmes WHERE id = ?', String(id)),
