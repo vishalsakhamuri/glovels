@@ -3311,24 +3311,6 @@
    "sectionLabel": ""
   },
   {
-   "key": "results|button|c4edb83c|0",
-   "section": "results",
-   "kind": "text",
-   "element": "button",
-   "original": "Universities with a package",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "results|small|a9c8cf25|0",
-   "section": "results",
-   "kind": "text",
-   "element": "small",
-   "original": "we write and file the whole application",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
    "key": "results|button|6569b4e3|0",
    "section": "results",
    "kind": "text",
@@ -3347,6 +3329,24 @@
    "sectionLabel": ""
   },
   {
+   "key": "results|button|c4edb83c|0",
+   "section": "results",
+   "kind": "text",
+   "element": "button",
+   "original": "Universities with a package",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "results|small|a9c8cf25|0",
+   "section": "results",
+   "kind": "text",
+   "element": "small",
+   "original": "we write and file the whole application",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
    "key": "results|button|31f1fa93|0",
    "section": "results",
    "kind": "text",
@@ -3356,29 +3356,29 @@
    "sectionLabel": ""
   },
   {
-   "key": "results|span|c5ad0302|0",
+   "key": "results|span|c5418858|0",
    "section": "results",
    "kind": "text",
    "element": "span",
-   "original": "Private universities are free to view",
+   "original": "Universities we are partnered with are",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|b|cb5e222a|0",
+   "key": "results|b|adafd555|0",
    "section": "results",
    "kind": "text",
    "element": "b",
-   "original": "and free to apply to",
+   "original": "free to apply to",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|span|55b7872a|0",
+   "key": "results|span|d18aaecd|0",
    "section": "results",
    "kind": "text",
    "element": "span",
-   "original": ". Public matches unlock with a package.",
+   "original": "— nothing to buy first. The rest open with a package.",
    "note": "",
    "sectionLabel": ""
   },

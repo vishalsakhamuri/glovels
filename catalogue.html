@@ -1470,7 +1470,7 @@ let PROGS = [], DESTS = [], LOG = [], editing = null;
 /* Same fallback the server uses, so a row saved before the column existed
    reads as what it has always been rather than as charged. */
 const feeOf = p => (p.feeModel === 'free' || p.feeModel === 'package')
-  ? p.feeModel : (p.isPublic ? 'free' : 'package');
+  ? p.feeModel : (p.isPublic ? 'package' : 'free');
 
 /* PICKED survives a repaint and a change of search: a counsellor filters to
    Poland, ticks four, filters to Spain, ticks two, and expects six. SHOWN is
@@ -1688,7 +1688,7 @@ function openEditor(p) {
         'Public means the tuition-free track, and it is what the finder gates behind a package.') +
       select('How the student applies', 'fFee',
         (v.feeModel === 'free' || v.feeModel === 'package')
-          ? v.feeModel : (v.isPublic ? 'free' : 'package'),
+          ? v.feeModel : (v.isPublic ? 'package' : 'free'),
         [['free', 'Fast-track — free (we are partnered)'],
          ['package', 'Comprehensive filing (we are not)']],
         'What applying through us costs THEM. This is what the student filters on, ' +

@@ -792,11 +792,12 @@ function seedAdmin({ db, admin, hashPassword, newSalt, reset }) {
  * returned nothing, and a package promising five public universities
  * delivered nothing to anybody not going to Germany.
  *
- * The starting answer is read off what each row already says — a public place
- * is free to apply to, everything else is charged. That is right for all 171
- * today and is a starting point rather than a verdict: the column is on the
- * catalogue sheet, so the office corrects any row by uploading it, and a
- * university we later partner with becomes free by changing one cell.
+ * The starting answer is read off what each row already says — we are partnered
+ * with the private places, so applying to one costs a student nothing, and the
+ * public ones are the names a package buys. That is a starting point rather
+ * than a verdict: the column is on the catalogue sheet, so the office corrects
+ * any row by uploading it, and a university we later partner with becomes free
+ * by changing one cell.
  */
 function everyRowSaysWhatItCosts({ db }) {
   if (db.content('feeModelV1')) return 0;
@@ -805,11 +806,43 @@ function everyRowSaysWhatItCosts({ db }) {
   let n = 0;
   db.programmes(true).forEach(r => {
     if (r.fee_model === 'free' || r.fee_model === 'package') return;
-    db.run("UPDATE programmes SET fee_model = ? WHERE id = ?",
-      r.is_public ? 'free' : 'package', r.id);
+    db.setFeeModel(r.id, r.is_public ? 'package' : 'free');
     n++;
   });
   if (n) db.log('system', 'Application cost set on every programme', n + ' rows');
+  return n;
+}
+
+/*
+ * And the same 171 rows, told the right way round.
+ *
+ * The migration above ran once already, with "free" meaning tuition-free
+ * rather than free to apply. It wrote Free onto every German public row — the
+ * rows whose names nobody can read without a package — and Charged onto the
+ * private ones a student can apply to today for nothing. The finder then split
+ * its two tabs on that column and put every row under the opposite heading.
+ *
+ * So this corrects what the first pass wrote, and only that: a row is flipped
+ * only where it still holds exactly what the old rule would have given it. A
+ * row the office has since set by hand disagrees with that rule and is left
+ * alone, which is the whole reason for checking rather than overwriting.
+ */
+function feeModelIsFreeToApply({ db }) {
+  if (db.content('feeModelV2')) return 0;
+
+  let n = 0;
+  db.programmes(true).forEach(r => {
+    const wroteBefore = r.is_public ? 'free' : 'package';
+    if (r.fee_model !== wroteBefore) return;
+    db.setFeeModel(r.id, r.is_public ? 'package' : 'free');
+    n++;
+  });
+  /* Marked done AFTER the work, not before it. Writing the flag first means a
+     migration that throws half way through is never attempted again — which is
+     exactly what happened to the first draft of this one, and it looked from
+     the outside like a migration that ran and did nothing. */
+  db.setContent('feeModelV2', { done: true }, 'system');
+  if (n) db.log('system', 'Application cost corrected on every programme', n + ' rows');
   return n;
 }
 
@@ -948,6 +981,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   removeTheCardsThatWereSourceCode,
   chipsAskWhatItWas,
   everyRowSaysWhatItCosts,
+  feeModelIsFreeToApply,
   packagesBelongToADestination,
   openOnRequestServices,
   fillEmptyPosts,

@@ -3226,7 +3226,7 @@ patch(
          the two result tabs split on now — public-versus-private is a German
          fact and six of our seven destinations have no public row at all. */
       feeModel: p.feeModel === 'free' || p.feeModel === 'package'
-        ? p.feeModel : (p.isPublic ? 'free' : 'package'),
+        ? p.feeModel : (p.isPublic ? 'package' : 'free'),
       /* The bar THIS programme sets, which beats its country's rule in
          filtered(). Hardcoded null here, it could never beat anything. */""",
     marker="feeModel: p.feeModel === 'free'",
@@ -3240,7 +3240,7 @@ patch(
     """  /* Same fallback the server uses, so a row the page shipped with — which
      predates the column — reads as what it has always been. */
   const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
-    ? r.feeModel : (r.isPublic ? 'free' : 'package');
+    ? r.feeModel : (r.isPublic ? 'package' : 'free');
   const privAll = rows.filter(r => feeOf(r) !== 'free');
   const pubAll = rows.filter(r => feeOf(r) === 'free');""",
     marker="const feeOf = r =>",
@@ -3574,10 +3574,15 @@ function applyForOld(prog, uni){""",
 # The footnote under the results said a package unlocks public matches, which is
 # true, and said nothing about what a visitor may do with the private ones they
 # are looking at — which is the half that costs nothing.
+# The marker is the half both this wording and its replacement share. A later
+# patch rewrites this whole line off the public-versus-private axis, and with
+# `new` as the test that patch would put this one back to searching for text it
+# had already produced — which ends the build.
 patch("index.html", "the results footnote says applying to a private one is free",
       "<span>Private universities are free to view. Public matches unlock with a package.</span>",
       "<span>Private universities are free to view <b>and free to apply to</b>. "
-      "Public matches unlock with a package.</span>")
+      "Public matches unlock with a package.</span>",
+      marker="free to apply to</b>")
 
 
 # The old in-browser applyFor(). Renamed by the patch above so the anchor could
@@ -4160,11 +4165,16 @@ patch_re(
 #    live student admissions. They are catalogue rows. The heading above it
 #    already says "Popular programs this intake", which is true, so the line
 #    underneath only has to say how to make it yours.
+#    The wording it first replaced is gone rather than kept as a step: no tree
+#    still carries it, and a patch whose anchor cannot exist ends the build
+#    instead of skipping. This one now goes from what is on the page today to
+#    where it should have been — "the ones we file for you are free to read"
+#    had it backwards, because filing for you IS the package.
 patch(
     "index.html",
     "the filtered line speaks about applying, not constitution",
-    """    ? 'Private universities are free to view. Public matches unlock the moment a package is active.'""",
     """    ? 'Universities we file for you are free to read. The fast-track ones unlock the moment a package is active.'""",
+    """    ? 'The universities we are partnered with are free to apply to. The rest open with a package.'""",
 )
 
 patch(
@@ -4393,7 +4403,7 @@ patch(
     "the row chip says what applying costs",
     """  const type = `<div class="mtype ${r.isPublic?'pub':'priv'}">${r.isPublic?'Public':'Private'}</div>`;""",
     """  const feeOfRow = (r.feeModel === 'free' || r.feeModel === 'package')
-    ? r.feeModel : (r.isPublic ? 'free' : 'package');
+    ? r.feeModel : (r.isPublic ? 'package' : 'free');
   const type = `<div class="mtype ${feeOfRow === 'free' ? 'pub' : 'priv'}">`
     + `${feeOfRow === 'free' ? 'Free to apply' : 'With a package'}</div>`;""",
     marker="const feeOfRow =",
@@ -4511,7 +4521,7 @@ patch(
     """        had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);""",
     """        had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);
         had.feeModel = (p.feeModel === 'free' || p.feeModel === 'package')
-          ? p.feeModel : (p.isPublic ? 'free' : 'package');""",
+          ? p.feeModel : (p.isPublic ? 'package' : 'free');""",
     marker="had.feeModel =",
 )
 
@@ -4612,6 +4622,102 @@ patch(
     """      <button type="button" class="rtab" data-rt="pub" role="tab" aria-selected="false">""",
     """      <button type="button" class="rtab on" data-rt="pub" role="tab" aria-selected="true">""",
     marker='class="rtab on" data-rt="pub"',
+)
+
+
+# ------------------------------------------ free and charged, the right way up
+#
+# Vishal, for the fourth time: "look at the screen shot. it was wrong. i am
+# telling many times." He was right every time, and the thing he was pointing
+# at was never the tab labels.
+#
+# The finder gates on `isPublic`: a public row reaches the browser with no name,
+# no university and no fee, because the name is what a package buys. That has
+# always been true and is still what we sell.
+#
+# Patch 59 added the fee column and had to say what a row that predates it
+# means. It answered "public is free" — reading free as TUITION-free, which is
+# a true sentence about Germany and the wrong axis for this screen. So every
+# German public row went into the tab that says "Apply free, right away — no
+# package needed", and every one of them arrived blurred, over a line offering
+# to unlock the name for ₹4,999. The charged tab, meanwhile, filled with
+# private universities that are named, priced, and free to apply to.
+#
+# Exactly reverse, on every row, which is the word he used.
+#
+# Free means free to apply THROUGH US: the universities we are partnered with,
+# where the application costs a student nothing because the university pays us.
+# That is Vishal's own sentence from the day the column was specified —
+# "partnered universities show free" — and it is the private ones.
+#
+# So the default flips: public is charged, everything else is free. Explicit
+# values on the sheet are untouched; this only decides rows that never said.
+# The catalogue, the office and the server were flipped at the source, and the
+# home page carries these four lines from a patch that has already run, so they
+# need saying again here.
+patch(
+    "index.html",
+    "the tabs and the row chip read a silent row as charged when it is public",
+    """    ? r.feeModel : (r.isPublic ? 'free' : 'package');""",
+    """    ? r.feeModel : (r.isPublic ? 'package' : 'free');""",
+    count=2,
+    marker="(r.isPublic ? 'package' : 'free')",
+)
+
+patch(
+    "index.html",
+    "a live programme the page has never seen reads the same way",
+    """          ? p.feeModel : (p.isPublic ? 'free' : 'package');""",
+    """          ? p.feeModel : (p.isPublic ? 'package' : 'free');""",
+)
+
+patch(
+    "index.html",
+    "and so does one it shipped with and has since been edited",
+    """        ? p.feeModel : (p.isPublic ? 'free' : 'package'),""",
+    """        ? p.feeModel : (p.isPublic ? 'package' : 'free'),""",
+)
+
+# The tab that is open should be the tab on the left.
+#
+# `resTab` opens on the free one and the markup marks it selected, but it sat
+# second, so the screen showed a lit tab to the right of an unlit one. Reading
+# order is an argument about which of two things matters, and ours was making
+# the opposite case to the highlight.
+#
+# The pair of patches above this one are marker-guarded on the classes rather
+# than on position, so they skip once this has run rather than failing on an
+# anchor that has moved. The marker here is the seam between the two buttons,
+# which exists in one order and not the other.
+patch(
+    "index.html",
+    "the free tab is the first one as well as the open one",
+    """      <button type="button" class="rtab" data-rt="priv" role="tab" aria-selected="false">
+        Universities with a package <span class="rtn" id="rtnPriv">0</span>
+        <small>we write and file the whole application</small></button>
+      <button type="button" class="rtab on" data-rt="pub" role="tab" aria-selected="true">
+        Apply free, right away <span class="rtn" id="rtnPub">0</span>
+        <small>no package needed, start today</small></button>""",
+    """      <button type="button" class="rtab on" data-rt="pub" role="tab" aria-selected="true">
+        Apply free, right away <span class="rtn" id="rtnPub">0</span>
+        <small>no package needed, start today</small></button>
+      <button type="button" class="rtab" data-rt="priv" role="tab" aria-selected="false">
+        Universities with a package <span class="rtn" id="rtnPriv">0</span>
+        <small>we write and file the whole application</small></button>""",
+    marker="""start today</small></button>
+      <button type="button" class="rtab" data-rt="priv\"""",
+)
+
+# The line under the results was the only place still arguing the old axis in
+# words. It was also, as of this patch, the only place stating it correctly —
+# which is how a true sentence can still be the wrong one to print. Public and
+# private is a German distinction and six of our seven destinations do not have
+# it; free and charged is the one the tabs above it use.
+patch(
+    "index.html",
+    "the line under the results speaks the same axis as the tabs above it",
+    """      <span>Private universities are free to view <b>and free to apply to</b>. Public matches unlock with a package.</span>""",
+    """      <span>Universities we are partnered with are <b>free to apply to</b> — nothing to buy first. The rest open with a package.</span>""",
 )
 
 

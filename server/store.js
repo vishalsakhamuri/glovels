@@ -905,7 +905,7 @@ function open(dir) {
          carry the column at all therefore changes nothing. */
       const fee = /^(free|package)$/i.test(String(p.feeModel || ''))
         ? String(p.feeModel).toLowerCase()
-        : (p.isPublic ? 'free' : 'package');
+        : (p.isPublic ? 'package' : 'free');
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, city, country, level, field, band, is_public, fit,
          min_cgpa, total_inr, url, intakes, active, featured, feature_sort, fee_model,
@@ -917,6 +917,15 @@ function open(dir) {
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
         p.featured ? 1 : 0, Number(p.featureSort || 0), fee, now(), who || '');
       return this.programme(p.id);
+    },
+
+    /* One column, for the migrations that correct it. Going through
+       saveProgramme would mean rebuilding the whole row from the one being
+       corrected, and a field forgotten on the way past is how an edit silently
+       drops an intake list. */
+    setFeeModel(id, fee) {
+      db.run('UPDATE programmes SET fee_model = ? WHERE id = ?',
+        /^(free|package)$/.test(String(fee)) ? String(fee) : '', String(id));
     },
     deleteProgramme: id => db.run('DELETE FROM programmes WHERE id = ?', String(id)),
 

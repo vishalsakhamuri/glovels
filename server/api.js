@@ -4747,7 +4747,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: r.id, program: r.program, university: r.university, city: r.city,
         country: r.country, level: r.level, field: r.field, band: want,
         isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url,
-      feeModel: r.fee_model || (r.is_public ? 'free' : 'package'),
+      feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
         active: !!r.active, featured: !!r.featured, featureSort: r.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
       }, who);
@@ -4814,7 +4814,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          to the old axis. */
       feeModel: (b.feeModel === 'free' || b.feeModel === 'package') ? b.feeModel
         : ((existing && existing.fee_model) ? existing.fee_model
-           : (b.isPublic ? 'free' : 'package')),
+           : (b.isPublic ? 'package' : 'free')),
       fit: Math.max(0, Math.min(100, Number(b.fit) || 0)),
       /* Blank stays blank. An empty box means "this programme follows the
          country's rule", and writing it as 0 would mean "takes anybody". */
@@ -4854,7 +4854,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       id: r.id, program: r.program, university: r.university, city: r.city || '',
       country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
       isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url || '',
-      feeModel: r.fee_model || (r.is_public ? 'free' : 'package'),
+      feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
       active: !!r.active, updatedAt: r.updated_at, updatedBy: r.updated_by || '',
       featured: !!r.featured, featureSort: r.feature_sort || 0,
       intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
@@ -4902,7 +4902,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
-        feeModel: p.fee_model || (p.is_public ? 'free' : 'package'),
+        feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         intakes: (() => { try { return JSON.parse(p.intakes); } catch (e) { return []; } })(),
         active: false,
       }), s.name);
@@ -4978,7 +4978,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
-        feeModel: p.fee_model || (p.is_public ? 'free' : 'package'),
+        feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         featured: !!p.featured, featureSort: p.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(p.intakes) || []; } catch (e) { return []; } })(),
         active: !!p.active,
@@ -5355,7 +5355,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            edit is Free-to-Package would come back "already right" and the
            apply pass would skip it, so the office would be told the row was
            fine and the cell they typed would be thrown away. */
-        feeModel: existing.fee_model || (existing.is_public ? 'free' : 'package'),
+        feeModel: existing.fee_model || (existing.is_public ? 'package' : 'free'),
         intakes: asIntakes(oldIntakes),
       };
       const after = {

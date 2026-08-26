@@ -1162,12 +1162,12 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     </div>
     <div class="banner gold" id="rBanner"></div>
     <div class="rtabs" role="tablist">
-      <button type="button" class="rtab" data-rt="priv" role="tab" aria-selected="false">
-        Universities with a package <span class="rtn" id="rtnPriv">0</span>
-        <small>we write and file the whole application</small></button>
       <button type="button" class="rtab on" data-rt="pub" role="tab" aria-selected="true">
         Apply free, right away <span class="rtn" id="rtnPub">0</span>
         <small>no package needed, start today</small></button>
+      <button type="button" class="rtab" data-rt="priv" role="tab" aria-selected="false">
+        Universities with a package <span class="rtn" id="rtnPriv">0</span>
+        <small>we write and file the whole application</small></button>
     </div>
     <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>
     <div class="rmore">
@@ -1176,7 +1176,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
     </div>
     <div class="rfoot">
-      <span>Private universities are free to view <b>and free to apply to</b>. Public matches unlock with a package.</span>
+      <span>Universities we are partnered with are <b>free to apply to</b> — nothing to buy first. The rest open with a package.</span>
     </div>
   </div>
 </section>
@@ -1805,7 +1805,7 @@ const unent = s => String(s == null ? '' : s)
 function rowHtml(r){
   const cc = r.country, ctry = C[cc];
   const feeOfRow = (r.feeModel === 'free' || r.feeModel === 'package')
-    ? r.feeModel : (r.isPublic ? 'free' : 'package');
+    ? r.feeModel : (r.isPublic ? 'package' : 'free');
   const type = `<div class="mtype ${feeOfRow === 'free' ? 'pub' : 'priv'}">`
     + `${feeOfRow === 'free' ? 'Free to apply' : 'With a package'}</div>`;
   if(r.locked) return `<div class="mrow" data-band="${r.band}">
@@ -1917,7 +1917,7 @@ function render(){
   }
   $('#rTitle').textContent = touched ? 'Your matched programs' : 'Popular programs this intake';
   $('#rSub').textContent = touched
-    ? 'Universities we file for you are free to read. The fast-track ones unlock the moment a package is active.'
+    ? 'The universities we are partnered with are free to apply to. The rest open with a package.'
     : 'Set your filters above and this becomes your own shortlist.';
   $('#rState').innerHTML = touched ? ico('check')+'Your results' : ico('compass')+'Browsing';
   $('#rCount').textContent = touched ? list.length+' programmes found' : rows.length+' popular programmes';
@@ -1928,7 +1928,7 @@ function render(){
   /* Same fallback the server uses, so a row the page shipped with — which
      predates the column — reads as what it has always been. */
   const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
-    ? r.feeModel : (r.isPublic ? 'free' : 'package');
+    ? r.feeModel : (r.isPublic ? 'package' : 'free');
   const privAll = rows.filter(r => feeOf(r) !== 'free');
   const pubAll = rows.filter(r => feeOf(r) === 'free');
   $('#rtnPriv') && ($('#rtnPriv').textContent = privAll.length);
@@ -2649,7 +2649,7 @@ render();
       if (had) {
         had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);
         had.feeModel = (p.feeModel === 'free' || p.feeModel === 'package')
-          ? p.feeModel : (p.isPublic ? 'free' : 'package');
+          ? p.feeModel : (p.isPublic ? 'package' : 'free');
         if (p.fit != null) had.fit = p.fit;
         if (p.band) had.band = p.band;
         if (p.totalInr != null) {
@@ -2668,7 +2668,7 @@ render();
          the two result tabs split on now — public-versus-private is a German
          fact and six of our seven destinations have no public row at all. */
       feeModel: p.feeModel === 'free' || p.feeModel === 'package'
-        ? p.feeModel : (p.isPublic ? 'free' : 'package'),
+        ? p.feeModel : (p.isPublic ? 'package' : 'free'),
       /* The bar THIS programme sets, which beats its country's rule in
          filtered(). Hardcoded null here, it could never beat anything. */
       minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),

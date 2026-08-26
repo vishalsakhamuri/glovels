@@ -92,7 +92,7 @@ function liveCatalogue() {
        invisible to both of the things that use it. Exactly the shape of the
        bug the CGPA comment above this one is about, one column along. */
     feeModel: r.fee_model === 'free' || r.fee_model === 'package'
-      ? r.fee_model : (r.is_public ? 'free' : 'package'),
+      ? r.fee_model : (r.is_public ? 'package' : 'free'),
     /* The CGPA THIS programme asks for. The finder has always preferred it
        over the country's rule — and never received it, because the catalogue
        handed to the page did not carry the field. */
@@ -207,9 +207,13 @@ const phantomCards = seed.removeTheCardsThatWereSourceCode({ db });
 const chipAsks = seed.chipsAskWhatItWas({ db, content: content.shipped() });
 const openedServices = seed.openOnRequestServices({ db });
 /* What applying to each university costs the student through us. Read off
-   public-versus-private for the rows already on the shelf, which is right for
-   all 171 of them, and correctable from the catalogue sheet thereafter. */
+   public-versus-private for the rows already on the shelf — we are partnered
+   with the private places, so those are free to apply to, and the public names
+   are what a package buys — and correctable from the catalogue sheet after. */
 const feeModels = seed.everyRowSaysWhatItCosts({ db });
+/* The first pass ran with that sentence backwards, so every row it touched is
+   put the right way up here. Only rows still holding what it wrote. */
+const feeFixed = seed.feeModelIsFreeToApply({ db });
 /* Two study tabs — Germany, and the other six destinations, which have a
    ladder of their own because the German packages are all about public
    universities that only Germany has. */

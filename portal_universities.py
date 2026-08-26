@@ -100,7 +100,7 @@ function barOf(p) {
    catalogue snapshot this page ships with predates the column, so an offline
    student must not see every row marked charged. */
 const feeOf = p => (p.feeModel === 'free' || p.feeModel === 'package')
-  ? p.feeModel : (p.isPublic ? 'free' : 'package');
+  ? p.feeModel : (p.isPublic ? 'package' : 'free');
 
 function myCgpa() {
   const raw = String(((typeof DB !== 'undefined' && DB.profile) || {}).d_cgpa || '').trim();
