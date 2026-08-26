@@ -3195,6 +3195,93 @@ $('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };""",
     marker="$$('.rtab').forEach(b => b.onclick",
 )
 
+# ------------------------------------------------------- the fee model, on the
+# finder. Patch 59 moved the portal and the office onto free-versus-charged and
+# left this screen behind — Vishal, looking at the live site: "its still showing
+# like before." These are separate patch() calls rather than edits to the blocks
+# above, because those are marker-guarded: on a tree that already carries them
+# the marker matches, the block is skipped, and an edit to its text does
+# nothing at all.
+
+patch(
+    "index.html",
+    "a live programme carries what applying to it costs",
+    """      band: p.band || 'u20', isPublic: !!p.isPublic,
+      /* The bar THIS programme sets, which beats its country's rule in
+         filtered(). Hardcoded null here, it could never beat anything. */""",
+    """      band: p.band || 'u20', isPublic: !!p.isPublic,
+      /* Free where we are partnered, charged where we are not. This is what
+         the two result tabs split on now — public-versus-private is a German
+         fact and six of our seven destinations have no public row at all. */
+      feeModel: p.feeModel === 'free' || p.feeModel === 'package'
+        ? p.feeModel : (p.isPublic ? 'free' : 'package'),
+      /* The bar THIS programme sets, which beats its country's rule in
+         filtered(). Hardcoded null here, it could never beat anything. */""",
+    marker="feeModel: p.feeModel === 'free'",
+)
+
+patch(
+    "index.html",
+    "the result tabs split on what applying costs",
+    """  const privAll = rows.filter(r => !r.isPublic);
+  const pubAll = rows.filter(r => r.isPublic);""",
+    """  /* Same fallback the server uses, so a row the page shipped with — which
+     predates the column — reads as what it has always been. */
+  const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
+    ? r.feeModel : (r.isPublic ? 'free' : 'package');
+  const privAll = rows.filter(r => feeOf(r) !== 'free');
+  const pubAll = rows.filter(r => feeOf(r) === 'free');""",
+    marker="const feeOf = r =>",
+)
+
+patch(
+    "index.html",
+    "the charged tab says what you get, not how we bill it",
+    """        Private <span class="rtn" id="rtnPriv">0</span>
+        <small>free to view, with prices</small></button>""",
+    """        Comprehensive filing <span class="rtn" id="rtnPriv">0</span>
+        <small>read them now \u2014 we write and file for you</small></button>""",
+)
+
+patch(
+    "index.html",
+    "and the free tab says what is free about it",
+    """        Public <span class="rtn" id="rtnPub">0</span>
+        <small>tuition-free or close to it</small></button>""",
+    """        Fast-track \u2014 free <span class="rtn" id="rtnPub">0</span>
+        <small>tuition-free, and free to apply through us</small></button>""",
+)
+
+patch(
+    "index.html",
+    "the empty states name the tabs they point at",
+    """      ? '<div class="empty"><b>No private universities match those filters</b>'
+        + 'There are ' + pubAll.length + ' public ones \u2014 the other tab. Or widen the field, '
+        + 'the level, or the CGPA band.'""",
+    """      ? '<div class="empty"><b>Nothing here matches those filters</b>'
+        + 'There are ' + pubAll.length + ' free to apply to \u2014 the other tab. Or widen the '
+        + 'field, the level, or the CGPA band.'""",
+)
+
+patch(
+    "index.html",
+    "and the other one too",
+    """      : '<div class="empty"><b>No public universities match those filters</b>'
+        + 'There are ' + privAll.length + ' private ones you can read right now \u2014 the other '
+        + 'tab.'""",
+    """      : '<div class="empty"><b>Nothing free to apply to matches those filters</b>'
+        + 'There are ' + privAll.length + ' you can read right now \u2014 the other '
+        + 'tab.'""",
+)
+
+patch(
+    "index.html",
+    "the buttons between the tabs follow",
+    """          + 'class="btn btn-ghost btn-sm" data-rt-go="pub">See the public matches'""",
+    """          + 'class="btn btn-ghost btn-sm" data-rt-go="pub">See the free ones'""",
+)
+
+
 
 # ---------------------------------------------------------------- index.html
 #
@@ -4027,6 +4114,106 @@ NAV_RULE = """<style>/* GLOVELS-NAV-FIT */
 """
 
 
+
+# ---------------------------------------------------------------- the copy fixes
+#
+# Four things Vishal read on the live site and corrected.
+
+# 1. The strip of university names under the finder.
+#
+#    "Admits at TU Munich, FAU Erlangen-Nurnberg, Deggendorf, TU Dortmund, Uni
+#    Trier, Justus Liebig, Darmstadt" — seven public German universities, named
+#    in full, on the public home page. The whole finder below it gates public
+#    university names behind a package. So the page was giving away for nothing
+#    exactly what the section under it sells, and naming real institutions
+#    alongside a claim about admissions while doing it.
+patch_re(
+    "index.html",
+    "the strip of named universities comes off the home page",
+    r'<div class="admits">.*?</div>\n',
+    "",
+    # `present` is a predicate meaning "already done" — and for a removal,
+    # done means the strip is gone.
+    present=lambda t: '<div class="admits">' not in t,
+)
+
+# 2. The line under the results while nobody has filtered yet.
+#
+#    "A sample of what students are getting into right now" says these rows are
+#    live student admissions. They are catalogue rows. The heading above it
+#    already says "Popular programs this intake", which is true, so the line
+#    underneath only has to say how to make it yours.
+patch(
+    "index.html",
+    "the filtered line speaks about applying, not constitution",
+    """    ? 'Private universities are free to view. Public matches unlock the moment a package is active.'""",
+    """    ? 'Universities we file for you are free to read. The fast-track ones unlock the moment a package is active.'""",
+)
+
+patch(
+    "index.html",
+    "the browsing line stops claiming these are student admits",
+    """    : 'A sample of what students are getting into right now. Set your filters above and this becomes your own shortlist.';""",
+    """    : 'Set your filters above and this becomes your own shortlist.';""",
+)
+
+# 3. The counselling heading.
+#
+#    "Talk to a counsellor before you spend anything" tells somebody they have
+#    to speak to us first. Vishal: "we dont have to talk to any one for
+#    selecting the package. its better they select something. so that we can
+#    talk." The call is a thing on offer, not a gate in front of the packages.
+def counsellor_heading():
+    n = 0
+    for f in sorted(HERE.glob("*.html")):
+        t = f.read_text(encoding="utf-8")
+        if "Talk to a counsellor before you spend anything" not in t:
+            continue
+        write(f, t.replace("Talk to a counsellor before you spend anything",
+                           "Talk to a counsellor"))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the counselling call is an offer, not a gate")
+    else:
+        skipped.append("every page: the counselling call is an offer, not a gate")
+
+
+counsellor_heading()
+
+
+# 4. The registered company name.
+#
+#    Glovels Overseas Consultants Private Limited -> Glovels Consultants Private
+#    Limited. It sits in the footer of every page and in the four legal pages.
+#
+#    The legal pages ALSO read this name from the legal block in the operations
+#    screen, which is the durable place for it — this sweep fixes the built-in
+#    default so a fresh page is right before anybody edits anything.
+NEW_ENTITY = "Glovels Consultants Private Limited"
+
+# Whitespace-tolerant, because the name is wrapped across a line break in the
+# legal pages and an exact-string sweep silently skipped all eighteen of them —
+# reporting "already in place" while the old name sat in the Terms.
+OLD_ENTITY_RE = re.compile(r"Glovels\s+Overseas\s+Consultants\s+Private\s+Limited")
+
+
+def company_name():
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        t = f.read_text(encoding="utf-8")
+        if not OLD_ENTITY_RE.search(t):
+            continue
+        write(f, OLD_ENTITY_RE.sub(NEW_ENTITY, t))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the registered company name")
+    else:
+        skipped.append("every page: the registered company name")
+
+
+company_name()
+
+
 def header_fits():
     n = 0
     for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
@@ -4557,7 +4744,12 @@ def the_cgpa_bar_reaches_the_filter():
           """      band: p.band || 'u20', isPublic: !!p.isPublic,
       /* The bar THIS programme sets, which beats its country's rule in
          filtered(). Hardcoded null here, it could never beat anything. */
-      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),""")
+      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),""",
+          # The fee-model patch inserts a line between `isPublic` and the
+          # comment below, so this patch's own `new` is no longer a literal
+          # match on an already-built tree. The marker is the half nothing
+          # else touches.
+          marker="minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),")
 
     patch("index.html", "and an edit to an existing one reaches the filter too",
           """    if (known.has(String(p.id))) return;""",

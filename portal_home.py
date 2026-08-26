@@ -315,7 +315,7 @@ BODY = """
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
           gap:0 14px">
           <div class="field" style="margin-bottom:10px"><label for="lgEntity">Legal entity
-            name</label><input id="lgEntity" placeholder="Glovels Overseas Consultants Private Limited">
+            name</label><input id="lgEntity" placeholder="Glovels Consultants Private Limited">
             <p style="margin:5px 0 0;font-size:11.4px;color:var(--muted);line-height:1.5">
               Must match the PAN and GST records character for character.</p></div>
           <div class="field" style="margin-bottom:10px"><label for="lgCin">CIN</label>

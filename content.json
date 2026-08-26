@@ -3055,78 +3055,6 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|b|b4b42f84|0",
-   "section": "page",
-   "kind": "text",
-   "element": "b",
-   "original": "Admits at",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "page|span|22f59556|0",
-   "section": "page",
-   "kind": "text",
-   "element": "span",
-   "original": "TU Munich",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "page|span|b3ca1a6b|0",
-   "section": "page",
-   "kind": "text",
-   "element": "span",
-   "original": "FAU Erlangen-Nürnberg",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "page|span|62a6612e|0",
-   "section": "page",
-   "kind": "text",
-   "element": "span",
-   "original": "Deggendorf Institute of Technology (TH Deggendorf)",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "page|span|b67c2183|0",
-   "section": "page",
-   "kind": "text",
-   "element": "span",
-   "original": "TU Dortmund University",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "page|span|72931b9b|0",
-   "section": "page",
-   "kind": "text",
-   "element": "span",
-   "original": "Uni Trier",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "page|span|fbd1ac89|0",
-   "section": "page",
-   "kind": "text",
-   "element": "span",
-   "original": "Justus Liebig University Giessen",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "page|span|611a45b3|0",
-   "section": "page",
-   "kind": "text",
-   "element": "span",
-   "original": "Darmstadt University of Applied Sciences (h_da)",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
    "key": "page|b|1f909a5d|0",
    "section": "page",
    "kind": "text",
@@ -3289,38 +3217,38 @@
    "sectionLabel": ""
   },
   {
-   "key": "results|button|d01f2cac|0",
+   "key": "results|button|27ac2ca4|0",
    "section": "results",
    "kind": "text",
    "element": "button",
-   "original": "Private",
+   "original": "Comprehensive filing",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|small|a3732585|0",
+   "key": "results|small|ac9fe653|0",
    "section": "results",
    "kind": "text",
    "element": "small",
-   "original": "free to view, with prices",
+   "original": "read them now — we write and file for you",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|button|ccdfbfa0|0",
+   "key": "results|button|b8033b77|0",
    "section": "results",
    "kind": "text",
    "element": "button",
-   "original": "Public",
+   "original": "Fast-track — free",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|small|588ca973|0",
+   "key": "results|small|7f91ec85|0",
    "section": "results",
    "kind": "text",
    "element": "small",
-   "original": "tuition-free or close to it",
+   "original": "tuition-free, and free to apply through us",
    "note": "",
    "sectionLabel": ""
   },
@@ -4852,16 +4780,16 @@
    "element": "span",
    "original": "Free counselling",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
-   "key": "counsel|h2|227d3adb|0",
+   "key": "counsel|h2|565da6f1|0",
    "section": "counsel",
    "kind": "text",
    "element": "h2",
-   "original": "Talk to a counsellor before you spend anything",
+   "original": "Talk to a counsellor",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|p|e89260a4|0",
@@ -4870,7 +4798,7 @@
    "element": "p",
    "original": "Forty-five minutes, your marksheets read properly, and an honest answer about where you stand. No obligation to buy a package afterwards.",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|span|8348b517|0",
@@ -4879,7 +4807,7 @@
    "element": "span",
    "original": "Which public universities your CGPA actually opens",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|span|52eef5eb|0",
@@ -4888,7 +4816,7 @@
    "element": "span",
    "original": "What the whole thing costs — tuition, blocked account, living",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|span|f514e910|0",
@@ -4897,7 +4825,7 @@
    "element": "span",
    "original": "Whether your intake is realistic, or the next one is",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|span|71e07a21|0",
@@ -4906,7 +4834,7 @@
    "element": "span",
    "original": "Online, or at the Hyderabad office",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|h3|ff2257b7|0",
@@ -4915,7 +4843,7 @@
    "element": "h3",
    "original": "Book your free session",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|p|c5d5cce8|0",
@@ -4924,7 +4852,7 @@
    "element": "p",
    "original": "Mon–Sat, 9:30am–7:30pm IST. A counsellor calls you back within one working day.",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|label|9010932f|0",
@@ -4933,7 +4861,7 @@
    "element": "label",
    "original": "Full name",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|attr:placeholder|3a0663bd|0",
@@ -4942,7 +4870,7 @@
    "element": "input",
    "original": "Your name",
    "note": "the placeholder on a <input>",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|label|0bb78ab0|0",
@@ -4951,7 +4879,7 @@
    "element": "label",
    "original": "Mobile number",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|attr:placeholder|898c75a6|0",
@@ -4960,7 +4888,7 @@
    "element": "input",
    "original": "10-digit mobile",
    "note": "the placeholder on a <input>",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|label|43352167|0",
@@ -4969,7 +4897,7 @@
    "element": "label",
    "original": "Email",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|label|1614214b|0",
@@ -4978,7 +4906,7 @@
    "element": "label",
    "original": "Where are you thinking of going?",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|1ef3fc59|0",
@@ -4987,7 +4915,7 @@
    "element": "option",
    "original": "Not sure yet",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|f2546429|0",
@@ -4996,7 +4924,7 @@
    "element": "option",
    "original": "🇩🇪 Germany",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|d893b79b|0",
@@ -5005,7 +4933,7 @@
    "element": "option",
    "original": "🇨🇦 Canada",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|a59ad06a|0",
@@ -5014,7 +4942,7 @@
    "element": "option",
    "original": "🇬🇧 United Kingdom",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|00d10986|0",
@@ -5023,7 +4951,7 @@
    "element": "option",
    "original": "🇮🇪 Ireland",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|1d8d01ff|0",
@@ -5032,7 +4960,7 @@
    "element": "option",
    "original": "🇵🇱 Poland",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|91e40366|0",
@@ -5041,7 +4969,7 @@
    "element": "option",
    "original": "🇪🇸 Spain",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|option|8844e983|0",
@@ -5050,7 +4978,7 @@
    "element": "option",
    "original": "🇮🇹 Italy",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|label|9c369531|0",
@@ -5059,7 +4987,7 @@
    "element": "label",
    "original": "Leave this field empty",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|span|754a25e4|0",
@@ -5068,7 +4996,7 @@
    "element": "span",
    "original": "I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|span|401472a2|0",
@@ -5077,7 +5005,7 @@
    "element": "span",
    "original": "Please tick the box so we can call you back.",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|button|dacaf61d|0",
@@ -5086,7 +5014,7 @@
    "element": "button",
    "original": "Book Free Counselling",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "counsel|span|de295a9a|0",
@@ -5095,7 +5023,7 @@
    "element": "span",
    "original": "We call you — we never send marketing blasts. Your details are not shared with any university without your say.",
    "note": "",
-   "sectionLabel": "Talk to a counsellor before you spend anything"
+   "sectionLabel": "Talk to a counsellor"
   },
   {
    "key": "footer|attr:aria-label|13e3e668|0",
@@ -5521,11 +5449,11 @@
    "sectionLabel": ""
   },
   {
-   "key": "footer|div|a0973956|0",
+   "key": "footer|div|b0c3735e|0",
    "section": "footer",
    "kind": "text",
    "element": "div",
-   "original": "© 2024–26 Glovels Overseas Consultants Private Limited. All rights reserved.",
+   "original": "© 2024–26 Glovels Consultants Private Limited. All rights reserved.",
    "note": "",
    "sectionLabel": ""
   },

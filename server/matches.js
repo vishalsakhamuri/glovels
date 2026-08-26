@@ -233,7 +233,22 @@ function pick(catalogue, profile, count, kind, drop, countries) {
  * Country goes last because it is the one people mean most.
  */
 /* Note what is NOT in this list: the CGPA bar. See `pick`. */
-const RELAX = ['budget', 'level', 'country'];
+/*
+ * What may come off when a shortlist cannot be filled, in the order it comes.
+ *
+ * `country` used to be on this list and is deliberately not any more. A
+ * student who chose Ireland and bought a package promising public
+ * universities found none — Ireland has no public row, and nor do five of our
+ * seven destinations — so the matcher relaxed its way down this list and
+ * handed them German universities. It said so in the note, which is honest,
+ * but it is not what they paid for: the destination is the one answer on the
+ * form that is not a preference. It is where they are moving.
+ *
+ * Coming up short in the right country beats being full of the wrong one. The
+ * note says which, and now that packages are scoped to a destination the
+ * student is steered to the set that can actually serve them.
+ */
+const RELAX = ['budget', 'level'];
 
 const RELAX_SAID = {
   budget: 'above the budget you gave',

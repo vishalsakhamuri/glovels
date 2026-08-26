@@ -1909,7 +1909,7 @@ PAGES["careers"] = {
         {
             "h": "Join the team",
             "p": [
-                "Glovels Overseas Consultants Private Limited helps people study, work "
+                "Glovels Consultants Private Limited helps people study, work "
                 "and settle abroad. It is work where the outcome is visible: somebody "
                 "gets on a plane, or does not. The people who do well here care about "
                 "that difference.",
@@ -1951,7 +1951,7 @@ PAGES["careers"] = {
                 "careers@glovels.com</a>, with the role in the subject line. We read "
                 "everything that arrives and reply either way.",
             ],
-            "note": "Glovels Overseas Consultants Private Limited is an equal "
+            "note": "Glovels Consultants Private Limited is an equal "
                     "opportunity employer. We are committed to an inclusive workplace "
                     "and we hire on what people can do.",
         },
@@ -2010,7 +2010,7 @@ PAGES["contact-us"] = {
         {
             "h": "Who you are dealing with",
             "p": [
-                "Glovels Overseas Consultants Private Limited, registered in India, "
+                "Glovels Consultants Private Limited, registered in India, "
                 "with people in Hyderabad and in Germany. The full company details — "
                 "registered entity, address, GSTIN and jurisdiction — are set out in "
                 "the <a href=\"terms.html\">Terms and Conditions</a>.",

@@ -130,7 +130,7 @@ back for it.
 
 PARTICULARS = """
 <h2 id="who-we-are">Who you are dealing with</h2>
-<p>This site is operated by <b data-legal="entity">Glovels Overseas Consultants Private
+<p>This site is operated by <b data-legal="entity">Glovels Consultants Private
   Limited</b> ("Glovels", "we", "us"), a company registered in India.</p>
 <ul class="legal-particulars">
   <li data-legal-row="cin">Corporate Identity Number: <b data-legal="cin"></b></li>
