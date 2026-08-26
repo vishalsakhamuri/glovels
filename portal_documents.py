@@ -1,5 +1,7 @@
 """Documents — upload cards with drag-and-drop, per-file status and a readiness ring."""
 
+from portal_fields import DOCS_JS
+
 BODY = """
     <div class="p-cols" style="margin-bottom:20px;align-items:start">
       <div class="p-card">
@@ -60,21 +62,7 @@ SCRIPT = r"""
 /* Each document says what it BLOCKS, not just what it is. A student who knows
    the APS certificate holds up the whole German application chases it; a
    student looking at a list of nouns does not. */
-const DOCS = [
-  {id:'passport', name:'Passport',              need:1, blocks:'Visa appointment, university application'},
-  {id:'x',        name:'Class 10 marksheet',    need:1, blocks:'University application'},
-  {id:'xii',      name:'Class 12 marksheet',    need:1, blocks:'University application'},
-  {id:'degree',   name:'Degree transcripts',    need:1, blocks:'University application, APS'},
-  {id:'provis',   name:'Provisional / degree certificate', need:0, blocks:'Final admission'},
-  {id:'english',  name:'English test scorecard',need:1, blocks:'University application, visa'},
-  {id:'cv',       name:'Academic CV',           need:1, blocks:'University application'},
-  {id:'sop',      name:'Statement of Purpose',  need:1, blocks:'University application'},
-  {id:'lor',      name:'Letters of Recommendation', need:1, blocks:'University application'},
-  {id:'finance',  name:'Financial documents',   need:1, blocks:'Visa, blocked account'},
-  {id:'photo',    name:'Passport photograph',   need:0, blocks:'Visa appointment'},
-  {id:'aps',      name:'APS certificate (Germany)', need:0, blocks:'German application — 6–8 weeks, start early'}
-];
-
+""" + DOCS_JS + r"""
 /* Documents are real uploads. The file itself is written to disk on the server
    under this student's own folder and is never served as a static asset — it
    comes back only through an endpoint that resolves the student from the

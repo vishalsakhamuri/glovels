@@ -28,6 +28,8 @@ anybody kept building, and a patch applied twice if a marker moved. The body
 lives here now, like every other portal screen.
 """
 
+from portal_fields import VISA_JS
+
 BODY = r"""
     <div style="background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;border-radius:12px;
       padding:13px 15px;font-size:12.8px;line-height:1.55;margin-bottom:20px;display:flex;gap:9px">
@@ -77,25 +79,7 @@ SCRIPT = r"""
  * Each card says what it BLOCKS. A student who knows the blocked account holds
  * up the appointment chases the bank; a student reading a list of nouns waits.
  */
-const VISA_DOCS = [
-  {id:'visa-offer',      name:'Offer / admission letter',   need:1,
-   blocks:'Everything after it — the visa file starts here'},
-  {id:'visa-funds',      name:'Blocked account or proof of funds', need:1,
-   blocks:'Visa appointment. Germany needs the blocked account confirmation itself'},
-  {id:'visa-insurance',  name:'Travel and health insurance', need:1,
-   blocks:'Visa appointment — cover must satisfy the consulate'},
-  {id:'visa-form',       name:'Completed visa application form', need:1,
-   blocks:'The appointment. We check it line by line before you sign'},
-  {id:'visa-appointment',name:'Appointment confirmation',   need:1,
-   blocks:'Nothing, but it fixes every date after it'},
-  {id:'visa-police',     name:'Police clearance certificate', need:0,
-   blocks:'Some destinations only — your counsellor will say'},
-  {id:'visa-decision',   name:'Visa decision letter',       need:0,
-   blocks:'Tickets and accommodation. Upload it the day it arrives'},
-  {id:'visa-travel',     name:'Ticket and accommodation',   need:0,
-   blocks:'Pre-departure briefing and city registration'}
-];
-
+""" + VISA_JS + r"""
 DB.docs = DB.docs || {};
 const VS = {NONE:'none', REVIEW:'wait', OK:'ok'};
 const VLABEL = {none:'Not uploaded', wait:'In review', ok:'Verified'};

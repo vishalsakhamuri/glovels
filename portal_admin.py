@@ -83,6 +83,13 @@ BODY = """
               <option value="student">Student — a real student account on this site</option>
               <option value="partner">Partner agency — a B2B partner who sends us students</option>
             </select></div>
+          <p id="pPartnerNote" style="display:none;margin:0 0 10px;padding:11px 13px;
+            border-radius:10px;background:#f6f2ea;border:1px solid #e2d6bd;
+            font:600 12.4px/1.55 var(--sans);color:var(--navy-800)">
+            A partner agency signs in to one screen: the students it has sent us, and a
+            way to add more. It cannot see another agency's students, your leads, your
+            money or anything under Organisation. Students it adds arrive
+            <b>unassigned</b>, for you to hand to a counsellor.</p>
           <p id="pStudentNote" style="display:none;margin:0 0 10px;padding:11px 13px;
             border-radius:10px;background:#f1f6fb;border:1px solid #cfe0f2;
             font:600 12.4px/1.55 var(--sans);color:var(--navy-800)">
@@ -1367,15 +1374,20 @@ document.addEventListener('change', async e => {
    next to that choice would be offering something that does nothing. */
 function syncRole() {
   const role = $('#pRole').value;
-  /* An administrator has every permission by definition, and a student has
-     none of them — offering the boxes next to either is offering something
-     that does nothing. */
-  $('#pPermBox').style.display = (role === 'admin' || role === 'student') ? 'none' : '';
+  /* An administrator has every permission by definition, a student has none
+     of them, and a partner agency is not inside this business at all —
+     offering the boxes next to any of the three is offering something that
+     does nothing. The server sets a partner's permissions to an empty list on
+     purpose, so a tick here was a control that would be silently discarded. */
+  $('#pPermBox').style.display =
+    (role === 'admin' || role === 'student' || role === 'partner') ? 'none' : '';
   if (role === 'editor' && !$('#pPermContent').checked && !$('#pPermCatalogue').checked) {
     $('#pPermContent').checked = true;
   }
   const note = $('#pStudentNote');
   if (note) note.style.display = role === 'student' ? '' : 'none';
+  const pn = $('#pPartnerNote');
+  if (pn) pn.style.display = role === 'partner' ? '' : 'none';
 }
 $('#pRole').addEventListener('change', syncRole);
 

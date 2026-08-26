@@ -2515,10 +2515,42 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     };
   };
 
+  /*
+   * WHICH AGENCY, not which login.
+   *
+   * An agency can add colleagues, so "the partner" is no longer one account.
+   * A colleague carries partner_id pointing at the account that created them;
+   * the owner carries none and is their own agency. Every scoping decision on
+   * every endpoint below goes through this one expression, so two people at
+   * the same agency see one book and nobody else's.
+   */
+  const agencyOf = s => Number(s.partner_id) || Number(s.id);
+
+  /* And the only gate on a student. A partner reaching for an id that is not
+     theirs gets the same answer as one reaching for an id that does not
+     exist — there is no way to learn from this endpoint that a student is
+     real but belongs to somebody else. */
+  const theirStudent = (s, id) => {
+    const st = db.studentById(Number(id));
+    if (!st || st.role !== 'student') return null;
+    if (Number(st.partner_id) !== agencyOf(s)) return null;
+    return st;
+  };
+
   route('GET', '/api/partner/me', partnerOnly(async (req, res, s) => {
-    const mine = db.partnerStudents(s.id);
+    const mine = db.partnerStudents(agencyOf(s));
+    const owner = Number(s.partner_id) ? db.studentById(Number(s.partner_id)) : s;
     return json(res, 200, {
-      partner: { id: s.id, name: s.name, email: s.email, phone: s.phone, logo: s.logo || '' },
+      partner: {
+        id: s.id, name: s.name, email: s.email, phone: s.phone,
+        /* The AGENCY's logo, whoever is signed in. A colleague seeing the
+           Glovels mark while the owner sees their own would be two products. */
+        logo: (owner && owner.logo) || '',
+        agency: owner ? owner.name : s.name,
+        /* Only the account that owns the agency may add colleagues to it, and
+           the screen has to know which one it is looking at. */
+        isOwner: !Number(s.partner_id),
+      },
       counts: {
         students: mine.length,
         unassigned: mine.filter(x => !x.counsellor_id).length,
@@ -2528,7 +2560,200 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   }));
 
   route('GET', '/api/partner/students', partnerOnly(async (req, res, s) =>
-    json(res, 200, { students: db.partnerStudents(s.id).map(forPartner) })));
+    json(res, 200, { students: db.partnerStudents(agencyOf(s)).map(forPartner) })));
+
+  /* One student, opened. The profile they typed, every document with its
+     state, and the shortlist by name — the same three things the student's own
+     login shows, for an agency that is doing the paperwork on their behalf. */
+  route('GET', /^\/api\/partner\/student\/(\d+)$/, partnerOnly(async (req, res, s, m) => {
+    const st = theirStudent(s, m[1]);
+    if (!st) return json(res, 404, { error: 'No such student' });
+    const docs = {};
+    db.getDocuments(st.id).forEach(d => {
+      docs[d.doc_key] = {
+        key: d.doc_key, file: d.filename, status: d.status,
+        at: d.uploaded_at, size: d.bytes || 0,
+      };
+    });
+    let profile = {};
+    try { profile = db.getProfile(st.id) || {}; } catch (e) { profile = {}; }
+    return json(res, 200, Object.assign(forPartner(st), { profile, docs }));
+  }));
+
+  /*
+   * The student's details, filled in by the agency.
+   *
+   * An agency doing the paperwork has the passport and the marksheets in front
+   * of them; the student very often does not, and on this arrangement the
+   * student has no login at all. So the same profile the student would fill in
+   * is editable here — and it is the SAME record, so the counsellor, the
+   * matcher and the alerts all read what the agency typed.
+   */
+  route('PUT', /^\/api\/partner\/student\/(\d+)\/profile$/,
+    partnerOnly(async (req, res, s, m) => {
+      const st = theirStudent(s, m[1]);
+      if (!st) return json(res, 404, { error: 'No such student' });
+      const b = await readJson(req);
+      const prof = (b && typeof b.profile === 'object' && b.profile) || {};
+      db.putProfile(st.id, prof);
+      /* Name and phone typed into the profile are the student's own record, so
+         they update the account too rather than living in two places. */
+      if (prof.fullName || prof.phone) {
+        db.updatePerson(st.id, {
+          name: String(prof.fullName || st.name).slice(0, 80),
+          email: st.email,
+          phone: validPhone(prof.phone) ? '+91' + tenDigits(prof.phone) : st.phone,
+        });
+      }
+      db.log(s.email, 'partner updated a profile', s.name + ' \u2192 ' + st.name);
+      return json(res, 200, { profile: db.getProfile(st.id) });
+    }));
+
+  /*
+   * A document, uploaded by the agency on the student's behalf.
+   *
+   * Written into the STUDENT's own folder under their own id, exactly where
+   * their counsellor already looks — not into a partner area that somebody
+   * would then have to copy across. It arrives 'wait', like every other
+   * upload, because a document nobody at Glovels has looked at is not
+   * verified whoever sent it.
+   */
+  route('POST', /^\/api\/partner\/student\/(\d+)\/document$/,
+    partnerOnly(async (req, res, s, m) => {
+      const st = theirStudent(s, m[1]);
+      if (!st) return json(res, 404, { error: 'No such student' });
+
+      const ct = req.headers['content-type'] || '';
+      const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+      if (!bm) return json(res, 400, { error: 'Expected a file upload' });
+      const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
+      const key = String(parsed.fields.key || '').replace(/[^a-z0-9_-]/gi, '');
+      if (!key || !parsed.file) return json(res, 400, { error: 'Missing file or key' });
+
+      const dir = path.join(uploadDir, String(st.id));
+      fs.mkdirSync(dir, { recursive: true });
+      const ext = (path.extname(parsed.file.filename) || '').slice(0, 10)
+        .replace(/[^.a-z0-9]/gi, '');
+      const stored = key + '-' + Date.now() + ext;
+      fs.writeFileSync(path.join(dir, stored), parsed.file.data);
+
+      /* Replacing removes the previous file rather than leaving it on disk —
+         it is a passport scan, not a build artifact. */
+      const prev = db.docByKey(st.id, key);
+      if (prev) {
+        try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
+        db.removeDocument(st.id, key);
+      }
+      db.addDocument(st.id, key, parsed.file.filename, stored, parsed.file.data.length);
+      db.log(s.email, 'partner uploaded a document',
+        s.name + ' \u2192 ' + st.name + ' \u00b7 ' + key);
+
+      const docs = {};
+      db.getDocuments(st.id).forEach(d => {
+        docs[d.doc_key] = {
+          key: d.doc_key, file: d.filename, status: d.status,
+          at: d.uploaded_at, size: d.bytes || 0,
+        };
+      });
+      return json(res, 200, { docs });
+    }));
+
+  /* Their own student's file back. The path is built from the id the gate
+     above resolved, never from the URL, so an id that is not theirs cannot
+     reach a byte of it. */
+  route('GET', /^\/api\/partner\/student\/(\d+)\/document\/(.+)\/file$/,
+    partnerOnly(async (req, res, s, m) => {
+      const st = theirStudent(s, m[1]);
+      if (!st) return json(res, 404, { error: 'Not found' });
+      const rec = db.docByKey(st.id, decodeURIComponent(m[2]));
+      if (!rec) return json(res, 404, { error: 'Not found' });
+      const file = path.join(uploadDir, String(st.id), rec.stored_name);
+      if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': 'attachment; filename="'
+          + rec.filename.replace(/"/g, '') + '"',
+        'Cache-Control': 'no-store',
+      });
+      fs.createReadStream(file).pipe(res);
+    }));
+
+  /*
+   * Colleagues.
+   *
+   * "he should be able to add his own login" — so an agency is a group now
+   * rather than a single account. The account that created the agency owns it;
+   * everyone it adds carries partner_id pointing back at it, and agencyOf()
+   * above means all of them read one book.
+   *
+   * Only the owner may add. A colleague who could add colleagues is a second
+   * permission system inside a role that exists to have none.
+   */
+  route('GET', '/api/partner/team', partnerOnly(async (req, res, s) => {
+    const owner = agencyOf(s);
+    const rows = db.partners().filter(p => Number(p.id) === owner
+      || Number(p.partner_id) === owner);
+    return json(res, 200, {
+      team: rows.map(p => ({
+        id: p.id, name: p.name, email: p.email,
+        owner: !Number(p.partner_id), me: Number(p.id) === Number(s.id),
+      })),
+      isOwner: !Number(s.partner_id),
+    });
+  }));
+
+  route('POST', '/api/partner/team', partnerOnly(async (req, res, s) => {
+    if (Number(s.partner_id)) {
+      return json(res, 403, {
+        error: 'Only the account that owns this agency can add colleagues.',
+      });
+    }
+    const b = await readJson(req);
+    const name = String(b.name || '').trim().slice(0, 80);
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!name) return json(res, 422, { error: 'They need a name' });
+    if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
+    if (db.studentByEmail(email)) {
+      return json(res, 409, { error: 'Somebody already has that email address' });
+    }
+    /* Ten, and generated. An agency inventing passwords for its own staff is
+       how one password ends up on four accounts here as well. */
+    const password = String(b.password || '') || newPassword();
+    if (password.length < 10) {
+      return json(res, 422, { error: 'A password needs at least 10 characters' });
+    }
+    const salt = newSalt();
+    const person = db.createStudent(email, name, String(b.phone || '').trim(),
+      hashPassword(password, salt), salt, 'partner');
+    db.setPartner(person.id, s.id);
+    db.setMustChange(person.id, true);
+    mail.send(Object.assign({ to: person.email }, EMAILS.credentials({
+      name: person.name, email: person.email, password, siteUrl,
+      role: 'partner', madeBy: s.name,
+    }))).catch(() => {});
+    db.log(s.email, 'partner added a colleague', s.name + ' \u2192 ' + name);
+    return json(res, 200, { person: { id: person.id, name, email }, password });
+  }));
+
+  route('DELETE', /^\/api\/partner\/team\/(\d+)$/, partnerOnly(async (req, res, s, m) => {
+    if (Number(s.partner_id)) {
+      return json(res, 403, {
+        error: 'Only the account that owns this agency can remove a colleague.',
+      });
+    }
+    const id = Number(m[1]);
+    if (id === Number(s.id)) {
+      return json(res, 400, { error: 'You cannot remove yourself — you own this agency.' });
+    }
+    const who = db.studentById(id);
+    if (!who || who.role !== 'partner' || Number(who.partner_id) !== Number(s.id)) {
+      return json(res, 404, { error: 'Not one of yours' });
+    }
+    const out = db.deletePerson(id);
+    if (out.error) return json(res, 409, { error: out.error });
+    db.log(s.email, 'partner removed a colleague', s.name + ' \u2192 ' + who.name);
+    return json(res, 200, { ok: true });
+  }));
 
   /*
    * Students added by an agency, one row or two hundred.
@@ -2576,7 +2801,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            sending the same file twice needs to know it is the same file. */
         return rejected.push({
           at, who: name,
-          why: Number(existing.partner_id) === Number(s.id)
+          why: Number(existing.partner_id) === agencyOf(s)
             ? 'already on your list'
             : 'already registered with Glovels',
         });
@@ -2585,8 +2810,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const salt = newSalt();
       const person = db.createStudent(email, name, phone,
         hashPassword(newPassword(), salt), salt);
-      /* From the session. Never from the row. */
-      db.setPartner(person.id, s.id);
+      /* The AGENCY, from the session. Never from the row, and never the
+         signed-in account — a colleague's students belong to the agency, not
+         to whichever colleague happened to type them in. */
+      db.setPartner(person.id, agencyOf(s));
       try {
         db.putProfile(person.id, {
           g_country: String(row.destination || row.country || '').slice(0, 60),
@@ -2618,6 +2845,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     }
     if (url_.length > 400000) {
       return json(res, 422, { error: 'That image is too big — 300KB or under, please.' });
+    }
+    /* The agency's mark, kept on the account that owns it, so a colleague
+       changing it changes it for everybody — which is what a logo is. */
+    if (Number(s.partner_id)) {
+      return json(res, 403, {
+        error: 'Only the account that owns this agency can change the logo.',
+      });
     }
     db.setLogo(s.id, url_);
     return json(res, 200, { logo: url_ });
