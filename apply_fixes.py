@@ -3178,14 +3178,24 @@ patch(
     "the tab a visitor lands on is the one with something to read",
     """function render(){
   const list = filtered(), rows = visibleRows(list);""",
-    """/* Private first, deliberately. A visitor's first sight of the finder used to be
-   a column of blurred bars — a paywall before anything of value. These are real
-   universities with real prices and they cost nothing to show. */
-let resTab = 'priv';
+    """/* Which tab a visitor lands on.
+
+   It was the charged one, deliberately: those rows are readable, priced and
+   cost nothing to show, where the free tab is the GATED one — German public
+   universities whose names a package buys — so landing there meant a first
+   sight of blurred bars.
+
+   Vishal asked for the free one: "free to apply should be by default open."
+   His call, and one line to reverse. */
+let resTab = 'pub';
 
 function render(){
   const list = filtered(), rows = visibleRows(list);""",
-    marker="let resTab = 'priv';",
+    # NOT the value — that is the thing most likely to be changed, and when it
+    # was the marker, changing it made this patch re-run and insert a SECOND
+    # declaration. The page checker caught it: "Identifier 'resTab' has already
+    # been declared".
+    marker="let resTab = ",
 )
 
 patch(
@@ -3243,6 +3253,7 @@ patch(
         <small>free to view, with prices</small></button>""",
     """        Comprehensive filing <span class="rtn" id="rtnPriv">0</span>
         <small>we write and file it for you, with a package</small></button>""",
+    marker='id="rtnPriv"',
 )
 
 patch(
@@ -3250,8 +3261,12 @@ patch(
     "and the free tab says what is free about it",
     """        Public <span class="rtn" id="rtnPub">0</span>
         <small>tuition-free or close to it</small></button>""",
-    """        Fast-track \u2014 free <span class="rtn" id="rtnPub">0</span>
+    """        Immediate application <span class="rtn" id="rtnPub">0</span>
         <small>no fee to apply through us</small></button>""",
+    # The label and the subtitle have both been rewritten since this patch was
+    # written, so neither `old` nor `new` is a literal match on a built tree.
+    # The id is the half nothing renames.
+    marker='id="rtnPub"',
 )
 
 patch(
@@ -4498,6 +4513,41 @@ patch(
         had.feeModel = (p.feeModel === 'free' || p.feeModel === 'package')
           ? p.feeModel : (p.isPublic ? 'free' : 'package');""",
     marker="had.feeModel =",
+)
+
+
+
+# The free tab opens first, and it is named for what it does.
+#
+# Vishal: "name is not changed immediately change the names. free to apply
+# should be by default open." The names are his own from earlier — "immediate
+# application ... comprehensive filing".
+#
+# Worth knowing, and flagged to him: the FREE tab is the gated one. Those rows
+# are German public universities whose names a package buys, so opening there
+# means the first thing a visitor sees is a column of blurred bars. That is
+# precisely why the charged tab opened first. One line to put back.
+# The tab a visitor lands on, as a transition on a page that already carries
+# the line. The patch that CREATES it is marker-guarded on "let resTab = " and
+# correctly skips here, so the flip has to be its own patch — and its marker is
+# the target value, which matches only once the flip has happened.
+patch(
+    "index.html",
+    "the free tab is the one that opens first",
+    """let resTab = 'priv';""",
+    """let resTab = 'pub';""",
+    marker="let resTab = 'pub';",
+)
+
+# The label itself, as a transition from what is on the page today. The block
+# that first created these buttons is marker-guarded, so editing its text does
+# nothing to a tree that already carries them — the rename has to be its own
+# patch, keyed on the words currently there.
+patch(
+    "index.html",
+    "the free tab is named for what it does",
+    """        Fast-track \u2014 free <span class="rtn" id="rtnPub">0</span>""",
+    """        Immediate application <span class="rtn" id="rtnPub">0</span>""",
 )
 
 
