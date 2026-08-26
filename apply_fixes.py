@@ -2168,12 +2168,16 @@ patch(
     <div class="mcc">${ctry.flag}</div>
     <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
       <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>
-      <span class="offscreen">A ${r.isPublic ? 'public' : 'private'} university in
+      <span class="offscreen">A university in
         ${esc(ctry.name)} that matches you. The name and the fee are unlocked by a
         package.</span></div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice masked" aria-hidden="true">${filler(r.fLen)}</div>""",
-    marker='A ${r.isPublic ? \'public\' : \'private\'} university in',
+    # The spoken line inside this patch's own `new` used to name the university
+    # as public or private — the axis the screen stopped using. Rewriting it
+    # there means this patch's `new` is no longer a literal match on a tree
+    # built before the change, so the marker is the half nothing else touches.
+    marker='<b class="masked" aria-hidden="true">',
 )
 
 patch(
@@ -3152,13 +3156,11 @@ patch(
     marker="const shownRows = resTab === 'pub' ? pubAll : privAll;",
 )
 
-patch(
-    "index.html",
-    "the every-match-is-public note belongs to the public tab only",
-    """  if(rows.length && !anyOpen){""",
-    """  if(resTab === 'pub' && shownRows.length && !anyOpen){""",
-    marker="if(resTab === 'pub' && shownRows.length && !anyOpen){",
-)
+# The patch that narrowed this note to the public tab is gone with the note
+# itself — Vishal: "not required this text." It counted public universities and
+# explained private ones, which is the axis the screen stopped using, and it
+# spoke before the visitor had told us anything. See "the public-versus-private
+# empty state comes out" further down, which deletes the block outright.
 
 patch(
     "index.html",
@@ -3240,7 +3242,7 @@ patch(
     """        Private <span class="rtn" id="rtnPriv">0</span>
         <small>free to view, with prices</small></button>""",
     """        Comprehensive filing <span class="rtn" id="rtnPriv">0</span>
-        <small>read them now \u2014 we write and file for you</small></button>""",
+        <small>we write and file it for you, with a package</small></button>""",
 )
 
 patch(
@@ -3249,7 +3251,7 @@ patch(
     """        Public <span class="rtn" id="rtnPub">0</span>
         <small>tuition-free or close to it</small></button>""",
     """        Fast-track \u2014 free <span class="rtn" id="rtnPub">0</span>
-        <small>tuition-free, and free to apply through us</small></button>""",
+        <small>no fee to apply through us</small></button>""",
 )
 
 patch(
@@ -4352,6 +4354,153 @@ def packages_by_destination():
 packages_by_destination()
 
 
+
+# ------------------------------------------- the finder speaks one language
+#
+# Vishal, reading the live page: "texts are completely wrong."
+#
+# He is right, and the sharpest part is that "tuition-free" is a claim about
+# GERMANY. Free now means "free to apply through us" — we are partnered — and
+# the moment a partnered UK university is marked Free that tab will hold
+# universities charging full tuition. The subtitle would be lying.
+#
+# The rest is the same word in the wrong places: a chip saying PRIVATE on a row
+# inside a tab that no longer talks about private universities, an empty-state
+# paragraph about public-versus-private, and a button that had it exactly
+# backwards — the CHARGED rows said "Apply free" and the free ones said "Apply
+# Now".
+
+# The chip on the row. It said Public or Private, which is the axis the screen
+# stopped using — and inside a tab that has already split on the fee, it has to
+# say the same thing the tab does or it contradicts it.
+patch(
+    "index.html",
+    "the row chip says what applying costs",
+    """  const type = `<div class="mtype ${r.isPublic?'pub':'priv'}">${r.isPublic?'Public':'Private'}</div>`;""",
+    """  const feeOfRow = (r.feeModel === 'free' || r.feeModel === 'package')
+    ? r.feeModel : (r.isPublic ? 'free' : 'package');
+  const type = `<div class="mtype ${feeOfRow === 'free' ? 'pub' : 'priv'}">`
+    + `${feeOfRow === 'free' ? 'Free to apply' : 'With a package'}</div>`;""",
+    marker="const feeOfRow =",
+)
+
+# The button. It read "Apply free" on exactly the rows that are NOT free.
+# The button: it read "Apply free" on exactly the rows that are NOT free, and
+# wore the gold treatment there too. One patch over all three lines, because a
+# Python string cannot end on the quote character that closes the HTML
+# attribute.
+patch(
+    "index.html",
+    "the apply button is honest about which rows are free",
+    """      <button class="btn btn-sm ${r.isPublic?'btn-primary':'btn-gold'}"
+        data-apply="${esc(r.id)}" data-uni="${esc(unent(r.university))}"
+        data-prog="${esc(unent(r.program))}">${r.isPublic?'Apply Now':'Apply free'} ${ico('arrow')}</button></div></div>`;""",
+    """      <button class="btn btn-sm ${feeOfRow === 'free' ? 'btn-primary' : 'btn-gold'}"
+        data-apply="${esc(r.id)}" data-uni="${esc(unent(r.university))}"
+        data-prog="${esc(unent(r.program))}">${feeOfRow === 'free' ? 'Apply free' : 'Apply'} ${ico('arrow')}</button></div></div>`;""",
+)
+
+# The empty-state paragraph. Vishal: "not required this text."
+patch_re(
+    "index.html",
+    "the public-versus-private empty state comes out",
+    r"  if\(resTab === 'pub' && shownRows\.length && !anyOpen\)\{.*?\n  \}\n",
+    "",
+    present=lambda t: "Every match here is a public university" not in t,
+)
+
+# The screen-reader line behind a locked row said the same thing.
+
+
+
+# The gold banner before anybody has filtered.
+#
+# Vishal: "not required only when we give some filters then only some text
+# should come. default home page not required. as this is only related to
+# germany."
+#
+# He is right on both counts. It counted PUBLIC universities and called them
+# tuition-free, which describes Germany and no other destination we sell — and
+# it said so before the visitor had told us anything at all. A banner that
+# announces a German fact to somebody who has not said where they are going is
+# an answer to a question nobody asked.
+patch(
+    "index.html",
+    "no banner until the visitor has actually filtered",
+    """  const [tone,icn,title,body] = banner(list, rows);
+  $('#rBanner').className = 'banner '+tone;
+  $('#rBanner').innerHTML = ico(icn)+'<div><h4>'+esc(title)+'</h4><p>'+body+'</p></div>';""",
+    """  const said = banner(list, rows);
+  /* Nothing to say yet. The banner is an answer, and until somebody has set a
+     filter there is no question in front of it. */
+  $('#rBanner').hidden = !said;
+  if (said) {
+    const [tone,icn,title,body] = said;
+    $('#rBanner').className = 'banner '+tone;
+    $('#rBanner').innerHTML = ico(icn)+'<div><h4>'+esc(title)+'</h4><p>'+body+'</p></div>';
+  }""",
+    marker="$('#rBanner').hidden = !said;",
+)
+
+patch(
+    "index.html",
+    "and the untouched banner is gone rather than rewritten",
+    # r-string: the file holds a literal backslash before the apostrophe,
+    # because that line is inside a JS single-quoted string. Without the r,
+    # Python collapses \' to ' and the anchor never matches.
+    r"""  if(!touched) return ['gold','info', pubUnis+' of these are public universities',
+    'Tuition-free or close to it. Tell us your destination and CGPA and we\'ll show the ones you actually qualify for.'];""",
+    """  if(!touched) return null;""",
+)
+
+# Two more banners in the same function that still speak the old language.
+patch(
+    "index.html",
+    "the no-free-matches banner speaks about applying",
+    """  if(!pubUnis) return ['blue','info','No public universities match yet',
+    'These private matches are free to view, with prices. A counsellor can also map a pathway route.'];""",
+    """  if(!pubUnis) return ['blue','info','Nothing free to apply to matches yet',
+    'The matches here are ones we file for you with a package \u2014 readable now, '
+    + 'with prices. A counsellor can also map a pathway route.'];""",
+)
+
+patch(
+    "index.html",
+    "and the qualifying banner counts what is free to apply to",
+    """  const free = (ctry && ctry.tuitionFree) || list.some(p => p.freeTuition);
+  return ['gold','star','You qualify for '+pubUnis+' '+(free?'FREE ':'low-cost ')+'public universit'+(pubUnis===1?'y':'ies'),
+    free ? 'Pay ₹0 in tuition. A package reveals them.' : 'A fraction of private tuition. A package reveals them.'];""",
+    """  const free = (ctry && ctry.tuitionFree) || list.some(p => p.freeTuition);
+  return ['gold','star','You qualify for '+pubUnis+' universit'+(pubUnis===1?'y':'ies')
+    + ' with no fee to apply',
+    free ? 'And no tuition to pay either. A package reveals them.'
+         : 'A package reveals them.'];""",
+)
+
+
+
+# A partnership marked on an EXISTING row has to reach the finder.
+#
+# The live-catalogue merge has two paths: a row the page has never seen, and a
+# row it shipped with that has been edited since. Patch 48 fixed the second one
+# for the CGPA bar — "stored, shown in the editor, and silently ignored by the
+# only thing that uses it" — and the fee model landed in the first path only.
+#
+# So marking Arden University as partnered wrote Free to the database, showed
+# Free on the catalogue sheet and in the office, and left the finder showing it
+# as charged. Found by doing the actual thing: flipping one cell and looking at
+# the page.
+patch(
+    "index.html",
+    "a partnership marked on an existing row reaches the finder too",
+    """        had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);""",
+    """        had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);
+        had.feeModel = (p.feeModel === 'free' || p.feeModel === 'package')
+          ? p.feeModel : (p.isPublic ? 'free' : 'package');""",
+    marker="had.feeModel =",
+)
+
+
 def header_fits():
     n = 0
     for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
@@ -4908,7 +5057,11 @@ def the_cgpa_bar_reaches_the_filter():
         }
       }
       return;
-    }""")
+    }""",
+          # The fee-model patch adds a line inside this patch's own `new`, so
+          # that string is no longer a literal match on a built tree. The
+          # marker is the half nothing else touches.
+          marker="const had = D.programs.find(x => String(x.id) === String(p.id));")
 
 
 the_cgpa_bar_reaches_the_filter()

@@ -85,6 +85,14 @@ function liveCatalogue() {
     id: r.id, program: r.program, university: r.university, city: r.city || '',
     country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
     isPublic: !!r.is_public, fit: r.fit || null, totalInr: r.total_inr || 0,
+    /* What applying through us costs the student — free where we are
+       partnered, a package where we are not. This is the object the finder AND
+       the matcher are handed, so leaving it out meant a partnership marked in
+       the sheet was stored, shown on the sheet, shown in the office, and
+       invisible to both of the things that use it. Exactly the shape of the
+       bug the CGPA comment above this one is about, one column along. */
+    feeModel: r.fee_model === 'free' || r.fee_model === 'package'
+      ? r.fee_model : (r.is_public ? 'free' : 'package'),
     /* The CGPA THIS programme asks for. The finder has always preferred it
        over the country's rule — and never received it, because the catalogue
        handed to the page did not carry the field. */

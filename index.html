@@ -1164,10 +1164,10 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div class="rtabs" role="tablist">
       <button type="button" class="rtab on" data-rt="priv" role="tab" aria-selected="true">
         Comprehensive filing <span class="rtn" id="rtnPriv">0</span>
-        <small>read them now — we write and file for you</small></button>
+        <small>we write and file it for you, with a package</small></button>
       <button type="button" class="rtab" data-rt="pub" role="tab" aria-selected="false">
         Fast-track — free <span class="rtn" id="rtnPub">0</span>
-        <small>tuition-free, and free to apply through us</small></button>
+        <small>no fee to apply through us</small></button>
     </div>
     <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>
     <div class="rmore">
@@ -1804,12 +1804,15 @@ const unent = s => String(s == null ? '' : s)
 
 function rowHtml(r){
   const cc = r.country, ctry = C[cc];
-  const type = `<div class="mtype ${r.isPublic?'pub':'priv'}">${r.isPublic?'Public':'Private'}</div>`;
+  const feeOfRow = (r.feeModel === 'free' || r.feeModel === 'package')
+    ? r.feeModel : (r.isPublic ? 'free' : 'package');
+  const type = `<div class="mtype ${feeOfRow === 'free' ? 'pub' : 'priv'}">`
+    + `${feeOfRow === 'free' ? 'Free to apply' : 'With a package'}</div>`;
   if(r.locked) return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
     <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
       <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>
-      <span class="offscreen">A ${r.isPublic ? 'public' : 'private'} university in
+      <span class="offscreen">A university in
         ${esc(ctry.name)} that matches you. The name and the fee are unlocked by a
         package.</span></div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
@@ -1826,21 +1829,21 @@ function rowHtml(r){
     <div class="mprice">${short(r.totalInr)}<small>${r.totalInr===0?'tuition':'total'}</small></div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
       ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`:''}
-      <button class="btn btn-sm ${r.isPublic?'btn-primary':'btn-gold'}"
+      <button class="btn btn-sm ${feeOfRow === 'free' ? 'btn-primary' : 'btn-gold'}"
         data-apply="${esc(r.id)}" data-uni="${esc(unent(r.university))}"
-        data-prog="${esc(unent(r.program))}">${r.isPublic?'Apply Now':'Apply free'} ${ico('arrow')}</button></div></div>`;
+        data-prog="${esc(unent(r.program))}">${feeOfRow === 'free' ? 'Apply free' : 'Apply'} ${ico('arrow')}</button></div></div>`;
 }
 
 function banner(list, shown){
   const co = $('#fCountry').value;
   const ctry = co ? C[co] : null;
   const pubUnis = new Set(list.filter(p=>p.isPublic).map(p=>p.uKey)).size;
-  if(!touched) return ['gold','info', pubUnis+' of these are public universities',
-    'Tuition-free or close to it. Tell us your destination and CGPA and we\'ll show the ones you actually qualify for.'];
+  if(!touched) return null;
   if(!list.length) return ['blue','info','No matches with those filters',
     'Try a wider field or level, or talk to a counsellor — we may have a route that is not in the list yet.'];
-  if(!pubUnis) return ['blue','info','No public universities match yet',
-    'These private matches are free to view, with prices. A counsellor can also map a pathway route.'];
+  if(!pubUnis) return ['blue','info','Nothing free to apply to matches yet',
+    'The matches here are ones we file for you with a package — readable now, '
+    + 'with prices. A counsellor can also map a pathway route.'];
   if(unlocked){
     /* What the package bought, not what this filter happens to be showing. A
        banner that says "0 unlocked" to somebody looking at their thirteen is
@@ -1857,8 +1860,10 @@ function banner(list, shown){
       + 'Use <b>Lock again</b> above to go back to the locked view.'];
   }
   const free = (ctry && ctry.tuitionFree) || list.some(p => p.freeTuition);
-  return ['gold','star','You qualify for '+pubUnis+' '+(free?'FREE ':'low-cost ')+'public universit'+(pubUnis===1?'y':'ies'),
-    free ? 'Pay ₹0 in tuition. A package reveals them.' : 'A fraction of private tuition. A package reveals them.'];
+  return ['gold','star','You qualify for '+pubUnis+' universit'+(pubUnis===1?'y':'ies')
+    + ' with no fee to apply',
+    free ? 'And no tuition to pay either. A package reveals them.'
+         : 'A package reveals them.'];
 }
 
 /*
@@ -1901,9 +1906,15 @@ let resTab = 'priv';
 
 function render(){
   const list = filtered(), rows = visibleRows(list);
-  const [tone,icn,title,body] = banner(list, rows);
-  $('#rBanner').className = 'banner '+tone;
-  $('#rBanner').innerHTML = ico(icn)+'<div><h4>'+esc(title)+'</h4><p>'+body+'</p></div>';
+  const said = banner(list, rows);
+  /* Nothing to say yet. The banner is an answer, and until somebody has set a
+     filter there is no question in front of it. */
+  $('#rBanner').hidden = !said;
+  if (said) {
+    const [tone,icn,title,body] = said;
+    $('#rBanner').className = 'banner '+tone;
+    $('#rBanner').innerHTML = ico(icn)+'<div><h4>'+esc(title)+'</h4><p>'+body+'</p></div>';
+  }
   $('#rTitle').textContent = touched ? 'Your matched programs' : 'Popular programs this intake';
   $('#rSub').textContent = touched
     ? 'Universities we file for you are free to read. The fast-track ones unlock the moment a package is active.'
@@ -1945,15 +1956,6 @@ function render(){
         + 'tab.' + (privAll.length ? '<div style="margin-top:14px"><button type="button" '
           + 'class="btn btn-ghost btn-sm" data-rt-go="priv">See those' + ico('arrow')
           + '</button></div>' : '') + '</div>';
-  if(resTab === 'pub' && shownRows.length && !anyOpen){
-    /* Every match is a public university, so there is nothing a visitor can read
-       yet. Showing only blurred bars reads as a paywall; say what is happening. */
-    markup += '<div class="empty" style="margin-top:4px"><b>Every match here is a public university</b>'
-      + 'Public matches unlock with a package. Private universities — free to view, with prices — '
-      + 'are not loaded for this destination yet, so a counsellor is the fastest route today.'
-      + '<div style="margin-top:14px"><a class="btn btn-ghost btn-sm" href="#counsel">'
-      + 'Talk to a counsellor' + ico('arrow') + '</a></div></div>';
-  }
   $('#rowsIn').innerHTML = markup;
   $$('[data-rt-go]').forEach(b => b.onclick = () => {
     resTab = b.dataset.rtGo; render();
@@ -2646,6 +2648,8 @@ render();
       const had = D.programs.find(x => String(x.id) === String(p.id));
       if (had) {
         had.minCgpa = p.minCgpa == null ? null : Number(p.minCgpa);
+        had.feeModel = (p.feeModel === 'free' || p.feeModel === 'package')
+          ? p.feeModel : (p.isPublic ? 'free' : 'package');
         if (p.fit != null) had.fit = p.fit;
         if (p.band) had.band = p.band;
         if (p.totalInr != null) {
