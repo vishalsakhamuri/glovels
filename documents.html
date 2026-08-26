@@ -1105,8 +1105,13 @@ const DOCS = [
   {id:'provis',   name:'Provisional / degree certificate', need:0, blocks:'Final admission'},
   {id:'english',  name:'English test scorecard',need:1, blocks:'University application, visa'},
   {id:'cv',       name:'Academic CV',           need:1, blocks:'University application'},
-  {id:'sop',      name:'Statement of Purpose',  need:1, blocks:'University application'},
-  {id:'lor',      name:'Letters of Recommendation', need:1, blocks:'University application'},
+  /* `ours` means WE write it and hand it back — the screens show a download
+     rather than an upload box, and it arrives verified because the person who
+     would verify it is the person who wrote it. */
+  {id:'sop',      name:'Statement of Purpose',  need:1, ours:1,
+   blocks:'University application'},
+  {id:'lor',      name:'Letters of Recommendation', need:1, ours:1,
+   blocks:'University application'},
   {id:'finance',  name:'Financial documents',   need:1, blocks:'Visa, blocked account'},
   {id:'photo',    name:'Passport photograph',   need:0, blocks:'Visa appointment'},
   {id:'aps',      name:'APS certificate (Germany)', need:0, blocks:'German application — 6–8 weeks, start early'}

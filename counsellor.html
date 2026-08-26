@@ -1536,7 +1536,36 @@ function paintRecord(r) {
               'letter-spacing:0;font-weight:600">' + esc(v) + '</span></li>').join('') + '</ul></div>' +
           '<div><h3 style="font-size:14.5px;margin-bottom:10px">Documents</h3>' +
             '<ul class="doclist" id="docs">' + (r.docs.length ? r.docs.map(docRow).join('')
-              : '<li><span>Nothing uploaded yet</span></li>') + '</ul></div>' +
+              : '<li><span>Nothing uploaded yet</span></li>') + '</ul>' +
+            /*
+             * Finished work, handed back.
+             *
+             * A counsellor could already send a file, but only into the
+             * conversation — under a random key, where the agency (which has
+             * no conversation) never sees it and the student's own Documents
+             * screen does not either. This puts it in the slot it belongs to,
+             * on the student's file, verified, where both of them look.
+             */
+            '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
+              '<b style="display:block;font:700 12.4px/1 var(--sans);margin-bottom:7px">' +
+                'Send finished work</b>' +
+              '<p style="margin:0 0 9px;font-size:11.8px;color:var(--muted);line-height:1.6">' +
+                'The SOP, the recommendation letters or the visa cover letter, once ' +
+                'they are final. It lands on their Documents screen already verified, ' +
+                'and the agency that sent them can download it.</p>' +
+              '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+                '<select id="delivKey" style="padding:8px 10px;font:600 12.4px/1.4 ' +
+                  'var(--sans);border:1.5px solid #d8dde4;border-radius:9px">' +
+                  '<option value="sop">Statement of Purpose</option>' +
+                  '<option value="lor">Letters of Recommendation</option>' +
+                  '<option value="visa-cover">Visa cover letter</option>' +
+                '</select>' +
+                '<label class="btn btn-ghost btn-sm" style="cursor:pointer">' +
+                  'Choose the file' +
+                  '<input type="file" id="delivFile" hidden></label>' +
+                '<span id="delivSaid" style="font:600 12.2px/1.4 var(--sans);' +
+                  'color:var(--muted)"></span>' +
+              '</div></div></div>' +
         '</div>' +
         /* The list, and the controls that run it. This is the counsellor's
            actual job: agree a shortlist on a call, put it here, and move each
@@ -1866,6 +1895,14 @@ document.addEventListener('click', async e => {
   }
 });
 
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'delivFile') {
+    const f = e.target.files && e.target.files[0];
+    if (f) deliverWork(f);
+    e.target.value = '';
+  }
+});
+
 function ping() {
   const now = Date.now();
   if (now - lastPing < 1500 || !openId) return;
@@ -1880,6 +1917,36 @@ function ping() {
  * inside a chat thread is one nobody can find when the visa appointment comes
  * round.
  */
+/*
+ * The finished SOP, LOR or visa cover letter, into the slot it belongs to.
+ *
+ * Separate from sendFile() above, which puts a file in the CONVERSATION under
+ * a random key. That is right for "here is the form you asked about" and wrong
+ * for a deliverable: the agency has no conversation, and the student's own
+ * Documents screen shows named slots, so work sent that way was invisible on
+ * both screens.
+ */
+async function deliverWork(f) {
+  const said = $('#delivSaid');
+  const key = $('#delivKey') ? $('#delivKey').value : '';
+  if (!key || !f) return;
+  if (f.size > 10 * 1024 * 1024) { said.textContent = 'That file is over 10 MB.'; return; }
+  said.textContent = 'Sending ' + f.name + '\u2026';
+  try {
+    const form = new FormData();
+    form.append('file', f, f.name);
+    const r = await fetch('/api/staff/student/' + openId + '/document/'
+      + encodeURIComponent(key) + '/file',
+      { method: 'POST', credentials: 'same-origin', body: form });
+    const d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(d.error || 'That did not go through.');
+    said.textContent = 'Delivered \u2014 it is on their file.';
+    await refreshCase();
+  } catch (err) {
+    said.textContent = err.message || 'That did not go through.';
+  }
+}
+
 async function sendFile(f) {
   const note = $('#rfile');
   if (f.size > 10 * 1024 * 1024) {

@@ -47,6 +47,21 @@ const FALLBACK_PACKAGES = {
   'pkg-boarding': { id: 'pkg-boarding', name: 'Boarding Pass', paise: 7499900, publicUnis: 15 },
 };
 
+/*
+ * The slots WE fill rather than the student.
+ *
+ * Everything else on the documents checklist is something a student uploads
+ * and a counsellor verifies. These three are the other direction: the
+ * counsellor writes them and hands them back, so they arrive verified and the
+ * screens that show them offer a download rather than an upload box.
+ */
+const DELIVERABLE_SLOTS = ['sop', 'lor', 'visa-cover'];
+const SLOT_SAID = {
+  sop: 'Statement of Purpose',
+  lor: 'recommendation letters',
+  'visa-cover': 'visa cover letter',
+};
+
 const GST_RATE = 0.18;
 
 /*
@@ -3139,6 +3154,72 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const msgs = db.getMessages(id).map(msgShape(id));
       live.toStudent(id, 'message', { studentId: id, msg: msgs[msgs.length - 1] });
       return json(res, 200, { msgs });
+    }));
+
+  /*
+   * Finished work, handed back into the student's own file.
+   *
+   * Vishal: "lor and sop, visa check list of the counsellor has finalised. it
+   * should be shared to the partner in the student documents. this place these
+   * should be available."
+   *
+   * A counsellor could already send a file — but only as a chat attachment,
+   * under a random `shared-…` key, which lands in the conversation and nowhere
+   * else. The agency has no conversation (by design) and the student's own
+   * Documents screen shows named slots, so a finished SOP sent that way was
+   * invisible on both. This puts it in the slot it belongs to.
+   *
+   * It arrives VERIFIED, unlike every other upload, and that is the point: an
+   * upload is 'wait' because somebody here has to look at it, and this one was
+   * written by somebody here. Nobody verifies their own homework twice.
+   */
+  route('POST', /^\/api\/staff\/student\/(\d+)\/document\/([a-z0-9_-]+)\/file$/i,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const st = db.studentById(id);
+      if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
+
+      const key = String(m[2]).toLowerCase();
+      /* Only the slots the screens actually draw. A typo in a URL must not
+         create a document nothing will ever show. */
+      if (!DELIVERABLE_SLOTS.includes(key)) {
+        return json(res, 422, {
+          error: 'That is not something we produce. Send it in the conversation instead.',
+          slots: DELIVERABLE_SLOTS,
+        });
+      }
+
+      const parsed = await oneFile(req, res);
+      if (!parsed) return true;
+
+      const dir = path.join(uploadDir, String(id));
+      fs.mkdirSync(dir, { recursive: true });
+      const ext = (path.extname(parsed.file.filename) || '').slice(0, 10)
+        .replace(/[^.a-z0-9]/gi, '');
+      const stored = key + '-' + Date.now() + ext;
+      fs.writeFileSync(path.join(dir, stored), parsed.file.data);
+
+      /* A second draft replaces the first on disk as well as in the table. */
+      const prev = db.docByKey(id, key);
+      if (prev) {
+        try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
+        db.removeDocument(id, key);
+      }
+      db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length);
+      db.setDocStatus(id, key, 'ok');
+      db.log(s.name, 'delivered finished work',
+        st.name + ' \u00b7 ' + key + ' \u00b7 ' + parsed.file.filename);
+
+      /* The student is told, in the one place they already watch. The agency
+         is not — they have no conversation, and the file is simply on the
+         student's Documents tab next time they open it. */
+      db.addMessage(id, 'them', 'Your ' + (SLOT_SAID[key] || key)
+        + ' is ready — it is on your Documents screen.', '');
+      const msgs = db.getMessages(id).map(msgShape(id));
+      live.toStudent(id, 'message', { studentId: id, msg: msgs[msgs.length - 1] });
+
+      return json(res, 200, { key, name: parsed.file.filename, status: 'ok' });
     }));
 
   /* A student's file, to the person looking after them. The student's own

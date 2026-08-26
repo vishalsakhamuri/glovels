@@ -109,8 +109,13 @@ const DOCS = [
   {id:'provis',   name:'Provisional / degree certificate', need:0, blocks:'Final admission'},
   {id:'english',  name:'English test scorecard',need:1, blocks:'University application, visa'},
   {id:'cv',       name:'Academic CV',           need:1, blocks:'University application'},
-  {id:'sop',      name:'Statement of Purpose',  need:1, blocks:'University application'},
-  {id:'lor',      name:'Letters of Recommendation', need:1, blocks:'University application'},
+  /* `ours` means WE write it and hand it back — the screens show a download
+     rather than an upload box, and it arrives verified because the person who
+     would verify it is the person who wrote it. */
+  {id:'sop',      name:'Statement of Purpose',  need:1, ours:1,
+   blocks:'University application'},
+  {id:'lor',      name:'Letters of Recommendation', need:1, ours:1,
+   blocks:'University application'},
   {id:'finance',  name:'Financial documents',   need:1, blocks:'Visa, blocked account'},
   {id:'photo',    name:'Passport photograph',   need:0, blocks:'Visa appointment'},
   {id:'aps',      name:'APS certificate (Germany)', need:0, blocks:'German application — 6–8 weeks, start early'}
@@ -127,6 +132,11 @@ const VISA_DOCS = [
    blocks:'Visa appointment — cover must satisfy the consulate'},
   {id:'visa-form',       name:'Completed visa application form', need:1,
    blocks:'The appointment. We check it line by line before you sign'},
+  /* Written by the counsellor, not collected from the student. It is the
+     letter that explains the application to the consulate, and it goes out
+     with the file rather than being asked for. */
+  {id:'visa-cover',      name:'Visa cover letter',          need:1, ours:1,
+   blocks:'Nothing — it goes with the file. We write it once the offer is in'},
   {id:'visa-appointment',name:'Appointment confirmation',   need:1,
    blocks:'Nothing, but it fixes every date after it'},
   {id:'visa-police',     name:'Police clearance certificate', need:0,

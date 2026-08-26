@@ -128,6 +128,9 @@ BODY = """
       .dcard.ok{border-color:#bfe0cc;background:#f6fbf8}
       .dcard.wait{border-color:#e6d5a8;background:#fdfaf2}
       .dcard.need{border-color:#e0b4ae;background:#fdf7f6}
+      /* Ours to write. Not red — nothing is wrong and nobody is being chased;
+         it is simply not finished yet. */
+      .dcard.mine{border-color:#c2d6f5;background:#f5f8fe}
       .dcard b{display:block;font:700 13.2px/1.35 var(--sans);color:var(--navy-900)}
       .dcard .blocks{display:block;margin-top:4px;font-size:11.6px;line-height:1.5;
         color:var(--muted)}
@@ -513,18 +516,31 @@ function docCards(s, list, note) {
     + '<div class="dcards">' + list.map(d => {
       const got = have[d.id];
       const state = got ? got.status : 'none';
-      const cls = state === 'ok' ? 'ok' : state === 'wait' ? 'wait' : (d.need ? 'need' : '');
+      /* The three we write rather than collect. An empty upload box against
+         "Statement of Purpose" tells an agency to go and find one, when in
+         fact a counsellor is writing it — so the card says so, and offers a
+         download the moment it lands. */
+      const ours = !!d.ours;
+      const cls = state === 'ok' ? 'ok'
+        : state === 'wait' ? 'wait'
+        : ours ? 'mine' : (d.need ? 'need' : '');
       return '<div class="dcard ' + cls + '">'
-        + '<b>' + esc(d.name) + (d.need ? '' : ' <span style="font-weight:600;'
-            + 'color:var(--muted);font-size:11.4px">optional</span>') + '</b>'
+        + '<b>' + esc(d.name)
+          + (ours ? ' <span style="font-weight:600;color:var(--blue-deep);'
+              + 'font-size:11.4px">we write this</span>'
+             : d.need ? '' : ' <span style="font-weight:600;'
+              + 'color:var(--muted);font-size:11.4px">optional</span>') + '</b>'
         + '<span class="blocks">' + esc(d.blocks) + '</span>'
         + '<div class="foot">'
         + '<span class="st ' + (state === 'ok' ? 'ok' : state === 'wait' ? 'wait' : 'none')
-          + '">' + DOC_STATE[state] + '</span>'
+          + '">' + (ours && !got ? 'Being written' : DOC_STATE[state]) + '</span>'
         + (got ? '<a class="btn btn-ghost btn-sm" href="/api/partner/student/' + s.id
             + '/document/' + encodeURIComponent(d.id) + '/file">Download</a>' : '')
+        /* An agency may still send their own draft of an SOP — plenty arrive
+           with one. What they must not do is quietly overwrite the finished
+           one, so once ours is there the box says what replacing means. */
         + '<label class="dlab">' + ico('plus')
-          + (got ? 'Replace' : 'Upload')
+          + (got ? (ours ? 'Send yours instead' : 'Replace') : 'Upload')
           + '<input type="file" data-up="' + esc(d.id) + '"></label>'
         + '</div>'
         + (got ? '<span style="display:block;margin-top:8px;font-size:11.4px;'

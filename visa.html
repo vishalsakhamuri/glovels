@@ -1095,6 +1095,11 @@ const VISA_DOCS = [
    blocks:'Visa appointment — cover must satisfy the consulate'},
   {id:'visa-form',       name:'Completed visa application form', need:1,
    blocks:'The appointment. We check it line by line before you sign'},
+  /* Written by the counsellor, not collected from the student. It is the
+     letter that explains the application to the consulate, and it goes out
+     with the file rather than being asked for. */
+  {id:'visa-cover',      name:'Visa cover letter',          need:1, ours:1,
+   blocks:'Nothing — it goes with the file. We write it once the offer is in'},
   {id:'visa-appointment',name:'Appointment confirmation',   need:1,
    blocks:'Nothing, but it fixes every date after it'},
   {id:'visa-police',     name:'Police clearance certificate', need:0,
