@@ -867,6 +867,7 @@ select.assign.none:hover{border-color:#a5342b}
               <option value="editor">Website editor — the site only, no student records</option>
               <option value="admin">Administrator — everything, including this screen</option>
               <option value="student">Student — a real student account on this site</option>
+              <option value="partner">Partner agency — a B2B partner who sends us students</option>
             </select></div>
           <p id="pStudentNote" style="display:none;margin:0 0 10px;padding:11px 13px;
             border-radius:10px;background:#f1f6fb;border:1px solid #cfe0f2;
@@ -2376,6 +2377,11 @@ async function paintPeople() {
     '<span class="st ' + (p.role === 'admin' ? 'ok' : p.caseload ? 'ok' : 'none') + '">' +
       (p.role === 'admin' ? 'Administrator'
         : p.role === 'editor' ? 'Website editor'
+        /* Said out loud. A partner sitting on this list with nothing but a
+           student count reads as a counsellor, and the difference between a
+           counsellor and an outside agency is the whole point of the role. */
+        : p.role === 'partner'
+          ? 'Partner agency \u00b7 ' + p.caseload + ' sent'
         : p.caseload + ' student' + (p.caseload === 1 ? '' : 's')) + '</span>' +
     '</li>' +
     /* The permissions sit under the person rather than beside them: they are
@@ -2386,6 +2392,11 @@ async function paintPeople() {
     '<span style="width:26px"></span>' +
     (p.role === 'admin'
       ? '<span class="st ok">Everything &mdash; administrators are not restricted</span>'
+      /* Not a tick box in sight. These grant power over the WEBSITE, and a
+         partner is not inside this business — offering the control and having
+         the server refuse it is worse than never offering it. */
+      : p.role === 'partner'
+      ? '<span class="st none">Their own students, and nothing else on this site</span>'
       : PERMS.map(function (perm) {
           const on = p.perms.indexOf(perm[0]) >= 0;
           return '<button type="button" class="btn btn-ghost btn-sm" data-perm="' + p.id +
@@ -2409,7 +2420,8 @@ async function paintPeople() {
     (p.id === ME ? '' :
       '<select data-role="' + p.id + '" style="margin-left:6px;padding:6px 9px;' +
       'font:600 12.2px/1.3 var(--sans);border:1.5px solid #d8dde4;border-radius:8px">' +
-      [['counsellor', 'Counsellor'], ['editor', 'Website editor'], ['admin', 'Administrator']]
+      [['counsellor', 'Counsellor'], ['editor', 'Website editor'],
+       ['admin', 'Administrator'], ['partner', 'Partner agency']]
         .map(function (r) {
           return '<option value="' + r[0] + '"' + (p.role === r[0] ? ' selected' : '') + '>' +
             r[1] + '</option>';

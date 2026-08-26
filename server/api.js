@@ -3816,6 +3816,41 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       });
     }
 
+    /*
+     * A role change that would orphan somebody's file.
+     *
+     * A partner's students carry that agency's id, and it is the answer to
+     * "who sent us this one". Turning the agency into a counsellor leaves
+     * those rows pointing at somebody who is not an agency, and there is no
+     * screen anywhere that would ever show it again. The other direction is
+     * the same problem from the other end: a counsellor carrying a caseload
+     * who becomes a partner takes those students out of every staff list.
+     *
+     * Both refuse rather than warn, for the same reason the delete does: the
+     * damage is silent and there is nothing in the interface that would show
+     * it had happened.
+     */
+    if (person.role === 'partner' && role !== 'partner') {
+      const brought = db.partnerStudentCount(id);
+      if (brought) {
+        return json(res, 409, {
+          error: person.name + ' has introduced ' + brought + ' student'
+               + (brought === 1 ? '' : 's') + '. Changing the role would leave those '
+               + 'files with nobody they came from. Move the students first.',
+        });
+      }
+    }
+    if (person.role !== 'partner' && role === 'partner') {
+      const holding = db.countStudentsOf(id);
+      if (holding) {
+        return json(res, 409, {
+          error: person.name + ' is looking after ' + holding + ' student'
+               + (holding === 1 ? '' : 's') + '. A partner agency is not staff and cannot '
+               + 'hold a caseload \u2014 hand those students to somebody else first.',
+        });
+      }
+    }
+
     db.setRole(id, role);
     db.log(s.name, 'role changed', person.name + ' is now a ' + role);
     return json(res, 200, { person: { id, name: person.name, role } });
