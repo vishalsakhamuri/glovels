@@ -33,7 +33,31 @@ SCRIPT = r"""
 
   /* --------------------------------------------------------------- packages */
 
-  var TAB_ICON = { study: 'cap', work: 'file', migrate: 'plane' };
+  var TAB_ICON = { study: 'cap', other: 'globe', work: 'file', migrate: 'plane' };
+
+  /*
+   * Which package tab belongs to the destination the visitor has chosen.
+   *
+   * Vishal: "which tab to show depends on the country selection and which uni
+   * user has clicked." The finder's country select is the honest signal on
+   * this page — it is where they say where they are going — and a university
+   * card carries its country too. Germany's packages are all about public
+   * universities that only Germany has, so showing them to somebody going to
+   * Ireland is offering something that cannot serve them.
+   */
+  var LAST_DEST = '';
+  /* Once the visitor presses a package tab themselves, that is their choice
+     and the destination stops overriding it. Auto-switching under somebody who
+     has just chosen is worse than showing them the wrong tab once. */
+  var TAB_CHOSEN_BY_HAND = false;
+  function tabForDest(code) {
+    if (!code) return '';
+    return String(code).toUpperCase() === 'DE' ? 'study' : 'other';
+  }
+  function chosenDest() {
+    var sel = document.getElementById('fCountry');
+    return (sel && sel.value) || LAST_DEST || '';
+  }
   var ico = function (n) {
     return '<svg class="ico" aria-hidden="true"><use href="#i-' + n + '"/></svg>';
   };
@@ -92,6 +116,32 @@ SCRIPT = r"""
     return out + '</div></article>';
   }
 
+  /* The destination changed — on the finder, or by pressing a university card.
+     Move the packages section with it, unless the visitor has already picked a
+     tab by hand. */
+  function followDest(code) {
+    if (!code) return;
+    LAST_DEST = code;
+    if (TAB_CHOSEN_BY_HAND) return;
+    var want = tabForDest(code);
+    var btn = document.querySelector('[data-ptab="' + want + '"]');
+    if (!btn || btn.getAttribute('aria-selected') === 'true') return;
+    btn.click();
+    /* click() runs the delegated handler, which is what actually swaps the
+       panes — but it also does not count as the visitor choosing. */
+    TAB_CHOSEN_BY_HAND = false;
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'fCountry') followDest(e.target.value);
+  });
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('[data-ptab]');
+    if (t) { TAB_CHOSEN_BY_HAND = true; return; }
+    var row = e.target.closest && e.target.closest('[data-country]');
+    if (row) followDest(row.getAttribute('data-country'));
+  }, true);
+
   function paintPackages(pk) {
     var host = document.getElementById('packages');
     if (!host || !pk || !pk.items || !pk.items.length) return;
@@ -115,7 +165,12 @@ SCRIPT = r"""
        section under them and silently jumping back to the first tab is the
        kind of small rudeness that makes a page feel broken. */
     var openTab = (wrap.querySelector('[data-ptab][aria-selected="true"]') || {}).dataset;
-    openTab = (openTab && openTab.ptab) || tabs[0].key;
+    openTab = (openTab && openTab.ptab) || '';
+    /* Nothing open yet: start on the destination they have already told us
+       about. Once they have pressed a tab themselves, that choice stands —
+       rebuilding the section under somebody and jumping them elsewhere is the
+       small rudeness the comment above is about. */
+    if (!openTab) openTab = tabForDest(chosenDest()) || tabs[0].key;
     if (!tabs.some(function (t) { return t.key === openTab; })) openTab = tabs[0].key;
 
     wrap.innerHTML = head

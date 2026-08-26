@@ -4214,6 +4214,144 @@ def company_name():
 company_name()
 
 
+
+# ---------------------------------------------------- packages by destination
+#
+# The pricing section was built for Germany. All four study packages are about
+# public universities and three of them promise to REVEAL public university
+# names — an entitlement that only means something where public universities
+# exist, which of our seven destinations is Germany alone. A student going to
+# Ireland was shown the same four and could buy one that could not serve them.
+#
+# So the study tab becomes Germany's, and there is a second one beside it. The
+# German four are untouched: same ids, same prices, same copy. Which tab opens
+# follows the destination the visitor has already chosen in the finder —
+# content_client does that at runtime.
+#
+# The tab list is read out of THIS markup by build_content.py, and the packages
+# out of `const D` below it, so both have to be here — the content block in the
+# database is only what the office has since edited.
+OTHER_COUNTRY_CARDS = [
+    {
+        "id": "pkg-assist", "tab": "other", "name": "Assist",
+        "desc": "We read everything before it goes and tell you what to fix. You "
+                "file the applications yourself, to as many as five universities.",
+        "priceInr": 999, "pricePrefix": "", "priceNote": "one-time",
+        "quoteNote": "", "ribbon": "",
+        "features": [
+            "Up to 5 universities checked before you send them",
+            "Every document read against what that university actually asks for",
+            "Your SOP and CV marked up, in writing",
+            "A 30-minute call to go through the corrections",
+            "You file the applications yourself",
+        ],
+        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
+        "sellTier": "instant", "buyable": True, "publicUnis": 0, "matches": 5,
+        "consent": "This gives you up to five universities checked before you apply, "
+                   "your documents read against each one, your SOP and CV marked up, "
+                   "and a 30-minute call. We do not write your application or file it "
+                   "for you, and it does not include visa work or any admission.",
+        "cta": "Choose Assist",
+    },
+    {
+        "id": "pkg-apply-one", "tab": "other", "name": "Complete \u2014 one university",
+        "desc": "One university, done end to end. We write it, we file it, we chase it.",
+        "priceInr": 1999, "pricePrefix": "", "priceNote": "one-time",
+        "quoteNote": "", "ribbon": "",
+        "features": [
+            "1 university, chosen with a counsellor",
+            "Your SOP and CV written to that university, not a template",
+            "The application filed by us, on time",
+            "Followed up until there is a decision",
+            "Document checklist kept current as they ask for things",
+        ],
+        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
+        "sellTier": "instant", "buyable": True, "publicUnis": 0, "matches": 1,
+        "consent": "This covers one university application written and filed by us "
+                   "and followed up until a decision. It does not include visa work, "
+                   "and no admission is guaranteed.",
+        "cta": "Choose Complete",
+    },
+    {
+        "id": "pkg-apply-three", "tab": "other",
+        "name": "Complete \u2014 three universities",
+        "desc": "Three universities, all done end to end. The third is effectively "
+                "half price against taking them one at a time.",
+        "priceInr": 4999, "pricePrefix": "", "priceNote": "one-time",
+        "quoteNote": "", "ribbon": "Most chosen",
+        "features": [
+            "3 universities, chosen with a counsellor",
+            "Each application written to that university, not a template",
+            "All three filed by us, on time",
+            "Followed up until there is a decision on each",
+            "Scholarship and funding options gone through once you have an offer",
+        ],
+        "pledgeTitle": "", "pledgeBody": "", "pledgeTone": "", "pledgeTerms": "",
+        "sellTier": "instant", "buyable": True, "publicUnis": 0, "matches": 3,
+        "consent": "This covers three university applications written and filed by us "
+                   "and followed up until a decision. It does not include visa work, "
+                   "and no admission is guaranteed.",
+        "cta": "Choose Complete",
+    },
+]
+
+
+def packages_by_destination():
+    import json as _json
+
+    # The tab, in the markup build_content reads the tab list out of.
+    patch(
+        "index.html",
+        "the study tab is Germany's, and there is a second one beside it",
+        '<button class="tab" data-ptab="work" role="tab" aria-selected="false">',
+        '<button class="tab" data-ptab="other" role="tab" aria-selected="false">'
+        '<svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg>'
+        'Other countries</button>'
+        '<button class="tab" data-ptab="work" role="tab" aria-selected="false">',
+        marker='data-ptab="other"',
+    )
+
+    # Its pane. Empty in the markup — content_client fills every pane from the
+    # data at runtime — but it has to exist or the tab points at nothing on a
+    # page loaded before that script runs.
+    patch(
+        "index.html",
+        "and the second tab has a pane to open",
+        '<div class="pane" data-pane="work">',
+        '<div class="pane" data-pane="other"><div class="pgrid"></div></div>'
+        '<div class="pane" data-pane="work">',
+        marker='data-pane="other"',
+    )
+
+    # The heading said Germany's story for the whole section.
+    patch(
+        "index.html",
+        "the section heading covers both destinations",
+        "<h2>Packages for public university admission &amp; work abroad</h2>",
+        "<h2>Packages for study and work abroad</h2>",
+    )
+    patch(
+        "index.html",
+        "and the study tab says which country it is for",
+        '<use href="#i-cap"/></svg>Public University Admission</button>',
+        '<use href="#i-cap"/></svg>Germany</button>',
+    )
+
+    # The three cards, into `const D` — the same list the ORDER endpoint prices
+    # from, so there is no second place where ₹999 is written down.
+    payload = ", ".join(_json.dumps(p, ensure_ascii=False) for p in OTHER_COUNTRY_CARDS)
+    patch(
+        "index.html",
+        "three packages for the other six destinations",
+        '"packages": [{"id": "pkg-three-public"',
+        '"packages": [' + payload + ', {"id": "pkg-three-public"',
+        marker='"id": "pkg-assist"',
+    )
+
+
+packages_by_destination()
+
+
 def header_fits():
     n = 0
     for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):

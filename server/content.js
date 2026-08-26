@@ -72,7 +72,14 @@ function cleanPackage(p, n) {
   const sell = yes(p.sell);
   return {
     id: id || 'pkg-' + (n + 1),
-    tab: /^(study|work|migrate)$/.test(str(p.tab, 10)) ? str(p.tab, 10) : 'study',
+    /* Whichever tab it says, as a slug. This used to be whitelisted to
+       study|work|migrate, which meant a package assigned to any NEW tab was
+       silently moved to study — the card appeared under the wrong heading and
+       nothing said why. The check that a tab actually exists happens in
+       cleanPackages below, where the tab list is known, so adding a tab never
+       needs an edit here again. */
+    tab: str(p.tab, 12).toLowerCase().replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-|-$/g, '') || 'study',
     sort: num(p.sort) || n + 1,
     active: p.active === undefined ? true : yes(p.active),
     featured: yes(p.featured),
@@ -97,7 +104,10 @@ function cleanPackage(p, n) {
        between ₹74,999 and ₹749,990, and there is no gateway in front of this
        yet to notice. */
     priceInr: sell ? Math.max(0, Math.min(9999999, Math.round(num(p.priceInr)))) : 0,
-    priceFrom: str(p.priceFrom, 20) || 'From',
+    /* An explicit empty prefix means the price IS the price — "From ₹999" on a
+       flat fee reads as a number that could go up. Only a package that says
+       nothing at all about the prefix gets "From". */
+    priceFrom: p.priceFrom === undefined ? 'From' : str(p.priceFrom, 20),
     priceNote: str(p.priceNote, 40),
     quote: str(p.quote, 80),
     quoteSmall: str(p.quoteSmall, 80),
@@ -162,6 +172,13 @@ function cleanPackages(v) {
     const i = tabs.findIndex(t => t.key === k);
     return i < 0 ? tabs.length : i;
   };
+  /* A package pointing at a tab that does not exist would render nowhere at
+     all — paintPackages only draws the tabs it knows. It goes in the first
+     one, where somebody will see it and move it. */
+  items.forEach(p => {
+    if (!tabs.some(t => t.key === p.tab)) p.tab = tabs[0].key;
+  });
+
   items.sort((a, b) => tabOrder(a.tab) - tabOrder(b.tab) || a.sort - b.sort);
   items.forEach((p, i) => { p.sort = i + 1; });
 

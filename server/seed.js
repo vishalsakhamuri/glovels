@@ -813,6 +813,132 @@ function everyRowSaysWhatItCosts({ db }) {
   return n;
 }
 
+/*
+ * Packages belong to a destination.
+ *
+ * Everything on the pricing section was built for Germany: four packages, all
+ * of them about public universities, all of them promising to reveal names
+ * that only German public places have. A student going to Ireland saw the same
+ * four and could buy one that could not serve them.
+ *
+ * So there are two study tabs now — Germany, and Other countries — and the one
+ * that opens follows the destination the visitor has already chosen. The four
+ * German packages are untouched: same ids, same prices, same copy. What is new
+ * is the second tab and the three cards on it.
+ *
+ * The ladder, after Vishal asked what I thought of his first draft and told me
+ * to change it as I saw fit. His draft had five tiers and one of them was
+ * dominated: ₹2,999 for check-and-assist on five universities cost MORE than
+ * ₹1,999 for doing one end to end, so anybody comparing the two picked the
+ * cheaper better one. Three tiers, each strictly better than the one below:
+ *
+ *   ₹999    we check and advise, THEY file      up to 5 universities
+ *   ₹1,999  we write and file everything        1 university
+ *   ₹4,999  we write and file everything        3 universities
+ *
+ * The generous count sits on the cheap tier deliberately: checking five
+ * applications costs us almost nothing next to filing one, so it makes ₹999 a
+ * real entry point rather than a token.
+ *
+ * `unlocks` is 0 on all three. It is the public-university name gate, and the
+ * six other destinations have no public row to gate — these are service
+ * packages, not reveal packages. `matches` is what the student gets picked for
+ * them, and it is bounded by their own destination now that the matcher no
+ * longer relaxes country.
+ */
+const OTHER_COUNTRY_PACKAGES = [
+  {
+    id: 'pkg-assist', tab: 'other', sort: 1, title: 'Assist',
+    desc: 'We read everything before it goes and tell you what to fix. You file '
+      + 'the applications yourself, to as many as five universities.',
+    features: [
+      'Up to 5 universities checked before you send them',
+      'Every document read against what that university actually asks for',
+      'Your SOP and CV marked up, in writing',
+      'A 30-minute call to go through the corrections',
+      'You file the applications yourself',
+    ],
+    sell: true, priceInr: 999, priceFrom: '', priceNote: 'one-time',
+    unlocks: 0, matches: 5,
+    cta: 'Choose Assist',
+    consent: 'This gives you up to five universities checked before you apply, your '
+      + 'documents read against each one, your SOP and CV marked up, and a 30-minute '
+      + 'call. We do not write your application or file it for you, and it does not '
+      + 'include visa work or any admission.',
+  },
+  {
+    id: 'pkg-apply-one', tab: 'other', sort: 2, title: 'Complete — one university',
+    desc: 'One university, done end to end. We write it, we file it, we chase it.',
+    features: [
+      '1 university, chosen with a counsellor',
+      'Your SOP and CV written to that university, not a template',
+      'The application filed by us, on time',
+      'Followed up until there is a decision',
+      'Document checklist kept current as they ask for things',
+    ],
+    sell: true, priceInr: 1999, priceFrom: '', priceNote: 'one-time',
+    unlocks: 0, matches: 1,
+    cta: 'Choose Complete',
+    consent: 'This covers one university application written and filed by us and '
+      + 'followed up until a decision. It does not include visa work, and no '
+      + 'admission is guaranteed.',
+  },
+  {
+    id: 'pkg-apply-three', tab: 'other', sort: 3, title: 'Complete — three universities',
+    desc: 'Three universities, all done end to end. The third is effectively half '
+      + 'price against taking them one at a time.',
+    ribbon: 'Most chosen',
+    features: [
+      '3 universities, chosen with a counsellor',
+      'Each application written to that university, not a template',
+      'All three filed by us, on time',
+      'Followed up until there is a decision on each',
+      'Scholarship and funding options gone through once you have an offer',
+    ],
+    sell: true, priceInr: 4999, priceFrom: '', priceNote: 'one-time',
+    unlocks: 0, matches: 3,
+    cta: 'Choose Complete',
+    consent: 'This covers three university applications written and filed by us and '
+      + 'followed up until a decision. It does not include visa work, and no '
+      + 'admission is guaranteed.',
+  },
+];
+
+function packagesBelongToADestination({ db }) {
+  if (db.content('destinationPackagesV1')) return 0;
+  db.setContent('destinationPackagesV1', { done: true }, 'system');
+
+  const live = db.content('packages');
+  if (!live || !Array.isArray(live.items)) return 0;   /* first run seeds it whole */
+
+  const tabs = Array.isArray(live.tabs) && live.tabs.length
+    ? live.tabs.map(t => ({ key: t.key, label: t.label }))
+    : [{ key: 'study', label: 'Study' }, { key: 'work', label: 'Work' },
+       { key: 'migrate', label: 'Migration' }];
+
+  /* The study tab is Germany's. Renamed only if nobody has renamed it already —
+     an office edit outranks a migration. */
+  const study = tabs.find(t => t.key === 'study');
+  if (study && /^study$/i.test(String(study.label || '').trim())) study.label = 'Germany';
+
+  let added = 0;
+  if (!tabs.some(t => t.key === 'other')) {
+    const at = tabs.findIndex(t => t.key === 'study');
+    tabs.splice(at < 0 ? 0 : at + 1, 0, { key: 'other', label: 'Other countries' });
+    added++;
+  }
+
+  const have = new Set(live.items.map(x => String(x.id)));
+  const fresh = OTHER_COUNTRY_PACKAGES.filter(x => !have.has(String(x.id)));
+  const items = live.items.concat(fresh);
+
+  if (!added && !fresh.length && !(study && study.label === 'Germany')) return 0;
+  db.setContent('packages', Object.assign({}, live, { tabs, items }), 'system');
+  db.log('system', 'Packages scoped to a destination',
+    fresh.length + ' package(s) for the other six countries, on their own tab');
+  return fresh.length || added;
+}
+
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   addMissingServices,
   addEntryTiers,
@@ -822,6 +948,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
   removeTheCardsThatWereSourceCode,
   chipsAskWhatItWas,
   everyRowSaysWhatItCosts,
+  packagesBelongToADestination,
   openOnRequestServices,
   fillEmptyPosts,
   DEMO_EMAIL, DEMO_PASSWORD };

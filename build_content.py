@@ -196,7 +196,12 @@ def packages(s):
             "features": [unesc(f) for f in (p.get("features") or [])],
             "sell": sell,
             "priceInr": int(p.get("priceInr") or 0) if sell else 0,
-            "priceFrom": unesc(p.get("pricePrefix")) or "From",
+            # An explicit empty prefix means the price IS the price. "From
+            # ₹999" on a flat fee reads as a starting number that could go up,
+            # which is the opposite of what a fixed entry tier is for. A card
+            # that says nothing about the prefix still gets "From".
+            "priceFrom": (unesc(p.get("pricePrefix")) if p.get("pricePrefix")
+                          else ("" if "pricePrefix" in p else "From")),
             "priceNote": unesc(p.get("priceNote")),
             "quote": unesc(p.get("quoteNote")),
             "quoteSmall": extra.get("quoteSmall", ""),

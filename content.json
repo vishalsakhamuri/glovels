@@ -1,12 +1,16 @@
 {
  "packages": {
   "eyebrow": "Public University Packages",
-  "heading": "Packages for public university admission & work abroad",
+  "heading": "Packages for study and work abroad",
   "acceptance": "I have read and accept the Terms of Service, the Refund & Cancellation policy and the Privacy policy.",
   "tabs": [
    {
     "key": "study",
-    "label": "Public University Admission"
+    "label": "Germany"
+   },
+   {
+    "key": "other",
+    "label": "Other countries"
    },
    {
     "key": "work",
@@ -19,9 +23,99 @@
   ],
   "items": [
    {
+    "id": "pkg-assist",
+    "tab": "other",
+    "sort": 1,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Assist",
+    "desc": "We read everything before it goes and tell you what to fix. You file the applications yourself, to as many as five universities.",
+    "unlocks": 0,
+    "matches": 5,
+    "features": [
+     "Up to 5 universities checked before you send them",
+     "Every document read against what that university actually asks for",
+     "Your SOP and CV marked up, in writing",
+     "A 30-minute call to go through the corrections",
+     "You file the applications yourself"
+    ],
+    "sell": true,
+    "priceInr": 999,
+    "priceFrom": "",
+    "priceNote": "one-time",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Assist",
+    "ctaHref": "",
+    "consent": "This gives you up to five universities checked before you apply, your documents read against each one, your SOP and CV marked up, and a 30-minute call. We do not write your application or file it for you, and it does not include visa work or any admission.",
+    "pledge": null
+   },
+   {
+    "id": "pkg-apply-one",
+    "tab": "other",
+    "sort": 2,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "",
+    "title": "Complete — one university",
+    "desc": "One university, done end to end. We write it, we file it, we chase it.",
+    "unlocks": 0,
+    "matches": 1,
+    "features": [
+     "1 university, chosen with a counsellor",
+     "Your SOP and CV written to that university, not a template",
+     "The application filed by us, on time",
+     "Followed up until there is a decision",
+     "Document checklist kept current as they ask for things"
+    ],
+    "sell": true,
+    "priceInr": 1999,
+    "priceFrom": "",
+    "priceNote": "one-time",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Complete",
+    "ctaHref": "",
+    "consent": "This covers one university application written and filed by us and followed up until a decision. It does not include visa work, and no admission is guaranteed.",
+    "pledge": null
+   },
+   {
+    "id": "pkg-apply-three",
+    "tab": "other",
+    "sort": 3,
+    "active": true,
+    "featured": false,
+    "primary": false,
+    "ribbon": "Most chosen",
+    "title": "Complete — three universities",
+    "desc": "Three universities, all done end to end. The third is effectively half price against taking them one at a time.",
+    "unlocks": 0,
+    "matches": 3,
+    "features": [
+     "3 universities, chosen with a counsellor",
+     "Each application written to that university, not a template",
+     "All three filed by us, on time",
+     "Followed up until there is a decision on each",
+     "Scholarship and funding options gone through once you have an offer"
+    ],
+    "sell": true,
+    "priceInr": 4999,
+    "priceFrom": "",
+    "priceNote": "one-time",
+    "quote": "",
+    "quoteSmall": "",
+    "cta": "Choose Complete",
+    "ctaHref": "",
+    "consent": "This covers three university applications written and filed by us and followed up until a decision. It does not include visa work, and no admission is guaranteed.",
+    "pledge": null
+   },
+   {
     "id": "pkg-three-public",
     "tab": "study",
-    "sort": 1,
+    "sort": 4,
     "active": true,
     "featured": false,
     "primary": false,
@@ -39,7 +133,7 @@
     ],
     "sell": true,
     "priceInr": 4999,
-    "priceFrom": "From",
+    "priceFrom": "",
     "priceNote": "one-time",
     "quote": "",
     "quoteSmall": "",
@@ -51,7 +145,7 @@
    {
     "id": "pkg-roadmap",
     "tab": "study",
-    "sort": 2,
+    "sort": 5,
     "active": true,
     "featured": false,
     "primary": false,
@@ -84,7 +178,7 @@
    {
     "id": "pkg-offer",
     "tab": "study",
-    "sort": 3,
+    "sort": 6,
     "active": true,
     "featured": true,
     "primary": true,
@@ -124,7 +218,7 @@
    {
     "id": "pkg-boarding",
     "tab": "study",
-    "sort": 4,
+    "sort": 7,
     "active": true,
     "featured": false,
     "primary": false,
@@ -164,7 +258,7 @@
    {
     "id": "work-opportunity",
     "tab": "work",
-    "sort": 5,
+    "sort": 8,
     "active": true,
     "featured": false,
     "primary": false,
@@ -193,7 +287,7 @@
    {
     "id": "work-nursing",
     "tab": "work",
-    "sort": 6,
+    "sort": 9,
     "active": true,
     "featured": true,
     "primary": true,
@@ -223,7 +317,7 @@
    {
     "id": "work-skilled",
     "tab": "work",
-    "sort": 7,
+    "sort": 10,
     "active": true,
     "featured": false,
     "primary": false,
@@ -252,7 +346,7 @@
    {
     "id": "mig-canada",
     "tab": "migrate",
-    "sort": 8,
+    "sort": 11,
     "active": true,
     "featured": false,
     "primary": false,
@@ -269,7 +363,7 @@
     ],
     "sell": false,
     "priceInr": 0,
-    "priceFrom": "From",
+    "priceFrom": "",
     "priceNote": "",
     "quote": "Priced after we assess your case",
     "quoteSmall": "Free first call · no obligation",
@@ -281,7 +375,7 @@
    {
     "id": "mig-australia",
     "tab": "migrate",
-    "sort": 9,
+    "sort": 12,
     "active": true,
     "featured": false,
     "primary": false,
@@ -299,7 +393,7 @@
     ],
     "sell": false,
     "priceInr": 0,
-    "priceFrom": "From",
+    "priceFrom": "",
     "priceNote": "",
     "quote": "Priced after we assess your case",
     "quoteSmall": "Free first call · no obligation",
@@ -311,7 +405,7 @@
    {
     "id": "mig-docs",
     "tab": "migrate",
-    "sort": 10,
+    "sort": 13,
     "active": true,
     "featured": false,
     "primary": false,
@@ -328,7 +422,7 @@
     ],
     "sell": false,
     "priceInr": 0,
-    "priceFrom": "From",
+    "priceFrom": "",
     "priceNote": "",
     "quote": "Priced after we assess your case",
     "quoteSmall": "Free first call · no obligation",
