@@ -68,7 +68,7 @@ SCRIPT = r"""
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     if (iOS && !installed) {
       show('To get a buzz when a student writes: tap Share, then Add to Home Screen, '
-        + 'and open Glovels from there.', []);
+        + 'and open this site from there.', []);
     }
     return;
   }
@@ -86,7 +86,7 @@ SCRIPT = r"""
     }
     if (iOS && !installed) {
       return show('To get a buzz when a student writes: tap Share, then Add to Home '
-        + 'Screen, and open Glovels from there.', []);
+        + 'Screen, and open this site from there.', []);
     }
     show('Get a notification when one of your students writes, even with this closed.',
       ['on']);

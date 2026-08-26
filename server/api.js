@@ -2512,6 +2512,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          without opening any of them. */
       furthest: db.getShortlist(st.id).reduce((n, r) =>
         Math.max(n, (apps.get(String(r.prog_id)) || {}).stage || 0), 0),
+      /* Closed by the agency once the student is done with. It hides the row
+         from their book and nothing else: we still hold the file, the
+         counsellor still sees it, and the student still has their login. */
+      closed: !!Number(st.partner_closed),
+      /* Whether Remove can succeed, decided here rather than in the browser
+         so the button and the endpoint can never disagree. A student somebody
+         is working on, or one who has paid, is not the agency's to erase. */
+      canRemove: !st.counsellor_id && orders.length === 0,
     };
   };
 
@@ -2689,6 +2697,45 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * Only the owner may add. A colleague who could add colleagues is a second
    * permission system inside a role that exists to have none.
    */
+  /* Close a finished file, or open it again. Vishal: "we should be able to
+     close the file and remove from the screen ... once student processing is
+     completed". Deliberately NOT a delete: the admit, the documents and the
+     student's own account all outlive the agency's interest in them. */
+  route('PUT', /^\/api\/partner\/student\/(\d+)\/closed$/,
+    partnerOnly(async (req, res, s, m) => {
+      const st = theirStudent(s, m[1]);
+      if (!st) return json(res, 404, { error: 'Not one of your students.' });
+      const b = await readJson(req);
+      db.setPartnerClosed(st.id, b.closed ? 1 : 0);
+      return json(res, 200, { closed: !!b.closed });
+    }));
+
+  /* Remove a record the agency should not have made — a typo, a duplicate, a
+     student who never went ahead. The moment a counsellor is on it or money
+     has changed hands it stops being theirs to delete, because the file is
+     then ours as well as theirs. Closing is what they want in that case, and
+     the error says so rather than just refusing. */
+  route('DELETE', /^\/api\/partner\/student\/(\d+)$/,
+    partnerOnly(async (req, res, s, m) => {
+      const st = theirStudent(s, m[1]);
+      if (!st) return json(res, 404, { error: 'Not one of your students.' });
+      if (db.ordersFor(st.id).length) {
+        return json(res, 409, {
+          error: 'This student has paid for a package, so their record has to stay. '
+            + 'Close the file instead — it comes off your list either way.',
+        });
+      }
+      if (st.counsellor_id) {
+        return json(res, 409, {
+          error: 'A counsellor is working on this student, so their record has to stay. '
+            + 'Close the file instead — it comes off your list either way.',
+        });
+      }
+      db.removeStudent(st.id);
+      db.log('partner', 'Student removed', st.email + ' by ' + s.email);
+      return json(res, 200, { removed: st.id });
+    }));
+
   route('GET', '/api/partner/team', partnerOnly(async (req, res, s) => {
     const owner = agencyOf(s);
     const rows = db.partners().filter(p => Number(p.id) === owner
@@ -2803,7 +2850,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
           at, who: name,
           why: Number(existing.partner_id) === agencyOf(s)
             ? 'already on your list'
-            : 'already registered with Glovels',
+            : 'already registered on the platform',
         });
       }
 

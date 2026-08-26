@@ -1227,7 +1227,7 @@ async function staffBoot(run) {
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({ role: 'staff' });
     document.querySelector('.p-main').innerHTML =
-      '<div class="sl-empty" style="margin-top:40px"><b>This screen is for Glovels staff</b>' +
+      '<div class="sl-empty" style="margin-top:40px"><b>This screen is not for your account</b>' +
       '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';
     return;
   }
@@ -1368,7 +1368,7 @@ async function bell(me) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     if (iOS && !installed) {
       show('To get a buzz when a student writes: tap Share, then Add to Home Screen, '
-        + 'and open Glovels from there.', []);
+        + 'and open this site from there.', []);
     }
     return;
   }
@@ -1386,7 +1386,7 @@ async function bell(me) {
     }
     if (iOS && !installed) {
       return show('To get a buzz when a student writes: tap Share, then Add to Home '
-        + 'Screen, and open Glovels from there.', []);
+        + 'Screen, and open this site from there.', []);
     }
     show('Get a notification when one of your students writes, even with this closed.',
       ['on']);

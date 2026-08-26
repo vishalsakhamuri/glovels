@@ -28,6 +28,33 @@ of "what a passport is called" is how two screens start disagreeing.
 
 from portal_fields import SECTIONS_JS, DOCS_JS, VISA_JS
 
+# Colleagues on a partner account. Built in patch 57, switched off in 58 —
+# Vishal: "this is not required for now". The endpoints, the agencyOf() scoping
+# and the tests all stay; only the panel is off, so turning it back on is this
+# one name. Nothing else knows it is gone.
+SHOW_TEAM = False
+
+TEAM_PANEL_HTML = """
+          <div class="p-sec" style="margin:0" id="teamSec" hidden>
+            <div class="p-sec-head"><h2 style="font-size:16px">Your team</h2></div>
+            <div class="p-card">
+              <p style="margin:0 0 11px;font-size:12.4px;color:var(--muted);line-height:1.6">
+                Colleagues sign in with their own email and see the same students.</p>
+              <ul class="doclist" id="teamList" style="margin:0 0 12px"></ul>
+              <div class="field" style="margin-bottom:9px">
+                <label for="tName">Their name</label>
+                <input id="tName" placeholder="Anita Rao" style="cursor:text"></div>
+              <div class="field" style="margin-bottom:10px">
+                <label for="tEmail">Their email</label>
+                <input id="tEmail" type="email" placeholder="anita@youragency.com"
+                  style="cursor:text"></div>
+              <button type="button" class="btn btn-ghost" id="addMate"
+                style="width:100%">Add a colleague</button>
+              <div id="teamOut" style="margin-top:11px"></div>
+            </div>
+          </div>
+"""
+
 BODY = """
     <style>
       /* The shared portal sheet puts a 1180px floor under every table, which
@@ -38,6 +65,20 @@ BODY = """
          style block, so a fourth tile here wrapped onto a second line by
          itself and read as an afterthought. */
       .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
+      /* Clickable counters, the same shape the Organisation screen uses. A
+         number you cannot press is a number you have to go and look for. */
+      .out .outgo{appearance:none;font:inherit;text-align:center;cursor:pointer;
+        transition:border-color .12s, background .12s, transform .12s}
+      .out .outgo:hover{border-color:var(--navy-600);background:var(--paper);
+        transform:translateY(-1px)}
+      .out .outgo:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+      .out .outgo span{text-decoration:underline;text-decoration-color:transparent;
+        text-underline-offset:3px;transition:text-decoration-color .12s}
+      .out .outgo:hover span{text-decoration-color:currentColor}
+      .out .outgo.on{border-color:var(--navy-700);background:var(--paper);
+        box-shadow:inset 0 0 0 1px var(--navy-700)}
+      .out .outgo.on span{text-decoration-color:currentColor}
+      @media (max-width:1180px){ .out.tiles{grid-template-columns:repeat(3,1fr)} }
       @media (max-width:980px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
       @media (max-width:520px){ .out.tiles{grid-template-columns:1fr} }
       .pcols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;
@@ -102,126 +143,126 @@ BODY = """
       .pgrp{margin:0 0 22px}
       .pgrp > h3{font:700 14px/1 var(--sans);color:var(--navy-900);margin:0 0 12px;
         display:flex;align-items:center;gap:8px}
+      /* Remove stays quiet until you are on the row. A red button sitting in
+         every line of a list reads as the thing the screen is for. */
+      .pact{opacity:0;transition:opacity .12s}
+      .prm{color:#b03a2e}
+      .prow:hover .pact, .pact:focus-visible{opacity:1}
+      @media (hover:none){ .pact{opacity:1} }
+      .pacts{display:flex;gap:6px;justify-content:flex-end}
+      /* A closed file is still readable, just visibly done with. */
+      .prow.shut > td:not(.pacts){opacity:.55}
     </style>
 
     <!-- ------------------------------------------------------- the book -->
     <div id="listView">
-      <div class="out tiles" style="--tiles:4;margin:0 0 18px">
-        <div><b id="kStudents">—</b><span>Students you sent</span></div>
-        <div><b id="kAssigned">—</b><span>With a counsellor</span></div>
-        <div><b id="kShort">—</b><span>Shortlisted</span></div>
-        <div><b id="kDocs">—</b><span>Documents waiting on us</span></div>
+      <div class="out tiles" style="--tiles:5;margin:0 0 18px" id="tiles">
+        <button type="button" class="outgo on" data-tile="all" aria-pressed="true">
+          <b id="kStudents">—</b><span>Your students</span></button>
+        <button type="button" class="outgo" data-tile="assigned" aria-pressed="false">
+          <b id="kAssigned">—</b><span>With a counsellor</span></button>
+        <button type="button" class="outgo" data-tile="short" aria-pressed="false">
+          <b id="kShort">—</b><span>Shortlisted</span></button>
+        <button type="button" class="outgo" data-tile="docs" aria-pressed="false">
+          <b id="kDocs">—</b><span>Documents in review</span></button>
+        <button type="button" class="outgo" data-tile="closed" aria-pressed="false">
+          <b id="kClosed">—</b><span>Closed files</span></button>
       </div>
+      <div id="tileChip" style="margin:-8px 0 14px"></div>
 
       <div class="dests" id="dests"></div>
 
-      <div class="pcols">
-        <div class="p-sec" style="min-width:0">
-          <div class="p-sec-head"><h2>Your students</h2>
-            <input id="findStu" placeholder="Name, email or university"
-              style="margin-left:auto;padding:8px 11px;font:400 12.8px/1.4 var(--sans);
-              border:1.5px solid #d8dde4;border-radius:9px;min-width:230px"></div>
-          <div class="p-card" style="padding:0;overflow-x:auto">
-            <table class="tbl ptbl" style="margin:0">
-              <thead><tr><th>Student</th><th>Going to</th><th>Shortlist</th>
-                <th>Documents</th><th>Where it is</th></tr></thead>
-              <tbody id="stuRows"></tbody>
-            </table>
-            <div id="stuPager"></div>
-          </div>
-          <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
-            Press a row to open a student — their details, their documents, their visa file
-            and the universities we have agreed. A student is handed to a Glovels counsellor
-            by our office, not from here; until that happens the row says
-            <b>waiting for us</b>, and that is on us, not on you.
-          </p>
+      <div class="p-sec" style="min-width:0">
+        <div class="p-sec-head"><h2>Your students</h2>
+          <button type="button" class="btn btn-primary btn-sm" id="openAdd"
+            style="margin-left:12px">Add a student</button>
+          <input id="findStu" placeholder="Name, email or university"
+            style="margin-left:auto;padding:8px 11px;font:400 12.8px/1.4 var(--sans);
+            border:1.5px solid #d8dde4;border-radius:9px;min-width:230px">
+          <button type="button" class="btn btn-ghost btn-sm" id="openLogo"
+            style="margin-left:8px" hidden>Your logo</button></div>
+        <div class="p-card" style="padding:0;overflow-x:auto">
+          <table class="tbl ptbl" style="margin:0">
+            <thead><tr><th>Student</th><th>Going to</th><th>Shortlist</th>
+              <th>Documents</th><th>Where it is</th><th></th></tr></thead>
+            <tbody id="stuRows"></tbody>
+          </table>
+          <div id="stuPager"></div>
         </div>
+        <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+          Press a row to open a student — their details, their documents, their visa
+          file and the universities agreed for them. A counsellor is assigned by the
+          processing team, not from here; until that happens the row reads
+          <b>not yet assigned</b>, and nothing is needed from you.
+        </p>
+      </div>
+    </div>
 
-        <div style="display:grid;gap:16px;min-width:0">
-          <div class="p-sec" style="margin:0">
-            <div class="p-sec-head"><h2 style="font-size:16px">Add students</h2></div>
-            <div class="p-card">
-              <p style="margin:0 0 12px;font-size:12.6px;color:var(--muted);line-height:1.6">
-                One at a time, or paste a whole sheet. Name and email are the only
-                two we cannot do without.</p>
-              <div class="field" style="margin-bottom:10px">
-                <label for="aName">Name</label>
-                <input id="aName" placeholder="Priya Sharma" style="cursor:text"></div>
-              <div class="field" style="margin-bottom:10px">
-                <label for="aEmail">Email</label>
-                <input id="aEmail" type="email" placeholder="priya@example.com"
-                  style="cursor:text"></div>
-              <div class="field" style="margin-bottom:10px">
-                <label for="aPhone">Mobile</label>
-                <input id="aPhone" placeholder="9876543210" style="cursor:text"></div>
-              <div class="field" style="margin-bottom:10px">
-                <label for="aCountry">Where they want to go</label>
-                <select id="aCountry">
-                  <option value="">Not decided yet</option>
-                  <option>Germany</option><option>Canada</option>
-                  <option>United Kingdom</option><option>Ireland</option>
-                  <option>Poland</option><option>Spain</option><option>Italy</option>
-                </select></div>
-              <div class="field" style="margin-bottom:12px">
-                <label for="aLevel">Level</label>
-                <select id="aLevel">
-                  <option value="">Not decided yet</option>
-                  <option>Master's</option><option>Bachelor's</option><option>MBA</option>
-                  <option>Foundation / Pathway</option><option>PhD</option>
-                  <option>Diploma / PG Diploma</option>
-                </select></div>
-              <button type="button" class="btn btn-primary" id="addOne"
-                style="width:100%">Add this student</button>
 
-              <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
-                <b style="display:block;font:700 12.4px/1 var(--sans);margin-bottom:7px">
-                  Or paste a sheet</b>
-                <p style="margin:0 0 8px;font-size:11.8px;color:var(--muted);line-height:1.6">
-                  Copy the rows out of Excel and paste them here. One student a line:
-                  <b>name, email, mobile, country, level</b>. Up to 200 at a time.</p>
-                <textarea id="bulk" rows="5" placeholder="Priya Sharma, priya@example.com, 9876543210, Germany, Master's
-Rahul Verma, rahul@example.com, 9876543211, United Kingdom, Master's"
-                  style="width:100%;padding:10px 11px;font:400 12.4px/1.5 var(--mono,monospace);
-                  border:1.5px solid #d8dde4;border-radius:10px;resize:vertical"></textarea>
-                <button type="button" class="btn btn-ghost" id="addMany"
-                  style="width:100%;margin-top:9px">Add them all</button>
-              </div>
-              <div id="addOut" style="margin-top:12px"></div>
-            </div>
-          </div>
+    <!-- ------------------------------------------------------- add a student -->
+    <div class="modal" id="addModal" role="dialog" aria-modal="true"
+      aria-labelledby="addTitle">
+      <div class="sheet" style="width:min(520px,100%)">
+        <button class="sheet-close" data-close aria-label="Close">✕</button>
+        <h3 id="addTitle">Add a student</h3>
+        <p class="lead">Name and email are all that is needed to open the record.
+          Everything else — documents, visa file, the rest of their details — goes
+          in afterwards, by pressing their row.</p>
+        <div class="field" style="margin-bottom:10px">
+          <label for="aName">Name</label>
+          <input id="aName" placeholder="Priya Sharma"></div>
+        <div class="field" style="margin-bottom:10px">
+          <label for="aEmail">Email</label>
+          <input id="aEmail" type="email" placeholder="priya@example.com"
+            inputmode="email"></div>
+        <div class="field" style="margin-bottom:10px">
+          <label for="aPhone">Mobile (optional)</label>
+          <input id="aPhone" placeholder="9876543210" inputmode="tel"></div>
+        <div class="field" style="margin-bottom:12px">
+          <label for="aCountry">Where they want to go (optional)</label>
+          <select id="aCountry">
+            <option value="">Not decided yet</option>
+            <option>Germany</option><option>Canada</option>
+            <option>United Kingdom</option><option>Ireland</option>
+            <option>Poland</option><option>Spain</option><option>Italy</option>
+          </select></div>
 
-          <div class="p-sec" style="margin:0" id="teamSec" hidden>
-            <div class="p-sec-head"><h2 style="font-size:16px">Your team</h2></div>
-            <div class="p-card">
-              <p style="margin:0 0 11px;font-size:12.4px;color:var(--muted);line-height:1.6">
-                Colleagues sign in with their own email and see the same students.</p>
-              <ul class="doclist" id="teamList" style="margin:0 0 12px"></ul>
-              <div class="field" style="margin-bottom:9px">
-                <label for="tName">Their name</label>
-                <input id="tName" placeholder="Anita Rao" style="cursor:text"></div>
-              <div class="field" style="margin-bottom:10px">
-                <label for="tEmail">Their email</label>
-                <input id="tEmail" type="email" placeholder="anita@youragency.com"
-                  style="cursor:text"></div>
-              <button type="button" class="btn btn-ghost" id="addMate"
-                style="width:100%">Add a colleague</button>
-              <div id="teamOut" style="margin-top:11px"></div>
-            </div>
-          </div>
+        <details style="margin:0 0 14px">
+          <summary style="cursor:pointer;font:700 12.6px/1.5 var(--sans);
+            color:var(--navy-800)">Adding a lot of them? Paste a sheet instead</summary>
+          <p style="margin:9px 0 8px;font-size:11.8px;color:var(--muted);line-height:1.6">
+            Copy the rows out of Excel. One student a line:
+            <b>name, email, mobile, country, level</b>. Up to 200 at a time.</p>
+          <textarea id="bulk" rows="5" placeholder="Priya Sharma, priya@example.com, 9876543210, Germany, Master’s
+Rahul Verma, rahul@example.com, 9876543211, United Kingdom, Master’s"
+            style="width:100%;padding:10px 11px;font:400 12.4px/1.5 var(--mono,monospace);
+            border:1.5px solid #d8dde4;border-radius:10px;resize:vertical"></textarea>
+          <button type="button" class="btn btn-ghost btn-sm" id="addMany"
+            style="width:100%;margin-top:9px">Add them all</button>
+        </details>
 
-          <div class="p-sec" style="margin:0" id="logoSec">
-            <div class="p-sec-head"><h2 style="font-size:16px">Your logo</h2></div>
-            <div class="p-card">
-              <p style="margin:0 0 11px;font-size:12.4px;color:var(--muted);line-height:1.6">
-                Shown at the top of this screen, in place of ours. PNG or JPG,
-                300KB or under.</p>
-              <div id="logoNow" style="margin-bottom:11px"></div>
-              <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp"
-                style="font:400 12.4px/1.4 var(--sans);width:100%">
-              <button type="button" class="btn btn-ghost btn-sm" id="logoClear"
-                style="margin-top:9px">Remove it</button>
-            </div>
-          </div>
+        <div id="addOut" style="margin-bottom:12px"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+          <button type="button" class="btn btn-primary" id="addOne">Create the record</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------------ the logo -->
+    <div class="modal" id="logoModal" role="dialog" aria-modal="true"
+      aria-labelledby="logoTitle">
+      <div class="sheet" style="width:min(460px,100%)">
+        <button class="sheet-close" data-close aria-label="Close">✕</button>
+        <h3 id="logoTitle">Your logo</h3>
+        <p class="lead">It sits at the top of your sidebar, in place of ours.
+          PNG or JPG, up to 300KB.</p>
+        <div id="logoNow" style="margin-bottom:11px"></div>
+        <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp"
+          style="font:400 12.4px/1.5 var(--sans)">
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+          <button type="button" class="btn btn-ghost btn-sm" id="logoClear">Remove it</button>
+          <button type="button" class="btn btn-ghost" data-close>Done</button>
         </div>
       </div>
     </div>
@@ -257,10 +298,31 @@ const STAGE_NAME = ['Not started', 'Documents collected', 'Application drafted',
 
 let ME = null, STUDENTS = [], filter = '', dest = '', OPEN = null, TAB = 'details';
 
+/* What each counter means, in one place, so the number on the tile and the
+   rows you get when you press it can never disagree — they are the same
+   predicate read twice. 'all' is deliberately first and deliberately a tile
+   of its own: every other filter needs a way back to the whole book. */
+const TILES = {
+  all:      { test: () => true,                    says: '' },
+  assigned: { test: s => !!s.counsellor,           says: 'with a counsellor' },
+  short:    { test: s => s.shortlist.length > 0,   says: 'with a shortlist' },
+  docs:     { test: s => (s.docsWaiting || 0) > 0, says: 'with documents in review' },
+  /* Closed sits apart from the other four: they all narrow the open book,
+     this one leaves it. Hence `closed` rather than another predicate over
+     the same list. */
+  closed:   { test: () => true, closedBook: true,  says: 'whose file you have closed' },
+};
+let tile = 'all';
+
+/* The open book — everything except the files the agency has closed. Every
+   counter and every other filter reads this, so a closed student disappears
+   from the screen completely rather than lingering in one total. */
+const openBook = () => STUDENTS.filter(s => !s.closed);
+
 /* ------------------------------------------------------------- the book */
 
 function stageChip(s) {
-  if (!s.counsellor) return '<span class="st wait">waiting for us</span>';
+  if (!s.counsellor) return '<span class="st wait">not yet assigned</span>';
   if (!s.shortlist.length) return '<span class="st wait">shortlist being built</span>';
   if (!s.furthest) return '<span class="st none">shortlist agreed</span>';
   const n = Math.min(s.furthest, 5);
@@ -279,7 +341,7 @@ function row(s) {
           : '')
     : '<span style="color:var(--muted);font-size:12.4px">—</span>';
 
-  return '<tr class="prow" data-open="' + s.id + '">'
+  return '<tr class="prow' + (s.closed ? ' shut' : '') + '" data-open="' + s.id + '">'
     + '<td><b>' + esc(s.name) + '</b>'
       + '<span style="display:block;font-size:11.6px;color:var(--muted)">'
       + esc(s.email) + (s.phone ? ' · ' + esc(s.phone) : '') + '</span></td>'
@@ -297,12 +359,29 @@ function row(s) {
       + (s.counsellor
           ? '<span style="display:block;margin-top:4px;font-size:11.4px;color:var(--muted)">'
             + 'with ' + esc(s.counsellor) + '</span>' : '') + '</td>'
+    /* Removal is only ever offered where it can actually succeed. A student a
+       counsellor is working on, or one who has paid, is not the agency's to
+       erase — and a button that always refuses teaches people to distrust
+       every other button on the page. */
+    + '<td class="pacts" style="width:1%;white-space:nowrap">'
+      + (s.closed
+          ? '<button type="button" class="btn btn-ghost btn-sm pact" data-open-again="'
+            + s.id + '">Reopen</button>'
+          : '<button type="button" class="btn btn-ghost btn-sm pact" data-close-file="'
+            + s.id + '" title="Processing finished — take this off the list">'
+            + 'Close file</button>')
+      + (s.canRemove
+          ? '<button type="button" class="btn btn-ghost btn-sm pact prm" data-rm="' + s.id
+            + '" aria-label="Remove ' + esc(s.name) + '">Remove</button>'
+          : '')
+    + '</td>'
     + '</tr>';
 }
 
 function paintDests() {
   const by = {};
-  STUDENTS.forEach(s => {
+  const live = openBook();
+  live.forEach(s => {
     const d = destOf(s) || 'Not decided';
     by[d] = (by[d] || 0) + 1;
   });
@@ -314,7 +393,7 @@ function paintDests() {
   if (box.hidden) { dest = ''; return; }
   box.innerHTML =
     '<button type="button" class="dest" data-dest="" aria-pressed="' + (!dest) + '">'
-    + '<b>Everyone</b><span class="n">' + STUDENTS.length + '</span></button>'
+    + '<b>Everyone</b><span class="n">' + live.length + '</span></button>'
     + names.map(d =>
       '<button type="button" class="dest" data-dest="' + esc(d) + '" aria-pressed="'
       + (dest === d) + '"><b>' + esc(d) + '</b><span class="n">' + by[d] + '</span></button>'
@@ -323,24 +402,45 @@ function paintDests() {
 
 function paint() {
   const q = filter.trim().toLowerCase();
-  const list = STUDENTS.filter(s => {
+  const t = TILES[tile] || TILES.all;
+  const book = t.closedBook ? STUDENTS.filter(s => s.closed) : openBook();
+  const list = book.filter(s => {
+    if (!t.test(s)) return false;
     if (dest && (destOf(s) || 'Not decided') !== dest) return false;
     if (!q) return true;
     return (s.name + ' ' + s.email + ' ' + s.shortlist.map(u => u.university).join(' '))
       .toLowerCase().includes(q);
   });
 
-  $('#kStudents').textContent = STUDENTS.length;
-  $('#kAssigned').textContent = STUDENTS.filter(s => s.counsellor).length;
-  $('#kShort').textContent = STUDENTS.filter(s => s.shortlist.length).length;
-  $('#kDocs').textContent = STUDENTS.reduce((n, s) => n + (s.docsWaiting || 0), 0);
+  $$('#tiles .outgo').forEach(b => {
+    const on = b.dataset.tile === tile;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  const says = (TILES[tile] || TILES.all).says;
+  $('#tileChip').innerHTML = says
+    ? '<span class="st none">Showing only students ' + says
+      + '</span> <button type="button" class="btn btn-ghost btn-sm" id="tileAll">'
+      + 'Show all students</button>'
+    : '';
+  const back = $('#tileAll');
+  if (back) back.onclick = () => { tile = 'all'; PAGE_AT['pstu'] = 0; paint(); };
+
+  const live = openBook();
+  $('#kStudents').textContent = live.length;
+  $('#kAssigned').textContent = live.filter(TILES.assigned.test).length;
+  $('#kShort').textContent = live.filter(TILES.short.test).length;
+  $('#kDocs').textContent = live.filter(TILES.docs.test).length;
+  $('#kClosed').textContent = STUDENTS.filter(s => s.closed).length;
 
   paintDests();
   $('#stuPager').innerHTML = pagerHtml('pstu', list.length, 'students', paint);
   $('#stuRows').innerHTML = paged('pstu', list).map(row).join('')
-    || '<tr><td colspan="5" style="padding:22px;color:var(--muted)">'
-       + (STUDENTS.length ? 'Nothing matches that.'
-          : 'No students yet. Add one on the right, or paste a sheet.')
+    || '<tr><td colspan="6" style="padding:22px;color:var(--muted)">'
+       + (STUDENTS.length
+            ? (tile === 'all' ? 'Nothing matches that.'
+               : 'No students ' + (TILES[tile] || TILES.all).says + ' yet.')
+            : 'No students yet. Add one on the right, or paste a sheet.')
        + '</td></tr>';
 }
 
@@ -359,10 +459,10 @@ function head(s) {
     + stageChip(s)
     + '</div></div>'
     + (s.counsellor
-        ? '<p style="margin:12px 0 0;font-size:12.4px;color:var(--muted)">Your Glovels '
-          + 'counsellor on this file is <b>' + esc(s.counsellor) + '</b>.</p>'
-        : '<p style="margin:12px 0 0;font-size:12.4px;color:#8a6d1f">Our office has not '
-          + 'handed this one to a counsellor yet. Nothing for you to do — it is on us.</p>');
+        ? '<p style="margin:12px 0 0;font-size:12.4px;color:var(--muted)">The counsellor '
+          + 'on this file is <b>' + esc(s.counsellor) + '</b>.</p>'
+        : '<p style="margin:12px 0 0;font-size:12.4px;color:#8a6d1f">No counsellor has '
+          + 'been assigned to this student yet. Nothing is needed from you.</p>');
 }
 
 /* The student's own record, rendered from the same field list their own screen
@@ -404,7 +504,7 @@ function detailsPane(s) {
     + '</div>';
 }
 
-const DOC_STATE = { ok: 'Verified by Glovels', wait: 'With Glovels to check', none: 'Not uploaded' };
+const DOC_STATE = { ok: 'Verified', wait: 'In review', none: 'Not uploaded' };
 
 function docCards(s, list, note) {
   const have = s.docs || {};
@@ -437,9 +537,9 @@ function unisPane(s) {
   if (!s.shortlist.length) {
     return '<div class="sl-empty" style="margin:0"><b>No universities yet</b>'
       + '<p>' + (s.counsellor
-          ? 'Your Glovels counsellor is building this shortlist. It appears here the '
+          ? 'The counsellor on this file is building the shortlist. It appears here the '
             + 'moment it is agreed, and you can share it with the student.'
-          : 'This one is waiting for a Glovels counsellor. The shortlist comes after that.')
+          : 'No counsellor has been assigned yet. The shortlist follows once one is.')
       + '</p></div>';
   }
   return '<div class="p-card" style="padding:0;overflow-x:auto"><table class="tbl" '
@@ -459,8 +559,8 @@ function unisPane(s) {
         + '</td></tr>').join('')
     + '</tbody></table></div>'
     + '<p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">'
-    + 'Agreed with your Glovels counsellor. Adding or removing a university is done by '
-    + 'them — ask, and it changes here.</p>';
+    + 'Agreed with the counsellor on this file. Adding or removing a university is done '
+    + 'by them — ask, and it changes here.</p>';
 }
 
 function paintOne() {
@@ -472,8 +572,8 @@ function paintOne() {
 
   $('#p-details').innerHTML = detailsPane(s);
   $('#p-docs').innerHTML = docCards(s, DOCS,
-    'Everything a university asks for. Upload what you have — Glovels checks each one and '
-    + 'marks it verified, and the student never has to send it twice.');
+    'Everything a university asks for. Upload what you have — each one is checked and '
+    + 'marked verified, and the student never has to send it twice.');
   $('#p-visa').innerHTML = docCards(s, VISA_DOCS,
     'The visa file. These come after an offer, and the order matters: nothing else moves '
     + 'until the offer letter and the proof of funds are in.');
@@ -499,7 +599,7 @@ function closeStudent() {
   OPEN = null;
   $('#oneView').hidden = true;
   $('#listView').hidden = false;
-  setTitle('Your students', 'Everyone you have sent us, and where each one has got to.');
+  setTitle('Your students', 'Every student on your books, and where each one has got to.');
 }
 
 function setTitle(h, sub) {
@@ -509,7 +609,9 @@ function setTitle(h, sub) {
   if (h1) h1.textContent = h;
   if (p) p.textContent = sub;
   if (crumb) crumb.textContent = h;
-  document.title = h + ' | Glovels';
+  /* The agency's own name, not ours. A partner showing this screen to their own
+     student should see their brand in the tab as well as on the page. */
+  document.title = h + ((ME && ME.agency) ? ' | ' + ME.agency : '');
 }
 
 async function refreshList() {
@@ -525,7 +627,7 @@ function report(r) {
   let html = '';
   if (r.added.length) {
     html += '<div class="warnbox" style="border-color:#bfe0cc;background:#eef8f2;color:#14603a">'
-      + '<b>' + r.added.length + ' added.</b> Our office will assign each one to a '
+      + '<b>' + r.added.length + ' added.</b> Each one will be assigned to a '
       + 'counsellor.</div>';
   }
   if (r.rejected.length) {
@@ -546,11 +648,14 @@ async function addStudents(list, btn) {
     const r = await api('POST', '/api/partner/students', { students: list });
     report(r);
     if (r.added.length) await refreshList();
+    return r;
   } catch (e) {
     said('<div class="warnbox" style="border-color:#c0392b;background:#fdf3f2;'
       + 'color:#7a2118">' + esc(e.message) + '</div>');
+    return null;
+  } finally {
+    btn.disabled = false; btn.textContent = was;
   }
-  btn.disabled = false; btn.textContent = was;
 }
 
 /* Commas or tabs — Excel gives tabs, a person typing gives commas, and
@@ -571,6 +676,9 @@ function parseSheet(text) {
 
 async function loadTeam() {
   let r;
+  /* The panel is a build-time choice. Everything below it is guarded rather
+     than deleted, so switching it back on needs no JavaScript change. */
+  if (!$('#teamSec')) return;
   try { r = await api('GET', '/api/partner/team'); } catch (e) { return; }
   $('#teamSec').hidden = !r.isOwner;
   $('#teamList').innerHTML = r.team.map(t =>
@@ -636,10 +744,15 @@ async function saveLogo(url) {
   showLogo(ME.logo || '');
   /* Only the account that owns the agency changes its mark. A colleague
      seeing the control and being refused is worse than not seeing it. */
-  $('#logoSec').hidden = !ME.isOwner;
+  $('#openLogo').hidden = !ME.isOwner;
 
   await refreshList();
   await loadTeam();
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    $$('.modal.on').forEach(m => m.classList.remove('on'));
+  });
 
   $('#findStu').addEventListener('input', e => {
     filter = e.target.value; PAGE_AT.pstu = 0; paint();
@@ -648,6 +761,59 @@ async function saveLogo(url) {
   document.addEventListener('click', async e => {
     const d = e.target.closest('[data-dest]');
     if (d) { dest = d.dataset.dest; PAGE_AT.pstu = 0; return paint(); }
+
+    const til = e.target.closest('#tiles .outgo');
+    if (til) { tile = til.dataset.tile; PAGE_AT.pstu = 0; return paint(); }
+
+    /* The three row controls come before the row itself, because they sit
+       inside it — without this, Close file would also open the student. */
+    const shut = e.target.closest('[data-close-file], [data-open-again]');
+    if (shut) {
+      e.stopPropagation();
+      const id = shut.dataset.closeFile || shut.dataset.openAgain;
+      const closing = !!shut.dataset.closeFile;
+      try {
+        await api('PUT', '/api/partner/student/' + id + '/closed', { closed: closing });
+        await refreshList();
+        toast(closing ? 'File closed. It is under Closed files if you need it.'
+                      : 'Reopened.');
+      } catch (err) { toast(err.message); }
+      return;
+    }
+
+    const rm = e.target.closest('[data-rm]');
+    if (rm) {
+      e.stopPropagation();
+      const who = STUDENTS.find(x => String(x.id) === String(rm.dataset.rm));
+      if (!confirm('Remove ' + (who ? who.name : 'this student')
+        + ' completely? This cannot be undone.\n\nIf they have simply finished, '
+        + 'close the file instead — that keeps the record and still takes them '
+        + 'off your list.')) return;
+      try {
+        await api('DELETE', '/api/partner/student/' + rm.dataset.rm);
+        await refreshList();
+        toast('Removed.');
+      } catch (err) { toast(err.message); }
+      return;
+    }
+
+    if (e.target.closest('#openAdd')) {
+      $('#addOut').innerHTML = '';
+      $('#addModal').classList.add('on');
+      const f = $('#aName'); if (f) f.focus();
+      return;
+    }
+    if (e.target.closest('#openLogo')) return $('#logoModal').classList.add('on');
+    const shutSheet = e.target.closest('[data-close]');
+    if (shutSheet) {
+      const m = shutSheet.closest('.modal');
+      if (m) m.classList.remove('on');
+      return;
+    }
+    /* The backdrop. Clicking the sheet itself must not close it. */
+    if (e.target.classList && e.target.classList.contains('modal')) {
+      return e.target.classList.remove('on');
+    }
 
     const open = e.target.closest('[data-open]');
     if (open) return openStudent(Number(open.dataset.open));
@@ -707,17 +873,22 @@ async function saveLogo(url) {
       OPEN.docs = d.docs;
       paintOne();
       await refreshList();
-      toast('Uploaded. Glovels will check it.');
+      toast('Uploaded. It goes for checking.');
     } catch (err) { toast(err.message); }
   });
 
   $('#addOne').onclick = () => {
     const one = {
       name: $('#aName').value, email: $('#aEmail').value, phone: $('#aPhone').value,
-      destination: $('#aCountry').value, level: $('#aLevel').value,
+      destination: $('#aCountry').value,
     };
-    addStudents([one], $('#addOne')).then(() => {
+    addStudents([one], $('#addOne')).then(r => {
+      if (!r || !r.added || !r.added.length) return;   /* the box says what went wrong */
       ['#aName', '#aEmail', '#aPhone'].forEach(id => { $(id).value = ''; });
+      /* Out of the way, and back to the list — the details go in by pressing
+         the row, which is the next thing they will do. */
+      $('#addModal').classList.remove('on');
+      toast('Record created. Press the row to fill in their details.');
     });
   };
 
@@ -727,7 +898,7 @@ async function saveLogo(url) {
     addStudents(list, $('#addMany')).then(() => { $('#bulk').value = ''; });
   };
 
-  $('#addMate').onclick = async () => {
+  if ($('#addMate')) $('#addMate').onclick = async () => {
     const btn = $('#addMate');
     btn.disabled = true;
     try {

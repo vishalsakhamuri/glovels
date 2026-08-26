@@ -434,6 +434,11 @@ function sqliteDriver(file) {
       Held as a data URL rather than a file so there is no second upload path
       to authorise, and capped small — this is a logo, not an asset library. */
    "ALTER TABLE students ADD COLUMN logo TEXT NOT NULL DEFAULT ''",
+   /* An agency closing a finished file. It hides the row from THEIR book and
+      nothing else — we keep the student, the counsellor keeps the case, and
+      the student keeps their login. Which is why this is a partner-scoped
+      column and not a status on the student. */
+   'ALTER TABLE students ADD COLUMN partner_closed INTEGER NOT NULL DEFAULT 0',
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
@@ -1151,6 +1156,25 @@ function open(dir) {
     setPartner(studentId, partnerId) {
       db.run('UPDATE students SET partner_id = ? WHERE id = ?',
         partnerId ? Number(partnerId) : null, Number(studentId));
+    },
+
+    setPartnerClosed(studentId, closed) {
+      db.run('UPDATE students SET partner_closed = ? WHERE id = ?',
+        Number(closed) ? 1 : 0, Number(studentId));
+    },
+
+    /* Only ever reached after the route has checked there is no counsellor and
+       no order, so this deletes the rows that hang off a record nobody has
+       worked on yet. */
+    removeStudent(id) {
+      const sid = Number(id);
+      ['documents', 'profiles', 'shortlist', 'applications', 'messages',
+       'saved_scholarships', 'drafts', 'sessions', 'password_resets']
+        .forEach(t => {
+          try { db.run('DELETE FROM ' + t + ' WHERE student_id = ?', sid); }
+          catch (e) { /* table without that column, or nothing to remove */ }
+        });
+      db.run('DELETE FROM students WHERE id = ?', sid);
     },
 
     setLogo(id, dataUrl) {

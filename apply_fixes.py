@@ -1313,14 +1313,42 @@ import chat_widget
 PORTAL_PAGES = {
     "dashboard.html", "documents.html", "profile.html",
     "applications.html", "universities.html", "scholarships.html",
+    # visa.html and services.html were both missed when they were added, so a
+    # signed-in student reading their own visa file — or the services they
+    # have already bought — was shown the marketing corner: WhatsApp, an intro
+    # form asking a name we already hold, and a line selling what they own.
+    "visa.html", "services.html",
 }
 
 # Never gets a corner: the staff screens (they have the Website chat screen),
 # the sign-in page, the 404, and the thread itself.
+#
+# These two sets are the kind that go stale silently: a page added later gets
+# neither name, falls through to "site", and quietly carries the public chat
+# widget. That is exactly what happened to leads, blog-admin and partner —
+# hence the guard underneath, which refuses to build rather than let it happen
+# again.
 NO_CORNER = {
     "messages.html", "login.html", "404.html",
     "counsellor.html", "admin.html", "home.html", "catalogue.html", "chat.html",
+    "leads.html", "blog-admin.html",
+    # A partner is not a visitor to be sold to and has no chat at all — the
+    # brief said so plainly. The widget also greets in our name, which on a
+    # white-labelled screen is the one word that must not appear.
+    "partner.html",
 }
+
+# The guard itself. A page built on the portal shell is behind a login by
+# definition, so it must never fall through to the public "site" widget. This
+# reads the built page rather than a hand-kept list, which is the whole point:
+# the next screen somebody adds cannot forget to join a set.
+def must_not_be_public(name, markup, mode):
+    if mode == "site" and 'class="p-shell"' in markup:
+        raise SystemExit(
+            "apply_fixes: " + name + " is a signed-in screen but would get the "
+            "public chat widget. Add it to PORTAL_PAGES (a student screen) or "
+            "NO_CORNER (staff, or a screen with no chat at all)."
+        )
 
 
 def chat_everywhere():
@@ -1329,12 +1357,14 @@ def chat_everywhere():
         if f.name in NO_CORNER:
             continue
         mode = "portal" if f.name in PORTAL_PAGES else "site"
-        block = ('<script>window.__glovelsChatMode="' + mode + '";</script>\n'
-                 + '<script>' + chat_widget.WIDGET + "</script>\n")
 
         t = f.read_text(encoding="utf-8")
         if "</body>" not in t:
             continue
+        must_not_be_public(f.name, t, mode)
+
+        block = ('<script>window.__glovelsChatMode="' + mode + '";</script>\n'
+                 + '<script>' + chat_widget.WIDGET + "</script>\n")
 
         # Already there: replace it rather than skip. The widget changes, and a
         # patch that only ever adds leaves forty pages carrying whichever

@@ -109,10 +109,14 @@ NAV = [
 ]
 
 
-def head_for(title):
-    """Donor head with the title swapped. Everything else is shared verbatim."""
+def head_for(title, brand=True):
+    """Donor head with the title swapped. Everything else is shared verbatim.
+
+    `brand=False` is the white-label case: a partner showing this screen to
+    their own student should not have our name sitting in the browser tab."""
+    suffix = " | Glovels" if brand else ""
     return re.sub(r"<title>.*?</title>",
-                  f"<title>{title} | Glovels</title>", HEAD_RAW, count=1, flags=re.S)
+                  f"<title>{title}{suffix}</title>", HEAD_RAW, count=1, flags=re.S)
 
 
 def sidebar(active):
@@ -173,7 +177,7 @@ STAFF_NAV = [
 ]
 
 
-def staff_sidebar(active, role_note, nav=None):
+def staff_sidebar(active, role_note, nav=None, brand=True):
     """The staff rail. `nav` overrides the menu — a partner is not staff and
     must not be offered a single screen that would refuse them."""
     on = ' class="on"'
@@ -182,9 +186,11 @@ def staff_sidebar(active, role_note, nav=None):
         f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg> {label}</a>'
         for slug, icon, label in (nav if nav is not None else STAFF_NAV)
     )
+    mark = ('<span class="logo-img" role="img" aria-label="Glovels"></span>'
+            if brand else '')
     return f"""<div class="p-shell">
   <aside class="p-side">
-    <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span>
+    <div class="p-logo">{mark}
       <img id="ownLogo" alt="" hidden></div>
     <div class="plan-badge"><b id="staffName">\u2014</b><span id="staffRole">{role_note}</span>
       <a href="#" id="staffOut" class="p-out">
@@ -194,7 +200,8 @@ def staff_sidebar(active, role_note, nav=None):
 """
 
 
-def staff_page(slug, title, h1, sub, body, script, role_note, nav=None, tools=True):
+def staff_page(slug, title, h1, sub, body, script, role_note, nav=None, tools=True,
+               brand=True):
     # The staff screens use the same top bar, plan badge and SLA chip as the
     # dashboard, and those rules live in the injected sheet rather than the
     # donor stylesheet — so they have to come along, or the header renders as
@@ -208,7 +215,8 @@ def staff_page(slug, title, h1, sub, body, script, role_note, nav=None, tools=Tr
              + '<meta name="theme-color" content="#0b1e31">'
              + '<link rel="apple-touch-icon" href="/icon-192.png">'
              + '<meta name="apple-mobile-web-app-capable" content="yes">'
-             + '<meta name="apple-mobile-web-app-title" content="Glovels">')
+             + '<meta name="apple-mobile-web-app-title" content="'
+             + ("Glovels" if brand else "Students") + '">')
 
     # Built out here rather than inline: an f-string expression may not contain
     # a backslash, and the live dot's ellipsis is one.
@@ -224,10 +232,10 @@ def staff_page(slug, title, h1, sub, body, script, role_note, nav=None, tools=Tr
         bell_panel = ('<div class="bell-panel" id="bellPanel" hidden role="dialog"\n'
                       '      aria-label="What needs doing"></div>')
 
-    return f"""{head_for(title).replace("</head>", extra + "</head>")}
+    return f"""{head_for(title, brand).replace("</head>", extra + "</head>")}
 <body>
 {SPRITE}
-{staff_sidebar(slug, role_note, nav)}  <main class="p-main">
+{staff_sidebar(slug, role_note, nav, brand)}  <main class="p-main">
     <div class="p-bar">
       <span class="p-bar-title" id="crumb">{h1}</span>
       {tool_bar}
@@ -457,7 +465,7 @@ async function staffBoot(run) {{
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({{ role: 'staff' }});
     document.querySelector('.p-main').innerHTML =
-      '<div class="sl-empty" style="margin-top:40px"><b>This screen is for Glovels staff</b>' +
+      '<div class="sl-empty" style="margin-top:40px"><b>This screen is not for your account</b>' +
       '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';
     return;
   }}
@@ -1317,9 +1325,12 @@ def main():
     import portal_partner
     (HERE / "partner.html").write_text(staff_page(
         "partner", "Your students", "Your students",
-        "Everyone you have sent us, and where each one has got to.",
+        "Every student on your books, and where each one has got to.",
         portal_partner.BODY, portal_partner.SCRIPT, "Partner agency",
-        nav=[("partner", "i-list", "Your students")], tools=False), encoding="utf-8")
+        nav=[("partner", "i-list", "Your students")], tools=False,
+        # White label, all the way down: no mark, no name in the tab, and
+        # nothing left for a screen reader to announce in our voice.
+        brand=False), encoding="utf-8")
     written.append("partner.html")
 
     for slug, title, h1, sub, mod in PAGES:
