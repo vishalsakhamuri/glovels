@@ -3251,8 +3251,8 @@ patch(
     "the charged tab says what you get, not how we bill it",
     """        Private <span class="rtn" id="rtnPriv">0</span>
         <small>free to view, with prices</small></button>""",
-    """        Comprehensive filing <span class="rtn" id="rtnPriv">0</span>
-        <small>we write and file it for you, with a package</small></button>""",
+    """        Universities with a package <span class="rtn" id="rtnPriv">0</span>
+        <small>we write and file the whole application</small></button>""",
     marker='id="rtnPriv"',
 )
 
@@ -3261,8 +3261,8 @@ patch(
     "and the free tab says what is free about it",
     """        Public <span class="rtn" id="rtnPub">0</span>
         <small>tuition-free or close to it</small></button>""",
-    """        Immediate application <span class="rtn" id="rtnPub">0</span>
-        <small>no fee to apply through us</small></button>""",
+    """        Apply free, right away <span class="rtn" id="rtnPub">0</span>
+        <small>no package needed, start today</small></button>""",
     # The label and the subtitle have both been rewritten since this patch was
     # written, so neither `old` nor `new` is a literal match on a built tree.
     # The id is the half nothing renames.
@@ -4543,11 +4543,75 @@ patch(
 # that first created these buttons is marker-guarded, so editing its text does
 # nothing to a tree that already carries them — the rename has to be its own
 # patch, keyed on the words currently there.
+# The Fast-track step of this rename chain is gone: no tree still carries that
+# wording, and leaving a patch whose anchor cannot exist means the build dies
+# rather than skipping. The block that CREATES these buttons now writes the
+# final wording directly, and one live rename below handles the tree that
+# carries the interim text.
+
+
+
+
+# ------------------------------------------------ the two tabs, finally right
+#
+# Vishal, twice: "still wrong", "its reverse", "this is completely wrong text".
+# Then, asked straight out: "apply Immediately for free something nice /
+# Universities with with package name something nice."
+#
+# The thing I had wrong was WHY those two ideas belong together. I read
+# "immediate" as decision speed, and by that reading it sat on the wrong tab —
+# a German public application is the slowest route we sell. It is not about
+# speed. Free means there is no package to buy first, so a student can apply
+# TODAY. That is the whole sentence, and it only fits the free tab.
+#
+#   Apply free, right away        no package needed, start today
+#   Universities with a package   we write and file the whole application
+#
+# Each rename is its own patch keyed on the words currently on the page,
+# because the block that first wrote these buttons is marker-guarded and
+# editing its text does nothing to a page that already carries them. Fifth
+# time that rule has come up.
 patch(
     "index.html",
-    "the free tab is named for what it does",
-    """        Fast-track \u2014 free <span class="rtn" id="rtnPub">0</span>""",
-    """        Immediate application <span class="rtn" id="rtnPub">0</span>""",
+    "the free tab says you can apply today, for nothing",
+    """        Immediate application <span class="rtn" id="rtnPub">0</span>
+        <small>no fee to apply through us</small></button>""",
+    """        Apply free, right away <span class="rtn" id="rtnPub">0</span>
+        <small>no package needed, start today</small></button>""",
+    marker="Apply free, right away",
+)
+
+patch(
+    "index.html",
+    "and the charged tab says what the package does",
+    """        Comprehensive filing <span class="rtn" id="rtnPriv">0</span>
+        <small>we write and file it for you, with a package</small></button>""",
+    """        Universities with a package <span class="rtn" id="rtnPriv">0</span>
+        <small>we write and file the whole application</small></button>""",
+    marker="Universities with a package",
+)
+
+# And the reason the wrong tab was still highlighted.
+#
+# `let resTab = 'pub'` set the JavaScript default, but the static markup still
+# carried class="rtab on" and aria-selected="true" on the charged tab. So the
+# page painted with the wrong one lit, and only corrected itself when render()
+# ran — which is after the catalogue loads. Vishal saw the before state, which
+# is the state anybody with a slow connection sees.
+patch(
+    "index.html",
+    "the free tab is marked open in the markup too, not just in the script",
+    """      <button type="button" class="rtab on" data-rt="priv" role="tab" aria-selected="true">""",
+    """      <button type="button" class="rtab" data-rt="priv" role="tab" aria-selected="false">""",
+    marker='class="rtab" data-rt="priv"',
+)
+
+patch(
+    "index.html",
+    "and the free one carries the selected state from the first paint",
+    """      <button type="button" class="rtab" data-rt="pub" role="tab" aria-selected="false">""",
+    """      <button type="button" class="rtab on" data-rt="pub" role="tab" aria-selected="true">""",
+    marker='class="rtab on" data-rt="pub"',
 )
 
 
