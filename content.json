@@ -386,6 +386,7 @@
  "testimonials": [
   {
    "route": "India → Germany",
+   "intake": "",
    "verified": true,
    "quote": "Admitted to TU Darmstadt for the M.Sc. in Information & Communication Engineering.",
    "name": "Ram",
@@ -394,6 +395,7 @@
   },
   {
    "route": "India → Germany",
+   "intake": "",
    "verified": true,
    "quote": "Admitted to RWTH Aachen for the M.Sc. in Data Science.",
    "name": "Arya",
@@ -402,6 +404,7 @@
   },
   {
    "route": "India → Germany",
+   "intake": "",
    "verified": true,
    "quote": "Admitted to FAU Erlangen–Nürnberg for the M.Sc. in Information & Communication Technology.",
    "name": "Sakshi",
@@ -4789,6 +4792,42 @@
    "sectionLabel": "Real journeys, real outcomes"
   },
   {
+   "key": "stories|attr:aria-label|c05eb201|0",
+   "section": "stories",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Previous stories",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": "Real journeys, real outcomes"
+  },
+  {
+   "key": "stories|attr:aria-label|76c65959|0",
+   "section": "stories",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "More stories",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": "Real journeys, real outcomes"
+  },
+  {
+   "key": "stories|a|a475d9f3|0",
+   "section": "stories",
+   "kind": "text",
+   "element": "a",
+   "original": "See all",
+   "note": "",
+   "sectionLabel": "Real journeys, real outcomes"
+  },
+  {
+   "key": "stories|a|d8a8bbaf|0",
+   "section": "stories",
+   "kind": "text",
+   "element": "a",
+   "original": "admissions",
+   "note": "",
+   "sectionLabel": "Real journeys, real outcomes"
+  },
+  {
    "key": "faq|span|ca897d29|0",
    "section": "faq",
    "kind": "text",
@@ -5289,6 +5328,15 @@
    "kind": "text",
    "element": "a",
    "original": "About Us",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|18393409|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Success stories",
    "note": "",
    "sectionLabel": ""
   },

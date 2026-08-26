@@ -5428,6 +5428,205 @@ patch(
     marker=".lv-asks{display:grid",
 )
 
+
+# ------------------------------------------------------------ success stories
+#
+# "in success stories section lets add all the admits we got and what the
+# intake. We will use student initials only. On the home display only 6 add a
+# link to another page with url slug /success-stories and display all there.
+# This will let the AI engines rank us higher"
+#
+# The section was a three-column grid of three fixed cards. Three is what a
+# consultancy shows when it has three; a business with thirty admissions and a
+# page saying so is a different claim entirely, and it is the claim the office
+# can now make from the Home page screen without a developer.
+#
+# So: the grid becomes a track that slides, six on the home page, a link to a
+# page that lists every one, and an intake on each card — because an admission
+# with no date attached is a boast and "Winter 2026" is a fact.
+
+patch(
+    "index.html",
+    "the stories slide instead of sitting in a grid of three",
+    ".tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}",
+    "/* A track, not a grid. Six cards in a three-column grid is two rows, and\n"
+    "   the second row of a testimonial section is a row nobody scrolls to. */\n"
+    ".stories{position:relative}\n"
+    ".tgrid{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;\n"
+    "  scroll-behavior:smooth;scrollbar-width:none;padding:2px 2px 6px}\n"
+    ".tgrid::-webkit-scrollbar{display:none}\n"
+    ".tgrid>.tcard{flex:0 0 calc((100% - 40px)/3);scroll-snap-align:start}\n"
+    "/* The arrows sit outside the track on a wide screen and are hidden\n"
+    "   entirely on a touch screen, where swiping is the control. */\n"
+    ".sarrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;\n"
+    "  width:42px;height:42px;border-radius:50%;border:1px solid var(--line);\n"
+    "  background:var(--paper);color:var(--navy-800);cursor:pointer;display:grid;\n"
+    "  place-items:center;box-shadow:var(--sh-2);transition:.14s}\n"
+    ".sarrow:hover{border-color:var(--navy-600);color:var(--navy-900)}\n"
+    ".sarrow[disabled]{opacity:0;pointer-events:none}\n"
+    ".sarrow.prev{left:-21px}\n"
+    ".sarrow.next{right:-21px}\n"
+    ".sarrow .ico{font-size:19px}\n"
+    ".sarrow.prev .ico{transform:rotate(90deg)}\n"
+    ".sarrow.next .ico{transform:rotate(-90deg)}\n"
+    ".sdots{display:flex;justify-content:center;gap:7px;margin-top:16px}\n"
+    ".sdots button{width:8px;height:8px;padding:0;border-radius:50%;border:0;cursor:pointer;\n"
+    "  background:#cbd4de;transition:.14s}\n"
+    ".sdots button[aria-current=\"true\"]{background:var(--navy-700);width:22px;border-radius:99px}\n"
+    ".smore{text-align:center;margin:16px 0 0}\n"
+    ".smore a{font:700 13.4px/1 var(--sans);color:var(--navy-700);\n"
+    "  border-bottom:2px solid var(--gold-soft);padding-bottom:3px}\n"
+    ".smore a:hover{color:var(--blue-deep)}\n"
+    "/* Which intake the admission was for. */\n"
+    ".intake{font:700 11.2px/1 var(--sans);padding:6px 10px;border-radius:var(--r-pill);\n"
+    "  background:#eef3fb;color:var(--navy-700);border:1px solid #d5e0f0}\n"
+    "@media (max-width:1000px){.tgrid>.tcard{flex-basis:calc((100% - 20px)/2)}\n"
+    "  .sarrow{display:none}}\n"
+    "@media (max-width:640px){.tgrid>.tcard{flex-basis:86%}}",
+    marker=".tgrid>.tcard{flex:0 0",
+)
+
+# The 1000px rule collapsed the grid to one column, which does nothing useful
+# to a flex track and would fight the flex-basis above.
+patch(
+    "index.html",
+    "and the old one-column rule stops arguing with it",
+    "@media (max-width:1000px){.counsel{grid-template-columns:1fr}.tgrid{grid-template-columns:1fr}}",
+    "@media (max-width:1000px){.counsel{grid-template-columns:1fr}}",
+)
+
+patch(
+    "index.html",
+    "the track gets its arrows, its dots and a way to the rest",
+    '    <div class="tgrid"><article class="card card-hover card-stack tcard">',
+    '    <div class="stories">\n'
+    '      <button type="button" class="sarrow prev" id="storyPrev" aria-label="Previous stories"'
+    ' disabled><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button>\n'
+    '      <button type="button" class="sarrow next" id="storyNext" aria-label="More stories">'
+    '<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button>\n'
+    '    <div class="tgrid"><article class="card card-hover card-stack tcard">',
+    marker='id="storyPrev"',
+)
+
+patch(
+    "index.html",
+    "and the track is closed and followed by them",
+    '</span></span></div></article></div>\n  </div>\n</section>',
+    '</span></span></div></article></div>\n'
+    '    </div>\n'
+    '    <div class="sdots" id="storyDots"></div>\n'
+    '    <p class="smore" id="storyMore" hidden><a href="success-stories.html">'
+    'See all <b data-count>0</b> admissions</a></p>\n'
+    '  </div>\n</section>',
+    marker='id="storyDots"',
+)
+
+STORY_JS = r"""
+/* ------------------------------------------------------- the stories track */
+/*
+ * Six cards on a rail, three at a time. Rebuilt rather than initialised once,
+ * because the cards are repainted from the database after the page loads —
+ * arrows and dots derived at load time would describe three cards that are no
+ * longer there.
+ *
+ * The scrolling itself is the browser's: scroll-snap on the track, and these
+ * buttons only ever call scrollBy. That way a swipe on a phone and a click on
+ * a laptop go through the same code path and cannot disagree about which card
+ * is showing.
+ */
+window.__glovelsStories = function () {
+  const track = document.querySelector('.stories .tgrid');
+  const dots = document.getElementById('storyDots');
+  const prev = document.getElementById('storyPrev');
+  const next = document.getElementById('storyNext');
+  if (!track || !dots || !prev || !next) return;
+
+  const cards = () => [...track.querySelectorAll('.tcard')];
+  const step = () => {
+    const c = cards();
+    if (c.length < 2) return track.clientWidth;
+    return c[1].getBoundingClientRect().left - c[0].getBoundingClientRect().left;
+  };
+  /* How many cards are off the end. One dot per position you can scroll to,
+     not one per card — six cards showing three at a time is four positions,
+     and six dots under four of them is a control that lies. */
+  const pages = () => {
+    const s = step();
+    if (!s) return 1;
+    return Math.max(1, Math.round((track.scrollWidth - track.clientWidth) / s) + 1);
+  };
+  const at = () => {
+    const s = step();
+    return s ? Math.round(track.scrollLeft / s) : 0;
+  };
+
+  function paint() {
+    const n = pages(), i = at();
+    dots.hidden = n < 2;
+    if (dots.childElementCount !== n) {
+      dots.innerHTML = '';
+      for (let k = 0; k < n; k++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-label', 'Stories ' + (k + 1) + ' of ' + n);
+        b.onclick = () => track.scrollTo({ left: k * step(), behavior: 'smooth' });
+        dots.appendChild(b);
+      }
+    }
+    [...dots.children].forEach((b, k) =>
+      b.setAttribute('aria-current', String(k === i)));
+    prev.disabled = i <= 0;
+    /* A pixel of slack: a snapped track often stops a fraction short of its
+       own scrollWidth, and an arrow that stays lit at the end is worse than
+       one that goes out a fraction early. */
+    next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
+  }
+
+  prev.onclick = () => track.scrollBy({ left: -step(), behavior: 'smooth' });
+  next.onclick = () => track.scrollBy({ left: step(), behavior: 'smooth' });
+  track.onscroll = paint;
+  window.addEventListener('resize', paint);
+  paint();
+};
+window.__glovelsStories();
+"""
+
+patch(
+    "index.html",
+    "and the code that drives it",
+    "\n/* ------------------------------------------------- the studio, server-side */",
+    STORY_JS + "\n/* ------------------------------------------------- the studio, server-side */",
+    marker="the stories track",
+)
+
+
+
+# And a way to reach it that is not the home page. A page nothing links to is
+# a page nothing crawls.
+patch(
+    "index.html",
+    "the footer points at the stories",
+    '<div class="fcol"><h4>Company</h4><a href="about-us.html">About Us</a>',
+    '<div class="fcol"><h4>Company</h4><a href="about-us.html">About Us</a>'
+    '<a href="success-stories.html">Success stories</a>',
+)
+# Every page's footer, not only the home page's. The twenty-three marketing
+# pages are generated once and then edited in place — they do not come back
+# through _page.tpl.html on a rebuild — so the template alone would have put
+# the link on nothing that is currently on the site.
+for _page in sorted(HERE.glob("*.html")):
+    if _page.name == "index.html":
+        continue
+    if '<h4>Company</h4>' not in _page.read_text(encoding="utf-8"):
+        continue
+    patch(
+        _page.name,
+        "the footer points at the stories",
+        '<h4>Company</h4><a href="about-us.html">About Us</a>',
+        '<h4>Company</h4><a href="about-us.html">About Us</a>'
+        '<a href="success-stories.html">Success stories</a>',
+    )
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

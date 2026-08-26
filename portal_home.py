@@ -555,9 +555,10 @@ function paintStories() {
   $('#nSto').textContent = C.testimonials.length;
   $('#stoRows').innerHTML = C.testimonials.map((t, n) => rowCard(n,
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
-      tf('Name', 'tn' + n, t.name, 'Ram') +
+      tf('Initials', 'tn' + n, t.name, 'R.K.') +
       tf('Route', 'tr' + n, t.route, 'India → Germany') +
       tf('Where they are', 'tw' + n, t.where, 'Public university · Germany') +
+      tf('Intake', 'ti' + n, t.intake, 'Winter 2026') +
     '</div>' + ta('What they say', 'tq' + n, t.quote, true) +
     tick('Verified — the admission letter is on file', 'tv' + n, t.verified) +
     tick('Unconfirmed — show a DUMMY marker beside it', 'td' + n, t.dummy),
@@ -1278,12 +1279,13 @@ const READ = {
     q: $('#q' + n).value, a: $('#a' + n).value, dummy: $('#fd' + n).checked})),
   testimonials: () => C.testimonials.map((t, n) => ({
     name: $('#tn' + n).value, route: $('#tr' + n).value, where: $('#tw' + n).value,
+    intake: $('#ti' + n).value,
     quote: $('#tq' + n).value, verified: $('#tv' + n).checked, dummy: $('#td' + n).checked})),
 };
 const BLANK = {
   stats: {num: '', label: '', dummy: true},
   faq: {q: '', a: '', dummy: true},
-  testimonials: {name: '', route: '', where: '', quote: '', verified: false, dummy: true},
+  testimonials: {name: '', route: '', where: '', intake: '', quote: '', verified: false, dummy: true},
 };
 /* Which pane a list is in, so a save can repaint the right one without a
    reload — a reload would throw away whatever else is half-typed on screen. */

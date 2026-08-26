@@ -798,7 +798,40 @@ html.review-copy .build-strip{display:block !important}
 .stat .num{display:block;font-family:var(--disp);font-size:clamp(27px,3vw,38px);font-weight:700;
   color:var(--gold-soft)}
 .stat .lbl{font-size:12.8px;color:#c8d6e4}
-.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+/* A track, not a grid. Six cards in a three-column grid is two rows, and
+   the second row of a testimonial section is a row nobody scrolls to. */
+.stories{position:relative}
+.tgrid{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;
+  scroll-behavior:smooth;scrollbar-width:none;padding:2px 2px 6px}
+.tgrid::-webkit-scrollbar{display:none}
+.tgrid>.tcard{flex:0 0 calc((100% - 40px)/3);scroll-snap-align:start}
+/* The arrows sit outside the track on a wide screen and are hidden
+   entirely on a touch screen, where swiping is the control. */
+.sarrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;
+  width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
+  background:var(--paper);color:var(--navy-800);cursor:pointer;display:grid;
+  place-items:center;box-shadow:var(--sh-2);transition:.14s}
+.sarrow:hover{border-color:var(--navy-600);color:var(--navy-900)}
+.sarrow[disabled]{opacity:0;pointer-events:none}
+.sarrow.prev{left:-21px}
+.sarrow.next{right:-21px}
+.sarrow .ico{font-size:19px}
+.sarrow.prev .ico{transform:rotate(90deg)}
+.sarrow.next .ico{transform:rotate(-90deg)}
+.sdots{display:flex;justify-content:center;gap:7px;margin-top:16px}
+.sdots button{width:8px;height:8px;padding:0;border-radius:50%;border:0;cursor:pointer;
+  background:#cbd4de;transition:.14s}
+.sdots button[aria-current="true"]{background:var(--navy-700);width:22px;border-radius:99px}
+.smore{text-align:center;margin:16px 0 0}
+.smore a{font:700 13.4px/1 var(--sans);color:var(--navy-700);
+  border-bottom:2px solid var(--gold-soft);padding-bottom:3px}
+.smore a:hover{color:var(--blue-deep)}
+/* Which intake the admission was for. */
+.intake{font:700 11.2px/1 var(--sans);padding:6px 10px;border-radius:var(--r-pill);
+  background:#eef3fb;color:var(--navy-700);border:1px solid #d5e0f0}
+@media (max-width:1000px){.tgrid>.tcard{flex-basis:calc((100% - 20px)/2)}
+  .sarrow{display:none}}
+@media (max-width:640px){.tgrid>.tcard{flex-basis:86%}}
 .tcard{padding:18px 20px 0}
 .trow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px}
 .route{font:700 11.6px/1 var(--sans);padding:6px 11px;border-radius:var(--r-pill);
@@ -850,7 +883,7 @@ html.review-copy .build-strip{display:block !important}
 .sent b{display:block;font-family:var(--disp);font-size:17px;color:#0e5230;margin-bottom:3px}
 .sent span{font-size:13px;line-height:1.55}
 .formnote{font-size:11.6px;color:var(--muted);margin-top:11px;display:flex;gap:7px}
-@media (max-width:1000px){.counsel{grid-template-columns:1fr}.tgrid{grid-template-columns:1fr}}
+@media (max-width:1000px){.counsel{grid-template-columns:1fr}}
 @media (max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
 
 .dummy-chip{display:inline-flex;align-items:center;font:800 8.6px/1 var(--sans);letter-spacing:.12em;
@@ -1346,7 +1379,13 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <h2>Real journeys, real outcomes</h2>
       <p>Statements of admission, not quotes — we hold the offer letter for every card below.</p>
     </div>
+    <div class="stories">
+      <button type="button" class="sarrow prev" id="storyPrev" aria-label="Previous stories" disabled><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+      <button type="button" class="sarrow next" id="storyNext" aria-label="More stories"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button>
     <div class="tgrid"><article class="card card-hover card-stack tcard"><div class="card-body"><div class="trow"><span class="route">India → Germany</span><span class="vadm"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg>Verified admission</span><span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></div><blockquote>Admitted to TU Darmstadt for the M.Sc. in Information &amp; Communication Engineering.</blockquote></div><div class="card-foot who"><span class="av">R</span><span><b>Ram</b><span>Public university · Germany</span></span></div></article><article class="card card-hover card-stack tcard"><div class="card-body"><div class="trow"><span class="route">India → Germany</span><span class="vadm"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg>Verified admission</span><span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></div><blockquote>Admitted to RWTH Aachen for the M.Sc. in Data Science.</blockquote></div><div class="card-foot who"><span class="av">A</span><span><b>Arya</b><span>Public university · Germany</span></span></div></article><article class="card card-hover card-stack tcard"><div class="card-body"><div class="trow"><span class="route">India → Germany</span><span class="vadm"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg>Verified admission</span><span class="dummy-chip" title="Placeholder value — see dummy_overlay.py">DUMMY</span></div><blockquote>Admitted to FAU Erlangen–Nürnberg for the M.Sc. in Information &amp; Communication Technology.</blockquote></div><div class="card-foot who"><span class="av">S</span><span><b>Sakshi</b><span>Public university · Germany</span></span></div></article></div>
+    </div>
+    <div class="sdots" id="storyDots"></div>
+    <p class="smore" id="storyMore" hidden><a href="success-stories.html">See all <b data-count>0</b> admissions</a></p>
   </div>
 </section>
 
@@ -1415,7 +1454,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
           build a global future.</p>
         <div class="socials"><a href="https://www.instagram.com/glovelsofficial/" target="_blank" rel="noopener" aria-label="Glovels on Instagram"><svg class="ico" aria-hidden="true"><use href="#i-ig"/></svg></a><a href="https://www.facebook.com/GlovelsOfficial/" target="_blank" rel="noopener" aria-label="Glovels on Facebook"><svg class="ico" aria-hidden="true"><use href="#i-fb"/></svg></a><a href="https://www.linkedin.com/company/glovels/" target="_blank" rel="noopener" aria-label="Glovels on LinkedIn"><svg class="ico" aria-hidden="true"><use href="#i-li"/></svg></a><a href="https://x.com/GlovelsOfficial" target="_blank" rel="noopener" aria-label="Glovels on X"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></a></div>
       </div>
-      <div class="fcol"><h4>Study abroad</h4><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="index.html#catalogue">Browse the catalogue</a></div><div class="fcol"><h4>Work &amp; migrate</h4><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div><div class="fcol"><h4>Company</h4><a href="about-us.html">About Us</a><a href="careers.html">Careers</a><a href="blog.html">Blog</a><a href="refer.html">Refer a friend</a><a href="glossary.html">Glossary</a><a href="contact-us.html">Contact Us</a></div><div class="fcol"><h4>Legal</h4><a href="terms.html">Terms of Use</a><a href="privacy.html">Privacy Policy</a><a href="refunds.html">Refund &amp; Cancellation</a><a href="grievance.html">Grievance Redressal</a><a href="disclaimers.html">Disclaimers</a></div>
+      <div class="fcol"><h4>Study abroad</h4><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="index.html#catalogue">Browse the catalogue</a></div><div class="fcol"><h4>Work &amp; migrate</h4><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div><div class="fcol"><h4>Company</h4><a href="about-us.html">About Us</a><a href="success-stories.html">Success stories</a><a href="careers.html">Careers</a><a href="blog.html">Blog</a><a href="refer.html">Refer a friend</a><a href="glossary.html">Glossary</a><a href="contact-us.html">Contact Us</a></div><div class="fcol"><h4>Legal</h4><a href="terms.html">Terms of Use</a><a href="privacy.html">Privacy Policy</a><a href="refunds.html">Refund &amp; Cancellation</a><a href="grievance.html">Grievance Redressal</a><a href="disclaimers.html">Disclaimers</a></div>
     </div>
     <div class="freach">
       <div class="office"><b>Hyderabad</b>Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</div>
@@ -3003,6 +3042,74 @@ addEventListener('keydown', e => { if(e.key === 'Escape')
   $$('.modal.on').forEach(m => m.classList.remove('on')); });
 
 
+/* ------------------------------------------------------- the stories track */
+/*
+ * Six cards on a rail, three at a time. Rebuilt rather than initialised once,
+ * because the cards are repainted from the database after the page loads —
+ * arrows and dots derived at load time would describe three cards that are no
+ * longer there.
+ *
+ * The scrolling itself is the browser's: scroll-snap on the track, and these
+ * buttons only ever call scrollBy. That way a swipe on a phone and a click on
+ * a laptop go through the same code path and cannot disagree about which card
+ * is showing.
+ */
+window.__glovelsStories = function () {
+  const track = document.querySelector('.stories .tgrid');
+  const dots = document.getElementById('storyDots');
+  const prev = document.getElementById('storyPrev');
+  const next = document.getElementById('storyNext');
+  if (!track || !dots || !prev || !next) return;
+
+  const cards = () => [...track.querySelectorAll('.tcard')];
+  const step = () => {
+    const c = cards();
+    if (c.length < 2) return track.clientWidth;
+    return c[1].getBoundingClientRect().left - c[0].getBoundingClientRect().left;
+  };
+  /* How many cards are off the end. One dot per position you can scroll to,
+     not one per card — six cards showing three at a time is four positions,
+     and six dots under four of them is a control that lies. */
+  const pages = () => {
+    const s = step();
+    if (!s) return 1;
+    return Math.max(1, Math.round((track.scrollWidth - track.clientWidth) / s) + 1);
+  };
+  const at = () => {
+    const s = step();
+    return s ? Math.round(track.scrollLeft / s) : 0;
+  };
+
+  function paint() {
+    const n = pages(), i = at();
+    dots.hidden = n < 2;
+    if (dots.childElementCount !== n) {
+      dots.innerHTML = '';
+      for (let k = 0; k < n; k++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-label', 'Stories ' + (k + 1) + ' of ' + n);
+        b.onclick = () => track.scrollTo({ left: k * step(), behavior: 'smooth' });
+        dots.appendChild(b);
+      }
+    }
+    [...dots.children].forEach((b, k) =>
+      b.setAttribute('aria-current', String(k === i)));
+    prev.disabled = i <= 0;
+    /* A pixel of slack: a snapped track often stops a fraction short of its
+       own scrollWidth, and an arrow that stays lit at the end is worse than
+       one that goes out a fraction early. */
+    next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
+  }
+
+  prev.onclick = () => track.scrollBy({ left: -step(), behavior: 'smooth' });
+  next.onclick = () => track.scrollBy({ left: step(), behavior: 'smooth' });
+  track.onscroll = paint;
+  window.addEventListener('resize', paint);
+  paint();
+};
+window.__glovelsStories();
+
 /* ------------------------------------------------- the studio, server-side */
 let AI_CHIPS = null;
 let aiPass = 0;
@@ -3528,7 +3635,7 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
 
 </script>
 <script>
-/* content_client ff40f8153a36 */
+/* content_client 6189d8fc61c3 */
 /* ---------------------------------------------------------------------------
    Glovels — live content. Edited in the operations site, applied here.
    --------------------------------------------------------------------------- */
@@ -3675,6 +3782,22 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
     }).join('');
   }
 
+  /* One card. Shared with the /success-stories page, which the server renders
+     from the same rows — so the two can never drift into showing the same
+     admission two different ways. */
+  function storyCard(t) {
+    return '<article class="card card-hover card-stack tcard"><div class="card-body">'
+         + '<div class="trow">'
+         + (t.route ? '<span class="route">' + E(t.route) + '</span>' : '')
+         + (t.intake ? '<span class="intake">' + E(t.intake) + '</span>' : '')
+         + (t.verified ? '<span class="vadm">' + ico('shield') + 'Verified admission</span>' : '')
+         + (t.dummy ? '<span class="dummy-chip" title="Placeholder value">DUMMY</span>' : '')
+         + '</div><blockquote>' + E(t.quote) + '</blockquote></div>'
+         + '<div class="card-foot who"><span class="av">'
+         + E((t.name || '?').trim().charAt(0).toUpperCase()) + '</span><span><b>'
+         + E(t.name) + '</b><span>' + E(t.where) + '</span></span></div></article>';
+  }
+
   function paintTestimonials(rows) {
     var first = document.querySelector('article.tcard');
     if (!first || !rows || !rows.length) return;
@@ -3682,17 +3805,21 @@ $('#wa').onclick = () => open('https://wa.me/917093314089?text='
     [].slice.call(host.querySelectorAll('article.tcard')).forEach(function (a, i) {
       if (i) a.remove();
     });
-    first.outerHTML = rows.map(function (t) {
-      return '<article class="card card-hover card-stack tcard"><div class="card-body">'
-           + '<div class="trow">'
-           + (t.route ? '<span class="route">' + E(t.route) + '</span>' : '')
-           + (t.verified ? '<span class="vadm">' + ico('shield') + 'Verified admission</span>' : '')
-           + (t.dummy ? '<span class="dummy-chip" title="Placeholder value">DUMMY</span>' : '')
-           + '</div><blockquote>' + E(t.quote) + '</blockquote></div>'
-           + '<div class="card-foot who"><span class="av">'
-           + E((t.name || '?').trim().charAt(0).toUpperCase()) + '</span><span><b>'
-           + E(t.name) + '</b><span>' + E(t.where) + '</span></span></div></article>';
-    }).join('');
+    /* The home page slides through six. The rest live on their own page, and
+       the link under the track says how many that is — a "see all" that does
+       not say all-of-what is a link nobody presses. */
+    var HOME = 6;
+    first.outerHTML = rows.slice(0, HOME).map(storyCard).join('');
+
+    var more = document.getElementById('storyMore');
+    if (more) {
+      more.hidden = rows.length <= HOME;
+      var n = more.querySelector('[data-count]');
+      if (n) n.textContent = rows.length;
+    }
+    /* The track was built for three fixed cards; six need the arrows and the
+       dots re-derived from what is actually in it. */
+    if (window.__glovelsStories) window.__glovelsStories();
   }
 
   /* -------------------------------------------------------------- page text */

@@ -256,7 +256,12 @@ const cleanFaq = v => (Array.isArray(v) ? v : []).slice(0, 40).map(x => ({
 
 const cleanTestimonials = v => (Array.isArray(v) ? v : []).slice(0, 30).map(x => ({
   route: str(x.route, 60), quote: str(x.quote, 500), name: str(x.name, 40),
-  where: str(x.where, 80), verified: yes(x.verified), dummy: yes(x.dummy),
+  where: str(x.where, 80),
+  /* Which intake the admission was for. An admission with no date attached is
+     a claim; "Winter 2026" is a fact somebody can hold us to, and it is the
+     part a student comparing consultancies actually reads. */
+  intake: str(x.intake, 40),
+  verified: yes(x.verified), dummy: yes(x.dummy),
 })).filter(x => x.quote || x.name);
 
 /*
@@ -483,8 +488,10 @@ const SHEETS = {
   },
   testimonials: {
     columns: [['name', 'name'], ['route', 'route'], ['what they say', 'quote'],
-      ['where', 'where'], ['verified', 'verified'], ['unconfirmed', 'dummy']],
-    row: t => [t.name, t.route, t.quote, t.where, t.verified ? 'yes' : 'no', t.dummy ? 'yes' : 'no'],
+      ['where', 'where'], ['intake', 'intake'],
+      ['verified', 'verified'], ['unconfirmed', 'dummy']],
+    row: t => [t.name, t.route, t.quote, t.where, t.intake,
+      t.verified ? 'yes' : 'no', t.dummy ? 'yes' : 'no'],
     key: 'name',
     label: t => t.name || t.quote,
   },

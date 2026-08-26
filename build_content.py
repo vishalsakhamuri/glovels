@@ -316,6 +316,7 @@ def testimonials(s):
         g = lambda p: (re.search(p, b, re.S).group(1) if re.search(p, b, re.S) else "")
         out.append({
             "route": unesc(g(r'<span class="route">(.*?)</span>')),
+            "intake": unesc(g(r'<span class="intake">(.*?)</span>')),
             "verified": "vadm" in b,
             "quote": unesc(g(r"<blockquote>(.*?)</blockquote>")),
             "name": unesc(g(r'<span class="av">.*?</span><span><b>(.*?)</b>')),

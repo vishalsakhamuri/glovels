@@ -341,6 +341,10 @@ function sitemapXml() {
     pages.splice(i, 1);
   }
   live.forEach(p => { if (!pages.includes(p)) pages.push(p); });
+  /* Rendered from the database rather than sitting on disk, so the walk above
+     cannot find it — and a page nobody has asked to have indexed is a page
+     that will not be. */
+  if (!pages.includes('success-stories')) pages.push('success-stories');
   pages.sort();
   const base = CFG.siteUrl || '';
   return '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -636,6 +640,125 @@ function acceptancePage(order, accepted) {
   }));
 }
 
+/*
+ * /success-stories — every admission, on one page.
+ *
+ * The home page shows six on a rail. This is the rest, and it is the reason
+ * the office was asked for the intake: a list of thirty admissions with the
+ * university, the course and the term each one was for is the single most
+ * useful page this site can offer somebody deciding whether to trust it.
+ *
+ * Rendered HERE, from the database, rather than painted into a static file by
+ * the browser. The home page can repaint itself because a visitor runs its
+ * scripts; a crawler indexing the page — and the AI crawlers in particular —
+ * often does not, and would find three shipped placeholders where thirty real
+ * admissions are. The cards are built with the same fields and the same class
+ * names the browser uses, so the two cannot drift.
+ *
+ * Initials only. That is the whole privacy position on this page: a student
+ * gave us their admission letter, not permission to publish their name.
+ */
+function successStoriesPage() {
+  const t = templates();
+  if (!t) return null;
+  const rows = (content.get('testimonials') || []).filter(x => x && (x.quote || x.name));
+
+  const card = s =>
+    '<article class="card card-hover card-stack tcard"><div class="card-body">'
+    + '<div class="trow">'
+    + (s.route ? '<span class="route">' + esc(s.route) + '</span>' : '')
+    + (s.intake ? '<span class="intake">' + esc(s.intake) + '</span>' : '')
+    + (s.verified
+        ? '<span class="vadm"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg>'
+          + 'Verified admission</span>'
+        : '')
+    + '</div><blockquote>' + esc(s.quote) + '</blockquote></div>'
+    + '<div class="card-foot who"><span class="av">'
+    + esc(String(s.name || '?').trim().charAt(0).toUpperCase()) + '</span><span><b>'
+    + esc(s.name) + '</b><span>' + esc(s.where) + '</span></span></div></article>';
+
+  /*
+   * The cards' own styling, inline.
+   *
+   * This template is the one the legal pages and the blog use, and it carries
+   * a prose stylesheet — 70 characters to a line and a gold rule down the side
+   * of every blockquote. A story card dropped into it came out as a column of
+   * run-together text with the route, the intake and "Verified admission"
+   * printed as one sentence, because none of the home page's card rules exist
+   * here. They are declared once, below, and the grid breaks out of the prose
+   * column because thirty cards in a 70ch measure is one card wide.
+   */
+  const STYLE = '<style>'
+    + '#page{max-width:none}'
+    + '.sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:0 0 26px}'
+    + '@media (max-width:980px){.sgrid{grid-template-columns:repeat(2,1fr)}}'
+    + '@media (max-width:640px){.sgrid{grid-template-columns:1fr}}'
+    + '.sgrid .tcard{display:flex;flex-direction:column;padding:18px 20px 0;'
+    + 'background:var(--paper,#fff);border:1px solid var(--line,#e4e8ee);border-radius:16px}'
+    + '.sgrid .card-body{flex:1}'
+    + '.sgrid .trow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px}'
+    + '.sgrid .route{font:700 11.6px/1 var(--sans);padding:6px 11px;border-radius:999px;'
+    + 'border:1px solid var(--line,#e4e8ee);background:var(--cream,#f6f4ee);color:var(--navy-800)}'
+    + '.sgrid .intake{font:700 11.2px/1 var(--sans);padding:6px 10px;border-radius:999px;'
+    + 'background:#eef3fb;color:var(--navy-700);border:1px solid #d5e0f0}'
+    + '.sgrid .vadm{display:inline-flex;align-items:center;gap:5px;font:800 9.4px/1 var(--sans);'
+    + 'letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:999px;'
+    + 'background:#eef8f2;color:#14603a;border:1px solid #bfe0cc}'
+    + '.sgrid .vadm .ico{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8}'
+    + '.sgrid blockquote{margin:0;padding:0;border:0;font-size:14.6px;line-height:1.5;'
+    + 'font-style:normal;color:var(--navy-800)}'
+    + '.sgrid .who{padding:13px 0 18px;margin-top:14px;border-top:1px solid var(--line,#e4e8ee);'
+    + 'display:flex;align-items:center;gap:10px}'
+    + '.sgrid .who .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;'
+    + 'flex:none;font:700 13px/1 var(--sans);color:#fff;'
+    + 'background:linear-gradient(160deg,var(--navy-600,#1c3d5e),var(--navy-800,#0f2740))}'
+    + '.sgrid .who b{font-size:13.4px;color:var(--navy-900)}'
+    + '.sgrid .who span span{display:block;font-size:11.8px;color:var(--muted)}'
+    + '</style>';
+
+  const body = rows.length
+    ? STYLE
+      + '<div class="sgrid">' + rows.map(card).join('') + '</div>'
+      + '<p style="font-size:13px;color:var(--muted);line-height:1.7">'
+      + 'Initials only — a student gives us their admission letter, not permission to '
+      + 'publish their name. Every card marked <b>Verified admission</b> has the offer '
+      + 'letter on file, and we will show it to the university that asks.</p>'
+    : '<p>The first admissions of this intake are being confirmed. '
+      + '<a href="contact-us.html">Ask us</a> what we have placed and where.</p>';
+
+  const verified = rows.filter(r => r.verified).length;
+
+  return fill(t.page, Object.assign(metaHoles({
+    title: 'Success stories — every admission we have placed',
+    desc: rows.length
+      ? rows.length + ' admissions to public and private universities abroad, with the '
+        + 'course and the intake each one was for. Initials only; offer letters on file.'
+      : 'Admissions Glovels has placed, with the course and the intake for each.',
+    canonical: absolute('/success-stories'),
+    keywords: 'study abroad success stories, admits, Germany admission, public university admission',
+    type: 'website',
+    jsonld: rows.length ? {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      name: 'Glovels admissions',
+      numberOfItems: rows.length,
+      itemListElement: rows.map((s, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: s.quote,
+      })),
+    } : null,
+  }), {
+    CRUMBS: '<a href="index.html">Home</a> / Success stories',
+    H1: 'Every admission we have placed',
+    DATELINE: rows.length
+      ? rows.length + ' admission' + (rows.length === 1 ? '' : 's')
+        + (verified ? ' · ' + verified + ' with the offer letter on file' : '')
+      : 'Being confirmed',
+    BODY: body,
+  }));
+}
+
 const NOINDEX = /<meta name="robots" content="noindex,nofollow"\s*\/?>/i;
 
 function forIndexing(html, slug) {
@@ -687,6 +810,14 @@ const server = http.createServer(async (req, res) => {
    * query, because the person who has just paid has no account to sign in to
    * yet and is exactly who needs to see this.
    */
+  /* Ahead of the static files, because there is no file — the page is the
+     database, rendered. `success-stories.html` reaches it through the same
+     .html redirect every other internal link on this site goes through. */
+  if (pathname === '/success-stories') {
+    const page = successStoriesPage();
+    if (page) return send(res, 200, forIndexing(page, 'success-stories'), TYPES['.html']);
+  }
+
   const acc = /^\/acceptance\/([A-Za-z0-9-]{3,30})$/.exec(pathname);
   if (acc) {
     const order = db.orderByReference(acc[1]);

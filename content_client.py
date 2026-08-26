@@ -164,6 +164,22 @@ SCRIPT = r"""
     }).join('');
   }
 
+  /* One card. Shared with the /success-stories page, which the server renders
+     from the same rows — so the two can never drift into showing the same
+     admission two different ways. */
+  function storyCard(t) {
+    return '<article class="card card-hover card-stack tcard"><div class="card-body">'
+         + '<div class="trow">'
+         + (t.route ? '<span class="route">' + E(t.route) + '</span>' : '')
+         + (t.intake ? '<span class="intake">' + E(t.intake) + '</span>' : '')
+         + (t.verified ? '<span class="vadm">' + ico('shield') + 'Verified admission</span>' : '')
+         + (t.dummy ? '<span class="dummy-chip" title="Placeholder value">DUMMY</span>' : '')
+         + '</div><blockquote>' + E(t.quote) + '</blockquote></div>'
+         + '<div class="card-foot who"><span class="av">'
+         + E((t.name || '?').trim().charAt(0).toUpperCase()) + '</span><span><b>'
+         + E(t.name) + '</b><span>' + E(t.where) + '</span></span></div></article>';
+  }
+
   function paintTestimonials(rows) {
     var first = document.querySelector('article.tcard');
     if (!first || !rows || !rows.length) return;
@@ -171,17 +187,21 @@ SCRIPT = r"""
     [].slice.call(host.querySelectorAll('article.tcard')).forEach(function (a, i) {
       if (i) a.remove();
     });
-    first.outerHTML = rows.map(function (t) {
-      return '<article class="card card-hover card-stack tcard"><div class="card-body">'
-           + '<div class="trow">'
-           + (t.route ? '<span class="route">' + E(t.route) + '</span>' : '')
-           + (t.verified ? '<span class="vadm">' + ico('shield') + 'Verified admission</span>' : '')
-           + (t.dummy ? '<span class="dummy-chip" title="Placeholder value">DUMMY</span>' : '')
-           + '</div><blockquote>' + E(t.quote) + '</blockquote></div>'
-           + '<div class="card-foot who"><span class="av">'
-           + E((t.name || '?').trim().charAt(0).toUpperCase()) + '</span><span><b>'
-           + E(t.name) + '</b><span>' + E(t.where) + '</span></span></div></article>';
-    }).join('');
+    /* The home page slides through six. The rest live on their own page, and
+       the link under the track says how many that is — a "see all" that does
+       not say all-of-what is a link nobody presses. */
+    var HOME = 6;
+    first.outerHTML = rows.slice(0, HOME).map(storyCard).join('');
+
+    var more = document.getElementById('storyMore');
+    if (more) {
+      more.hidden = rows.length <= HOME;
+      var n = more.querySelector('[data-count]');
+      if (n) n.textContent = rows.length;
+    }
+    /* The track was built for three fixed cards; six need the arrows and the
+       dots re-derived from what is actually in it. */
+    if (window.__glovelsStories) window.__glovelsStories();
   }
 
   /* -------------------------------------------------------------- page text */
