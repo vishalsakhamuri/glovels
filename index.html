@@ -296,6 +296,11 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .banner h4{font-size:17px;margin-bottom:3px}
 .banner p{margin:0;font-size:13.3px;opacity:.9}
 
+section[id]{scroll-margin-top:92px}
+.showmore{display:none}
+@media (max-width:600px){
+  .showmore{display:flex;width:100%;justify-content:center;margin-top:14px}
+}
 .rows-wrap{position:relative}
 .rows{max-height:min(62vh,560px);overflow-y:auto;scrollbar-gutter:stable;padding-right:4px}
 @media (max-width:700px){ .rows{max-height:min(70vh,520px)} }
@@ -501,18 +506,26 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
  * action full width — a row that fits is the whole fix.
  */
 @media (max-width:600px){
-  .mrow{grid-template-columns:30px minmax(0,1fr);gap:8px 11px;padding:13px 14px;
-    grid-template-areas:"cc name" ". ctry" ". type" ". price" ". act"}
+  /* Three lines, not five. Stacking every field down its own line made one
+     university 470px tall — a phone showed a row and a half of eighteen, and
+     the page inherited the rest of the length. The fields that are short go
+     side by side, and the country name goes altogether: the flag beside the
+     programme already says it. */
+  .mrow{grid-template-columns:26px minmax(0,1fr) auto;gap:7px 10px;padding:12px 13px;
+    grid-template-areas:"cc name name" ". type price" ". act act"}
   .mcc{grid-area:cc;align-self:start}
   .mname{grid-area:name;min-width:0}
-  .mname b{font-size:14.6px;line-height:1.35;display:block}
-  .msub{white-space:normal}
-  .mctry{grid-area:ctry}
-  .mtype{grid-area:type;justify-self:start}
-  .mprice{grid-area:price;justify-self:start}
-  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:wrap;gap:9px;
+  .mname b{font-size:14.2px;line-height:1.3;display:block}
+  .msub{white-space:normal;font-size:11.9px}
+  .mctry{display:none}
+  .mtype{grid-area:type;justify-self:start;align-self:center}
+  .mprice{grid-area:price;justify-self:end;align-self:center;text-align:right;
+    display:flex;align-items:baseline;gap:5px}
+  .mprice small{margin:0}
+  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:nowrap;gap:8px;
     align-items:center;margin-top:2px}
-  .mact .btn{flex:1 1 100%;justify-content:center}
+  .mact .btn{flex:1 1 auto;justify-content:center}
+  .mact .mreq{flex:none}
   /* The list itself must not be the thing that scrolls. If a row ever
      overflows again it should break the layout visibly, not hide a name. */
   .rows{overflow-x:visible}
@@ -667,6 +680,13 @@ html.review-copy .build-strip{display:block !important}
   text-decoration:underline}
 @media (max-width:1000px){.svc-grid,.ai-strip{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:640px){.svc-grid,.ai-strip{grid-template-columns:1fr}}
+@media (max-width:600px){
+  /* margin-left:auto pushed this to the right edge on its own line, under a
+     left-aligned heading, under a centred one. */
+  .ai-try{margin-left:0;width:100%;justify-content:center;padding:12px 16px}
+  .ai-head{gap:10px}
+  .ai-head b{font-size:16px}
+}
 .dummy-chip{display:inline-flex;align-items:center;font:800 8.6px/1 var(--sans);
   letter-spacing:.12em;padding:4px 6px;border-radius:4px;background:#fdf0d6;color:#8a5a0b;
   border:1px solid #e8c88a;margin-left:6px;vertical-align:middle;text-transform:uppercase}
@@ -3643,6 +3663,51 @@ $('#mapBtn').onclick = () =>
     '_blank', 'noopener');
 $('#wa').onclick = () => open('https://wa.me/917093314089?text='
   + encodeURIComponent('Hi Glovels, I would like to speak to a counsellor.'), '_blank', 'noopener');
+
+/* ------------------------------------------------- long grids, short on phones */
+function shortOnPhones(id, keep, label, only){
+  const box = document.getElementById(id);
+  if(!box) return;
+  let btn = null;
+  const paint = () => {
+    const phone = matchMedia('(max-width:600px)').matches;
+    /* Only the cards. The catalogue grid ends with the panel that offers the
+       universities a package unlocks — counting it as a card meant the offer
+       could be the thing that got hidden. */
+    const kids = [...box.children].filter(el => el.matches(only));
+    if(!phone || kids.length <= keep){
+      kids.forEach(el => el.style.removeProperty('display'));
+      if(btn){ btn.remove(); btn = null; }
+      return;
+    }
+    const open = box.dataset.showAll === '1';
+    kids.forEach((el, i) => {
+      if(open || i < keep) el.style.removeProperty('display');
+      else el.style.display = 'none';
+    });
+    if(!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-ghost showmore';
+      btn.addEventListener('click', () => {
+        box.dataset.showAll = box.dataset.showAll === '1' ? '' : '1';
+        paint();
+        if(box.dataset.showAll !== '1') box.scrollIntoView({block:'start'});
+      });
+      box.after(btn);
+    }
+    btn.textContent = open
+      ? 'Show fewer'
+      : 'Show all ' + kids.length + ' ' + label;
+  };
+  /* Both grids are repainted from several places. Watching the box is the only
+     version of this that cannot be forgotten by the next patch. */
+  new MutationObserver(() => paint()).observe(box, {childList:true});
+  addEventListener('resize', paint);
+  paint();
+}
+shortOnPhones('svcGrid', 4, 'services', '.card');
+shortOnPhones('cgrid', 5, 'universities', '.ccard');
 })();
 
 </script>
@@ -4211,6 +4276,17 @@ if (location.protocol === 'file:') {
       'border:1.5px solid #d3dbe4}',
     '.gv-corner .gv-chat-fab:hover{background:#f4f7fb}',
     '.gv-corner .gv-dot{top:-4px;right:-4px}',
+    /* On a phone the WhatsApp pill was 340px wide on a 390px screen — a green
+       bar lying across whatever was underneath it, which on the results list
+       was somebody's Apply button. Label off, circle on. */
+    '@media (max-width:600px){',
+      '.gv-corner{right:13px;bottom:13px;gap:8px}',
+      '.gv-wa{padding:0;width:52px;height:52px;justify-content:center;border-radius:50%}',
+      '.gv-wa span{display:none}',
+      '.gv-corner .gv-chat-fab{padding:0;width:46px;height:46px;justify-content:center;',
+        'border-radius:50%}',
+      '.gv-corner .gv-chat-fab span:not(.gv-dot){display:none}',
+    '}',
     /* A class that sets display beats the browser's own rule for [hidden], so
        hiding the button by setting .hidden left it sitting on top of the open
        panel, swallowing clicks meant for Send. Both of these are load-bearing. */

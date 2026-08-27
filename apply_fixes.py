@@ -4721,6 +4721,273 @@ patch(
 )
 
 
+# ============================================================ the phone ======
+#
+# Vishal: "mobile version is not aligned . can u pls chk its going side ways
+# and getting long."
+#
+# ---------------------------------------------------------- the portal nav
+#
+# On a phone the sidebar turned into a single nowrap row with overflow-x:auto.
+# Measured on a 390px iPhone it is **1,554px wide**. What a student sees is the
+# logo, their name and Sign out — and Dashboard, My Profile, Documents, My
+# Universities, Applications, Services, Scholarships, Visa and Messages all sit
+# off the right-hand edge, with nothing on the screen to say they are there.
+# Every signed-in screen, every role: student, counsellor, admin, partner.
+#
+# It wraps now. Nine links across three short rows is a navigation bar; nine
+# links in a 1,554px strip you have to guess at is not one.
+#
+# The two cards beside it were being squeezed to their flex-basis in the same
+# row, which is why the package card read one word per line — "Roadmap / 5 /
+# universities / · winter / intake". They get their own full-width line.
+PORTAL_MOBILE_OLD = """@media (max-width:860px){
+  .p-shell{grid-template-columns:1fr}
+  .p-side{flex-direction:row;align-items:center;gap:4px;padding:12px 14px;overflow-x:auto}
+  .p-logo{margin:0 12px 0 0;flex:none}
+  .p-nav{flex-direction:row;gap:2px}
+  .p-nav a{padding:10px 11px;white-space:nowrap}
+  .p-nav .soon{display:none}
+  .p-side-foot{margin:0 0 0 auto;padding:0;border:0;flex:none}
+  .p-main{padding:20px 18px 40px}
+}"""
+
+PORTAL_MOBILE_NEW = """@media (max-width:860px){
+  .p-shell{grid-template-columns:1fr}
+  /* Wrap, never scroll sideways. As a nowrap strip this measured 1554px inside
+     a 390px phone, so every link past Sign out was off-screen with no hint. */
+  .p-side{flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;
+    padding:10px 13px 12px;overflow:visible}
+  .p-logo{margin:0;flex:none}
+  /* Their name and the way out, on the first line beside the logo.
+     Prefixed with .p-side throughout: the rules these have to beat — the
+     flex-basis:100% that stacks the card's own lines, and a 900px block that
+     re-adds side margins — sit LATER in the stylesheet at equal specificity,
+     so a plain `.plan-badge` here loses every argument it starts. */
+  .p-side .p-who{margin:0 0 0 auto;padding:7px 10px;flex:none;max-width:58%}
+  /* The package card, on a line of its own and reading across it rather than
+     down — squeezed into the nav row it broke to one word per line. */
+  .p-side .plan-badge{margin:0;padding:8px 11px;flex:1 0 100%;order:5}
+  .p-side .plan-badge b,.p-side .plan-badge > span{flex-basis:auto}
+  .p-side .plan-badge > span{margin-top:0}
+  .p-side .plan-badge .p-out{margin-left:auto;align-self:center}
+  .p-nav{flex:1 0 100%;order:6;flex-direction:row;flex-wrap:wrap;gap:4px}
+  .p-nav a{padding:9px 10px;white-space:nowrap;font-size:12.4px;gap:7px}
+  .p-nav .soon{display:none}
+  .p-side-foot{margin:0;padding:0;border:0;flex:none}
+  .p-main{padding:20px 16px 40px}
+}"""
+
+
+def portal_nav_wraps():
+    n = 0
+    for f in sorted(HERE.glob("*.html")):
+        t = f.read_text(encoding="utf-8")
+        if PORTAL_MOBILE_NEW in t or PORTAL_MOBILE_OLD not in t:
+            continue
+        write(f, t.replace(PORTAL_MOBILE_OLD, PORTAL_MOBILE_NEW, 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the portal nav wraps on a phone")
+    else:
+        skipped.append("every portal page: the portal nav wraps on a phone")
+
+
+portal_nav_wraps()
+
+
+# ------------------------------------------------- a wide table stays inside
+#
+# /leads was 1,198px wide on a 390px phone — the whole page slid sideways, not
+# just the table.
+#
+# The table is already inside a `.scrollx` box that knows how to scroll. The box
+# was inside `.scrollwrap`, which had nothing but `position:relative` on it, so
+# it took the width of its content. A scroll container sized by the thing it is
+# supposed to be scrolling is not a scroll container; it is a very wide div.
+# Everything else in the column then stretched to match, which is why a
+# paragraph in the panel below measured 1,142px.
+#
+# `min-width:0` is the half people forget: a grid or flex item defaults to
+# min-width:auto and refuses to be narrower than its content, and max-width
+# alone cannot overrule that.
+SCROLLWRAP_OLD = ".scrollwrap{position:relative}"
+SCROLLWRAP_NEW = (".scrollwrap{position:relative;min-width:0;max-width:100%}\n"
+                  ".scrollx{max-width:100%}")
+
+
+def wide_tables_stay_inside():
+    n = 0
+    for f in sorted(HERE.glob("*.html")):
+        t = f.read_text(encoding="utf-8")
+        if SCROLLWRAP_NEW in t or SCROLLWRAP_OLD not in t:
+            continue
+        write(f, t.replace(SCROLLWRAP_OLD, SCROLLWRAP_NEW, 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): a wide table scrolls in its box, not the page")
+    else:
+        skipped.append("every portal page: a wide table scrolls in its box")
+
+
+wide_tables_stay_inside()
+
+
+# ------------------------------------------------- a result row on a phone
+#
+# Every field on its own line made one university 470px tall. Eighteen of them
+# is 8,400px, and the home page was 17,012px — twenty phone screens.
+patch(
+    "index.html",
+    "a result row is three lines on a phone, not five",
+    """@media (max-width:600px){
+  .mrow{grid-template-columns:30px minmax(0,1fr);gap:8px 11px;padding:13px 14px;
+    grid-template-areas:"cc name" ". ctry" ". type" ". price" ". act"}
+  .mcc{grid-area:cc;align-self:start}
+  .mname{grid-area:name;min-width:0}
+  .mname b{font-size:14.6px;line-height:1.35;display:block}
+  .msub{white-space:normal}
+  .mctry{grid-area:ctry}
+  .mtype{grid-area:type;justify-self:start}
+  .mprice{grid-area:price;justify-self:start}
+  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:wrap;gap:9px;
+    align-items:center;margin-top:2px}
+  .mact .btn{flex:1 1 100%;justify-content:center}""",
+    """@media (max-width:600px){
+  /* Three lines, not five. Stacking every field down its own line made one
+     university 470px tall — a phone showed a row and a half of eighteen, and
+     the page inherited the rest of the length. The fields that are short go
+     side by side, and the country name goes altogether: the flag beside the
+     programme already says it. */
+  .mrow{grid-template-columns:26px minmax(0,1fr) auto;gap:7px 10px;padding:12px 13px;
+    grid-template-areas:"cc name name" ". type price" ". act act"}
+  .mcc{grid-area:cc;align-self:start}
+  .mname{grid-area:name;min-width:0}
+  .mname b{font-size:14.2px;line-height:1.3;display:block}
+  .msub{white-space:normal;font-size:11.9px}
+  .mctry{display:none}
+  .mtype{grid-area:type;justify-self:start;align-self:center}
+  .mprice{grid-area:price;justify-self:end;align-self:center;text-align:right;
+    display:flex;align-items:baseline;gap:5px}
+  .mprice small{margin:0}
+  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:nowrap;gap:8px;
+    align-items:center;margin-top:2px}
+  .mact .btn{flex:1 1 auto;justify-content:center}
+  .mact .mreq{flex:none}""",
+    marker=".mctry{display:none}",
+)
+
+
+# --------------------------------------------- the long lists, on a phone
+#
+# The home page measured 17,012px on a 390px screen — twenty phone screens.
+# Two card grids were half of it: eleven service cards at 3,335px and fifteen
+# university cards at 3,471px. Three and four screens of scrolling each, and on
+# a laptop they are three or four tidy columns.
+#
+# So on phones they open at the first few and the rest are one press away. Not
+# a carousel: a sideways rail is the thing Vishal was complaining about, and
+# hiding cards off the right edge is how the portal nav lost its links.
+#
+# A MutationObserver rather than a call at the end of each render, because both
+# grids are repainted by tab presses, budget chips and the live catalogue
+# arriving — four call sites between them, and the fifth one somebody adds
+# later would silently un-collapse the list.
+patch(
+    "index.html",
+    "long card grids open short on a phone",
+    """$('#wa').onclick = () => open('https://wa.me/917093314089?text='
+  + encodeURIComponent('Hi Glovels, I would like to speak to a counsellor.'), '_blank', 'noopener');""",
+    """$('#wa').onclick = () => open('https://wa.me/917093314089?text='
+  + encodeURIComponent('Hi Glovels, I would like to speak to a counsellor.'), '_blank', 'noopener');
+
+/* ------------------------------------------------- long grids, short on phones */
+function shortOnPhones(id, keep, label, only){
+  const box = document.getElementById(id);
+  if(!box) return;
+  let btn = null;
+  const paint = () => {
+    const phone = matchMedia('(max-width:600px)').matches;
+    /* Only the cards. The catalogue grid ends with the panel that offers the
+       universities a package unlocks — counting it as a card meant the offer
+       could be the thing that got hidden. */
+    const kids = [...box.children].filter(el => el.matches(only));
+    if(!phone || kids.length <= keep){
+      kids.forEach(el => el.style.removeProperty('display'));
+      if(btn){ btn.remove(); btn = null; }
+      return;
+    }
+    const open = box.dataset.showAll === '1';
+    kids.forEach((el, i) => {
+      if(open || i < keep) el.style.removeProperty('display');
+      else el.style.display = 'none';
+    });
+    if(!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-ghost showmore';
+      btn.addEventListener('click', () => {
+        box.dataset.showAll = box.dataset.showAll === '1' ? '' : '1';
+        paint();
+        if(box.dataset.showAll !== '1') box.scrollIntoView({block:'start'});
+      });
+      box.after(btn);
+    }
+    btn.textContent = open
+      ? 'Show fewer'
+      : 'Show all ' + kids.length + ' ' + label;
+  };
+  /* Both grids are repainted from several places. Watching the box is the only
+     version of this that cannot be forgotten by the next patch. */
+  new MutationObserver(() => paint()).observe(box, {childList:true});
+  addEventListener('resize', paint);
+  paint();
+}
+shortOnPhones('svcGrid', 4, 'services', '.card');
+shortOnPhones('cgrid', 5, 'universities', '.ccard');""",
+    marker="function shortOnPhones(",
+)
+
+# The AI banner: a centred section heading, then a pill hard left, a heading
+# hard left and a button hard right. Three alignments in four inches.
+patch(
+    "index.html",
+    "the AI banner reads down the page on a phone, not across it",
+    """@media (max-width:640px){.svc-grid,.ai-strip{grid-template-columns:1fr}}""",
+    """@media (max-width:640px){.svc-grid,.ai-strip{grid-template-columns:1fr}}
+@media (max-width:600px){
+  /* margin-left:auto pushed this to the right edge on its own line, under a
+     left-aligned heading, under a centred one. */
+  .ai-try{margin-left:0;width:100%;justify-content:center;padding:12px 16px}
+  .ai-head{gap:10px}
+  .ai-head b{font-size:16px}
+}""",
+    marker=".ai-try{margin-left:0",
+)
+
+# A heading you jump to should not arrive under the header that is covering it.
+patch(
+    "index.html",
+    "an anchor lands below the sticky header, not behind it",
+    """.rows-wrap{position:relative}""",
+    """section[id]{scroll-margin-top:92px}
+.rows-wrap{position:relative}""",
+    marker="section[id]{scroll-margin-top",
+)
+
+patch(
+    "index.html",
+    "the show-all button looks like one",
+    """.rows-wrap{position:relative}""",
+    """.showmore{display:none}
+@media (max-width:600px){
+  .showmore{display:flex;width:100%;justify-content:center;margin-top:14px}
+}
+.rows-wrap{position:relative}""",
+    marker=".showmore{display:none}",
+)
+
+
 def header_fits():
     n = 0
     for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):

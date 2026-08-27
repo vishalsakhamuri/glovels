@@ -350,13 +350,28 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   .auth-brand h1{margin-top:26px}.p-cols{grid-template-columns:1fr}}
 @media (max-width:860px){
   .p-shell{grid-template-columns:1fr}
-  .p-side{flex-direction:row;align-items:center;gap:4px;padding:12px 14px;overflow-x:auto}
-  .p-logo{margin:0 12px 0 0;flex:none}
-  .p-nav{flex-direction:row;gap:2px}
-  .p-nav a{padding:10px 11px;white-space:nowrap}
+  /* Wrap, never scroll sideways. As a nowrap strip this measured 1554px inside
+     a 390px phone, so every link past Sign out was off-screen with no hint. */
+  .p-side{flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;
+    padding:10px 13px 12px;overflow:visible}
+  .p-logo{margin:0;flex:none}
+  /* Their name and the way out, on the first line beside the logo.
+     Prefixed with .p-side throughout: the rules these have to beat — the
+     flex-basis:100% that stacks the card's own lines, and a 900px block that
+     re-adds side margins — sit LATER in the stylesheet at equal specificity,
+     so a plain `.plan-badge` here loses every argument it starts. */
+  .p-side .p-who{margin:0 0 0 auto;padding:7px 10px;flex:none;max-width:58%}
+  /* The package card, on a line of its own and reading across it rather than
+     down — squeezed into the nav row it broke to one word per line. */
+  .p-side .plan-badge{margin:0;padding:8px 11px;flex:1 0 100%;order:5}
+  .p-side .plan-badge b,.p-side .plan-badge > span{flex-basis:auto}
+  .p-side .plan-badge > span{margin-top:0}
+  .p-side .plan-badge .p-out{margin-left:auto;align-self:center}
+  .p-nav{flex:1 0 100%;order:6;flex-direction:row;flex-wrap:wrap;gap:4px}
+  .p-nav a{padding:9px 10px;white-space:nowrap;font-size:12.4px;gap:7px}
   .p-nav .soon{display:none}
-  .p-side-foot{margin:0 0 0 auto;padding:0;border:0;flex:none}
-  .p-main{padding:20px 18px 40px}
+  .p-side-foot{margin:0;padding:0;border:0;flex:none}
+  .p-main{padding:20px 16px 40px}
 }
 
 .nextup{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
@@ -699,7 +714,8 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 .scrollx::-webkit-scrollbar-thumb:hover{background:#9aa3b2}
 .scrollx::-webkit-scrollbar-track{background:#eef1f5;border-radius:99px}
 
-.scrollwrap{position:relative}
+.scrollwrap{position:relative;min-width:0;max-width:100%}
+.scrollx{max-width:100%}
 .scrollwrap::before,.scrollwrap::after{content:'';position:absolute;top:0;bottom:0;
   width:26px;pointer-events:none;opacity:0;transition:opacity .16s;z-index:2}
 .scrollwrap::before{left:0;background:linear-gradient(90deg,rgba(11,30,49,.13),transparent)}
@@ -1587,6 +1603,17 @@ if (location.protocol === 'file:') {
       'border:1.5px solid #d3dbe4}',
     '.gv-corner .gv-chat-fab:hover{background:#f4f7fb}',
     '.gv-corner .gv-dot{top:-4px;right:-4px}',
+    /* On a phone the WhatsApp pill was 340px wide on a 390px screen — a green
+       bar lying across whatever was underneath it, which on the results list
+       was somebody's Apply button. Label off, circle on. */
+    '@media (max-width:600px){',
+      '.gv-corner{right:13px;bottom:13px;gap:8px}',
+      '.gv-wa{padding:0;width:52px;height:52px;justify-content:center;border-radius:50%}',
+      '.gv-wa span{display:none}',
+      '.gv-corner .gv-chat-fab{padding:0;width:46px;height:46px;justify-content:center;',
+        'border-radius:50%}',
+      '.gv-corner .gv-chat-fab span:not(.gv-dot){display:none}',
+    '}',
     /* A class that sets display beats the browser's own rule for [hidden], so
        hiding the button by setting .hidden left it sitting on top of the open
        panel, swallowing clicks meant for Send. Both of these are load-bearing. */

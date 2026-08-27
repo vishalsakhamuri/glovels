@@ -556,6 +556,17 @@ if (location.protocol === 'file:') {
       'border:1.5px solid #d3dbe4}',
     '.gv-corner .gv-chat-fab:hover{background:#f4f7fb}',
     '.gv-corner .gv-dot{top:-4px;right:-4px}',
+    /* On a phone the WhatsApp pill was 340px wide on a 390px screen — a green
+       bar lying across whatever was underneath it, which on the results list
+       was somebody's Apply button. Label off, circle on. */
+    '@media (max-width:600px){',
+      '.gv-corner{right:13px;bottom:13px;gap:8px}',
+      '.gv-wa{padding:0;width:52px;height:52px;justify-content:center;border-radius:50%}',
+      '.gv-wa span{display:none}',
+      '.gv-corner .gv-chat-fab{padding:0;width:46px;height:46px;justify-content:center;',
+        'border-radius:50%}',
+      '.gv-corner .gv-chat-fab span:not(.gv-dot){display:none}',
+    '}',
     /* A class that sets display beats the browser's own rule for [hidden], so
        hiding the button by setting .hidden left it sitting on top of the open
        panel, swallowing clicks meant for Send. Both of these are load-bearing. */
