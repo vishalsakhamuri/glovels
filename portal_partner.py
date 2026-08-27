@@ -478,9 +478,40 @@ function detailsPane(s) {
     const v = p[f.k] == null ? '' : String(p[f.k]);
     const id = 'f_' + f.k;
     let input;
-    if (f.t === 'select') {
+    if (f.t === 'multi') {
+      /* The same checkbox group the student's own screen draws. Rendered as a
+         plain text box it would have read `type="multi"`, which every browser
+         treats as a text field — an agency would have been typing country
+         names into it by hand and getting them subtly wrong. */
+      const on = new Set(v.split(',').map(x => x.trim()).filter(Boolean));
+      input = '<div class="multi" data-multi="' + f.k + '" data-f="' + f.k + '">'
+        + (f.o || []).map(o => '<label class="mchk' + (on.has(o) ? ' on' : '') + '">'
+          + '<input type="checkbox" value="' + esc(o) + '"' + (on.has(o) ? ' checked' : '')
+          + '>' + esc(o) + '</label>').join('') + '</div>';
+    } else if (f.t === 'date3') {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v) || [];
+      const yy = m[1] || '', mm = m[2] || '', dd = m[3] || '';
+      const opt = (val, label, sel) => '<option value="' + val + '"'
+        + (val === sel ? ' selected' : '') + '>' + label + '</option>';
+      const MON = ['January','February','March','April','May','June','July',
+        'August','September','October','November','December'];
+      let days = '<option value="">Day</option>';
+      for (let i = 1; i <= 31; i++) days += opt(String(i).padStart(2, '0'), String(i), dd);
+      const months = '<option value="">Month</option>'
+        + MON.map((n, i) => opt(String(i + 1).padStart(2, '0'), n, mm)).join('');
+      const years = '<option value="">Year</option>'
+        + YEARS(f.back == null ? 40 : f.back, f.ahead || 0).filter(Boolean)
+            .map(y => opt(y, y, yy)).join('');
+      input = '<div class="d3" data-date="' + f.k + '" data-f="' + f.k + '">'
+        + '<select data-part="d" aria-label="Day">' + days + '</select>'
+        + '<select data-part="m" aria-label="Month">' + months + '</select>'
+        + '<select data-part="y" aria-label="Year">' + years + '</select></div>';
+    } else if (f.t === 'select') {
+      /* `years` builds its own list. Reading f.o for one of those gave an
+         empty dropdown — a required field nobody could fill. */
+      const opts = f.years ? YEARS(f.years[0], f.years[1]) : (f.o || []);
       input = '<select id="' + id + '" data-f="' + f.k + '">'
-        + (f.o || []).map(o => '<option' + (o === v ? ' selected' : '') + '>'
+        + opts.map(o => '<option' + (o === v ? ' selected' : '') + '>'
             + esc(o) + '</option>').join('') + '</select>';
     } else if (f.t === 'textarea') {
       input = '<textarea id="' + id + '" data-f="' + f.k + '" rows="3" placeholder="'
@@ -498,9 +529,13 @@ function detailsPane(s) {
       + '</div>';
   };
 
+  /* A field with a `show` rule is drawn only when its rule says so — "what
+     happened?" belongs to somebody who declared a refusal, not to everybody. */
+  const live = sec => sec.fields.filter(f => !f.show || f.show(p));
+
   return SECTIONS.map(sec =>
     '<div class="p-card pgrp"><h3>' + ico(sec.icon.replace(/^i-/, '')) + esc(sec.name) + '</h3>'
-    + '<div class="pfields">' + sec.fields.map(field).join('') + '</div></div>').join('')
+    + '<div class="pfields">' + live(sec).map(field).join('') + '</div></div>').join('')
     + '<div style="display:flex;gap:10px;align-items:center;margin-top:4px">'
     + '<button type="button" class="btn btn-primary" id="saveProfile">Save these details</button>'
     + '<span id="profSaid" style="font:600 12.4px/1.4 var(--sans);color:var(--muted)"></span>'
@@ -842,7 +877,22 @@ async function saveLogo(url) {
     if (e.target.closest('#saveProfile')) {
       const btn = e.target.closest('#saveProfile');
       const profile = {};
-      $$('#p-details [data-f]').forEach(i => { profile[i.dataset.f] = i.value; });
+      /* `.value` on a <div> is undefined, so the checkbox groups and the
+         three-part dates are read from their parts. Left to the plain sweep
+         below, a saved profile would have carried `undefined` over whatever
+         the student had already chosen. */
+      $$('#p-details [data-f]').forEach(i => {
+        if (i.dataset.multi) {
+          profile[i.dataset.f] = [...i.querySelectorAll('input:checked')]
+            .map(x => x.value).join(', ');
+        } else if (i.dataset.date) {
+          const g = s => (i.querySelector('[data-part="' + s + '"]') || {}).value || '';
+          const y = g('y'), m = g('m'), d = g('d');
+          profile[i.dataset.f] = (y && m && d) ? y + '-' + m + '-' + d : '';
+        } else {
+          profile[i.dataset.f] = i.value;
+        }
+      });
       btn.disabled = true;
       try {
         await api('PUT', '/api/partner/student/' + OPEN.id + '/profile', { profile });

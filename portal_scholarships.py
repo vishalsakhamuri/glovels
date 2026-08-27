@@ -109,7 +109,12 @@ DB.saved = DB.saved || [];      /* saved against the account, on the server */
 const P = DB.profile || {};
 const cgpa = parseFloat(P.d_cgpa || '') || null;
 const cmap = {Germany:'DE','United Kingdom':'GB',Canada:'CA',Ireland:'IE',Poland:'PL',Spain:'ES',Italy:'IT'};
-const wantC = cmap[P.g_country] || '';
+/* Several destinations are allowed now, so a scholarship in any of them
+   counts. `wantC` stays a single code because the matching below compares one;
+   `wantCs` is the list, and the single is the first that maps. */
+const wantCs = String(P.g_country || '').split(',').map(x => x.trim())
+  .map(x => cmap[x]).filter(Boolean);
+const wantC = wantCs[0] || '';
 const lvl = (P.g_level || '').toLowerCase().includes('master') ? 'master'
           : (P.g_level || '').toLowerCase().includes('bachelor') ? 'bachelor' : '';
 const months = parseInt(P.w_months || '0', 10) || 0;
@@ -146,8 +151,10 @@ function verdict(s) {
   const miss = [];
   if (cgpa < s.cgpa) miss.push('needs CGPA ' + s.cgpa + '+');
   if (s.work && months < s.work) miss.push('needs ' + (s.work / 12) + ' years of work experience');
-  if (s.country && wantC && s.country !== wantC) miss.push('is for ' +
-    ((COUNTRIES[s.country] || {}).name || s.country) + ', not your chosen destination');
+  /* Any of the destinations they named, not just the first. A student
+     considering Germany and Poland is not disqualified from a Polish award. */
+  if (s.country && wantCs.length && wantCs.indexOf(s.country) < 0) miss.push('is for ' +
+    ((COUNTRIES[s.country] || {}).name || s.country) + ', not a destination you chose');
   if (s.level && lvl && s.level !== lvl) miss.push('is for ' + s.level + "'s applicants");
   return miss.length ? {ok: false, why: 'Not yet — it ' + miss.join(', and ')}
                      : {ok: true, why: 'You meet the published criteria'};

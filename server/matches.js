@@ -63,15 +63,54 @@ const match1 = (table, value) => {
   return null;
 };
 
+/**
+ * The destinations, as codes. More than one now: a student deciding between
+ * Germany and Poland was being made to pick one before we would show them
+ * anything, so the answer is stored comma-joined and read as a list.
+ *
+ * Reading it with the old single-value lookup would have quietly returned null
+ * for "Germany, Poland" — an unrecognised country name — and null means NO
+ * COUNTRY CONSTRAINT. A student who named two destinations would have been
+ * sent universities from all seven. That is the bug patch 61 already fixed
+ * once, arriving by a different door.
+ *
+ * Returns null when they named none, or said they are open to advice.
+ */
+function destinations(value) {
+  const parts = String(value || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  if (parts.some(s => /open to advice/i.test(s))) return null;
+  const codes = parts.map(s => COUNTRY_CODE[s.toLowerCase()]).filter(Boolean);
+  return codes.length ? codes : null;
+}
+
+/**
+ * The budget, as one ceiling. Several bands can be ticked, and the honest
+ * reading of "under ₹10L and ₹20–40L" is that ₹40L is affordable — so the
+ * HIGHEST wins, and any band with no ceiling of its own removes the ceiling
+ * altogether. Taking the first match instead would have held a student who
+ * ticked the top band to the bottom one.
+ */
+function ceilingOf(value) {
+  const parts = String(value || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return undefined;
+  let top = 0;
+  for (const s of parts) {
+    const c = match1(BUDGET_CEILING, s);
+    if (c === null) return null;              /* "above ₹40L" — no ceiling */
+    if (c != null && c > top) top = c;
+  }
+  return top || undefined;
+}
+
 /** What the profile actually constrains. Anything blank constrains nothing. */
 function wants(profile) {
   const p = profile || {};
-  const dest = String(p.g_country || '').trim().toLowerCase();
   return {
-    country: dest && !/open to advice/i.test(dest) ? (COUNTRY_CODE[dest] || null) : null,
+    countries: destinations(p.g_country),
     level: match1(LEVEL, p.g_level),
     /* `undefined` means they did not say; `null` means they said "no ceiling". */
-    ceiling: p.b_total ? match1(BUDGET_CEILING, p.b_total) : undefined,
+    ceiling: ceilingOf(p.b_total),
     field: String(p.g_field || '').trim(),
     intake: String(p.g_intake || '').trim(),
     cgpa: Number(String(p.d_cgpa || '').replace(/[^\d.]/g, '')) || 0,
@@ -81,7 +120,7 @@ function wants(profile) {
 /** Enough of a profile to pick anything worth paying for. */
 function usable(profile) {
   const w = wants(profile);
-  return !!(w.country || w.level || w.field);
+  return !!((w.countries && w.countries.length) || w.level || w.field);
 }
 
 /* Words that carry no signal in a field name, so "Data Science and Engineering"
@@ -176,8 +215,8 @@ function pick(catalogue, profile, count, kind, drop, countries) {
   const eligible = (catalogue || []).filter(p => {
     if (kind === 'public' && !p.isPublic) return false;
     if (kind === 'private' && p.isPublic) return false;
-    if (!off.has('country') && w.country
-      && String(p.country || '').toUpperCase() !== w.country) return false;
+    if (!off.has('country') && w.countries
+      && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) return false;
     if (!off.has('level') && w.level
       && String(p.level || '').toLowerCase() !== w.level) return false;
     /* undefined — not asked. null — asked, no ceiling. */
@@ -291,8 +330,8 @@ function plan(catalogue, profile, count, kind, countries) {
     const withoutBar = (catalogue || []).filter(p => {
       if (kind === 'public' && !p.isPublic) return false;
       if (kind === 'private' && p.isPublic) return false;
-      if (!dropped.includes('country') && w.country
-        && String(p.country || '').toUpperCase() !== w.country) return false;
+      if (!dropped.includes('country') && w.countries
+        && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) return false;
       if (!dropped.includes('level') && w.level
         && String(p.level || '').toLowerCase() !== w.level) return false;
       if (!dropped.includes('budget') && w.ceiling

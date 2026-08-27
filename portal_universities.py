@@ -398,10 +398,14 @@ function paintBrowse() {
      reach the two that are theirs. They said where they are going in their
      profile; the screen should not make them say it again. The option is
      still there for somebody genuinely comparing. */
-  const mine = String(((typeof DB !== 'undefined' && DB.profile) || {}).g_country || '').trim();
-  if (mine) {
+  /* A profile can now name several destinations. One filter, so it opens on
+     the first of theirs that this catalogue actually has — and stays on "Any"
+     rather than guessing when they named none of them. */
+  const named = String(((typeof DB !== 'undefined' && DB.profile) || {}).g_country || '')
+    .split(',').map(s => s.trim()).filter(s => s && !/open to advice/i.test(s));
+  for (const mine of named) {
     const code = seen.find(c => (COUNTRIES[c] || {}).name === mine || c === mine);
-    if (code) $('#fCountry').value = code;
+    if (code) { $('#fCountry').value = code; break; }
   }
 })();
 

@@ -40,6 +40,9 @@ BODY = """
       <div>
         <form id="pForm" novalidate></form>
         <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+          <!-- Back before forward. Eleven sections with only a Next is a form
+               you can walk into and not out of without going up to the nav. -->
+          <button type="button" class="btn btn-ghost" id="prevBtn">← Previous section</button>
           <button type="button" class="btn btn-primary" id="saveBtn">Save this section</button>
           <button type="button" class="btn btn-ghost" id="nextBtn">Next section →</button>
           <button type="button" class="btn btn-ghost" id="fillBtn"
@@ -80,7 +83,11 @@ let cur = 0;
    "GRE score" is not missing when the answer to "GRE?" is "not required" — it is
    answered. Counting it as missing is how a completeness meter becomes a number
    nobody can ever clear, and then nobody trusts. */
-const needed = f => !(f.opt && f.opt(DB.profile));
+/* A field can be hidden outright — "what happened?" is shown only to somebody
+   who said there WAS a refusal. Something not on the screen cannot be missing
+   from it, so it is not counted either way. */
+const shown = f => !f.show || !!f.show(DB.profile);
+const needed = f => shown(f) && !(f.opt && f.opt(DB.profile));
 const filled = f => (DB.profile[f.k] || '').toString().trim() !== '';
 function pctOf(sec) {
   const req = sec.fields.filter(needed);
@@ -111,36 +118,117 @@ function drawNav() {
 
 function drawForm() {
   const s = SECTIONS[cur];
+  const groups = s.groups || null;
+
+  /* One field. The three input shapes that are not a plain box each exist for
+     a reason written beside them. */
+  const fieldHtml = f => {
+    const v = DB.profile[f.k] || '';
+    const req = !!f.must;
+    let input;
+
+    if (f.t === 'multi') {
+      /* Checkboxes, not a multi-select list box. A <select multiple> needs a
+         ctrl-click nobody knows about and is unusable on a phone, which is
+         where most of these are filled in. Stored comma-joined, so everything
+         that already reads one answer still reads a string. */
+      const on = new Set(String(v).split(',').map(x => x.trim()).filter(Boolean));
+      input = '<div class="multi" data-multi="' + f.k + '">' + (f.o || []).map(o =>
+        '<label class="mchk' + (on.has(o) ? ' on' : '') + '">' +
+        '<input type="checkbox" value="' + esc(o) + '"' + (on.has(o) ? ' checked' : '') +
+        '>' + esc(o) + '</label>').join('') + '</div>';
+
+    } else if (f.t === 'date3') {
+      /* Day, month, year as three lists. See the note on p_exp in
+         portal_fields.py: a native date input has segments rather than text,
+         so what backspace does to it is the browser's business, and on a
+         phone there is no keyboard involved at all. */
+      const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v)) || [];
+      const yy = parts[1] || '', mm = parts[2] || '', dd = parts[3] || '';
+      const opt = (val, label, sel) => '<option value="' + val + '"' +
+        (val === sel ? ' selected' : '') + '>' + label + '</option>';
+      const days = ['<option value="">Day</option>'];
+      for (let i = 1; i <= 31; i++) {
+        const n = String(i).padStart(2, '0');
+        days.push(opt(n, String(i), dd));
+      }
+      const MON = ['January','February','March','April','May','June','July',
+        'August','September','October','November','December'];
+      const months = ['<option value="">Month</option>'].concat(
+        MON.map((m, i) => opt(String(i + 1).padStart(2, '0'), m, mm)));
+      const years = ['<option value="">Year</option>'].concat(
+        YEARS(f.back == null ? 40 : f.back, f.ahead || 0)
+          .filter(Boolean).map(y => opt(y, y, yy)));
+      input = '<div class="d3" data-date="' + f.k + '">' +
+        '<select data-part="d" aria-label="Day">' + days.join('') + '</select>' +
+        '<select data-part="m" aria-label="Month">' + months.join('') + '</select>' +
+        '<select data-part="y" aria-label="Year">' + years.join('') + '</select></div>';
+
+    } else if (f.t === 'select') {
+      /* `years` builds the list from today, so it is never a year out of date. */
+      const opts = f.years ? YEARS(f.years[0], f.years[1]) : (f.o || []);
+      input = '<select name="' + f.k + '">' + opts.map(o =>
+        '<option value="' + esc(o) + '"' + (o === v ? ' selected' : '') + '>' +
+        (o === '' ? 'Select…' : esc(o)) + '</option>').join('') + '</select>';
+
+    } else if (f.t === 'textarea') {
+      input = '<textarea name="' + f.k + '" rows="4" placeholder="' + esc(f.ph || '') + '" style="' +
+        'width:100%;padding:12px;font:400 14px/1.6 var(--sans);color:var(--navy-900);' +
+        'border:1.5px solid #d8dde4;border-radius:var(--r);resize:vertical">' + esc(v) + '</textarea>';
+
+    } else {
+      input = '<input type="' + f.t + '" name="' + f.k + '" value="' + esc(v) +
+        '" placeholder="' + esc(f.ph || '') + '"' + (req ? ' required' : '') + '>';
+    }
+
+    return '<div class="field' + (req ? ' must' : '') + '" data-k="' + f.k +
+      '" style="margin-bottom:15px"><label>' + esc(f.l) +
+      (req ? '<span class="reqmark" title="Required">required</span>' : '') +
+      (!req && !needed(f) ? '<span style="margin-left:auto;font-weight:700;color:var(--muted);' +
+        'text-transform:none;letter-spacing:0">optional</span>' : '') + '</label>' + input +
+      '<p class="ferr" hidden></p>' +
+      (f.help ? '<p style="margin:6px 0 0;font-size:11.8px;color:var(--muted);line-height:1.5">' +
+        esc(f.help) + '</p>' : '') + '</div>';
+  };
+
+  const live = s.fields.filter(shown);
+  let body;
+  if (groups) {
+    /* Grouped sections draw one tinted block per group, so a designation and
+       an email belong visibly to the person named above them. */
+    const seen = [];
+    body = live.filter(f => !f.grp).map(fieldHtml).join('');
+    live.forEach(f => { if (f.grp && seen.indexOf(f.grp) < 0) seen.push(f.grp); });
+    body += seen.map(g => {
+      const meta = groups[g] || { name: g, tone: 'blue' };
+      return '<div class="fgrp ' + esc(meta.tone || 'blue') + '">' +
+        '<b>' + esc(meta.name) + '</b>' +
+        (meta.note ? '<span>' + esc(meta.note) + '</span>' : '') +
+        live.filter(f => f.grp === g).map(fieldHtml).join('') + '</div>';
+    }).join('');
+  } else {
+    body = live.map(fieldHtml).join('');
+  }
+
   $('#pForm').innerHTML =
     '<div class="p-card"><h3>' + ico(s.icon.replace('i-','')) + ' ' + esc(s.name.replace('&amp;','&')) +
-    '<span class="pill">' + pctOf(s) + '% done</span></h3>' +
-    s.fields.map(f => {
-      const v = DB.profile[f.k] || '';
-      let input;
-      if (f.t === 'select') {
-        input = '<select name="' + f.k + '">' + f.o.map(o =>
-          '<option value="' + esc(o) + '"' + (o === v ? ' selected' : '') + '>' +
-          (o === '' ? 'Select…' : esc(o)) + '</option>').join('') + '</select>';
-      } else if (f.t === 'textarea') {
-        input = '<textarea name="' + f.k + '" rows="4" placeholder="' + esc(f.ph || '') + '" style="' +
-          'width:100%;padding:12px;font:400 14px/1.6 var(--sans);color:var(--navy-900);' +
-          'border:1.5px solid #d8dde4;border-radius:var(--r);resize:vertical">' + esc(v) + '</textarea>';
-      } else {
-        input = '<input type="' + f.t + '" name="' + f.k + '" value="' + esc(v) +
-          '" placeholder="' + esc(f.ph || '') + '">';
-      }
-      return '<div class="field" style="margin-bottom:15px"><label>' + esc(f.l) +
-        (needed(f) ? '' : '<span style="margin-left:auto;font-weight:700;color:var(--muted);' +
-          'text-transform:none;letter-spacing:0">optional</span>') + '</label>' + input +
-        (f.help ? '<p style="margin:6px 0 0;font-size:11.8px;color:var(--muted);line-height:1.5">' +
-          esc(f.help) + '</p>' : '') + '</div>';
-    }).join('') + '</div>';
-  // The select styling expects .field; textareas need the same focus ring.
+    '<span class="pill">' + pctOf(s) + '% done</span></h3>' + body + '</div>';
+
   /* Answering "GRE: not required" has to re-score the section on the spot,
-     not on the next save — otherwise the meter argues with the form. */
-  $$('#pForm select').forEach(s => s.addEventListener('change', () => {
+     not on the next save — otherwise the meter argues with the form. The date
+     and multi controls get a lighter handler: they change no other field's
+     relevance, and redrawing the form under somebody's finger loses their
+     place in a list of forty years. */
+  $$('#pForm select[name]').forEach(el => el.addEventListener('change', () => {
     readForm(); save(); drawForm(); paint();
   }));
+  $$('#pForm .d3 select, #pForm .multi input').forEach(el =>
+    el.addEventListener('change', () => {
+      readForm(); save(); paint();
+      const box = el.closest('.multi');
+      if (box) box.querySelectorAll('.mchk').forEach(l =>
+        l.classList.toggle('on', l.querySelector('input').checked));
+    }));
   $$('#pForm textarea').forEach(t => {
     t.addEventListener('focus', () => { t.style.borderColor = 'var(--blue)'; t.style.boxShadow = '0 0 0 4px rgba(26,79,180,.16)'; });
     t.addEventListener('blur',  () => { t.style.borderColor = '#d8dde4'; t.style.boxShadow = 'none'; });
@@ -149,6 +237,58 @@ function drawForm() {
 
 function readForm() {
   $$('#pForm [name]').forEach(el => { DB.profile[el.name] = el.value; });
+  /* Three lists back into one YYYY-MM-DD, because that is what the server, the
+     visa checklist and every screen that prints a date already expect. A part
+     missing means no date at all rather than half of one. */
+  $$('#pForm [data-date]').forEach(box => {
+    const g = s => (box.querySelector('[data-part="' + s + '"]') || {}).value || '';
+    const y = g('y'), m = g('m'), d = g('d');
+    DB.profile[box.dataset.date] = (y && m && d) ? y + '-' + m + '-' + d : '';
+  });
+  $$('#pForm [data-multi]').forEach(box => {
+    DB.profile[box.dataset.multi] = [...box.querySelectorAll('input:checked')]
+      .map(i => i.value).join(', ');
+  });
+}
+
+/* The two the office cannot work without. Everything else on this form can be
+   filled in later; a record with no way to reach the person cannot. */
+const MUST = [
+  {k:'phone', l:'Mobile number',
+   ok:v => /^[6-9]\d{9}$/.test(v.replace(/\D/g, '')),
+   why:'Ten digits, starting 6 to 9.'},
+  {k:'email', l:'Email',
+   ok:v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v),
+   why:'Something like you@email.com.'},
+];
+
+/* Returns the first problem, or null. Only checks fields that are ON the
+   section being saved — being stopped from saving Class 10 because of a
+   mobile number four sections away is a form arguing with itself. */
+function firstProblem() {
+  const here = SECTIONS[cur].fields.map(f => f.k);
+  for (const m of MUST) {
+    if (here.indexOf(m.k) < 0) continue;
+    const v = String(DB.profile[m.k] || '').trim();
+    if (!v) return { k:m.k, say: m.l + ' is required.' };
+    if (!m.ok(v)) return { k:m.k, say: m.l + ' does not look right. ' + m.why };
+  }
+  return null;
+}
+
+function showProblem(p) {
+  $$('#pForm .ferr').forEach(e => { e.hidden = true; e.textContent = ''; });
+  $$('#pForm .field').forEach(e => e.classList.remove('bad'));
+  if (!p) return;
+  const box = $('#pForm .field[data-k="' + p.k + '"]');
+  if (box) {
+    box.classList.add('bad');
+    const e = box.querySelector('.ferr');
+    if (e) { e.textContent = p.say; e.hidden = false; }
+    const input = box.querySelector('input,select,textarea');
+    if (input) input.focus();
+    box.scrollIntoView({ block:'center', behavior:'smooth' });
+  }
 }
 function paint() {
   const p = overall();
@@ -164,16 +304,30 @@ $('#secNav').addEventListener('click', e => {
   cur = +b.dataset.i;
   drawForm(); paint();
 });
-$('#saveBtn').addEventListener('click', () => {
-  readForm(); save(); drawForm(); paint();
-  toast('Saved. ' + overall() + '% of your profile is complete.');
-});
-$('#nextBtn').addEventListener('click', () => {
+/* Moving between sections keeps whatever has been typed, whether or not it is
+   valid — losing an answer because a phone number is half entered is worse
+   than holding an invalid one. Only SAVE is gated. */
+const goTo = i => {
   readForm(); save();
-  cur = (cur + 1) % SECTIONS.length;
+  cur = (i + SECTIONS.length) % SECTIONS.length;
   drawForm(); paint();
   window.scrollTo({top: 0, behavior: 'smooth'});
+};
+
+$('#saveBtn').addEventListener('click', () => {
+  readForm();
+  const bad = firstProblem();
+  if (bad) {
+    drawForm(); paint();
+    showProblem(bad);
+    toast(bad.say, 'bad');
+    return;
+  }
+  save(); drawForm(); paint();
+  toast('Saved. ' + overall() + '% of your profile is complete.');
 });
+$('#prevBtn').addEventListener('click', () => goTo(cur - 1));
+$('#nextBtn').addEventListener('click', () => goTo(cur + 1));
 $('#fillBtn').addEventListener('click', () => {
   Object.assign(DB.profile, DEMO); save(); drawForm(); paint();
   toast('Filled with demo answers — every section is now complete.');

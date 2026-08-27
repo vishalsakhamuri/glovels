@@ -276,19 +276,42 @@ const api = async (method, path, body) => {{
   }}
   return data;
 }};
-function toast(msg) {{
+/* In the middle of the screen, not tucked under the button that was pressed.
+   Vishal: "the confirmation message shows up right next to the Save button, it
+   must be displayed in the centre of the page clearly and prominently." At the
+   bottom edge it competes with whatever the thumb is already covering, and on
+   a long form it can land off-screen entirely.
+
+   Still not an alert(): nothing is blocked, and it leaves on its own. */
+function toast(msg, tone) {{
   let t = $('#toast');
   if (!t) {{
     t = document.createElement('div');
     t.id = 'toast';
-    t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:400;' +
-      'background:var(--navy-900);color:#fff;font:600 13px/1.4 var(--sans);padding:12px 18px;' +
-      'border-radius:12px;box-shadow:0 16px 40px rgba(11,30,49,.36);max-width:min(460px,90vw)';
     document.body.appendChild(t);
   }}
-  t.textContent = msg;
+  const bad = tone === 'bad';
+  t.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);' +
+    'z-index:400;background:' + (bad ? '#7a2118' : 'var(--navy-900)') + ';color:#fff;' +
+    'font:700 15.4px/1.5 var(--sans);padding:20px 26px;border-radius:16px;' +
+    'box-shadow:0 26px 70px rgba(11,30,49,.42);max-width:min(460px,88vw);text-align:center;' +
+    'display:flex;align-items:center;gap:12px;pointer-events:none;opacity:0;' +
+    'transition:opacity .16s, transform .16s';
+  t.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" ' +
+    'style="flex:none">' + (bad
+      ? '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4h.01"/>'
+      : '<path d="m5 12.8 4.4 4.4L19 7.6"/>') + '</svg><span></span>';
+  t.querySelector('span').textContent = msg;
+  requestAnimationFrame(() => {{
+    t.style.opacity = '1';
+    t.style.transform = 'translate(-50%,-50%) scale(1)';
+  }});
   clearTimeout(t._h);
-  t._h = setTimeout(() => t.remove(), 2600);
+  t._h = setTimeout(() => {{
+    t.style.opacity = '0';
+    t.style.transform = 'translate(-50%,-50%) scale(.96)';
+  }}, bad ? 3600 : 2400);
 }}
 const timeAgo = iso => {{
   if (!iso) return '';
@@ -672,21 +695,42 @@ function ico(n) {{ return '<svg class="ico" aria-hidden="true"><use href="#i-' +
 
 /* A toast, not an alert(). An alert blocks the page and reads as an error even
    when it is a confirmation. */
-function toast(msg) {{
+/* In the middle of the screen, not tucked under the button that was pressed.
+   Vishal: "the confirmation message shows up right next to the Save button, it
+   must be displayed in the centre of the page clearly and prominently." At the
+   bottom edge it competes with whatever the thumb is already covering, and on
+   a long form it can land off-screen entirely.
+
+   Still not an alert(): nothing is blocked, and it leaves on its own. */
+function toast(msg, tone) {{
   let t = $('#toast');
   if (!t) {{
     t = document.createElement('div');
     t.id = 'toast';
-    t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:400;' +
-      'background:var(--navy-900);color:#fff;font:600 13px/1.4 var(--sans);padding:12px 18px;' +
-      'border-radius:12px;box-shadow:0 16px 40px rgba(11,30,49,.36);max-width:min(460px,90vw);' +
-      'opacity:0;transition:opacity .18s,transform .18s';
     document.body.appendChild(t);
   }}
-  t.textContent = msg;
-  requestAnimationFrame(() => {{ t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(-4px)'; }});
+  const bad = tone === 'bad';
+  t.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);' +
+    'z-index:400;background:' + (bad ? '#7a2118' : 'var(--navy-900)') + ';color:#fff;' +
+    'font:700 15.4px/1.5 var(--sans);padding:20px 26px;border-radius:16px;' +
+    'box-shadow:0 26px 70px rgba(11,30,49,.42);max-width:min(460px,88vw);text-align:center;' +
+    'display:flex;align-items:center;gap:12px;pointer-events:none;opacity:0;' +
+    'transition:opacity .16s, transform .16s';
+  t.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" ' +
+    'style="flex:none">' + (bad
+      ? '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4h.01"/>'
+      : '<path d="m5 12.8 4.4 4.4L19 7.6"/>') + '</svg><span></span>';
+  t.querySelector('span').textContent = msg;
+  requestAnimationFrame(() => {{
+    t.style.opacity = '1';
+    t.style.transform = 'translate(-50%,-50%) scale(1)';
+  }});
   clearTimeout(t._h);
-  t._h = setTimeout(() => {{ t.style.opacity = '0'; t.style.transform = 'translateX(-50%)'; }}, 2600);
+  t._h = setTimeout(() => {{
+    t.style.opacity = '0';
+    t.style.transform = 'translate(-50%,-50%) scale(.96)';
+  }}, bad ? 3600 : 2400);
 }}
 
 function offlineNotice(why) {{

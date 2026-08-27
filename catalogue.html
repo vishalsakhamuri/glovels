@@ -653,6 +653,48 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .cwchip{margin-top:11px;font:600 12.2px/1.5 var(--sans);color:var(--navy-800)}
 .cwchip .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
   text-decoration:underline;cursor:pointer}
+/* ---- the profile form's newer controls ---- */
+
+/* Pick as many as apply. A <select multiple> needs a ctrl-click nobody knows
+   about and is unusable on a phone, which is where these get filled in. */
+.multi{display:flex;flex-wrap:wrap;gap:8px}
+/* Prefixed with .field throughout. `.field label` sets uppercase, 11px, 800
+   weight — meant for the caption above an input — and every one of these is a
+   <label> inside a .field, so without the prefix the choices came out as
+   shouting small-caps. `.field input` is worse: width:100%, height:54px and
+   appearance:none turned each checkbox into a 44px rounded slab. */
+.field .mchk{display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+  border:1.5px solid #d8dde4;border-radius:999px;padding:9px 15px;background:var(--paper);
+  font:600 13.4px/1.2 var(--sans);letter-spacing:0;text-transform:none;
+  color:var(--navy-800);margin:0;white-space:normal;transition:.13s}
+.field .mchk:hover{border-color:var(--blue)}
+.field .mchk input[type=checkbox]{width:16px;height:16px;min-width:16px;padding:0;
+  margin:0;border-radius:4px;appearance:auto;-webkit-appearance:checkbox;
+  accent-color:var(--blue-deep);background:none;border:0;box-shadow:none;flex:none}
+.field .mchk.on{border-color:var(--blue-deep);background:#eef3fc;color:var(--navy-900)}
+
+/* Day, month, year. Nothing typed, so nothing to correct. */
+.d3{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px}
+@media (max-width:420px){ .d3{grid-template-columns:1fr 1fr;} .d3 select:nth-child(2){grid-column:span 1} }
+
+/* Two people, two blocks. Six fields in one column with only the label saying
+   whose they are is how a manager's email lands under a professor's name. */
+.fgrp{border:1.5px solid var(--line);border-left-width:4px;border-radius:12px;
+  padding:14px 15px 4px;margin:0 0 15px}
+.fgrp > b{display:block;font:800 12.6px/1 var(--sans);margin-bottom:3px}
+.fgrp > span{display:block;font-size:11.8px;color:var(--muted);margin-bottom:13px;line-height:1.5}
+.fgrp.blue{border-left-color:var(--blue-deep);background:#f6f9ff}
+.fgrp.blue > b{color:var(--blue-deep)}
+.fgrp.green{border-left-color:#166b40;background:#f4faf6}
+.fgrp.green > b{color:#166b40}
+
+/* Required, said on the label rather than only implied by the meter. */
+.reqmark{margin-left:auto;font:800 9.2px/1 var(--sans);letter-spacing:.1em;
+  text-transform:uppercase;color:#a3302a;background:#fdecea;border-radius:5px;padding:4px 6px}
+.field.bad input,.field.bad select,.field.bad textarea{border-color:#c0392b;
+  box-shadow:0 0 0 4px rgba(192,57,43,.13)}
+.ferr{margin:6px 0 0;font:600 12px/1.5 var(--sans);color:#a3302a}
+
 /* The cells that used to carry these as inline styles. Inline beats a
    stylesheet, so a white-space:nowrap written on the element could not be
    undone by the phone rules below — the classes exist so that it can. */
@@ -1108,19 +1150,42 @@ const api = async (method, path, body) => {
   }
   return data;
 };
-function toast(msg) {
+/* In the middle of the screen, not tucked under the button that was pressed.
+   Vishal: "the confirmation message shows up right next to the Save button, it
+   must be displayed in the centre of the page clearly and prominently." At the
+   bottom edge it competes with whatever the thumb is already covering, and on
+   a long form it can land off-screen entirely.
+
+   Still not an alert(): nothing is blocked, and it leaves on its own. */
+function toast(msg, tone) {
   let t = $('#toast');
   if (!t) {
     t = document.createElement('div');
     t.id = 'toast';
-    t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:400;' +
-      'background:var(--navy-900);color:#fff;font:600 13px/1.4 var(--sans);padding:12px 18px;' +
-      'border-radius:12px;box-shadow:0 16px 40px rgba(11,30,49,.36);max-width:min(460px,90vw)';
     document.body.appendChild(t);
   }
-  t.textContent = msg;
+  const bad = tone === 'bad';
+  t.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);' +
+    'z-index:400;background:' + (bad ? '#7a2118' : 'var(--navy-900)') + ';color:#fff;' +
+    'font:700 15.4px/1.5 var(--sans);padding:20px 26px;border-radius:16px;' +
+    'box-shadow:0 26px 70px rgba(11,30,49,.42);max-width:min(460px,88vw);text-align:center;' +
+    'display:flex;align-items:center;gap:12px;pointer-events:none;opacity:0;' +
+    'transition:opacity .16s, transform .16s';
+  t.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" ' +
+    'style="flex:none">' + (bad
+      ? '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4h.01"/>'
+      : '<path d="m5 12.8 4.4 4.4L19 7.6"/>') + '</svg><span></span>';
+  t.querySelector('span').textContent = msg;
+  requestAnimationFrame(() => {
+    t.style.opacity = '1';
+    t.style.transform = 'translate(-50%,-50%) scale(1)';
+  });
   clearTimeout(t._h);
-  t._h = setTimeout(() => t.remove(), 2600);
+  t._h = setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translate(-50%,-50%) scale(.96)';
+  }, bad ? 3600 : 2400);
 }
 const timeAgo = iso => {
   if (!iso) return '';
