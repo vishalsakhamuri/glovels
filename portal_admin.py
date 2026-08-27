@@ -337,6 +337,7 @@ BODY = """
         <b style="display:block;font:700 12.4px/1 var(--sans);letter-spacing:.07em;
           text-transform:uppercase;color:var(--muted);margin-bottom:11px">By counsellor</b>
         <div class="convwho" id="convWho"></div>
+        <div class="cwchip" id="convChip" hidden></div>
       </div>
 
       <div class="p-card" style="padding:0;overflow-x:auto">
@@ -1406,6 +1407,9 @@ addEventListener('keydown', e => {
  * is; guiding one writes a note the student never sees.
  */
 let CONVS = [], CONV_SUM = {}, onlyWaiting = false;
+/* Which counsellor's threads are showing. null is everybody; the string
+   'none' is the pile nobody owns, which is the one worth looking at. */
+let convWho = null;
 
 const ago = iso => {
   if (!iso) return '';
@@ -1418,7 +1422,11 @@ const ago = iso => {
 };
 
 function paintConvs() {
-  const rows = CONVS.filter(c => !onlyWaiting || !!c.waitingSince);
+  const rows = CONVS
+    .filter(c => !onlyWaiting || !!c.waitingSince)
+    .filter(c => convWho === null
+      || (convWho === 'none' ? !c.counsellor
+                             : c.counsellor && String(c.counsellor.id) === convWho));
   const late = (CONV_SUM.late || 0);
   const silent = (CONV_SUM.silent || 0);
   const chip = $('#chatLate');
@@ -1432,14 +1440,34 @@ function paintConvs() {
     chip.textContent = parts.join(' · ');
   }
 
-  $('#convWho').innerHTML = (CONV_SUM.byCounsellor || []).map(p =>
-    '<div class="cw' + (p.late ? ' hot' : '') + '">' +
+  $('#convWho').innerHTML = (CONV_SUM.byCounsellor || []).map(p => {
+    const key = p.id == null ? 'none' : String(p.id);
+    const on = convWho === key;
+    return '<button type="button" class="cw' + (p.late ? ' hot' : '') +
+      '" data-cw="' + key + '" aria-pressed="' + on + '">' +
       '<b>' + esc(p.name) + '</b>' +
       '<span>' + p.threads + ' thread' + (p.threads === 1 ? '' : 's') +
         (p.late ? ' · ' + p.late + ' waiting over a day' : '') + '</span>' +
       '<i>' + p.fromUs + ' from us · ' + p.fromThem + ' from them</i>' +
-    '</div>').join('')
+    '</button>';
+  }).join('')
     || '<p style="margin:0;color:var(--muted);font-size:12.6px">No conversations yet.</p>';
+
+  /* Which slice is on screen, and the way back. A filter with no way out is a
+     screen that has broken, as far as anybody using it can tell. */
+  const whoChip = $('#convChip');
+  if (whoChip) {
+    if (convWho === null) {
+      whoChip.hidden = true;
+    } else {
+      const picked = (CONV_SUM.byCounsellor || [])
+        .find(p => (p.id == null ? 'none' : String(p.id)) === convWho);
+      whoChip.hidden = false;
+      whoChip.innerHTML = 'Showing ' +
+        esc(picked ? picked.name : 'one counsellor') +
+        ' · <button type="button" class="lnk" data-cw-all>show everyone</button>';
+    }
+  }
 
   $('#convPager').innerHTML = pagerHtml('conv', rows.length, 'conversations', paintConvs);
   const ctab = $('.otab[data-o="chats"] .n');
@@ -1447,7 +1475,13 @@ function paintConvs() {
 
   $('#convRows').innerHTML = paged('conv', rows).map(c =>
     '<tr' + (c.waitingHours >= 24 || c.messages === 0 ? ' class="late"' : '') + '>' +
-      '<td><b>' + esc(c.name) + '</b>' +
+      /* The name is the link. Read it lives in the last column of a six
+         column table, which on a phone is 1,180px inside a 356px box — so the
+         one control that opens the conversation was off the right-hand edge
+         and the screen read as dead to the touch. The first thing under a
+         thumb now opens the thread. */
+      '<td><a class="cvopen" href="counsellor.html?student=' + c.id + '">' +
+        '<b>' + esc(c.name) + '</b></a>' +
         '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
         esc(c.email) + '</span></td>' +
       /* A thread nobody owns is the one that goes unanswered, and this screen
@@ -1490,7 +1524,10 @@ function paintConvs() {
           '">Guide</button></td>' +
     '</tr>').join('')
     || '<tr><td colspan="6" style="padding:22px;color:var(--muted)">' +
-       (CONVS.length ? 'Nothing is waiting on us.' : 'No conversations yet.') + '</td></tr>';
+       (!CONVS.length ? 'No conversations yet.'
+         : convWho !== null ? 'Nothing here for that counsellor. Press their card '
+           + 'again, or show everyone.'
+         : 'Nothing is waiting on us.') + '</td></tr>';
 }
 
 async function loadConvs() {
@@ -1516,6 +1553,25 @@ document.addEventListener('change', e => {
     PAGE_AT.conv = 0;
     paintConvs();
   }
+});
+
+/* Delegated, because the cards are repainted every time the conversations
+   reload and a handler bound to the element would go with it. */
+document.addEventListener('click', e => {
+  const back = e.target.closest && e.target.closest('[data-cw-all]');
+  if (back) {
+    convWho = null;
+    PAGE_AT.conv = 0;
+    paintConvs();
+    return;
+  }
+  const card = e.target.closest && e.target.closest('.cw[data-cw]');
+  if (!card) return;
+  /* Pressing the one already showing goes back to everybody, so the card is
+     its own way out as well as its way in. */
+  convWho = convWho === card.dataset.cw ? null : card.dataset.cw;
+  PAGE_AT.conv = 0;
+  paintConvs();
 });
 
 document.addEventListener('click', async e => {

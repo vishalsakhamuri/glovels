@@ -587,12 +587,32 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 /* ------------------------------------------------- conversations, overseen */
 .convwho{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
-.cw{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff}
+/* A card here is a door, not a label: pressing one shows that counsellor's
+   threads and nothing else. It was a plain div for months — a screen full of
+   things that look pressable and are not teaches people to distrust the
+   controls that do work. */
+.cw{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff;
+  width:100%;text-align:left;font:inherit;cursor:pointer;display:block;
+  transition:border-color .13s, box-shadow .13s}
+.cw:hover{border-color:var(--navy-600)}
+.cw:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
+.cw[aria-pressed="true"]{border-color:var(--navy-800);
+  box-shadow:inset 0 0 0 1px var(--navy-800)}
 .cw.hot{border-color:#f0c8c4;background:#fdf6f5}
+.cw.hot[aria-pressed="true"]{border-color:#b03a2e;box-shadow:inset 0 0 0 1px #b03a2e}
 .cw b{display:block;font:700 13.2px/1.4 var(--sans);color:var(--navy-900)}
 .cw span{display:block;font-size:11.8px;color:var(--muted);margin-top:2px}
 .cw.hot span{color:#7a2118;font-weight:600}
 .cw i{display:block;font-style:normal;font-size:11.2px;color:var(--muted);margin-top:4px}
+/* Which slice is showing, and the way back out of it. */
+.cwchip{margin-top:11px;font:600 12.2px/1.5 var(--sans);color:var(--navy-800)}
+.cwchip .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
+  text-decoration:underline;cursor:pointer}
+/* The student's name, which is the control that opens the thread. */
+.cvopen{text-decoration:none;color:inherit}
+.cvopen b{text-decoration:underline;text-underline-offset:2px;
+  text-decoration-color:var(--line)}
+.cvopen:hover b{color:var(--blue-deep);text-decoration-color:currentColor}
 tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 
 /* An administrator's word to the counsellor. It sits above the thread on the
