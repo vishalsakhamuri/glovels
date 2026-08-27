@@ -341,7 +341,7 @@ BODY = """
       </div>
 
       <div class="p-card" style="padding:0;overflow-x:auto">
-        <table class="tbl" style="margin:0">
+        <table class="tbl cvtbl" style="margin:0">
           <thead><tr><th>Student</th><th>Counsellor</th><th>Last said</th>
             <th>Waiting</th><th>Balance</th><th></th></tr></thead>
           <tbody id="convRows"></tbody>
@@ -1480,19 +1480,20 @@ function paintConvs() {
          one control that opens the conversation was off the right-hand edge
          and the screen read as dead to the touch. The first thing under a
          thumb now opens the thread. */
-      '<td><a class="cvopen" href="counsellor.html?student=' + c.id + '">' +
-        '<b>' + esc(c.name) + '</b></a>' +
+      '<td class="cvname"><a class="cvopen" href="counsellor.html?student=' + c.id +
+        '"><b>' + esc(c.name) + '</b></a>' +
         '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
         esc(c.email) + '</span></td>' +
       /* A thread nobody owns is the one that goes unanswered, and this screen
          is where that is noticed. Saying "nobody" in red and making somebody
          go and find the student on another tab to fix it is how a message sits
          for three days. */
-      '<td>' + assignCell(c.id, c.counsellor ? c.counsellor.id : null) + '</td>' +
+      '<td class="cvwho" data-lb="Counsellor">' +
+        assignCell(c.id, c.counsellor ? c.counsellor.id : null) + '</td>' +
       /* A student nobody has written to has no "last said", and printing an
          empty cell reads as a loading bug. Say the thing instead — it is the
          most actionable row on this screen. */
-      '<td style="max-width:330px">' + (c.messages === 0
+      '<td class="cvsaid" data-lb="Last said">' + (c.messages === 0
         ? '<span style="font-size:12.7px;color:#b03a2e;font-weight:700">'
           + 'Nothing said yet</span>'
           + '<span style="display:block;font-size:11.4px;color:var(--muted)">'
@@ -1506,18 +1507,18 @@ function paintConvs() {
          from ten minutes ago that nobody has answered is waiting; saying
          "answered" because it is under an hour old is the screen lying to make
          itself look better. */
-      '<td>' + (c.messages === 0
+      '<td class="cvwait" data-lb="Waiting">' + (c.messages === 0
         ? '<span class="st bad">not started</span>'
         : c.waitingSince
           ? '<span class="st ' + (c.waitingHours >= 24 ? 'bad' : 'wait') + '">' +
             ago(c.waitingSince) + '</span>'
           : '<span class="st ok">answered</span>') + '</td>' +
-      '<td style="font-size:12.4px;white-space:nowrap">' + c.fromUs + ' / ' + c.fromThem +
+      '<td class="cvbal" data-lb="Balance">' + c.fromUs + ' / ' + c.fromThem +
         (c.guidance ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
           c.guidance + ' note' + (c.guidance === 1 ? '' : 's') +
           (c.guidanceUnread ? ' · ' + c.guidanceUnread + ' unread' : '') + '</span>'
           : '') + '</td>' +
-      '<td style="white-space:nowrap">' +
+      '<td class="cvact">' +
         '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + c.id +
           '">' + (c.messages === 0 ? 'Open' : 'Read it') + '</a> ' +
         '<button type="button" class="btn btn-ghost btn-sm" data-guide="' + c.id +

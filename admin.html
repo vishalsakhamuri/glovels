@@ -653,6 +653,52 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .cwchip{margin-top:11px;font:600 12.2px/1.5 var(--sans);color:var(--navy-800)}
 .cwchip .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
   text-decoration:underline;cursor:pointer}
+/* The cells that used to carry these as inline styles. Inline beats a
+   stylesheet, so a white-space:nowrap written on the element could not be
+   undone by the phone rules below — the classes exist so that it can. */
+.cvsaid{max-width:330px}
+.cvbal{font-size:12.4px;white-space:nowrap}
+.cvact{white-space:nowrap}
+
+/* ---- the conversations list on a phone ----
+ *
+ * Six columns is 1,180px, and the box holding it is 356px on a 390px screen.
+ * Patch 68 moved the link that opens a thread onto the student's name so that
+ * the row was usable at all; Waiting and Balance were still behind a sideways
+ * scroll nobody would think to try.
+ *
+ * A row becomes a card. The header row goes — a two-word label in front of
+ * each value says the same thing and travels with it. */
+@media (max-width:600px){
+  .cvtbl thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
+    clip-path:inset(50%);white-space:nowrap}
+  .cvtbl, .cvtbl tbody, .cvtbl tr, .cvtbl td{display:block;width:auto}
+  /* `.p-card > .tbl{min-width:1180px}` is what makes a six-column table
+     scroll rather than crush itself, and it was still holding this one open at
+     1,180px after every cell had become a block. Three classes deep so it wins
+     wherever the two rules end up sitting relative to each other. */
+  .p-card > .cvtbl.tbl{min-width:0}
+  .cvtbl tr{border:1px solid var(--line);border-radius:12px;background:var(--paper);
+    padding:12px 13px;margin:0 0 10px}
+  .cvtbl tr.late{border-color:#f0c8c4;background:#fdf6f5}
+  /* The desktop rule paints urgency as a bar down the first cell, which in a
+     card is a stripe across the top of the name. The whole card says it. */
+  .cvtbl tr.late td:first-child{box-shadow:none}
+  .cvtbl td{border:0;padding:5px 0}
+  .cvtbl td[data-lb]::before{content:attr(data-lb);display:block;
+    font:800 9.4px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:4px}
+  .cvtbl .cvname{padding-top:0}
+  .cvtbl .cvname b{font-size:15px}
+  .cvsaid{max-width:none}
+  .cvbal{white-space:normal}
+  .cvact{white-space:normal;display:flex;gap:8px;padding-top:10px}
+  .cvact .btn{flex:1 1 auto;justify-content:center}
+  .cvtbl .cvwho select{width:100%}
+  /* One card with the empty-state sentence in it, not a card per column. */
+  .cvtbl td[colspan]{padding:14px 0}
+}
+
 /* The student's name, which is the control that opens the thread. */
 .cvopen{text-decoration:none;color:inherit}
 .cvopen b{text-decoration:underline;text-underline-offset:2px;
@@ -1163,7 +1209,7 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
 
       <div class="p-card" style="padding:0;overflow-x:auto">
-        <table class="tbl" style="margin:0">
+        <table class="tbl cvtbl" style="margin:0">
           <thead><tr><th>Student</th><th>Counsellor</th><th>Last said</th>
             <th>Waiting</th><th>Balance</th><th></th></tr></thead>
           <tbody id="convRows"></tbody>
@@ -2768,19 +2814,20 @@ function paintConvs() {
          one control that opens the conversation was off the right-hand edge
          and the screen read as dead to the touch. The first thing under a
          thumb now opens the thread. */
-      '<td><a class="cvopen" href="counsellor.html?student=' + c.id + '">' +
-        '<b>' + esc(c.name) + '</b></a>' +
+      '<td class="cvname"><a class="cvopen" href="counsellor.html?student=' + c.id +
+        '"><b>' + esc(c.name) + '</b></a>' +
         '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
         esc(c.email) + '</span></td>' +
       /* A thread nobody owns is the one that goes unanswered, and this screen
          is where that is noticed. Saying "nobody" in red and making somebody
          go and find the student on another tab to fix it is how a message sits
          for three days. */
-      '<td>' + assignCell(c.id, c.counsellor ? c.counsellor.id : null) + '</td>' +
+      '<td class="cvwho" data-lb="Counsellor">' +
+        assignCell(c.id, c.counsellor ? c.counsellor.id : null) + '</td>' +
       /* A student nobody has written to has no "last said", and printing an
          empty cell reads as a loading bug. Say the thing instead — it is the
          most actionable row on this screen. */
-      '<td style="max-width:330px">' + (c.messages === 0
+      '<td class="cvsaid" data-lb="Last said">' + (c.messages === 0
         ? '<span style="font-size:12.7px;color:#b03a2e;font-weight:700">'
           + 'Nothing said yet</span>'
           + '<span style="display:block;font-size:11.4px;color:var(--muted)">'
@@ -2794,18 +2841,18 @@ function paintConvs() {
          from ten minutes ago that nobody has answered is waiting; saying
          "answered" because it is under an hour old is the screen lying to make
          itself look better. */
-      '<td>' + (c.messages === 0
+      '<td class="cvwait" data-lb="Waiting">' + (c.messages === 0
         ? '<span class="st bad">not started</span>'
         : c.waitingSince
           ? '<span class="st ' + (c.waitingHours >= 24 ? 'bad' : 'wait') + '">' +
             ago(c.waitingSince) + '</span>'
           : '<span class="st ok">answered</span>') + '</td>' +
-      '<td style="font-size:12.4px;white-space:nowrap">' + c.fromUs + ' / ' + c.fromThem +
+      '<td class="cvbal" data-lb="Balance">' + c.fromUs + ' / ' + c.fromThem +
         (c.guidance ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
           c.guidance + ' note' + (c.guidance === 1 ? '' : 's') +
           (c.guidanceUnread ? ' · ' + c.guidanceUnread + ' unread' : '') + '</span>'
           : '') + '</td>' +
-      '<td style="white-space:nowrap">' +
+      '<td class="cvact">' +
         '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + c.id +
           '">' + (c.messages === 0 ? 'Open' : 'Read it') + '</a> ' +
         '<button type="button" class="btn btn-ghost btn-sm" data-guide="' + c.id +

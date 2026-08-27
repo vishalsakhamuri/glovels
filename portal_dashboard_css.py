@@ -246,6 +246,52 @@ CSS = """
 .cwchip{margin-top:11px;font:600 12.2px/1.5 var(--sans);color:var(--navy-800)}
 .cwchip .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
   text-decoration:underline;cursor:pointer}
+/* The cells that used to carry these as inline styles. Inline beats a
+   stylesheet, so a white-space:nowrap written on the element could not be
+   undone by the phone rules below — the classes exist so that it can. */
+.cvsaid{max-width:330px}
+.cvbal{font-size:12.4px;white-space:nowrap}
+.cvact{white-space:nowrap}
+
+/* ---- the conversations list on a phone ----
+ *
+ * Six columns is 1,180px, and the box holding it is 356px on a 390px screen.
+ * Patch 68 moved the link that opens a thread onto the student's name so that
+ * the row was usable at all; Waiting and Balance were still behind a sideways
+ * scroll nobody would think to try.
+ *
+ * A row becomes a card. The header row goes — a two-word label in front of
+ * each value says the same thing and travels with it. */
+@media (max-width:600px){
+  .cvtbl thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
+    clip-path:inset(50%);white-space:nowrap}
+  .cvtbl, .cvtbl tbody, .cvtbl tr, .cvtbl td{display:block;width:auto}
+  /* `.p-card > .tbl{min-width:1180px}` is what makes a six-column table
+     scroll rather than crush itself, and it was still holding this one open at
+     1,180px after every cell had become a block. Three classes deep so it wins
+     wherever the two rules end up sitting relative to each other. */
+  .p-card > .cvtbl.tbl{min-width:0}
+  .cvtbl tr{border:1px solid var(--line);border-radius:12px;background:var(--paper);
+    padding:12px 13px;margin:0 0 10px}
+  .cvtbl tr.late{border-color:#f0c8c4;background:#fdf6f5}
+  /* The desktop rule paints urgency as a bar down the first cell, which in a
+     card is a stripe across the top of the name. The whole card says it. */
+  .cvtbl tr.late td:first-child{box-shadow:none}
+  .cvtbl td{border:0;padding:5px 0}
+  .cvtbl td[data-lb]::before{content:attr(data-lb);display:block;
+    font:800 9.4px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:4px}
+  .cvtbl .cvname{padding-top:0}
+  .cvtbl .cvname b{font-size:15px}
+  .cvsaid{max-width:none}
+  .cvbal{white-space:normal}
+  .cvact{white-space:normal;display:flex;gap:8px;padding-top:10px}
+  .cvact .btn{flex:1 1 auto;justify-content:center}
+  .cvtbl .cvwho select{width:100%}
+  /* One card with the empty-state sentence in it, not a card per column. */
+  .cvtbl td[colspan]{padding:14px 0}
+}
+
 /* The student's name, which is the control that opens the thread. */
 .cvopen{text-decoration:none;color:inherit}
 .cvopen b{text-decoration:underline;text-underline-offset:2px;
