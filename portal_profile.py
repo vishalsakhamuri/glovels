@@ -48,6 +48,40 @@ BODY = """
           <button type="button" class="btn btn-ghost" id="fillBtn"
             style="margin-left:auto">Fill with demo answers</button>
         </div>
+
+        <!-- Findable, not buried, and not shouting either. Apple requires a
+             way to delete an account wherever one can be created, and this
+             screen is where a student's record lives, so this is where it
+             belongs. -->
+        <section class="p-card danger" id="dangerZone" style="margin-top:28px">
+          <h3>Delete my account</h3>
+          <p class="d-say">This cannot be undone. Everything personal to you is
+            removed from our servers: your profile, the documents you uploaded,
+            your shortlist, your applications, every message with your
+            counsellor, and your sign-in.</p>
+          <p class="d-say"><b>One thing is kept.</b> If you have paid for a
+            package, the record of that payment stays in our accounts — we are
+            required to keep an invoice, and removing your name from one would
+            not protect you, it would only make a refund impossible to trace.
+            Nothing else survives.</p>
+          <button type="button" class="btn btn-ghost d-open" id="delOpen">Delete my account</button>
+
+          <div id="delConfirm" hidden>
+            <div class="field" style="margin-bottom:14px">
+              <label for="delEmail">Type your email address to confirm</label>
+              <input type="email" id="delEmail" autocomplete="off" placeholder="you@email.com">
+            </div>
+            <div class="field" style="margin-bottom:14px">
+              <label for="delPass">Your password</label>
+              <input type="password" id="delPass" autocomplete="current-password">
+            </div>
+            <p class="ferr" id="delErr" hidden></p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button type="button" class="btn d-go" id="delGo">Delete permanently</button>
+              <button type="button" class="btn btn-ghost" id="delCancel">Keep my account</button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 """
@@ -328,6 +362,48 @@ $('#saveBtn').addEventListener('click', () => {
 });
 $('#prevBtn').addEventListener('click', () => goTo(cur - 1));
 $('#nextBtn').addEventListener('click', () => goTo(cur + 1));
+/* ------------------------------------------------------ deleting the account
+ *
+ * Two gates, and the second one is the email typed out rather than a checkbox,
+ * because this is irreversible and a deliberate action should take a deliberate
+ * amount of effort. The server checks both again — a confirmation a browser
+ * enforces is a suggestion. */
+$('#delOpen').addEventListener('click', () => {
+  $('#delConfirm').hidden = false;
+  $('#delOpen').hidden = true;
+  $('#delEmail').focus();
+});
+$('#delCancel').addEventListener('click', () => {
+  $('#delConfirm').hidden = true;
+  $('#delOpen').hidden = false;
+  $('#delErr').hidden = true;
+  $('#delEmail').value = ''; $('#delPass').value = '';
+});
+$('#delGo').addEventListener('click', async () => {
+  const err = $('#delErr');
+  err.hidden = true;
+  const btn = $('#delGo');
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Deleting…';
+  try {
+    const out = await api('DELETE', '/api/account', {
+      email: $('#delEmail').value, password: $('#delPass').value,
+    });
+    /* Straight out, and told what happened on the way. Leaving them on a
+       screen whose account no longer exists would be the last thing this
+       site ever showed them. */
+    try { localStorage.clear(); } catch (e) {}
+    location.href = 'index.html?gone=1'
+      + (out && out.ordersKept ? '&kept=' + out.ordersKept : '');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = was;
+    err.textContent = e.message || 'That did not work. Try again.';
+    err.hidden = false;
+  }
+});
+
 $('#fillBtn').addEventListener('click', () => {
   Object.assign(DB.profile, DEMO); save(); drawForm(); paint();
   toast('Filled with demo answers — every section is now complete.');

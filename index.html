@@ -3661,6 +3661,32 @@ addEventListener('keydown', e => { if(e.key === 'Escape') shut(); });
 $('#mapBtn').onclick = () =>
   open('https://maps.google.com/?q=' + encodeURIComponent("Hyderabad Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081"),
     '_blank', 'noopener');
+/* Somebody who has just deleted their account arrives here. */
+(function(){
+  const q = new URLSearchParams(location.search);
+  if (!q.has('gone')) return;
+  const kept = Number(q.get('kept') || 0);
+  const box = document.createElement('div');
+  box.setAttribute('role', 'status');
+  box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);'
+    + 'z-index:500;background:#fff;color:var(--navy-900);max-width:min(92vw,430px);'
+    + 'padding:26px 28px;border-radius:16px;box-shadow:0 30px 80px rgba(11,30,49,.34);'
+    + 'font:400 14.4px/1.65 var(--sans);text-align:left';
+  box.innerHTML =
+    '<b style="display:block;font:700 18px/1.3 var(--disp);margin-bottom:10px">'
+    + 'Your account has been deleted</b>'
+    + '<p style="margin:0 0 14px;color:var(--muted)">Your profile, documents, '
+    + 'shortlist and messages are gone from our servers.'
+    + (kept ? ' The record of your payment stays in our accounts, as the page said '
+        + 'it would — write to us if you need anything about it.' : '')
+    + '</p>'
+    + '<button type="button" class="btn btn-primary btn-sm" id="goneOk">Close</button>';
+  document.body.appendChild(box);
+  const shut = () => { box.remove(); history.replaceState({}, '', location.pathname); };
+  box.querySelector('#goneOk').onclick = shut;
+  addEventListener('keydown', e => { if (e.key === 'Escape') shut(); });
+})();
+
 $('#wa').onclick = () => open('https://wa.me/917093314089?text='
   + encodeURIComponent('Hi Glovels, I would like to speak to a counsellor.'), '_blank', 'noopener');
 

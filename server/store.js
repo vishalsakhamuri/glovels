@@ -1200,14 +1200,63 @@ function open(dir) {
        no order, so this deletes the rows that hang off a record nobody has
        worked on yet. */
     removeStudent(id) {
+      return this.closeAccount(id);
+    },
+
+    /**
+     * A person deleting their own account.
+     *
+     * Everything personal goes: their profile, the documents they uploaded,
+     * their shortlist, their applications, every message, their drafts, the
+     * notes staff wrote about them, their chat threads, their sessions and any
+     * password-reset link still outstanding.
+     *
+     * PAID ORDERS DO NOT GO, and this is deliberate. A tax invoice has to be
+     * retained — that is a statutory obligation, not a preference — and
+     * scrubbing the name off one does not protect anybody, it just breaks the
+     * accounting and makes a refund impossible to trace. So the order row
+     * survives with the invoice details it was issued with, and is detached
+     * from the account that no longer exists. The screen says this in as many
+     * words BEFORE anybody presses the button; a deletion that quietly keeps
+     * something is worse than one that explains what it keeps.
+     *
+     * Returns what happened, so the route can say it back to them.
+     */
+    closeAccount(id) {
       const sid = Number(id);
+
+      let orders = 0;
+      try {
+        orders = db.all('SELECT id FROM orders WHERE student_id = ?', sid).length;
+        /* NULL through a parameter rather than written into the SQL, because
+           the file-backed driver parses these statements by hand and only
+           understands placeholders. */
+        db.run('UPDATE orders SET student_id = ? WHERE student_id = ?', null, sid);
+      } catch (e) { /* no orders table on an old database */ }
+
+      /* A chat thread's messages hang off the thread, not off the student, so
+         they have to go first or they outlive the person who wrote them. */
+      try {
+        db.all('SELECT id FROM chats WHERE student_id = ?', sid).forEach(c => {
+          try { db.run('DELETE FROM chat_messages WHERE chat_id = ?', c.id); }
+          catch (e) {}
+        });
+      } catch (e) {}
+
       ['documents', 'profiles', 'shortlist', 'applications', 'messages',
-       'saved_scholarships', 'drafts', 'sessions', 'password_resets']
+       'saved_scholarships', 'drafts', 'sessions', 'password_resets',
+       'staff_notes', 'chats']
         .forEach(t => {
           try { db.run('DELETE FROM ' + t + ' WHERE student_id = ?', sid); }
           catch (e) { /* table without that column, or nothing to remove */ }
         });
+      /* Push subscriptions are keyed on the person, whatever the column is
+         called — a device that keeps receiving notifications for a deleted
+         account is the worst kind of leftover. */
+      try { db.run('DELETE FROM push_subs WHERE staff_id = ?', sid); } catch (e) {}
+
       db.run('DELETE FROM students WHERE id = ?', sid);
+      return { orders };
     },
 
     setLogo(id, dataUrl) {

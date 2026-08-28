@@ -4988,6 +4988,49 @@ patch(
 )
 
 
+# ------------------------------------------- the last thing the site says
+#
+# Deleting an account lands on the home page. Landing there in silence is the
+# site behaving as though nothing happened on the one occasion somebody needs
+# to be sure it did — and there is no account left to check from.
+#
+# Said once, on the way in, and it survives being read: the address carries
+# ?gone=1 and nothing on the page depends on it afterwards.
+patch(
+    "index.html",
+    "a deleted account is told it is gone",
+    """$('#wa').onclick = () => open('https://wa.me/917093314089?text='""",
+    """/* Somebody who has just deleted their account arrives here. */
+(function(){
+  const q = new URLSearchParams(location.search);
+  if (!q.has('gone')) return;
+  const kept = Number(q.get('kept') || 0);
+  const box = document.createElement('div');
+  box.setAttribute('role', 'status');
+  box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);'
+    + 'z-index:500;background:#fff;color:var(--navy-900);max-width:min(92vw,430px);'
+    + 'padding:26px 28px;border-radius:16px;box-shadow:0 30px 80px rgba(11,30,49,.34);'
+    + 'font:400 14.4px/1.65 var(--sans);text-align:left';
+  box.innerHTML =
+    '<b style="display:block;font:700 18px/1.3 var(--disp);margin-bottom:10px">'
+    + 'Your account has been deleted</b>'
+    + '<p style="margin:0 0 14px;color:var(--muted)">Your profile, documents, '
+    + 'shortlist and messages are gone from our servers.'
+    + (kept ? ' The record of your payment stays in our accounts, as the page said '
+        + 'it would \u2014 write to us if you need anything about it.' : '')
+    + '</p>'
+    + '<button type="button" class="btn btn-primary btn-sm" id="goneOk">Close</button>';
+  document.body.appendChild(box);
+  const shut = () => { box.remove(); history.replaceState({}, '', location.pathname); };
+  box.querySelector('#goneOk').onclick = shut;
+  addEventListener('keydown', e => { if (e.key === 'Escape') shut(); });
+})();
+
+$('#wa').onclick = () => open('https://wa.me/917093314089?text='""",
+    marker="Somebody who has just deleted their account arrives here",
+)
+
+
 def header_fits():
     n = 0
     for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):

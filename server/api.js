@@ -700,9 +700,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     ROUTES.push({ method, pattern, handler,
       auth: !(opts && opts.open), soft: !!(opts && opts.soft) });
 
-  /* The three things an account with a temporary password may still do. */
+  /* The four things an account with a temporary password may still do.
+   *
+   * Leaving is one of them. Making somebody set up an account they have
+   * decided to delete is the sort of obstruction the deletion rule exists to
+   * prevent — and it would be the only door out of a screen that otherwise
+   * opens nothing. The route asks for the email typed out instead, which is
+   * proof enough from a session that already holds the account. */
   const CHANGE_ALLOWED = new Set([
-    '/api/auth/change', '/api/auth/logout', '/api/auth/me',
+    '/api/auth/change', '/api/auth/logout', '/api/auth/me', '/api/account',
   ]);
 
   /* ---------------------------------------------------------------- auth */
@@ -2287,6 +2293,96 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * borrowed laptop with a live session cannot be used to take the account
    * over.
    */
+  /**
+   * Deleting your own account.
+   *
+   * Required by Apple of any app that lets somebody create an account, and by
+   * the DPDP Act of anybody holding this much of a person's life — a passport
+   * number, a date of birth, their marksheets and every message they sent
+   * their counsellor. Staff could already delete other people's accounts; the
+   * person it belongs to could not, which is the wrong way round.
+   *
+   * Two gates, and they are different on purpose:
+   *
+   *   The EMAIL, typed out. Not a checkbox. This is irreversible and the
+   *   deliberate action has to be deliberate.
+   *
+   *   The PASSWORD, unless the account is on one they never chose. An account
+   *   made at checkout was given a generated password and emailed it; asking
+   *   for it back proves nothing, because whoever holds this session already
+   *   holds the account. Same reasoning as changing a password, one door along.
+   *
+   * The counsellor is told, because a student vanishing off a caseload with no
+   * explanation is a phone call somebody makes on Monday morning.
+   */
+  route('DELETE', '/api/account', async (req, res, s) => {
+    const b = await readJson(req);
+
+    /* Staff have their own screen for this, and it refuses to let the last
+       administrator lock everybody out. Reusing that logic here badly is how
+       an organisation loses its only admin at half past eleven at night. */
+    if (s.role && s.role !== 'student') {
+      return json(res, 403, {
+        error: 'Staff accounts are closed from the Organisation screen, not here.',
+      });
+    }
+
+    const typed = String(b.email || '').trim().toLowerCase();
+    if (typed !== String(s.email || '').trim().toLowerCase()) {
+      return json(res, 422, {
+        error: 'Type your email address exactly as it appears on your account to confirm.',
+      });
+    }
+    if (!s.must_change) {
+      if (!safeEqual(hashPassword(String(b.password || ''), s.pass_salt), s.pass_hash)) {
+        /* 422, not 401. Everything in the portal goes through one fetch helper
+           that treats 401 as "your session has expired" and bounces to the
+           sign-in screen — so answering a mistyped password with 401 threw the
+           person out of the account they were still deciding whether to keep.
+           Nothing is wrong with the session here; a field on the form is
+           wrong, which is what 422 means. */
+        return json(res, 422, { error: 'That is not your password.' });
+      }
+    }
+
+    /* Read before deleting: after closeAccount there is nobody left to ask. */
+    const counsellor = s.counsellor_id ? db.studentById(s.counsellor_id) : null;
+    const name = s.name || s.email;
+
+    /* The files, then the rows. A passport scan left on the disk after the
+       record pointing at it is gone is the one leftover nobody would ever
+       find again. */
+    try {
+      fs.rmSync(path.join(uploadDir, String(s.id)), { recursive: true, force: true });
+    } catch (e) { /* nothing uploaded, or already gone */ }
+
+    const gone = db.closeAccount(s.id);
+    db.log('system', 'account deleted by its owner',
+      name + (gone.orders ? ' — ' + gone.orders + ' paid order(s) kept' : ''));
+
+    if (counsellor && counsellor.email) {
+      notify.notify({
+        to: counsellor.email,
+        phone: counsellor.phone,
+        email: {
+          subject: name + ' has deleted their Glovels account',
+          text: name + ' deleted their account, so they are off your caseload and '
+            + 'their messages and documents are gone. '
+            + (gone.orders
+              ? 'They had ' + gone.orders + ' paid order(s); those records are kept '
+                + 'for accounting and are in the order book under their reference.'
+              : 'They had no paid orders.')
+            + ' Nothing needs doing unless you want to reach out.',
+        },
+      }).catch(() => {});
+    }
+
+    return json(res, 200, {
+      deleted: true,
+      ordersKept: gone.orders,
+    }, { 'Set-Cookie': 'glovels_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' });
+  });
+
   route('POST', '/api/auth/change', async (req, res, s) => {
     const b = await readJson(req);
     const current = String(b.current || '');

@@ -653,6 +653,21 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .cwchip{margin-top:11px;font:600 12.2px/1.5 var(--sans);color:var(--navy-800)}
 .cwchip .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
   text-decoration:underline;cursor:pointer}
+/* ---- deleting your own account ----
+   Findable without being alarming. Red on the button that does it, not on the
+   whole panel: a page that shouts before anybody has decided anything just
+   teaches people to scroll past. */
+.p-card.danger{border-color:#e8c9c4}
+.p-card.danger h3{color:#a3302a;margin:0 0 10px}
+.p-card.danger .d-say{margin:0 0 12px;font-size:13.6px;line-height:1.65;color:var(--muted);max-width:62ch}
+.p-card.danger .d-say b{color:var(--navy-900)}
+.p-card.danger .d-open{border-color:#e2b6b0;color:#a3302a}
+.p-card.danger .d-open:hover{background:#fdf3f2;border-color:#c0392b}
+.p-card.danger .d-go{background:#a3302a;border-color:#a3302a;color:#fff}
+.p-card.danger .d-go:hover{background:#8c2721}
+.p-card.danger .d-go:disabled{opacity:.6;cursor:default}
+#delConfirm{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);max-width:420px}
+
 /* ---- the profile form's newer controls ---- */
 
 /* Pick as many as apply. A <select multiple> needs a ctrl-click nobody knows
@@ -934,6 +949,40 @@ select.assign.none:hover{border-color:#a5342b}
           <button type="button" class="btn btn-ghost" id="fillBtn"
             style="margin-left:auto">Fill with demo answers</button>
         </div>
+
+        <!-- Findable, not buried, and not shouting either. Apple requires a
+             way to delete an account wherever one can be created, and this
+             screen is where a student's record lives, so this is where it
+             belongs. -->
+        <section class="p-card danger" id="dangerZone" style="margin-top:28px">
+          <h3>Delete my account</h3>
+          <p class="d-say">This cannot be undone. Everything personal to you is
+            removed from our servers: your profile, the documents you uploaded,
+            your shortlist, your applications, every message with your
+            counsellor, and your sign-in.</p>
+          <p class="d-say"><b>One thing is kept.</b> If you have paid for a
+            package, the record of that payment stays in our accounts — we are
+            required to keep an invoice, and removing your name from one would
+            not protect you, it would only make a refund impossible to trace.
+            Nothing else survives.</p>
+          <button type="button" class="btn btn-ghost d-open" id="delOpen">Delete my account</button>
+
+          <div id="delConfirm" hidden>
+            <div class="field" style="margin-bottom:14px">
+              <label for="delEmail">Type your email address to confirm</label>
+              <input type="email" id="delEmail" autocomplete="off" placeholder="you@email.com">
+            </div>
+            <div class="field" style="margin-bottom:14px">
+              <label for="delPass">Your password</label>
+              <input type="password" id="delPass" autocomplete="current-password">
+            </div>
+            <p class="ferr" id="delErr" hidden></p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button type="button" class="btn d-go" id="delGo">Delete permanently</button>
+              <button type="button" class="btn btn-ghost" id="delCancel">Keep my account</button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -1651,6 +1700,48 @@ $('#saveBtn').addEventListener('click', () => {
 });
 $('#prevBtn').addEventListener('click', () => goTo(cur - 1));
 $('#nextBtn').addEventListener('click', () => goTo(cur + 1));
+/* ------------------------------------------------------ deleting the account
+ *
+ * Two gates, and the second one is the email typed out rather than a checkbox,
+ * because this is irreversible and a deliberate action should take a deliberate
+ * amount of effort. The server checks both again — a confirmation a browser
+ * enforces is a suggestion. */
+$('#delOpen').addEventListener('click', () => {
+  $('#delConfirm').hidden = false;
+  $('#delOpen').hidden = true;
+  $('#delEmail').focus();
+});
+$('#delCancel').addEventListener('click', () => {
+  $('#delConfirm').hidden = true;
+  $('#delOpen').hidden = false;
+  $('#delErr').hidden = true;
+  $('#delEmail').value = ''; $('#delPass').value = '';
+});
+$('#delGo').addEventListener('click', async () => {
+  const err = $('#delErr');
+  err.hidden = true;
+  const btn = $('#delGo');
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Deleting…';
+  try {
+    const out = await api('DELETE', '/api/account', {
+      email: $('#delEmail').value, password: $('#delPass').value,
+    });
+    /* Straight out, and told what happened on the way. Leaving them on a
+       screen whose account no longer exists would be the last thing this
+       site ever showed them. */
+    try { localStorage.clear(); } catch (e) {}
+    location.href = 'index.html?gone=1'
+      + (out && out.ordersKept ? '&kept=' + out.ordersKept : '');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = was;
+    err.textContent = e.message || 'That did not work. Try again.';
+    err.hidden = false;
+  }
+});
+
 $('#fillBtn').addEventListener('click', () => {
   Object.assign(DB.profile, DEMO); save(); drawForm(); paint();
   toast('Filled with demo answers — every section is now complete.');
