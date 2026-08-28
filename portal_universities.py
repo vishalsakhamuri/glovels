@@ -222,7 +222,9 @@ function card(p, inList) {
         /* Not "Add to shortlist". Pressing it does not put a university on the
            list the office works from — it tells the counsellor you like it,
            and saying otherwise sets up a disappointment. */
-        : '<button type="button" class="btn btn-navy btn-sm" data-add="' + p.id + '">I am interested</button>') +
+        : SHOW_INTEREST
+        ? '<button type="button" class="btn btn-navy btn-sm" data-add="' + p.id + '">I am interested</button>'
+        : '') +
       (p.url ? '<a class="btn btn-ghost btn-sm" href="' + esc(p.url) + '" target="_blank" rel="noopener">Course page</a>' : '') +
     '</div></article>';
 }
@@ -241,6 +243,22 @@ function card(p, inList) {
  * happening with my application". Interest is below it, and is explicitly
  * described as not yet agreed — so nobody reads a browsing session as a plan.
  */
+/*
+ * "Universities you are interested in" is switched OFF.
+ *
+ * Vishal: "this option is not required ... we may add this feature later not
+ * now." So it is switched off in the build rather than torn out — the column
+ * that records who put a university on the list (`added_by`), the endpoint
+ * that writes it, and the counsellor's sight of it are all untouched. Turning
+ * it back on is this one line.
+ *
+ * Both halves go together on purpose. Hiding the list while leaving "I am
+ * interested" on the cards would let a student mark a university and watch
+ * nothing happen — the screen doing something and showing nothing, which reads
+ * as broken rather than as switched off.
+ */
+const SHOW_INTEREST = false;
+
 const ownerOf = id => {
   const row = (typeof SHORT_ROWS !== 'undefined' ? SHORT_ROWS : [])
     .find(r => String(r.id) === String(id));
@@ -259,7 +277,11 @@ function paintMine() {
   const mine  = items.filter(p => ownerOf(p.id) === 'student');
   const auto  = items.filter(p => ownerOf(p.id) === 'matched');
   const ours  = items.filter(p => ownerOf(p.id) === 'office');
-  $('#nMine').textContent = items.length;
+  /* Counted from what is actually drawn. A student who marked universities
+     before this was switched off still HAS them — the rows are there and the
+     office can still see them — and a tab reading 9 above a screen showing 6
+     is the number arguing with the page. */
+  $('#nMine').textContent = SHOW_INTEREST ? items.length : (items.length - mine.length);
 
   const grid = (list, withApply) =>
     '<div class="sl-grid">' + list.map(p => card(p, withApply)).join('') + '</div>';
@@ -327,18 +349,20 @@ function paintMine() {
       + '<a class="btn btn-primary" href="messages.html">Message my counsellor</a></div>';
 
   /* -------------------------------------------------------- what the student likes */
-  html += '<div style="margin-top:30px">' + head('Universities you are interested in',
-    mine.length
-      ? 'Yours, not agreed yet. Your counsellor can see these and will tell you '
-        + 'honestly which are realistic for your profile.'
-      : 'Nothing here yet.');
-  html += mine.length
-    ? grid(mine, 'want')
-    : '<div class="sl-empty"><b>Nothing marked yet</b>'
-      + '<p>Browse the programmes tab and mark the ones you like. Your counsellor sees '
-      + 'them and can move any of them onto your real shortlist.</p>'
-      + '<button type="button" class="btn btn-ghost" data-goto="browse">Browse programmes</button></div>';
-  html += '</div>';
+  if (SHOW_INTEREST) {
+    html += '<div style="margin-top:30px">' + head('Universities you are interested in',
+      mine.length
+        ? 'Yours, not agreed yet. Your counsellor can see these and will tell you '
+          + 'honestly which are realistic for your profile.'
+        : 'Nothing here yet.');
+    html += mine.length
+      ? grid(mine, 'want')
+      : '<div class="sl-empty"><b>Nothing marked yet</b>'
+        + '<p>Browse the programmes tab and mark the ones you like. Your counsellor sees '
+        + 'them and can move any of them onto your real shortlist.</p>'
+        + '<button type="button" class="btn btn-ghost" data-goto="browse">Browse programmes</button></div>';
+    html += '</div>';
+  }
 
   $('#mineWrap').innerHTML = html;
 }
