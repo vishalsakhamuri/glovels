@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is public university in Germany really free?", "acceptedAnswer": {"@type": "Answer", "text": "Tuition at public universities is free or close to it in most federal states, including for international students. You still pay a semester contribution of roughly €150–€350, which usually includes a public transport pass, and you still have to fund your living costs — which is what the blocked account is for."}}, {"@type": "Question", "name": "Do I need German if my course is in English?", "acceptedAnswer": {"@type": "Answer", "text": "Not for admission. Yes for everything else: a part-time job, a landlord, a doctor's appointment, and the work permit afterwards. A1 before you fly and B1 within the first year is the pattern that works."}}, {"@type": "Question", "name": "What is the APS certificate?", "acceptedAnswer": {"@type": "Answer", "text": "A verification of your academic documents run by the German embassy's APS office. It is mandatory for Indian applicants and takes six to eight weeks. Every application you make will ask for it."}}, {"@type": "Question", "name": "My CGPA is below 7.5. Is Germany closed to me?", "acceptedAnswer": {"@type": "Answer", "text": "No. Public universities publish different bars, and several accept German grade equivalents of 2.7 to 3.2 — some publish no fixed minimum at all. Tell a counsellor your actual number and they will tell you which universities it opens, before you pay for anything."}}, {"@type": "Question", "name": "How many backlogs are acceptable?", "acceptedAnswer": {"@type": "Answer", "text": "Up to five is usually tolerated. More than that needs a written explanation, and it is worth writing it properly rather than hoping nobody looks."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -910,6 +920,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

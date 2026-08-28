@@ -52,7 +52,14 @@ def strip_injected(html):
     out = re.sub(r"\s*" + re.escape(INJECT_MARK) + r".*?</style>", "</style>",
                  html, flags=re.S)
     # Stacked copies leave the empty shells they were wrapped in behind.
-    return re.sub(r"<style>\s*</style>", "", out)
+    out = re.sub(r"<style>\s*</style>", "", out)
+    # And the student app's manifest block, for the same reason: apply_fixes
+    # adds it to visa.html, visa.html is the donor, and without this every
+    # staff screen built from that head would announce itself as the student
+    # app — wrong manifest, wrong name on the home screen, and our name back on
+    # the white-labelled partner page.
+    return re.sub(r"\s*<!-- GLOVELS-APP-MANIFEST -->.*?<!-- /GLOVELS-APP-MANIFEST -->",
+                  "", out, flags=re.S)
 
 
 def shell_parts():

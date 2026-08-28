@@ -1,0 +1,28 @@
+{
+  "name": "Glovels — Study Abroad",
+  "short_name": "Glovels",
+  "description": "Find universities you can actually get into, see what they really cost, and apply with somebody on your side.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f5ef",
+  "theme_color": "#0b1e31",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "My dashboard", "short_name": "Dashboard", "url": "/dashboard",
+      "description": "Where you are with each application" },
+    { "name": "My documents", "short_name": "Documents", "url": "/documents",
+      "description": "Upload a marksheet or a passport" },
+    { "name": "Message my counsellor", "short_name": "Messages", "url": "/messages",
+      "description": "Ask a question and get an answer" }
+  ]
+}

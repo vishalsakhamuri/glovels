@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How many points do I need?", "acceptedAnswer": {"@type": "Answer", "text": "65 is the minimum to be eligible. Invitations in most occupations require considerably more, and the number moves with demand."}}, {"@type": "Question", "name": "Is there an age limit?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You must be under 45 at the time of invitation, and points begin falling from 33. Age is the one factor nothing else compensates for."}}, {"@type": "Question", "name": "Do I need a job offer?", "acceptedAnswer": {"@type": "Answer", "text": "No. The General Skilled Migration programme is designed to work without one."}}, {"@type": "Question", "name": "Which English tests are accepted?", "acceptedAnswer": {"@type": "Answer", "text": "IELTS, PTE Academic, TOEFL iBT and Cambridge English. PTE is often the faster route to a Superior score for Indian applicants."}}, {"@type": "Question", "name": "How long does a Skills Assessment take?", "acceptedAnswer": {"@type": "Answer", "text": "Six to twelve weeks, depending on the authority. Start it first — everything else waits on it."}}, {"@type": "Question", "name": "What is SkillSelect?", "acceptedAnswer": {"@type": "Answer", "text": "The system you lodge your Expression of Interest through. It ranks EOIs and issues invitations; you cannot apply for the visa without being invited."}}, {"@type": "Question", "name": "Can my partner and children come?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Partners and dependent children are included in the same application, and your partner has full work rights on grant."}}, {"@type": "Question", "name": "Do PR holders get Medicare?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, from the grant of permanent residence."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -901,6 +911,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

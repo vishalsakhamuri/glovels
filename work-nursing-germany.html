@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is German language mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. B1 as a minimum and B2 in most states, for both recognition and employment. There is no route around it."}}, {"@type": "Question", "name": "What is the salary range?", "acceptedAnswer": {"@type": "Answer", "text": "€2,500 to €3,500 a month to start, rising with experience and shift allowances."}}, {"@type": "Question", "name": "How long does the whole process take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, covering documentation, recognition and the visa."}}, {"@type": "Question", "name": "Can I apply without work experience?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Many hospitals hire fresh graduates provided the qualification is recognised."}}, {"@type": "Question", "name": "Can I bring my family?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, after you hold the work permit and meet the income and accommodation requirements."}}, {"@type": "Question", "name": "Can I stay permanently?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Nurses can apply for permanent residence after the required period of work and the required German level."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -894,6 +904,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

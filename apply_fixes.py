@@ -6711,6 +6711,110 @@ patch(
     "               : 'dashboard.html';",
 )
 
+# ---------------------------------------------------------------------------
+# The app a student installs.
+#
+# There has been a manifest on this site for months, and it belongs to the
+# counsellors: it is called "Glovels Operations", it opens on /counsellor, and
+# nothing a student or a visitor ever sees has linked it. So on a student's
+# phone "Add to Home Screen" produced a bookmark with a screenshot for an icon,
+# and there was nothing for Play to wrap.
+#
+# Two manifests on one origin, distinguished by their start_url, which is what
+# a browser uses as an app's identity when no `id` is given. The operations one
+# is deliberately not touched — changing its identity would orphan the copies
+# already installed on counsellors' phones.
+#
+# The service worker comes with it. Not for caching — it caches nothing but the
+# offline page, on purpose — but because an installed app that drops the
+# device's own "no internet" error looks broken rather than offline, and
+# because a student cannot be sent a push notification without one.
+
+# The screens the office uses. They have their own manifest, their own name in
+# the tab, and their own service-worker registration that also asks for
+# notification permission. Partner is on this list twice over: it is staff, and
+# it is white-labelled, so an apple-mobile-web-app-title reading "Glovels" on an
+# agency's phone would put our name back on the one screen built to keep it off.
+OFFICE_PAGES = {
+    "admin.html", "blog-admin.html", "catalogue.html", "chat.html",
+    "counsellor.html", "home.html", "leads.html", "partner.html",
+}
+
+APP_HEAD = (
+    "\n<!-- GLOVELS-APP-MANIFEST -->\n"
+    '<link rel="manifest" href="/app.webmanifest">\n'
+    '<link rel="apple-touch-icon" href="/icon-192.png">\n'
+    '<meta name="apple-mobile-web-app-capable" content="yes">\n'
+    '<meta name="mobile-web-app-capable" content="yes">\n'
+    '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n'
+    '<meta name="apple-mobile-web-app-title" content="Glovels">\n'
+    # A closing marker, so the block can be taken back OUT again.
+    #
+    # build_portal.py builds every portal and staff page from a donor head, and
+    # the donor is visa.html — a page this build wrote and this file then
+    # patched. So without a way to find the end of this block, next build's
+    # staff pages inherit it from the donor and every counsellor screen quietly
+    # claims to be the student app. That is exactly the trap the injected
+    # stylesheet fell into, documented in strip_injected(); this is the same
+    # fix for the same reason.
+    "<!-- /GLOVELS-APP-MANIFEST -->\n"
+)
+
+# Registered on load, never before it. A service worker installing while the
+# page is still fetching its own stylesheet competes with it for the connection
+# on exactly the slow phone this is meant to help.
+APP_SW = """
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+</script>
+"""
+
+
+def student_app():
+    head_n = sw_n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        if f.name in OFFICE_PAGES or f.name.startswith("_"):
+            continue
+        t = f.read_text(encoding="utf-8")
+        if "</head>" not in t:
+            continue
+
+        before = t
+        if "GLOVELS-APP-MANIFEST" not in t:
+            # A theme colour only where there is not one already: the public
+            # pages set it, the portal screens do not, and two of them is one
+            # the browser ignores.
+            head = APP_HEAD
+            if 'name="theme-color"' not in t:
+                head = head.replace("<!-- /GLOVELS-APP-MANIFEST -->",
+                                    '<meta name="theme-color" content="#0b1e31">\n'
+                                    "<!-- /GLOVELS-APP-MANIFEST -->")
+            t = t.replace("</head>", head + "</head>", 1)
+            head_n += 1
+        if "GLOVELS-APP-SW" not in t and "serviceWorker.register" not in t:
+            t = t.replace("</body>", APP_SW + "</body>", 1)
+            sw_n += 1
+        if t != before:
+            write(f, t)
+
+    if head_n:
+        applied.append(f"{head_n} page(s): a student can install Glovels as an app")
+    else:
+        skipped.append("every page: a student can install Glovels as an app")
+    if sw_n:
+        applied.append(f"{sw_n} page(s): an offline screen that says so, rather than the browser's")
+    else:
+        skipped.append("every page: an offline screen that says so")
+
+
+student_app()
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

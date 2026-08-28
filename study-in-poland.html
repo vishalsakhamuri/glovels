@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Are Polish degrees recognised in the EU?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Poland is in the EU and the European Higher Education Area, and participates in the ECTS credit system, so degrees and credits transfer."}}, {"@type": "Question", "name": "Do I need Polish?", "acceptedAnswer": {"@type": "Answer", "text": "Not for an English-taught programme. It helps considerably for part-time work and daily life, and universities usually offer free or cheap classes."}}, {"@type": "Question", "name": "Is Poland genuinely cheaper?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — both tuition and living costs are lower than most of Western Europe, and dormitory accommodation is the cheapest part of it."}}, {"@type": "Question", "name": "Can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Students with a valid residence permit can work part-time without needing a separate permit."}}, {"@type": "Question", "name": "What can I stay on after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "A temporary residence permit for job search, typically 9 to 12 months, which converts to a work permit once you are hired."}}, {"@type": "Question", "name": "Are there entrance exams?", "acceptedAnswer": {"@type": "Answer", "text": "Some medical, engineering and art programmes require entrance tests or a portfolio."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -922,6 +932,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

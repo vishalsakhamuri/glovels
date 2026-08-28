@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is the income-based tuition system?", "acceptedAnswer": {"@type": "Answer", "text": "Italian public universities set fees according to a declared family income band, evidenced by an ISEE Parificato document. Getting that document right is often worth more than a scholarship."}}, {"@type": "Question", "name": "Do I need Italian?", "acceptedAnswer": {"@type": "Answer", "text": "Not for the growing number of English-taught programmes. Yes for daily life, and for most part-time work."}}, {"@type": "Question", "name": "What is Universitaly?", "acceptedAnswer": {"@type": "Answer", "text": "The national portal where non-EU students complete pre-enrolment before applying for a student visa. It is mandatory and it is not optional paperwork."}}, {"@type": "Question", "name": "How many hours can I work?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 20 hours a week during the academic period."}}, {"@type": "Question", "name": "When do I apply for the residence permit?", "acceptedAnswer": {"@type": "Answer", "text": "Within eight working days of arriving in Italy. This is a short window and missing it causes real problems."}}, {"@type": "Question", "name": "Can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — a 12-month job-seeker permit, convertible to a work permit once you are hired."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -922,6 +932,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

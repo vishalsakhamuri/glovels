@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How long does a UK master's take?", "acceptedAnswer": {"@type": "Answer", "text": "One year for most programmes, which is the single biggest cost advantage the UK has."}}, {"@type": "Question", "name": "Can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — part-time during term and full-time during breaks, depending on your visa conditions."}}, {"@type": "Question", "name": "Is the Graduate Route still available?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Eligible graduates can stay two years, or three after a PhD."}}, {"@type": "Question", "name": "Can I study in the UK without IELTS?", "acceptedAnswer": {"@type": "Answer", "text": "Some universities accept alternative tests or proof of English-medium education. Not all do, so confirm before you rely on it."}}, {"@type": "Question", "name": "What is a CAS?", "acceptedAnswer": {"@type": "Answer", "text": "The Confirmation of Acceptance for Studies, issued by your university. You cannot apply for the visa without it."}}, {"@type": "Question", "name": "What is the IHS?", "acceptedAnswer": {"@type": "Answer", "text": "The Immigration Health Surcharge, paid with the visa application. It gives you NHS healthcare for the duration of your stay."}}, {"@type": "Question", "name": "Can I bring dependants?", "acceptedAnswer": {"@type": "Answer", "text": "Under current rules, mainly for postgraduate research programmes and selected master's programmes. This has tightened and is worth checking against the rules on the day you apply."}}, {"@type": "Question", "name": "How early should I apply?", "acceptedAnswer": {"@type": "Answer", "text": "Eight to twelve months before the intake."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -921,6 +931,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

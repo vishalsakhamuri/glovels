@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What CRS score do I need?", "acceptedAnswer": {"@type": "Answer", "text": "Above 470 is generally competitive in a general draw. Category-based draws — healthcare, STEM, trades, French — often go considerably lower, which is why the category you target matters as much as the score itself."}}, {"@type": "Question", "name": "Do I need a job offer?", "acceptedAnswer": {"@type": "Answer", "text": "No. Express Entry is designed to work without one. A job offer can add points but is not a requirement for Federal Skilled Worker or Canadian Experience Class."}}, {"@type": "Question", "name": "How much does French help?", "acceptedAnswer": {"@type": "Answer", "text": "Strong French can add up to 50 CRS points, and there are French-language draws with markedly lower cut-offs. For many profiles it is the single largest available gain."}}, {"@type": "Question", "name": "How much proof of funds do I need?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on family size and is revised every year. A single applicant needs roughly CAD 14,000; each additional family member raises it."}}, {"@type": "Question", "name": "Can I still apply after 40?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, but the CRS age points are gone, so the realistic route is a provincial nomination, a job offer, or a category-based draw in your occupation."}}, {"@type": "Question", "name": "How long does it take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months once a complete application is submitted. Getting to that point — language test, ECA, documents — usually takes another three to six."}}, {"@type": "Question", "name": "When can I apply for citizenship?", "acceptedAnswer": {"@type": "Answer", "text": "After 1,095 days of physical residence within the preceding five years."}}, {"@type": "Question", "name": "Is the PR card the same as PR status?", "acceptedAnswer": {"@type": "Answer", "text": "No. The card is valid five years and is a travel document; your status continues as long as you meet the residency obligation."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -903,6 +913,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

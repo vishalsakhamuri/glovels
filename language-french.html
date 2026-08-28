@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "DELF or TEF?", "acceptedAnswer": {"@type": "Answer", "text": "DELF for studying in France. TEF for Canadian immigration. If you need both, do TEF second — the preparation overlaps and the scoring is more forgiving."}}, {"@type": "Question", "name": "What level does Campus France expect?", "acceptedAnswer": {"@type": "Answer", "text": "B2 for a French-taught programme. English-taught programmes in France do not require it, though daily life still does."}}, {"@type": "Question", "name": "Does French help with Canada PR?", "acceptedAnswer": {"@type": "Answer", "text": "Substantially. French proficiency carries additional points under Express Entry, and there are French-specific draws with lower cut-offs."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -888,6 +898,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

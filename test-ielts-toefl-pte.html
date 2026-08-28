@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Which test should I take?", "acceptedAnswer": {"@type": "Answer", "text": "Check what your universities and your visa route accept first. After that: IELTS for the widest acceptance, PTE for speed and a computer-marked speaking section, TOEFL for the United States."}}, {"@type": "Question", "name": "How long are scores valid?", "acceptedAnswer": {"@type": "Answer", "text": "Two years for all three. Book the test so the result is fresh when the application goes in."}}, {"@type": "Question", "name": "How quickly do results come?", "acceptedAnswer": {"@type": "Answer", "text": "PTE is usually a few business days. IELTS and TOEFL take longer — plan around a couple of weeks."}}, {"@type": "Question", "name": "Can I retake just one section?", "acceptedAnswer": {"@type": "Answer", "text": "IELTS One Skill Retake is available at many centres. TOEFL allows a section retake. PTE requires the whole test again."}}, {"@type": "Question", "name": "What score do I need?", "acceptedAnswer": {"@type": "Answer", "text": "Typically IELTS 6.0 to 6.5 for a bachelor's and 6.5 to 7.0 for a master's, with health sciences and competitive programmes asking for more. Your counsellor will tell you the exact bar for your shortlist."}}, {"@type": "Question", "name": "Do you offer online classes?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — online and classroom, with a free demo class either way."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -900,6 +910,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

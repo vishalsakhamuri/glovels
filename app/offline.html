@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>No connection | Glovels</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0b1e31">
+<link rel="icon" href="/favicon.png">
+<!--
+  The page shown when there is no connection.
+
+  It lives in app/ rather than beside the other pages on purpose. Every walker
+  in the build and half the test suites iterate the .html files in the site
+  root and inject something into each — the chat widget, the WhatsApp corner,
+  the header rules — and this is the one page that must carry none of it. A
+  page whose job is to explain that there is no network cannot afford a script
+  that opens a connection to find that out.
+
+  So: no stylesheet, no font from Google, no image beyond the icon already on
+  the device, and nothing that runs before it has painted.
+
+  It does not pretend, either. There is no cached shortlist here and no cached
+  application status, because a student reading yesterday's and believing it is
+  today's is worse off than one who knows they are offline. What it does say is
+  the one useful true thing: whatever they typed is held on the device and goes
+  up when the connection comes back.
+-->
+<style>
+  :root{--navy:#0b1e31;--cream:#f7f5ef;--ink:#16283a;--muted:#5b6b7c;
+    --line:#e2ded3;--blue:#1d4e89}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;
+    justify-content:center;padding:24px;background:var(--cream);color:var(--ink);
+    font:400 15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+      "Helvetica Neue",Arial,sans-serif}
+  .card{background:#fff;border:1px solid var(--line);border-radius:18px;
+    padding:34px 30px;max-width:440px;width:100%;
+    box-shadow:0 18px 50px rgba(11,30,49,.09)}
+  .mark{width:46px;height:46px;border-radius:12px;background:var(--navy);
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font:700 20px/1 inherit;letter-spacing:.5px;margin-bottom:18px}
+  h1{margin:0 0 10px;font:700 22px/1.28 inherit;color:var(--navy)}
+  p{margin:0 0 14px;color:var(--muted)}
+  p.keep{color:var(--ink)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+  .btn{appearance:none;border:1px solid var(--navy);background:var(--navy);
+    color:#fff;border-radius:10px;padding:11px 18px;font:600 14px/1 inherit;
+    cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+  .btn.ghost{background:#fff;color:var(--navy)}
+  .btn:hover{opacity:.9}
+  .small{margin:18px 0 0;padding-top:16px;border-top:1px solid var(--line);
+    font-size:13.2px;color:var(--muted)}
+  .small a{color:var(--blue)}
+  /* The phone's own setting, honoured. A white slab at midnight is the
+     brightest thing on the screen at the moment somebody is already annoyed. */
+  @media (prefers-color-scheme: dark){
+    body{background:#0b1e31;color:#eef2f6}
+    .card{background:#12293f;border-color:#1e3a52}
+    h1{color:#fff}
+    p{color:#b3c2d0}
+    p.keep{color:#eef2f6}
+    .mark{background:#1d4e89}
+    .btn{background:#1d4e89;border-color:#1d4e89;color:#fff}
+    .btn.ghost{background:transparent;color:#eef2f6;border-color:#33506b}
+    .small{border-top-color:#1e3a52}
+    .small a{color:#8ab6e8}
+  }
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="mark" aria-hidden="true">G</div>
+    <h1>You are offline</h1>
+    <p>Glovels cannot reach the internet from this device right now. Nothing has
+      gone wrong with your account.</p>
+    <p class="keep"><b>Anything you typed is safe.</b> Answers you filled in are
+      held on this device and are sent up the moment the connection is back —
+      you do not need to type them again.</p>
+    <div class="row">
+      <button type="button" class="btn" id="again">Try again</button>
+      <a class="btn ghost" href="/">Home</a>
+    </div>
+    <p class="small">Urgent? Call or WhatsApp
+      <a href="tel:+917093314089">+91 70933 14089</a> — a phone call does not
+      need this connection.</p>
+  </main>
+<script>
+  /* Back to what they were actually looking for, not a reload of this page. */
+  var leave = function () {
+    if (history.length > 1) history.back(); else location.href = '/';
+  };
+  document.getElementById('again').addEventListener('click', leave);
+  /* And go by itself the moment the connection returns, so nobody is left
+     staring at an apology after the problem has fixed itself. */
+  addEventListener('online', leave);
+</script>
+</body>
+</html>

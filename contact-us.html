@@ -342,6 +342,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need to book a call before I can do anything?", "acceptedAnswer": {"@type": "Answer", "text": "No. You can answer the profile questions, see your matches and buy a service without speaking to anybody."}}, {"@type": "Question", "name": "How quickly do you reply?", "acceptedAnswer": {"@type": "Answer", "text": "Within one working day to email, and usually the same day to a message in the portal or on WhatsApp."}}, {"@type": "Question", "name": "Is the first consultation free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. A profile evaluation costs nothing, whether or not you ever buy anything."}}, {"@type": "Question", "name": "Do you work with students outside India?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Nothing about the service depends on where you are — it runs in your account, in whatever timezone you are in."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -1065,6 +1075,15 @@ if (location.protocol === 'file:') {
     }
   });
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

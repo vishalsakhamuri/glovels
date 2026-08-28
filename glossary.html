@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Why does an APS take so long?", "acceptedAnswer": {"@type": "Answer", "text": "It is a document verification with a queue, not a form. Start it the moment Germany is on your shortlist — it is the item most likely to cost you an intake."}}, {"@type": "Question", "name": "What is the difference between a conditional and an unconditional offer?", "acceptedAnswer": {"@type": "Answer", "text": "A conditional offer still depends on something — a final transcript, a language score. An unconditional offer is yours outright and is what most visa applications need."}}, {"@type": "Question", "name": "Is a Duolingo score enough?", "acceptedAnswer": {"@type": "Answer", "text": "For admission at many universities, yes. For several visa routes, no. Check the visa rule before you book, not after."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -887,6 +897,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

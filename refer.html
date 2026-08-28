@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "When do I get paid?", "acceptedAnswer": {"@type": "Answer", "text": "Within 30 days of your referral's purchase being verified."}}, {"@type": "Question", "name": "How many people can I refer?", "acceptedAnswer": {"@type": "Answer", "text": "As many as you like. There is no cap on referrals or on total earnings."}}, {"@type": "Question", "name": "Can I refer myself?", "acceptedAnswer": {"@type": "Answer", "text": "No. Self-referrals and referrals within the same household do not qualify."}}, {"@type": "Question", "name": "What if my referral cancels?", "acceptedAnswer": {"@type": "Answer", "text": "The reward is reversed, because it is paid on a completed purchase."}}, {"@type": "Question", "name": "What about services over ₹50,000?", "acceptedAnswer": {"@type": "Answer", "text": "Ask us before your referral pays. We agree the amount in writing rather than leaving it to a table that stops at ₹49,999."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -891,6 +901,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

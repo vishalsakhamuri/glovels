@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need six points if I am already a recognised skilled worker?", "acceptedAnswer": {"@type": "Answer", "text": "No. Pathway 1 does not use the points system, though you still have to meet the financial and basic requirements."}}, {"@type": "Question", "name": "Is German mandatory?", "acceptedAnswer": {"@type": "Answer", "text": "You need German at A1 or English at B2. German is not strictly required if your English is strong — but it is what decides whether you find qualified work once you are there."}}, {"@type": "Question", "name": "Is there an age limit?", "acceptedAnswer": {"@type": "Answer", "text": "No fixed upper limit, but the points reward youth: more points under 35, fewer between 35 and 40, none above 40."}}, {"@type": "Question", "name": "Can my family come with me?", "acceptedAnswer": {"@type": "Answer", "text": "Generally not on the Opportunity Card itself. Once you secure a job and move to a work permit or EU Blue Card, family reunification opens."}}, {"@type": "Question", "name": "Is there an annual cap?", "acceptedAnswer": {"@type": "Answer", "text": "No publicly advertised hard cap. The card exists to increase Germany's intake of qualified non-EU professionals."}}, {"@type": "Question", "name": "Where do I apply from?", "acceptedAnswer": {"@type": "Answer", "text": "The country where you legally reside — for most of our students, the German mission responsible for their region in India."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -894,6 +904,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

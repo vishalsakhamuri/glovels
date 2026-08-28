@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "GRE or GMAT for an MBA?", "acceptedAnswer": {"@type": "Answer", "text": "Most business schools now accept both. Take the GRE if you are also applying to non-business master's programmes; take the GMAT Focus if business school is the whole plan and you are strong on data reasoning."}}, {"@type": "Question", "name": "How long are scores valid?", "acceptedAnswer": {"@type": "Answer", "text": "Five years for both the GRE and the GMAT."}}, {"@type": "Question", "name": "Is the GRE really shorter now?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — just under two hours since 2023, with one writing task instead of two. Any guide describing a 3 hour 45 minute GRE is out of date."}}, {"@type": "Question", "name": "What is Data Insights?", "acceptedAnswer": {"@type": "Answer", "text": "The GMAT Focus section combining data sufficiency, table and graphics interpretation and multi-source reasoning. It counts toward your total score, unlike the old Integrated Reasoning."}}, {"@type": "Question", "name": "Is the SAT still on paper?", "acceptedAnswer": {"@type": "Answer", "text": "No. It is digital and adaptive, taken on the Bluebook app, about two hours fourteen minutes, with no essay."}}, {"@type": "Question", "name": "Can I retake?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, all three. Most schools consider your best score, and several accept superscoring — but check each one rather than assuming."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -900,6 +910,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need Spanish?", "acceptedAnswer": {"@type": "Answer", "text": "Not for an English-taught master's, but Spain is a country where daily life runs in Spanish. A2 before you arrive makes the first six months a great deal easier."}}, {"@type": "Question", "name": "Can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — a 12-month job-search residence permit, which converts to a work permit once you have an offer."}}, {"@type": "Question", "name": "How many hours can I work while studying?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 30 hours a week, provided the work does not clash with your study schedule."}}, {"@type": "Question", "name": "What is the TIE?", "acceptedAnswer": {"@type": "Answer", "text": "The Foreigners' Identity Card, applied for within 30 days of arriving. It is what makes your residence legal for the rest of the course."}}, {"@type": "Question", "name": "Which cities are affordable?", "acceptedAnswer": {"@type": "Answer", "text": "Valencia, Seville and Granada are materially cheaper than Madrid and Barcelona for the same standard of living."}}, {"@type": "Question", "name": "Can I travel around Europe on a Spanish student visa?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Spain is in the Schengen area."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -919,6 +929,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

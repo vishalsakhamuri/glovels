@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is a Provincial Attestation Letter, and do I need one?", "acceptedAnswer": {"@type": "Answer", "text": "A PAL confirms that your study permit application sits within the province's allocated quota. Most study permit applications now need one, and the institution issues it — you cannot obtain it yourself."}}, {"@type": "Question", "name": "How many hours can I work during term?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 24 hours a week during academic sessions, and full-time during scheduled breaks."}}, {"@type": "Question", "name": "Is the Student Direct Stream still available?", "acceptedAnswer": {"@type": "Answer", "text": "No. SDS was discontinued in 2024. Applications go through the standard stream, which is why the funds documentation matters more than it used to."}}, {"@type": "Question", "name": "Can my spouse work while I study?", "acceptedAnswer": {"@type": "Answer", "text": "Spousal open work permits are now restricted to the spouses of master's and doctoral students and a small set of professional programmes. It is no longer automatic."}}, {"@type": "Question", "name": "When should I start?", "acceptedAnswer": {"@type": "Answer", "text": "Nine to twelve months before your intended intake. The bottleneck is the permit, not the offer."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -915,6 +925,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

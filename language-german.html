@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Which exam do you prepare me for?", "acceptedAnswer": {"@type": "Answer", "text": "Goethe-Institut or telc, depending on the level and what your university, employer or licensing authority accepts. We tell you which one you need before you enrol, not after."}}, {"@type": "Question", "name": "How long does a level take?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on hours per week and how much you practise outside class. A1 to B1 in under a year is realistic for a student who turns up and does the work."}}, {"@type": "Question", "name": "Do I need German for an English-taught master's?", "acceptedAnswer": {"@type": "Answer", "text": "Not for admission. For a part-time job, a flat and a graduate job, yes — and starting after you arrive is starting late."}}, {"@type": "Question", "name": "Online or classroom?", "acceptedAnswer": {"@type": "Answer", "text": "Both run live with a trainer. Online suits people already working; classroom suits people who need the room to keep them honest."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -888,6 +898,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

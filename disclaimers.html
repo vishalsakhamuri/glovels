@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "If a fee on this site is wrong, what applies?", "acceptedAnswer": {"@type": "Answer", "text": "The university's or authority's published figure. Ours is an estimate and may be behind theirs."}}, {"@type": "Question", "name": "Can you guarantee my visa?", "acceptedAnswer": {"@type": "Answer", "text": "No, and neither can anybody else. Visa decisions are made by governments on their own criteria. We can commit to the quality and timing of the work in your package."}}, {"@type": "Question", "name": "Does listing a university mean you are affiliated with it?", "acceptedAnswer": {"@type": "Answer", "text": "No. Names and logos identify the institution and imply no partnership unless we state one explicitly."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -898,6 +908,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

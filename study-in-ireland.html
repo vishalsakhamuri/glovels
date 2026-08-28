@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How long can I stay after graduating?", "acceptedAnswer": {"@type": "Answer", "text": "Two years on the Third Level Graduate Programme after a master's, one year after a bachelor's."}}, {"@type": "Question", "name": "Is Ireland in the Schengen area?", "acceptedAnswer": {"@type": "Answer", "text": "No. An Irish study visa does not give you Schengen travel, which surprises people who have planned weekend trips around it."}}, {"@type": "Question", "name": "How many hours can I work?", "acceptedAnswer": {"@type": "Answer", "text": "Up to 20 hours a week during term and up to 40 hours during holidays."}}, {"@type": "Question", "name": "Which courses do international students take?", "acceptedAnswer": {"@type": "Answer", "text": "Engineering, IT, business, data science, finance, biotechnology, nursing and hospitality are the most in demand."}}, {"@type": "Question", "name": "Do I need health insurance?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Private medical insurance is mandatory for the whole of your stay."}}, {"@type": "Question", "name": "Can I bring dependants?", "acceptedAnswer": {"@type": "Answer", "text": "Students on postgraduate programmes may, under certain conditions."}}, {"@type": "Question", "name": "How competitive is admission?", "acceptedAnswer": {"@type": "Answer", "text": "Competitive at the top universities, particularly for STEM and business. Applying early is the main thing within your control."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -921,6 +931,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

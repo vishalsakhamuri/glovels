@@ -312,6 +312,7 @@ function robotsTxt() {
     'Disallow: /leads',
     'Disallow: /acceptance/',
     'Disallow: /login',
+    'Disallow: /app/',
     'Allow: /',
     '',
     'Sitemap: ' + (CFG.siteUrl || '') + '/sitemap.xml',
@@ -331,7 +332,11 @@ function sitemapXml() {
     for (const name of fs.readdirSync(dir)) {
       const full = path.join(dir, name);
       if (fs.statSync(full).isDirectory()) {
-        if (name === 'data' || name === 'server' || name.startsWith('.')) continue;
+        /* `app/` holds the installed app's own furniture — today the service
+           worker's offline screen. Not pages anybody meant to publish, and a
+           search result reading "You are offline" would be a bug. */
+        if (name === 'data' || name === 'server' || name === 'app'
+            || name.startsWith('.')) continue;
         walk(full, prefix + name + '/');
         continue;
       }

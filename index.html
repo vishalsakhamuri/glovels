@@ -1100,6 +1100,15 @@ footer.site .fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;g
 @media (min-width:1001px){ #packages .pgrid{margin-top:74px} }
 @media (max-width:1000px){ .pconn{display:none} }
 </style>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* Opened from disk = somebody in the office reviewing it. Served
@@ -4885,6 +4894,15 @@ if (location.protocol === 'file:') {
     document.addEventListener('DOMContentLoaded', function () { refresh(); setTimeout(refresh, 700); });
   } else { refresh(); setTimeout(refresh, 700); }
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

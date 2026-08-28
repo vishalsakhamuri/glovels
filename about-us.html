@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I have to come to an office?", "acceptedAnswer": {"@type": "Answer", "text": "No. The whole thing runs online — shortlist, applications, documents, payments and messages all live in your account. Who we are as a company, and where we are registered, is set out in the Terms and Conditions."}}, {"@type": "Question", "name": "Do I have to talk to somebody before I can buy anything?", "acceptedAnswer": {"@type": "Answer", "text": "No. Prices are on the page and you can start at ₹99 without speaking to anyone. A counsellor is assigned when you buy something that needs one."}}, {"@type": "Question", "name": "What does ₹99 actually get me?", "acceptedAnswer": {"@type": "Answer", "text": "Three universities matched to your profile, with fees, intake and deadline for each, delivered to your account. It is meant to be small enough to try."}}, {"@type": "Question", "name": "Do you only work with expensive universities?", "acceptedAnswer": {"@type": "Answer", "text": "The opposite. Public universities with low or no tuition are the core of what we do, and we will tell you when a course costs nothing."}}, {"@type": "Question", "name": "Can I see my application progress?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Every student gets an account showing applications, documents, payments and the full conversation with their counsellor."}}, {"@type": "Question", "name": "Who will I actually be dealing with?", "acceptedAnswer": {"@type": "Answer", "text": "One named counsellor on the packages that include counselling, who stays with your file to the end."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -916,6 +926,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is my Indian pharmacy degree recognised?", "acceptedAnswer": {"@type": "Answer", "text": "It is assessed for equivalence through the Approbation process. Recognition is normal; automatic recognition is not."}}, {"@type": "Question", "name": "What German level do I need?", "acceptedAnswer": {"@type": "Answer", "text": "B2 general German and C1 Fachsprachprüfung."}}, {"@type": "Question", "name": "How long does Approbation take?", "acceptedAnswer": {"@type": "Answer", "text": "Typically 6 to 12 months, depending on the federal state and how complete your file is."}}, {"@type": "Question", "name": "What if I fail the knowledge examination?", "acceptedAnswer": {"@type": "Answer", "text": "It can be retaken. We prepare candidates for it specifically."}}, {"@type": "Question", "name": "Can I work while my application is processed?", "acceptedAnswer": {"@type": "Answer", "text": "In some cases, under supervision, depending on your visa type."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -891,6 +901,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

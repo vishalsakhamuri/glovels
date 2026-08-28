@@ -325,6 +325,16 @@ html.review-copy .towrite{display:block !important}
   color:var(--navy-800)}
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How do I apply?", "acceptedAnswer": {"@type": "Answer", "text": "Email careers@glovels.com with your CV and the role in the subject line."}}, {"@type": "Question", "name": "Are the roles in the office or remote?", "acceptedAnswer": {"@type": "Answer", "text": "The current openings are all based in our Hyderabad office in Madhapur."}}, {"@type": "Question", "name": "Do I need study abroad experience?", "acceptedAnswer": {"@type": "Answer", "text": "It helps and it is preferred for the counsellor role, but it is not a bar. We train."}}, {"@type": "Question", "name": "Do you take interns?", "acceptedAnswer": {"@type": "Answer", "text": "We run internships from time to time. Write to careers@glovels.com and say what you are looking for."}}]}</script>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -890,6 +900,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
