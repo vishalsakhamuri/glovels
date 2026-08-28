@@ -189,18 +189,27 @@ function open({ db, siteUrl, log }) {
 
   const subject = 'mailto:' + (process.env.ADMIN_EMAIL || 'info@glovels.com');
 
-  return {
+  /* Named, so toStaff can call toPerson without depending on `this` — a
+     detached reference would otherwise fail at the one moment it matters. */
+  const api = {
     /** What the browser needs before it can subscribe. */
     publicKey: keys.publicKey,
 
     /**
-     * Notify one member of staff on every device they have registered.
+     * Notify one PERSON on every device they have registered.
+     *
+     * A person, not a member of staff. Nothing in here was ever staff-specific
+     * — the subscription is keyed on an account id and the column is called
+     * staff_id only because counsellors got here first. A student waiting on a
+     * reply wants the buzz at least as much as the counsellor who sent it, and
+     * an app that cannot notify the person who installed it is most of the
+     * reason to install one.
      *
      * Never throws: a notification that fails is a notification that did not
      * arrive, and the message it was about is already saved.
      */
-    async toStaff(staffId, { title, body, url, tag }) {
-      const subs = db.pushSubscriptions(staffId);
+    async toPerson(personId, { title, body, url, tag }) {
+      const subs = db.pushSubscriptions(personId);
       if (!subs.length) return { sent: 0, gone: 0 };
 
       const payload = JSON.stringify({
@@ -235,10 +244,16 @@ function open({ db, siteUrl, log }) {
       return { sent, gone };
     },
 
+    /* The name the counsellor side has always called it. Kept so that call
+       sites and the suite that decrypts what this encrypts do not all have to
+       move in the same patch as the behaviour change. */
+    toStaff(staffId, opts) { return api.toPerson(staffId, opts); },
+
     /* Exposed for the tests, which prove the crypto by reversing it. */
     _encrypt: encrypt,
     _vapidHeader: endpoint => vapidHeader(endpoint, keys, subject),
   };
+  return api;
 }
 
 module.exports = { open, generateKeys, b64u, unb64u };

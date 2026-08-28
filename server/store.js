@@ -1134,6 +1134,20 @@ function open(dir) {
         String((sub.keys || {}).p256dh || ''), String((sub.keys || {}).auth || ''),
         String(agent || '').slice(0, 200), now());
     },
+    /**
+     * Who a device already belongs to, or null.
+     *
+     * The endpoint is the primary key, and savePushSubscription is an INSERT OR
+     * REPLACE — so registering an endpoint somebody else has registered moves
+     * it, silently, and their notifications start arriving on the new owner's
+     * phone. That did not matter while only staff could reach the endpoint at
+     * all. It matters the moment students can, so the route asks this first.
+     */
+    pushSubscriptionOwner(endpoint) {
+      const rows = db.all('SELECT staff_id FROM push_subs WHERE endpoint = ?',
+        String(endpoint));
+      return rows.length ? Number(rows[0].staff_id) : null;
+    },
     pushSubscriptions: staffId => db.all(
       'SELECT * FROM push_subs WHERE staff_id = ?', Number(staffId))
       .map(r => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth },

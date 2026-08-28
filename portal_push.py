@@ -38,9 +38,11 @@ BAR = """
     </div>
 """
 
-SCRIPT = r"""
+_SCRIPT = r"""
 /* Notifications on this device. */
 (function () {
+  const OFFER = %OFFER%;
+  const IOS_HINT = %IOS_HINT%;
   const bar = document.getElementById('pushBar');
   if (!bar) return;
   const msg = document.getElementById('pushMsg');
@@ -67,8 +69,7 @@ SCRIPT = r"""
 
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     if (iOS && !installed) {
-      show('To get a buzz when a student writes: tap Share, then Add to Home Screen, '
-        + 'and open this site from there.', []);
+      show(IOS_HINT, []);
     }
     return;
   }
@@ -85,11 +86,9 @@ SCRIPT = r"""
         + 'Allow them there and reload.', []);
     }
     if (iOS && !installed) {
-      return show('To get a buzz when a student writes: tap Share, then Add to Home '
-        + 'Screen, and open this site from there.', []);
+      return show(IOS_HINT, []);
     }
-    show('Get a notification when one of your students writes, even with this closed.',
-      ['on']);
+    show(OFFER, ['on']);
   }
 
   const raw = b64 => {
@@ -155,10 +154,40 @@ SCRIPT = r"""
       }).catch(() => {});
       await sub.unsubscribe();
     }
-    show('Get a notification when one of your students writes, even with this closed.',
-      ['on']);
+    show(OFFER, ['on']);
   });
 
   state().catch(() => {});
 })();
 """
+
+
+# The two sentences that differ between the two apps, and nothing else does.
+#
+# A counsellor is told a student has written; a student is told their counsellor
+# has replied. Same three failure modes, same bar, same permission — so the code
+# is shared and the words are not, rather than the file being copied and the two
+# copies drifting the first time one of them is fixed.
+def script(offer, ios_hint):
+    import json as _json
+    return (_SCRIPT
+            .replace("%OFFER%", _json.dumps(offer))
+            .replace("%IOS_HINT%", _json.dumps(ios_hint)))
+
+
+# What the office sees. Bound to the old name so build_portal.py does not have
+# to change in the same patch as the behaviour.
+SCRIPT = script(
+    "Get a notification when one of your students writes, even with this closed.",
+    "To get a buzz when a student writes: tap Share, then Add to Home Screen, "
+    "and open this site from there.",
+)
+
+# And what a student sees. The wording is the whole difference: the thing they
+# are waiting for is a person answering them, and saying so is what makes the
+# permission prompt worth granting rather than one more thing to dismiss.
+STUDENT_SCRIPT = script(
+    "Get a notification the moment your counsellor replies, even with Glovels closed.",
+    "To get a buzz when your counsellor replies: tap Share, then Add to Home Screen, "
+    "and open Glovels from there.",
+)

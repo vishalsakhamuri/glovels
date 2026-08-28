@@ -16,6 +16,23 @@ BODY = """
       .p-cols.aside>*{min-width:0}
     </style>
 
+    <!-- Notifications, on this screen because this is the one they are about.
+         A student who has installed the app and is waiting on an answer is
+         exactly the person for whom "even with Glovels closed" means something,
+         and asking here rather than on page one means the offer arrives when it
+         is obviously worth saying yes to. -->
+    <div id="pushBar" hidden style="display:flex;gap:11px;align-items:center;flex-wrap:wrap;
+      background:#eef4fd;border:1px solid #cfdcf3;border-radius:12px;padding:11px 14px;
+      margin-bottom:16px;font:600 12.8px/1.5 var(--sans);color:#123a7b">
+      <svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg>
+      <span id="pushMsg" style="flex:1;min-width:200px"></span>
+      <button type="button" class="btn btn-primary btn-sm" id="pushOn" hidden>
+        Turn on notifications</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="pushTest" hidden>
+        Send me a test</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="pushOff" hidden>Turn off</button>
+    </div>
+
     <div class="p-cols aside" style="--aside:270px;align-items:start">
       <div class="p-card" style="padding:16px">
         <div style="display:flex;gap:11px;align-items:center;margin-bottom:14px">
@@ -313,3 +330,8 @@ if (ONLINE) {
 
 paint();
 """
+
+import portal_push
+
+# The same bar the office has, with the two sentences that differ.
+SCRIPT += portal_push.STUDENT_SCRIPT

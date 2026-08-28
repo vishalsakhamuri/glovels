@@ -1505,6 +1505,8 @@ async function bell(me) {
 
 /* Notifications on this device. */
 (function () {
+  const OFFER = "Get a notification when one of your students writes, even with this closed.";
+  const IOS_HINT = "To get a buzz when a student writes: tap Share, then Add to Home Screen, and open this site from there.";
   const bar = document.getElementById('pushBar');
   if (!bar) return;
   const msg = document.getElementById('pushMsg');
@@ -1531,8 +1533,7 @@ async function bell(me) {
 
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     if (iOS && !installed) {
-      show('To get a buzz when a student writes: tap Share, then Add to Home Screen, '
-        + 'and open this site from there.', []);
+      show(IOS_HINT, []);
     }
     return;
   }
@@ -1549,11 +1550,9 @@ async function bell(me) {
         + 'Allow them there and reload.', []);
     }
     if (iOS && !installed) {
-      return show('To get a buzz when a student writes: tap Share, then Add to Home '
-        + 'Screen, and open this site from there.', []);
+      return show(IOS_HINT, []);
     }
-    show('Get a notification when one of your students writes, even with this closed.',
-      ['on']);
+    show(OFFER, ['on']);
   }
 
   const raw = b64 => {
@@ -1619,8 +1618,7 @@ async function bell(me) {
       }).catch(() => {});
       await sub.unsubscribe();
     }
-    show('Get a notification when one of your students writes, even with this closed.',
-      ['on']);
+    show(OFFER, ['on']);
   });
 
   state().catch(() => {});

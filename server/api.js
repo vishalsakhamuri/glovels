@@ -3216,6 +3216,21 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       { studentId: id, studentName: st.name, msg: payload });
 
     if (!live.isOnline('student', id)) {
+      /* The phone first, the same way round as the counsellor's side one
+         screen over. This is the notification a student installed the app for:
+         "we replied three days ago" is a complaint about a reply nobody was
+         told had arrived. The email still goes, because it is the record and
+         the fallback for a device that never registered. */
+      if (push) {
+        push.toPerson(id, {
+          title: s.name,
+          body,
+          url: (siteUrl || '') + '/messages',
+          /* One tag for the whole thread, so a counsellor sending three lines
+             replaces itself on the lock screen rather than stacking. */
+          tag: 'counsellor-reply',
+        }).catch(() => {});
+      }
       notify.notify({
         to: st.email,
         phone: st.phone,
@@ -3393,39 +3408,85 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * subscribe on somebody else's behalf: a notification carrying a student's
    * words is not something one account may arrange to send to another.
    */
-  route('GET', '/api/push/key', staffOnly(async (req, res) =>
-    json(res, 200, { key: push ? push.publicKey : null })));
+  /*
+   * Notifications, for anybody signed in.
+   *
+   * These four were staff-only, which made sense while the only app was the
+   * counsellors'. It stopped making sense the moment a student could install
+   * one: an app that cannot tell you your counsellor has replied is a bookmark
+   * with a nicer icon, and "we replied three days ago" is the complaint this
+   * removes. Nothing in the machinery below was ever staff-specific — the
+   * subscription is keyed on an account id, and the column is called staff_id
+   * only because counsellors got here first.
+   *
+   * Still signed-in only, and still one person's own devices: none of these
+   * takes an id, they all work on the session.
+   */
+  route('GET', '/api/push/key', async (req, res) =>
+    json(res, 200, { key: push ? push.publicKey : null }));
 
-  route('POST', '/api/push/subscribe', staffOnly(async (req, res, s) => {
+  route('POST', '/api/push/subscribe', async (req, res, s) => {
     if (!push) return json(res, 503, { error: 'Notifications are not configured' });
     const b = await readJson(req);
     const sub = b && b.subscription;
     if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
       return json(res, 400, { error: 'That is not a push subscription' });
     }
-    db.savePushSubscription(s.id, sub, req.headers['user-agent'] || '');
-    db.log(s.name, 'notifications on', 'a device was registered');
-    return json(res, 200, { ok: true, devices: db.countPushSubscriptions(s.id) });
-  }));
+    /*
+     * A device belongs to one account at a time.
+     *
+     * The endpoint is the primary key and saving is an INSERT OR REPLACE, so
+     * registering an endpoint that is already somebody else's MOVES it — and
+     * their counsellor's messages start arriving on the new owner's phone.
+     * While these routes were staff-only that was a hole nobody could reach.
+     * Opening them to students opened it, so it is closed here.
+     *
+     * A browser makes one subscription per profile, not per account, so the
+     * case this refuses is a genuinely shared browser — and the answer there is
+     * for the first person to turn notifications off, which deletes the row,
+     * rather than for the second to take them over without either of them
+     * knowing.
+     */
+    const owner = db.pushSubscriptionOwner(sub.endpoint);
+    if (owner && owner !== s.id) {
+      return json(res, 409, {
+        error: 'This browser is already receiving notifications for another '
+             + 'Glovels account. Turn them off there first.',
+      });
+    }
 
-  route('POST', '/api/push/unsubscribe', staffOnly(async (req, res, s) => {
+    db.savePushSubscription(s.id, sub, req.headers['user-agent'] || '');
+    /* The activity log is the office's. A student turning notifications on
+       their own phone is not office business, and a line per student per
+       device would bury the entries somebody actually reads. */
+    if (s.role && s.role !== 'student') {
+      db.log(s.name, 'notifications on', 'a device was registered');
+    }
+    return json(res, 200, { ok: true, devices: db.countPushSubscriptions(s.id) });
+  });
+
+  route('POST', '/api/push/unsubscribe', async (req, res, s) => {
     const b = await readJson(req);
     if (b && b.endpoint) db.deletePushSubscription(String(b.endpoint));
     return json(res, 200, { ok: true, devices: db.countPushSubscriptions(s.id) });
-  }));
+  });
 
   /* Prove it reaches the phone in the person's hand, from the person's own
      hand. "Did you get that?" is the only test that matters here, and without
      it the first real notification is also the first test. */
-  route('POST', '/api/push/test', staffOnly(async (req, res, s) => {
+  route('POST', '/api/push/test', async (req, res, s) => {
     if (!push) return json(res, 503, { error: 'Notifications are not configured' });
-    const out = await push.toStaff(s.id, {
+    const home = s.role === 'admin' ? '/admin'
+      : s.role === 'counsellor' || s.role === 'editor' ? '/counsellor'
+      : s.role === 'partner' ? '/partner'
+      : '/messages';
+    const out = await push.toPerson(s.id, {
       title: 'Glovels',
       body: 'Notifications are working on this device.',
-      url: (siteUrl || '') + (s.role === 'admin' ? '/admin' : '/counsellor'),
+      url: (siteUrl || '') + home,
     });
     return json(res, 200, out);
-  }));
+  });
 
   /* --------------------------------------------------------------- the money
    *
