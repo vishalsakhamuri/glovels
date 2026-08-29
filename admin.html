@@ -1069,6 +1069,8 @@ select.assign.none:hover{border-color:#a5342b}
         Email</button>
       <button class="otab" role="tab" data-o="chats" aria-selected="false">
         Conversations <span class="n">0</span></button>
+      <button class="otab" role="tab" data-o="app" aria-selected="false">
+        Mobile app</button>
     </div>
 
     <div class="opane active" id="o-students">
@@ -1282,6 +1284,47 @@ select.assign.none:hover{border-color:#a5342b}
       </p>
     </div>
     </div><!-- /o-chats -->
+
+    <div class="opane" id="o-app">
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Mobile app</h2></div>
+      <!-- What makes the Android app an app rather than a browser wearing a
+           costume. Android drops the address bar only if it can fetch
+           /.well-known/assetlinks.json from this domain and find the signing
+           certificate of the app asking. Get it wrong and nothing fails: the
+           app installs, opens, works, and carries a URL bar across the top of
+           every screen with nothing saying why. -->
+      <div class="p-card" id="appCard">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:15px">Android</h3>
+          <span class="st" id="appMode">checking&hellip;</span>
+          <span style="flex:1"></span>
+          <a class="btn btn-ghost btn-sm" href="/.well-known/assetlinks.json"
+            target="_blank" rel="noopener">See what Google is served</a>
+        </div>
+        <p style="margin:10px 0 0;font-size:12.6px;line-height:1.65;color:var(--navy-800)"
+          id="appSays"></p>
+
+        <div class="two" style="margin-top:14px">
+          <div class="field"><label for="aPkg">Package name</label>
+            <input id="aPkg" placeholder="com.glovels.app" autocomplete="off"></div>
+          <div class="field"><label for="aPrints">SHA-256 certificate fingerprint</label>
+            <input id="aPrints" autocomplete="off"
+              placeholder="AB:CD:EF:&hellip; (paste one per line, or several)"></div>
+        </div>
+        <p style="margin:-2px 0 12px;font-size:11.8px;color:var(--muted);line-height:1.6">
+          Both come from the Play Console once the first build has been uploaded:
+          <b>Test and release &rarr; Setup &rarr; App signing</b>. Copy the
+          <b>SHA-256</b> one &mdash; the SHA-1 above it on the same page is shorter and
+          will not work. Paste both the app signing and the upload certificate while you
+          are testing; separate them with a space or a comma. Saved here and in force
+          immediately, with no redeploy.</p>
+        <p class="ferr" id="appErr" hidden></p>
+        <button type="button" class="btn btn-primary btn-sm" id="appSave">Save</button>
+      </div>
+    </div>
+    </div><!-- /o-app -->
+
 
   </main>
 </div>
@@ -1932,7 +1975,7 @@ document.addEventListener('click', e => {
    `admin.html#theMoney` used to scroll; a section inside a closed pane cannot
    be scrolled to, so it would have done nothing at all. */
 const TAB_OF = { everyStudent: 'students', everyOrder: 'orders',
-  theMoney: 'money', mailCard: 'email', everyChat: 'chats' };
+  theMoney: 'money', mailCard: 'email', everyChat: 'chats', appCard: 'app' };
 function tabForHash() {
   const h = (location.hash || '').replace(/^#/, '');
   if (!h) return '';
@@ -3009,6 +3052,60 @@ document.addEventListener('click', async e => {
 
 loadConvs();
 paintMoney();
+/* ------------------------------------------------------------- the Android app
+ *
+ * Two boxes and one consequence. Android will only drop the browser's address
+ * bar from the app if it can fetch /.well-known/assetlinks.json from this
+ * domain and find the app's signing certificate in it. Nothing about getting
+ * this wrong looks like an error — the app installs, opens and works, wearing
+ * a URL bar — so this screen says out loud whether the file is currently
+ * verifying anything, rather than only whether a box has something in it.
+ */
+async function paintApp() {
+  let a = null;
+  try { a = await api('GET', '/api/staff/android'); }
+  catch (e) { return; }
+  $('#aPkg').value = a.package || '';
+  $('#aPrints').value = (a.fingerprints || []).join('  ');
+  const mode = $('#appMode');
+  mode.textContent = a.live ? 'verifying' : 'not set up';
+  mode.className = 'st ' + (a.live ? 'ok' : 'none');
+  $('#appSays').textContent = a.live
+    ? 'Android is being told that ' + a.package + ' may open this site without an '
+      + 'address bar, against ' + (a.fingerprints || []).length + ' certificate'
+      + ((a.fingerprints || []).length === 1 ? '' : 's') + '.'
+    : 'Nothing is being served yet, which is the right answer until there is an app. '
+      + 'Fill both boxes in after the first upload to the Play Console and the file '
+      + 'starts working immediately.';
+}
+
+$('#appSave').addEventListener('click', async () => {
+  const btn = $('#appSave'), err = $('#appErr');
+  err.hidden = true;
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Saving…';
+  try {
+    await api('PUT', '/api/staff/android', {
+      package: $('#aPkg').value,
+      /* Split on the server, which is where the checking is. A box that accepts
+         one shape and an endpoint that accepts another is two rules to keep in
+         step, and they never stay in step. */
+      fingerprints: $('#aPrints').value,
+    });
+    await paintApp();
+    toast('Saved — Google is being served the new file now.');
+  } catch (e) {
+    err.textContent = e.message || 'That did not save.';
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+});
+
+paintApp();
+
 paintMail();
 
 

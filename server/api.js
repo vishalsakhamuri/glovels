@@ -3612,6 +3612,81 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * else — an environment variable is the stronger place for a secret, which is
    * why the environment is still read and still supported.
    */
+  /*
+   * The Android app's identity, typed into the site.
+   *
+   * Android will only drop the browser's address bar from a Trusted Web
+   * Activity if it can fetch /.well-known/assetlinks.json from this domain and
+   * find the signing certificate of the app asking for it. That fingerprint
+   * does not exist until Google has signed the first upload, and it can change
+   * — so it belongs in a box somebody in the office can fill in, not in a file
+   * that needs a developer and a redeploy.
+   *
+   * The fingerprint is CHECKED here rather than stored as typed. A wrong one
+   * does not fail: the app installs, opens, works, and shows a URL bar across
+   * the top of every screen with nothing anywhere saying why. That is the kind
+   * of silent wrongness worth refusing at the point of entry.
+   */
+  route('GET', '/api/staff/android', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const cfg = db.content('androidApp') || {};
+    return json(res, 200, {
+      package: cfg.package || '',
+      fingerprints: Array.isArray(cfg.fingerprints) ? cfg.fingerprints : [],
+      /* So the screen can show what the world is being served rather than what
+         was typed, which is the thing that actually has to be right. */
+      live: (cfg.package && (cfg.fingerprints || []).length) ? true : false,
+    });
+  }));
+
+  route('PUT', '/api/staff/android', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+
+    /* Reverse-DNS, lower case, at least one dot. Play refuses anything else and
+       the package name can never be changed once an app is published, so a
+       typo here is not a typo, it is a second app. */
+    const pkg = String(b.package || '').trim();
+    if (pkg && !/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/.test(pkg)) {
+      return json(res, 422, {
+        error: 'A package name looks like com.glovels.app — lower case, at least '
+             + 'one dot, no spaces.',
+      });
+    }
+
+    /* 32 bytes as hex pairs joined by colons, which is exactly what the Play
+       Console shows and what a person will paste. Anything shorter is usually
+       the SHA-1 above it on the same page, copied by mistake — a mistake that
+       produces an app with an address bar and no explanation. */
+    const raw = Array.isArray(b.fingerprints) ? b.fingerprints
+      : String(b.fingerprints || '').split(/[\s,]+/);
+    const prints = [];
+    for (const one of raw) {
+      const f = String(one || '').trim().toUpperCase().replace(/\s+/g, '');
+      if (!f) continue;
+      if (!/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(f)) {
+        return json(res, 422, {
+          error: 'That is not a SHA-256 fingerprint. It is 32 pairs of characters '
+               + 'separated by colons — the SHA-1 just above it on the same page '
+               + 'is shorter and will not work.',
+          bad: f.slice(0, 40),
+        });
+      }
+      if (!prints.includes(f)) prints.push(f);
+    }
+    if (prints.length > 4) {
+      return json(res, 422, { error: 'Four fingerprints is already more than anybody needs.' });
+    }
+
+    db.setContent('androidApp', { package: pkg, fingerprints: prints }, s.name);
+    db.log(s.name, 'android app settings',
+      pkg ? pkg + ' — ' + prints.length + ' fingerprint(s)' : 'cleared');
+    return json(res, 200, {
+      package: pkg, fingerprints: prints,
+      live: !!(pkg && prints.length),
+    });
+  }));
+
   route('PUT', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const b = await readJson(req);

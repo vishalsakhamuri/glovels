@@ -320,6 +320,31 @@ function robotsTxt() {
   ].join('\n');
 }
 
+/**
+ * Digital Asset Links, from what the office has saved.
+ *
+ * `android_app` + the package name + the SHA-256 of the certificate Google
+ * signs the app with. More than one fingerprint is normal and not a mistake:
+ * Play App Signing gives you an upload certificate and an app signing
+ * certificate, and during testing a build signed with either has to verify.
+ */
+function assetLinks() {
+  let cfg = null;
+  try { cfg = db.content('androidApp'); } catch (e) { cfg = null; }
+  const pkg = (cfg && cfg.package) || '';
+  const prints = (cfg && Array.isArray(cfg.fingerprints) ? cfg.fingerprints : [])
+    .filter(Boolean);
+  if (!pkg || !prints.length) return [];
+  return [{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: pkg,
+      sha256_cert_fingerprints: prints,
+    },
+  }];
+}
+
 /* The public pages only: everything behind a sign-in is left out, and so is
    404.html, which exists to be reached by accident. */
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
@@ -817,6 +842,29 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/reset') {
     return send(res, 302, '', 'text/html',
       { Location: '/login' + (query ? '?' + query : '') });
+  }
+
+  /*
+   * /.well-known/assetlinks.json — what makes the Android app an app.
+   *
+   * A Trusted Web Activity is this site running full-screen inside an Android
+   * shell. Android will only drop the browser's address bar if it can fetch
+   * THIS file from THIS domain and find the signing certificate of the app
+   * that is asking. Without it the app still works and still looks wrong: a
+   * URL bar across the top of every screen, which reviewers read as a wrapped
+   * website and users read as a browser pretending to be an app.
+   *
+   * Generated rather than shipped, for the reason robots.txt is: the
+   * fingerprint is not known until Google has signed the first upload, it can
+   * change, and a file on disk means a developer and a redeploy every time it
+   * does. It comes from the Mobile app card in the office instead.
+   *
+   * With nothing configured this is an empty array — which is valid, and
+   * verifies nothing, which is the honest answer before there is an app.
+   */
+  if (pathname === '/.well-known/assetlinks.json') {
+    return send(res, 200, JSON.stringify(assetLinks(), null, 2) + '\n',
+      TYPES['.json']);
   }
 
   /* Ahead of the static files, so the generated answer wins over the one on
