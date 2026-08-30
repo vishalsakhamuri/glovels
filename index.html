@@ -277,6 +277,8 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .rail-ic .ico{font-size:20px}
 .rail-tx b{display:block;font:700 14.8px/1.2 var(--sans);color:var(--navy-900)}
 .rail-tx span{font-size:12px;color:var(--muted)}
+/* Computed, never shown. See the note in apply_fixes.py. */
+.rail-n,.rtab .rtn{display:none !important}
 .rail-n{margin-left:auto;font:800 11px/1 var(--sans);color:var(--band-fg);
   background:var(--band-bg);border:1px solid var(--band-br);padding:5px 8px;border-radius:var(--r-pill)}
 .rail-card>.ico:last-child{font-size:16px;color:var(--band-fg)}
@@ -311,12 +313,18 @@ section[id]{scroll-margin-top:92px}
   align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;
   padding:13px 16px;margin-bottom:10px;transition:box-shadow .18s}
 .mrow:hover{box-shadow:var(--sh-2)}
-.mcc{width:44px;height:36px;border-radius:9px;background:var(--cream);border:1px solid var(--line);
-  display:grid;place-items:center;font:800 11px/1 var(--sans);color:var(--navy-700)}
+.mcc{width:48px;height:38px;border-radius:9px;background:var(--cream);border:1px solid var(--line);
+  display:grid;place-items:center;font:800 14px/1 var(--sans);letter-spacing:.04em;
+  color:var(--navy-900)}
 .mname b{display:block;font-size:14.4px;font-weight:700;color:var(--navy-900);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msub{font-size:12.4px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mctry{font-size:13.2px;color:var(--navy-800)}
+.msub .ulink{color:var(--blue-deep);text-decoration:underline;text-underline-offset:2px}
+.msub .ulink:hover{color:var(--navy-900)}
+.mctry{font:700 13.4px/1.3 var(--sans);color:var(--navy-900)}
+/* The country somebody filtered FOR is the one they already know. Marking the
+   row's country when it is the chosen one would be noise on every row; marking
+   it always is what makes the column scannable when it is not. */
 .mtype{min-width:92px;text-align:center;display:inline-flex;align-items:center;gap:6px;
   justify-content:center;font:700 10.6px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;
   padding:6px 13px;border-radius:var(--r-pill);border:1px solid}
@@ -349,6 +357,22 @@ section[id]{scroll-margin-top:92px}
 .rtab:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:2px}
 .rtab.on{border-color:var(--navy-800);background:#fff;
   box-shadow:inset 0 0 0 1px var(--navy-800)}
+/* Tinted to match the rows behind them — the same green and blue the "Free to
+   apply" and "With a package" chips on every row already use. */
+.rtab[data-rt="pub"]{background:#f2faf5;border-color:#bfe0cc;color:#0e5230}
+.rtab[data-rt="pub"]:hover{border-color:#1f7a4d}
+.rtab[data-rt="pub"].on{background:#eaf6ee;border-color:#1f7a4d;
+  box-shadow:inset 0 0 0 1px #1f7a4d}
+.rtab[data-rt="priv"]{background:#f3f7fe;border-color:#c2d6f5;color:var(--blue-deep)}
+.rtab[data-rt="priv"]:hover{border-color:#1a4fb4}
+.rtab[data-rt="priv"].on{background:#eaf1fd;border-color:#1a4fb4;
+  box-shadow:inset 0 0 0 1px #1a4fb4}
+.rtab small{color:inherit;opacity:.72}
+/* Nothing behind it. Offered as a fact rather than as a button that answers a
+   press with an apology. */
+.rtab[disabled]{opacity:.45;cursor:default;background:var(--cream);
+  border-color:var(--line);color:var(--muted);box-shadow:none}
+.rtab[disabled]:hover{border-color:var(--line)}
 .rtab small{display:block;margin-top:3px;font:400 11.6px/1.4 var(--sans);color:var(--muted)}
 .rtab .rtn{display:inline-block;margin-left:5px;font:700 11.4px/1 var(--sans);
   padding:4px 7px;border-radius:20px;background:var(--cream);color:var(--navy-900)}
@@ -522,8 +546,15 @@ section[id]{scroll-margin-top:92px}
   .mprice{grid-area:price;justify-self:end;align-self:center;text-align:right;
     display:flex;align-items:baseline;gap:5px}
   .mprice small{margin:0}
-  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:nowrap;gap:8px;
+  /* Smaller than the desktop badge and still twice the size it was — the
+     complaint was that "GB" could not be read, not that it wanted to be large. */
+  .mcc{width:34px;height:30px;font:800 12.5px/1 var(--sans);border-radius:8px}
+  /* Wrapping, because the deadline is a phrase now and not a date. "intake
+     closed" and "15 Jan 2027" are both wider than the "1 Jul" this row was
+     measured with, and a row that will not wrap is a list that scrolls. */
+  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:wrap;gap:6px 8px;
     align-items:center;margin-top:2px}
+  .mact>span{font-size:11px}
   .mact .btn{flex:1 1 auto;justify-content:center}
   .mact .mreq{flex:none}
   /* The list itself must not be the thing that scrolls. If a row ever
@@ -581,7 +612,12 @@ html.review-copy .build-strip{display:block !important}
 .ai-step p{margin:0;font-size:12.4px;color:var(--muted);line-height:1.5}
 .svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
 .svc{padding:18px 20px 0}
-.svc-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:10px}
+.svc-top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+/* The name shares the row with the mark now, so it takes the space and the
+   badge is pushed to the end. min-width:0 because a flex item refuses to be
+   narrower than its own longest word without it, and "SOP Development &
+   Editing" is wider than the card. */
+.svc-top h4{flex:1;min-width:0;margin:0}
 .svc-ic{width:38px;height:38px;flex:none;border-radius:11px;display:grid;place-items:center;
   color:var(--blue-deep);background:linear-gradient(160deg,#eef4fd,#dfe9fa)}
 .svc-ic .ico{font-size:19px}
@@ -854,10 +890,15 @@ html.review-copy .build-strip{display:block !important}
 @media (max-width:640px){.tgrid>.tcard{flex-basis:86%}}
 .tcard{padding:18px 20px 0}
 .trow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px}
-.route{font:700 11.6px/1 var(--sans);padding:6px 11px;border-radius:var(--r-pill);
+/* Both chips are laid out the same way and given the same height, so the row
+   reads as a row rather than as two things that happen to be next to each
+   other. The type sizes still differ — one is a place, the other is a stamp —
+   but the boxes no longer do. */
+.trow>*{display:inline-flex;align-items:center;min-height:26px;box-sizing:border-box}
+.route{font:700 11.6px/1 var(--sans);padding:5px 11px;border-radius:var(--r-pill);
   border:1px solid var(--line);background:var(--cream);color:var(--navy-800)}
 .vadm{display:inline-flex;align-items:center;gap:5px;font:800 9.4px/1 var(--sans);letter-spacing:.1em;
-  text-transform:uppercase;padding:5px 8px;border-radius:var(--r-pill);background:#eef8f2;
+  text-transform:uppercase;padding:5px 10px;border-radius:var(--r-pill);background:#eef8f2;
   color:#14603a;border:1px solid #bfe0cc}
 .vadm .ico{font-size:11px}
 .tcard blockquote{margin:0;font-size:14.6px;line-height:1.5;color:var(--navy-800)}
@@ -1336,7 +1377,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       what you are paying for.</div>
   </div>
 </div>
-<section class="block b3">
+<section class="block b3 alt">
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Your student dashboard</span>
@@ -1831,6 +1872,35 @@ const unent = s => String(s == null ? '' : s)
   .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 
+/**
+ * Which deadline a row shows, if any.
+ *
+ * Prefers the intake the student asked for; falls back to every intake the
+ * programme has. Within that, the earliest one that has not already passed —
+ * because the only deadline worth printing beside an Apply button is one
+ * somebody can still meet.
+ *
+ * Returns {at} when there is a date to show, {closed:true} when the programme
+ * has intakes but all of them are behind us, and {} when it has none at all.
+ * The three are different and the row says so differently.
+ */
+function deadlineOf(r){
+  const want = $('#fIntake') ? $('#fIntake').value : '';
+  const all = (r.intakes || []).filter(i => i && i.deadline);
+  if(!all.length) return {};
+  const mine = want
+    ? all.filter(i => (i.season + '-' + i.deadline.slice(0,4)) === want)
+    : all;
+  if(!mine.length) return {};
+  /* Midnight today, so a deadline OF today still counts as open — it is the
+     last day to apply, not the first day it is too late. */
+  const today = new Date(); today.setHours(0,0,0,0);
+  const open = mine.filter(i => new Date(i.deadline) >= today)
+    .sort((a,b) => a.deadline < b.deadline ? -1 : 1);
+  if(open.length) return {at: open[0].deadline};
+  return {closed: true};
+}
+
 function rowHtml(r){
   const cc = r.country, ctry = C[cc];
   const feeOfRow = (r.feeModel === 'free' || r.feeModel === 'package')
@@ -1849,15 +1919,30 @@ function rowHtml(r){
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
       <span class="lockword">${ico('lock')}Locked</span>
       <button class="btn btn-navy btn-sm" data-goto-pkg>Select Package</button></div></div>`;
-  const dl = r.intakes[0] ? new Date(r.intakes[0].deadline)
-    .toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
+  /* http(s) only, and rel=noopener so the new tab cannot reach back into this
+     one. nofollow because a directory of outbound links is not an endorsement
+     and search engines should not read it as one. A row with no url in the
+     catalogue simply reads as it always did. */
+  const uni = esc(unent(r.university));
+  const safeUrl = /^https?:\/\//i.test(String(r.url || '')) ? r.url : '';
+  const uniHtml = safeUrl
+    ? `<a class="ulink" href="${esc(safeUrl)}" target="_blank" rel="noopener nofollow"
+        title="Open ${uni}'s own website">${uni} \u2197</a>`
+    : uni;
+  const dlNow = deadlineOf(r);
+  const dl = dlNow.at ? new Date(dlNow.at).toLocaleDateString('en-GB',
+      new Date(dlNow.at).getFullYear() === new Date().getFullYear()
+        ? {day:'numeric',month:'short'}
+        : {day:'numeric',month:'short',year:'numeric'}) : '';
   return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
-    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${esc(unent(r.university))}${r.city?' · '+esc(r.city):''}</div></div>
+    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}</div></div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice">${short(r.totalInr)}<small>${r.totalInr===0?'tuition':'total'}</small></div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
-      ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`:''}
+      ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`
+        :dlNow.closed?`<span style="font-size:11.4px;color:#8a6a1f;font-weight:700"
+          >intake closed</span>`:''}
       <button class="btn btn-sm ${feeOfRow === 'free' ? 'btn-primary' : 'btn-gold'}"
         data-apply="${esc(r.id)}" data-uni="${esc(unent(r.university))}"
         data-prog="${esc(unent(r.program))}">${feeOfRow === 'free' ? 'Apply free' : 'Apply'} ${ico('arrow')}</button></div></div>`;
@@ -1918,6 +2003,17 @@ function paintRail(){
   });
 }
 
+function unnumber(){
+  ['#fCountry','#fLevel','#fField','#fIntake','#fCgpa'].forEach(s => {
+    const el = $(s);
+    if(!el) return;
+    [...el.options].forEach(o => {
+      const clean = o.textContent.replace(/\s*\(\d+\)\s*$/, '');
+      if(clean !== o.textContent) o.textContent = clean;
+    });
+  });
+}
+
 function criteria(){
   const bits = [];
   [['Destination','#fCountry'],['Level','#fLevel'],['Field','#fField'],
@@ -1934,6 +2030,9 @@ function criteria(){
 let resTab = 'pub';
 
 function render(){
+  /* Here rather than once at load: the live catalogue rewrites the destination
+     list when the office adds a university, and it writes the counts back in. */
+  unnumber();
   const list = filtered(), rows = visibleRows(list);
   const said = banner(list, rows);
   /* Nothing to say yet. The banner is an answer, and until somebody has set a
@@ -1949,7 +2048,11 @@ function render(){
     ? 'The universities we are partnered with are free to apply to. The rest open with a package.'
     : 'Set your filters above and this becomes your own shortlist.';
   $('#rState').innerHTML = touched ? ico('check')+'Your results' : ico('compass')+'Browsing';
-  $('#rCount').textContent = touched ? list.length+' programmes found' : rows.length+' popular programmes';
+  /* What this list IS, with no number in it. #rState beside it already says
+     "Your results" or "Browsing", so a second chip repeating that would be
+     noise — this one is emptied and hidden instead of made to say it twice. */
+  $('#rCount').textContent = '';
+  $('#rCount').hidden = true;
   $('#rCrit').innerHTML = touched ? criteria() : '';
   $('#relock').hidden = !unlocked;
   /* Counted from everything that matched, not from what this tab is showing —
@@ -1962,10 +2065,21 @@ function render(){
   const pubAll = rows.filter(r => feeOf(r) === 'free');
   $('#rtnPriv') && ($('#rtnPriv').textContent = privAll.length);
   $('#rtnPub') && ($('#rtnPub').textContent = pubAll.length);
+  /* If the tab being shown has emptied out under the filters — pick the UK and
+     the package list goes to nothing — move to the one that has something
+     rather than showing an apology where the results were. */
+  if (resTab === 'priv' && !privAll.length && pubAll.length) resTab = 'pub';
+  if (resTab === 'pub' && !pubAll.length && privAll.length) resTab = 'priv';
   $$('.rtab').forEach(b => {
     const on = b.dataset.rt === resTab;
     b.classList.toggle('on', on);
     b.setAttribute('aria-selected', String(on));
+    /* Disabled only when the OTHER tab has something to go to. Both dead is a
+       screen with no way out of it, and the empty state below says more than a
+       greyed-out button would. */
+    const mine = b.dataset.rt === 'pub' ? pubAll.length : privAll.length;
+    const other = b.dataset.rt === 'pub' ? privAll.length : pubAll.length;
+    b.disabled = !mine && !!other;
   });
 
   paintRail();
@@ -2085,11 +2199,28 @@ function convert(){
       : (p.isPublic ? (C[p.country].minCgpaPublic ?? S.cgpaFull) : (C[p.country].minCgpaPrivate ?? S.cgpaPartial));
     return parseFloat(band) >= bar;
   }).length;
-  $('#cvBand').innerHTML = 'Finder band <b>'+esc(o?o.textContent:band)+'</b> — <b>'+n+
-    '</b> of '+D.programs.length+' published programmes are open to you.';
+  /* The band, not the arithmetic. "42 of 172 are open to you" is a number
+     about our catalogue wearing the clothes of a number about them. */
+  $('#cvBand').innerHTML = 'Finder band <b>'+esc(o?o.textContent:band)+'</b> — '
+    + (n ? 'programmes at this band are open to you.'
+         : 'nothing at this band yet — a counsellor can map a route.');
   $('#cvUse').dataset.band = band;
   $('#cvOut').hidden = false;
 }
+/* Digits and at most one point. The caret is put back where it was, or
+   typing into the middle of a number throws it to the end on every keystroke
+   that gets filtered. */
+$('#cvVal').addEventListener('input', e => {
+  const el = e.target, before = el.value;
+  let out = before.replace(/[^0-9.]/g, '');
+  const bits = out.split('.');
+  if(bits.length > 2) out = bits.shift() + '.' + bits.join('');
+  if(out !== before){
+    const at = el.selectionStart - (before.length - out.length);
+    el.value = out;
+    try { el.setSelectionRange(Math.max(0, at), Math.max(0, at)); } catch (err) {}
+  }
+});
 ['#cvVal','#cvScale','#cvMul'].forEach(s => $(s).addEventListener('input', convert));
 $('#cvUse').onclick = () => {
   $('#fCgpa').value = $('#cvUse').dataset.band;
@@ -2729,12 +2860,22 @@ render();
      what the server NAMED as switched off. Filtering to "ids the server sent"
      instead deletes every programme the database has never heard of, which
      silently emptied five countries out of the finder the first time. */
+  /* The address, onto rows this page shipped with. Same reasoning as the name
+     and the fee two blocks up: what the office has filled in has to reach the
+     screen, and a row that predates the column is exactly the row that has
+     nothing in it. */
+  let urls = 0;
+  D.programs.forEach(row => {
+    const ex = EXTRA_NAMES[row.id];
+    if (ex && ex.url && !row.url) { row.url = ex.url; urls++; }
+  });
+
   const off = new Set((data.inactive || []).map(String));
   const before = D.programs.length;
   if (off.size) D.programs = D.programs.filter(p => !off.has(String(p.id)));
   const removed = before - D.programs.length;
 
-  if (added || removed || touchedCountries) {
+  if (added || removed || touchedCountries || urls) {
     const sel = $('#fCountry');
     if (sel) {
       const keep = sel.value;
@@ -2808,8 +2949,9 @@ function card(s){
   return '<article class="card card-hover card-stack svc'+(added?' added':'')+'" data-c="'+s.id+'">'
     + '<div class="card-body">'
     + '<div class="svc-top"><div class="svc-ic">'+ico(ICONS[s.cats[0]] || 'star')+'</div>'
+    + '<h4>'+esc(s.name)+'</h4>'
     + (s.badge?'<span class="badge badge-'+s.badge+'" style="margin-left:auto">'+BADGE[s.badge]+'</span>':'')
-    + '</div><h4>'+esc(s.name)+'</h4>'
+    + '</div>'
     + (s.ai?'<span class="ai-pill" style="margin-top:8px"><i class="a">'+ico('spark')
        +'AI draft</i><i class="h">'+ico('check')+'Human final</i></span>':'')
     + '<p class="sd">'+esc(s.desc)+'</p>'+partners

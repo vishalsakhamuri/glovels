@@ -6711,6 +6711,605 @@ patch(
     "               : 'dashboard.html';",
 )
 
+# ===========================================================================
+# The counsellors' second testing round, 30 August.
+# ===========================================================================
+
+# --------------------------------------------------- the name beside the star
+#
+# "The name of the service went downwards presently, the name should be
+# displayed right beside the Star."
+#
+# The head of a service card was an icon and a badge on one row and the name on
+# the next, so a column of cards read as a column of icons with the words that
+# say what they are pushed down out of the scan. The name is the thing being
+# sold; it goes on the same line as the mark.
+patch(
+    "index.html",
+    "a service is named beside its mark, not under it",
+    """    + '<div class="svc-top"><div class="svc-ic">'+ico(ICONS[s.cats[0]] || 'star')+'</div>'
+    + (s.badge?'<span class="badge badge-'+s.badge+'" style="margin-left:auto">'+BADGE[s.badge]+'</span>':'')
+    + '</div><h4>'+esc(s.name)+'</h4>'""",
+    """    + '<div class="svc-top"><div class="svc-ic">'+ico(ICONS[s.cats[0]] || 'star')+'</div>'
+    + '<h4>'+esc(s.name)+'</h4>'
+    + (s.badge?'<span class="badge badge-'+s.badge+'" style="margin-left:auto">'+BADGE[s.badge]+'</span>':'')
+    + '</div>'""",
+    # The marker is a string from the NEW OUTPUT, not the name of this patch.
+    # Naming the patch here made the second build fail: the name is not in
+    # index.html, so "already applied?" said no, and the anchor it then went
+    # looking for had already been replaced.
+    marker="+ '<h4>'+esc(s.name)+'</h4>'",
+)
+patch(
+    "index.html",
+    "and the row that holds the two lines them up",
+    ".svc-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:10px}",
+    """.svc-top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+/* The name shares the row with the mark now, so it takes the space and the
+   badge is pushed to the end. min-width:0 because a flex item refuses to be
+   narrower than its own longest word without it, and "SOP Development &
+   Editing" is wider than the card. */
+.svc-top h4{flex:1;min-width:0;margin:0}""",
+    marker=".svc-top h4{flex:1",
+)
+
+
+# ------------------------------------------- a colour break before the dashboard
+#
+# "Between the popular services and your student dashboard section there is no
+# color differentiation like we had in the prototype."
+#
+# Two full-width cream sections running into each other read as one very long
+# section, and the seam is exactly where the page stops selling services and
+# starts showing what a customer gets. `.alt` is the site's existing way of
+# saying that — white ground, a rule top and bottom — and using it rather than a
+# new colour keeps the page alternating the way every other seam on it does.
+patch(
+    "index.html",
+    "the dashboard section is told apart from the services above it",
+    '<section class="block b3">',
+    '<section class="block b3 alt">',
+    marker='<section class="block b3 alt">',
+)
+
+
+# ------------------------------------------------ the two chips on a story card
+#
+# "Text misaligned."
+#
+# The route chip and the verified chip sat on one row at two different sizes
+# with two different paddings, so their boxes were different heights and their
+# words sat at different levels. Nothing was wrong with either on its own, which
+# is why it survived: it only looks wrong beside the other one.
+patch(
+    "index.html",
+    "the two chips on a story card sit at the same height",
+    """.route{font:700 11.6px/1 var(--sans);padding:6px 11px;border-radius:var(--r-pill);
+  border:1px solid var(--line);background:var(--cream);color:var(--navy-800)}""",
+    """/* Both chips are laid out the same way and given the same height, so the row
+   reads as a row rather than as two things that happen to be next to each
+   other. The type sizes still differ — one is a place, the other is a stamp —
+   but the boxes no longer do. */
+.trow>*{display:inline-flex;align-items:center;min-height:26px;box-sizing:border-box}
+.route{font:700 11.6px/1 var(--sans);padding:5px 11px;border-radius:var(--r-pill);
+  border:1px solid var(--line);background:var(--cream);color:var(--navy-800)}""",
+    marker=".trow>*{display:inline-flex",
+)
+patch(
+    "index.html",
+    "and the verified stamp matches it",
+    """.vadm{display:inline-flex;align-items:center;gap:5px;font:800 9.4px/1 var(--sans);letter-spacing:.1em;
+  text-transform:uppercase;padding:5px 8px;border-radius:var(--r-pill);background:#eef8f2;
+  color:#14603a;border:1px solid #bfe0cc}""",
+    """.vadm{display:inline-flex;align-items:center;gap:5px;font:800 9.4px/1 var(--sans);letter-spacing:.1em;
+  text-transform:uppercase;padding:5px 10px;border-radius:var(--r-pill);background:#eef8f2;
+  color:#14603a;border:1px solid #bfe0cc}""",
+    marker="text-transform:uppercase;padding:5px 10px;border-radius:var(--r-pill);background:#eef8f2",
+)
+
+
+# ------------------------------------------- the two finder tabs, told apart
+#
+# "Colour differentiate between these two categories."
+#
+# They were the same white box with the same border, and the only difference
+# between them was which one had the darker outline — so which list you were
+# looking at was something you had to remember rather than see.
+#
+# The colours are not new ones. Every row in the free list already carries a
+# green "Free to apply" chip and every row in the other carries a blue "With a
+# package" chip, so the tab is tinted to match the rows it opens: press the
+# green tab, get the green rows.
+patch(
+    "index.html",
+    "the two result tabs are told apart by colour",
+    """.rtab.on{border-color:var(--navy-800);background:#fff;
+  box-shadow:inset 0 0 0 1px var(--navy-800)}""",
+    """.rtab.on{border-color:var(--navy-800);background:#fff;
+  box-shadow:inset 0 0 0 1px var(--navy-800)}
+/* Tinted to match the rows behind them — the same green and blue the "Free to
+   apply" and "With a package" chips on every row already use. */
+.rtab[data-rt="pub"]{background:#f2faf5;border-color:#bfe0cc;color:#0e5230}
+.rtab[data-rt="pub"]:hover{border-color:#1f7a4d}
+.rtab[data-rt="pub"].on{background:#eaf6ee;border-color:#1f7a4d;
+  box-shadow:inset 0 0 0 1px #1f7a4d}
+.rtab[data-rt="priv"]{background:#f3f7fe;border-color:#c2d6f5;color:var(--blue-deep)}
+.rtab[data-rt="priv"]:hover{border-color:#1a4fb4}
+.rtab[data-rt="priv"].on{background:#eaf1fd;border-color:#1a4fb4;
+  box-shadow:inset 0 0 0 1px #1a4fb4}
+.rtab small{color:inherit;opacity:.72}
+/* Nothing behind it. Offered as a fact rather than as a button that answers a
+   press with an apology. */
+.rtab[disabled]{opacity:.45;cursor:default;background:var(--cream);
+  border-color:var(--line);color:var(--muted);box-shadow:none}
+.rtab[disabled]:hover{border-color:var(--line)}""",
+    marker='.rtab[data-rt="pub"]{background:#f2faf5',
+)
+
+
+# ------------------------------------------------- an empty tab is not a button
+#
+# "The highlighted Universities with a package should appear as disabled when
+# the user is selecting the country as UK."
+#
+# With the UK chosen the package tab said 0 and could still be pressed, and
+# pressing it swapped a list of four real universities for a paragraph
+# apologising. A tab with nothing behind it should say so by looking like it,
+# not by waiting to be pressed.
+#
+# Never both. If neither list has anything the person still needs a way back to
+# whichever they were on, and two dead tabs is a screen with no exit.
+patch(
+    "index.html",
+    "a results tab with nothing behind it cannot be pressed",
+    """  $$('.rtab').forEach(b => {
+    const on = b.dataset.rt === resTab;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });""",
+    """  /* If the tab being shown has emptied out under the filters — pick the UK and
+     the package list goes to nothing — move to the one that has something
+     rather than showing an apology where the results were. */
+  if (resTab === 'priv' && !privAll.length && pubAll.length) resTab = 'pub';
+  if (resTab === 'pub' && !pubAll.length && privAll.length) resTab = 'priv';
+  $$('.rtab').forEach(b => {
+    const on = b.dataset.rt === resTab;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+    /* Disabled only when the OTHER tab has something to go to. Both dead is a
+       screen with no way out of it, and the empty state below says more than a
+       greyed-out button would. */
+    const mine = b.dataset.rt === 'pub' ? pubAll.length : privAll.length;
+    const other = b.dataset.rt === 'pub' ? privAll.length : pubAll.length;
+    b.disabled = !mine && !!other;
+  });""",
+    marker="if (resTab === 'priv' && !privAll.length && pubAll.length)",
+)
+
+
+# ------------------------------------------------- the country, read at a glance
+#
+# "The initials displayed as GB are too small, increase the size of the
+# initials such as GB. When displaying the results for country the country
+# should be prominent and highlight it."
+#
+# The country code sat at 11px in a grey box and the country name at 13.2px in
+# the same weight as everything else on the row, so the one column a person
+# scans a results list by was the quietest thing on it.
+patch(
+    "index.html",
+    "the country code and the country name are readable",
+    """.mcc{width:44px;height:36px;border-radius:9px;background:var(--cream);border:1px solid var(--line);
+  display:grid;place-items:center;font:800 11px/1 var(--sans);color:var(--navy-700)}""",
+    """.mcc{width:48px;height:38px;border-radius:9px;background:var(--cream);border:1px solid var(--line);
+  display:grid;place-items:center;font:800 14px/1 var(--sans);letter-spacing:.04em;
+  color:var(--navy-900)}""",
+    marker="display:grid;place-items:center;font:800 14px/1 var(--sans);letter-spacing:.04em;",
+)
+patch(
+    "index.html",
+    "and the country name is the one a list is scanned by",
+    ".mctry{font-size:13.2px;color:var(--navy-800)}",
+    """.mctry{font:700 13.4px/1.3 var(--sans);color:var(--navy-900)}
+/* The country somebody filtered FOR is the one they already know. Marking the
+   row's country when it is the chosen one would be noise on every row; marking
+   it always is what makes the column scannable when it is not. */""",
+    marker=".mctry{font:700 13.4px/1.3 var(--sans);color:var(--navy-900)}",
+)
+
+
+# -------------------------------------------------------------- no counts
+#
+# Vishal: "donot show the count 12, 30 etc — only display universities. user
+# donot need to know the count we have."
+#
+# He is right and the reason is sharper than tidiness. The four band cards
+# counted the WHOLE catalogue while the two tabs counted only the popular
+# subset below them, so one screen carried two different denominators with
+# nothing saying which was which — 133 above and 19 below, both true, and
+# together a lie about how much there is. A visitor does not benefit from
+# either number, and a small catalogue advertising its own size is the one
+# thing a finder should not do.
+#
+# The numbers are still COMPUTED. paintRail uses them to dim a band with
+# nothing behind it and the tab logic uses them to disable an empty tab, which
+# is the honest use of a count: to change what can be pressed, not to be read.
+patch(
+    "index.html",
+    "the finder does not announce how much we have",
+    ".rail-n{margin-left:auto;font:800 11px/1 var(--sans);color:var(--band-fg);",
+    """/* Computed, never shown. See the note in apply_fixes.py. */
+.rail-n,.rtab .rtn{display:none !important}
+.rail-n{margin-left:auto;font:800 11px/1 var(--sans);color:var(--band-fg);""",
+    marker=".rail-n,.rtab .rtn{display:none !important}",
+)
+patch(
+    "index.html",
+    "and the results chip says what the list is, not how long",
+    """  $('#rCount').textContent = touched ? list.length+' programmes found' : rows.length+' popular programmes';""",
+    """  /* What this list IS, with no number in it. #rState beside it already says
+     "Your results" or "Browsing", so a second chip repeating that would be
+     noise — this one is emptied and hidden instead of made to say it twice. */
+  $('#rCount').textContent = '';
+  $('#rCount').hidden = true;""",
+    marker="$('#rCount').hidden = true;",
+)
+patch(
+    "index.html",
+    "and the converter does not either",
+    """  $('#cvBand').innerHTML = 'Finder band <b>'+esc(o?o.textContent:band)+'</b> — <b>'+n+
+    '</b> of '+D.programs.length+' published programmes are open to you.';""",
+    """  /* The band, not the arithmetic. "42 of 172 are open to you" is a number
+     about our catalogue wearing the clothes of a number about them. */
+  $('#cvBand').innerHTML = 'Finder band <b>'+esc(o?o.textContent:band)+'</b> — '
+    + (n ? 'programmes at this band are open to you.'
+         : 'nothing at this band yet — a counsellor can map a route.');""",
+    marker="The band, not the arithmetic",
+)
+
+
+# ------------------------------------------- and the dropdowns stop counting too
+#
+# "United Kingdom (4)", "Master's (164)", "Summer 2026 (67)". Same instruction,
+# same reason: a country that reads (4) tells a student how thin that shelf is
+# before they have looked at any of it.
+#
+# Stripped at render rather than at the source because there are two sources —
+# the labels baked into the page at build time and the ones the live catalogue
+# rewrites when the office adds a university — and a rule applied in one place
+# cannot be forgotten in the other.
+patch(
+    "index.html",
+    "the finder dropdowns do not count either",
+    "function criteria(){",
+    """function unnumber(){
+  ['#fCountry','#fLevel','#fField','#fIntake','#fCgpa'].forEach(s => {
+    const el = $(s);
+    if(!el) return;
+    [...el.options].forEach(o => {
+      const clean = o.textContent.replace(/\\s*\\(\\d+\\)\\s*$/, '');
+      if(clean !== o.textContent) o.textContent = clean;
+    });
+  });
+}
+
+function criteria(){""",
+    marker="function unnumber(){",
+)
+patch(
+    "index.html",
+    "and it is applied every time the finder draws",
+    "function render(){\n  const list = filtered(), rows = visibleRows(list);",
+    """function render(){
+  /* Here rather than once at load: the live catalogue rewrites the destination
+     list when the office adds a university, and it writes the counts back in. */
+  unnumber();
+  const list = filtered(), rows = visibleRows(list);""",
+    marker="unnumber();\n  const list = filtered()",
+)
+
+
+# ------------------------------------------------ a deadline that has not gone
+#
+# "Finder with intake = Summer 2026, captured 30 Aug 2026. Deadlines of 1 Jul
+# and 15 Jun are two gone."
+#
+# Two separate faults, both in one expression — `r.intakes[0].deadline`.
+#
+# It took the FIRST intake on the programme whatever the student had asked for,
+# so a row matched on Summer could print the Winter date. And it never compared
+# the date to today, so a deadline that had passed in June was still being
+# offered on 30 August beside a button saying Apply free.
+#
+# A date in the past next to an Apply button is not a cosmetic bug: it is the
+# site telling somebody they can still apply for something they cannot, and the
+# person finds out after they have started.
+#
+# So: the deadline shown is the next one that has NOT passed, preferring the
+# intake the student filtered for. If every date for that intake has gone the
+# row says so in as many words rather than showing a date or showing nothing —
+# silence there reads as "no deadline", which is the opposite of the truth.
+patch(
+    "index.html",
+    "a deadline that has passed is never offered as one",
+    """  const dl = r.intakes[0] ? new Date(r.intakes[0].deadline)
+    .toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';""",
+    """  const dlNow = deadlineOf(r);
+  const dl = dlNow.at ? new Date(dlNow.at)
+    .toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';""",
+    marker="const dlNow = deadlineOf(r);",
+)
+patch(
+    "index.html",
+    "and a closed intake says it is closed",
+    """      ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`:''}""",
+    """      ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`
+        :dlNow.closed?`<span style="font-size:11.4px;color:#8a6a1f;font-weight:700"
+          >intake closed</span>`:''}""",
+    marker="intake closed",
+)
+patch(
+    "index.html",
+    "the rule for which deadline a row shows",
+    "function rowHtml(r){",
+    """/**
+ * Which deadline a row shows, if any.
+ *
+ * Prefers the intake the student asked for; falls back to every intake the
+ * programme has. Within that, the earliest one that has not already passed —
+ * because the only deadline worth printing beside an Apply button is one
+ * somebody can still meet.
+ *
+ * Returns {at} when there is a date to show, {closed:true} when the programme
+ * has intakes but all of them are behind us, and {} when it has none at all.
+ * The three are different and the row says so differently.
+ */
+function deadlineOf(r){
+  const want = $('#fIntake') ? $('#fIntake').value : '';
+  const all = (r.intakes || []).filter(i => i && i.deadline);
+  if(!all.length) return {};
+  const mine = want
+    ? all.filter(i => (i.season + '-' + i.deadline.slice(0,4)) === want)
+    : all;
+  if(!mine.length) return {};
+  /* Midnight today, so a deadline OF today still counts as open — it is the
+     last day to apply, not the first day it is too late. */
+  const today = new Date(); today.setHours(0,0,0,0);
+  const open = mine.filter(i => new Date(i.deadline) >= today)
+    .sort((a,b) => a.deadline < b.deadline ? -1 : 1);
+  if(open.length) return {at: open[0].deadline};
+  return {closed: true};
+}
+
+function rowHtml(r){""",
+    marker="function deadlineOf(r){",
+)
+
+
+# --------------------------------------- a way to check the university yourself
+#
+# "There is no official link of the university, there must be university
+# website link so that the student can verify the university and explore about
+# the university."
+#
+# The link was already in the data — 153 of the 171 shipped rows carry a `url`,
+# the catalogue screen has a box for it, and the API has been sending it to this
+# page all along. Nothing displayed it. So a student reading a fee and a
+# deadline for a university they have never heard of had no way to check either
+# against the university itself, from the one screen built to help them choose.
+#
+# On the university name, because that is the thing being verified — not the
+# course, and not a separate button competing with Apply. Locked rows get none:
+# there is no name on them to link.
+patch(
+    "index.html",
+    "a student can open the university's own website",
+    """    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${esc(unent(r.university))}${r.city?' · '+esc(r.city):''}</div></div>""",
+    """    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}</div></div>""",
+    marker="<div class=\"msub\">${uniHtml}",
+)
+patch(
+    "index.html",
+    "and the link is built from what the catalogue already holds",
+    """  const dlNow = deadlineOf(r);""",
+    """  /* http(s) only, and rel=noopener so the new tab cannot reach back into this
+     one. nofollow because a directory of outbound links is not an endorsement
+     and search engines should not read it as one. A row with no url in the
+     catalogue simply reads as it always did. */
+  const uni = esc(unent(r.university));
+  const safeUrl = /^https?:\\/\\//i.test(String(r.url || '')) ? r.url : '';
+  const uniHtml = safeUrl
+    ? `<a class="ulink" href="${esc(safeUrl)}" target="_blank" rel="noopener nofollow"
+        title="Open ${uni}'s own website">${uni} \\u2197</a>`
+    : uni;
+  const dlNow = deadlineOf(r);""",
+    marker="const uniHtml = safeUrl",
+)
+patch(
+    "index.html",
+    "and it looks like a link",
+    ".msub{font-size:12.4px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    """.msub{font-size:12.4px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msub .ulink{color:var(--blue-deep);text-decoration:underline;text-underline-offset:2px}
+.msub .ulink:hover{color:var(--navy-900)}""",
+    marker=".msub .ulink{color:var(--blue-deep)",
+)
+
+
+# ------------------------------------------- the marks box takes marks, not words
+#
+# "This field is accepting alphabets as the value."
+#
+# `inputmode="decimal"` asks a phone for the number pad. It is a hint about a
+# keyboard and nothing else: on a laptop it does nothing at all, and even on a
+# phone it does not stop a paste. So "seventy eight" went in, parseFloat
+# returned NaN, and the answer panel simply stayed hidden — the field looked
+# accepted and the screen looked broken.
+#
+# Filtered as it is typed rather than rejected on submit, because there is no
+# submit here: the answer appears as you type, so the only moment to say no is
+# the moment the character arrives.
+patch(
+    "index.html",
+    "the marks converter takes digits only",
+    "['#cvVal','#cvScale','#cvMul'].forEach(s => $(s).addEventListener('input', convert));",
+    """/* Digits and at most one point. The caret is put back where it was, or
+   typing into the middle of a number throws it to the end on every keystroke
+   that gets filtered. */
+$('#cvVal').addEventListener('input', e => {
+  const el = e.target, before = el.value;
+  let out = before.replace(/[^0-9.]/g, '');
+  const bits = out.split('.');
+  if(bits.length > 2) out = bits.shift() + '.' + bits.join('');
+  if(out !== before){
+    const at = el.selectionStart - (before.length - out.length);
+    el.value = out;
+    try { el.setSelectionRange(Math.max(0, at), Math.max(0, at)); } catch (err) {}
+  }
+});
+['#cvVal','#cvScale','#cvMul'].forEach(s => $(s).addEventListener('input', convert));""",
+    marker="the caret is put back where it was".replace("the c", "The c"),
+)
+
+
+# ---------------------------------------------- the contact form goes first
+#
+# "In the contact page display the contact form at the top."
+#
+# He is right, and the reason is in the two headings. A contact page that opens
+# with a phone number is asking somebody to leave the site in order to make
+# contact, and most people reading a contact page at eleven at night are not
+# going to ring. The form is the thing that works at any hour, so it leads and
+# the numbers follow it.
+#
+# The heading loses its "Or" on the way. "Or write to us here" only makes sense
+# standing after the phone number it is an alternative to; standing first it is
+# just the instruction.
+patch(
+    "contact-us.html",
+    "the contact form is the first thing on the contact page",
+    """  <h2 id="reach-us">Reach us</h2>
+  <div class="factbox" id="reachBox">
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Phone</span>
+      <b><a href="tel:+917093314089" id="reachTel">+91 70933 14089</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg> WhatsApp</span>
+      <b><a href="https://wa.me/917093314089" id="reachWa" rel="noopener"
+        target="_blank">Message us</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span>
+      <b><a href="mailto:info@glovels.com" id="reachMail">info@glovels.com</a></b></div>
+  </div>
+
+  <h2 id="write">Or write to us here</h2>""",
+    """  <h2 id="write">Write to us</h2>""",
+    marker='<h2 id="write">Write to us</h2>',
+)
+patch(
+    "contact-us.html",
+    "and the numbers sit under it",
+    """    <button class="btn btn-green" id="ctGo" type="submit">Send</button>
+  </form>""",
+    """    <button class="btn btn-green" id="ctGo" type="submit">Send</button>
+  </form>
+
+  <h2 id="reach-us">Or reach us directly</h2>
+  <div class="factbox" id="reachBox">
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Phone</span>
+      <b><a href="tel:+917093314089" id="reachTel">+91 70933 14089</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg> WhatsApp</span>
+      <b><a href="https://wa.me/917093314089" id="reachWa" rel="noopener"
+        target="_blank">Message us</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span>
+      <b><a href="mailto:info@glovels.com" id="reachMail">info@glovels.com</a></b></div>
+  </div>""",
+    marker='<h2 id="reach-us">Or reach us directly</h2>',
+)
+
+
+# ------------------------------------------- and a date says which year it is
+#
+# "15 Jan" printed on 30 August is not a date, it is a riddle. It could be the
+# January four months ahead or the January eight months behind, and the row
+# gives no way to tell — which is the same ambiguity the passed-deadline bug
+# above created, surviving the fix.
+#
+# So: the year is printed whenever the deadline is not in the year we are
+# standing in. "31 Aug" stays short because it is unambiguous; "15 Jan 2027"
+# says what it means.
+patch(
+    "index.html",
+    "a deadline in another year says which year",
+    """  const dl = dlNow.at ? new Date(dlNow.at)
+    .toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';""",
+    """  const dl = dlNow.at ? new Date(dlNow.at).toLocaleDateString('en-GB',
+      new Date(dlNow.at).getFullYear() === new Date().getFullYear()
+        ? {day:'numeric',month:'short'}
+        : {day:'numeric',month:'short',year:'numeric'}) : '';""",
+    marker="new Date(dlNow.at).getFullYear() === new Date().getFullYear()",
+)
+
+
+# --------------------------------- and the link survives the live catalogue
+#
+# The website address is on 153 of the 171 rows in the database and on almost
+# none of the rows baked into this page — the page shipped before the column
+# existed. The live catalogue already refreshes a corrected NAME and an edited
+# FEE onto a row it has seen before; it did not refresh the address, so a
+# browsing visitor got a row with no link on it even though the office had
+# filled one in.
+patch(
+    "index.html",
+    "an address the office has filled in reaches a row that shipped without one",
+    """  const off = new Set((data.inactive || []).map(String));""",
+    """  /* The address, onto rows this page shipped with. Same reasoning as the name
+     and the fee two blocks up: what the office has filled in has to reach the
+     screen, and a row that predates the column is exactly the row that has
+     nothing in it. */
+  let urls = 0;
+  D.programs.forEach(row => {
+    const ex = EXTRA_NAMES[row.id];
+    if (ex && ex.url && !row.url) { row.url = ex.url; urls++; }
+  });
+
+  const off = new Set((data.inactive || []).map(String));""",
+    marker="let urls = 0;",
+)
+patch(
+    "index.html",
+    "and the page redraws when one arrives",
+    "  if (added || removed || touchedCountries) {",
+    "  if (added || removed || touchedCountries || urls) {",
+    marker="if (added || removed || touchedCountries || urls) {",
+)
+
+
+# ------------------------------------ and none of it pushes a phone sideways
+#
+# Three of the fixes above put more into a result row — a bigger country code,
+# a link on the university name, and a deadline that now carries a year or the
+# words "intake closed" instead of five characters. On a 390px screen that row
+# had 306px to work in and wanted 326.
+#
+# The row is the one thing on this page that has overflowed before, and the
+# comment on the phone rules above says why it matters: once a thumb has nudged
+# a list sideways the university name is off the left edge and the row reads as
+# a price and a button belonging to nothing. So the phone gets its own sizes.
+patch(
+    "index.html",
+    "a fuller result row still fits a phone",
+    """  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:nowrap;gap:8px;
+    align-items:center;margin-top:2px}""",
+    """  /* Smaller than the desktop badge and still twice the size it was — the
+     complaint was that "GB" could not be read, not that it wanted to be large. */
+  .mcc{width:34px;height:30px;font:800 12.5px/1 var(--sans);border-radius:8px}
+  /* Wrapping, because the deadline is a phrase now and not a date. "intake
+     closed" and "15 Jan 2027" are both wider than the "1 Jul" this row was
+     measured with, and a row that will not wrap is a list that scrolls. */
+  .mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:wrap;gap:6px 8px;
+    align-items:center;margin-top:2px}
+  .mact>span{font-size:11px}""",
+    marker=".mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:wrap;gap:6px 8px;",
+)
+
 # ---------------------------------------------------------------------------
 # The app a student installs.
 #
