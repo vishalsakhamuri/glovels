@@ -91,6 +91,28 @@ class Live {
     });
   }
 
+  /**
+   * The same thread, minus the student.
+   *
+   * `toThread` writes to the student's own connections first, which is right
+   * for a MESSAGE — both ends of a conversation need it — and wrong for a
+   * hint about who is typing. A student pressing a key posted /api/typing,
+   * which fanned out through toThread, which wrote straight back to the
+   * browser that had just sent it, and their screen said "Your counsellor is
+   * typing…" while they were the only person at a keyboard. On a new account,
+   * where a seeded welcome message makes the thread look live, that is
+   * indistinguishable from a counsellor actually being there.
+   */
+  toThreadStaff(studentId, counsellorId, event, data) {
+    if (counsellorId) {
+      (this.staff.get(Number(counsellorId)) || new Set()).forEach(res => this._write(res, event, data));
+    }
+    this.staff.forEach((set, id) => {
+      if (Number(id) === Number(counsellorId)) return;
+      set.forEach(res => this._write(res, event, data));
+    });
+  }
+
   toStudent(studentId, event, data) {
     (this.students.get(Number(studentId)) || new Set()).forEach(res => this._write(res, event, data));
   }

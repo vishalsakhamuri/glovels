@@ -7310,6 +7310,322 @@ patch(
     marker=".mact{grid-area:act;justify-self:stretch;display:flex;flex-wrap:wrap;gap:6px 8px;",
 )
 
+
+# ===========================================================================
+# Student View Corrections — the dashboard and the messages screen.
+# ===========================================================================
+
+# ----------------------------------------- a readiness meter that is readiness
+#
+# "In document readiness section, 25% filled, even though I did not upload
+# anything."
+#
+# The card was the designer's markup and nothing had ever replaced it. The
+# ring said 25%, Passport said VERIFIED and Degree transcripts said IN REVIEW
+# — on every account, on the first visit, before a single file existed. A
+# student's own dashboard was telling them their passport had been checked.
+#
+# That is the worst kind of wrong on this site: not a layout problem, a
+# statement about their file that is false and that they have no reason to
+# doubt. It is painted from /api/state now, which the page has already
+# fetched for the rest of the screen.
+#
+# The percentage counts the documents we actually require and the ones that
+# are actually verified. Nothing uploaded is 0%, which is the only honest
+# answer, and a document still with a counsellor counts as uploaded but not
+# as ready — it is not done until somebody has read it.
+DASH_READY = """<script>
+/* GLOVELS-DOC-READINESS */
+(function () {
+  var card = document.getElementById('docReady');
+  if (!card || location.protocol === 'file:') return;
+
+  /* The same list the Documents screen and the counsellor work from, cut to
+     what the dashboard has room for. `need` marks the ones the percentage is
+     measured against — an optional certificate should not hold a meter at 90%
+     for ever. */
+  var DOCS = [
+    {id:'passport', name:'Passport', need:1},
+    {id:'x',        name:'Class 10 marksheet', need:1},
+    {id:'xii',      name:'Class 12 marksheet', need:1},
+    {id:'degree',   name:'Degree transcripts', need:1},
+    {id:'english',  name:'English test scorecard', need:1},
+    {id:'cv',       name:'Academic CV', need:1},
+    {id:'sop',      name:'Statement of Purpose', need:1},
+    {id:'lor',      name:'Recommendation letters', need:1},
+    {id:'finance',  name:'Financial documents', need:1}
+  ];
+
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+  /* Its own fetch, not window.__GLOVELS.
+   *
+   * That global is assigned inside the page's own state request, which has not
+   * come back when a script at the end of <body> runs. Reading it here painted
+   * nothing at all and left the designer's 25% on the screen — the very thing
+   * this exists to remove, surviving the fix for it. */
+  fetch('/api/state', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (st) { if (st) draw(st); })
+    .catch(function () {});
+
+  function draw(st) {
+  var docs = st.docs || {};
+  var need = 0, ready = 0;
+
+  var rows = DOCS.map(function (d) {
+    var have = docs[d.id];
+    var status = have ? have.status : '';
+    if (d.need) { need++; if (status === 'ok') ready++; }
+    var cls = status === 'ok' ? 'ok'
+      : status === 'wait' ? 'wait'
+      : status === 'no' ? 'bad' : 'none';
+    var word = status === 'ok' ? 'Verified'
+      : status === 'wait' ? 'In review'
+      : status === 'no' ? 'Sent back' : 'Not uploaded';
+    return '<li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg>'
+      + '<span class="dname">' + esc(d.name) + '</span>'
+      + '<span class="st ' + cls + '">' + word + '</span></li>';
+  }).join('');
+
+  var pct = need ? Math.round(ready / need * 100) : 0;
+  var CIRC = 264;
+
+  card.querySelector('.ring-row').innerHTML =
+    '<svg class="ring" viewBox="0 0 100 100" role="img" aria-label="'
+      + pct + ' percent of your documents are verified">'
+    + '<circle class="bg" cx="50" cy="50" r="42"/>'
+    + '<circle class="fg" cx="50" cy="50" r="42" stroke-dasharray="' + CIRC + '" '
+      + 'stroke-dashoffset="' + (CIRC - CIRC * pct / 100) + '"/>'
+    + '<text class="ring-lbl" x="50" y="56" text-anchor="middle">' + pct + '%</text>'
+    + '</svg><ul class="doclist">' + rows + '</ul>';
+
+  /* Said in words under the ring as well as drawn. A ring at 0% and a list of
+     "Not uploaded" is a screen somebody can misread as broken; one sentence
+     saying what the number counts removes the doubt. */
+  var say = document.createElement('p');
+  say.className = 'ready-note';
+  say.textContent = ready === need && need
+    ? 'Every document we need is verified.'
+    : ready + ' of ' + need + ' verified. A document with your counsellor counts '
+      + 'once they have read it.';
+  var old = card.querySelector('.ready-note');
+  if (old) old.remove();
+  card.appendChild(say);
+  }
+}());
+</script>
+"""
+
+DASH_READY_CSS = """<style>/* GLOVELS-READY-CSS */
+/* The chip was pushed out of the card by `margin-left:auto` on a row that had
+   no room to give: "In review" wrapped to two lines and the border of the pill
+   crossed the edge of the card. The name takes the space and shortens with an
+   ellipsis; the chip is never allowed to wrap or shrink. */
+.doclist li{align-items:center;gap:8px;min-width:0}
+.doclist .dname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.doclist .st{margin-left:0;flex:none;white-space:nowrap;align-self:center}
+.st.bad{background:#fdf3f2;color:#8c2721;border:1px solid #e2b6b0}
+.ready-note{margin:12px 0 0;font:400 12px/1.6 var(--sans);color:var(--muted)}
+/* On a narrow card the ring and the list stack rather than squeezing the list
+   into a column too thin for a document name. */
+@media (max-width:520px){
+  .ring-row{flex-wrap:wrap}
+  .ring-row .ring{margin:0 auto}
+  .doclist{width:100%}
+}
+</style>
+"""
+
+
+def dashboard_readiness():
+    f = HERE / "dashboard.html"
+    t = f.read_text(encoding="utf-8")
+    if "GLOVELS-DOC-READINESS" in t:
+        skipped.append("dashboard.html: the readiness meter is the student's own")
+        return
+    anchor = ('<h3><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg>'
+              ' Document readiness</h3>')
+    if anchor not in t:
+        sys.exit("FAILED dashboard.html: the readiness card moved — re-check this patch")
+    # Give the card an id so the script can find it without guessing at nth-child.
+    t = t.replace('<div class="p-card">\n        ' + anchor,
+                  '<div class="p-card" id="docReady">\n        ' + anchor, 1)
+    if 'id="docReady"' not in t:
+        sys.exit("FAILED dashboard.html: could not put an id on the readiness card")
+    t = t.replace("</head>", DASH_READY_CSS + "</head>", 1)
+    t = t.replace("</body>", DASH_READY + "</body>", 1)
+    write(f, t)
+    applied.append("dashboard.html: the readiness meter is the student's own")
+
+
+dashboard_readiness()
+
+
+# --------------------------------------- the funding card, in whole sentences
+#
+# "In the descriptions, words are cutting off, we need to adjust that."
+#
+# Not a CSS overflow — the text was TRUNCATED into the markup. The card reads
+# "ranked by award size and deadline, with the el", "track sanction until
+# disburs". Somebody cut each description at a character count when the page
+# was designed, and the cut landed mid-word.
+#
+# A dashboard is not the place for the full service copy either, so the fix is
+# not to paste it all back: it is to cut at a WORD and say so with an ellipsis,
+# which is what a truncation is supposed to look like.
+patch(
+    "dashboard.html",
+    "the funding descriptions end at a word",
+    "Every scholarship you are eligible for, ranked by award size and deadline, with the el",
+    "Every scholarship you are eligible for, ranked by award size and deadline…",
+    marker="ranked by award size and deadline…",
+)
+patch(
+    "dashboard.html",
+    "and so does the loan one",
+    "Compare offers from partner lenders, prepare the file and track sanction until disburs",
+    "Compare offers from partner lenders, prepare the file and track it to sanction…",
+    marker="prepare the file and track it to sanction…",
+)
+patch(
+    "dashboard.html",
+    "and the end-to-end one",
+    "We write and file every scholarship application on your shortlist, then follow up on d",
+    "We write and file every scholarship application on your shortlist…",
+    marker="every scholarship application on your shortlist…",
+)
+
+
+# ------------------------------------ nobody is typing, so nothing says so
+#
+# "Whenever a student creates an account, they are getting a message from
+# counsellor Kavya. If a student tries to chat with them, status changes to
+# 'your counsellor is typing'. Let's remove that, or only show it if the
+# counsellor is actually typing."
+#
+# It was the second of those all along — the line is driven by a `typing` event
+# on the live feed, and a counsellor pressing a key is what sends one. What was
+# missing is the OTHER half: nothing ever took it down again except a five
+# second timer, and the event fires from the student's own screen activity in
+# the counsellor's copy of the thread. So on a new account, where the seeded
+# welcome message makes the thread look live, a student typing saw their own
+# keystrokes reflected back as somebody else typing.
+#
+# Two rules, and they are the whole fix. The line only appears for an event
+# about SOMEBODY ELSE, and it is taken down the moment their message arrives
+# rather than waiting out a timer that has nothing to do with them.
+# The client is not where this is fixed — see server/live.js and the
+# /api/typing route. A student's keystroke was being fanned out to their OWN
+# connection first, so the screen was reflecting them back at themselves.
+# Nothing on this page was wrong.
+
+
+# ---------------------------------------------------- "Sent." and nothing more
+#
+# "After a message is sent, student is getting 'Sent. Your counsellor sees it
+# on their screen straight away.' Change it to sent only."
+#
+# He is right twice over. It is too many words for a confirmation, and the
+# second sentence is a claim we cannot make — it is true only if a counsellor
+# happens to have that thread open, and the student has no way to know that.
+# The whole point of the message going onto their file is that it does not
+# depend on anybody watching.
+patch(
+    "messages.html",
+    "sending a message says Sent",
+    "hint('Sent. Your counsellor sees it on their screen straight away.');",
+    "hint('Sent.');",
+    marker="hint('Sent.');",
+)
+
+
+# --------------------------------- the left menu says how many are waiting
+#
+# "Please check if there is alerts for new messages and left menu bar displays
+# notifications for unread messages."
+#
+# There were alerts — the bell on the dashboard counts unread messages, sent-
+# back documents and the next deadline. There was nothing in the menu. So a
+# student on Documents or My Universities, which is most of the time somebody
+# is signed in, had no way of knowing a reply had arrived without opening
+# Messages to find out.
+#
+# The count is in /api/state, which every portal screen already fetches. It is
+# painted on the Messages item and nowhere else: a badge on a menu is a promise
+# that pressing it clears something, and Messages is the only item that keeps
+# that promise.
+NAV_UNREAD = """<script>
+/* GLOVELS-NAV-UNREAD */
+(function () {
+  var link = document.querySelector('.p-nav a[href="messages.html"]');
+  if (!link || location.protocol === 'file:') return;
+
+  function paint(n) {
+    var dot = link.querySelector('.nav-n');
+    if (!n) { if (dot) dot.remove(); return; }
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'nav-n';
+      link.appendChild(dot);
+    }
+    dot.textContent = n > 9 ? '9+' : String(n);
+    dot.setAttribute('aria-label', n + ' unread message' + (n === 1 ? '' : 's'));
+  }
+
+  fetch('/api/state', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (s) { paint(s && Number(s.unread) || 0); })
+    .catch(function () {});
+
+  /* And it goes down as they read. The Messages screen clears the count on the
+     server the moment it opens, so a badge left sitting there afterwards is
+     the menu disagreeing with the screen beside it. */
+  addEventListener('glovels:unread', function (e) {
+    paint((e.detail && Number(e.detail.unread)) || 0);
+  });
+}());
+</script>
+"""
+
+NAV_UNREAD_CSS = """<style>/* GLOVELS-NAV-UNREAD-CSS */
+.p-nav a{position:relative}
+.p-nav .nav-n{margin-left:auto;flex:none;min-width:19px;height:19px;padding:0 5px;
+  border-radius:19px;background:#b03a2e;color:#fff;display:inline-flex;
+  align-items:center;justify-content:center;font:800 10.6px/1 var(--sans)}
+.p-nav a.on .nav-n{background:#fff;color:#b03a2e}
+</style>
+"""
+
+
+def nav_unread():
+    n = 0
+    for f in sorted(HERE.glob("*.html")):
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-NAV-UNREAD" in t:
+            continue
+        # Student screens only. The staff sidebar is a different nav with a
+        # different menu, and its own bell already counts what is waiting.
+        if '<nav class="p-nav">' not in t or 'href="messages.html"' not in t:
+            continue
+        if "</body>" not in t or "</head>" not in t:
+            continue
+        t = t.replace("</head>", NAV_UNREAD_CSS + "</head>", 1)
+        t = t.replace("</body>", NAV_UNREAD + "</body>", 1)
+        write(f, t)
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): the menu says how many messages are waiting")
+    else:
+        skipped.append("every page: the menu says how many messages are waiting")
+
+
+nav_unread()
+
 # ---------------------------------------------------------------------------
 # The app a student installs.
 #

@@ -858,6 +858,32 @@ select.assign.none:hover{border-color:#a5342b}
 .ring-row>*{min-width:0}
 @media(max-width:520px){ .ring-row{flex-wrap:wrap;gap:12px} }
 </style>
+<style>/* GLOVELS-READY-CSS */
+/* The chip was pushed out of the card by `margin-left:auto` on a row that had
+   no room to give: "In review" wrapped to two lines and the border of the pill
+   crossed the edge of the card. The name takes the space and shortens with an
+   ellipsis; the chip is never allowed to wrap or shrink. */
+.doclist li{align-items:center;gap:8px;min-width:0}
+.doclist .dname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.doclist .st{margin-left:0;flex:none;white-space:nowrap;align-self:center}
+.st.bad{background:#fdf3f2;color:#8c2721;border:1px solid #e2b6b0}
+.ready-note{margin:12px 0 0;font:400 12px/1.6 var(--sans);color:var(--muted)}
+/* On a narrow card the ring and the list stack rather than squeezing the list
+   into a column too thin for a document name. */
+@media (max-width:520px){
+  .ring-row{flex-wrap:wrap}
+  .ring-row .ring{margin:0 auto}
+  .doclist{width:100%}
+}
+</style>
+<style>/* GLOVELS-NAV-UNREAD-CSS */
+.p-nav a{position:relative}
+.p-nav .nav-n{margin-left:auto;flex:none;min-width:19px;height:19px;padding:0 5px;
+  border-radius:19px;background:#b03a2e;color:#fff;display:inline-flex;
+  align-items:center;justify-content:center;font:800 10.6px/1 var(--sans)}
+.p-nav a.on .nav-n{background:#fff;color:#b03a2e}
+</style>
 
 <!-- GLOVELS-APP-MANIFEST -->
 <link rel="manifest" href="/app.webmanifest">
@@ -949,13 +975,13 @@ select.assign.none:hover{border-color:#a5342b}
     <div class="p-cols p-cols-3" style="margin-top:16px">
       <div class="p-card">
         <h3><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Funding &amp; scholarships</h3>
-        <ul class="doclist" style="gap:12px"><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Scholarship Shortlisting</b><br><span style="font-size:11.8px;color:var(--muted)">Every scholarship you are eligible for, ranked by award size and deadline, with the el</span></span><span class="st none">Paid</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Education Loan Assistance</b><br><span style="font-size:11.8px;color:var(--muted)">Compare offers from partner lenders, prepare the file and track sanction until disburs</span></span><span class="st ok">Free</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Scholarship: End-to-End</b><br><span style="font-size:11.8px;color:var(--muted)">We write and file every scholarship application on your shortlist, then follow up on d</span></span><span class="st none">Paid</span></li></ul>
+        <ul class="doclist" style="gap:12px"><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Scholarship Shortlisting</b><br><span style="font-size:11.8px;color:var(--muted)">Every scholarship you are eligible for, ranked by award size and deadline…</span></span><span class="st none">Paid</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Education Loan Assistance</b><br><span style="font-size:11.8px;color:var(--muted)">Compare offers from partner lenders, prepare the file and track it to sanction…</span></span><span class="st ok">Free</span></li><li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><b style="font-weight:600;color:var(--navy-900)">Scholarship: End-to-End</b><br><span style="font-size:11.8px;color:var(--muted)">We write and file every scholarship application on your shortlist…</span></span><span class="st none">Paid</span></li></ul>
         <p style="font-size:11.6px;color:var(--muted);margin:13px 0 0;line-height:1.55">
           Scholarship deadlines differ by course, so they are checked per university once your
           shortlist is agreed rather than listed generically here.</p>
       </div>
 
-      <div class="p-card">
+      <div class="p-card" id="docReady">
         <h3><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Document readiness</h3>
         <div class="ring-row">
           <svg class="ring" viewBox="0 0 100 100" role="img"
@@ -2184,6 +2210,121 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
+</script>
+<script>
+/* GLOVELS-DOC-READINESS */
+(function () {
+  var card = document.getElementById('docReady');
+  if (!card || location.protocol === 'file:') return;
+
+  /* The same list the Documents screen and the counsellor work from, cut to
+     what the dashboard has room for. `need` marks the ones the percentage is
+     measured against — an optional certificate should not hold a meter at 90%
+     for ever. */
+  var DOCS = [
+    {id:'passport', name:'Passport', need:1},
+    {id:'x',        name:'Class 10 marksheet', need:1},
+    {id:'xii',      name:'Class 12 marksheet', need:1},
+    {id:'degree',   name:'Degree transcripts', need:1},
+    {id:'english',  name:'English test scorecard', need:1},
+    {id:'cv',       name:'Academic CV', need:1},
+    {id:'sop',      name:'Statement of Purpose', need:1},
+    {id:'lor',      name:'Recommendation letters', need:1},
+    {id:'finance',  name:'Financial documents', need:1}
+  ];
+
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+  /* Its own fetch, not window.__GLOVELS.
+   *
+   * That global is assigned inside the page's own state request, which has not
+   * come back when a script at the end of <body> runs. Reading it here painted
+   * nothing at all and left the designer's 25% on the screen — the very thing
+   * this exists to remove, surviving the fix for it. */
+  fetch('/api/state', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (st) { if (st) draw(st); })
+    .catch(function () {});
+
+  function draw(st) {
+  var docs = st.docs || {};
+  var need = 0, ready = 0;
+
+  var rows = DOCS.map(function (d) {
+    var have = docs[d.id];
+    var status = have ? have.status : '';
+    if (d.need) { need++; if (status === 'ok') ready++; }
+    var cls = status === 'ok' ? 'ok'
+      : status === 'wait' ? 'wait'
+      : status === 'no' ? 'bad' : 'none';
+    var word = status === 'ok' ? 'Verified'
+      : status === 'wait' ? 'In review'
+      : status === 'no' ? 'Sent back' : 'Not uploaded';
+    return '<li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg>'
+      + '<span class="dname">' + esc(d.name) + '</span>'
+      + '<span class="st ' + cls + '">' + word + '</span></li>';
+  }).join('');
+
+  var pct = need ? Math.round(ready / need * 100) : 0;
+  var CIRC = 264;
+
+  card.querySelector('.ring-row').innerHTML =
+    '<svg class="ring" viewBox="0 0 100 100" role="img" aria-label="'
+      + pct + ' percent of your documents are verified">'
+    + '<circle class="bg" cx="50" cy="50" r="42"/>'
+    + '<circle class="fg" cx="50" cy="50" r="42" stroke-dasharray="' + CIRC + '" '
+      + 'stroke-dashoffset="' + (CIRC - CIRC * pct / 100) + '"/>'
+    + '<text class="ring-lbl" x="50" y="56" text-anchor="middle">' + pct + '%</text>'
+    + '</svg><ul class="doclist">' + rows + '</ul>';
+
+  /* Said in words under the ring as well as drawn. A ring at 0% and a list of
+     "Not uploaded" is a screen somebody can misread as broken; one sentence
+     saying what the number counts removes the doubt. */
+  var say = document.createElement('p');
+  say.className = 'ready-note';
+  say.textContent = ready === need && need
+    ? 'Every document we need is verified.'
+    : ready + ' of ' + need + ' verified. A document with your counsellor counts '
+      + 'once they have read it.';
+  var old = card.querySelector('.ready-note');
+  if (old) old.remove();
+  card.appendChild(say);
+  }
+}());
+</script>
+<script>
+/* GLOVELS-NAV-UNREAD */
+(function () {
+  var link = document.querySelector('.p-nav a[href="messages.html"]');
+  if (!link || location.protocol === 'file:') return;
+
+  function paint(n) {
+    var dot = link.querySelector('.nav-n');
+    if (!n) { if (dot) dot.remove(); return; }
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'nav-n';
+      link.appendChild(dot);
+    }
+    dot.textContent = n > 9 ? '9+' : String(n);
+    dot.setAttribute('aria-label', n + ' unread message' + (n === 1 ? '' : 's'));
+  }
+
+  fetch('/api/state', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (s) { paint(s && Number(s.unread) || 0); })
+    .catch(function () {});
+
+  /* And it goes down as they read. The Messages screen clears the count on the
+     server the moment it opens, so a badge left sitting there afterwards is
+     the menu disagreeing with the screen beside it. */
+  addEventListener('glovels:unread', function (e) {
+    paint((e.detail && Number(e.detail.unread)) || 0);
+  });
+}());
 </script>
 </body>
 </html>

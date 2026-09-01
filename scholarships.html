@@ -885,7 +885,14 @@ select.assign.none:hover{border-color:#a5342b}
 @media (max-width:560px){
   select.assign{min-width:150px;padding:9px 30px 9px 11px;font-size:12.6px}
 }
+</style><style>/* GLOVELS-NAV-UNREAD-CSS */
+.p-nav a{position:relative}
+.p-nav .nav-n{margin-left:auto;flex:none;min-width:19px;height:19px;padding:0 5px;
+  border-radius:19px;background:#b03a2e;color:#fff;display:inline-flex;
+  align-items:center;justify-content:center;font:800 10.6px/1 var(--sans)}
+.p-nav a.on .nav-n{background:#fff;color:#b03a2e}
 </style>
+
 <!-- GLOVELS-APP-MANIFEST -->
 <link rel="manifest" href="/app.webmanifest">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -1939,6 +1946,37 @@ if (location.protocol === 'file:') {
       }
     })
     .catch(function () {});
+}());
+</script>
+<script>
+/* GLOVELS-NAV-UNREAD */
+(function () {
+  var link = document.querySelector('.p-nav a[href="messages.html"]');
+  if (!link || location.protocol === 'file:') return;
+
+  function paint(n) {
+    var dot = link.querySelector('.nav-n');
+    if (!n) { if (dot) dot.remove(); return; }
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'nav-n';
+      link.appendChild(dot);
+    }
+    dot.textContent = n > 9 ? '9+' : String(n);
+    dot.setAttribute('aria-label', n + ' unread message' + (n === 1 ? '' : 's'));
+  }
+
+  fetch('/api/state', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (s) { paint(s && Number(s.unread) || 0); })
+    .catch(function () {});
+
+  /* And it goes down as they read. The Messages screen clears the count on the
+     server the moment it opens, so a badge left sitting there afterwards is
+     the menu disagreeing with the screen beside it. */
+  addEventListener('glovels:unread', function (e) {
+    paint((e.detail && Number(e.detail.unread)) || 0);
+  });
 }());
 </script>
 

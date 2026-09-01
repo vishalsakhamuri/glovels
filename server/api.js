@@ -3362,7 +3362,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   }));
 
   route('POST', '/api/typing', async (req, res, s) => {
-    live.toThread(s.id, s.counsellor_id, 'typing', { studentId: s.id, from: s.name });
+    /* Staff only. This used to go through toThread, which writes to the
+       student's own connections first — so the keystroke came straight back to
+       the browser that sent it and the screen announced that the counsellor
+       was typing. A hint about who is typing is the one event that must never
+       reach the person it is about. */
+    live.toThreadStaff(s.id, s.counsellor_id, 'typing', { studentId: s.id, from: s.name });
     return json(res, 200, { ok: true });
   });
 

@@ -32,7 +32,7 @@ INJECT_MARK = ("/* ---- injected by build_portal.py: "
                "rules the newer dashboard markup needs ---- */")
 
 
-def strip_injected(html):
+def strip_injected(html, donor=False):
     """Take out any stylesheet an earlier run of this script put in.
 
     The donor below is visa.html — a page this script GENERATES. So the head
@@ -58,15 +58,31 @@ def strip_injected(html):
     # staff screen built from that head would announce itself as the student
     # app — wrong manifest, wrong name on the home screen, and our name back on
     # the white-labelled partner page.
-    return re.sub(r"\s*<!-- GLOVELS-APP-MANIFEST -->.*?<!-- /GLOVELS-APP-MANIFEST -->",
-                  "", out, flags=re.S)
+    out = re.sub(r"\s*<!-- GLOVELS-APP-MANIFEST -->.*?<!-- /GLOVELS-APP-MANIFEST -->",
+                 "", out, flags=re.S)
+    # And, FOR THE DONOR ONLY, any sheet apply_fixes injects into a head.
+    #
+    # Same trap, third time: the donor is a page this build wrote and that file
+    # then patched, so anything left in its head arrives in every portal page
+    # for free and then gets a second copy added on top. Every injected <style>
+    # carries a GLOVELS-…-CSS marker on its first line so it can be taken out.
+    #
+    # `donor` matters. This function is also used on dashboard.html, which is
+    # rewritten in place rather than regenerated — stripping there took the
+    # sheet out while apply_fixes, which guards on the SCRIPT marker beside it,
+    # saw its work already done and never put the sheet back. The dashboard
+    # spent one build with a repainted card and no styles for it.
+    if donor:
+        out = re.sub(r"\s*<style>/\* GLOVELS-[A-Z0-9-]+-CSS \*/.*?</style>",
+                     "", out, flags=re.S)
+    return out
 
 
 def shell_parts():
     """head (through </head>), and the icon sprite, taken from the donor page."""
     h = DONOR.read_text(encoding="utf-8")
     head_end = h.index("</head>") + len("</head>")
-    head = strip_injected(h[:head_end])
+    head = strip_injected(h[:head_end], donor=True)
     m = re.search(r'<svg width="0" height="0".*?</svg>', h, re.S)
     if not m:
         sys.exit("sprite not found in donor page")

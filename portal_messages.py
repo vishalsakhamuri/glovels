@@ -311,7 +311,12 @@ if (ONLINE) {
     DB.msgs.push(d.msg);
     paint();
     hint('New reply from your counsellor.');
-    api('POST', '/api/messages/read').catch(() => {});
+    /* Read here, and the menu beside this screen is told. Without the event the
+     badge on Messages sits there while the person is looking at the messages
+     it is counting. */
+  api('POST', '/api/messages/read')
+    .then(() => dispatchEvent(new CustomEvent('glovels:unread', {detail: {unread: 0}})))
+    .catch(() => {});
   });
 
   es.addEventListener('typing', () => {
