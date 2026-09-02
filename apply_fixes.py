@@ -7351,7 +7351,8 @@ DASH_READY = """<script>
     {id:'passport', name:'Passport', need:1},
     {id:'x',        name:'Class 10 marksheet', need:1},
     {id:'xii',      name:'Class 12 marksheet', need:1},
-    {id:'degree',   name:'Degree transcripts', need:1},
+    {id:'degree',   name:'Semester-wise marksheets', need:1},
+    {id:'consol',   name:'Consolidated grade card', need:1},
     {id:'english',  name:'English test scorecard', need:1},
     {id:'cv',       name:'Academic CV', need:1},
     {id:'sop',      name:'Statement of Purpose', need:1},
@@ -7446,22 +7447,45 @@ DASH_READY_CSS = """<style>/* GLOVELS-READY-CSS */
 
 
 def dashboard_readiness():
+    """The readiness card, REPLACED on every build rather than skipped.
+
+    It used to return early when the block was already there. dashboard.html is
+    a designer file edited in place and never regenerated, so that early return
+    meant the copy on disk was whatever the FIRST build wrote — for ever.
+    Renaming a document in portal_fields.py changed the Documents screen, the
+    counsellor's screen, the partner's screen and the alerts, and left this one
+    card naming a document that nothing else in the product calls that any
+    more. Nobody would see it until a student asked what the difference was.
+
+    Same shape as the donor trap the top of this file is about, one file along:
+    a generated block inside a file that is edited rather than rebuilt has to
+    be taken out before it is put back.
+    """
     f = HERE / "dashboard.html"
     t = f.read_text(encoding="utf-8")
-    if "GLOVELS-DOC-READINESS" in t:
-        skipped.append("dashboard.html: the readiness meter is the student's own")
-        return
-    anchor = ('<h3><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg>'
-              ' Document readiness</h3>')
-    if anchor not in t:
-        sys.exit("FAILED dashboard.html: the readiness card moved — re-check this patch")
-    # Give the card an id so the script can find it without guessing at nth-child.
-    t = t.replace('<div class="p-card">\n        ' + anchor,
-                  '<div class="p-card" id="docReady">\n        ' + anchor, 1)
+    before = t
+
+    # Out first. The block carries no closing marker, and it contains no nested
+    # </script>, so the first one after the opening marker is its own.
+    t = re.sub(r"\s*<script>\s*/\* GLOVELS-DOC-READINESS \*/.*?</script>", "", t, flags=re.S)
+    t = re.sub(r"\s*<style>\s*/\* GLOVELS-READY-CSS \*/.*?</style>", "", t, flags=re.S)
+
     if 'id="docReady"' not in t:
-        sys.exit("FAILED dashboard.html: could not put an id on the readiness card")
+        anchor = ('<h3><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg>'
+                  ' Document readiness</h3>')
+        if anchor not in t:
+            sys.exit("FAILED dashboard.html: the readiness card moved — re-check this patch")
+        # Give the card an id so the script can find it without guessing at nth-child.
+        t = t.replace('<div class="p-card">\n        ' + anchor,
+                      '<div class="p-card" id="docReady">\n        ' + anchor, 1)
+        if 'id="docReady"' not in t:
+            sys.exit("FAILED dashboard.html: could not put an id on the readiness card")
+
     t = t.replace("</head>", DASH_READY_CSS + "</head>", 1)
     t = t.replace("</body>", DASH_READY + "</body>", 1)
+    if t == before:
+        skipped.append("dashboard.html: the readiness meter is the student's own")
+        return
     write(f, t)
     applied.append("dashboard.html: the readiness meter is the student's own")
 

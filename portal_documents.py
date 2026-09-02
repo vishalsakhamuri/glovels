@@ -31,6 +31,11 @@ BODY = """
     <div class="p-sec">
       <div class="p-sec-head"><h2>Your documents</h2>
         <a href="#" id="verifyAll">Simulate counsellor verification</a></div>
+      <!-- Said before they choose a file, not after the upload fails. The
+           number is written by the script from the one constant, so the screen
+           and the server can never disagree about it again. -->
+      <p class="doclimit" id="docLimit">PDF, JPG, PNG or Word. One file per
+        document, up to <b>10 MB</b> each.</p>
       <div class="sl-grid" id="docGrid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))"></div>
 
       <!-- Anything sent in the conversation. It is a document like any other —
@@ -46,6 +51,16 @@ BODY = """
         <ul class="doclist" id="sharedList" style="gap:8px"></ul>
       </section>
     </div>
+
+    <style>
+      /* The sentence under a document's name: how it should arrive, not what it
+         is. Small, but not grey-on-grey — it is the part students get wrong. */
+      .docnote{margin:8px 0 0;font:400 12px/1.6 var(--sans);color:var(--navy-800);
+        background:#f5f8fc;border-left:3px solid var(--navy-600,#1c4d78);
+        border-radius:0 8px 8px 0;padding:8px 11px}
+      .doclimit{margin:0 0 14px;font:400 12.5px/1.6 var(--sans);color:var(--muted)}
+      .doclimit b{color:var(--navy-900)}
+    </style>
 
     <div class="warnbox" style="background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;
       border-radius:12px;padding:13px 15px;font-size:12.8px;line-height:1.55;display:flex;gap:9px">
@@ -119,6 +134,7 @@ function card(d) {
       LABEL[st] + '</span>' +
     '</div>' +
     '<div class="city">Blocks: ' + esc(d.blocks) + '</div>' +
+    (d.note ? '<p class="docnote">' + esc(d.note) + '</p>' : '') +
     (rec ? '<div class="sl-meta" style="margin-top:10px">' + ico('check') +
       ' <a href="/api/documents/' + encodeURIComponent(d.id) + '/file" style="color:var(--blue-deep);' +
       'font-weight:600">' + esc(rec.file) + '</a> · ' + rec.size + '</div>' : '') +
@@ -130,7 +146,7 @@ function card(d) {
     '</div>' +
     (rec ? '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + d.id +
       '" style="margin-top:9px">Remove</button>' : '') +
-    (d.need ? '' : '<span class="sl-chip" style="width:fit-content">Optional</span>') +
+    (d.need ? '' : '<span class="sl-chip" style="width:fit-content">If available</span>') +
     '</div>';
 }
 
@@ -157,8 +173,14 @@ function paint() {
 }
 
 async function accept(id, file) {
-  if (file.size > 20 * 1024 * 1024) {
-    toast('That file is over 20 MB. Please compress it or send a smaller scan.');
+  /* The SERVER's limit, not a friendlier one. This check refused at 20 MB while
+     the server refused at 10, so a student with a 15 MB scan watched the whole
+     upload finish and was then told it was too big — a check that lets through
+     exactly the files the real one rejects is worse than no check. */
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    toast('That file is ' + (file.size / 1048576).toFixed(1) + ' MB, and '
+      + MAX_UPLOAD_MB + ' MB is the limit. Photograph the pages rather than '
+      + 'scanning them at full size, or save it as a PDF.');
     return;
   }
   if (!ONLINE) { toast('Cannot upload while the server is not running.'); return; }
@@ -236,6 +258,15 @@ $('#verifyAll').addEventListener('click', async e => {
                      : 'Nothing is waiting for review.');
   } catch (err) { toast('Could not reach the server.'); }
 });
+
+/* Written rather than typed into the markup, so the screen states the limit the
+   uploader actually enforces. */
+(function () {
+  const el = $('#docLimit');
+  if (el) el.innerHTML = 'PDF, JPG, PNG or Word. One file per document, up to '
+    + '<b>' + MAX_UPLOAD_MB + ' MB</b> each — if a scan is bigger than that, '
+    + 'photograph the pages instead.';
+}());
 
 paint();
 """

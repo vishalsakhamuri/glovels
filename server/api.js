@@ -299,6 +299,22 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     return key;
   }
 
+  /* Ten megabytes, in ONE place.
+   *
+   * A passport scan is under one; a phone photo of a degree certificate is
+   * three. Anything above this is a video somebody attached by accident.
+   *
+   * The number was written into the check here and, separately, into the
+   * sentence the student reads, and separately again into the upload screen —
+   * where it said 20. So a 15 MB scan passed the friendly check, uploaded in
+   * full, and was refused. One constant, one sentence built from it, and the
+   * screen reads the same constant. */
+  const MAX_UPLOAD_MB = 10;
+  const tooBig = bytes =>
+    'That file is ' + (bytes / 1048576).toFixed(1) + ' MB, and ' + MAX_UPLOAD_MB
+    + ' MB is the limit. Photograph the pages rather than scanning them at full '
+    + 'size, or save it as a PDF.';
+
   /** The multipart body, or null with the reason already sent. */
   async function oneFile(req, res) {
     const ct = req.headers['content-type'] || '';
@@ -309,14 +325,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       json(res, 400, { error: 'No file arrived. Try again, or send it as an email.' });
       return null;
     }
-    /* Ten megabytes. A passport scan is under one; a phone photo of a degree
-       certificate is three. Anything above this is a video somebody attached
-       by accident. */
-    if (parsed.file.data.length > 10 * 1024 * 1024) {
-      json(res, 413, {
-        error: 'That file is over 10 MB. Photograph the page rather than scanning it at '
-             + 'full size, or send it as a PDF.',
-      });
+    if (parsed.file.data.length > MAX_UPLOAD_MB * 1024 * 1024) {
+      json(res, 413, { error: tooBig(parsed.file.data.length) });
       return null;
     }
     return parsed;
@@ -1004,12 +1014,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   /* ----------------------------------------------------------- documents */
 
   route('POST', '/api/documents', async (req, res, s) => {
-    const ct = req.headers['content-type'] || '';
-    const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
-    if (!bm) return json(res, 400, { error: 'Expected a file upload' });
-    const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
+    /* oneFile, not its own copy of the parsing. This route had its own, and
+       therefore did not have the size limit at all — the limit existed, it was
+       tested, and the single route every student actually uploads through was
+       the one that did not run it. An 11 MB scan was accepted and written to
+       disk while the screen said 10 MB was the limit. */
+    const parsed = await oneFile(req, res);
+    if (!parsed) return undefined;
     const key = String(parsed.fields.key || '').replace(/[^a-z0-9_-]/gi, '');
-    if (!key || !parsed.file) return json(res, 400, { error: 'Missing file or key' });
+    if (!key) return json(res, 400, { error: 'Missing file or key' });
 
     const dir = path.join(uploadDir, String(s.id));
     fs.mkdirSync(dir, { recursive: true });
@@ -2781,12 +2794,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const st = theirStudent(s, m[1]);
       if (!st) return json(res, 404, { error: 'No such student' });
 
-      const ct = req.headers['content-type'] || '';
-      const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
-      if (!bm) return json(res, 400, { error: 'Expected a file upload' });
-      const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
+      /* Same limit as the student's own upload, and for the same reason: this
+         file lands in the student's folder and their counsellor opens it, so
+         an agency must not be able to put a 40 MB scan somewhere the student
+         could not have. */
+      const parsed = await oneFile(req, res);
+      if (!parsed) return undefined;
       const key = String(parsed.fields.key || '').replace(/[^a-z0-9_-]/gi, '');
-      if (!key || !parsed.file) return json(res, 400, { error: 'Missing file or key' });
+      if (!key) return json(res, 400, { error: 'Missing file or key' });
 
       const dir = path.join(uploadDir, String(st.id));
       fs.mkdirSync(dir, { recursive: true });

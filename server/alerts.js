@@ -107,7 +107,11 @@ const PROFILE_MUST = [
 const DOCS_MUST = [
   ['x', 'Class 10 marksheet', ['apply']],
   ['xii', 'Class 12 marksheet', ['apply']],
-  ['degree', 'Degree transcripts', ['apply']],
+  ['degree', 'Semester-wise marksheets', ['apply']],
+  /* Not the same document as the marksheets above, and asked for alongside
+     them by most universities abroad. A student who sends eight semester
+     sheets and no consolidated card has an application that stops. */
+  ['consol', 'Consolidated grade card', ['apply']],
   ['english', 'English test scorecard', ['apply']],
   /* Never asked of somebody who is BUYING one of these. The CV service writes
      the CV; demanding they upload a CV first is the screen not knowing what

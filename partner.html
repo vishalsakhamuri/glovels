@@ -1991,12 +1991,37 @@ const SECTIONS = [
 ];
 
 
+/* `note` is the sentence under the card. It exists because half of what the
+   counsellors were correcting was not WHICH document but HOW it should arrive:
+   every semester in one file, not eight; the consolidated card as well as the
+   marksheets, not instead of them; all the experience letters together rather
+   than one upload per employer. A checklist of nouns cannot say any of that,
+   and a student who gets it wrong finds out weeks later.
+
+   `(if available)` is in the NAME of every optional document, not only in the
+   Optional chip beside it — the chip is read as "we would still like it", and
+   students were chasing a degree certificate they cannot have yet. */
 const DOCS = [
-  {id:'passport', name:'Passport',              need:1, blocks:'Visa appointment, university application'},
+  {id:'passport', name:'Passport',              need:1, blocks:'Visa appointment, university application',
+   note:'The photo page. It must be valid for at least six months after you land.'},
   {id:'x',        name:'Class 10 marksheet',    need:1, blocks:'University application'},
   {id:'xii',      name:'Class 12 marksheet',    need:1, blocks:'University application'},
-  {id:'degree',   name:'Degree transcripts',    need:1, blocks:'University application, APS'},
-  {id:'provis',   name:'Provisional / degree certificate', need:0, blocks:'Final admission'},
+  {id:'degree',   name:'Semester-wise marksheets', need:1, blocks:'University application, APS',
+   note:'Every semester, in ONE file, in order. Not one upload per semester — a '
+      + 'set that arrives in eight pieces is checked as eight documents and one '
+      + 'of them always goes missing.'},
+  {id:'consol',   name:'Consolidated grade card', need:1, blocks:'University application, APS',
+   note:'The single sheet your university issues with every semester on it. It is '
+      + 'not the same as the marksheets above, and most universities abroad ask '
+      + 'for both.'},
+  {id:'degcert',  name:'Original degree certificate (if available)', need:0,
+   blocks:'Final admission',
+   note:'The final certificate, once your university issues it. If you have not '
+      + 'graduated yet, send the provisional below and this when it arrives.'},
+  {id:'provis',   name:'Provisional certificate (if available)', need:0,
+   blocks:'Final admission',
+   note:'What your university gives you before the original is printed. It is '
+      + 'accepted everywhere the original is, for admission.'},
   {id:'english',  name:'English test scorecard',need:1, blocks:'University application, visa'},
   {id:'cv',       name:'Academic CV',           need:1, blocks:'University application'},
   /* `ours` means WE write it and hand it back — the screens show a download
@@ -2006,10 +2031,31 @@ const DOCS = [
    blocks:'University application'},
   {id:'lor',      name:'Letters of Recommendation', need:1, ours:1,
    blocks:'University application'},
+  {id:'work',     name:'Work experience letters (if available)', need:0,
+   blocks:'Some Master’s programmes count experience towards entry',
+   note:'All of them in ONE file — every employer, in order, oldest first. '
+      + 'Internships count.'},
+  {id:'certs',    name:'Certificates and achievements (if available)', need:0,
+   blocks:'Nothing on its own — it strengthens the application',
+   note:'All of them in ONE file: courses, workshops, publications, prizes, '
+      + 'volunteering. One upload per certificate is not read as a stronger file, '
+      + 'it is read as an unsorted one.'},
   {id:'finance',  name:'Financial documents',   need:1, blocks:'Visa, blocked account'},
-  {id:'photo',    name:'Passport photograph',   need:0, blocks:'Visa appointment'},
-  {id:'aps',      name:'APS certificate (Germany)', need:0, blocks:'German application — 6–8 weeks, start early'}
+  {id:'photo',    name:'Passport photograph (if available)', need:0,
+   blocks:'Visa appointment',
+   note:'Recent, white background, no glasses. Your counsellor will tell you the '
+      + 'exact size your consulate wants before the appointment.'},
+  {id:'aps',      name:'APS certificate — Germany (if available)', need:0,
+   blocks:'German application — 6–8 weeks, start early'}
 ];
+
+/* One number, in one place, and it is the SERVER's number.
+ *
+ * The upload screen refused at 20 MB and the server refused at 10. A student
+ * with a 15 MB scan watched the whole upload finish and was then told it was
+ * too big — the friendly check let through exactly the files the real one
+ * rejects, which is worse than having no friendly check at all. */
+const MAX_UPLOAD_MB = 10;
 
 
 const VISA_DOCS = [

@@ -80,7 +80,8 @@ const DOCS = [
   ['passport', 'passport-front-back.pdf', 'Passport', 'ok'],
   ['x', 'class10-marksheet.pdf', 'Class 10 marksheet', 'ok'],
   ['xii', 'class12-marksheet.pdf', 'Class 12 marksheet', 'ok'],
-  ['degree', 'btech-transcripts.pdf', 'Degree transcripts', 'wait'],
+  ['degree', 'btech-semester-marksheets.pdf', 'Semester-wise marksheets', 'wait'],
+  ['consol', 'btech-consolidated-grade-card.pdf', 'Consolidated grade card', 'wait'],
   ['english', 'ielts-trf.pdf', 'IELTS test report form', 'wait'],
   ['photo', 'passport-photo.pdf', 'Passport photograph', 'ok'],
 ];
