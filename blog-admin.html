@@ -973,6 +973,19 @@ select.assign.none:hover{border-color:#a5342b}
         font:700 10.6px/1.7 var(--sans);letter-spacing:.06em;text-transform:uppercase}
       .stpill.live{background:#e6f4ec;color:#14603a}
       .stpill.draft{background:#fdf6e6;color:#8a5a0b}
+
+      /* Read next. Tick boxes rather than a multi-select, because a writer
+         has to see the headlines to choose between them. */
+      .relpick{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+        gap:9px;margin:0 0 20px;max-height:230px;overflow-y:auto;padding:2px}
+      .relbox{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;
+        border:1.5px solid #d8dde4;border-radius:11px;background:#fff;cursor:pointer}
+      .relbox:hover{border-color:var(--navy-600,#1c4d78)}
+      .relbox input{width:auto;flex:none;margin:2px 0 0}
+      .relbox b{display:block;font:700 12.6px/1.42 var(--sans);color:var(--navy-900)}
+      .relbox small{display:block;font:400 11.4px/1.5 var(--sans);color:var(--muted);
+        margin-top:2px}
+      .relbox:has(input:checked){border-color:var(--navy-700,#13385c);background:#f0f5fb}
     </style>
 
     <div class="out tiles" style="--tiles:4;margin:0 0 18px">
@@ -1500,6 +1513,36 @@ const fmtWhen = iso => {
     { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
+/* A stored ISO timestamp as the yyyy-mm-dd an <input type="date"> takes.
+   Anything else — including an empty string and a date we cannot read — comes
+   back empty, because a date box handed "Invalid Date" silently shows nothing
+   and then SAVES nothing, which looks like the field losing the writer's
+   answer. */
+const dateOnly = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    + '-' + String(d.getDate()).padStart(2, '0');
+};
+
+/* The published posts this one can point at, as tick boxes. Itself is never
+   offered: a post that reads next to itself is a loop with a byline. */
+function relBoxes(p) {
+  const chosen = new Set(String(p.related || '').split(/[,\s]+/).filter(Boolean));
+  const others = POSTS.filter(x => x.status === 'published' && x.slug !== p.slug);
+  if (!others.length) {
+    return '<p style="margin:0;font-size:12.4px;color:var(--muted)">Nothing else is '
+      + 'on the site yet. Publish a second post and they can point at each other.</p>';
+  }
+  return others.map(x =>
+    '<label class="relbox"><input type="checkbox" value="' + esc(x.slug) + '"'
+    + (chosen.has(x.slug) ? ' checked' : '') + '>'
+    + '<span><b>' + esc(x.title) + '</b>'
+    + '<small>' + esc(x.tag || 'No topic') + ' &middot; ' + fmtWhen(x.publishedAt)
+    + '</small></span></label>').join('');
+}
+
 /* Kept in step with the server's slugify. A writer who sees one address here
    and another one on the live post has been lied to by the screen. */
 const slugify = s => String(s || '').toLowerCase()
@@ -1557,9 +1600,24 @@ function editor(p) {
         + 'placeholder="Germany, Visa, Money…"></div>'
     + '</div>'
 
+    + '<div class="two">'
+      + '<div class="field"><label for="pAuthor">Written by'
+        + '<small> — shown on the post and given to Google</small></label>'
+        + '<input id="pAuthor" value="' + esc(p.author || '') + '" '
+        + 'placeholder="The counsellor who wrote it"></div>'
+      + '<div class="field"><label for="pPublished">Published on'
+        + '<small> — leave it and we use the day you press Publish</small></label>'
+        + '<input id="pPublished" type="date" value="' + esc(dateOnly(p.publishedAt)) + '">'
+        + '<small style="display:block;margin-top:5px;font:400 11.6px/1.55 var(--sans);'
+        + 'color:var(--muted)">Last updated ' + (p.updatedAt ? esc(fmtWhen(p.updatedAt))
+          : 'never') + '. That date goes on the post and into the page, so a guide '
+        + 'you corrected today does not read as a year old.</small></div>'
+    + '</div>'
+
     + '<div class="field"><label for="pExcerpt">The line under the headline'
-      + '<small> — shown on the blog list and at the top of the post</small></label>'
-      + '<textarea id="pExcerpt" rows="2" placeholder="Leave it empty and we use your '
+      + '<small> — shown on the blog list and at the top of the post</small>'
+      + '<span class="cnt" id="cExcerpt">0 / 500</span></label>'
+      + '<textarea id="pExcerpt" rows="3" maxlength="500" placeholder="Leave it empty and we use your '
       + 'first two sentences.">' + esc(p.excerpt || '') + '</textarea></div>'
 
     + '<div class="field"><label for="pBody">The post'
@@ -1568,13 +1626,28 @@ function editor(p) {
       + esc(p.body || '') + '</textarea></div>'
 
     + '<div class="helpbox" style="margin-bottom:20px">'
-      + '<b>Four things the box understands.</b> '
+      + '<b>What the box understands.</b> '
       + '<code>## Heading</code> makes a heading &middot; '
-      + '<code>- item</code> on its own line makes a list &middot; '
+      + '<code>- item</code> on its own line makes a list, and indenting the next '
+        + 'one nests it underneath &middot; '
       + '<code>[words](https://…)</code> makes a link &middot; '
-      + '<code>**bold**</code>. A blank line starts a new paragraph. '
-      + 'Anything else is printed as you typed it.'
+      + '<code>**bold**</code>. A blank line starts a new paragraph.'
+      + '<br><br><b>A picture:</b> <code>![what it shows](https://…/photo.jpg)</code> — '
+      + 'the words in the square brackets are read out to a blind reader, printed if '
+      + 'the picture fails to load, and read by Google. They are not optional. Add '
+      + '<code>"a caption"</code> after the address to print one underneath.'
+      + '<br><br><b>A table:</b> one row per line with <code>|</code> between the '
+      + 'columns, and <code>|---|---|</code> under the first row.'
     + '</div>'
+
+    + '<h3 style="font:700 14.6px/1.3 var(--sans);color:var(--navy-900);margin:0 0 4px">'
+      + 'Read next</h3>'
+    + '<p style="margin:0 0 11px;font-size:12.3px;color:var(--muted);line-height:1.6">'
+      + 'The posts to send the reader to at the foot of this one. You pick them, '
+      + 'because you know which one answers their next question. Only published '
+      + 'posts are listed, and one that comes off the site quietly stops appearing '
+      + 'here rather than becoming a dead link.</p>'
+    + '<div class="relpick" id="relPick">' + relBoxes(p) + '</div>'
 
     + '<h3 style="font:700 14.6px/1.3 var(--sans);color:var(--navy-900);margin:0 0 4px">'
       + 'How it looks in Google and on WhatsApp</h3>'
@@ -1600,9 +1673,13 @@ function editor(p) {
         + '<input id="pKeywords" value="' + esc(p.keywords || '') + '" '
         + 'placeholder="study in germany, blocked account, public university"></div>'
       + '<div class="field"><label for="pOg">Picture for the link preview '
-        + '<small>optional</small></label>'
+        + '<small>optional — 1200 × 630</small></label>'
         + '<input id="pOg" value="' + esc(p.ogImage || '') + '" '
-        + 'placeholder="https://www.glovels.com/og/blocked-account.jpg"></div>'
+        + 'placeholder="https://www.glovels.com/og/blocked-account.jpg">'
+        + '<small style="display:block;margin-top:5px;font:400 11.6px/1.55 var(--sans);'
+        + 'color:var(--muted)">Leave it empty and we use the first picture in the '
+        + 'post, or the Glovels one. A link pasted into WhatsApp is never blank.</small>'
+        + '</div>'
     + '</div>'
 
     + '<p id="pErr" role="alert" style="display:none;margin:0 0 12px;padding:11px 13px;'
@@ -1633,6 +1710,14 @@ function editor(p) {
   });
   $('#pSlug').addEventListener('input', () => { $('#pSlug').dataset.touched = '1'; });
 
+  /* Ticking a related post is an edit like any other. Without this the tick
+     survives until the next Save and is then thrown away with the rest of an
+     un-flagged form — the change that is hardest to notice is the one that
+     looked like it worked. */
+  $('#relPick').addEventListener('change', () => { dirty = true; });
+  $('#pAuthor').addEventListener('input', () => { dirty = true; });
+  $('#pPublished').addEventListener('change', () => { dirty = true; });
+
   $('#pSave').onclick = () => save('draft', p);
   $('#pPub').onclick = () => save('published', p);
   if ($('#pDrop')) $('#pDrop').onclick = () => drop(p);
@@ -1656,8 +1741,14 @@ function preview() {
   $('#sD').textContent = desc.slice(0, 300) || 'The sentence a student reads before deciding '
     + 'whether to click.';
 
-  count($('#cTitle'), ($('#pMetaTitle').value.trim() || $('#pTitle').value.trim()).length, 60, 25);
-  count($('#cDesc'), ($('#pMetaDesc').value.trim() || desc).length, 155, 70);
+  /* The window Google actually prints, not a maximum. Under 55 wastes the
+     space; over 65 is cut off mid-word with an ellipsis, and the same for a
+     description outside 155-165. The counter goes green inside the window and
+     red past it, so the writer can see the target rather than guess it. */
+  count($('#cTitle'), ($('#pMetaTitle').value.trim() || $('#pTitle').value.trim()).length,
+    65, 55);
+  count($('#cDesc'), ($('#pMetaDesc').value.trim() || desc).length, 165, 155);
+  count($('#cExcerpt'), $('#pExcerpt').value.trim().length, 500, 80);
   const words = body.trim() ? body.trim().split(/\s+/).length : 0;
   $('#cWords').textContent = words.toLocaleString('en-IN') + ' words · about '
     + Math.max(1, Math.round(words / 220)) + ' min';
@@ -1674,6 +1765,10 @@ function body() {
     metaDesc: $('#pMetaDesc').value.trim(),
     keywords: $('#pKeywords').value.trim(),
     ogImage: $('#pOg').value.trim(),
+    author: $('#pAuthor').value.trim(),
+    publishedAt: $('#pPublished').value,
+    related: [...$('#relPick').querySelectorAll('input:checked')]
+      .map(b => b.value).join(','),
   };
 }
 

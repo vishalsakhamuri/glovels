@@ -460,6 +460,12 @@ function sqliteDriver(file) {
       be read as "needs 2.5 out of 10" and let every applicant through.
       NULL means the programme has not stated one. */
    'ALTER TABLE programmes ADD COLUMN german_gpa REAL',
+   /* The posts a writer chose to send the reader to next, as slugs, in the
+      order they chose them. Picked while writing rather than computed from
+      tags — "related posts should be selected while writing the blog" — because
+      the person who wrote the guide knows which one answers the next question
+      and a tag match does not. */
+   "ALTER TABLE posts ADD COLUMN related TEXT NOT NULL DEFAULT ''",
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
@@ -1426,23 +1432,23 @@ function open(dir) {
     addPost(p) {
       const t = now();
       db.run(`INSERT INTO posts (slug, title, excerpt, body, cover, author, tag, status,
-                meta_title, meta_desc, keywords, og_image, read_mins, published_at,
+                meta_title, meta_desc, keywords, og_image, related, read_mins, published_at,
                 created_at, updated_at, updated_by)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         p.slug, p.title, p.excerpt || '', p.body || '', p.cover || '', p.author || '',
         p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
-        p.keywords || '', p.ogImage || '', Number(p.readMins || 0),
+        p.keywords || '', p.ogImage || '', p.related || '', Number(p.readMins || 0),
         p.publishedAt || '', p.createdAt || t, t, p.updatedBy || '');
       return db.one('SELECT * FROM posts WHERE slug = ?', p.slug);
     },
     updatePost(id, p) {
       db.run(`UPDATE posts SET slug = ?, title = ?, excerpt = ?, body = ?, cover = ?,
                 author = ?, tag = ?, status = ?, meta_title = ?, meta_desc = ?,
-                keywords = ?, og_image = ?, read_mins = ?, published_at = ?,
+                keywords = ?, og_image = ?, related = ?, read_mins = ?, published_at = ?,
                 updated_at = ?, updated_by = ? WHERE id = ?`,
         p.slug, p.title, p.excerpt || '', p.body || '', p.cover || '', p.author || '',
         p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
-        p.keywords || '', p.ogImage || '', Number(p.readMins || 0),
+        p.keywords || '', p.ogImage || '', p.related || '', Number(p.readMins || 0),
         p.publishedAt || '', now(), p.updatedBy || '', Number(id));
       return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
     },

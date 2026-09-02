@@ -12,7 +12,7 @@
 <meta property="og:title" content="{{OG_TITLE}}">
 <meta property="og:description" content="{{DESC}}">
 <meta property="og:url" content="{{CANONICAL}}">
-{{OG_IMAGE}}<meta name="twitter:card" content="{{TWITTER_CARD}}">
+{{ARTICLE}}{{OG_IMAGE}}<meta name="twitter:card" content="{{TWITTER_CARD}}">
 <meta name="twitter:title" content="{{OG_TITLE}}">
 <meta name="twitter:description" content="{{DESC}}">
 {{JSONLD}}
@@ -308,6 +308,52 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
 .prose blockquote p{margin:0;font-style:italic;color:var(--navy-800)}
 .postcard .postmeta .live{color:#14603a}
 
+/* Pictures. Never wider than the column, never taller than most of a phone
+   screen, and the space they will occupy is reserved before they load so the
+   paragraph somebody is reading does not jump down the page under them. */
+.prose figure{margin:26px 0;text-align:center}
+.prose figure img{max-width:100%;height:auto;border-radius:12px;border:1px solid var(--line);
+  background:#f2f5f9}
+.prose figcaption{margin:9px auto 0;max-width:640px;font:400 12.6px/1.6 var(--sans);
+  color:var(--muted)}
+.prose p > img{max-width:100%;height:auto;border-radius:10px;vertical-align:middle}
+
+/* Tables. The wrapper scrolls, not the page: a fee table with five columns is
+   wider than a phone, and without this the whole article slides sideways and
+   its left edge — where the sentences start — goes off the screen. */
+.prose .tablewrap{overflow-x:auto;margin:22px 0;border:1px solid var(--line);
+  border-radius:12px;background:var(--paper,#fff);-webkit-overflow-scrolling:touch}
+.prose .tablewrap table{width:100%;border-collapse:collapse;font-size:13.7px;
+  line-height:1.6;min-width:440px}
+.prose .tablewrap th,.prose .tablewrap td{padding:10px 14px;text-align:left;
+  border-bottom:1px solid var(--line);vertical-align:top}
+.prose .tablewrap thead th{background:#f4f7fb;font:700 12.5px/1.5 var(--sans);
+  color:var(--navy-800);letter-spacing:.02em;white-space:nowrap}
+.prose .tablewrap tbody tr:last-child td{border-bottom:0}
+.prose .tablewrap tbody tr:nth-child(even) td{background:#fafbfd}
+
+/* Nested lists. Two levels is as deep as a blog post should ever go, and the
+   markers change so the second level does not read as more of the first. */
+.prose ul ul,.prose ol ol,.prose ul ol,.prose ol ul{margin:7px 0 3px;padding-left:22px}
+.prose ul ul{list-style:circle}
+.prose ul ul ul{list-style:square}
+
+/* What was written, and what has been corrected since. */
+.postfoot{margin:34px 0 0;padding-top:22px;border-top:1px solid var(--line)}
+.postfoot h2{font-size:18px;margin:0 0 14px}
+.related{list-style:none;margin:0;padding:0;display:grid;gap:11px;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.related a{display:block;padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper,#fff);color:var(--navy-900)}
+.related a:hover{border-color:var(--navy-600,#1c4d78);box-shadow:var(--sh-1)}
+.related b{display:block;font:700 13.8px/1.45 var(--sans);margin:0 0 4px}
+.related span{display:block;font:400 12.4px/1.6 var(--sans);color:var(--muted)}
+.byline{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;
+  font:400 12.7px/1.6 var(--sans);color:var(--muted);margin:0 0 22px;
+  padding-bottom:16px;border-bottom:1px solid var(--line)}
+.byline b{font:700 12.7px/1.6 var(--sans);color:var(--navy-800)}
+.byline .upd{color:#8a5a0b}
+
 /* The acceptance receipt. Built to be printed and to be believed: a fixed-width
    fingerprint next to each document, and nothing on the page that moves. */
 .rc{border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:0 0 20px;
@@ -387,6 +433,16 @@ p[data-legal-row].on{display:block}
   .signin{padding:10px 12px;font-size:12.6px}
 }
 </style>
+
+<!-- GLOVELS-APP-MANIFEST -->
+<link rel="manifest" href="/app.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Glovels">
+<meta name="theme-color" content="#0b1e31">
+<!-- /GLOVELS-APP-MANIFEST -->
 </head>
 <body>
 <script>/* GLOVELS-REVIEW-COPY */
@@ -398,7 +454,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.8 4.4 4.4L19 7.6"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5c0 3.9-3.6 7-8 7-1 0-2-.2-2.9-.5L4.5 20.5l1.2-3.4A6.6 6.6 0 0 1 4 12.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.6V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16.5 14.5h.01"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol><symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="m3.8 6.6 8.2 6 8.2-6"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7 2 2 0 0 1 6.5 3.5Z"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 7.9-7.5 9-4.4-1.1-7.5-4.6-7.5-9V6z"/><path d="M9 12.3l2.2 2.2L15.5 10"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2 2 0 0 1 6 4h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 16H6a2 2 0 0 0-2 2"/></symbol><symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 9.6 12 4l9 5.6"/><path d="M5 10v9M19 10v9M9.5 10v9M14.5 10v9M2.5 20h19"/></symbol></defs></svg>
 <header class="site">
   <div class="nav"><a class="logo" href="index.html" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a>
-    <nav class="menu" aria-label="Main"><a href="about-us.html">About Us</a><a href="success-stories.html">Success stories</a><div class="nav-drop"><button class="ndt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a></div></div><div class="nav-drop"><button class="ndt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="nav-drop"><button class="ndt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div></div><div class="nav-drop"><button class="ndt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a></nav>
+    <nav class="menu" aria-label="Main"><a href="about-us.html">About Us</a><div class="nav-drop"><button class="ndt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a></div></div><div class="nav-drop"><button class="ndt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="nav-drop"><button class="ndt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a></div></div><div class="nav-drop"><button class="ndt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a></nav>
     <div class="nav-cta">
       <a class="signin" href="login.html">Sign in</a>
       <a class="btn btn-green" href="index.html#counsel">Book Free Counselling</a>
@@ -1027,6 +1083,15 @@ if (location.protocol === 'file:') {
     })
     .catch(function () {});
 }());
+</script>
+
+<!-- GLOVELS-APP-SW -->
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

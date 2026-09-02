@@ -487,7 +487,27 @@ function fill(tpl, holes) {
 
 const absolute = p => (CFG.siteUrl || '') + p;
 
-function metaHoles({ title, desc, canonical, keywords, image, type, jsonld, indexable }) {
+/* The picture a link preview shows when the page has not named one.
+ *
+ * WhatsApp, Facebook, LinkedIn and iMessage all fall back to a grey rectangle
+ * with the domain in it, which is what every Glovels link pasted into a group
+ * looked like. One shipped image is not as good as a picture of the thing the
+ * article is about, and it is far better than nothing — so the chain runs:
+ * what the writer chose, then the first picture in the post, then this. */
+const DEFAULT_OG = '/og/glovels.png';
+
+function ogTags(image, alt) {
+  if (!image) return '';
+  /* Absolute. A relative og:image is the single most common reason a preview
+     comes back blank: the crawler is not on our site and cannot resolve it. */
+  const src = /^https?:\/\//i.test(image) ? image : absolute(image);
+  return '<meta property="og:image" content="' + esc(src) + '">\n'
+    + '<meta property="og:image:alt" content="' + esc(alt || 'Glovels') + '">\n'
+    + '<meta name="twitter:image" content="' + esc(src) + '">\n';
+}
+
+function metaHoles({ title, desc, canonical, keywords, image, imageAlt, type, jsonld,
+  indexable, article }) {
   return {
     HEAD_TITLE: esc(title) + ' | Glovels',
     OG_TITLE: esc(title),
@@ -500,8 +520,18 @@ function metaHoles({ title, desc, canonical, keywords, image, type, jsonld, inde
       ? '<meta name="robots" content="index,follow,max-image-preview:large">'
       : '<meta name="robots" content="noindex,nofollow">',
     OG_TYPE: type || 'website',
-    OG_IMAGE: image
-      ? '<meta property="og:image" content="' + esc(image) + '">\n'
+    OG_IMAGE: ogTags(image, imageAlt),
+    /* The four tags that turn a page into an article rather than a page, and
+       the ones a counsellor was asked for by name. `article:modified_time` is
+       the one that earns its keep: a guide corrected in March and stamped
+       January reads as a year-old guide. */
+    ARTICLE: article
+      ? [
+        article.author ? '<meta property="article:author" content="' + esc(article.author) + '">' : '',
+        article.published ? '<meta property="article:published_time" content="' + esc(article.published) + '">' : '',
+        article.modified ? '<meta property="article:modified_time" content="' + esc(article.modified) + '">' : '',
+        article.section ? '<meta property="article:section" content="' + esc(article.section) + '">' : '',
+      ].filter(Boolean).join('\n') + '\n'
       : '',
     TWITTER_CARD: image ? 'summary_large_image' : 'summary',
     JSONLD: jsonld
@@ -511,41 +541,93 @@ function metaHoles({ title, desc, canonical, keywords, image, type, jsonld, inde
   };
 }
 
+/** The slugs a writer picked as related, in the order they picked them. */
+const relatedOf = post => String(post.related || '')
+  .split(/[,\s]+/).map(s => s.trim()).filter(Boolean).slice(0, 6);
+
+/* Two dates are the same day, so "updated on" is not printed against a post
+   nobody has touched since it went up. */
+const sameDay = (a, b) => shownDate(a) === shownDate(b);
+
 function postPage(post, isDraft) {
   const t = templates();
   if (!t) return null;
   const url_ = absolute('/post/' + post.slug);
   const title = post.meta_title || post.title;
   const desc = post.meta_desc || post.excerpt || PROSE.summarise(post.body);
-  const image = post.og_image || post.cover || '';
+  /* What the writer chose, then the first picture in the article, then the one
+     the site ships — so a link pasted into a WhatsApp group is never a grey
+     rectangle. */
+  const inBody = PROSE.images(post.body)[0];
+  const image = post.og_image || post.cover || (inBody && inBody.src) || DEFAULT_OG;
+  const imageAlt = (post.og_image || post.cover) ? post.title
+    : (inBody && inBody.alt) || post.title;
+
+  const published = post.published_at || post.created_at;
+  const modified = post.updated_at || published;
+
+  /* Who wrote it, when it went up, and when it was last put right. All three
+     were asked for, and the third is the one that matters to a reader deciding
+     whether a fee or a deadline on the page can still be trusted. */
+  const byline = '<div class="byline">'
+    + (post.author ? '<span>By <b>' + esc(post.author) + '</b></span>' : '')
+    + '<span>Published <b>' + esc(shownDate(published)) + '</b></span>'
+    + (isDraft || sameDay(modified, published) ? ''
+      : '<span class="upd">Updated <b>' + esc(shownDate(modified)) + '</b></span>')
+    + '<span>' + (post.read_mins || 1) + ' min read</span>'
+    + '</div>';
+
+  /* Chosen when the post was written, not computed from tags: "related posts
+     should be selected while writing the blog". A slug that has since been
+     unpublished simply does not appear — a related link to a 404 is worse than
+     one fewer link. */
+  const live = new Map(db.livePosts().map(p => [p.slug, p]));
+  const related = relatedOf(post)
+    .filter(s => s !== post.slug).map(s => live.get(s)).filter(Boolean);
+  const relatedBlock = related.length
+    ? '<div class="postfoot"><h2>Read next</h2><ul class="related">'
+      + related.map(p => '<li><a href="' + esc(p.slug) + '">'
+        + '<b>' + esc(p.title) + '</b>'
+        + '<span>' + esc(PROSE.summarise(p.excerpt || p.body, 105)) + '</span>'
+        + '</a></li>').join('')
+      + '</ul></div>'
+    : '';
 
   const body =
-      (post.excerpt ? '<p class="lead">' + esc(post.excerpt) + '</p>' : '')
+      byline
+    + (post.excerpt ? '<p class="lead">' + esc(post.excerpt) + '</p>' : '')
     + (isDraft
         ? '<div style="margin:0 0 18px;padding:12px 15px;border-radius:11px;'
           + 'background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;'
           + 'font:600 13px/1.6 system-ui,sans-serif">This is a draft. It is not on the '
           + 'site, it is not in the sitemap, and search engines are told to skip it.</div>'
         : '')
-    + PROSE.render(post.body);
+    + PROSE.render(post.body)
+    + relatedBlock;
 
   return fill(t.post, Object.assign(metaHoles({
-    title, desc, canonical: url_, keywords: post.keywords, image,
+    title, desc, canonical: url_, keywords: post.keywords, image, imageAlt,
     type: 'article', indexable: !isDraft,
+    article: {
+      author: post.author || 'Glovels',
+      published, modified, section: post.tag || '',
+    },
     jsonld: {
       '@context': 'https://schema.org', '@type': 'BlogPosting',
       headline: post.title, description: desc, url: url_,
-      datePublished: post.published_at || post.created_at,
-      dateModified: post.updated_at || post.published_at || post.created_at,
-      author: { '@type': 'Organization', name: post.author || 'Glovels' },
+      datePublished: published,
+      dateModified: modified,
+      author: post.author
+        ? { '@type': 'Person', name: post.author }
+        : { '@type': 'Organization', name: 'Glovels' },
       publisher: { '@type': 'Organization', name: 'Glovels' },
       mainEntityOfPage: url_,
-      image: image || undefined,
+      image: /^https?:\/\//i.test(image) ? image : absolute(image),
       keywords: post.keywords || undefined,
     },
   }), {
     H1: esc(post.title),
-    DATELINE: esc(shownDate(post.published_at || post.created_at))
+    DATELINE: esc(shownDate(published))
       + ' &middot; ' + (post.read_mins || 1) + ' min read'
       + (post.author ? ' &middot; ' + esc(post.author) : ''),
     BODY: body,
@@ -591,6 +673,7 @@ function blogIndexPage(posts) {
     keywords: 'study abroad blog, public universities germany, blocked account, '
             + 'student visa india',
     type: 'website', indexable: true,
+    image: DEFAULT_OG, imageAlt: 'Glovels — public universities abroad',
     jsonld: {
       '@context': 'https://schema.org', '@type': 'Blog',
       name: 'Glovels blog', url: absolute('/blog'),

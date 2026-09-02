@@ -60,6 +60,13 @@ def strip_injected(html, donor=False):
     # the white-labelled partner page.
     out = re.sub(r"\s*<!-- GLOVELS-APP-MANIFEST -->.*?<!-- /GLOVELS-APP-MANIFEST -->",
                  "", out, flags=re.S)
+    # And the link-preview block, for the same reason. apply_fixes only injects
+    # it into pages that carry og:type — which the donor does not — so today it
+    # cannot arrive here. This is two lines against the day somebody gives the
+    # portal pages Open Graph tags and every staff screen starts announcing
+    # itself to WhatsApp as the public site.
+    out = re.sub(r"\s*<!-- GLOVELS-OG-IMAGE -->.*?<!-- /GLOVELS-OG-IMAGE -->",
+                 "", out, flags=re.S)
     # And, FOR THE DONOR ONLY, any sheet apply_fixes injects into a head.
     #
     # Same trap, third time: the donor is a page this build wrote and that file

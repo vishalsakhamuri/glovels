@@ -54,7 +54,7 @@ HEAD = """<title>{{HEAD_TITLE}}</title>
 <meta property="og:title" content="{{OG_TITLE}}">
 <meta property="og:description" content="{{DESC}}">
 <meta property="og:url" content="{{CANONICAL}}">
-{{OG_IMAGE}}<meta name="twitter:card" content="{{TWITTER_CARD}}">
+{{ARTICLE}}{{OG_IMAGE}}<meta name="twitter:card" content="{{TWITTER_CARD}}">
 <meta name="twitter:title" content="{{OG_TITLE}}">
 <meta name="twitter:description" content="{{DESC}}">
 {{JSONLD}}"""
@@ -70,6 +70,11 @@ def head_holes(html):
     html = re.sub(r'<meta property="og:[^>]*>\s*', "", html)
     html = re.sub(r'<meta name="twitter:[^>]*>\s*', "", html)
     html = re.sub(r'<link rel="canonical"[^>]*>\s*', "", html, count=1)
+    # The donor is a real page, and apply_fixes gives every real page a link
+    # preview. Its meta tags went with the og: sweep above; this takes the
+    # comment markers that wrapped them, so the template does not carry a
+    # marker for a block that is no longer in it.
+    html = re.sub(r"\s*<!-- /?GLOVELS-OG-IMAGE -->", "", html)
 
     i = html.index("<meta charset")
     j = html.index(">", i) + 1
@@ -139,6 +144,52 @@ FORM_CSS = """
 .prose blockquote{margin:18px 0;padding:2px 0 2px 18px;border-left:3px solid var(--gold,#c9a227)}
 .prose blockquote p{margin:0;font-style:italic;color:var(--navy-800)}
 .postcard .postmeta .live{color:#14603a}
+
+/* Pictures. Never wider than the column, never taller than most of a phone
+   screen, and the space they will occupy is reserved before they load so the
+   paragraph somebody is reading does not jump down the page under them. */
+.prose figure{margin:26px 0;text-align:center}
+.prose figure img{max-width:100%;height:auto;border-radius:12px;border:1px solid var(--line);
+  background:#f2f5f9}
+.prose figcaption{margin:9px auto 0;max-width:640px;font:400 12.6px/1.6 var(--sans);
+  color:var(--muted)}
+.prose p > img{max-width:100%;height:auto;border-radius:10px;vertical-align:middle}
+
+/* Tables. The wrapper scrolls, not the page: a fee table with five columns is
+   wider than a phone, and without this the whole article slides sideways and
+   its left edge — where the sentences start — goes off the screen. */
+.prose .tablewrap{overflow-x:auto;margin:22px 0;border:1px solid var(--line);
+  border-radius:12px;background:var(--paper,#fff);-webkit-overflow-scrolling:touch}
+.prose .tablewrap table{width:100%;border-collapse:collapse;font-size:13.7px;
+  line-height:1.6;min-width:440px}
+.prose .tablewrap th,.prose .tablewrap td{padding:10px 14px;text-align:left;
+  border-bottom:1px solid var(--line);vertical-align:top}
+.prose .tablewrap thead th{background:#f4f7fb;font:700 12.5px/1.5 var(--sans);
+  color:var(--navy-800);letter-spacing:.02em;white-space:nowrap}
+.prose .tablewrap tbody tr:last-child td{border-bottom:0}
+.prose .tablewrap tbody tr:nth-child(even) td{background:#fafbfd}
+
+/* Nested lists. Two levels is as deep as a blog post should ever go, and the
+   markers change so the second level does not read as more of the first. */
+.prose ul ul,.prose ol ol,.prose ul ol,.prose ol ul{margin:7px 0 3px;padding-left:22px}
+.prose ul ul{list-style:circle}
+.prose ul ul ul{list-style:square}
+
+/* What was written, and what has been corrected since. */
+.postfoot{margin:34px 0 0;padding-top:22px;border-top:1px solid var(--line)}
+.postfoot h2{font-size:18px;margin:0 0 14px}
+.related{list-style:none;margin:0;padding:0;display:grid;gap:11px;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.related a{display:block;padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper,#fff);color:var(--navy-900)}
+.related a:hover{border-color:var(--navy-600,#1c4d78);box-shadow:var(--sh-1)}
+.related b{display:block;font:700 13.8px/1.45 var(--sans);margin:0 0 4px}
+.related span{display:block;font:400 12.4px/1.6 var(--sans);color:var(--muted)}
+.byline{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;
+  font:400 12.7px/1.6 var(--sans);color:var(--muted);margin:0 0 22px;
+  padding-bottom:16px;border-bottom:1px solid var(--line)}
+.byline b{font:700 12.7px/1.6 var(--sans);color:var(--navy-800)}
+.byline .upd{color:#8a5a0b}
 """
 
 RECEIPT_CSS = """
@@ -321,7 +372,8 @@ def main():
     c = build_page()
     for f in (a, b, c):
         t = f.read_text(encoding="utf-8")
-        for hole in ("{{HEAD_TITLE}}", "{{DESC}}", "{{CANONICAL}}", "{{H1}}", "{{BODY}}"):
+        for hole in ("{{HEAD_TITLE}}", "{{DESC}}", "{{CANONICAL}}", "{{H1}}", "{{BODY}}",
+                     "{{ARTICLE}}", "{{OG_IMAGE}}"):
             if hole not in t:
                 die(f"{f.name} lost {hole} — the donor page changed shape")
     print("page templates built")

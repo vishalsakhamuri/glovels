@@ -8241,6 +8241,59 @@ def student_app():
 student_app()
 
 
+# ---------------------------------------------- a link that shows something
+#
+# Not one page on the site carried an og:image. Every Glovels link pasted into
+# a WhatsApp group — which is how a study-abroad enquiry actually travels
+# between students — came back as a grey rectangle with the domain in it. The
+# blog pages get theirs from the post; these are the static pages, and they get
+# the one the site ships.
+#
+# Absolute, not "/og/glovels.png": the crawler is not on our site and cannot
+# resolve a relative path. That is the single commonest reason a preview is
+# blank even when the tag is there.
+PREVIEW = (
+    "\n<!-- GLOVELS-OG-IMAGE -->\n"
+    '<meta property="og:image" content="https://www.glovels.com/og/glovels.png">\n'
+    '<meta property="og:image:width" content="1200">\n'
+    '<meta property="og:image:height" content="630">\n'
+    '<meta property="og:image:alt" content="Glovels — public universities abroad, '
+    'where tuition is Rs 0 to Rs 3 lakh">\n'
+    '<meta name="twitter:image" content="https://www.glovels.com/og/glovels.png">\n'
+    "<!-- /GLOVELS-OG-IMAGE -->\n"
+)
+
+
+def link_previews():
+    n = 0
+    for f in sorted(HERE.glob("*.html")):
+        if f.name in OFFICE_PAGES or f.name.startswith("_"):
+            continue
+        t = f.read_text(encoding="utf-8")
+        # Only the pages that already say they are pages worth previewing. A
+        # portal screen behind a login has nothing to preview.
+        if "GLOVELS-OG-IMAGE" in t or "og:image" in t or 'property="og:type"' not in t:
+            continue
+        head = PREVIEW
+        # summary_large_image needs the image; a page that already names a card
+        # keeps the one it has.
+        if 'name="twitter:card"' not in t:
+            head = head.replace(
+                "<!-- /GLOVELS-OG-IMAGE -->",
+                '<meta name="twitter:card" content="summary_large_image">\n'
+                "<!-- /GLOVELS-OG-IMAGE -->")
+        t = t.replace("</head>", head + "</head>", 1)
+        write(f, t)
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): a link pasted into WhatsApp shows something")
+    else:
+        skipped.append("every page: a link pasted into WhatsApp shows something")
+
+
+link_previews()
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

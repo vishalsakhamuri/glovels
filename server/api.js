@@ -6141,6 +6141,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       updatedBy: p.updated_by || '', cover: p.cover || '',
       metaTitle: p.meta_title || '', metaDesc: p.meta_desc || '',
       keywords: p.keywords || '', ogImage: p.og_image || '',
+      related: p.related || '',
       words: String(p.body || '').trim().split(/\s+/).filter(Boolean).length,
     };
     if (full) { o.body = p.body || ''; o.html = PROSE.render(p.body); }
@@ -6193,6 +6194,16 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         + 'headline with a URL on it.' };
     }
 
+    /* A date the writer typed, as a date and nothing else. Anything we cannot
+       read is ignored rather than stored, because a published_at of "soon"
+       becomes an Invalid Date in every head tag on the page. */
+    const stated = (() => {
+      const raw = String(b.publishedAt || '').trim();
+      if (!raw) return '';
+      const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw + 'T09:00:00Z' : raw);
+      return isNaN(d) ? '' : d.toISOString();
+    })();
+
     let slug = PROSE.slugify(b.slug || title);
     const clash = db.postBySlug(slug);
     if (clash && (!existing || clash.id !== existing.id)) {
@@ -6203,7 +6214,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       slug = slug + '-' + n;
     }
 
-    const excerpt = String(b.excerpt || '').trim() || PROSE.summarise(body, 200);
+    /* 500 characters, and cut at 500 rather than refused — a writer who has
+       typed 520 wants the first 500, not an error and a paragraph to count by
+       hand. The number is the counsellors': "excerpt, 500 characters". */
+    const excerpt = String(b.excerpt || '').trim().slice(0, 500)
+      || PROSE.summarise(body, 200);
+
+    /* Related posts, as slugs. Only ones that exist and never itself: a
+       related link to a post that was never written is a 404 with a byline. */
+    const related = String(b.related || '').split(/[,\s]+/)
+      .map(x => PROSE.slugify(x)).filter(Boolean)
+      .filter((x, i, a) => a.indexOf(x) === i && x !== slug && !!db.postBySlug(x))
+      .slice(0, 6).join(',');
     return {
       post: {
         slug, title, body, excerpt,
@@ -6219,10 +6241,17 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         keywords: String(b.keywords || '').split(',').map(x => x.trim())
           .filter(Boolean).slice(0, 25).join(', '),
         ogImage: String(b.ogImage || '').trim().slice(0, 400),
+        related,
         readMins: PROSE.readingMinutes(body),
+        /* The date the office states wins over the day the button was pressed:
+           a guide finished in March and published in April is dated March if
+           that is what the writer says, and back-dating a post that was
+           written earlier is a normal thing to want. Kept once set, so a
+           correction does not silently move the publication date — that is
+           what "updated on" is for. */
         publishedAt: wants === 'published'
-          ? ((existing && existing.published_at) || new Date().toISOString())
-          : (existing ? existing.published_at || '' : ''),
+          ? (stated || (existing && existing.published_at) || new Date().toISOString())
+          : (stated || (existing ? existing.published_at || '' : '')),
         updatedBy: s.name,
       },
     };
