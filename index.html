@@ -1929,7 +1929,7 @@ function filtered(ignoreBands){
     if(co && p.country !== co) return false;
     if(lv && p.level !== lv) return false;
     if(fd && p.field !== fd) return false;
-    if(ik && !p.intakes.some(i => (i.season+'-'+i.deadline.slice(0,4)) === ik)) return false;
+    if(ik && !p.intakes.some(i => intakeKey(i) === ik)) return false;
     /* A programme that states a GERMAN grade is judged on the German scale,
        and the comparison runs the other way — 1.0 is the best grade and 4.0 is
        the pass, so a student passes when their grade is LOWER than the bar.
@@ -2022,21 +2022,67 @@ const unent = s => String(s == null ? '' : s)
  * has intakes but all of them are behind us, and {} when it has none at all.
  * The three are different and the row says so differently.
  */
+
+/* The next occurrence of a day and a month, ignoring the year in the sheet.
+ *
+ * `new Date(y, m, d)` rather than string arithmetic, so 29 February in a
+ * non-leap year lands on 1 March rather than on nothing at all. Midnight
+ * today counts as open: the deadline IS the last day to apply. */
+function nextOn(deadline){
+  const d = new Date(deadline);
+  if(isNaN(d)) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const out = new Date(today.getFullYear(), d.getMonth(), d.getDate());
+  if(out < today) out.setFullYear(out.getFullYear() + 1);
+  return out;
+}
+
+/* season-YYYY, with the year computed rather than read. The dropdown, the
+   filter and the row all build the key this way — three copies of a rule is
+   how a filter starts disagreeing with the list under it. */
+function intakeKey(i){
+  const d = i && i.deadline ? nextOn(i.deadline) : null;
+  return d ? (i.season || 'intake') + '-' + d.getFullYear() : '';
+}
+
+const SEASON = s => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+
+/* The intake list, rebuilt from the rows themselves.
+ *
+ * It was written into the page at build time and said "Summer 2026 (67)" in
+ * September 2026 — an intake nobody can apply to, offered as a filter, on a
+ * dropdown whose other options were also a year old. Built from the same
+ * arithmetic as the rows now, in date order, so it can only ever offer intakes
+ * that are still ahead. */
+function rebuildIntakes(){
+  const sel = $('#fIntake');
+  if(!sel) return;
+  const keep = sel.value;
+  const seen = new Map();
+  D.programs.forEach(p => (p.intakes || []).forEach(i => {
+    const k = intakeKey(i);
+    if(!k || seen.has(k)) return;
+    seen.set(k, { key: k, when: nextOn(i.deadline), season: i.season });
+  }));
+  const list = [...seen.values()].sort((a, b) => a.when - b.when);
+  if(!list.length) return;
+  sel.innerHTML = '<option value="">Any intake</option>'
+    + list.map(x => '<option value="' + esc(x.key) + '">'
+        + esc(SEASON(x.season)) + ' ' + x.when.getFullYear() + '</option>').join('');
+  /* A student who had picked an intake keeps it if it is still offered. If it
+     is not — because it has gone — they are back on "any", which is the honest
+     place to put them rather than on a filter matching nothing. */
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : '';
+}
+
 function deadlineOf(r){
   const want = $('#fIntake') ? $('#fIntake').value : '';
   const all = (r.intakes || []).filter(i => i && i.deadline);
   if(!all.length) return {};
-  const mine = want
-    ? all.filter(i => (i.season + '-' + i.deadline.slice(0,4)) === want)
-    : all;
+  const mine = want ? all.filter(i => intakeKey(i) === want) : all;
   if(!mine.length) return {};
-  /* Midnight today, so a deadline OF today still counts as open — it is the
-     last day to apply, not the first day it is too late. */
-  const today = new Date(); today.setHours(0,0,0,0);
-  const open = mine.filter(i => new Date(i.deadline) >= today)
-    .sort((a,b) => a.deadline < b.deadline ? -1 : 1);
-  if(open.length) return {at: open[0].deadline};
-  return {closed: true};
+  const when = mine.map(i => nextOn(i.deadline)).filter(Boolean).sort((a,b) => a - b)[0];
+  return when ? {at: when} : {};
 }
 
 function rowHtml(r){
@@ -2170,6 +2216,7 @@ let resTab = 'pub';
 function render(){
   /* Here rather than once at load: the live catalogue rewrites the destination
      list when the office adds a university, and it writes the counts back in. */
+  rebuildIntakes();
   unnumber();
   const list = filtered(), rows = visibleRows(list);
   const said = banner(list, rows);
@@ -3181,6 +3228,12 @@ render();
        real change is worth a redraw. */
     if (live.minCgpa !== undefined && row.minCgpa !== live.minCgpa) {
       row.minCgpa = live.minCgpa; bars++;
+    }
+    /* Compared as JSON because they are objects, and reassigning on every poll
+       would redraw the finder under somebody's cursor. */
+    if (Array.isArray(live.intakes)
+        && JSON.stringify(live.intakes) !== JSON.stringify(row.intakes)) {
+      row.intakes = live.intakes; bars++;
     }
   });
 

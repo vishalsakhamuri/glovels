@@ -7037,15 +7037,10 @@ patch(
     .toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';""",
     marker="const dlNow = deadlineOf(r);",
 )
-patch(
-    "index.html",
-    "and a closed intake says it is closed",
-    """      ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`:''}""",
-    """      ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`
-        :dlNow.closed?`<span style="font-size:11.4px;color:#8a6a1f;font-weight:700"
-          >intake closed</span>`:''}""",
-    marker="intake closed",
-)
+# The "intake closed" label that used to be written here is gone. It was right
+# while a deadline could be in the past; the intake rule at the foot of this
+# file means one cannot be, so the label had nothing left to describe — and by
+# the day it was removed it was appearing on 16 of the first 18 rows.
 patch(
     "index.html",
     "the rule for which deadline a row shows",
@@ -8550,6 +8545,183 @@ def page_heads():
 
 
 page_heads()
+
+
+# ------------------------------------- an intake is a month, not a month and a year
+#
+# "Deadlines that have passed, still shown as open to the public. The outlined
+#  dates read 31 Aug, 15 Jun and 15 Jan — today is 2 September 2026, so all
+#  three have passed. Each row still carries a green FREE TO APPLY dot and a
+#  live Apply free button. Across the public catalogue this is 112 of 174
+#  programmes, and it grows on its own."
+#
+# The last four words are the whole problem. Patch 77 taught the finder to say
+# "intake closed" instead of printing a date that had gone — correct as far as
+# it went, and by today it was saying it on 16 of the first 18 rows. The site
+# was not wrong about any one programme; it was going out of date as a whole,
+# a little more every week, with nothing anybody could do about it but retype
+# 174 dates twice a year.
+#
+# Vishal, shown that 87 of 171 rows have every date behind them:
+#
+#   "no no may be dates are wrong — consider in future using only month, not
+#    the year"
+#
+# Which is right, and it is the fact rather than the workaround. An intake is
+# annual. "Winter closes 15 July" is what a university publishes; WHICH July is
+# arithmetic, and arithmetic is the one thing a computer should not be asking a
+# counsellor to redo every year. So the day and the month are read from the
+# sheet and the year is computed: the next 15 July from today.
+#
+# Three things follow, and all three are the point:
+#
+#   · No date on this site can be in the past again. Not this week, not next
+#     year, not after a cycle nobody remembered to re-upload.
+#   · Nothing is hidden. The 87 rows stay, with a date somebody can act on,
+#     which is what the office wanted and what the alternative — half an empty
+#     finder — would have cost.
+#   · The intake dropdown stops offering Summer 2026 in September 2026. It is
+#     built from the same arithmetic, so it cannot drift away from the rows.
+INTAKE_JS = r"""
+/* The next occurrence of a day and a month, ignoring the year in the sheet.
+ *
+ * `new Date(y, m, d)` rather than string arithmetic, so 29 February in a
+ * non-leap year lands on 1 March rather than on nothing at all. Midnight
+ * today counts as open: the deadline IS the last day to apply. */
+function nextOn(deadline){
+  const d = new Date(deadline);
+  if(isNaN(d)) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const out = new Date(today.getFullYear(), d.getMonth(), d.getDate());
+  if(out < today) out.setFullYear(out.getFullYear() + 1);
+  return out;
+}
+
+/* season-YYYY, with the year computed rather than read. The dropdown, the
+   filter and the row all build the key this way — three copies of a rule is
+   how a filter starts disagreeing with the list under it. */
+function intakeKey(i){
+  const d = i && i.deadline ? nextOn(i.deadline) : null;
+  return d ? (i.season || 'intake') + '-' + d.getFullYear() : '';
+}
+
+const SEASON = s => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+
+/* The intake list, rebuilt from the rows themselves.
+ *
+ * It was written into the page at build time and said "Summer 2026 (67)" in
+ * September 2026 — an intake nobody can apply to, offered as a filter, on a
+ * dropdown whose other options were also a year old. Built from the same
+ * arithmetic as the rows now, in date order, so it can only ever offer intakes
+ * that are still ahead. */
+function rebuildIntakes(){
+  const sel = $('#fIntake');
+  if(!sel) return;
+  const keep = sel.value;
+  const seen = new Map();
+  D.programs.forEach(p => (p.intakes || []).forEach(i => {
+    const k = intakeKey(i);
+    if(!k || seen.has(k)) return;
+    seen.set(k, { key: k, when: nextOn(i.deadline), season: i.season });
+  }));
+  const list = [...seen.values()].sort((a, b) => a.when - b.when);
+  if(!list.length) return;
+  sel.innerHTML = '<option value="">Any intake</option>'
+    + list.map(x => '<option value="' + esc(x.key) + '">'
+        + esc(SEASON(x.season)) + ' ' + x.when.getFullYear() + '</option>').join('');
+  /* A student who had picked an intake keeps it if it is still offered. If it
+     is not — because it has gone — they are back on "any", which is the honest
+     place to put them rather than on a filter matching nothing. */
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : '';
+}
+"""
+
+# The dates, onto rows this page shipped with.
+#
+# FOURTH time this same omission has been fixed in this file: the university
+# address, then the URLs, then the two entry bars, and now the deadlines. The
+# live-catalogue merge refreshes a known row field by field, and a field nobody
+# adds to that list is a field the office can edit for ever without a visitor
+# seeing it.
+#
+# Load-bearing from here on. The plan is to refresh the deadlines from DAAD
+# every month or quarter — and a refreshed date that reaches /api/catalogue and
+# stops at the page is a refresh that did nothing at all.
+patch(
+    "index.html",
+    "and a deadline the office corrected reaches the page",
+    """      row.minCgpa = live.minCgpa; bars++;
+    }
+  });""",
+    """      row.minCgpa = live.minCgpa; bars++;
+    }
+    /* Compared as JSON because they are objects, and reassigning on every poll
+       would redraw the finder under somebody's cursor. */
+    if (Array.isArray(live.intakes)
+        && JSON.stringify(live.intakes) !== JSON.stringify(row.intakes)) {
+      row.intakes = live.intakes; bars++;
+    }
+  });""",
+    marker="row.intakes = live.intakes; bars++;",
+)
+
+patch(
+    "index.html",
+    "an intake is a recurring month, and the year is arithmetic",
+    "function deadlineOf(r){",
+    INTAKE_JS + "\nfunction deadlineOf(r){",
+    marker="function nextOn(deadline){",
+)
+
+# The rule itself. What was "the earliest date that has not passed, or closed"
+# becomes "the next occurrence", which cannot be closed.
+patch(
+    "index.html",
+    "and the deadline shown is the next occurrence of it",
+    """  const mine = want
+    ? all.filter(i => (i.season + '-' + i.deadline.slice(0,4)) === want)
+    : all;
+  if(!mine.length) return {};
+  /* Midnight today, so a deadline OF today still counts as open — it is the
+     last day to apply, not the first day it is too late. */
+  const today = new Date(); today.setHours(0,0,0,0);
+  const open = mine.filter(i => new Date(i.deadline) >= today)
+    .sort((a,b) => a.deadline < b.deadline ? -1 : 1);
+  if(open.length) return {at: open[0].deadline};
+  return {closed: true};""",
+    """  const mine = want ? all.filter(i => intakeKey(i) === want) : all;
+  if(!mine.length) return {};
+  const when = mine.map(i => nextOn(i.deadline)).filter(Boolean).sort((a,b) => a - b)[0];
+  return when ? {at: when} : {};""",
+    marker="const mine = want ? all.filter(i => intakeKey(i) === want) : all;",
+)
+
+# The filter has to agree with the dropdown it is filtering by.
+patch(
+    "index.html",
+    "the intake filter reads the same key the dropdown offers",
+    "    if(ik && !p.intakes.some(i => (i.season+'-'+i.deadline.slice(0,4)) === ik)) return false;",
+    "    if(ik && !p.intakes.some(i => intakeKey(i) === ik)) return false;",
+    marker="p.intakes.some(i => intakeKey(i) === ik)",
+)
+
+# Rebuilt on every draw, for the same reason the counts are stripped on every
+# draw: the live catalogue rewrites these lists when the office adds a
+# university, and a rule applied once at load is a rule that gets overwritten.
+patch(
+    "index.html",
+    "the intake list is rebuilt from the rows on every draw",
+    """function render(){
+  /* Here rather than once at load: the live catalogue rewrites the destination
+     list when the office adds a university, and it writes the counts back in. */
+  unnumber();""",
+    """function render(){
+  /* Here rather than once at load: the live catalogue rewrites the destination
+     list when the office adds a university, and it writes the counts back in. */
+  rebuildIntakes();
+  unnumber();""",
+    marker="rebuildIntakes();\n  unnumber();",
+)
 
 
 if __name__ == "__main__":
