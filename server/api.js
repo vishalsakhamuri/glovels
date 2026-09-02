@@ -2272,6 +2272,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            their own, so a student would be shown a locked row they cannot
            apply to and charged to unlock it. */
         minCgpa: p.minCgpa == null ? null : p.minCgpa,
+        /* And the German grade, for exactly the reason written above about the
+           CGPA. It is a requirement, not an identity — withholding it would
+           mean the finder filters a gated German row by the country's CGPA
+           rule while a named one is filtered by its own published grade, so
+           the same student would see two different answers depending on
+           whether they had paid. */
+        germanGpa: p.germanGpa == null ? null : p.germanGpa,
         /* uKey groups programmes by university so the page can say "12 public
            universities" without naming one. featured/featureSort say where the
            row sits, not what it is. None of the three is the name. */
@@ -5009,7 +5016,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       db.saveProgramme({
         id: r.id, program: r.program, university: r.university, city: r.city,
         country: r.country, level: r.level, field: r.field, band: want,
-        isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url,
+        isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
+        germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+        totalInr: r.total_inr, url: r.url,
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
         active: !!r.active, featured: !!r.featured, featureSort: r.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
@@ -5083,6 +5092,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          country's rule", and writing it as 0 would mean "takes anybody". */
       minCgpa: (b.minCgpa === '' || b.minCgpa == null) ? null
         : Math.max(0, Math.min(10, Number(b.minCgpa) || 0)),
+      /* 1.0 to 4.0 or nothing. Not clamped to a valid grade the way the CGPA
+         is, because on this scale a clamp INVENTS a requirement: a mistyped 25
+         becoming 4.0 would state a bar the university never published. */
+      germanGpa: (() => {
+        if (b.germanGpa === '' || b.germanGpa == null) return null;
+        const n = Number(b.germanGpa);
+        return Number.isFinite(n) && n >= 1 && n <= 4 ? n : null;
+      })(),
       totalInr: Math.max(0, Math.round(Number(b.totalInr) || 0)),
       url: /^https?:\/\//i.test(b.url || '') ? String(b.url).slice(0, FIELD_LIMITS.url) : '',
       active: b.active !== false,
@@ -5116,7 +5133,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     programmes: db.programmes(true).map(r => ({
       id: r.id, program: r.program, university: r.university, city: r.city || '',
       country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
-      isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa, totalInr: r.total_inr, url: r.url || '',
+      isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
+        germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+        totalInr: r.total_inr, url: r.url || '',
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
       active: !!r.active, updatedAt: r.updated_at, updatedBy: r.updated_by || '',
       featured: !!r.featured, featureSort: r.feature_sort || 0,
@@ -5164,7 +5183,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       db.saveProgramme(Object.assign({}, {
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
-        isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
+        isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
+        germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
+        totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         intakes: (() => { try { return JSON.parse(p.intakes); } catch (e) { return []; } })(),
         active: false,
@@ -5240,7 +5261,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const asDraft = extra => Object.assign({
         id: p.id, program: p.program, university: p.university, city: p.city,
         country: p.country, level: p.level, field: p.field, band: p.band,
-        isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa, totalInr: p.total_inr, url: p.url,
+        isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
+        germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
+        totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         featured: !!p.featured, featureSort: p.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(p.intakes) || []; } catch (e) { return []; } })(),
@@ -5341,6 +5364,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
        bulk upload cannot describe what the finder actually filters on, which
        is the whole point of a bulk upload. */
     ['minimum cgpa', 'minCgpa'],
+    /* The German grade this programme asks for, 1.0 best to 4.0 pass.
+     *
+     * Its own column, never `minimum cgpa`. The two scales run in OPPOSITE
+     * directions — 2.5 German is a good grade, 2.5 on ten is a failing one —
+     * so a German figure typed into the CGPA column reads as "asks for 2.5 out
+     * of 10" and lets every applicant through, on every row, while looking
+     * exactly like the sheet was filled in correctly. */
+    ['german gpa', 'germanGpa'],
     /* READ-ONLY, and the reason the column beside it looks empty.
        `minimum cgpa` is an OVERRIDE: blank means "this programme follows its
        destination's rule", which is the right answer for almost every row and
@@ -5372,6 +5403,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          able to say "follows the country rule", and a downloaded 0 typed back
          in would mean the opposite. */
       r.min_cgpa == null ? '' : Number(r.min_cgpa),
+      /* The German grade, in the same position as its header. Empty rather
+         than 0: 0 is BETTER than the best grade that exists on this scale, so
+         a downloaded 0 typed back in would mean "nobody qualifies". */
+      r.german_gpa == null ? '' : Number(r.german_gpa),
       (() => {
         if (r.min_cgpa != null) return Number(r.min_cgpa);
         const f = countryMap()[String(r.country || '').toUpperCase()] || {};
@@ -5447,6 +5482,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          person reaches for when retyping a header from memory. */
       'free or package': 'feeModel', 'application cost': 'feeModel',
       cost: 'feeModel', charge: 'feeModel', partnered: 'feeModel',
+      /* What a person types at the top of that column when they are working
+         from the Germany sheet rather than from ours. `gpa` alone is the header
+         on the merged Germany workbook. */
+      gpa: 'germanGpa', 'german grade': 'germanGpa',
+      'german gpa': 'germanGpa', 'gpa (german)': 'germanGpa',
     });
 
     const seen = Object.keys(objects[0] || {});
@@ -5514,6 +5554,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         url: g('url'),
         minCgpa: String(g('minCgpa') || '').trim() === '' ? null
           : Math.max(0, Math.min(10, Number(String(g('minCgpa')).replace(/[^0-9.]/g, '')) || 0)),
+        /* German grades are written with a comma in the sheet — 2,70 not 2.70 —
+           because the workbook they come from is set to a German locale. Parsed
+           here rather than asked of the person filling it in: nobody should have
+           to retype 171 numbers to change a separator. Anything outside 1.0-4.0
+           is not a German grade and is left unstated rather than clamped, since
+           clamping a mistyped 25 to 4.0 would quietly invent a requirement. */
+        germanGpa: (() => {
+          const s = String(g('germanGpa') || '').trim().replace(',', '.');
+          if (!s) return null;
+          const n = Number(s.replace(/[^0-9.]/g, ''));
+          return Number.isFinite(n) && n >= 1 && n <= 4 ? n : null;
+        })(),
         fit: String(g('fit') || '').trim() === '' ? 0
           : Math.max(0, Math.min(100, Number(String(g('fit')).replace(/[^0-9.]/g, '')) || 0)),
         active: NO_(g('active')) ? false : true,
@@ -5619,6 +5671,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            apply pass would skip it, so the office would be told the row was
            fine and the cell they typed would be thrown away. */
         feeModel: existing.fee_model || (existing.is_public ? 'package' : 'free'),
+        /* And the German grade, for the third time in this comparison. The
+           first upload of that column is a sheet where it is the ONLY edit on
+           all 171 rows — precisely the case this list exists to catch. */
+        germanGpa: bar(existing.german_gpa),
         intakes: asIntakes(oldIntakes),
       };
       const after = {
@@ -5629,6 +5685,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         featured: clean.featured, featureSort: clean.featureSort,
         minCgpa: bar(clean.minCgpa), fit: Number(clean.fit || 0),
         feeModel: clean.feeModel,
+        germanGpa: bar(clean.germanGpa),
         intakes: asIntakes(clean.intakes),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
@@ -5696,6 +5753,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            that then does not happen. */
         minCgpa: String(g('minCgpa') || '').trim() === '' ? null
           : Math.max(0, Math.min(10, Number(String(g('minCgpa')).replace(/[^0-9.]/g, '')) || 0)),
+        /* German grades are written with a comma in the sheet — 2,70 not 2.70 —
+           because the workbook they come from is set to a German locale. Parsed
+           here rather than asked of the person filling it in: nobody should have
+           to retype 171 numbers to change a separator. Anything outside 1.0-4.0
+           is not a German grade and is left unstated rather than clamped, since
+           clamping a mistyped 25 to 4.0 would quietly invent a requirement. */
+        germanGpa: (() => {
+          const s = String(g('germanGpa') || '').trim().replace(',', '.');
+          if (!s) return null;
+          const n = Number(s.replace(/[^0-9.]/g, ''));
+          return Number.isFinite(n) && n >= 1 && n <= 4 ? n : null;
+        })(),
         fit: String(g('fit') || '').trim() === '' ? 0
           : Math.max(0, Math.min(100, Number(String(g('fit')).replace(/[^0-9.]/g, '')) || 0)),
         active: NO_(g('active')) ? false : true,

@@ -103,7 +103,7 @@ const DEMO = {
   xii_board:'CBSE — Central Board of Secondary Education',
   xii_year:'2020', xii_score:'91%', xii_stream:'Science (PCM)',
   d_uni:'JNTU Hyderabad', d_course:'B.Tech Electronics & Communication', d_dur:'4 years',
-  d_start:'2020', d_year:'2024', d_cgpa:'7.6', d_backlog:'None',
+  d_start:'2020', d_year:'2024', d_cgpa:'7.6', d_max:'10', d_pass:'4', d_backlog:'None',
   e_test:'IELTS', e_score:'7.0', e_date:'2026-03-14', e_low:'6.5',
   e_listen:'7.5', e_read:'7.5', e_write:'6.5', e_speak:'7.0',
   a_test:'Not required', a_score:'', a_date:'',

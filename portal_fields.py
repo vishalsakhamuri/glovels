@@ -209,8 +209,27 @@ const SECTIONS = [
     {k:'d_start',  l:'Year of joining', t:'select', years:[40, 0]},
     /* Two years ahead: a final-year student applying now has not finished. */
     {k:'d_year',   l:'Year of completion', t:'select', years:[40, 2]},
-    {k:'d_cgpa',   l:'CGPA (out of 10)', t:'text', ph:'7.6',
-     help:'German public universities usually look for 7.5+. Below that we look at pathway routes.'},
+    {k:'d_cgpa',   l:'Your overall grade', t:'text', ph:'7.6',
+     help:'Whatever your transcript prints — a CGPA, a percentage, whatever your '
+        + 'university uses. The two boxes below say what scale it is on.'},
+    /* The student's OWN university's scale, and the reason it is asked rather
+     * than assumed.
+     *
+     * German applications are judged on a 1.0-4.0 grade converted from this
+     * one with the Modified Bavarian Formula, and the pass mark is the
+     * parameter that decides the answer: the same 6.84 is 2.5 where the pass
+     * mark is 4 and 2.8 where it is 5. Nought point three of a grade, and 2.5
+     * gets into programmes 2.8 does not.
+     *
+     * So it comes from them. 10 is offered as a maximum because most Indian
+     * universities use it; the pass mark is deliberately given NO default,
+     * because a default here is a wrong answer for half of them. */
+    {k:'d_max',    l:'Maximum grade at your university', t:'text', ph:'10',
+     help:'10 for most Indian CGPAs. 100 if your transcript is in percent, 4 on a GPA.'},
+    {k:'d_pass',   l:'Minimum passing grade at your university', t:'text', ph:'4',
+     help:'It differs at every university \u2014 it is in your academic regulations '
+        + 'and printed on many transcripts. We will not guess it: without it we '
+        + 'can only show your German grade as a range.'},
     /* Total, not active.
      *
      * A university form asks how many subjects were ever failed, not how many

@@ -64,7 +64,7 @@ const PROFILE = {
   x_board: 'CBSE', x_year: '2018', x_score: '88%', x_school: 'Delhi Public School',
   xii_board: 'CBSE', xii_year: '2020', xii_score: '91%', xii_stream: 'Science (PCM)',
   d_uni: 'JNTU Hyderabad', d_course: 'B.Tech Electronics & Communication', d_dur: '4 years',
-  d_year: '2024', d_cgpa: '7.6', d_backlog: 'None',
+  d_year: '2024', d_cgpa: '7.6', d_max: '10', d_pass: '4', d_backlog: 'None',
   e_test: 'IELTS', e_score: '7.0', e_date: '2026-03-14', e_low: '6.5',
   a_test: 'Not required',
   w_has: 'Yes — internship', w_emp: 'Qualcomm India', w_role: 'Intern, Embedded Systems', w_months: '6',

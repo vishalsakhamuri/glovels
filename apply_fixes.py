@@ -7278,7 +7278,10 @@ patch(
     "and the page redraws when one arrives",
     "  if (added || removed || touchedCountries) {",
     "  if (added || removed || touchedCountries || urls) {",
-    marker="if (added || removed || touchedCountries || urls) {",
+    # Not the whole line: a later patch adds `|| bars` to the same condition, so
+    # a marker ending in `) {` stops matching on the build's second pass and the
+    # anchor is long gone. The marker has to be the part that never moves.
+    marker="touchedCountries || urls",
 )
 
 
@@ -7649,6 +7652,489 @@ patch(
     """          <label>Your name</label>
           <input type="text" id="lName" autocomplete="name" placeholder="Vishal Sakhamuri" />""",
     marker='<label>Your name</label>',
+)
+
+
+# ===========================================================================
+# German grades. Patch 79.
+# ===========================================================================
+#
+# Vishal, looking at the Germany workbook: "in the excel sheet we have GPA,
+# german gpa, but in home page you're using CGPA. How is the conversion
+# happening? What logic have you used?"
+#
+# The honest answer was: none. The site had no German conversion anywhere. It
+# asked for a CGPA out of 10, filtered on a CGPA out of 10, and the only place
+# in the codebase that knew German grades run 1.0 (best) to 4.0 (pass) was a
+# blog draft.
+#
+# THE CONSEQUENCE, which is the reason this is not a cosmetic patch.
+# `minCgpa` is empty on all 171 rows, so every German public programme fell
+# back to the country bar of 7.5. A student who picks "7.0 – 7.4" was shown
+# ZERO German public universities. The sheet says those same universities
+# accept 2.70, 2.90, 3.00 German — which is roughly 6.0 to 7.2 CGPA. We were
+# hiding universities from students who qualify for them.
+#
+# THE FORMULA is the Modified Bavarian Formula, which is what uni-assist and
+# the universities themselves use, and which Vishal sent:
+#
+#     German = 1 + 3 × (Maximum − Obtained) / (Maximum − Minimum passing)
+#
+# Maximum and Minimum passing are facts about THE STUDENT'S OWN UNIVERSITY,
+# not about us or about the destination. Vishal proved it with two screenshots
+# of the same student: 6.84 with a pass mark of 4 is 2.5; with a pass mark of 5
+# it is 2.8. Nought point three of a grade from one parameter — and 2.5 gets
+# into programmes 2.8 does not. So they are asked for, never assumed, and where
+# they have not been given the site shows a RANGE rather than inventing
+# precision it does not have.
+#
+# It is also scale-agnostic and that falls out of the arithmetic: a student on
+# percentage enters 100 / 40 / 68.4 and gets the same answer as one on CGPA
+# entering 10 / 4 / 6.84. Nobody has to say which scale they are on.
+
+GRADE_JS = r"""
+/* ------------------------------------------------------------ German grades
+ *
+ * One function, used by the finder, the calculator and the row labels, so the
+ * three cannot disagree about what a grade converts to.
+ *
+ * Returns null rather than a number when it cannot know: a missing pass mark
+ * is not a reason to guess, it is a reason to say so.
+ */
+function toGerman(obtained, max, pass){
+  const o = Number(obtained), m = Number(max), p = Number(pass);
+  if(![o,m,p].every(Number.isFinite)) return null;
+  if(m <= p) return null;                    /* a scale with no range in it */
+  if(o < p) return null;                     /* below the pass mark: not a grade */
+  const g = 1 + 3 * (m - o) / (m - p);
+  /* 1.0 is the best grade that exists and 4.0 is the pass; a student above the
+     maximum or exactly at the pass mark lands on the ends rather than outside
+     them. */
+  const clamped = Math.max(1, Math.min(4, g));
+  /* TRUNCATED to one decimal, not rounded. German grades are reported by
+     cutting the decimals, and every conversion tool a student or a counsellor
+     will check us against does the same: 6.84 out of 10 with a pass mark of 4
+     is 2.58, which is reported as 2.5, not 2.6.
+     
+     That 0.1 is not cosmetic — it is the difference between meeting a 2.5 bar
+     and missing it. Disagreeing with the tool the office already uses would
+     mean two answers for one student and no way to tell which to trust. */
+  return Math.floor(clamped * 10) / 10;
+}
+
+/* The other direction, for saying what a German requirement is worth in CGPA.
+   Used only for the "about 7.0 CGPA" note beside a bar — never for filtering,
+   because the filtering is done on the German scale where the bar lives. */
+function fromGerman(german, max, pass){
+  const g = Number(german), m = Number(max), p = Number(pass);
+  if(![g,m,p].every(Number.isFinite) || m <= p) return null;
+  return Math.round((m - (g - 1) / 3 * (m - p)) * 100) / 100;
+}
+
+/* The two pass marks in common use at Indian universities, for the case where
+   a student has not told us theirs. Showing "2.5 – 2.8" is honest; showing
+   2.65 would be a number no university would recognise. */
+const PASS_GUESS = [4, 5];
+"""
+
+
+patch(
+    "index.html",
+    "the site can convert a grade to the German scale",
+    "const cgpaOf = () => $('#fCgpa').value ? parseFloat($('#fCgpa').value) : null;",
+    GRADE_JS + """
+const cgpaOf = () => $('#fCgpa').value ? parseFloat($('#fCgpa').value) : null;
+
+/* What the student has told us their own university's scale is. Set by the
+   calculator, and read from their profile when they are signed in — so a
+   student who filled the profile never has to open the calculator at all,
+   which is the order Vishal asked for: the grade first, then the filter. */
+let MYSCALE = { max: 10, pass: null };
+/* Their grade on the German scale, or null when we have not been given enough
+   to work it out. Never guessed into a single number. */
+let MYGERMAN = null;
+/* Their CGPA as their profile states it, when they are signed in. */
+let MYCGPA = null;
+
+/* The CGPA to compare a CGPA bar against.
+ *
+ * Germany hides the CGPA control, and every German row still carries a CGPA
+ * bar until the office uploads the German grades — so without this the German
+ * screen filters on nothing at all and shows every student every programme.
+ * That is worse than asking the wrong question.
+ *
+ * In order of how well we know it: what they picked, then their profile, then
+ * their German grade converted back through their OWN university's scale. The
+ * last one is exact — it is the inverse of the conversion they just watched
+ * happen — but only when they gave us a pass mark, which is why it is last and
+ * why nothing is invented when they did not. */
+const cgpaForBar = () => {
+  const picked = cgpaOf();
+  if(picked !== null) return picked;
+  if(MYCGPA !== null) return MYCGPA;
+  if(MYGERMAN != null && Number.isFinite(MYSCALE.max) && Number.isFinite(MYSCALE.pass))
+    return fromGerman(MYGERMAN, MYSCALE.max, MYSCALE.pass);
+  return null;
+};""",
+    marker="function toGerman(obtained, max, pass){",
+)
+
+
+# ------------------------------- the filter compares on the scale of the bar
+#
+# The bar for a German programme is a German grade and the comparison must run
+# the other way: LOWER passes. Getting the direction wrong is not a near miss,
+# it is the exact inversion — every student would pass every German programme,
+# and the screen would look completely normal.
+patch(
+    "index.html",
+    "a German bar is compared as a German grade",
+    """    if(cg !== null){
+      /* the programme's own cut-off wins; otherwise the country's, public and
+         private having different bars. Below the bar the row is not returned —
+         a student who does not qualify is never shown a locked row implying they do. */
+      const bar = p.minCgpa != null ? p.minCgpa
+        : (p.isPublic ? (C[p.country].minCgpaPublic ?? S.cgpaFull)
+                      : (C[p.country].minCgpaPrivate ?? S.cgpaPartial));
+      if(cg < bar) return false;
+    }""",
+    """    /* A programme that states a GERMAN grade is judged on the German scale,
+       and the comparison runs the other way — 1.0 is the best grade and 4.0 is
+       the pass, so a student passes when their grade is LOWER than the bar.
+       Getting that direction wrong is not a near miss: it is the exact
+       inversion, every student clears every programme, and the screen looks
+       entirely normal while it happens.
+
+       Only when we actually know their German grade. A student who has not
+       given us their university's pass mark is not filtered out of a German
+       row on a number we invented for them — they are shown it, with the bar
+       written on it, which is the honest answer. */
+    if(p.germanGpa != null){
+      if(MYGERMAN != null && MYGERMAN > p.germanGpa) return false;
+    } else {
+      /* No German grade on the row, so its bar is still a CGPA and must still
+         be applied — including on the German screen, where the CGPA control is
+         hidden and cg is therefore null. cgpaForBar() is what we know of their
+         CGPA from anywhere; when that is null nothing is filtered, which is the
+         honest answer rather than a number we invented. */
+      const myCg = cg !== null ? cg : cgpaForBar();
+      if(myCg !== null){
+        /* the programme's own cut-off wins; otherwise the country's, public and
+           private having different bars. Below the bar the row is not returned —
+           a student who does not qualify is never shown a locked row implying they do. */
+        const bar = p.minCgpa != null ? p.minCgpa
+          : (p.isPublic ? (C[p.country].minCgpaPublic ?? S.cgpaFull)
+                        : (C[p.country].minCgpaPrivate ?? S.cgpaPartial));
+        if(myCg < bar) return false;
+      }
+    }""",
+    marker="a student passes when their grade is LOWER than the bar",
+)
+
+
+# --------------------------------------------- the calculator, and the switch
+#
+# "when user selects germany instead of cgpa we need to show gpa and also gpa
+# calculator" and "so user need the gpa calculator first then only he can enter
+# the correct gpa value so that the filter can work correctly".
+#
+# So the control changes with the destination. Germany turns "Your CGPA" into
+# "Your German grade" with a Convert link beside it; every other destination
+# keeps the CGPA band list it has always had. The calculator writes its answer
+# straight into the filter, so the number being filtered on is one the student
+# has just watched being derived from their own university's numbers.
+GRADE_MODAL = """
+<!-- GLOVELS-GERMAN-CALC -->
+<div class="modal" id="ggModal" role="dialog" aria-modal="true" aria-labelledby="ggT">
+  <div class="sheet">
+    <button class="sheet-close" data-close aria-label="Close"><svg class="ico"
+      aria-hidden="true"><use href="#i-close"/></svg></button>
+    <h3 id="ggT">Your grade on the German scale</h3>
+    <p class="lead">German grades run <b>1.0 (best) to 4.0 (pass)</b> &mdash; the
+      opposite direction to a CGPA. Three numbers off your own transcript, and it
+      works whether you are marked out of 10, out of 4, or in percent.</p>
+    <div class="field"><label for="ggMax">Maximum grade at your university</label>
+      <input id="ggMax" inputmode="decimal" placeholder="10"></div>
+    <div class="field"><label for="ggPass">Minimum passing grade at your university</label>
+      <input id="ggPass" inputmode="decimal" placeholder="4">
+      <small style="display:block;margin-top:5px;font:400 11.8px/1.55 var(--sans);color:var(--muted)">This is the one that changes the answer, and it
+        <b>differs at every university</b> &mdash; the same 6.84 is 2.5 where the
+        pass mark is 4 and 2.8 where it is 5. It is in your academic
+        regulations, and it is printed on many transcripts.</small></div>
+    <div class="field"><label for="ggNow">Your current overall grade</label>
+      <input id="ggNow" inputmode="decimal" placeholder="6.84"></div>
+    <div id="ggOut" hidden>
+      <div class="out"><div><b id="ggGerman">&mdash;</b><span>German scale</span></div>
+        <div><b id="ggC10">&mdash;</b><span>CGPA / 10</span></div>
+        <div><b id="ggPct">&mdash;</b><span>percentage</span></div></div>
+      <button class="btn btn-primary" id="ggUse" style="margin-top:14px">Use this in the finder</button>
+    </div>
+    <p id="ggErr" hidden style="margin:12px 0 0;font:600 13px/1.55 var(--sans);color:#7a2118"></p>
+    <div class="warnbox"><b>A guide, not the official conversion.</b> uni-assist
+      or the university does the conversion that counts, and it is not always
+      this arithmetic &mdash; some run their own table. Use this to decide where
+      to apply, not to decide whether you have been accepted.</div>
+  </div>
+</div>
+"""
+
+GRADE_UI = r"""
+/* --------------------------------------------- the German grade calculator */
+(function(){
+  const box = $('#ggModal');
+  if(!box) return;
+
+  const num = id => {
+    const v = String(($(id) || {}).value || '').trim().replace(',', '.');
+    return v === '' ? null : Number(v.replace(/[^0-9.]/g, ''));
+  };
+  /* Digits and one point, filtered as they are typed. Same reason as the marks
+     converter: the answer appears as you type, so the only moment to refuse a
+     letter is the moment it arrives. */
+  ['#ggMax','#ggPass','#ggNow'].forEach(s => {
+    const el = $(s);
+    if(!el) return;
+    el.addEventListener('input', e => {
+      const before = e.target.value;
+      let out = before.replace(/[^0-9.]/g, '');
+      const bits = out.split('.');
+      if(bits.length > 2) out = bits.shift() + '.' + bits.join('');
+      if(out !== before){
+        const at = e.target.selectionStart - (before.length - out.length);
+        e.target.value = out;
+        try { e.target.setSelectionRange(Math.max(0,at), Math.max(0,at)); } catch(err){}
+      }
+      draw();
+    });
+  });
+
+  function draw(){
+    const max = num('#ggMax'), pass = num('#ggPass'), now = num('#ggNow');
+    const err = $('#ggErr');
+    err.hidden = true;
+    if(max == null || now == null || pass == null){ $('#ggOut').hidden = true; return; }
+    if(max <= pass){
+      $('#ggOut').hidden = true;
+      err.textContent = 'The maximum has to be above the passing grade.';
+      err.hidden = false;
+      return;
+    }
+    if(now > max){
+      $('#ggOut').hidden = true;
+      err.textContent = 'That grade is above your university’s maximum.';
+      err.hidden = false;
+      return;
+    }
+    if(now < pass){
+      $('#ggOut').hidden = true;
+      err.textContent = 'That is below your university’s passing grade.';
+      err.hidden = false;
+      return;
+    }
+    const g = toGerman(now, max, pass);
+    if(g == null){ $('#ggOut').hidden = true; return; }
+    $('#ggGerman').textContent = g.toFixed(1);
+    /* The same grade said two other ways, so this one calculator answers the
+       question the old "Convert %" answered as well. */
+    $('#ggC10').textContent = (now / max * 10).toFixed(2);
+    $('#ggPct').textContent = (now / max * 100).toFixed(1) + '%';
+    $('#ggOut').hidden = false;
+    $('#ggUse').dataset.g = g;
+    $('#ggUse').dataset.max = max;
+    $('#ggUse').dataset.pass = pass;
+  }
+
+  $('#ggUse').addEventListener('click', () => {
+    const b = $('#ggUse').dataset;
+    MYGERMAN = Number(b.g);
+    MYSCALE = { max: Number(b.max), pass: Number(b.pass) };
+    const sel = $('#fGgpa');
+    /* Onto the nearest band the list offers. Their exact grade is 1.2 and the
+       list's finest band is 1.5, so assigning the exact number would leave the
+       control reading "Any grade" while a grade is being filtered on — the one
+       thing worse than not showing it. MYGERMAN keeps the exact value; the
+       control shows the band it falls in. */
+    if(sel){
+      const band = [...sel.options].map(o => o.value).filter(Boolean)
+        .map(Number).sort((a,b2) => a - b2).find(v => MYGERMAN <= v);
+      sel.value = band ? String(band.toFixed(1)) : '';
+    }
+    $('#ggModal').classList.remove('on');
+    touched = true;
+    render();
+    $('#results').scrollIntoView({behavior:'smooth', block:'start'});
+  });
+})();
+
+/* ------------------------------------ the control follows the destination
+ *
+ * Germany is graded on a different scale from everywhere else we send people,
+ * so asking one question for all seven destinations meant asking the wrong one
+ * for the biggest. */
+function gradeScale(){
+  const de = $('#fCountry') && $('#fCountry').value === 'DE';
+  const cg = $('#fCgpaWrap'), gg = $('#fGgpaWrap');
+  if(!cg || !gg) return;
+  cg.hidden = de;
+  gg.hidden = !de;
+  /* Whichever is hidden must stop filtering, or a CGPA band chosen before
+     Germany was picked keeps narrowing a list it can no longer describe. */
+  if(de){ if($('#fCgpa')) $('#fCgpa').value = ''; }
+  else { MYGERMAN = null; if($('#fGgpa')) $('#fGgpa').value = ''; }
+}
+"""
+
+
+patch(
+    "index.html",
+    "the finder asks for a German grade when the destination is Germany",
+    """<div class="field"><label for="fCgpa"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your CGPA<button class="linkish" id="openCgpa" type="button" style="margin-left:auto">Convert %</button></label><select id="fCgpa">""",
+    """<div class="field" id="fGgpaWrap" hidden><label for="fGgpa"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your German grade<button class="linkish" id="openGg" type="button" style="margin-left:auto">Work it out</button></label><select id="fGgpa"><option value="">Any grade</option><option value="1.5">1.0 &ndash; 1.5 (excellent)</option><option value="2.0">1.6 &ndash; 2.0 (very good)</option><option value="2.5">2.1 &ndash; 2.5 (good)</option><option value="3.0">2.6 &ndash; 3.0 (satisfactory)</option><option value="3.5">3.1 &ndash; 3.5 (sufficient)</option><option value="4.0">3.6 &ndash; 4.0 (pass)</option></select></div><div class="field" id="fCgpaWrap"><label for="fCgpa"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your CGPA<button class="linkish" id="openCgpa" type="button" style="margin-left:auto">Convert %</button></label><select id="fCgpa">""",
+    marker='id="fGgpaWrap"',
+)
+
+patch(
+    "index.html",
+    "and the calculator is on the page to open",
+    '<div class="modal" id="cgpaModal" role="dialog"',
+    GRADE_MODAL + '<div class="modal" id="cgpaModal" role="dialog"',
+    marker="GLOVELS-GERMAN-CALC",
+)
+
+patch(
+    "index.html",
+    "the calculator's own code is on the page",
+    "$('#openCgpa').onclick = e => { e.preventDefault(); open('#cgpaModal'); convert(); };",
+    GRADE_UI + "\n$('#openCgpa').onclick = e => { e.preventDefault(); open('#cgpaModal'); convert(); };",
+    marker="the German grade calculator */",
+)
+
+patch(
+    "index.html",
+    "the calculator and the scale switch are wired up",
+    "$('#openCgpa').onclick = e => { e.preventDefault(); open('#cgpaModal'); convert(); };",
+    """$('#openCgpa').onclick = e => { e.preventDefault(); open('#cgpaModal'); convert(); };
+$('#openGg') && ($('#openGg').onclick = e => {
+  e.preventDefault();
+  /* Pre-filled from what they have already told us — their profile if they are
+     signed in, or the last time they used this. 10 is the common maximum and is
+     offered as a starting point; the pass mark is NOT, because guessing it is
+     the one thing that changes the answer. */
+  if($('#ggMax') && !$('#ggMax').value) $('#ggMax').value = MYSCALE.max || 10;
+  if($('#ggPass') && !$('#ggPass').value && MYSCALE.pass) $('#ggPass').value = MYSCALE.pass;
+  open('#ggModal');
+});
+$('#fGgpa') && $('#fGgpa').addEventListener('change', () => {
+  MYGERMAN = $('#fGgpa').value ? parseFloat($('#fGgpa').value) : null;
+  if(touched) render();
+});
+$('#fCountry') && $('#fCountry').addEventListener('change', gradeScale);
+gradeScale();
+
+/* Their own scale, from their profile, so a student who has filled it in never
+   has to open the calculator at all — which is the order Vishal asked for: the
+   grade first, then the filter. Signed out this fetch simply does nothing and
+   the calculator is the only way in, which is the right fallback. */
+(function(){
+  if(location.protocol === 'file:') return;
+  /* This is the PUBLIC home page and most people on it are signed out, where
+     /api/state answers 401 — a red line in the console of every visitor, and a
+     failure in every suite that asserts the site logs nothing. /api/auth/me is
+     open and answers 200 either way, so it is what asks the question. */
+  fetch('/api/auth/me', { credentials: 'same-origin' })
+    .then(r => r.ok ? r.json() : null)
+    .then(m => (m && m.user)
+      ? fetch('/api/state', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null)
+      : null)
+    .then(s => {
+      const pr = (s && s.profile) || {};
+      const max = parseFloat(pr.d_max), pass = parseFloat(pr.d_pass),
+            now = parseFloat(String(pr.d_cgpa || '').replace(/[^0-9.]/g, ''));
+      if(Number.isFinite(max)) MYSCALE.max = max;
+      if(Number.isFinite(pass)) MYSCALE.pass = pass;
+      /* Their CGPA on the ten-point scale the country bars are written in, so
+         a German row that still carries a CGPA bar is judged against a real
+         number rather than skipped. */
+      if(Number.isFinite(now) && Number.isFinite(max) && max > 0){
+        MYCGPA = Math.round(now / max * 10 * 100) / 100;
+        if(touched) render();
+      }
+      const g = toGerman(now, max, pass);
+      if(g == null) return;
+      MYGERMAN = g;
+      const sel = $('#fGgpa');
+      /* Onto the nearest band the list offers, so the control shows what is
+         being filtered on rather than sitting on "Any grade" while a grade is
+         in force. */
+      if(sel && !sel.value){
+        const band = [...sel.options].map(o => o.value).filter(Boolean)
+          .map(Number).sort((a,b) => a-b).find(v => g <= v);
+        if(band) sel.value = String(band.toFixed(1));
+      }
+      if(touched) render();
+    })
+    .catch(() => {});
+})();""",
+    marker="$('#openGg') && ($('#openGg').onclick",
+)
+
+
+# ------------------------- and a bar the office set reaches a row we shipped
+#
+# The same shape of bug as the missing university address, and worth stating
+# once more because it has now happened three times in this file.
+#
+# The live catalogue merge only ADDS programmes the page has never heard of —
+# `if (known.has(String(p.id))) return;`. Everything else about a known row is
+# whatever was baked into index.html at build time. So the office could fill in
+# a German grade for all 158 German programmes, the API would serve it
+# correctly, /api/catalogue would show it on every row, and the FINDER would
+# still filter on nothing at all, because `D.programs` never received it.
+#
+# Both bars are refreshed, not just the German one. A counsellor editing a
+# CGPA on the Catalogue screen has exactly the same expectation, and leaving
+# that out would be the same bug waiting one column along.
+patch(
+    "index.html",
+    "a bar the office edits reaches a row the page shipped with",
+    """  /* The address, onto rows this page shipped with. Same reasoning as the name
+     and the fee two blocks up: what the office has filled in has to reach the
+     screen, and a row that predates the column is exactly the row that has
+     nothing in it. */
+  let urls = 0;""",
+    """  /* The entry bars, onto rows this page shipped with.
+   *
+   * A programme's requirement is not decoration — it is what the finder
+   * filters on. The office filling in a German grade for 158 German rows would
+   * otherwise change what /api/catalogue says and nothing a visitor sees,
+   * because a known row keeps whatever was baked into this page months ago. */
+  let bars = 0;
+  const byId = new Map(data.programmes.map(p => [String(p.id), p]));
+  D.programs.forEach(row => {
+    const live = byId.get(String(row.id));
+    if (!live) return;
+    if (row.germanGpa !== live.germanGpa) { row.germanGpa = live.germanGpa; bars++; }
+    /* Undefined and null mean different things to the filter — "not stated" and
+       "explicitly cleared" both fall through to the country rule, but only a
+       real change is worth a redraw. */
+    if (live.minCgpa !== undefined && row.minCgpa !== live.minCgpa) {
+      row.minCgpa = live.minCgpa; bars++;
+    }
+  });
+
+  /* The address, onto rows this page shipped with. Same reasoning as the name
+     and the fee two blocks up: what the office has filled in has to reach the
+     screen, and a row that predates the column is exactly the row that has
+     nothing in it. */
+  let urls = 0;""",
+    marker="let bars = 0;",
+)
+patch(
+    "index.html",
+    "and the page redraws when a bar arrives",
+    "  if (added || removed || touchedCountries || urls) {",
+    "  if (added || removed || touchedCountries || urls || bars) {",
+    marker="|| urls || bars) {",
 )
 
 # ---------------------------------------------------------------------------

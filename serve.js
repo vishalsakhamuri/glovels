@@ -97,6 +97,10 @@ function liveCatalogue() {
        over the country's rule — and never received it, because the catalogue
        handed to the page did not carry the field. */
     minCgpa: r.min_cgpa == null ? null : Number(r.min_cgpa),
+    /* The German grade the programme asks for, 1.0 best to 4.0 pass. Handed to
+       the finder AND the matcher, because a bar nobody filters on is a bar
+       that is only decoration. */
+    germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
     url: r.url || '',
     uKey: uKeyOf(r.university),
     /* The office's choice of what leads the showcase on the home page. */

@@ -3050,6 +3050,87 @@
    "sectionLabel": ""
   },
   {
+   "key": "page|label|cc101d5b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Your German grade",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|8744d469|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Work it out",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|0ec318a2|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "Any grade",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|169313fc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "1.5 (excellent)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|42148183|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "2.0 (very good)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|d279abb0|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "2.5 (good)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|120913c5|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "3.0 (satisfactory)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|63f6a98e|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "3.5 (sufficient)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|option|5f204cd3|0",
+   "section": "page",
+   "kind": "text",
+   "element": "option",
+   "original": "4.0 (pass)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
    "key": "page|label|4e499543|0",
    "section": "page",
    "kind": "text",
@@ -3410,6 +3491,168 @@
    "sectionLabel": ""
   },
   {
+   "key": "page|h3|53f2cc17|0",
+   "section": "page",
+   "kind": "text",
+   "element": "h3",
+   "original": "Your grade on the German scale",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|f2dcb974|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "German grades run",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|ef8793fe|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "1.0 (best) to 4.0 (pass)",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|p|da86f2e7|0",
+   "section": "page",
+   "kind": "text",
+   "element": "p",
+   "original": "the opposite direction to a CGPA. Three numbers off your own transcript, and it works whether you are marked out of 10, out of 4, or in percent.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|09917366|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Maximum grade at your university",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|43e90795|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Minimum passing grade at your university",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|small|a6141169|0",
+   "section": "page",
+   "kind": "text",
+   "element": "small",
+   "original": "This is the one that changes the answer, and it",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|a25ad5d0|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "differs at every university",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|small|d0578c27|0",
+   "section": "page",
+   "kind": "text",
+   "element": "small",
+   "original": "the same 6.84 is 2.5 where the pass mark is 4 and 2.8 where it is 5. It is in your academic regulations, and it is printed on many transcripts.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|label|1beed151|0",
+   "section": "page",
+   "kind": "text",
+   "element": "label",
+   "original": "Your current overall grade",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|dc5114fd|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "German scale",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|0c12ad2a|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "CGPA / 10",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|span|97537db5|0",
+   "section": "page",
+   "kind": "text",
+   "element": "span",
+   "original": "percentage",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|button|097196bc|0",
+   "section": "page",
+   "kind": "text",
+   "element": "button",
+   "original": "Use this in the finder",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|b|62e2f64d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "b",
+   "original": "A guide, not the official conversion.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|div|932e88c0|0",
+   "section": "page",
+   "kind": "text",
+   "element": "div",
+   "original": "uni-assist or the university does the conversion that counts, and it is not always this arithmetic",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|div|ad517059|0",
+   "section": "page",
+   "kind": "text",
+   "element": "div",
+   "original": "some run their own table. Use this to decide where to apply, not to decide whether you have been accepted.",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|attr:aria-label|cd86acc3|1",
+   "section": "page",
+   "kind": "attr:aria-label",
+   "element": "button",
+   "original": "Close",
+   "note": "the aria-label on a <button>",
+   "sectionLabel": ""
+  },
+  {
    "key": "page|h3|4abc8a6d|0",
    "section": "page",
    "kind": "text",
@@ -3491,7 +3734,7 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|span|97537db5|0",
+   "key": "page|span|97537db5|1",
    "section": "page",
    "kind": "text",
    "element": "span",
@@ -3500,7 +3743,7 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|span|0c12ad2a|0",
+   "key": "page|span|0c12ad2a|1",
    "section": "page",
    "kind": "text",
    "element": "span",
@@ -3518,7 +3761,7 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|button|097196bc|0",
+   "key": "page|button|097196bc|1",
    "section": "page",
    "kind": "text",
    "element": "button",
@@ -3545,7 +3788,7 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|attr:aria-label|cd86acc3|1",
+   "key": "page|attr:aria-label|cd86acc3|2",
    "section": "page",
    "kind": "attr:aria-label",
    "element": "button",
@@ -3563,7 +3806,7 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|attr:aria-label|cd86acc3|2",
+   "key": "page|attr:aria-label|cd86acc3|3",
    "section": "page",
    "kind": "attr:aria-label",
    "element": "button",
@@ -3896,7 +4139,7 @@
    "sectionLabel": "Book exactly what you need — every price upfront"
   },
   {
-   "key": "page|attr:aria-label|cd86acc3|3",
+   "key": "page|attr:aria-label|cd86acc3|4",
    "section": "page",
    "kind": "attr:aria-label",
    "element": "button",
@@ -3986,7 +4229,7 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|attr:aria-label|cd86acc3|4",
+   "key": "page|attr:aria-label|cd86acc3|5",
    "section": "page",
    "kind": "attr:aria-label",
    "element": "button",

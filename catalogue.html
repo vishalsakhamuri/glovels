@@ -1865,6 +1865,14 @@ function openEditor(p) {
         'own rule applies &mdash; which is right for most rows. Fill it in where a ' +
         'university asks for more or less than its country normally does, and the ' +
         'finder will use this number instead.') +
+      field('German grade asked for', 'fGgpa', v.germanGpa == null ? '' : v.germanGpa,
+        'type="number" min="1" max="4" step="0.1" placeholder="2.5"',
+        '<b>1.0 is the best grade, 4.0 is the pass</b> &mdash; the opposite way ' +
+        'round to a CGPA. This is the German scale and it is only meaningful on ' +
+        'a German row. Leave it empty where the university has not published ' +
+        'one. Do <b>not</b> put a German grade in the CGPA box above: 2.5 there ' +
+        'reads as &ldquo;asks for 2.5 out of 10&rdquo; and lets every applicant ' +
+        'through.') +
       field('Fit score', 'fFit', v.fit || 0,
         'type="number" min="0" max="100" step="1" placeholder="80"',
         'How realistic this is for a typical applicant, 0&ndash;100. It orders the ' +
@@ -1927,6 +1935,10 @@ function readEditor() {
     /* Empty stays empty — it means "follow the destination's rule", and
        sending 0 would mean "takes anybody". */
     minCgpa: $('#fCgpa').value.trim() === '' ? null : Number($('#fCgpa').value),
+    /* Same rule, opposite scale. Empty means the university has not published
+       one; 0 would mean better than the best grade that exists, so nobody
+       qualifies. */
+    germanGpa: $('#fGgpa').value.trim() === '' ? null : Number($('#fGgpa').value),
     fit: Number($('#fFit').value || 0),
     url: $('#fUrl').value.trim(),
     active: $('#fActive').checked,

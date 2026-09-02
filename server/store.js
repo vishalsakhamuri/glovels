@@ -454,6 +454,12 @@ function sqliteDriver(file) {
       is_public stays: it is true, it is on the sheet, and the CGPA rules read
       it. It is simply no longer what the student is asked to choose between. */
    "ALTER TABLE programmes ADD COLUMN fee_model TEXT NOT NULL DEFAULT ''",
+   /* The grade this programme asks for ON THE GERMAN SCALE, 1.0 best to 4.0
+      pass. A separate column from min_cgpa and never mixed with it: the two
+      run in OPPOSITE directions, so a German 2.5 dropped into min_cgpa would
+      be read as "needs 2.5 out of 10" and let every applicant through.
+      NULL means the programme has not stated one. */
+   'ALTER TABLE programmes ADD COLUMN german_gpa REAL',
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
@@ -906,16 +912,24 @@ function open(dir) {
       const fee = /^(free|package)$/i.test(String(p.feeModel || ''))
         ? String(p.feeModel).toLowerCase()
         : (p.isPublic ? 'package' : 'free');
+      /* The German grade the programme asks for. Blank is NOT zero here either,
+         and getting that wrong is worse than on the CGPA: 0 on this scale is
+         better than the best grade that exists, so a blank stored as 0 would
+         mean "nobody qualifies" rather than "anybody does". Only 1.0 to 4.0 is
+         a grade; anything else is somebody's typo and is stored as unstated. */
+      const gg = (p.germanGpa === '' || p.germanGpa == null
+                  || !Number.isFinite(Number(p.germanGpa)))
+        ? null : Math.max(1, Math.min(4, Number(p.germanGpa)));
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, city, country, level, field, band, is_public, fit,
          min_cgpa, total_inr, url, intakes, active, featured, feature_sort, fee_model,
-         updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         german_gpa, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university, p.city || '', p.country,
         p.level || '', p.field || '', p.band || '', p.isPublic ? 1 : 0,
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
-        p.featured ? 1 : 0, Number(p.featureSort || 0), fee, now(), who || '');
+        p.featured ? 1 : 0, Number(p.featureSort || 0), fee, gg, now(), who || '');
       return this.programme(p.id);
     },
 
