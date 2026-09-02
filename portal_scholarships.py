@@ -1,5 +1,7 @@
 """Scholarships — what you can apply for, checked against the profile you filled in."""
 
+from portal_fields import CGPA_JS
+
 BODY = """
     <div class="p-cols" style="margin-bottom:20px">
       <div class="p-card">
@@ -38,7 +40,7 @@ BODY = """
       intake — your counsellor confirms each one before you spend time on an application.</p>
 """
 
-SCRIPT = r"""
+SCRIPT = CGPA_JS + r"""
 /* Real, well-known awards. Each carries the rule that decides eligibility, so
    the page can say WHY you do or do not qualify instead of just filtering you
    out silently. */
@@ -107,7 +109,7 @@ const SCHOLARSHIPS = [
 
 DB.saved = DB.saved || [];      /* saved against the account, on the server */
 const P = DB.profile || {};
-const cgpa = parseFloat(P.d_cgpa || '') || null;
+const cgpa = cgpaTenOf(P);
 const cmap = {Germany:'DE','United Kingdom':'GB',Canada:'CA',Ireland:'IE',Poland:'PL',Spain:'ES',Italy:'IT'};
 /* Several destinations are allowed now, so a scholarship in any of them
    counts. `wantC` stays a single code because the matching below compares one;

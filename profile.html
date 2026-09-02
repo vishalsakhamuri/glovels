@@ -1116,8 +1116,23 @@ async function flush() {
   flushing = true;
   try {
     if (DB.profile && JSON.stringify(DB.profile) !== JSON.stringify(SERVER.profile)) {
-      await api('PUT', '/api/profile', { profile: DB.profile });
-      SERVER.profile = JSON.parse(JSON.stringify(DB.profile));
+      try {
+        await api('PUT', '/api/profile', { profile: DB.profile });
+        SERVER.profile = JSON.parse(JSON.stringify(DB.profile));
+        dispatchEvent(new CustomEvent('glovels:profile-invalid', { detail: { fields: [] } }));
+      } catch (e) {
+        /* 422 is the server saying a number is impossible — a CGPA of 47.9, an
+           IELTS of 99, a band of -4. It is not a failure to reach the server
+           and must not be reported as one: the student has to be told WHICH
+           box, beside that box, or they will retype the same thing.
+
+           SERVER.profile is deliberately not advanced, so the next save tries
+           again once they have fixed it. */
+        if (e.status !== 422) throw e;
+        dispatchEvent(new CustomEvent('glovels:profile-invalid', {
+          detail: { fields: (e.data && e.data.fields) || [], error: e.message },
+        }));
+      }
     }
     if (Array.isArray(DB.short)) {
       for (const id of DB.short) if (!SERVER.short.includes(id)) await api('POST', '/api/shortlist', { id });
@@ -1914,6 +1929,40 @@ function showProblem(p) {
     box.scrollIntoView({ block:'center', behavior:'smooth' });
   }
 }
+/* What the SERVER refused, shown where it was typed.
+ *
+ * The client had its own idea of what looked wrong and the server had none at
+ * all, so a CGPA of 47.9 sailed past both and corrupted every match the
+ * student was shown. The server is the one with the per-test bounds now; this
+ * puts its answer under the box rather than in a toast that disappears.
+ *
+ * More than one field can be wrong at once — the report had six — so all of
+ * them are marked, and the first is the one scrolled to. */
+addEventListener('glovels:profile-invalid', ev => {
+  const list = (ev.detail && ev.detail.fields) || [];
+  $$('#pForm .ferr').forEach(e => { e.hidden = true; e.textContent = ''; });
+  $$('#pForm .field').forEach(e => e.classList.remove('bad'));
+  if (!list.length) return;
+  let first = null;
+  list.forEach(f => {
+    const box = $('#pForm .field[data-k="' + f.field + '"]');
+    if (!box) return;
+    box.classList.add('bad');
+    const e = box.querySelector('.ferr');
+    if (e) { e.textContent = f.why; e.hidden = false; }
+    if (!first) first = box;
+  });
+  /* A field on a section that is not open cannot be scrolled to, and a student
+     staring at a section with nothing marked on it has been told nothing. */
+  if (first) {
+    first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const input = first.querySelector('input,select,textarea');
+    if (input) input.focus();
+  } else {
+    toast(ev.detail.error || 'Some of those numbers cannot be right.');
+  }
+});
+
 function paint() {
   const p = overall();
   $('#pcBar').style.width = p + '%';

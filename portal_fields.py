@@ -471,3 +471,23 @@ const VISA_DOCS = [
    blocks:'Pre-departure briefing and city registration'}
 ];
 """
+
+
+# The one reading of a student's grade, for the four screens that compare it
+# against a bar written out of ten. Three of them divided by nothing: a student
+# marked out of 4 with a 3.6 read as 3.6 and failed every gate on the site,
+# and a profile carrying an impossible 47.9 cleared all of them. The maximum
+# has been on the profile since the German-grade patch; nothing was reading it.
+#
+# Mirrors server/grades.js cgpaTen() exactly. Two answers for one student is
+# the fault this is fixing, so it must not be re-derived a fifth time.
+CGPA_JS = r"""
+function cgpaTenOf(p) {
+  const raw = Number(String((p || {}).d_cgpa || '').replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  const mx = Number(String((p || {}).d_max || '').replace(/[^0-9.]/g, ''));
+  const max = Number.isFinite(mx) && mx > 0 && mx <= 100 ? mx : 10;
+  if (raw > max) return null;               /* impossible on their own scale */
+  return Math.round(raw / max * 10 * 100) / 100;
+}
+"""

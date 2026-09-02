@@ -348,6 +348,40 @@ function showProblem(p) {
     box.scrollIntoView({ block:'center', behavior:'smooth' });
   }
 }
+/* What the SERVER refused, shown where it was typed.
+ *
+ * The client had its own idea of what looked wrong and the server had none at
+ * all, so a CGPA of 47.9 sailed past both and corrupted every match the
+ * student was shown. The server is the one with the per-test bounds now; this
+ * puts its answer under the box rather than in a toast that disappears.
+ *
+ * More than one field can be wrong at once — the report had six — so all of
+ * them are marked, and the first is the one scrolled to. */
+addEventListener('glovels:profile-invalid', ev => {
+  const list = (ev.detail && ev.detail.fields) || [];
+  $$('#pForm .ferr').forEach(e => { e.hidden = true; e.textContent = ''; });
+  $$('#pForm .field').forEach(e => e.classList.remove('bad'));
+  if (!list.length) return;
+  let first = null;
+  list.forEach(f => {
+    const box = $('#pForm .field[data-k="' + f.field + '"]');
+    if (!box) return;
+    box.classList.add('bad');
+    const e = box.querySelector('.ferr');
+    if (e) { e.textContent = f.why; e.hidden = false; }
+    if (!first) first = box;
+  });
+  /* A field on a section that is not open cannot be scrolled to, and a student
+     staring at a section with nothing marked on it has been told nothing. */
+  if (first) {
+    first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const input = first.querySelector('input,select,textarea');
+    if (input) input.focus();
+  } else {
+    toast(ev.detail.error || 'Some of those numbers cannot be right.');
+  }
+});
+
 function paint() {
   const p = overall();
   $('#pcBar').style.width = p + '%';

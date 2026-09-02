@@ -514,10 +514,11 @@ function rowCard(n, fields, count) {
     '</div>' + fields + '</div>';
 }
 
-const tf = (label, id, value, ph, wide) =>
+const tf = (label, id, value, ph, wide, num) =>
   '<div class="field" style="margin-bottom:10px' + (wide ? ';grid-column:1/-1' : '') + '">' +
   '<label for="' + id + '">' + esc(label) + '</label>' +
   '<input id="' + id + '" value="' + esc(value == null ? '' : value) + '"' +
+  (num ? ' type="number" min="0" step="1" inputmode="numeric"' : '') +
   (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
 
 const ta = (label, id, value, wide) =>
@@ -1180,7 +1181,11 @@ function openEditor(p) {
       sel('How it is sold', 'fSell', v.sell ? '1' : '0',
         [['1', 'A price and a Buy button'], ['0', 'Priced after we speak to them']],
         'The second kind sends them to the enquiry form instead of checkout.') +
-      tf('Price, ₹', 'fPrice', v.priceInr || 0, '74999') +
+      /* type="number", with a floor. It was type="text", so -9999 and
+         "abc-sudhin" were both typed in, both stored as 0, and the package
+         stayed on sale at nothing. The server refuses either now; this is so
+         nobody gets that far. */
+      tf('Price, \u20b9', 'fPrice', v.priceInr || 0, '74999', 0, 1) +
       tf('Word before the price', 'fFrom', v.priceFrom, 'From') +
       tf('Note under the price', 'fNote', v.priceNote, 'including taxes') +
       tf('Universities revealed', 'fUnlocks', v.unlocks || 0, '15') +

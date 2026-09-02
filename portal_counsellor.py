@@ -1,5 +1,7 @@
 """The counsellor's workspace — their caseload, and the live conversation."""
 
+from portal_fields import CGPA_JS
+
 BODY = """
     <style>
       /* Counter tiles. The column count was an inline style on every one of
@@ -53,7 +55,7 @@ BODY = """
     </div>
 """
 
-SCRIPT = r"""
+SCRIPT = CGPA_JS + r"""
 let STUDENTS = [];
 /* The record currently open, so the row renderer can read this student's
    application stages without every caller threading them through. */
@@ -469,9 +471,7 @@ function barOf(p) {
 }
 /* The student's own, off the record already open on this screen. */
 function caseCgpa() {
-  const raw = String(((CASE && CASE.profile) || {}).d_cgpa || '').trim();
-  const n = Number(raw.replace(/[^0-9.]/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return cgpaTenOf((CASE && CASE.profile) || {});
 }
 
 let uniTimer = null;

@@ -1,5 +1,7 @@
 """My Universities — the shortlist, plus the catalogue it is picked from."""
 
+from portal_fields import CGPA_JS
+
 BODY = """
     <div class="tabs" style="margin-bottom:18px">
       <button class="tab" role="tab" aria-selected="true" data-pane="mine">
@@ -43,7 +45,7 @@ BODY = """
     </section>
 """
 
-SCRIPT = r"""
+SCRIPT = CGPA_JS + r"""
 /* The shortlist comes from the server — it is this student's, stored against
    their account, and it is what the dashboard renders too. Adding or removing
    here writes through to the database. */
@@ -103,9 +105,7 @@ const feeOf = p => (p.feeModel === 'free' || p.feeModel === 'package')
   ? p.feeModel : (p.isPublic ? 'package' : 'free');
 
 function myCgpa() {
-  const raw = String(((typeof DB !== 'undefined' && DB.profile) || {}).d_cgpa || '').trim();
-  const n = Number(raw.replace(/[^0-9.]/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return cgpaTenOf((typeof DB !== 'undefined' && DB.profile) || {});
 }
 function clears(p) {
   const mine = myCgpa(), bar = barOf(p);

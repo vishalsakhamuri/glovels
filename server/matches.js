@@ -1,4 +1,5 @@
 'use strict';
+const GRADES = require('./grades.js');
 /**
  * Picking universities for somebody, without a person in the room.
  *
@@ -121,7 +122,14 @@ function wants(profile) {
     field: [p.g_field, p.g_field2, p.g_field3, p.g_field4, p.g_field5]
       .map(x => String(x || '').trim()).filter(Boolean).join(' '),
     intake: String(p.g_intake || '').trim(),
-    cgpa: Number(String(p.d_cgpa || '').replace(/[^\d.]/g, '')) || 0,
+    /* ON THE TEN-POINT SCALE the bars are written on, not as typed.
+     *
+     * This read d_cgpa raw. Two faults came out of that: a profile carrying an
+     * impossible 47.9 cleared every bar on the site, and a student marked out
+     * of 4 with a 3.6 — a first — was read as 3.6 out of 10 and quietly failed
+     * every gate while their profile said it was complete. The maximum has
+     * been on the profile since the German-grade patch and nothing read it. */
+    cgpa: GRADES.cgpaTen(p) || 0,
   };
 }
 

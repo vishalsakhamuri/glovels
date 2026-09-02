@@ -27,6 +27,7 @@ const SHEET = require('./sheet.js');
 const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
+const GRADES = require('./grades.js');
 const PLANS = require('./plans.js');
 const MONEY = require('./money.js');
 const MATCHES = require('./matches.js');
@@ -839,6 +840,19 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   route('PUT', '/api/profile', async (req, res, s) => {
     const b = await readJson(req);
     const prof = withFullName(b.profile || {});
+    /* REFUSED, not clamped, and not stored.
+     *
+     * A CGPA of 47.9 was accepted and then compared against every programme's
+     * bar, so the student was shown 174 of 174 as open to them. Rewriting it
+     * to 10 would be worse than refusing: it stores a grade they never got and
+     * nobody ever finds out where it came from. */
+    const wrong = GRADES.problems(prof);
+    if (wrong.length) {
+      return json(res, 422, {
+        error: wrong[0].why,
+        fields: wrong.map(w => ({ field: w.field, why: w.why })),
+      });
+    }
     db.putProfile(s.id, prof);
     /* Name and phone typed into the profile are the student's own record, so
        they update the account too rather than living in two places. */
@@ -2766,6 +2780,17 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          differently the two screens would disagree about what somebody is
          called, which is the whole reason this field list is shared. */
       const prof = withFullName((b && typeof b.profile === 'object' && b.profile) || {});
+      /* Same bounds as the student's own save. An agency typing a CGPA of 47.9
+         into a student's record corrupts that student's matching exactly as
+         thoroughly, and it is harder to notice because the student never saw
+         the form. */
+      const wrong = GRADES.problems(prof);
+      if (wrong.length) {
+        return json(res, 422, {
+          error: wrong[0].why,
+          fields: wrong.map(w => ({ field: w.field, why: w.why })),
+        });
+      }
       db.putProfile(st.id, prof);
       /* Name and phone typed into the profile are the student's own record, so
          they update the account too rather than living in two places. */
@@ -5926,6 +5951,48 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
           error: 'That would leave the ' + key + ' section of the home page with nothing in it. '
                + 'If that is what you want, remove the section instead.',
         });
+      }
+
+      /* A price that is not a price.
+       *
+       * `fPrice` was a text box and the cleaner turned anything unreadable
+       * into 0 — so -9999 and "abc-sudhin" both stored ₹0 and left the package
+       * ON SALE at nothing. Silently. The cleaner cannot refuse, because it
+       * returns a value rather than an answer, so the refusal is here, where
+       * there is somebody to tell.
+       *
+       * Zero is only wrong for something marked as selling. A free service is
+       * free and says so with its own flag. */
+      if (grouped) {
+        const wrong = [];
+        for (const x of ((value && value.items) || [])) {
+          const raw = String(x.priceInr == null ? '' : x.priceInr).trim();
+          const name = String(x.title || x.name || x.id || 'That item');
+          if (raw && !/^\s*-?\d+(\.\d+)?\s*$/.test(raw.replace(/[,₹\s]/g, ''))) {
+            wrong.push([name, '“' + raw.slice(0, 20) + '” is not a number.']);
+            continue;
+          }
+          const n = Number(raw.replace(/[^0-9.\-]/g, ''));
+          if (raw && Number.isFinite(n) && n < 0) {
+            wrong.push([name, 'A price cannot be negative. You entered ' + n + '.']);
+            continue;
+          }
+          /* Zero is a real answer for a SERVICE — twelve of them are priced on
+             request and say so. It is never a real answer for a package that
+             is marked as selling: that is a package on the site at nothing. */
+          if (key === 'packages' && YES(x.sell) && (!raw || n === 0)) {
+            wrong.push([name, 'It is marked as something people pay for, so it '
+              + 'needs a price above zero — or turn selling off and it becomes '
+              + 'a free listing.']);
+          }
+        }
+        if (wrong.length) {
+          return json(res, 422, {
+            error: '“' + wrong[0][0] + '”: ' + wrong[0][1]
+              + (wrong.length > 1 ? ' (and ' + (wrong.length - 1) + ' more)' : ''),
+            fields: wrong.map(([n, why]) => ({ name: n, why })),
+          });
+        }
       }
 
       const saved = content.save(key, value, s.name);

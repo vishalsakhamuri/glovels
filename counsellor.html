@@ -1466,6 +1466,15 @@ async function bell(me) {
 })();
 
 
+function cgpaTenOf(p) {
+  const raw = Number(String((p || {}).d_cgpa || '').replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  const mx = Number(String((p || {}).d_max || '').replace(/[^0-9.]/g, ''));
+  const max = Number.isFinite(mx) && mx > 0 && mx <= 100 ? mx : 10;
+  if (raw > max) return null;               /* impossible on their own scale */
+  return Math.round(raw / max * 10 * 100) / 100;
+}
+
 let STUDENTS = [];
 /* The record currently open, so the row renderer can read this student's
    application stages without every caller threading them through. */
@@ -1881,9 +1890,7 @@ function barOf(p) {
 }
 /* The student's own, off the record already open on this screen. */
 function caseCgpa() {
-  const raw = String(((CASE && CASE.profile) || {}).d_cgpa || '').trim();
-  const n = Number(raw.replace(/[^0-9.]/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return cgpaTenOf((CASE && CASE.profile) || {});
 }
 
 let uniTimer = null;

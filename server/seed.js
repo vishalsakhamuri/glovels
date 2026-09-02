@@ -696,7 +696,29 @@ function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
      in how they got there. */
   const pub = catalogue.filter(p => p.isPublic).slice(0, 5);
   const priv = catalogue.filter(p => !p.isPublic).slice(0, 2);
-  const chosen = pub.concat(priv);
+  let chosen = pub.concat(priv);
+
+  /* The last two entries take the UNSUBMITTED stages below, and an unsubmitted
+     application is the only thing that raises a deadline alert. So those two
+     have to sit on programmes whose intake is actually still open.
+     
+     They were the first two rows in the catalogue, which was fine the week
+     this was written and is not fine now: their deadlines went by, the demo
+     database stopped producing a single deadline alert, and the office's
+     needs-doing list was empty in every demonstration of it. Picked by date
+     instead, so it stays true as the year moves. */
+  const soonest = p => {
+    const d = (p.intakes || []).map(i => i && i.deadline).filter(Boolean)
+      .map(x => (new Date(x) - Date.now()) / 86400000)
+      .filter(n => n >= 1).sort((a, b) => a - b)[0];
+    return d == null ? Infinity : d;
+  };
+  const open = catalogue.filter(p => soonest(p) <= 45)
+    .sort((a, b) => soonest(a) - soonest(b)).slice(0, 2);
+  if (open.length === 2) {
+    const ids = new Set(open.map(p => String(p.id)));
+    chosen = chosen.filter(p => !ids.has(String(p.id))).slice(0, 5).concat(open);
+  }
   /* The office's list — the same shape a purchase hands over. The last two go
      in as the student's own interest, so the demo account shows both lists
      rather than an empty one and a full one. */
