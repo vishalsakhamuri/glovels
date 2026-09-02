@@ -56,7 +56,10 @@ function placeholderPdf(title) {
 }
 
 const PROFILE = {
-  fullName: 'Vishal Sakhamuri', dob: '2002-04-11', gender: 'Male', city: 'Hyderabad',
+  firstName: 'Vishal', lastName: 'Sakhamuri', fullName: 'Vishal Sakhamuri',
+  dob: '2002-04-11', gender: 'Male', pob: 'Hyderabad', city: 'Hyderabad',
+  addr1: 'Plot 60, 1st Floor', state: 'Telangana', pin: '500081',
+  addr_country: 'India',
   phone: '98765 43210', email: DEMO_EMAIL,
   x_board: 'CBSE', x_year: '2018', x_score: '88%', x_school: 'Delhi Public School',
   xii_board: 'CBSE', xii_year: '2020', xii_score: '91%', xii_stream: 'Science (PCM)',

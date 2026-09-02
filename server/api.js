@@ -805,12 +805,34 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
 
   route('GET', '/api/state', async (req, res, s) => json(res, 200, stateFor(s)));
 
+  /**
+   * One name, from two boxes.
+   *
+   * The profile form asks for a first name and a last name separately, because
+   * every university form, every visa form and every airline ticket does — and
+   * because splitting one "full name" ourselves means guessing which half is
+   * the surname, which for a great many Indian names is the wrong way round.
+   *
+   * `fullName` is still the field everything else reads: the account name, the
+   * matcher, the alerts, the counsellor's caseload, the partner portal. It is
+   * composed here so none of them had to change, and so a record written
+   * before the split — which has fullName and neither of the halves — is left
+   * exactly as it is rather than being blanked by a form that did not ask.
+   */
+  const withFullName = p => {
+    const first = String(p.firstName || '').trim();
+    const last = String(p.lastName || '').trim();
+    if (!first && !last) return p;
+    return Object.assign({}, p, { fullName: [first, last].filter(Boolean).join(' ') });
+  };
+
   route('PUT', '/api/profile', async (req, res, s) => {
     const b = await readJson(req);
-    db.putProfile(s.id, b.profile || {});
+    const prof = withFullName(b.profile || {});
+    db.putProfile(s.id, prof);
     /* Name and phone typed into the profile are the student's own record, so
        they update the account too rather than living in two places. */
-    const p = b.profile || {};
+    const p = prof;
     if (p.fullName || p.phone) {
       db.updateStudent(s.id, p.fullName || s.name,
         validPhone(p.phone) ? '+91' + tenDigits(p.phone) : s.phone);
@@ -2719,7 +2741,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const st = theirStudent(s, m[1]);
       if (!st) return json(res, 404, { error: 'No such student' });
       const b = await readJson(req);
-      const prof = (b && typeof b.profile === 'object' && b.profile) || {};
+      /* The same two-boxes-into-one rule as the student's own save. An agency
+         fills in the same record on a student's behalf; if it composed a name
+         differently the two screens would disagree about what somebody is
+         called, which is the whole reason this field list is shared. */
+      const prof = withFullName((b && typeof b.profile === 'object' && b.profile) || {});
       db.putProfile(st.id, prof);
       /* Name and phone typed into the profile are the student's own record, so
          they update the account too rather than living in two places. */

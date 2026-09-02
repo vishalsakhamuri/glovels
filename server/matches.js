@@ -111,7 +111,15 @@ function wants(profile) {
     level: match1(LEVEL, p.g_level),
     /* `undefined` means they did not say; `null` means they said "no ceiling". */
     ceiling: ceilingOf(p.b_total),
-    field: String(p.g_field || '').trim(),
+    /* All five boxes, joined.
+     *
+     * The profile asks for up to five fields of study now — a student open to
+     * Data Science, AI and Computer Science was being made to pick one for us
+     * to search on. score() splits this into words and counts any that a
+     * programme shares, so joining them means a match on ANY of the five
+     * counts, which is exactly what offering five boxes promised. */
+    field: [p.g_field, p.g_field2, p.g_field3, p.g_field4, p.g_field5]
+      .map(x => String(x || '').trim()).filter(Boolean).join(' '),
     intake: String(p.g_intake || '').trim(),
     cgpa: Number(String(p.d_cgpa || '').replace(/[^\d.]/g, '')) || 0,
   };

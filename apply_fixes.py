@@ -7626,6 +7626,31 @@ def nav_unread():
 
 nav_unread()
 
+
+# ------------------------------------- signing up asks for a name, not a deed
+#
+# "When signing up in the form mention only name. don't mention full name as
+# per passport."
+#
+# He is right, and the reason is that the two boxes are asking for different
+# things at different moments. Signing up is somebody giving us a name to call
+# them by, thirty seconds after landing on the site. "Your name as per
+# passport" makes that a document check — it sends them to find a passport
+# before they have an account, and a passport is not what this box is for.
+#
+# The profile asks properly, in two boxes, where the passport is genuinely the
+# reference. Asking twice, once casually and once exactly, is the right way
+# round; asking exactly at the door is how a signup gets abandoned.
+patch(
+    "login.html",
+    "signing up asks for a name",
+    """          <label>Full name</label>
+          <input type="text" id="lName" autocomplete="name" placeholder="Your name as per passport" />""",
+    """          <label>Your name</label>
+          <input type="text" id="lName" autocomplete="name" placeholder="Vishal Sakhamuri" />""",
+    marker='<label>Your name</label>',
+)
+
 # ---------------------------------------------------------------------------
 # The app a student installs.
 #

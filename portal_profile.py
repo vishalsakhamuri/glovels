@@ -93,16 +93,24 @@ SCRIPT = r"""
    stop agreeing. */
 """ + SECTIONS_JS + r"""
 const DEMO = {
-  fullName:'Vishal Sakhamuri', dob:'2002-04-11', gender:'Male', city:'Hyderabad',
+  firstName:'Vishal', lastName:'Sakhamuri',
+  dob:'2002-04-11', gender:'Male', pob:'Hyderabad',
   phone:'98765 43210', email:'student@glovels.com',
-  x_board:'CBSE', x_year:'2018', x_score:'88%', x_school:'Delhi Public School',
-  xii_board:'CBSE', xii_year:'2020', xii_score:'91%', xii_stream:'Science (PCM)',
+  addr1:'Plot 60, 1st Floor', addr2:'Behind Big C Mobiles, Madhapur',
+  city:'Hyderabad', state:'Telangana', pin:'500081', addr_country:'India',
+  x_board:'CBSE — Central Board of Secondary Education',
+  x_year:'2018', x_score:'88%', x_school:'Delhi Public School',
+  xii_board:'CBSE — Central Board of Secondary Education',
+  xii_year:'2020', xii_score:'91%', xii_stream:'Science (PCM)',
   d_uni:'JNTU Hyderabad', d_course:'B.Tech Electronics & Communication', d_dur:'4 years',
-  d_year:'2024', d_cgpa:'7.6', d_backlog:'None',
+  d_start:'2020', d_year:'2024', d_cgpa:'7.6', d_backlog:'None',
   e_test:'IELTS', e_score:'7.0', e_date:'2026-03-14', e_low:'6.5',
+  e_listen:'7.5', e_read:'7.5', e_write:'6.5', e_speak:'7.0',
   a_test:'Not required', a_score:'', a_date:'',
   w_has:'Yes — internship', w_emp:'Qualcomm India', w_role:'Intern, Embedded Systems', w_months:'6',
-  g_level:"Master's", g_field:'Data Science', g_country:'Germany', g_intake:'Winter 2026',
+  g_level:"Master's", g_field:'Data Science',
+  g_field2:'Artificial Intelligence', g_field3:'Computer Science',
+  g_country:'Germany', g_intake:'Winter 2026',
   g_why:'I built a fault-detection model for my final-year project and want to take it further where the research and the industry sit close together.',
   b_total:'Under ₹10 Lakhs', b_fund:'A mix', b_loan:'Yes', b_spons:'Parent',
   r1_name:'Prof. S. Raghavan', r1_role:'Head of Department, ECE', r1_mail:'raghavan@jntuh.ac.in',
@@ -111,6 +119,22 @@ const DEMO = {
 };
 
 DB.profile = DB.profile || {};
+
+/* A record written before the name was split.
+ *
+ * It has fullName and neither half, so the two boxes would open empty and the
+ * profile would read as less complete than it is — and saving would then
+ * compose a name from two blanks. Split once, on the LAST space, because a
+ * middle name belongs with the given name far more often than it belongs with
+ * the surname. Nothing is written back until they save, so a split we got
+ * wrong is one they can correct in the box in front of them. */
+(function () {
+  const p = DB.profile;
+  if ((p.firstName || p.lastName) || !p.fullName) return;
+  const bits = String(p.fullName).trim().split(/\s+/);
+  p.lastName = bits.length > 1 ? bits.pop() : '';
+  p.firstName = bits.join(' ');
+})();
 let cur = 0;
 
 /* A field that does not apply to you must not hold your profile below 100%.
