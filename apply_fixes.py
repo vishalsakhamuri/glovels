@@ -5185,13 +5185,11 @@ def a_product_not_a_premises():
           "with an office in Munich.</p>",
           "<h1>About Glovels</h1><p>" + lede + "</p>")
 
-    desc = ("Glovels is an online service for studying and working abroad: match "
-            "yourself against 160,000 programmes, see the fees, and pick a service "
-            "from ₹99 to a full end-to-end package.")
-    old = ("Glovels is a study and work abroad consultancy in Hyderabad, specialising "
-           "in public university admissions in Germany and Europe.")
-    patch("about-us.html", "and its search description says what it is",
-          'content="' + old + '"', 'content="' + desc + '"', count=2)
+    # The search description used to be rewritten here as well. page_heads()
+    # at the foot of this file now owns the title and the description of every
+    # public page, on all six tags that carry them — so a second writer for one
+    # of those tags on one page is a patch whose anchor disappears the moment
+    # the sweep runs, which is exactly what it did.
 
 
 a_product_not_a_premises()
@@ -8316,6 +8314,242 @@ def link_previews():
 
 
 link_previews()
+
+
+# ------------------------------------------- the head of every public page
+#
+# Two faults on fifteen live pages, and a third on twenty-one of them.
+#
+#   1. THE COMPANY NAME. Fourteen titles still said "Glovels Overseas
+#      Consultants". That is not the registered name — patch 35 changed it
+#      everywhere else and these were hand-written pages the sweep did not
+#      reach. It is the first thing a student reads in a search result and the
+#      only thing they read in a browser tab.
+#
+#   2. A DOUBLE-ESCAPED AMPERSAND. `&amp;amp;` in three titles, three
+#      descriptions and two og:titles, so the tab and the Google result read
+#      "IELTS, TOEFL &amp; PTE". The body of those pages is correct; only the
+#      head was escaped twice.
+#
+#   3. THE DESCRIPTION WAS THE HERO LINE. Somebody copied the sentence under
+#      the H1 into the meta description on every one of these pages, so they
+#      run 43 to 76 characters against the 155-165 Google prints. A description
+#      that short is not shown at all — Google writes its own from whatever
+#      sentence it likes, which on a page of headings is usually a heading.
+#      Patch 80 put that window in front of the blog writer; these are the
+#      pages nobody is going to open the blog editor for.
+#
+# Written out per page rather than patched line by line, because all six tags
+# on a page have to agree with each other and a description edited in one of
+# them and not the others is the fault this is fixing.
+
+MARKETING_HEADS = {
+    "about-us": (
+        "About Glovels — Study and Work Abroad, Run Online",
+        "Glovels matches you against 160,000 programmes, shows the real fees, and "
+        "runs the application, funding and visa from one account. From ₹99 to a "
+        "full package."),
+    "blog": (
+        "Blog — Study Abroad Guides for Indian Students",
+        "Guides on German public universities, blocked accounts, CGPA and "
+        "German-grade cut-offs, deadlines and visas — the questions Indian "
+        "students actually ask us."),
+    "careers": (
+        "Careers at Glovels — Counsellors and Admissions Writers",
+        "Open roles for counsellors, admissions writers and language trainers at "
+        "Glovels in Hyderabad. What each job involves, how we hire, and how to "
+        "apply to one."),
+    "glossary": (
+        "Study Abroad Glossary — APS, ECTS, Sperrkonto, VPD",
+        "APS, ECTS, Sperrkonto, VPD, uni-assist and the rest of the words nobody "
+        "ever explains — grouped by admission, tests, money and visas, in plain "
+        "English for you."),
+    "language-french": (
+        "French Classes A1 to B2 for Campus France Applicants",
+        "DELF-aligned French from A1 to B2, live with a trainer, one level at a "
+        "time. Which exam Campus France expects, what each level gives you, and "
+        "how classes run."),
+    "language-german": (
+        "German Classes A1 to B2 — Goethe and telc Aligned",
+        "Goethe and telc aligned German from A1 to B2, live with a trainer, one "
+        "level at a time. What each level unlocks for study, work and the visa, "
+        "and how it runs."),
+    "migrate-australia-pr": (
+        "Australia PR for Indians — Skilled Migration Visas",
+        "The three skilled visas, the occupation lists, the skills assessment, EOI "
+        "and state nomination — where the points come from and what each stage "
+        "really asks."),
+    "migrate-canada-pr": (
+        "Canada PR from India — Express Entry and the CRS Score",
+        "Express Entry and the CRS, the three federal categories, Provincial "
+        "Nominee Programs, ECA and language tests — and keeping a profile live "
+        "across the draws."),
+    "refer": (
+        "Refer a Friend to Glovels and Get Paid for It",
+        "Referrals are our largest source of admissions, so we pay for them. What "
+        "you earn, what counts as a referral, when it is paid to you, and the "
+        "rules in full."),
+    "test-gre-gmat-sat": (
+        "GRE, GMAT and SAT Coaching — Which Test You Need",
+        "The GRE, the GMAT Focus Edition and the Digital SAT are three tests for "
+        "three applications. Which one your course wants, what changed, and how we "
+        "teach it."),
+    "test-ielts-toefl-pte": (
+        "IELTS, TOEFL and PTE Coaching with Weekly Mock Tests",
+        "Band-targeted coaching for IELTS, PTE Academic and TOEFL iBT, with weekly "
+        "full-length mocks. Which test your university accepts, and how we teach "
+        "each one."),
+    "work-medical-pg-germany": (
+        "Medical PG in Germany for Indian Doctors — Approbation",
+        "Your MBBS is recognised, but you need Approbation. What the authority "
+        "asks for, the order it happens in, the language you need, and the paid "
+        "residency route."),
+    "work-nursing-germany": (
+        "Nursing Jobs in Germany for Indian Nurses — Anerkennung",
+        "Recognition, B2 German and the work visa, in the order they have to "
+        "happen. What Anerkennung asks of an Indian nursing degree, and where we "
+        "do the work for you."),
+    "work-opportunity-card": (
+        "Germany Opportunity Card — Points, Rules and Costs",
+        "The points-based route to look for work in Germany on the ground. The two "
+        "ways to qualify, the occupations in demand, what it costs, and how long "
+        "it all takes."),
+    "work-pharma-germany": (
+        "Pharmacist Jobs in Germany — Approbation for Indians",
+        "What Approbation requires of an Indian pharmacy degree, the "
+        "Fachsprachprüfung in detail, what happens if your curriculum does not "
+        "match, and the visa route."),
+    "index": (
+        "Study Abroad from Hyderabad — Public University Admissions",
+        "Glovels matches Indian students to public universities abroad where "
+        "tuition is ₹0–₹3L, then runs the applications, the funding and the visa. "
+        "First session free."),
+    # The seven destination pages all ran to 70-83 characters, so every one of
+    # them was cut off mid-phrase in a search result — on the pages that carry
+    # the most search traffic on the site. "for Indian Students" became "for
+    # Indians", which is what a student searching types anyway.
+    #
+    # And their descriptions ended "with 1 programmes we track", which is a
+    # plural fault AND a sentence advertising that we have one. The count is
+    # gone; what the page actually answers is in its place.
+    "study-in-canada": (
+        "Study in Canada for Indians — Costs, CGPA & Deadlines",
+        "What it takes for an Indian student to study in Canada: CGPA cut-offs, "
+        "proof of funds, living costs, work rights while studying, and the intake "
+        "deadlines."),
+    "study-in-germany": (
+        "Study in Germany for Indians — Costs, CGPA & Deadlines",
+        "What it takes for an Indian student to study in Germany: German-grade and "
+        "CGPA cut-offs, the blocked account, living costs, work rights and the "
+        "deadlines."),
+    "study-in-ireland": (
+        "Study in Ireland for Indians — Costs, CGPA & Deadlines",
+        "What it takes for an Indian student to study in Ireland: CGPA cut-offs, "
+        "proof of funds, living costs, work rights while studying, and the intake "
+        "deadlines."),
+    "study-in-italy": (
+        "Study in Italy for Indians — Costs, CGPA & Deadlines",
+        "What it takes for an Indian student to study in Italy: CGPA cut-offs, "
+        "proof of funds, living costs, work rights while studying, and the intake "
+        "deadlines."),
+    "study-in-poland": (
+        "Study in Poland for Indians — Costs, CGPA & Deadlines",
+        "What it takes for an Indian student to study in Poland: CGPA cut-offs, "
+        "proof of funds, living costs, work rights while studying, and the intake "
+        "deadlines."),
+    "study-in-spain": (
+        "Study in Spain for Indians — Costs, CGPA & Deadlines",
+        "What it takes for an Indian student to study in Spain: CGPA cut-offs, "
+        "proof of funds, living costs, work rights while studying, and the intake "
+        "deadlines."),
+    "study-in-united-kingdom": (
+        "Study in the UK for Indians — Costs, CGPA & Deadlines",
+        "What it takes for an Indian student to study in the UK: CGPA cut-offs, "
+        "proof of funds, living costs, work rights while studying, and the intake "
+        "deadlines."),
+}
+
+# The legal pages keep the registered company name in the title — that is the
+# point of them — and get a description that says what is actually inside,
+# rather than the page's own name said twice.
+LEGAL_HEADS = {
+    "terms": (
+        "Terms of Use",
+        "The terms you accept when you buy a Glovels service: what we do, what we "
+        "do not promise, how payment and delivery work, and how a dispute is "
+        "handled."),
+    "privacy": (
+        "Privacy Policy",
+        "What Glovels collects, why, who can see it, how long it is kept and how "
+        "to have it deleted — covering your documents, your profile and your "
+        "payments."),
+    "refunds": (
+        "Refund &amp; Cancellation",
+        "When a Glovels service can be cancelled, what is refundable at each stage "
+        "of it, how long a refund takes to reach you, and exactly how to ask us "
+        "for one of them."),
+    "disclaimers": (
+        "Disclaimers",
+        "What Glovels can and cannot promise: admission and visa decisions are "
+        "made by universities and consulates, and no timeline or outcome is "
+        "guaranteed."),
+    "grievance": (
+        "Grievance Redressal",
+        "How to raise a complaint with Glovels, who handles it, how long we take "
+        "to respond, and where to escalate if our answer does not resolve it for "
+        "you."),
+}
+
+
+def _set_meta(html, pattern, replacement):
+    """Replace a head tag if it is there, and report whether it was."""
+    new, n = re.subn(pattern, lambda m: replacement, html, count=1)
+    return new, n
+
+
+def page_heads():
+    """One title and one description per page, on all six tags that carry them."""
+    n = 0
+    jobs = [(k, t + " | Glovels", d) for k, (t, d) in MARKETING_HEADS.items()]
+    jobs += [(k, t + " | Glovels Consultants Private Limited", d)
+             for k, (t, d) in LEGAL_HEADS.items()]
+
+    for name, title, desc in jobs:
+        f = HERE / (name + ".html")
+        if not f.exists():
+            sys.exit(f"FAILED {name}.html: page missing — re-check this patch")
+        t = f.read_text(encoding="utf-8")
+        before = t
+
+        # The description carries an em dash and a rupee sign and nothing that
+        # needs escaping; the title may carry &amp; and must keep exactly one
+        # level of it. Quotes would end the attribute, so neither may hold one.
+        if '"' in title or '"' in desc:
+            sys.exit(f"FAILED {name}.html: a quote in a head tag would end the attribute")
+
+        t, _ = _set_meta(t, r"<title>.*?</title>", f"<title>{title}</title>")
+        t, _ = _set_meta(t, r'<meta name="description" content="[^"]*">',
+                         f'<meta name="description" content="{desc}">')
+        t, _ = _set_meta(t, r'<meta property="og:title" content="[^"]*">',
+                         f'<meta property="og:title" content="{title}">')
+        t, _ = _set_meta(t, r'<meta property="og:description" content="[^"]*">',
+                         f'<meta property="og:description" content="{desc}">')
+        t, _ = _set_meta(t, r'<meta name="twitter:title" content="[^"]*">',
+                         f'<meta name="twitter:title" content="{title}">')
+        t, _ = _set_meta(t, r'<meta name="twitter:description" content="[^"]*">',
+                         f'<meta name="twitter:description" content="{desc}">')
+
+        if t != before:
+            write(f, t)
+            n += 1
+
+    if n:
+        applied.append(f"{n} page(s): the title, and a description Google will print")
+    else:
+        skipped.append("every page: the title, and a description Google will print")
+
+
+page_heads()
 
 
 if __name__ == "__main__":

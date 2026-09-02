@@ -19,10 +19,19 @@ real and the build reported success anyway.
      loadEnquiries() {` is what a paste looks like when it lands inside another
      function and swallows the rest of it — chat.html had four. It parses.
 
+  4. The head of an indexable page is one somebody would click. A title in the
+     window Google prints, a description in the window Google prints, no
+     `&amp;amp;` — the tab said "IELTS, TOEFL &amp; PTE" on three pages — and
+     the title, og:title and twitter:title all saying the same thing. Every one
+     of these was wrong on a live page and every one of them is invisible from
+     inside the site: nothing renders differently, the build passes, and the
+     only place it shows is a search result nobody at Glovels is looking at.
+
 Run on its own:  python3 check_pages.py
 Or from a build: check_pages.run() raises SystemExit on the first failure.
 """
 
+import html as _html
 import pathlib
 import re
 import subprocess
@@ -37,6 +46,104 @@ BLOCK = re.compile(
     r'([^>]*)>([\s\S]*?)</script>')
 
 AWAITED_DECL = re.compile(r'await\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(')
+
+# The windows Google actually prints. Not maximums: under them the space is
+# wasted, over them the text is cut off mid-word. Generous at the bottom
+# because a short legal-page title is a deliberate choice, and hard at the top
+# because 70 characters is truncated whoever wrote it.
+TITLE_MIN, TITLE_MAX = 20, 70
+DESC_MIN, DESC_MAX = 120, 175
+
+TAG = {
+    'title': r'<title>(.*?)</title>',
+    'description': r'<meta name="description" content="(.*?)"',
+    'og:title': r'<meta property="og:title" content="(.*?)"',
+    'og:description': r'<meta property="og:description" content="(.*?)"',
+    'twitter:title': r'<meta name="twitter:title" content="(.*?)"',
+    'twitter:description': r'<meta name="twitter:description" content="(.*?)"',
+}
+
+
+# The pages the server never lets a crawler index — PORTAL_PAGES in serve.js.
+# Kept in step by name, because a copy of a list is a list that drifts; if one
+# of these stops being a portal page it gains a head check, which is right.
+NOT_INDEXED = {
+    'dashboard', 'profile', 'documents', 'messages', 'applications',
+    'universities', 'scholarships', 'visa', 'admin', 'counsellor', 'chat',
+    'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404',
+}
+
+
+def head_problems(src, slug=''):
+    """What a search result would show, and whether anybody would click it.
+
+    Skipped for a page that says noindex — a sign-in screen has nothing to
+    rank and does not need a hundred and sixty characters about itself — and
+    for the portal screens, which are behind a login.
+    """
+    # NOT skipped on the noindex in the file.
+    #
+    # Every static page ships with `noindex,nofollow` in its head — right for a
+    # preview build — and serve.js flips it to index,follow on the live site,
+    # per page, at serve time. So the tag on disk says nothing about whether
+    # Google will read the page, and a check that trusted it would skip every
+    # page on the site. That is what the first version of this did.
+    if slug in NOT_INDEXED or 'p-nav' in src:
+        return []                       # behind a login; nothing to rank
+    # A template, not a page: its head is holes the server fills in per
+    # request, and measuring "{{HEAD_TITLE}}" against what Google prints is
+    # measuring the wrong thing.
+    if '{{' in src:
+        return []
+
+    got, raw = {}, {}
+    for name, pattern in TAG.items():
+        m = re.search(pattern, src, re.S)
+        if m:
+            # Raw first, for the double-escape check below, then unescaped for
+            # the lengths — `&amp;` is five characters in the file and one in a
+            # search result, and Google counts the one.
+            raw[name] = re.sub(r'\s+', ' ', m.group(1)).strip()
+            got[name] = _html.unescape(raw[name])
+
+    out = []
+    if 'title' not in got:
+        return ['no <title> — the tab and the search result both show the URL']
+    if 'description' not in got:
+        out.append('no meta description — Google writes its own, usually from a heading')
+
+    for name, text in raw.items():
+        # Escaped twice. The body of the page is right and the head reads
+        # "IELTS, TOEFL &amp; PTE" in the tab and in the search result.
+        if '&amp;amp;' in text or '&amp;lt;' in text or '&amp;gt;' in text:
+            out.append(f'{name} is escaped twice — it reads "{text[:60]}"')
+
+    t = got['title']
+    if not TITLE_MIN <= len(t) <= TITLE_MAX:
+        out.append(f'title is {len(t)} characters, outside {TITLE_MIN}-{TITLE_MAX} — "{t[:70]}"')
+    d = got.get('description', '')
+    if d and not DESC_MIN <= len(d) <= DESC_MAX:
+        out.append(f'description is {len(d)} characters, outside {DESC_MIN}-{DESC_MAX} '
+                   f'— a description outside that window is not the one shown')
+
+    # One page, one claim. A description edited in the meta tag and not in
+    # og:description is a link preview saying something the page stopped
+    # saying, and nobody at Glovels ever sees the preview.
+    for pair in (('title', 'og:title'), ('title', 'twitter:title'),
+                 ('description', 'og:description'),
+                 ('description', 'twitter:description')):
+        a, b = pair
+        if a in got and b in got and got[a] != got[b]:
+            out.append(f'{b} does not match the {a} — "{got[b][:50]}"')
+
+    # The company was renamed in patch 35. Fourteen hand-written pages kept the
+    # old name in their title for months, where only a stranger would see it.
+    for name, text in got.items():
+        if 'Overseas Consultants' in text:
+            out.append(f'{name} still says "Glovels Overseas Consultants", '
+                       f'which is not the company\'s name')
+
+    return out
 
 
 def top_level_functions(src):
@@ -121,6 +228,8 @@ def check(path, use_node=True):
     for name in sorted({x for x in declared if declared.count(x) > 1}):
         out.append(f'{name}() is declared {declared.count(name)} times in the '
                    f'page scope — the last one wins and the others are dead')
+
+    out += head_problems(src, path.stem)
 
     return out
 
