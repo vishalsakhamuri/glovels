@@ -5560,7 +5560,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       });
     }
 
-    const plan = { create: [], update: [], unchanged: [], rejected: [], warned: 0, unknownColumns: unknown };
+    const plan = { create: [], update: [], unchanged: [], rejected: [], warned: 0,
+      unknownColumns: unknown, notes: [] };
 
     objects.forEach((o, n) => {
       const line = n + 2;                        // +1 header, +1 for 1-based rows
@@ -5569,6 +5570,35 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         return '';
       };
       const raw = key => String(g(key) || '').trim();
+
+      /* A number the sheet actually carries, or a complaint about it.
+       *
+       * Every numeric column here was `Number(...) || 0` wrapped in a clamp, so
+       * a fee of "not-a-number" became 0 — which on this site means FREE — a
+       * CGPA of 99 became 10 and a fit of 900 became 100. Three requirements
+       * invented by arithmetic, on a preview that mentioned none of them and
+       * reported "0 CANNOT IMPORT".
+       *
+       * Same rule as a student's own profile: a number outside its range is
+       * refused and quoted back, never rewritten. A counsellor who typed 99
+       * meant something; 10 is not it, and neither of us can tell what is. */
+      const numCell = (key, label, lo, hi) => {
+        const s = raw(key);
+        if (!s) return { blank: true };
+        const cleaned = s.replace(/[₹,\s]/g, '');
+        if (!/^-?\d*\.?\d+$/.test(cleaned)) {
+          return { bad: `the ${label} reads "${s.slice(0, 24)}", which is not a number` };
+        }
+        const n = Number(cleaned);
+        if (!Number.isFinite(n) || n < lo || n > hi) {
+          return { bad: `the ${label} is ${n}, and it has to be between ${lo} and ${hi}` };
+        }
+        return { n };
+      };
+      const feeCell = numCell('totalInr', 'total tuition', 0, 100000000);
+      const cgpaCell = numCell('minCgpa', 'minimum CGPA', 0, 10);
+      const fitCell = numCell('fit', 'fit score', 0, 100);
+      const sortCell = numCell('featureSort', 'showcase position', 0, 9999);
       /* `cgpa in force` comes back up with the sheet and is thrown away here.
          It exists so somebody reading the file can see what bar applies; the
          editable column is `minimum cgpa`, and only that one is stored. */
@@ -5589,11 +5619,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
           if (/^(package|paid|charge|charged|chargeable|no|n)$/.test(raw)) return 'package';
           return '';
         })(),
-        totalInr: Number(String(g('totalInr') || '0').replace(/[^0-9.]/g, '')) || 0,
+        totalInr: feeCell.n || 0,
         band: String(g('band') || '').trim(),
         url: g('url'),
-        minCgpa: String(g('minCgpa') || '').trim() === '' ? null
-          : Math.max(0, Math.min(10, Number(String(g('minCgpa')).replace(/[^0-9.]/g, '')) || 0)),
+        minCgpa: cgpaCell.blank ? null : (cgpaCell.n == null ? null : cgpaCell.n),
         /* German grades are written with a comma in the sheet — 2,70 not 2.70 —
            because the workbook they come from is set to a German locale. Parsed
            here rather than asked of the person filling it in: nobody should have
@@ -5606,11 +5635,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
           const n = Number(s.replace(/[^0-9.]/g, ''));
           return Number.isFinite(n) && n >= 1 && n <= 4 ? n : null;
         })(),
-        fit: String(g('fit') || '').trim() === '' ? 0
-          : Math.max(0, Math.min(100, Number(String(g('fit')).replace(/[^0-9.]/g, '')) || 0)),
+        fit: fitCell.blank ? 0 : (fitCell.n || 0),
         active: NO_(g('active')) ? false : true,
         featured: YES(g('featured')),
-        featureSort: Number(String(g('featureSort') || '0').replace(/[^0-9]/g, '')) || 0,
+        featureSort: sortCell.blank ? 0 : (sortCell.n || 0),
         intakes: [[g('i1s'), g('i1d')], [g('i2s'), g('i2d')]]
           .filter(([, d]) => String(d || '').trim())
           .map(([sea, d]) => ({ season: String(sea || 'winter').toLowerCase().trim(), deadline: String(d).trim().slice(0, 10) })),
@@ -5633,8 +5661,35 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         const raw = String(s || '').trim();
         if (raw && !normSeason(raw)) warn.push(`the intake season "${raw}" was read as winter`);
       });
+      /* Not a rejection — patch 79 settled that a mistyped German grade leaves
+         the row's bar unstated rather than inventing one, and a whole row
+         refused over one cell costs more than it saves. But it must not be
+         SILENT: unstated and "no bar published" look identical afterwards, and
+         only the person who typed it can tell them apart. */
+      const rawGpa = String(g('germanGpa') || '').trim();
+      if (rawGpa && draft.germanGpa == null) {
+        warn.push(`the German grade "${rawGpa.slice(0, 16)}" is not between 1.0 and 4.0 `
+          + '— this row will carry no German bar at all');
+      }
 
       const why = [];
+      [feeCell, cgpaCell, fitCell, sortCell].forEach(c => { if (c.bad) why.push(c.bad); });
+
+      /* An id that matches nothing.
+       *
+       * The instruction at the top of the import screen says a row arriving
+       * with an id is treated as a CHANGE to that programme. A row carrying
+       * 888888 was queued as a new one instead, and 888888 became the new
+       * record's primary key — a number nobody chose, in the column every
+       * other screen looks a programme up by.
+       *
+       * There is no safe guess here. Either the office meant to edit a row and
+       * mistyped the id, or they meant to add one and should have left it
+       * blank. Both are one keystroke to fix and neither is ours to pick. */
+      if (draft.id && !db.programme(draft.id)) {
+        why.push(`there is no programme with id ${draft.id} — an id means a change to `
+          + 'an existing row, so leave that cell empty to add a new one');
+      }
       if (!draft.program) why.push('no programme name');
       if (!draft.university) why.push('no university');
       if (!draft.country) why.push('no country code');
@@ -5729,10 +5784,30 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         intakes: asIntakes(clean.intakes),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
-      if (!changed.length) plan.unchanged.push({ line, id: clean.id });
+      /* An unchanged row can still carry a warning, and used to swallow it.
+         Somebody typing a German grade of 25 gets no change — the row already
+         had no bar — and was told nothing at all, which is the exact silence
+         this patch exists to remove. */
+      if (!changed.length) {
+        plan.unchanged.push({ line, id: clean.id,
+          what: clean.university + ' — ' + clean.program, warn });
+      }
       else plan.update.push({ line, id: clean.id, what: clean.university + ' — ' + clean.program, changed, warn });
       if (warn.length) plan.warned++;
     });
+
+    /* Said once, at the top, rather than on each of a hundred rows.
+     *
+     * The year in a deadline is not used: an intake is annual, so the day and
+     * the month are read from the sheet and the year is worked out from today.
+     * That is why a date from a past cycle is not an error here — but somebody
+     * uploading a sheet full of last July's dates should be told that on
+     * purpose rather than left to infer it from the site not complaining. */
+    if (objects.some(o => Object.keys(o).some(h => alias[h] === 'i1d' || alias[h] === 'i2d'))) {
+      plan.notes.push('Deadlines are read as a day and a month. The year is worked out '
+        + 'from today, so a date from a cycle that has ended still reads as the next '
+        + 'one — you do not have to roll 171 dates forward every year.');
+    }
 
     /* Nothing is written unless this is the confirm pass. */
     const body = parsed.fields || {};

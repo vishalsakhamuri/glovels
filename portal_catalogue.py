@@ -587,6 +587,17 @@ function paintPlan(d) {
       'the note under each one says what will happen to it.</p>';
   }
 
+  /* What the importer did that nobody asked it to. Said once, at the top,
+     rather than on each of a hundred rows — the year in a deadline is not
+     used, and a counsellor uploading last cycle's dates should be told that
+     on purpose rather than left to infer it from the site not complaining. */
+  if ((p.notes || []).length) {
+    html += p.notes.map(n =>
+      '<p style="margin:14px 0 0;padding:11px 13px;border-radius:10px;background:#f2f6fd;' +
+      'border:1px solid #cddcf3;font:400 12.6px/1.6 var(--sans);color:var(--navy-800)">' +
+      esc(n) + '</p>').join('');
+  }
+
   if ((p.unknownColumns || []).length) {
     html += '<p style="margin:14px 0 0;padding:11px 13px;border-radius:10px;background:#fffaf0;' +
       'border:1px solid #f0dcb4;font:600 12.6px/1.55 var(--sans);color:#7a5510">' +
@@ -619,6 +630,17 @@ function paintPlan(d) {
       rowList(p.update, r => '<li><span style="flex:1"><b>Row ' + r.line + '</b> &mdash; ' +
         esc(r.what) + '<br><span style="font-size:11.8px;color:var(--muted)">' +
         r.changed.map(esc).join(', ') + '</span>' + warnLine(r) + '</span></li>');
+  }
+
+  /* A row that changes nothing can still carry a warning, and this screen used
+     to swallow it: somebody typing a German grade of 25 into a row that had no
+     bar gets no change, and was told nothing at all. */
+  const quietWarn = (p.unchanged || []).filter(r => (r.warn || []).length);
+  if (quietWarn.length) {
+    html += '<h3 style="font-size:13.6px;margin:20px 0 0">Rows that change nothing, '
+      + 'but are worth a look</h3>' +
+      rowList(quietWarn, r => '<li><span style="flex:1"><b>Row ' + r.line + '</b> &mdash; ' +
+        esc(r.what || '') + warnLine(r) + '</span></li>');
   }
 
   const willWrite = (c.create || 0) + (c.update || 0);
