@@ -1873,6 +1873,9 @@ function paintPackages() {
   const pk = C.packages;
   $('#nPkg').textContent = pk.items.length;
   $('#kPkg').textContent = pk.items.filter(p => p.active !== false).length;
+  /* "CHEAPEST PACKAGE ₹0" was this line reading a broken price. p.sell is now
+     false for one of those, so the figure is the cheapest thing anybody can
+     actually buy — which is what the word cheapest means. */
   const prices = pk.items.filter(p => p.sell && p.active !== false).map(p => p.priceInr);
   $('#kFrom').textContent = prices.length ? inr(Math.min.apply(null, prices)) : '—';
 
@@ -1889,7 +1892,16 @@ function paintPackages() {
           (p.ribbon ? ' <span class="st ok">' + esc(p.ribbon) + '</span>' : '') +
           '<br><span style="font-size:11.6px;color:var(--muted)">' +
           esc(p.desc.slice(0, 90)) + '</span></td>' +
-        '<td>' + (p.sell ? '<b>' + inr(p.priceInr) + '</b>' +
+        /* priceBroken: marked "sold online" with a price that is not a number
+           or is zero. The server has already taken it off sale rather than
+           offer it at nothing, and this row is the only place anybody can put
+           it right — so it says so here, in the Price column, rather than
+           reading "On request" as though somebody had chosen that. */
+        '<td>' + (p.priceBroken
+            ? '<span class="st wait">Not on sale</span>' +
+              '<br><span style="font-size:11.4px;color:#7a2118;font-weight:600">' +
+              'The price is not a number. Edit it, or set this to "Booked on a call".</span>'
+          : p.sell ? '<b>' + inr(p.priceInr) + '</b>' +
             (p.priceNote ? '<br><span style="font-size:11.4px;color:var(--muted)">' +
               esc(p.priceNote) + '</span>' : '')
           : '<span class="st none">On request</span>') + '</td>' +

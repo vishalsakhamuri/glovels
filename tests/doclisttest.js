@@ -32,6 +32,12 @@
  * the rest of the product has stopped using.
  */
 const { chromium } = require('playwright');
+/* A file that IS a PDF, not just named one. The server reads the first bytes
+   now — an .html renamed .pdf used to go into any slot — so a fixture made of
+   one repeated byte is refused for the wrong reason and this suite stops being
+   about the size limit it is here for. */
+const asPdf = bytes => Buffer.concat([
+  Buffer.from('%PDF-1.4\n'), Buffer.alloc(Math.max(0, bytes - 9), 0x41)]);
 const BASE = process.env.BASE || 'http://localhost:8099';
 const S = Date.now();
 let pass = 0, fail = 0;
@@ -125,7 +131,7 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
   await page.click('[data-drop="passport"]');
   const fc = await chooser;
   await fc.setFiles({ name: 'huge-scan.pdf', mimeType: 'application/pdf',
-    buffer: Buffer.alloc(11 * 1024 * 1024, 0x41) });
+    buffer: asPdf(11 * 1024 * 1024) });
   await page.waitForTimeout(900);
   const toast = (await page.textContent('.toast, #toast').catch(() => '')) || '';
   ok(/10 MB/.test(toast),
@@ -136,7 +142,7 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
     e => !e.querySelector('.sl-meta')).catch(() => false);
   ok(stillEmpty, 'and nothing was uploaded');
 
-  const big = Buffer.alloc(11 * 1024 * 1024, 0x41);
+  const big = asPdf(11 * 1024 * 1024);
   const refused = await stu.request.post(BASE + '/api/documents', {
     multipart: { key: 'passport',
       file: { name: 'huge.pdf', mimeType: 'application/pdf', buffer: big } },
@@ -151,7 +157,7 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
   const fine = await stu.request.post(BASE + '/api/documents', {
     multipart: { key: 'consol',
       file: { name: 'grade-card.pdf', mimeType: 'application/pdf',
-        buffer: Buffer.alloc(400 * 1024, 0x42) } },
+        buffer: asPdf(400 * 1024) } },
   });
   ok(fine.ok(), 'and a normal scan goes through — ' + fine.status());
 

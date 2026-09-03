@@ -112,6 +112,7 @@ run intaketest.js   8099
 run importtest.js   8099
 run portaltest.js   8099
 run paneltest.js    8099
+run roundtest.js    8099
 run edittest.js      8099
 run mailtest.js      8081
 run pwresettest.js   8099

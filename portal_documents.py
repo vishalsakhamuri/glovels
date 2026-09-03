@@ -29,12 +29,16 @@ BODY = """
     </div>
 
     <div class="p-sec">
-      <div class="p-sec-head"><h2>Your documents</h2>
-        <a href="#" id="verifyAll">Simulate counsellor verification</a></div>
-      <!-- Said before they choose a file, not after the upload fails. The
-           number is written by the script from the one constant, so the screen
-           and the server can never disagree about it again. -->
-      <p class="doclimit" id="docLimit">PDF, JPG, PNG or Word. One file per
+      <!-- No "Simulate counsellor verification" here. It was a link on this
+           line, it worked, and one press moved every waiting file to verified —
+           on the student's own screen, against their own file, deciding the
+           thing this page defines as somebody else having looked. -->
+      <div class="p-sec-head"><h2>Your documents</h2></div>
+      <!-- Said before they choose a file, not after the upload fails. Both the
+           number and the list of types are written by the script from the one
+           constant each, so the screen and the server can never disagree about
+           them again. -->
+      <p class="doclimit" id="docLimit">PDF, a photo or Word. One file per
         document, up to <b>10 MB</b> each.</p>
       <div class="sl-grid" id="docGrid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))"></div>
 
@@ -196,6 +200,12 @@ async function accept(id, file) {
       + 'scanning them at full size, or save it as a PDF.');
     return;
   }
+  /* And the TYPE, said here for the same reason the size is: so somebody who
+     picked the wrong file is told before waiting for an upload. The server
+     checks the bytes as well, which this cannot — a .txt renamed .pdf gets
+     past a check on the name and never past the one on the server. */
+  const wrong = notOurType(file.name);
+  if (wrong) { toast(wrong, 'bad'); return; }
   if (!ONLINE) { toast('Cannot upload while the server is not running.'); return; }
   const fd = new FormData();
   fd.append('key', id);
@@ -218,7 +228,7 @@ async function accept(id, file) {
 const picker = document.createElement('input');
 picker.type = 'file';
 picker.style.display = 'none';
-picker.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+picker.accept = UPLOAD_ACCEPT;
 document.body.appendChild(picker);
 let pickFor = null;
 picker.addEventListener('change', () => {
@@ -280,25 +290,11 @@ $('#docGrid').addEventListener('click', e => {
     if (ev === 'drop' && e.dataTransfer.files[0]) accept(dz.dataset.drop, e.dataTransfer.files[0]);
   }));
 
-/* Stands in for the counsellor opening each file and confirming it. The server
-   makes the change, because in production this is the counsellor's action on
-   their own screen — not something a student can do to their own file. */
-$('#verifyAll').addEventListener('click', async e => {
-  e.preventDefault();
-  try {
-    const r = await api('POST', '/api/documents/verify-all');
-    DB.docs = r.docs;
-    paint();
-    toast(r.verified ? r.verified + ' document' + (r.verified > 1 ? 's' : '') + ' marked verified.'
-                     : 'Nothing is waiting for review.');
-  } catch (err) { toast('Could not reach the server.'); }
-});
-
-/* Written rather than typed into the markup, so the screen states the limit the
-   uploader actually enforces. */
+/* Written rather than typed into the markup, so the screen states the limit and
+   the types the uploader actually enforces. */
 (function () {
   const el = $('#docLimit');
-  if (el) el.innerHTML = 'PDF, JPG, PNG or Word. One file per document, up to '
+  if (el) el.innerHTML = UPLOAD_SAYS + '. One file per document, up to '
     + '<b>' + MAX_UPLOAD_MB + ' MB</b> each — if a scan is bigger than that, '
     + 'photograph the pages instead.';
 }());

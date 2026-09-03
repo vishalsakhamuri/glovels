@@ -274,6 +274,12 @@ function forgotBox(message){
   /* Signed in, but on a password somebody else chose. The server refuses every
      other endpoint until this is done, so there is nothing else to offer. */
   if (q.get('change') === '1') { (async () => {
+    let PW_MIN = 8;
+    try {
+      const meRes = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      const meBody = await meRes.json();
+      if (meBody && meBody.passwordMin) PW_MIN = meBody.passwordMin;
+    } catch (e) { /* offline: ask for 8, and the server still has the last word */ }
     const card = document.querySelector('.form-card') || document.querySelector('.auth-card') || document.body;
     const next = q.get('next') || 'dashboard.html';
     /* Whether the account is on a password somebody else chose. On those the
@@ -298,7 +304,7 @@ function forgotBox(message){
           '<input type="password" id="cNow" autocomplete="current-password"></div>') +
         '<div class="field"><label for="cNew">Your new password</label>' +
           '<input type="password" id="cNew" autocomplete="new-password" ' +
-          'placeholder="At least 8 characters"></div>' +
+          'placeholder="At least ' + PW_MIN + ' characters"></div>' +
         '<div class="field"><label for="cAgain">Type it again</label>' +
           '<input type="password" id="cAgain" autocomplete="new-password"></div>' +
         '<button type="submit" class="btn-primary" id="cGo">Save and carry on →</button>' +
@@ -318,7 +324,7 @@ function forgotBox(message){
       const now = nowEl ? nowEl.value : '';
       const a = document.getElementById('cNew').value;
       const b = document.getElementById('cAgain').value;
-      if (a.length < 8) return say('Use at least 8 characters.');
+      if (a.length < PW_MIN) return say('Use at least ' + PW_MIN + ' characters.');
       if (a !== b) return say('The two do not match.');
       const btn = document.getElementById('cGo');
       btn.disabled = true; btn.textContent = 'Saving…';

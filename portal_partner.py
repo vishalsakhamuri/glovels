@@ -576,7 +576,8 @@ function docCards(s, list, note) {
            one, so once ours is there the box says what replacing means. */
         + '<label class="dlab">' + ico('plus')
           + (got ? (ours ? 'Send yours instead' : 'Replace') : 'Upload')
-          + '<input type="file" data-up="' + esc(d.id) + '"></label>'
+          + '<input type="file" accept="' + UPLOAD_ACCEPT + '" data-up="'
+            + esc(d.id) + '"></label>'
         + '</div>'
         + (got ? '<span style="display:block;margin-top:8px;font-size:11.4px;'
             + 'color:var(--muted)">' + esc(got.file) + '</span>' : '')
@@ -925,7 +926,19 @@ async function saveLogo(url) {
     if (!up || !OPEN) return;
     const f = up.files && up.files[0];
     if (!f) return;
-    if (f.size > 12 * 1024 * 1024) return toast('That file is over 12MB.');
+    /* The SERVER's limit and the SERVER's list, not a friendlier pair.
+       This said 12 MB while the server refused at 10 — the same mismatch that
+       was fixed on the student's own screen, still standing one screen along,
+       so an agency with an 11 MB scan watched it upload and was then told no.
+       Both numbers come from the one constant now, and the type is checked
+       here for the same reason: before the wait, not after it. */
+    if (f.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      return toast('That file is ' + (f.size / 1048576).toFixed(1) + ' MB, and '
+        + MAX_UPLOAD_MB + ' MB is the limit. Photograph the pages rather than '
+        + 'scanning them at full size, or save it as a PDF.');
+    }
+    const wrong = notOurType(f.name);
+    if (wrong) return toast(wrong);
     const fd = new FormData();
     fd.append('key', up.dataset.up);
     fd.append('file', f);

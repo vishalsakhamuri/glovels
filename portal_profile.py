@@ -312,7 +312,13 @@ function drawForm() {
 
   $('#pForm').innerHTML =
     '<div class="p-card"><h3>' + ico(s.icon.replace('i-','')) + ' ' + esc(s.name.replace('&amp;','&')) +
-    '<span class="pill">' + pctOf(s) + '% done</span></h3>' + body + '</div>';
+    /* pctOf is null for a section with nothing required in it, and this line
+       printed it: "Family details  null% done". The nav beside it had already
+       been taught to say "optional" — the heading had not, so the fix for a
+       screen claiming 100% of an empty form left the same heading claiming
+       null% of it. One reading of the number, both places. */
+    '<span class="pill">' + (pctOf(s) === null ? 'optional' : pctOf(s) + '% done')
+      + '</span></h3>' + body + '</div>';
 
   /* Answering "GRE: not required" has to re-score the section on the spot,
      not on the next save — otherwise the meter argues with the form. The date
@@ -476,7 +482,18 @@ const goTo = i => {
   window.scrollTo({top: 0, behavior: 'smooth'});
 };
 
-$('#saveBtn').addEventListener('click', () => {
+/* One press, one answer.
+ *
+ * This used to call save() — a debounce that returns before the request goes —
+ * and then toast "Saved. 91% of your profile is complete." A Class 12 score of
+ * 500 passed the checks THIS page knows about, so the green toast appeared,
+ * and the server's refusal painted a red line under the box a second later.
+ * The student was told their profile was saved and that it was not, in that
+ * order, about one press.
+ *
+ * The page's own checks still run first, because they are instant and they
+ * name the box. What is new is that anything they let through is WAITED for. */
+$('#saveBtn').addEventListener('click', async () => {
   readForm();
   const bad = firstProblem();
   if (bad) {
@@ -485,7 +502,21 @@ $('#saveBtn').addEventListener('click', () => {
     toast(bad.say, 'bad');
     return;
   }
-  save(); drawForm(); paint();
+  const btn = $('#saveBtn');
+  const was = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  let out;
+  try { out = await saveNow(); } finally {
+    btn.disabled = false; btn.textContent = was;
+  }
+  drawForm(); paint();
+  /* The server's own sentence, not a rewrite of it: it names the box and what
+     was typed, and the field-level message is already on the screen. */
+  if (out && out.ok === false) {
+    toast(out.unreachable ? 'That did not reach the server. It is still on this '
+      + 'device — try again in a moment.' : out.error, 'bad');
+    return;
+  }
   toast('Saved. ' + overall() + '% of your profile is complete.');
 });
 $('#prevBtn').addEventListener('click', () => goTo(cur - 1));

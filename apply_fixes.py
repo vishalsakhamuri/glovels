@@ -2942,12 +2942,24 @@ patch(
     """(function () {
   const token = new URLSearchParams(location.search).get('token');
   if (!token) return;""",
-    """(function () {
+    """(async function () {
   const q = new URLSearchParams(location.search);
 
   /* Signed in, but on a password somebody else chose. The server refuses every
      other endpoint until this is done, so there is nothing else to offer. */
   if (q.get('change') === '1') {
+    /* The number the SERVER will hold this person to. A student needs 8 and a
+       member of staff needs 10 — this form said 8 to both and the server
+       answered "Use at least 10" to half of them, after they had typed one.
+       Asked before the form is drawn, so the placeholder and the check below
+       are the same number as the rule. 8 if the answer never comes: the form
+       still refuses what the server refuses, it just asks for less first. */
+    let PW_MIN = 8;
+    try {
+      const meRes = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      const meBody = await meRes.json();
+      if (meBody && meBody.passwordMin) PW_MIN = meBody.passwordMin;
+    } catch (e) { /* offline: 8, and the server still has the last word */ }
     const card = document.querySelector('.form-card') || document.querySelector('.auth-card') || document.body;
     const next = q.get('next') || 'dashboard.html';
     card.innerHTML =
@@ -2959,7 +2971,7 @@ patch(
           '<input type="password" id="cNow" autocomplete="current-password"></div>' +
         '<div class="field"><label for="cNew">Your new password</label>' +
           '<input type="password" id="cNew" autocomplete="new-password" ' +
-          'placeholder="At least 8 characters"></div>' +
+          'placeholder="At least " + PW_MIN + " characters"></div>' +
         '<div class="field"><label for="cAgain">Type it again</label>' +
           '<input type="password" id="cAgain" autocomplete="new-password"></div>' +
         '<button type="submit" class="btn-primary" id="cGo">Save and carry on →</button>' +
@@ -2978,7 +2990,7 @@ patch(
       const now = document.getElementById('cNow').value;
       const a = document.getElementById('cNew').value;
       const b = document.getElementById('cAgain').value;
-      if (a.length < 8) return say('Use at least 8 characters.');
+      if (a.length < PW_MIN) return say('Use at least ' + PW_MIN + ' characters.');
       if (a !== b) return say('The two do not match.');
       const btn = document.getElementById('cGo');
       btn.disabled = true; btn.textContent = 'Saving…';
@@ -8898,6 +8910,61 @@ patch(
     '<svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Paid securely. We never see your card.<br>\n      By paying you accept our <a href="terms.html">Terms</a> and',
     count=2,
     marker="Paid securely. We never see your card.",
+)
+
+
+# ---------------------------------------------------------------- login.html
+#
+# The password minimum, said by the screen that asks for one.
+#
+# A student's password needs 8 characters and a member of staff's needs 10 —
+# api.js has always held those two apart and been right to. What neither the
+# forced-change form nor the emailed-reset form did was ASK. Both printed "At
+# least 8 characters" to everybody, took nine, sent it, and relayed "Use at
+# least 10" back afterwards: the same fault as a 20 MB upload box in front of a
+# 10 MB server, which is that a friendly check letting through exactly what the
+# real one refuses is worse than no friendly check at all.
+#
+# THIS IS A SEPARATE PATCH from the one that writes those forms, and it has to
+# be. login.html is a designer file, edited in place and never regenerated, so
+# the patch that first injected the change form is skipped for ever on its own
+# marker — editing that patch's text changes nothing in the file that exists.
+# The same shape as the dashboard readiness card in patch 81. Anything else
+# said inside those forms from here on needs a patch of its own too.
+PW_MIN_JS = """    let PW_MIN = 8;
+    try {
+      const meRes = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      const meBody = await meRes.json();
+      if (meBody && meBody.passwordMin) PW_MIN = meBody.passwordMin;
+    } catch (e) { /* offline: ask for 8, and the server still has the last word */ }
+"""
+
+# A later patch already wrapped this branch in its own async arrow, so there is
+# somewhere to await — which is the only reason this can ask the server at all.
+patch(
+    "login.html",
+    "the forced-change form asks the server what the minimum is",
+    """  if (q.get('change') === '1') { (async () => {
+    const card = document.querySelector('.form-card')""",
+    """  if (q.get('change') === '1') { (async () => {
+""" + PW_MIN_JS + """    const card = document.querySelector('.form-card')""",
+    marker="if (meBody && meBody.passwordMin) PW_MIN = meBody.passwordMin;",
+)
+
+patch(
+    "login.html",
+    "the forced-change placeholder is the number it will be held to",
+    """          'placeholder="At least 8 characters"></div>' +""",
+    """          'placeholder="At least ' + PW_MIN + ' characters"></div>' +""",
+    marker="""'placeholder="At least ' + PW_MIN + ' characters"></div>'""",
+)
+
+patch(
+    "login.html",
+    "and it refuses a short one itself rather than relaying the refusal",
+    """      if (a.length < 8) return say('Use at least 8 characters.');""",
+    """      if (a.length < PW_MIN) return say('Use at least ' + PW_MIN + ' characters.');""",
+    marker="if (a.length < PW_MIN) return say(",
 )
 
 

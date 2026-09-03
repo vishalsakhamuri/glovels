@@ -2057,6 +2057,27 @@ const DOCS = [
  * rejects, which is worse than having no friendly check at all. */
 const MAX_UPLOAD_MB = 10;
 
+/* And the TYPES, in one place, for exactly the same reason.
+ *
+ * The picker carried an accept list and the card advertised "PDF, JPG, PNG or
+ * Word", and the server checked neither — so a .txt went into the Class 12
+ * slot and an .html into the CV slot and both sat there looking like
+ * documents. `accept` filters a dialog; every browser lets somebody switch it
+ * to All Files. The rule is on the server now and these three lines are what
+ * the student is shown, built from the same list so they cannot drift apart.
+ *
+ * HEIC is on it. This card tells a student to photograph the pages when a scan
+ * is too big, and an iPhone photographing pages produces HEIC. */
+const UPLOAD_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'doc', 'docx'];
+const UPLOAD_ACCEPT = UPLOAD_EXT.map(e => '.' + e).join(',');
+const UPLOAD_SAYS = 'PDF, a photo (JPG, PNG or HEIC) or Word';
+const notOurType = name => {
+  const ext = String(name || '').toLowerCase().split('.').pop();
+  return UPLOAD_EXT.includes(ext) ? null
+    : 'Glovels takes ' + UPLOAD_SAYS + '. “' + String(name || 'That file').slice(0, 60)
+      + '” is not one of those — open it, and save or export it as a PDF.';
+};
+
 
 const VISA_DOCS = [
   {id:'visa-offer',      name:'Offer / admission letter',   need:1,
@@ -2366,7 +2387,8 @@ function docCards(s, list, note) {
            one, so once ours is there the box says what replacing means. */
         + '<label class="dlab">' + ico('plus')
           + (got ? (ours ? 'Send yours instead' : 'Replace') : 'Upload')
-          + '<input type="file" data-up="' + esc(d.id) + '"></label>'
+          + '<input type="file" accept="' + UPLOAD_ACCEPT + '" data-up="'
+            + esc(d.id) + '"></label>'
         + '</div>'
         + (got ? '<span style="display:block;margin-top:8px;font-size:11.4px;'
             + 'color:var(--muted)">' + esc(got.file) + '</span>' : '')
@@ -2715,7 +2737,19 @@ async function saveLogo(url) {
     if (!up || !OPEN) return;
     const f = up.files && up.files[0];
     if (!f) return;
-    if (f.size > 12 * 1024 * 1024) return toast('That file is over 12MB.');
+    /* The SERVER's limit and the SERVER's list, not a friendlier pair.
+       This said 12 MB while the server refused at 10 — the same mismatch that
+       was fixed on the student's own screen, still standing one screen along,
+       so an agency with an 11 MB scan watched it upload and was then told no.
+       Both numbers come from the one constant now, and the type is checked
+       here for the same reason: before the wait, not after it. */
+    if (f.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      return toast('That file is ' + (f.size / 1048576).toFixed(1) + ' MB, and '
+        + MAX_UPLOAD_MB + ' MB is the limit. Photograph the pages rather than '
+        + 'scanning them at full size, or save it as a PDF.');
+    }
+    const wrong = notOurType(f.name);
+    if (wrong) return toast(wrong);
     const fd = new FormData();
     fd.append('key', up.dataset.up);
     fd.append('file', f);

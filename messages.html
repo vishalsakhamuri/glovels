@@ -1124,13 +1124,17 @@ function save() {
 }
 
 async function flush() {
-  if (flushing) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 250); return; }
+  if (flushing) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 250); return null; }
   flushing = true;
+  /* What the SERVER said about the profile, for a caller that wants to wait and
+     report it rather than assume. null means it was not asked. */
+  let outcome = null;
   try {
     if (DB.profile && JSON.stringify(DB.profile) !== JSON.stringify(SERVER.profile)) {
       try {
         await api('PUT', '/api/profile', { profile: DB.profile });
         SERVER.profile = JSON.parse(JSON.stringify(DB.profile));
+        outcome = { ok: true };
         dispatchEvent(new CustomEvent('glovels:profile-invalid', { detail: { fields: [] } }));
       } catch (e) {
         /* 422 is the server saying a number is impossible — a CGPA of 47.9, an
@@ -1141,6 +1145,7 @@ async function flush() {
            SERVER.profile is deliberately not advanced, so the next save tries
            again once they have fixed it. */
         if (e.status !== 422) throw e;
+        outcome = { ok: false, error: e.message, fields: (e.data && e.data.fields) || [] };
         dispatchEvent(new CustomEvent('glovels:profile-invalid', {
           detail: { fields: (e.data && e.data.fields) || [], error: e.message },
         }));
@@ -1171,9 +1176,33 @@ async function flush() {
     }
   } catch (e) {
     if (e.message !== 'signed out') offlineNotice('the server did not respond.');
+    outcome = outcome || { ok: false, unreachable: true };
   } finally {
     flushing = false;
   }
+  return outcome;
+}
+
+/* SAVE, AND WAIT FOR THE ANSWER.
+ *
+ * save() is a 350ms debounce that returns at once — right for typing, wrong for
+ * a button called "Save this section". Pressing it toasted "Saved. 91% of your
+ * profile is complete." immediately, the PUT went afterwards, and a value the
+ * server refuses painted a red line under the box a moment later. The student
+ * was told both things about the same press, green first.
+ *
+ * This waits for the request the press causes and hands back what the server
+ * said, so a screen can say one thing. */
+async function saveNow() {
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}
+  clearTimeout(flushTimer);
+  if (!ONLINE) return { ok: true, offline: true };
+  /* A debounced flush from the last keystroke may still be in the air. Waiting
+     for it and then flushing again is what makes this the LAST word rather than
+     a second opinion. */
+  for (let i = 0; flushing && i < 100; i++) await new Promise(r => setTimeout(r, 60));
+  const out = await flush();
+  return out || { ok: true };
 }
 /* A student who closes the tab mid-edit must not lose the edit. */
 addEventListener('beforeunload', () => { if (ONLINE && flushTimer) { clearTimeout(flushTimer); flush(); } });

@@ -69,8 +69,33 @@ const list = v => (Array.isArray(v) ? v : String(v || '').split(/\s*\n|\s*\|\s*/
 
 function cleanPackage(p, n) {
   const id = str(p.id, 40).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '');
-  const sell = yes(p.sell);
+
+  /* A PACKAGE ON SALE AT NOTHING IS NOT ON SALE.
+   *
+   * Somebody typed ABC into the price of Three Public Universities. num() made
+   * it 0, the clamp kept it, and the entry product went onto the home page
+   * reading "FROM ₹0 one-time" with a live button under it — and priceList()
+   * below builds `paise: priceInr * 100`, so the order endpoint would have
+   * taken that order and made a paying student for nothing.
+   *
+   * Patch 83 taught the SAVE route to refuse this, which stops the next one. It
+   * does nothing about a row already stored that way, and that row was live.
+   * A rule that only runs on the way in leaves whatever got in before it.
+   *
+   * So the reading is refused rather than the writing: marked for sale with no
+   * usable price, it is not for sale. It stays on the page — the office would
+   * otherwise watch a product vanish with nothing said — and renders the way
+   * every other unpriced package already does, "on request", with the
+   * counselling call as its button. It leaves the price list at the same time,
+   * so the ₹0 cannot be ordered while somebody works out what it should say.
+   *
+   * `priceBroken` carries the reason to the office screen, because the office
+   * is the only place this can be fixed. */
+  const asked = yes(p.sell);
+  const paid = Math.max(0, Math.min(9999999, Math.round(num(p.priceInr))));
+  const sell = asked && paid > 0;
   return {
+    priceBroken: asked && !sell,
     id: id || 'pkg-' + (n + 1),
     /* Whichever tab it says, as a slug. This used to be whitelisted to
        study|work|migrate, which meant a package assigned to any NEW tab was
@@ -103,7 +128,7 @@ function cleanPackage(p, n) {
     /* Whole rupees, and capped. A stray zero on a price is the difference
        between ₹74,999 and ₹749,990, and there is no gateway in front of this
        yet to notice. */
-    priceInr: sell ? Math.max(0, Math.min(9999999, Math.round(num(p.priceInr)))) : 0,
+    priceInr: sell ? paid : 0,
     /* An explicit empty prefix means the price IS the price — "From ₹999" on a
        flat fee reads as a number that could go up. Only a package that says
        nothing at all about the prefix gets "From". */
@@ -857,10 +882,54 @@ function makeContent({ db, file }) {
           rejected.push({ line, what: '(row ' + line + ')', why: ['no ' + need] });
           return;
         }
-        if (key === 'packages' && draft.tab && !/^(study|work|migrate)$/i.test(str(draft.tab))) {
-          rejected.push({ line, what: str(draft.title, 60),
-            why: ['"' + str(draft.tab, 20) + '" is not one of study, work or migrate'] });
-          return;
+        /* THE TAB, against the tabs that exist rather than three named here.
+         *
+         * This read /^(study|work|migrate)$/ — the same hard-coded three that
+         * cleanPackage stopped using when a package assigned to a new tab was
+         * silently moved to study. There are four tabs. "Other countries" is
+         * one of them and carries three packages, so DOWNLOADING THIS SHEET
+         * AND UPLOADING IT BACK UNCHANGED refused those three rows and, because
+         * the sheet replaces the whole section, took them off the site. The
+         * office's ordinary way of editing one price removed three products.
+         *
+         * Asked of the tab list now, so adding a tab never needs an edit here
+         * again — which is the whole reason the other whitelist went. */
+        if (key === 'packages' && draft.tab) {
+          const want = str(draft.tab, 20).toLowerCase();
+          const tabs = (get('packages').tabs || []).map(x => String(x.key).toLowerCase());
+          if (!tabs.includes(want)) {
+            rejected.push({ line, what: str(draft.title, 60),
+              why: ['"' + want + '" is not one of the tabs on the home page ('
+                + tabs.join(', ') + ')'] });
+            return;
+          }
+        }
+        /* THE PRICE, on the sheet as well as on the form.
+         *
+         * Patch 83 taught the Edit dialog to refuse a package marked "sold
+         * online" whose price is not a number or is zero. This path never
+         * learnt it: the same office uploading the same packages through the
+         * spreadsheet got the cleaner's silent 0 and a package on the site at
+         * nothing. A rule the form enforces and the sheet does not is not a
+         * rule -- and the sheet is how somebody edits thirteen rows at once.
+         *
+         * Zero stays a real answer for a SERVICE, which is why this asks for
+         * the package key. Twelve services are priced on request. */
+        if (key === 'packages' && yes(draft.sell)) {
+          const raw = String(draft.priceInr == null ? '' : draft.priceInr).trim();
+          const clean = raw.replace(/[,\u20B9\s]/g, '');
+          const n = Number(clean);
+          const why = !raw ? 'it is marked as sold online and has no price'
+            : !/^-?\d+(\.\d+)?$/.test(clean) ? '"' + raw.slice(0, 20) + '" is not a number'
+            : n < 0 ? 'a price cannot be negative - you entered ' + n
+            : n === 0 ? 'it is marked as sold online at zero, which puts it on the site at nothing'
+            : null;
+          if (why) {
+            rejected.push({ line, what: str(draft.title, 60),
+              why: [why + '. Give it a price above zero, or set "sold online" to no '
+                + 'and it becomes a listing people enquire about.'] });
+            return;
+          }
         }
         items.push(draft);
       });

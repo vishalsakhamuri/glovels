@@ -444,6 +444,27 @@ const DOCS = [
  * too big — the friendly check let through exactly the files the real one
  * rejects, which is worse than having no friendly check at all. */
 const MAX_UPLOAD_MB = 10;
+
+/* And the TYPES, in one place, for exactly the same reason.
+ *
+ * The picker carried an accept list and the card advertised "PDF, JPG, PNG or
+ * Word", and the server checked neither — so a .txt went into the Class 12
+ * slot and an .html into the CV slot and both sat there looking like
+ * documents. `accept` filters a dialog; every browser lets somebody switch it
+ * to All Files. The rule is on the server now and these three lines are what
+ * the student is shown, built from the same list so they cannot drift apart.
+ *
+ * HEIC is on it. This card tells a student to photograph the pages when a scan
+ * is too big, and an iPhone photographing pages produces HEIC. */
+const UPLOAD_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'doc', 'docx'];
+const UPLOAD_ACCEPT = UPLOAD_EXT.map(e => '.' + e).join(',');
+const UPLOAD_SAYS = 'PDF, a photo (JPG, PNG or HEIC) or Word';
+const notOurType = name => {
+  const ext = String(name || '').toLowerCase().split('.').pop();
+  return UPLOAD_EXT.includes(ext) ? null
+    : 'Glovels takes ' + UPLOAD_SAYS + '. “' + String(name || 'That file').slice(0, 60)
+      + '” is not one of those — open it, and save or export it as a PDF.';
+};
 """
 
 VISA_JS = r"""

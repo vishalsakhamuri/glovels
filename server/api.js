@@ -316,6 +316,63 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     + ' MB is the limit. Photograph the pages rather than scanning them at full '
     + 'size, or save it as a PDF.';
 
+  /* And the TYPE, in the same one place, for the same reason.
+   *
+   * The upload card advertised "PDF, JPG, PNG or Word" and the file picker
+   * carried an accept list — and both of those are a hint to the person
+   * choosing. `accept` is a filter on a dialog, not a rule: every browser lets
+   * somebody switch it to All Files, and nothing that arrives here had been
+   * looked at. A plain .txt and an .html went into the Class 12 and CV slots
+   * and sat there as though they were documents.
+   *
+   * Two halves, and one without the other is not a check:
+   *
+   *   THE NAME must end in something we accept. That refuses the .txt and the
+   *   .html — files whose extension says plainly what they are.
+   *
+   *   THE BYTES must agree with the name. Renaming that .html to .pdf defeats
+   *   an extension check on its own, and every real file of these kinds starts
+   *   with a signature that cannot be typed by accident.
+   *
+   * HEIC is on the list and says so on the screen. The card tells a student to
+   * photograph the pages when a scan is too big, and an iPhone photographing
+   * pages produces HEIC — telling somebody to take a photo and then refusing
+   * the format their phone takes photos in is the same self-contradiction this
+   * is fixing, one step along. */
+  const FILE_KINDS = [
+    { ext: ['pdf'], what: 'PDF', sig: b => b.slice(0, 5).toString('latin1') === '%PDF-' },
+    { ext: ['jpg', 'jpeg'], what: 'JPG', sig: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+    { ext: ['png'], what: 'PNG',
+      sig: b => b.slice(0, 8).toString('hex') === '89504e470d0a1a0a' },
+    /* HEIC/HEIF: 'ftyp' at byte 4, then the brand. */
+    { ext: ['heic', 'heif'], what: 'HEIC',
+      sig: b => b.slice(4, 8).toString('latin1') === 'ftyp'
+        && /^(heic|heix|hevc|hevx|mif1|msf1)$/.test(b.slice(8, 12).toString('latin1')) },
+    /* .docx is a zip. Requiring the extension too is what stops a .zip of
+       anything walking in behind it. */
+    { ext: ['docx'], what: 'Word',
+      sig: b => b[0] === 0x50 && b[1] === 0x4b && (b[2] === 3 || b[2] === 5 || b[2] === 7) },
+    /* And the old binary Word, which is an OLE compound file. */
+    { ext: ['doc'], what: 'Word',
+      sig: b => b.slice(0, 8).toString('hex') === 'd0cf11e0a1b11ae1' },
+  ];
+  const FILE_LIST = 'PDF, a photo (JPG, PNG or HEIC) or Word';
+
+  /** null when the file is one we take, or the sentence saying why not. */
+  function wrongType(name, buf) {
+    const ext = String(name || '').toLowerCase().split('.').pop();
+    const kind = FILE_KINDS.find(k => k.ext.includes(ext));
+    if (!kind) {
+      return 'Glovels takes ' + FILE_LIST + '. "' + String(name || 'That file').slice(0, 60)
+        + '" is not one of those — open it, and save or export it as a PDF.';
+    }
+    if (!kind.sig(buf)) {
+      return '"' + String(name).slice(0, 60) + '" is named as a ' + kind.what
+        + ' but is not one inside. Save it again from whatever opens it, and send that.';
+    }
+    return null;
+  }
+
   /** The multipart body, or null with the reason already sent. */
   async function oneFile(req, res) {
     const ct = req.headers['content-type'] || '';
@@ -330,6 +387,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       json(res, 413, { error: tooBig(parsed.file.data.length) });
       return null;
     }
+    const bad = wrongType(parsed.file.filename, parsed.file.data);
+    if (bad) { json(res, 415, { error: bad }); return null; }
     return parsed;
   }
 
@@ -805,11 +864,20 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       { 'Set-Cookie': 'glovels_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' });
   }, { open: true });
 
+  /* A student's password needs 8 characters and a member of staff's needs 10 —
+     a real difference, because a staff account can read every student's file.
+     It was stated in three places in this file and in none of the screens: the
+     forced-change form said "At least 8 characters" to everybody and the server
+     answered "Use at least 10" to half of them, which is the size limit and the
+     accept list wearing a third hat. The number travels with the session now,
+     and the screen writes its own sentence from it. */
+  const passwordFloor = s => (s && s.role && s.role !== 'student' ? 10 : 8);
+
   route('GET', '/api/auth/me', async (req, res) => {
     const s = me(req);
     return json(res, 200, s
-      ? { user: publicStudent(s), mustChange: !!s.must_change }
-      : { user: null });
+      ? { user: publicStudent(s), mustChange: !!s.must_change, passwordMin: passwordFloor(s) }
+      : { user: null, passwordMin: 8 });
   }, { open: true });
 
   /* --------------------------------------------------------------- state */
@@ -1098,15 +1166,24 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     return json(res, 200, { docs: stateFor(s).docs });
   });
 
-  /* Stands in for the counsellor opening each file and confirming it.
-     PROD: this belongs on the counsellor's screen, not the student's. */
-  route('POST', '/api/documents/verify-all', async (req, res, s) => {
-    let n = 0;
-    db.getDocuments(s.id).forEach(d => {
-      if (d.status === 'wait') { db.setDocStatus(s.id, d.doc_key, 'ok'); n++; }
-    });
-    return json(res, 200, { verified: n, docs: stateFor(s).docs });
-  });
+  /* THERE IS NO STUDENT ROUTE THAT VERIFIES A DOCUMENT, and there was.
+   *
+   * It carried the note "PROD: this belongs on the counsellor's screen, not the
+   * student's" — a thing left to be done later, which then shipped, and which
+   * the student's own Documents screen offered as a link called "Simulate
+   * counsellor verification". It worked. One press moved every waiting file to
+   * verified.
+   *
+   * Verified is not decoration. The same screen defines it: a file is verified
+   * once a counsellor has opened it and confirmed it is readable, current and
+   * matches the profile — and it is what the visa appointment and the
+   * university application are gated on. A student marking their own files
+   * verified removes the only signal on the site that says somebody looked.
+   *
+   * The counsellor's route is POST /api/staff/student/:id/document/:key, which
+   * is behind caseworkOnly and checks canSee. That is the whole of it. This
+   * path is gone rather than refusing, because nothing legitimate ever called
+   * it: the button was the only caller and it went in the same patch. */
 
   /* Serves a student their own file back, and nobody else's — the path is
      built from the session, so an id in the URL cannot reach another student. */
@@ -2477,7 +2554,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     const current = String(b.current || '');
     const pw = String(b.password || '');
 
-    const floor = s.role && s.role !== 'student' ? 10 : 8;
+    const floor = passwordFloor(s);
     if (pw.length < floor) {
       return json(res, 422, { error: 'Use at least ' + floor + ' characters.' });
     }

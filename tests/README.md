@@ -153,6 +153,7 @@ A full run is seventy-odd suites and takes about half an hour.
 | `e2e.js` | One walk through the whole business on a fresh database: a stranger arrives, is matched, asks, buys, becomes a student, and finds their purchase waiting. |
 | `sweeptest.js` | Everything that has been added, opened as each of the three people who use it. |
 | `round2test.js` | The counsellors' second testing round — thirteen notes on a screenshot, two of them with teeth. |
+| `roundtest.js` | The 1.6 round: the file types nothing enforced, the student verifying their own documents, one password minimum, an optional section's heading, one answer per press on the profile, and a package on sale at nothing. |
 
 ## The harness bugs worth knowing about
 
