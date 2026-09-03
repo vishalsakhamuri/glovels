@@ -892,7 +892,7 @@ select.assign.none:hover{border-color:#a5342b}
   <aside class="p-side">
     <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span>
       <img id="ownLogo" alt="" hidden></div>
-    <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">Website editor</span>
+    <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">—</span>
       <a href="#" id="staffOut" class="p-out">
         <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a></div>
     <nav class="p-nav"><a href="counsellor.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Conversations</a><a href="chat.html"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Website chat</a><a href="leads.html"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Leads</a><a href="home.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Home page</a><a href="blog-admin.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Blog</a><a href="catalogue.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Catalogue</a><a href="admin.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Organisation</a></nav>
@@ -990,7 +990,7 @@ select.assign.none:hover{border-color:#a5342b}
 
     <div class="out tiles" style="--tiles:4;margin:0 0 18px">
       <div><b id="kLive">—</b><span>On the site</span></div>
-      <div><b id="kDraft">—</b><span>Drafts</span></div>
+      <div><b id="kDraft">—</b><span>Not on the site</span></div>
       <div><b id="kEmpty">—</b><span>Written but empty</span></div>
       <div><b id="kWords">—</b><span>Words published</span></div>
     </div>
@@ -1550,9 +1550,27 @@ const slugify = s => String(s || '').toLowerCase()
   .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '').slice(0, 80) || 'post';
 
+/* Three states, not two.
+ *
+ * "The tile reads 5 DRAFTS — the admin believes five posts are unpublished
+ *  while all five are live."
+ *
+ * They were. The blog index deliberately keeps the six pages that were on
+ * glovels.com before this screen existed, serving from their original files
+ * until a written post replaces each one — dropping them the day the database
+ * took over would have taken six live pages off the site. That is right. What
+ * was wrong is that this screen did not know it: a post with no body and a
+ * status of draft was counted as unpublished and labelled Draft, while anybody
+ * could read it at its address.
+ *
+ * So: on the site because it was published here, on the site because its
+ * original page is still there, and not on the site at all. The middle one is
+ * the one nobody knew about. */
+const isLive = p => p.status === 'published' || p.onDisk;
+
 function paintList() {
-  const live = POSTS.filter(p => p.status === 'published');
-  const draft = POSTS.filter(p => p.status !== 'published');
+  const live = POSTS.filter(isLive);
+  const draft = POSTS.filter(p => !isLive(p));
   $('#kLive').textContent = live.length;
   $('#kDraft').textContent = draft.length;
   $('#kEmpty').textContent = POSTS.filter(p => !p.words).length;
@@ -1563,7 +1581,8 @@ function paintList() {
     '<li data-post="' + p.id + '"' + (p.id === openId ? ' class="on"' : '') + '>'
     + '<b>' + esc(p.title) + '</b>'
     + '<span><span class="stpill ' + (p.status === 'published' ? 'live">On the site'
-        : 'draft">Draft') + '</span> '
+        : p.onDisk ? 'live">On the site — original page'
+        : 'draft">Not on the site') + '</span> '
       + (p.words ? p.words.toLocaleString('en-IN') + ' words' : 'no words yet')
       + ' &middot; ' + fmtWhen(p.updatedAt) + '</span></li>').join('')
     || '<li style="cursor:default;color:var(--muted);font-size:12.6px">'
@@ -1580,10 +1599,18 @@ function editor(p) {
       + '<b style="font:700 15px/1.3 var(--disp,inherit);color:var(--navy-900)">'
         + (isNew ? 'New post' : esc(p.title)) + '</b>'
       + '<span class="stpill ' + (p.status === 'published' ? 'live">On the site'
-          : 'draft">Draft') + '</span>'
+          : p.onDisk ? 'live">On the site — original page'
+          : 'draft">Not on the site') + '</span>'
       + '<span style="flex:1"></span>'
       + (isNew ? '' : '<a class="btn btn-ghost btn-sm" id="pView" target="_blank" '
         + 'href="/post/' + esc(p.slug) + '">View the page</a>')
+      + (p.onDisk ? '<p style="flex-basis:100%;margin:8px 0 0;padding:10px 12px;'
+        + 'border-radius:10px;background:#f2f6fd;border:1px solid #cddcf3;'
+        + 'font:400 12.4px/1.6 var(--sans);color:var(--navy-800)">'
+        + '<b>This one is already readable.</b> The page that was on glovels.com '
+        + 'before this screen existed is still being served at that address. '
+        + 'Publishing what you write here replaces it; until then, visitors see '
+        + 'the old page.</p>' : '')
       + (isNew ? '' : '<button type="button" class="btn btn-ghost btn-sm" id="pDrop">'
         + (p.status === 'published' ? 'Take off the site' : 'Delete') + '</button>')
       + '</div>'
@@ -1851,7 +1878,31 @@ addEventListener('beforeunload', e => {
   e.returnValue = '';
 });
 
-load();
+/* Through staffBoot, like every other staff screen.
+ *
+ * "The identity block reads Website editor although this session is signed in
+ *  as admin."
+ *
+ * It did, and the reason was not the label: this screen never called
+ * staffBoot at all. So the name and the role were never filled in — the page
+ * kept whatever was baked into its markup, which for this screen was "Website
+ * editor" — the must-change-your-password screen never appeared, and somebody
+ * without the content permission got a working-looking editor and a refusal
+ * from the server on Save.
+ *
+ * The API has always refused the save. This is so the refusal is not the first
+ * thing they learn about it, after writing a post. */
+staffBoot(async me => {
+  if ((me.user.perms || []).indexOf('content') < 0) {
+    document.querySelector('.p-main').innerHTML =
+      '<div class="sl-empty" style="margin-top:40px"><b>You do not have access to the '
+      + 'website</b><p>An administrator can give it to you on the Organisation screen '
+      + '&mdash; it is a tick box beside your name.</p>'
+      + '<a class="btn btn-primary" href="counsellor.html">Go to Conversations</a></div>';
+    return;
+  }
+  await load();
+});
 
 
 /* Opened by double-clicking rather than through start.command. The portal has
@@ -1889,5 +1940,86 @@ if (location.protocol === 'file:') {
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }
 </script>
+
+<style>/* GLOVELS-PW-EYE-CSS */
+.pw-wrap{position:relative;display:block}
+.pw-wrap > input{padding-right:44px !important}
+.pw-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:32px;height:32px;
+  display:grid;place-items:center;border:0;background:transparent;cursor:pointer;padding:0;
+  color:#7c8b9c;border-radius:8px}
+.pw-eye:hover{color:var(--navy-800,#0d2338);background:rgba(0,0,0,.05)}
+.pw-eye:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:1px}
+.pw-eye svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+</style>
+<script>
+/* GLOVELS-PW-EYE */
+(function () {
+  var OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.1"/></svg>';
+  var SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 5.5A9.9 9.9 0 0 1 12 5.2c6.5 0 10.2 6.8 10.2 6.8a19 19 0 0 1-3.2 4.1M6.3 7.9A18.8 18.8 0 0 0 1.8 12S5.5 18.8 12 18.8c1.6 0 3-.4 4.2-1M3 3l18 18"/></svg>';
+
+  function dress(input) {
+    if (!input || input.dataset.pwEye) return;
+    /* Not every password box is somewhere a wrapper can go — one inside a
+       table cell with its own layout would be moved by this. Skipped rather
+       than broken. */
+    var parent = input.parentNode;
+    if (!parent) return;
+    input.dataset.pwEye = '1';
+
+    var wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    parent.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    var b = document.createElement('button');
+    b.type = 'button';               /* or it submits the form it is sitting in */
+    b.className = 'pw-eye';
+    b.innerHTML = OPEN;
+    b.setAttribute('aria-label', 'Show password');
+    b.setAttribute('aria-pressed', 'false');
+    /* Out of the tab order between the password box and the button somebody is
+       heading for. It is reachable — the label is on it and a screen reader
+       lists it — but Tab from the password goes to Sign in, which is what
+       everybody is doing. */
+    b.tabIndex = -1;
+    b.addEventListener('click', function () {
+      var on = input.type === 'password';
+      input.type = on ? 'text' : 'password';
+      b.innerHTML = on ? SHUT : OPEN;
+      b.setAttribute('aria-label', on ? 'Hide password' : 'Show password');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      input.focus();
+    });
+    wrap.appendChild(b);
+  }
+
+  function sweep(root) {
+    var list = (root || document).querySelectorAll('input[type="password"]');
+    for (var i = 0; i < list.length; i++) dress(list[i]);
+  }
+
+  /* Twice over, because half of these boxes do not exist when the page loads:
+     the delete-account panel, the Add someone form and the forced change are
+     all drawn by script. A MutationObserver catches whatever appears later
+     without any screen having to remember to call anything. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { sweep(); });
+  } else { sweep(); }
+  try {
+    new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) {
+        for (var j = 0; j < recs[i].addedNodes.length; j++) {
+          var n = recs[i].addedNodes[j];
+          if (n.nodeType !== 1) continue;
+          if (n.matches && n.matches('input[type="password"]')) dress(n);
+          else sweep(n);
+        }
+      }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) { /* no observer: the boxes present at load still have theirs */ }
+}());
+</script>
+<!-- /GLOVELS-PW-EYE -->
 </body>
 </html>

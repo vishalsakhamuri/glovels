@@ -65,7 +65,7 @@ BODY = """
 
     <div class="out tiles" style="--tiles:4;margin:0 0 18px">
       <div><b id="kLive">—</b><span>On the site</span></div>
-      <div><b id="kDraft">—</b><span>Drafts</span></div>
+      <div><b id="kDraft">—</b><span>Not on the site</span></div>
       <div><b id="kEmpty">—</b><span>Written but empty</span></div>
       <div><b id="kWords">—</b><span>Words published</span></div>
     </div>
@@ -138,9 +138,27 @@ const slugify = s => String(s || '').toLowerCase()
   .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '').slice(0, 80) || 'post';
 
+/* Three states, not two.
+ *
+ * "The tile reads 5 DRAFTS — the admin believes five posts are unpublished
+ *  while all five are live."
+ *
+ * They were. The blog index deliberately keeps the six pages that were on
+ * glovels.com before this screen existed, serving from their original files
+ * until a written post replaces each one — dropping them the day the database
+ * took over would have taken six live pages off the site. That is right. What
+ * was wrong is that this screen did not know it: a post with no body and a
+ * status of draft was counted as unpublished and labelled Draft, while anybody
+ * could read it at its address.
+ *
+ * So: on the site because it was published here, on the site because its
+ * original page is still there, and not on the site at all. The middle one is
+ * the one nobody knew about. */
+const isLive = p => p.status === 'published' || p.onDisk;
+
 function paintList() {
-  const live = POSTS.filter(p => p.status === 'published');
-  const draft = POSTS.filter(p => p.status !== 'published');
+  const live = POSTS.filter(isLive);
+  const draft = POSTS.filter(p => !isLive(p));
   $('#kLive').textContent = live.length;
   $('#kDraft').textContent = draft.length;
   $('#kEmpty').textContent = POSTS.filter(p => !p.words).length;
@@ -151,7 +169,8 @@ function paintList() {
     '<li data-post="' + p.id + '"' + (p.id === openId ? ' class="on"' : '') + '>'
     + '<b>' + esc(p.title) + '</b>'
     + '<span><span class="stpill ' + (p.status === 'published' ? 'live">On the site'
-        : 'draft">Draft') + '</span> '
+        : p.onDisk ? 'live">On the site — original page'
+        : 'draft">Not on the site') + '</span> '
       + (p.words ? p.words.toLocaleString('en-IN') + ' words' : 'no words yet')
       + ' &middot; ' + fmtWhen(p.updatedAt) + '</span></li>').join('')
     || '<li style="cursor:default;color:var(--muted);font-size:12.6px">'
@@ -168,10 +187,18 @@ function editor(p) {
       + '<b style="font:700 15px/1.3 var(--disp,inherit);color:var(--navy-900)">'
         + (isNew ? 'New post' : esc(p.title)) + '</b>'
       + '<span class="stpill ' + (p.status === 'published' ? 'live">On the site'
-          : 'draft">Draft') + '</span>'
+          : p.onDisk ? 'live">On the site — original page'
+          : 'draft">Not on the site') + '</span>'
       + '<span style="flex:1"></span>'
       + (isNew ? '' : '<a class="btn btn-ghost btn-sm" id="pView" target="_blank" '
         + 'href="/post/' + esc(p.slug) + '">View the page</a>')
+      + (p.onDisk ? '<p style="flex-basis:100%;margin:8px 0 0;padding:10px 12px;'
+        + 'border-radius:10px;background:#f2f6fd;border:1px solid #cddcf3;'
+        + 'font:400 12.4px/1.6 var(--sans);color:var(--navy-800)">'
+        + '<b>This one is already readable.</b> The page that was on glovels.com '
+        + 'before this screen existed is still being served at that address. '
+        + 'Publishing what you write here replaces it; until then, visitors see '
+        + 'the old page.</p>' : '')
       + (isNew ? '' : '<button type="button" class="btn btn-ghost btn-sm" id="pDrop">'
         + (p.status === 'published' ? 'Take off the site' : 'Delete') + '</button>')
       + '</div>'
@@ -439,5 +466,29 @@ addEventListener('beforeunload', e => {
   e.returnValue = '';
 });
 
-load();
+/* Through staffBoot, like every other staff screen.
+ *
+ * "The identity block reads Website editor although this session is signed in
+ *  as admin."
+ *
+ * It did, and the reason was not the label: this screen never called
+ * staffBoot at all. So the name and the role were never filled in — the page
+ * kept whatever was baked into its markup, which for this screen was "Website
+ * editor" — the must-change-your-password screen never appeared, and somebody
+ * without the content permission got a working-looking editor and a refusal
+ * from the server on Save.
+ *
+ * The API has always refused the save. This is so the refusal is not the first
+ * thing they learn about it, after writing a post. */
+staffBoot(async me => {
+  if ((me.user.perms || []).indexOf('content') < 0) {
+    document.querySelector('.p-main').innerHTML =
+      '<div class="sl-empty" style="margin-top:40px"><b>You do not have access to the '
+      + 'website</b><p>An administrator can give it to you on the Organisation screen '
+      + '&mdash; it is a tick box beside your name.</p>'
+      + '<a class="btn btn-primary" href="counsellor.html">Go to Conversations</a></div>';
+    return;
+  }
+  await load();
+});
 """

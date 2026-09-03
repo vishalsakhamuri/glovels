@@ -1026,7 +1026,24 @@ const server = http.createServer(async (req, res) => {
         const html = postPage(post, post.status !== 'published');
         if (html) return send(res, 200, html, TYPES['.html']);
       }
-      if (post.status !== 'published') return notFound(res);
+      if (post.status !== 'published') {
+        /* ...unless the page it is going to replace is still on disk.
+         *
+         * blogList() lists exactly these on the public index — the six pages
+         * that were on glovels.com before the editor existed, kept until a
+         * written post replaces each one, because dropping them the day the
+         * database took over would have taken six live pages off the site.
+         * That is the intention; the 404 here defeated it. Every card on the
+         * public blog index answered 404, and the office screen said they were
+         * drafts, so nobody was looking.
+         *
+         * The file is what a visitor gets until Publish, which is what the
+         * comment on blogList has always said. */
+        const orig = path.join(ROOT, 'post', post.slug + '.html');
+        if (!fs.existsSync(orig)) return notFound(res);
+        return send(res, 200, forIndexing(fs.readFileSync(orig, 'utf8'), post.slug),
+          TYPES['.html']);
+      }
     }
   }
 

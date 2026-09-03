@@ -669,5 +669,86 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+
+<style>/* GLOVELS-PW-EYE-CSS */
+.pw-wrap{position:relative;display:block}
+.pw-wrap > input{padding-right:44px !important}
+.pw-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:32px;height:32px;
+  display:grid;place-items:center;border:0;background:transparent;cursor:pointer;padding:0;
+  color:#7c8b9c;border-radius:8px}
+.pw-eye:hover{color:var(--navy-800,#0d2338);background:rgba(0,0,0,.05)}
+.pw-eye:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:1px}
+.pw-eye svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+</style>
+<script>
+/* GLOVELS-PW-EYE */
+(function () {
+  var OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.1"/></svg>';
+  var SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 5.5A9.9 9.9 0 0 1 12 5.2c6.5 0 10.2 6.8 10.2 6.8a19 19 0 0 1-3.2 4.1M6.3 7.9A18.8 18.8 0 0 0 1.8 12S5.5 18.8 12 18.8c1.6 0 3-.4 4.2-1M3 3l18 18"/></svg>';
+
+  function dress(input) {
+    if (!input || input.dataset.pwEye) return;
+    /* Not every password box is somewhere a wrapper can go — one inside a
+       table cell with its own layout would be moved by this. Skipped rather
+       than broken. */
+    var parent = input.parentNode;
+    if (!parent) return;
+    input.dataset.pwEye = '1';
+
+    var wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    parent.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    var b = document.createElement('button');
+    b.type = 'button';               /* or it submits the form it is sitting in */
+    b.className = 'pw-eye';
+    b.innerHTML = OPEN;
+    b.setAttribute('aria-label', 'Show password');
+    b.setAttribute('aria-pressed', 'false');
+    /* Out of the tab order between the password box and the button somebody is
+       heading for. It is reachable — the label is on it and a screen reader
+       lists it — but Tab from the password goes to Sign in, which is what
+       everybody is doing. */
+    b.tabIndex = -1;
+    b.addEventListener('click', function () {
+      var on = input.type === 'password';
+      input.type = on ? 'text' : 'password';
+      b.innerHTML = on ? SHUT : OPEN;
+      b.setAttribute('aria-label', on ? 'Hide password' : 'Show password');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      input.focus();
+    });
+    wrap.appendChild(b);
+  }
+
+  function sweep(root) {
+    var list = (root || document).querySelectorAll('input[type="password"]');
+    for (var i = 0; i < list.length; i++) dress(list[i]);
+  }
+
+  /* Twice over, because half of these boxes do not exist when the page loads:
+     the delete-account panel, the Add someone form and the forced change are
+     all drawn by script. A MutationObserver catches whatever appears later
+     without any screen having to remember to call anything. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { sweep(); });
+  } else { sweep(); }
+  try {
+    new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) {
+        for (var j = 0; j < recs[i].addedNodes.length; j++) {
+          var n = recs[i].addedNodes[j];
+          if (n.nodeType !== 1) continue;
+          if (n.matches && n.matches('input[type="password"]')) dress(n);
+          else sweep(n);
+        }
+      }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) { /* no observer: the boxes present at load still have theirs */ }
+}());
+</script>
+<!-- /GLOVELS-PW-EYE -->
 </body>
 </html>

@@ -892,7 +892,7 @@ select.assign.none:hover{border-color:#a5342b}
   <aside class="p-side">
     <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span>
       <img id="ownLogo" alt="" hidden></div>
-    <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">Counsellor</span>
+    <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">—</span>
       <a href="#" id="staffOut" class="p-out">
         <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a></div>
     <nav class="p-nav"><a href="counsellor.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Conversations</a><a href="chat.html"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Website chat</a><a href="leads.html"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Leads</a><a href="home.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Home page</a><a href="blog-admin.html"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Blog</a><a href="catalogue.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Catalogue</a><a href="admin.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Organisation</a></nav>
@@ -1626,6 +1626,8 @@ async function bell(me) {
 
 
 let PROGS = [], DESTS = [], LOG = [], editing = null;
+/* See the change handler at the foot of this file. */
+let feeTouched = false;
 
 /* Same fallback the server uses, so a row saved before the column existed
    reads as what it has always been rather than as charged. */
@@ -1824,6 +1826,10 @@ function select(label, id, value, opts, help) {
 function openEditor(p) {
   editing = p || null;
   const v = p || {isPublic: true, active: true, intakes: [{season: 'winter', deadline: ''}]};
+  /* Whether the person editing has made their own choice about how a student
+     applies. Until they do, that answer FOLLOWS the university type — see the
+     handler under the form. */
+  feeTouched = false;
   $('#pmTitle').textContent = p ? 'Edit programme' : 'Add a programme';
   $('#pmLead').textContent = p
     ? 'Changes are on the home page finder as soon as you save.'
@@ -1881,6 +1887,22 @@ function openEditor(p) {
         'Must start with http. Students click through to it.') +
     '</div>' +
     '<h3 style="font-size:14px;margin:6px 0 10px">Application deadlines</h3>' +
+    /* "The system accepts a previous date."
+     *
+     * It does, and that is now deliberate rather than an oversight — but only
+     * because it was made deliberate, and nothing on this form said so. An
+     * intake is annual: the day and the month are read and the year is worked
+     * out from today, so a date from a cycle that has ended reads as the next
+     * one and nothing on the site can show a deadline in the past. Which is
+     * exactly what makes a silent form the wrong answer here — a counsellor
+     * typing 2026 and seeing it accepted has no way to tell whether the site
+     * will honour the year or ignore it. */
+    '<p style="margin:0 0 12px;padding:10px 12px;border-radius:10px;background:#f2f6fd;' +
+      'border:1px solid #cddcf3;font:400 12.3px/1.6 var(--sans);color:var(--navy-800)">' +
+      '<b>The year is not used.</b> An intake repeats every year, so only the ' +
+      'day and the month are read from here &mdash; the site works out which ' +
+      'year from today\'s date. A date from a cycle that has ended is fine and ' +
+      'reads as the next one.</p>' +
     '<div id="intakes">' + ins.map((i, n) =>
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">' +
       select('Intake ' + (n + 1), 'fSeason' + n, i.season,
@@ -2222,7 +2244,30 @@ function reqFromForm() {
 
 /* --------------------------------------------------------------- behaviour */
 
+/* Private, and then filed under packages anyway.
+ *
+ * "When I enter the University as Private, in the front end it shows the
+ *  university under Select a package."
+ *
+ * Two controls, coupled and not moving together. A new programme opens as
+ * PUBLIC — Germany's tuition-free track is the business — and "How the student
+ * applies" therefore opens on Comprehensive filing. Change the type to Private
+ * and the second answer stayed where it was, so a private university went onto
+ * the site gated behind a package it has no business being behind. Nothing on
+ * the form said so; the counsellor changed the one thing they were asked about
+ * and the wrong one was left behind them.
+ *
+ * So the second answer FOLLOWS the first until somebody sets it themselves.
+ * `feeTouched` is what makes that safe: a deliberate choice — a private
+ * university we are not partnered with, which is a real thing — is never
+ * overwritten by changing the type afterwards. */
 document.addEventListener('change', e => {
+  if (e.target.id === 'fFee') feeTouched = true;
+  if (e.target.id === 'fPublic' && !feeTouched) {
+    const fee = document.querySelector('#fFee');
+    if (fee) fee.value = e.target.value === '1' ? 'package' : 'free';
+  }
+
   const box = e.target.closest('[data-pick]');
   if (box) {
     box.checked ? PICKED.add(box.dataset.pick) : PICKED.delete(box.dataset.pick);
@@ -2466,5 +2511,86 @@ if (location.protocol === 'file:') {
   document.body.style.paddingTop = b.offsetHeight + 'px';
 }
 </script>
+
+<style>/* GLOVELS-PW-EYE-CSS */
+.pw-wrap{position:relative;display:block}
+.pw-wrap > input{padding-right:44px !important}
+.pw-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:32px;height:32px;
+  display:grid;place-items:center;border:0;background:transparent;cursor:pointer;padding:0;
+  color:#7c8b9c;border-radius:8px}
+.pw-eye:hover{color:var(--navy-800,#0d2338);background:rgba(0,0,0,.05)}
+.pw-eye:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:1px}
+.pw-eye svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+</style>
+<script>
+/* GLOVELS-PW-EYE */
+(function () {
+  var OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.1"/></svg>';
+  var SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 5.5A9.9 9.9 0 0 1 12 5.2c6.5 0 10.2 6.8 10.2 6.8a19 19 0 0 1-3.2 4.1M6.3 7.9A18.8 18.8 0 0 0 1.8 12S5.5 18.8 12 18.8c1.6 0 3-.4 4.2-1M3 3l18 18"/></svg>';
+
+  function dress(input) {
+    if (!input || input.dataset.pwEye) return;
+    /* Not every password box is somewhere a wrapper can go — one inside a
+       table cell with its own layout would be moved by this. Skipped rather
+       than broken. */
+    var parent = input.parentNode;
+    if (!parent) return;
+    input.dataset.pwEye = '1';
+
+    var wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    parent.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    var b = document.createElement('button');
+    b.type = 'button';               /* or it submits the form it is sitting in */
+    b.className = 'pw-eye';
+    b.innerHTML = OPEN;
+    b.setAttribute('aria-label', 'Show password');
+    b.setAttribute('aria-pressed', 'false');
+    /* Out of the tab order between the password box and the button somebody is
+       heading for. It is reachable — the label is on it and a screen reader
+       lists it — but Tab from the password goes to Sign in, which is what
+       everybody is doing. */
+    b.tabIndex = -1;
+    b.addEventListener('click', function () {
+      var on = input.type === 'password';
+      input.type = on ? 'text' : 'password';
+      b.innerHTML = on ? SHUT : OPEN;
+      b.setAttribute('aria-label', on ? 'Hide password' : 'Show password');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      input.focus();
+    });
+    wrap.appendChild(b);
+  }
+
+  function sweep(root) {
+    var list = (root || document).querySelectorAll('input[type="password"]');
+    for (var i = 0; i < list.length; i++) dress(list[i]);
+  }
+
+  /* Twice over, because half of these boxes do not exist when the page loads:
+     the delete-account panel, the Add someone form and the forced change are
+     all drawn by script. A MutationObserver catches whatever appears later
+     without any screen having to remember to call anything. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { sweep(); });
+  } else { sweep(); }
+  try {
+    new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) {
+        for (var j = 0; j < recs[i].addedNodes.length; j++) {
+          var n = recs[i].addedNodes[j];
+          if (n.nodeType !== 1) continue;
+          if (n.matches && n.matches('input[type="password"]')) dress(n);
+          else sweep(n);
+        }
+      }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) { /* no observer: the boxes present at load still have theirs */ }
+}());
+</script>
+<!-- /GLOVELS-PW-EYE -->
 </body>
 </html>

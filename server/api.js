@@ -6322,6 +6322,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * nobody opens.
    */
 
+  /* The original page for a slug, if it is still there. Read from disk rather
+     than remembered, because that file is what the public actually gets. */
+  const onDisk = slug => {
+    try {
+      return fs.existsSync(path.join(__dirname, '..', 'post', String(slug) + '.html'));
+    } catch (e) { return false; }
+  };
+
   const postShape = (p, full) => {
     const o = {
       id: p.id, slug: p.slug, title: p.title,
@@ -6332,6 +6340,17 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       metaTitle: p.meta_title || '', metaDesc: p.meta_desc || '',
       keywords: p.keywords || '', ogImage: p.og_image || '',
       related: p.related || '',
+      /* Whether this "draft" is nonetheless readable by the public, because
+         the page it replaces is still on disk and still served.
+         
+         The blog index deliberately keeps the six pages that were on
+         glovels.com before this screen existed, serving from their files until
+         a written post replaces each one — dropping them the day the database
+         took over would have taken six live pages off the site. That is right,
+         and the office screen did not know about it: the tile said 5 DRAFTS
+         while all five were readable at their address, and the admin believed
+         nothing was published. */
+      onDisk: !!onDisk(p.slug) && p.status !== 'published',
       words: String(p.body || '').trim().split(/\s+/).filter(Boolean).length,
     };
     if (full) { o.body = p.body || ''; o.html = PROSE.render(p.body); }

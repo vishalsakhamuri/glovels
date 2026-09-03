@@ -214,6 +214,8 @@ BODY = """
 
 SCRIPT = r"""
 let PROGS = [], DESTS = [], LOG = [], editing = null;
+/* See the change handler at the foot of this file. */
+let feeTouched = false;
 
 /* Same fallback the server uses, so a row saved before the column existed
    reads as what it has always been rather than as charged. */
@@ -412,6 +414,10 @@ function select(label, id, value, opts, help) {
 function openEditor(p) {
   editing = p || null;
   const v = p || {isPublic: true, active: true, intakes: [{season: 'winter', deadline: ''}]};
+  /* Whether the person editing has made their own choice about how a student
+     applies. Until they do, that answer FOLLOWS the university type — see the
+     handler under the form. */
+  feeTouched = false;
   $('#pmTitle').textContent = p ? 'Edit programme' : 'Add a programme';
   $('#pmLead').textContent = p
     ? 'Changes are on the home page finder as soon as you save.'
@@ -469,6 +475,22 @@ function openEditor(p) {
         'Must start with http. Students click through to it.') +
     '</div>' +
     '<h3 style="font-size:14px;margin:6px 0 10px">Application deadlines</h3>' +
+    /* "The system accepts a previous date."
+     *
+     * It does, and that is now deliberate rather than an oversight — but only
+     * because it was made deliberate, and nothing on this form said so. An
+     * intake is annual: the day and the month are read and the year is worked
+     * out from today, so a date from a cycle that has ended reads as the next
+     * one and nothing on the site can show a deadline in the past. Which is
+     * exactly what makes a silent form the wrong answer here — a counsellor
+     * typing 2026 and seeing it accepted has no way to tell whether the site
+     * will honour the year or ignore it. */
+    '<p style="margin:0 0 12px;padding:10px 12px;border-radius:10px;background:#f2f6fd;' +
+      'border:1px solid #cddcf3;font:400 12.3px/1.6 var(--sans);color:var(--navy-800)">' +
+      '<b>The year is not used.</b> An intake repeats every year, so only the ' +
+      'day and the month are read from here &mdash; the site works out which ' +
+      'year from today\'s date. A date from a cycle that has ended is fine and ' +
+      'reads as the next one.</p>' +
     '<div id="intakes">' + ins.map((i, n) =>
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">' +
       select('Intake ' + (n + 1), 'fSeason' + n, i.season,
@@ -810,7 +832,30 @@ function reqFromForm() {
 
 /* --------------------------------------------------------------- behaviour */
 
+/* Private, and then filed under packages anyway.
+ *
+ * "When I enter the University as Private, in the front end it shows the
+ *  university under Select a package."
+ *
+ * Two controls, coupled and not moving together. A new programme opens as
+ * PUBLIC — Germany's tuition-free track is the business — and "How the student
+ * applies" therefore opens on Comprehensive filing. Change the type to Private
+ * and the second answer stayed where it was, so a private university went onto
+ * the site gated behind a package it has no business being behind. Nothing on
+ * the form said so; the counsellor changed the one thing they were asked about
+ * and the wrong one was left behind them.
+ *
+ * So the second answer FOLLOWS the first until somebody sets it themselves.
+ * `feeTouched` is what makes that safe: a deliberate choice — a private
+ * university we are not partnered with, which is a real thing — is never
+ * overwritten by changing the type afterwards. */
 document.addEventListener('change', e => {
+  if (e.target.id === 'fFee') feeTouched = true;
+  if (e.target.id === 'fPublic' && !feeTouched) {
+    const fee = document.querySelector('#fFee');
+    if (fee) fee.value = e.target.value === '1' ? 'package' : 'free';
+  }
+
   const box = e.target.closest('[data-pick]');
   if (box) {
     box.checked ? PICKED.add(box.dataset.pick) : PICKED.delete(box.dataset.pick);

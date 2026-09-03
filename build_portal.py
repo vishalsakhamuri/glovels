@@ -67,6 +67,12 @@ def strip_injected(html, donor=False):
     # itself to WhatsApp as the public site.
     out = re.sub(r"\s*<!-- GLOVELS-OG-IMAGE -->.*?<!-- /GLOVELS-OG-IMAGE -->",
                  "", out, flags=re.S)
+    # And the password-eye block. The donor is a page this build writes and
+    # apply_fixes then injects into, so without this every portal screen would
+    # carry one copy per build — five of them by Friday, each with its own
+    # MutationObserver watching the whole document.
+    out = re.sub(r"\s*<style>/\* GLOVELS-PW-EYE-CSS \*/.*?<!-- /GLOVELS-PW-EYE -->",
+                 "", out, flags=re.S)
     # And, FOR THE DONOR ONLY, any sheet apply_fixes injects into a head.
     #
     # Same trap, third time: the donor is a page this build wrote and that file
@@ -208,6 +214,12 @@ STAFF_NAV = [
 
 
 def staff_sidebar(active, role_note, nav=None, brand=True):
+    # `role_note` no longer reaches the badge, and that is the fix rather than
+    # an oversight. It was baked into the markup per SCREEN — blog-admin said
+    # "Website editor" — so an administrator opening it read somebody else's
+    # role next to their own name until the boot script caught up, and read it
+    # for ever if that script did not run. A page must not assert who is signed
+    # in; it is handed an em dash and the session fills it in.
     """The staff rail. `nav` overrides the menu — a partner is not staff and
     must not be offered a single screen that would refuse them."""
     on = ' class="on"'
@@ -222,7 +234,7 @@ def staff_sidebar(active, role_note, nav=None, brand=True):
   <aside class="p-side">
     <div class="p-logo">{mark}
       <img id="ownLogo" alt="" hidden></div>
-    <div class="plan-badge"><b id="staffName">\u2014</b><span id="staffRole">{role_note}</span>
+    <div class="plan-badge"><b id="staffName">\u2014</b><span id="staffRole">\u2014</span>
       <a href="#" id="staffOut" class="p-out">
         <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a></div>
     <nav class="p-nav">{links}</nav>

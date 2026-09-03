@@ -3824,11 +3824,11 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|p|b5aba4a3|0",
+   "key": "page|p|a2273973|0",
    "section": "page",
    "kind": "text",
    "element": "p",
-   "original": "Demo mode — nothing will be charged.",
+   "original": "Every price below includes GST.",
    "note": "",
    "sectionLabel": ""
   },
@@ -3842,11 +3842,11 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|p|ae7623dc|0",
+   "key": "page|p|86813ae3|0",
    "section": "page",
    "kind": "text",
    "element": "p",
-   "original": "Demo mode · no payment is taken",
+   "original": "Paid securely. We never see your card.",
    "note": "",
    "sectionLabel": ""
   },
@@ -4157,11 +4157,11 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|p|b5aba4a3|1",
+   "key": "page|p|a2273973|1",
    "section": "page",
    "kind": "text",
    "element": "p",
-   "original": "Demo mode — nothing will be charged.",
+   "original": "Every price below includes GST.",
    "note": "",
    "sectionLabel": ""
   },
@@ -4175,11 +4175,11 @@
    "sectionLabel": ""
   },
   {
-   "key": "page|p|ae7623dc|1",
+   "key": "page|p|86813ae3|1",
    "section": "page",
    "kind": "text",
    "element": "p",
-   "original": "Demo mode · no payment is taken",
+   "original": "Paid securely. We never see your card.",
    "note": "",
    "sectionLabel": ""
   },

@@ -656,5 +656,10 @@ document.addEventListener('change', e => {
 /* A lead arriving while somebody is looking at the book should appear in it. */
 connectLive({ chat: () => load() });
 
-load();
+/* Through staffBoot, for the same reason the blog screen now is: without it
+   the name and the role in the sidebar are never filled in — the page keeps
+   whatever was baked into its markup — and somebody whose password must be
+   changed reaches a working screen instead of the screen that makes them
+   change it. */
+staffBoot(async () => { await load(); });
 """

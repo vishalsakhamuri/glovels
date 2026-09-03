@@ -8724,6 +8724,183 @@ patch(
 )
 
 
+# ------------------------------------ "nothing will be charged", beside a price
+#
+# "Make sure the demo site nothing will be charged is deleted, as the prices
+#  are displayed."
+#
+# Two checkout panels opened with "Demo mode — nothing will be charged." above
+# an itemised bill with GST worked out on it. It is left over from before there
+# was a gateway, and it is now the one sentence on the page that is not true:
+# an order IS placed, the office IS told, and a student who read it and pressed
+# the button has been misled about what they were doing.
+#
+# Replaced with what the numbers underneath it actually are, which is what that
+# line is for.
+patch(
+    "index.html",
+    "the checkout panel says what the prices are, not that they are pretend",
+    "  $('#buyLead').textContent = 'Demo mode \u2014 nothing will be charged.';",
+    "  $('#buyLead').textContent = 'Every price below includes GST.';",
+    marker="$('#buyLead').textContent = 'Every price below includes GST.';",
+)
+patch(
+    "index.html",
+    "and so does the services one",
+    "  $('#scLead').textContent = 'Demo mode \u2014 nothing will be charged.';",
+    "  $('#scLead').textContent = 'Every price below includes GST.';",
+    marker="$('#scLead').textContent = 'Every price below includes GST.';",
+)
+# And the two that sit in the markup before either script runs.
+patch(
+    "index.html",
+    "and neither panel opens saying it",
+    '<p class="lead" id="buyLead">Demo mode \u2014 nothing will be charged.</p>',
+    '<p class="lead" id="buyLead">Every price below includes GST.</p>',
+    marker='<p class="lead" id="buyLead">Every price below includes GST.</p>',
+)
+patch(
+    "index.html",
+    "nor the services one",
+    '<p class="lead" id="scLead">Demo mode \u2014 nothing will be charged.</p>',
+    '<p class="lead" id="scLead">Every price below includes GST.</p>',
+    marker='<p class="lead" id="scLead">Every price below includes GST.</p>',
+)
+
+
+# ------------------------------------------------- an eye on a password field
+#
+# "In the admin panel — or for all the login pages — a password field and an
+#  eye-like icon should be displayed to the user; on clicking the eye icon the
+#  password should be visible."
+#
+# Written once and applied to every page that has a password box, rather than
+# per screen. There are seven of them today — sign in, sign up, the forced
+# password change, the reset link, deleting an account, adding a member of
+# staff, the partner sign-in — and the eighth is the one somebody adds next
+# month and forgets. A rule applied per screen is a rule with a hole in it.
+#
+# It is NOT a saved preference and it does not persist. The point of the eye is
+# to check a password that has just been typed on a phone keyboard; a field
+# that stays revealed is a password on a screen in an office.
+PW_EYE = """
+<style>/* GLOVELS-PW-EYE-CSS */
+.pw-wrap{position:relative;display:block}
+.pw-wrap > input{padding-right:44px !important}
+.pw-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:32px;height:32px;
+  display:grid;place-items:center;border:0;background:transparent;cursor:pointer;padding:0;
+  color:#7c8b9c;border-radius:8px}
+.pw-eye:hover{color:var(--navy-800,#0d2338);background:rgba(0,0,0,.05)}
+.pw-eye:focus-visible{outline:2px solid var(--blue,#1a4fb4);outline-offset:1px}
+.pw-eye svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+</style>
+<script>
+/* GLOVELS-PW-EYE */
+(function () {
+  var OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.1"/></svg>';
+  var SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 5.5A9.9 9.9 0 0 1 12 5.2c6.5 0 10.2 6.8 10.2 6.8a19 19 0 0 1-3.2 4.1M6.3 7.9A18.8 18.8 0 0 0 1.8 12S5.5 18.8 12 18.8c1.6 0 3-.4 4.2-1M3 3l18 18"/></svg>';
+
+  function dress(input) {
+    if (!input || input.dataset.pwEye) return;
+    /* Not every password box is somewhere a wrapper can go — one inside a
+       table cell with its own layout would be moved by this. Skipped rather
+       than broken. */
+    var parent = input.parentNode;
+    if (!parent) return;
+    input.dataset.pwEye = '1';
+
+    var wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    parent.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    var b = document.createElement('button');
+    b.type = 'button';               /* or it submits the form it is sitting in */
+    b.className = 'pw-eye';
+    b.innerHTML = OPEN;
+    b.setAttribute('aria-label', 'Show password');
+    b.setAttribute('aria-pressed', 'false');
+    /* Out of the tab order between the password box and the button somebody is
+       heading for. It is reachable — the label is on it and a screen reader
+       lists it — but Tab from the password goes to Sign in, which is what
+       everybody is doing. */
+    b.tabIndex = -1;
+    b.addEventListener('click', function () {
+      var on = input.type === 'password';
+      input.type = on ? 'text' : 'password';
+      b.innerHTML = on ? SHUT : OPEN;
+      b.setAttribute('aria-label', on ? 'Hide password' : 'Show password');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      input.focus();
+    });
+    wrap.appendChild(b);
+  }
+
+  function sweep(root) {
+    var list = (root || document).querySelectorAll('input[type="password"]');
+    for (var i = 0; i < list.length; i++) dress(list[i]);
+  }
+
+  /* Twice over, because half of these boxes do not exist when the page loads:
+     the delete-account panel, the Add someone form and the forced change are
+     all drawn by script. A MutationObserver catches whatever appears later
+     without any screen having to remember to call anything. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { sweep(); });
+  } else { sweep(); }
+  try {
+    new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) {
+        for (var j = 0; j < recs[i].addedNodes.length; j++) {
+          var n = recs[i].addedNodes[j];
+          if (n.nodeType !== 1) continue;
+          if (n.matches && n.matches('input[type="password"]')) dress(n);
+          else sweep(n);
+        }
+      }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) { /* no observer: the boxes present at load still have theirs */ }
+}());
+</script>
+<!-- /GLOVELS-PW-EYE -->
+"""
+
+
+def password_eyes():
+    n = 0
+    for f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+        if f.name.startswith("_"):
+            continue
+        t = f.read_text(encoding="utf-8")
+        if "GLOVELS-PW-EYE" in t or "</body>" not in t:
+            continue
+        # Only where there is one, and where one can appear later: every portal
+        # and staff screen draws its own forms.
+        if 'type="password"' not in t and "p-nav" not in t and "p-main" not in t:
+            continue
+        write(f, t.replace("</body>", PW_EYE + "</body>", 1))
+        n += 1
+    if n:
+        applied.append(f"{n} page(s): a password can be checked before it is sent")
+    else:
+        skipped.append("every page: a password can be checked before it is sent")
+
+
+password_eyes()
+
+
+# And the line under the Pay button, which said it twice more.
+patch(
+    "index.html",
+    "the line under Pay does not say it either",
+    '<svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Demo mode \u00b7 no payment is taken<br>\n      By paying you accept our <a href="terms.html">Terms</a> and',
+    '<svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Paid securely. We never see your card.<br>\n      By paying you accept our <a href="terms.html">Terms</a> and',
+    count=2,
+    marker="Paid securely. We never see your card.",
+)
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

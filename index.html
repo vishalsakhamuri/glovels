@@ -1348,11 +1348,11 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <div class="sheet">
     <button class="sheet-close" data-close aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     <h3 id="buyT">Checkout</h3>
-    <p class="lead" id="buyLead">Demo mode — nothing will be charged.</p>
+    <p class="lead" id="buyLead">Every price below includes GST.</p>
     <div id="buyBody"></div>
     <button class="btn btn-primary" id="buyPay" style="width:100%;margin-top:16px">Pay</button>
     <p class="co-legal" style="font-size:11.6px;color:var(--muted);margin:11px 0 0;text-align:center">
-      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Demo mode · no payment is taken<br>
+      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Paid securely. We never see your card.<br>
       By paying you accept our <a href="terms.html">Terms</a> and
       <a href="refunds.html#guarantee-terms">Refund &amp; Cancellation policy</a>.</p>
   </div>
@@ -1395,11 +1395,11 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <div class="sheet">
     <button class="sheet-close" data-close aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     <h3 id="scT">Your plan</h3>
-    <p class="lead" id="scLead">Demo mode — nothing will be charged.</p>
+    <p class="lead" id="scLead">Every price below includes GST.</p>
     <div id="scBody"></div>
     <button class="btn btn-primary" id="scPay" style="width:100%;margin-top:16px">Pay</button>
     <p class="co-legal" id="scLegal" style="font-size:11.6px;color:var(--muted);
-      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Demo mode · no payment is taken<br>
+      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Paid securely. We never see your card.<br>
       By paying you accept our <a href="terms.html">Terms</a> and
       <a href="refunds.html">Refund &amp; Cancellation policy</a>.</p>
   </div>
@@ -2618,7 +2618,7 @@ document.addEventListener('click', e => {
   const taxable = gross - tax;
 
   $('#buyT').textContent = buying.name;
-  $('#buyLead').textContent = 'Demo mode — nothing will be charged.';
+  $('#buyLead').textContent = 'Every price below includes GST.';
   $('#buyBody').innerHTML =
       '<div class="co-line"><span>' + esc(buying.name) + '</span>'
     + '<b>₹' + nf.format(gross) + '</b></div>'
@@ -3377,7 +3377,7 @@ $('#planCta').onclick = () => {
   const taxable = gross - tax;
   $('#scT').textContent = 'Your plan — ' + items.length
     + (items.length === 1 ? ' service' : ' services');
-  $('#scLead').textContent = 'Demo mode — nothing will be charged.';
+  $('#scLead').textContent = 'Every price below includes GST.';
   $('#scBody').innerHTML =
       items.map(s => '<div class="co-line"><span>' + esc(s.name)
         + (s.levels.length ? ' · ' + (levelOf[s.id] || s.levels[0].code) : '')
