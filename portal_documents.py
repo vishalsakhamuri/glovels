@@ -138,7 +138,20 @@ function card(d) {
     (rec ? '<div class="sl-meta" style="margin-top:10px">' + ico('check') +
       ' <a href="/api/documents/' + encodeURIComponent(d.id) + '/file" style="color:var(--blue-deep);' +
       'font-weight:600">' + esc(rec.file) + '</a> · ' + rec.size + '</div>' : '') +
-    '<div class="drop" data-drop="' + d.id + '" style="margin-top:12px;border:1.5px dashed ' +
+    /* Reachable by keyboard, and announced as what it is.
+     *
+     * "The student can click and choose the file to upload, however the
+     * student cannot press Tab and move to the next document or the next
+     * action." It was a bare <div>: not in the tab order at all, so somebody
+     * working without a mouse — or with a screen reader, or with a broken
+     * trackpad — could reach the whole of this screen except the one control
+     * on it that does anything.
+     *
+     * tabindex, role and aria-label make it a button to every assistive
+     * technology; the Enter and Space handlers below make it one in fact. */
+    '<div class="drop" tabindex="0" role="button" aria-label="' +
+      esc((stOf(d.id) === S.NONE ? 'Upload ' : 'Replace ') + d.name) +
+      '" data-drop="' + d.id + '" style="margin-top:12px;border:1.5px dashed ' +
       (st === S.NONE ? '#cfd6de' : '#bfe0cc') + ';border-radius:12px;padding:14px;text-align:center;' +
       'cursor:pointer;font:600 12.2px/1.4 var(--sans);color:var(--muted);transition:.16s">' +
       (st === S.NONE ? 'Drop a file here, or click to choose'
@@ -211,6 +224,28 @@ let pickFor = null;
 picker.addEventListener('change', () => {
   if (pickFor && picker.files[0]) accept(pickFor, picker.files[0]);
   picker.value = '';
+});
+
+/* Enter and Space open the file chooser, which is what a button does. Space is
+   prevented from scrolling the page, which is what it would otherwise do while
+   the focus is on a div. */
+$('#docGrid').addEventListener('keydown', e => {
+  const dz = e.target.closest('[data-drop]');
+  if (!dz || (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar')) return;
+  e.preventDefault();
+  pickFor = dz.dataset.drop;
+  picker.click();
+});
+
+/* And the focus ring, because a control you can tab to and cannot see the
+   focus on is a control you can only use by counting. */
+$('#docGrid').addEventListener('focusin', e => {
+  const dz = e.target.closest('[data-drop]');
+  if (dz) { dz.style.borderColor = 'var(--blue)'; dz.style.background = '#f2f6fd'; }
+});
+$('#docGrid').addEventListener('focusout', e => {
+  const dz = e.target.closest('[data-drop]');
+  if (dz) { dz.style.borderColor = ''; dz.style.background = ''; }
 });
 
 $('#docGrid').addEventListener('click', e => {

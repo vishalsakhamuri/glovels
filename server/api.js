@@ -1016,13 +1016,46 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
 
   /* -------------------------------------------------------- applications */
 
+  /* A student cannot move their own application forward.
+   *
+   * "The student can mark Documents Collected as Done, whereas the counsellor
+   * is the one who verifies and marks it as done."
+   *
+   * Every stage on that tracker is something GLOVELS does — collect the
+   * documents and check them, draft the application, file it, follow it up,
+   * record what came back. A student who could set the stage was writing the
+   * office's record of the office's own work, and "Submitted" is the one that
+   * matters: their dashboard, their counsellor's list and the office's
+   * counters would all say an application had been filed that had not.
+   *
+   * The buttons are gone from the screen. This is the endpoint, closed
+   * separately, because a control being absent from a page is not the same
+   * thing as a route refusing to do it — and the browser is not where a rule
+   * about who may do what belongs.
+   *
+   * Going BACKWARDS is still allowed. It is the only correction available to
+   * somebody who advanced a stage before this landed, it takes nothing away
+   * from anybody, and a student cannot claim progress with it. */
   route('PUT', /^\/api\/applications\/(.+)$/, async (req, res, s, m) => {
     const b = await readJson(req);
     const progId = decodeURIComponent(m[1]);
-    const stage = Math.max(0, Math.min(4, Number(b.stage) || 0));
-    const outcome = ['', 'offer', 'no'].includes(b.outcome) ? b.outcome : '';
-    db.putApplication(s.id, progId, stage, outcome);
-    return json(res, 200, { ok: true });
+    const want = Math.max(0, Math.min(4, Number(b.stage) || 0));
+    const now = (db.getApplications(s.id) || [])
+      .find(a => String(a.prog_id) === String(progId));
+    const had = now ? Number(now.stage) || 0 : 0;
+    if (want > had) {
+      return json(res, 403, {
+        error: 'Your counsellor moves an application on as each step is done — '
+             + 'they are the one who checks the documents and files it. Send them '
+             + 'a message if something is ready and they have not seen it yet.',
+      });
+    }
+    /* And an outcome is the university's answer, arriving through the office.
+       A student recording their own offer moves money, deadlines and the visa
+       file behind it. */
+    const outcome = now ? (now.outcome || '') : '';
+    db.putApplication(s.id, progId, want, outcome);
+    return json(res, 200, { ok: true, stage: want });
   });
 
   /* ----------------------------------------------------------- documents */

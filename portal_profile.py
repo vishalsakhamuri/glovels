@@ -39,21 +39,30 @@ BODY = """
       <nav class="p-card" id="secNav" style="padding:10px;position:sticky;top:18px"></nav>
       <div>
         <form id="pForm" novalidate></form>
-        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+        <div id="formNav" style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
           <!-- Back before forward. Eleven sections with only a Next is a form
                you can walk into and not out of without going up to the nav. -->
           <button type="button" class="btn btn-ghost" id="prevBtn">← Previous section</button>
           <button type="button" class="btn btn-primary" id="saveBtn">Save this section</button>
           <button type="button" class="btn btn-ghost" id="nextBtn">Next section →</button>
-          <button type="button" class="btn btn-ghost" id="fillBtn"
-            style="margin-left:auto">Fill with demo answers</button>
         </div>
+        <!-- "Fill with demo answers" was here. It filled a real student's real
+             record with somebody else's answers, one press, on the live site —
+             a demonstration control that survived the demonstration. -->
 
-        <!-- Findable, not buried, and not shouting either. Apple requires a
-             way to delete an account wherever one can be created, and this
-             screen is where a student's record lives, so this is where it
-             belongs. -->
-        <section class="p-card danger" id="dangerZone" style="margin-top:28px">
+        <!-- Behind a heading, not at the foot of every visit.
+             
+             "Remove Delete my Account from the bottom of the page." It was the
+             last thing every student saw after filling in a form about their
+             future, on every one of eleven sections. But it cannot simply go:
+             Apple and Google both refuse a listing without a way to delete an
+             account from inside the app, and this screen is where a student's
+             record lives.
+             
+             So it is a section of the profile — Account, in the nav on the
+             left, alongside Class 10 and Passport — shown when somebody goes
+             looking for it and not before. -->
+        <section class="p-card danger" id="dangerZone" hidden style="margin-top:4px">
           <h3>Delete my account</h3>
           <p class="d-say">This cannot be undone. Everything personal to you is
             removed from our servers: your profile, the documents you uploaded,
@@ -147,11 +156,26 @@ let cur = 0;
 const shown = f => !f.show || !!f.show(DB.profile);
 const needed = f => shown(f) && !(f.opt && f.opt(DB.profile));
 const filled = f => (DB.profile[f.k] || '').toString().trim() !== '';
+/* A section with nothing required in it is OPTIONAL, not finished.
+ *
+ * "In the Family Details form, the system marks it as 100 percent complete
+ * even when the form is empty." It did, because every field in that section is
+ * optional, so there were no required fields to divide by and the answer was
+ * 100 — a green tick and a full bar against a form nobody had touched. The
+ * screen was telling a student they had completed something they had not
+ * started, and the one section where that is most likely to be believed is the
+ * one asking for a parent's phone number.
+ *
+ * null, not a number: the nav prints "optional" instead of a percentage, and
+ * the tick is earned by actually answering something. */
 function pctOf(sec) {
   const req = sec.fields.filter(needed);
-  if (!req.length) return 100;
+  if (!req.length) return null;
   return Math.round(req.filter(filled).length / req.length * 100);
 }
+
+/* Whether an optional section has anything in it at all. */
+function anyFilled(sec) { return sec.fields.some(filled); }
 function overall() {
   const req = SECTIONS.flatMap(s => s.fields).filter(needed);
   return Math.round(req.filter(filled).length / req.length * 100);
@@ -160,21 +184,39 @@ function overall() {
 function drawNav() {
   $('#secNav').innerHTML = SECTIONS.map((s, i) => {
     const p = pctOf(s);
-    const mark = p === 100 ? ico('check')
+    /* An optional section earns its tick by being answered, not by having
+       nothing to answer. */
+    const done = p === null ? anyFilled(s) : p === 100;
+    const mark = done ? ico('check')
       : '<span style="width:15px;height:15px;border-radius:50%;border:2px solid var(--line);display:inline-block"></span>';
     return '<button type="button" data-i="' + i + '" style="' +
       'display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;' +
       'border:0;background:' + (i === cur ? 'var(--cream)' : 'transparent') + ';' +
       'border-radius:10px;padding:9px 10px;font:' + (i === cur ? '700' : '600') +
       ' 12.6px/1.3 var(--sans);color:' + (i === cur ? 'var(--navy-900)' : 'var(--navy-800)') + '">' +
-      '<span style="color:' + (p === 100 ? 'var(--green)' : 'var(--muted)') + ';display:grid;place-items:center;width:15px">' +
+      '<span style="color:' + (done ? 'var(--green)' : 'var(--muted)') + ';display:grid;place-items:center;width:15px">' +
       mark + '</span>' + esc(s.name.replace('&amp;','&')) +
-      '<span style="margin-left:auto;font:800 9.6px/1 var(--sans);color:var(--muted)">' + p + '%</span>' +
+      '<span style="margin-left:auto;font:800 9.6px/1 var(--sans);color:var(--muted)">' +
+      (p === null ? 'optional' : p + '%') + '</span>' +
       '</button>';
-  }).join('');
+  }).join('')
+    /* And Account, last, which is where deleting one lives. It is not a
+       section of the FORM — there is nothing to fill in — so it is drawn here
+       rather than added to SECTIONS, where the meter, the Next button and the
+       save would all have to learn about a section with no fields. */
+    + '<button type="button" data-account="1" style="' +
+      'display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;' +
+      'border:0;border-top:1px solid var(--line);margin-top:8px;padding-top:13px;' +
+      'background:' + (cur === -1 ? 'var(--cream)' : 'transparent') + ';' +
+      'border-radius:10px;padding-left:10px;padding-right:10px;padding-bottom:9px;font:' +
+      (cur === -1 ? '700' : '600') + ' 12.6px/1.3 var(--sans);color:var(--navy-800)">' +
+      '<span style="color:var(--muted);display:grid;place-items:center;width:15px">' +
+      ico('user') + '</span>Account</button>';
 }
 
 function drawForm() {
+  if (cur < 0) return;
+  showForm();
   const s = SECTIONS[cur];
   const groups = s.groups || null;
 
@@ -390,16 +432,44 @@ function paint() {
 }
 
 $('#secNav').addEventListener('click', e => {
+  if (e.target.closest('[data-account]')) {
+    readForm(); save();
+    cur = -1;
+    showAccount();
+    return;
+  }
   const b = e.target.closest('[data-i]');
   if (!b) return;
   readForm(); save();
-  cur = +b.dataset.i;
+  cur = 0 + (+b.dataset.i);
   drawForm(); paint();
 });
+
+/* The Account view: the form and its buttons stand down, and the one thing
+   that lives here is shown. cur === -1 means "not on a form section", which is
+   why every mover below refuses to run from here rather than quietly jumping
+   somebody back into the form. */
+function showAccount() {
+  $('#pForm').hidden = true;
+  $('#formNav').hidden = true;
+  $('#dangerZone').hidden = false;
+  drawNav();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function showForm() {
+  $('#pForm').hidden = false;
+  $('#formNav').hidden = false;
+  $('#dangerZone').hidden = true;
+}
 /* Moving between sections keeps whatever has been typed, whether or not it is
    valid — losing an answer because a phone number is half entered is worse
    than holding an invalid one. Only SAVE is gated. */
 const goTo = i => {
+  /* From the Account view there is no current section to move from, so Next
+     and Previous put somebody back at the start of the form rather than
+     computing an index from -1. */
+  if (cur === -1) { showForm(); cur = 0; drawForm(); paint();
+    window.scrollTo({top: 0, behavior: 'smooth'}); return; }
   readForm(); save();
   cur = (i + SECTIONS.length) % SECTIONS.length;
   drawForm(); paint();
@@ -460,11 +530,6 @@ $('#delGo').addEventListener('click', async () => {
     err.textContent = e.message || 'That did not work. Try again.';
     err.hidden = false;
   }
-});
-
-$('#fillBtn').addEventListener('click', () => {
-  Object.assign(DB.profile, DEMO); save(); drawForm(); paint();
-  toast('Filled with demo answers — every section is now complete.');
 });
 
 drawForm(); paint();

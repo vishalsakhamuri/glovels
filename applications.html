@@ -1341,17 +1341,27 @@ function block(id) {
         '</span><span><b>' + esc(st.n) + '</b>' + esc(st.d) + '</span></li>';
     }).join('') + '</ul>' +
 
+    /* THIS TRACKER IS THE OFFICE'S RECORD, NOT THE STUDENT'S.
+     *
+     * "The student can mark Documents Collected as Done, whereas the
+     * counsellor is the one who verifies and marks it as done."
+     *
+     * Every stage on this list is something GLOVELS does — collect the
+     * documents and check them, draft the application, file it, follow it up,
+     * record what came back. A student pressing "done" on any of them was
+     * writing the office's record of the office's own work: their dashboard,
+     * their counsellor's list and the office's counters all moved, and nobody
+     * had collected anything.
+     *
+     * So the buttons are gone and the line under the tracker says who moves it
+     * and how to ask. Nothing is taken away from the student that was theirs:
+     * they can still see exactly where the application has got to, which is
+     * what this screen is for. */
     '<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">' +
-      (done ? '' :
-        (s.stage < STAGES.length - 1
-          ? '<button type="button" class="btn btn-primary btn-sm" data-adv="' + id + '">' +
-            'Mark &ldquo;' + esc(STAGES[s.stage].n) + '&rdquo; done</button>'
-          : '<button type="button" class="btn btn-green btn-sm" data-out="offer" data-id="' + id +
-            '">Record an offer</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-out="no" data-id="' + id +
-            '">Record a rejection</button>')) +
-      (s.stage > 0 || s.outcome
-        ? '<button type="button" class="btn btn-ghost btn-sm" data-back="' + id + '">Undo</button>' : '') +
+      '<span style="font:400 12.4px/1.55 var(--sans);color:var(--muted)">' +
+        (done ? 'This one is finished.'
+              : 'Your counsellor moves this on as each step is done.') +
+      '</span>' +
       '<a class="btn btn-ghost btn-sm" href="messages.html" style="margin-left:auto">' +
         ico('chat') + ' Ask about this</a>' +
     '</div></div>';
@@ -1371,31 +1381,10 @@ function paint() {
   save();
 }
 
-$('#appList').addEventListener('click', e => {
-  const adv = e.target.closest('[data-adv]');
-  if (adv) {
-    const s = stateOf(adv.dataset.adv);
-    s.stage = Math.min(s.stage + 1, STAGES.length - 1);
-    paint();
-    toast('Moved to “' + STAGES[s.stage].n + '”.');
-    return;
-  }
-  const out = e.target.closest('[data-out]');
-  if (out) {
-    stateOf(out.dataset.id).outcome = out.dataset.out;
-    paint();
-    toast(out.dataset.out === 'offer'
-      ? 'Offer recorded. Visa & enrollment opens up next.'
-      : 'Rejection recorded — your counsellor will suggest what to do next.');
-    return;
-  }
-  const back = e.target.closest('[data-back]');
-  if (back) {
-    const s = stateOf(back.dataset.back);
-    if (s.outcome) s.outcome = ''; else s.stage = Math.max(0, s.stage - 1);
-    paint();
-  }
-});
+/* The advance, outcome and undo handlers that used to be here are gone with
+   the buttons above. The server refuses a student moving their own application
+   forward as well, because a button being absent from a page is not the same
+   as an endpoint being closed. */
 
 paint();
 
