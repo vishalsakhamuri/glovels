@@ -16,7 +16,17 @@ const F='/tmp/visa-funds-'+stamp+'.pdf';
  await p.goto(BASE+'/visa',{waitUntil:'domcontentloaded'});
  await p.waitForTimeout(2800);
  check('the screen no longer admits to being a demo',!(await p.content()).includes('Demo screen'));
- check('there is a card per visa document',(await p.$$('#visaGrid .sl')).length===8);
+ /* Counted from the page's own list rather than hardcoded. The visa checklist
+    grows — the cover letter we write was added to it — and a suite that pins
+    the number fails on every addition while proving nothing about whether the
+    cards match the list. */
+ /* VISA_DOCS is not a global on this page — it lives inside the page's own
+    closure — so the number is counted from the slot definitions inlined in the
+    source instead. */
+ const wantVisa = ((await p.content()).match(/\{id:'visa-[a-z]+'/g) || []).length;
+ check('there is a card per visa document',
+   wantVisa > 0 && (await p.$$('#visaGrid .sl')).length === wantVisa,
+   (await p.$$('#visaGrid .sl')).length + ' cards for ' + wantVisa + ' documents');
  const [ch]=await Promise.all([p.waitForEvent('filechooser'),p.click('[data-vdrop="visa-funds"]')]);
  await ch.setFiles(F);
  await p.waitForTimeout(2600);

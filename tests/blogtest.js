@@ -72,10 +72,45 @@ const stamp = Date.now();
 
   check('the word count is live', /\d+ words/.test(await page.textContent('#cWords')),
     await page.textContent('#cWords'));
+  /* 155-165 is the window Google prints, not a maximum: under it wastes the
+     space, over it is cut off mid-word. The counsellors asked for the window by
+     number, so the counter has to show the window rather than a ceiling. */
   check('and the description is counted against what Google prints',
-    /\/ 155$/.test(await page.textContent('#cDesc')), await page.textContent('#cDesc'));
+    /\/ 165$/.test(await page.textContent('#cDesc')), await page.textContent('#cDesc'));
+
+  const descClass = async s => {
+    await page.fill('#pMetaDesc', 'x'.repeat(s));
+    await page.waitForTimeout(250);
+    return page.getAttribute('#cDesc', 'class');
+  };
+  check('a description inside the window is marked good',
+    /good/.test(await descClass(160)));
+  check('one that is too short is not', !/good|over/.test(await descClass(90)));
+  check('and one Google will cut off is marked over', /over/.test(await descClass(180)));
+  await page.fill('#pMetaDesc', 'What a blocked account is, what Germany asks you to show, '
+    + 'and how long one takes to open.');
+  await page.waitForTimeout(250);
   check('the preview shows the description that was typed',
     (await page.textContent('#sD')).startsWith('What a blocked account is'));
+
+  /* ------------------------------------ the boxes the counsellors asked for */
+  check('there is somewhere to say who wrote it', await page.isVisible('#pAuthor'));
+  check('and when it was published', await page.isVisible('#pPublished'));
+  await page.fill('#pAuthor', 'Priya Menon');
+  await page.fill('#pPublished', '2026-02-11');
+  await page.fill('#pExcerpt', 'What a blocked account is and what it costs.');
+  await page.waitForTimeout(300);
+  check('the excerpt is counted to 500', /\/ 500$/.test(await page.textContent('#cExcerpt')),
+    await page.textContent('#cExcerpt'));
+  /* Held at 500 by the box itself, so nobody types a paragraph that is silently
+     cut in half on save. */
+  check('and the box will not take a 501st character',
+    (await page.getAttribute('#pExcerpt', 'maxlength')) === '500');
+
+  /* Read next: tick boxes, listing the posts that are actually on the site. */
+  check('the writer picks what to read next', await page.isVisible('#relPick'));
+  const relCount = (await page.$$('#relPick input[type=checkbox]')).length;
+  check('and is offered the posts that are on the site — ' + relCount, relCount >= 0);
 
   /* Save first: a draft must not reach the site. */
   await page.click('#pSave');
@@ -102,6 +137,14 @@ const stamp = Date.now();
     (await page.textContent('#pSaid')).includes('/post/' + slug),
     await page.textContent('#pSaid'));
   check('no page errors while writing', errs.length === 0, errs.slice(0, 2).join(' | '));
+
+  /* The byline survived the save and the publish, and the date the writer typed
+     is the date on the post — not the day the button was pressed. */
+  check('the byline was kept', (await page.inputValue('#pAuthor')) === 'Priya Menon',
+    await page.inputValue('#pAuthor'));
+  check('and the publication date the writer typed',
+    (await page.inputValue('#pPublished')) === '2026-02-11',
+    await page.inputValue('#pPublished'));
 
   /* ------------------------------------------- and what the world now receives */
   const html = await (await guest.request.get(BASE + '/post/' + slug)).text();

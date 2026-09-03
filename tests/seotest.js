@@ -177,7 +177,7 @@ const PROD = {
          not the public services grid, which lives on the home page. */
       .filter(s => !['dashboard', 'profile', 'documents', 'messages', 'applications',
         'universities', 'scholarships', 'services', 'visa', 'admin', 'counsellor',
-        'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'login', '404',
+        'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404',
         'index'].includes(s));
     const missing = [], thin = [];
     for (const s of pages) {

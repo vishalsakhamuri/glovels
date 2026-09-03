@@ -82,7 +82,12 @@ const stamp = Date.now();
   check('the book can be searched', (await page.$$('#leadRows tr[data-lead]')).length === 1,
     (await page.$$('#leadRows tr[data-lead]')).length + ' rows');
 
-  await page.click('#leadRows tr[data-lead]');
+  /* The name, not the middle of the row. The Owner column now holds the
+     control that hands the lead to somebody, and a click aimed at the centre
+     of a six-column row lands on it — which is deliberately NOT a click that
+     opens the lead, or choosing a name would swap the panel out from under
+     the hand doing the choosing. */
+  await page.click('#leadRows tr[data-lead] td:first-child');
   await page.waitForTimeout(1000);
   check('opening one shows what has been said', await page.isVisible('#thread'));
   check('with a way to call and to WhatsApp them',

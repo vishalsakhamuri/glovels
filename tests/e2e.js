@@ -58,11 +58,17 @@ const watch = (page, errs) => {
   await p.selectOption('#fLevel', 'master');
   await p.click('#fGo');
   await p.waitForTimeout(2000);
-  const matched = Number((await p.textContent('#rCount')).replace(/[^0-9]/g, '') || 0);
-  check('the finder returns matches', matched > 0, matched + ' matches');
-  /* The Private tab opens first — real universities, readable. The gated ones
-     are the point of this check, so switch to them. */
-  await p.click('.rtab[data-rt="pub"]').catch(() => {});
+  /* Counted from the rows on the screen, not from a chip. #rCount used to say
+     "158 programmes found" and no longer says anything — the finder stopped
+     telling a visitor how much we have, at Vishal's instruction — so a check
+     reading that chip was reading a number that had been deliberately
+     removed. Rows are what a person came for and what the check should count. */
+  const matched = await p.$$eval('.mrow', els => els.length);
+  check('the finder returns matches', matched > 0, matched + ' rows');
+  /* The free tab opens first — real universities, readable, nothing to buy.
+     The gated ones are the point of this check, so switch to the tab that says
+     a package is needed. */
+  await p.click('.rtab[data-rt="priv"]').catch(() => {});
   await p.waitForTimeout(900);
   const table = await p.textContent('#rowsWrap');
   check('a public university is matched but not named',
@@ -198,7 +204,17 @@ const watch = (page, errs) => {
   check('the messages screen has a composer', await box.count() > 0);
   if (await box.count()) {
     await box.fill('Sending my transcripts tonight.');
-    await p.locator('button:has-text("Send")').first().click().catch(() => {});
+    /* The composer's own submit button, named rather than guessed at.
+       `button:has-text("Send")` picked the first button on the screen whose
+       text contains the word — which stopped being the composer the day the
+       notifications bar arrived with "Send me a test" above it. That button is
+       hidden until a device is registered, so the click failed silently, the
+       catch swallowed it, and the failure surfaced two lines later as a message
+       that never appeared. */
+    const send = p.locator('#composer button[type="submit"]');
+    await (await send.count()
+      ? send.first()
+      : p.locator('button:has-text("Send")').last()).click().catch(() => {});
     await p.waitForTimeout(2000);
     check('the message is on the thread',
       /transcripts tonight/.test(await p.textContent('body')));
@@ -211,9 +227,23 @@ const watch = (page, errs) => {
   await s.waitForTimeout(1200);
   const roster = await s.textContent('#rows');
   check('the new student is on the roster', roster.includes('Ananya'), roster.slice(0, 120));
-  check('and is counted as unassigned until somebody takes them',
-    Number(await s.textContent('#kUnassigned')) >= 1,
-    await s.textContent('#kUnassigned'));
+  /* This used to check the opposite. Somebody who has just paid for a service
+     built around a named person was being left with nobody — no counsellor on
+     their screen and none on ours — until an administrator noticed the
+     Unassigned counter. Buying now assigns whoever has the fewest open files,
+     so the row arrives with a name on it. */
+  /* Her row, not the whole roster — the demo seed carries students who never
+     bought anything, and they are rightly nobody's yet. */
+  const hers = await s.$$eval('#rows tr', rows => {
+    const r = rows.find(x => /Ananya/.test(x.textContent || ''));
+    if (!r) return null;
+    const sel = r.querySelector('select[data-assign]');
+    if (!sel) return null;
+    return { value: sel.value, label: (sel.selectedOptions[0] || {}).textContent || '' };
+  });
+  check('and arrives with a counsellor already on her row',
+    hers && hers.value && !/unassigned/i.test(hers.label),
+    hers ? hers.label.trim() : 'no row found');
 
   /* =============================================== 9. an edit on the home page */
   console.log('\n=== an edit made in the office shows on the site ===');

@@ -8,7 +8,7 @@
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
-const SHEET = require('../server/sheet.js');
+const SHEET = require('/home/claude/glovels/build/server/sheet.js');
 
 const BASE = 'http://localhost:8099';
 const ok = [], bad = [];
@@ -33,6 +33,23 @@ const check = (name, pass, note) => (pass ? ok : bad).push(name + (note ? ' — 
 
   const rows = SHEET.readXlsx(buf);
   const header = rows[0];
+  /* "CGPA is missing in the excel sheet for universities to upload… make sure
+     excel upload has all relevant fields otherwise exact filter will not work."
+
+     Right, and it was worse than missing: the finder has always PREFERRED a
+     programme's own CGPA bar over its country's — `p.minCgpa ?? country rule`
+     — but the column did not exist anywhere behind it, so the preference could
+     never fire. Every programme in a country shared one bar, and a bulk upload
+     could not say otherwise.
+
+     A filter the sheet cannot describe is a filter the office cannot use. */
+  const FILTERS = ['country code', 'level', 'field', 'minimum cgpa',
+    'intake 1 season', 'intake 1 deadline', 'budget band',
+    'total tuition inr', 'public university', 'fit score'];
+  check('every field the finder filters on is a column in the sheet',
+    FILTERS.every(h => header.includes(h)),
+    FILTERS.filter(h => !header.includes(h)).join(', ') || 'all present');
+
   check('the sheet has a header', header[0] === 'id' && header.includes('total tuition inr'),
     header.join('|').slice(0, 80));
   const nBefore = rows.length - 1;
@@ -58,9 +75,18 @@ const check = (name, pass, note) => (pass ? ok : bad).push(name + (note ? ' — 
   blank[header.indexOf('field')] = 'Engineering';
   blank[iFee] = 1850000;
   blank[header.indexOf('public university')] = 'no';
+  /* Required since the fee model landed: every row has to say what applying
+     through us costs the student, because that is what the finder filters on
+     and a blank makes the row invisible to whoever filters on it. */
+  blank[header.indexOf('application')] = 'Package';
+  blank[header.indexOf('budget band')] = 'u20';
   blank[header.indexOf('on the site')] = 'yes';
   blank[header.indexOf('intake 1 season')] = 'winter';
   blank[header.indexOf('intake 1 deadline')] = '2027-01-15';
+  /* The whole point of the new column: a bar this programme sets for itself,
+     different from what its country asks for. */
+  blank[header.indexOf('minimum cgpa')] = '6.2';
+  blank[header.indexOf('fit score')] = '73';
 
   const wrong = header.map(() => '');                      // and a wrong one
   wrong[iProg] = 'BSc Nonsense';
@@ -119,6 +145,17 @@ const check = (name, pass, note) => (pass ? ok : bad).push(name + (note ? ' — 
   check('the fee actually changed', v.totalInr === feeBefore + 111000, v.totalInr);
   const nu = after.programmes.find(p => p.program === 'MSc Marine Robotics');
   check('the new programme exists', !!nu && nu.university === 'University of Aberdeen');
+  check('and the CGPA bar uploaded with it', nu && Number(nu.minCgpa) === 6.2,
+    nu && JSON.stringify(nu.minCgpa));
+  check('as did the fit score', nu && Number(nu.fit) === 73, nu && nu.fit);
+
+  /* A blank cell is not a zero. Every other row left the column empty, and
+     empty means "follow the country's rule" — stored as 0 it would mean "takes
+     anybody", which is the same filter silently switched off. */
+  const untouched = after.programmes.find(x => String(x.id) === String(victimId));
+  check('a blank CGPA stays blank rather than becoming 0',
+    untouched && (untouched.minCgpa === null || untouched.minCgpa === undefined),
+    untouched && JSON.stringify(untouched.minCgpa));
   check('nothing was deleted', after.programmes.length === nBefore + 1,
     after.programmes.length + ' vs ' + (nBefore + 1));
   check('the bad row was not created',

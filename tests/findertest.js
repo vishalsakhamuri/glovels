@@ -133,10 +133,22 @@ const homeCounts = async ctx => {
   check('a negative exchange rate is refused rather than stored',
     !clamped.finder.fx.EUR || clamped.finder.fx.EUR > 0, String(clamped.finder.fx.EUR));
 
-  /* ---------------------------------------------- private first, then public
-     The results used to be one list with the public universities blurred at the
-     bottom, so a visitor's first sight of the finder was a column of grey bars
-     — a paywall before anything of value. */
+  /* ------------------------------------- which tab a visitor lands on, and why
+     The results used to be one list with the public universities blurred at
+     the bottom, so a visitor's first sight of the finder was a column of grey
+     bars — a paywall before anything of value. Splitting them in two was meant
+     to fix that, and for three patches it did the opposite, because the two
+     tabs and the gate were reading different columns.
+
+     They read the same thing now. Free means free to apply THROUGH US — the
+     universities we are partnered with, where the application costs a student
+     nothing — and those rows are readable end to end. A German public place is
+     not free in that sense: its name is what a package buys, and it sits on
+     the tab that says so.
+
+     Which is why the tab that opens can be the free one, as Vishal asked:
+     "free to apply should be by default open." It opens onto real names and
+     real prices, not a wall of blur. */
   const v = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } }))
     .newPage();
   const verrs = [];
@@ -145,31 +157,52 @@ const homeCounts = async ctx => {
   await v.waitForTimeout(2400);
 
   check('the results have two tabs', (await v.$$('.rtab')).length === 2);
-  check('and the one that opens is Private',
-    (await v.$eval('.rtab.on', el => el.dataset.rt)) === 'priv',
+  check('and the one that opens is the free one, as asked for',
+    (await v.$eval('.rtab.on', el => el.dataset.rt)) === 'pub',
     await v.$eval('.rtab.on', el => el.dataset.rt));
-  check('so nothing a visitor sees first is blurred',
-    (await v.$$('#rowsIn .masked')).length === 0,
-    (await v.$$('#rowsIn .masked')).length + ' blurred rows');
-  check('every row on it is readable',
-    (await v.$$('#rowsIn .mrow')).length > 0,
+  check('it is the first one on the screen as well as the open one',
+    (await v.$eval('.rtab', el => el.dataset.rt)) === 'pub',
+    await v.$eval('.rtab', el => el.dataset.rt));
+  check('there are rows on it', (await v.$$('#rowsIn .mrow')).length > 0,
     (await v.$$('#rowsIn .mrow')).length + ' rows');
 
-  const pubCount = Number(await v.textContent('#rtnPub'));
-  check('the public tab says how many are behind it', pubCount > 0, pubCount);
-
-  await v.click('.rtab[data-rt="pub"]');
-  await v.waitForTimeout(700);
-  check('pressing it shows the public ones',
-    (await v.$$('#rowsIn .masked')).length > 0,
-    (await v.$$('#rowsIn .masked')).length + ' blurred');
-  check('and only the public ones — no private rows mixed in',
+  /* The assertion this suite was missing, and the reason Vishal had to say
+     "its reverse" four times before anybody looked.
+     
+     The fee column decides which tab a row lands in; the gate that hides a
+     name still keys off public-versus-private. Those two agreeing is the
+     entire contract of this screen, and for three patches they disagreed: a
+     tab reading "Apply free, right away — no package needed" opened onto a
+     hundred and fifty blurred bars offering to sell the names for ₹4,999,
+     while the tab asking for a package listed real universities with real
+     prices, free to apply to.
+     
+     Every part of that was individually tested and passing. Nothing checked
+     the one thing a visitor sees, which is that the free tab is free. */
+  check('the free tab is readable end to end — nothing on it is behind a package',
+    (await v.$$('#rowsIn .masked')).length === 0,
+    (await v.$$('#rowsIn .masked')).length + ' blurred rows on the FREE tab');
+  check('and every row on it is marked free to apply',
     (await v.$$eval('#rowsIn .mtype.priv', els => els.length)) === 0);
+
+  const pubCount = Number(await v.textContent('#rtnPub'));
+  check('the free tab says how many are on it', pubCount > 0, pubCount);
 
   await v.click('.rtab[data-rt="priv"]');
   await v.waitForTimeout(700);
-  check('and back again shows only the private ones',
+  check('the package tab has rows too', (await v.$$('#rowsIn .mrow')).length > 0,
+    (await v.$$('#rowsIn .mrow')).length + ' rows');
+  check('and it is where the gate lives — a name is what the package buys',
+    (await v.$$('#rowsIn .masked')).length > 0,
+    (await v.$$('#rowsIn .masked')).length + ' blurred');
+  check('with nothing free-to-apply mixed in',
     (await v.$$eval('#rowsIn .mtype.pub', els => els.length)) === 0);
+
+  await v.click('.rtab[data-rt="pub"]');
+  await v.waitForTimeout(700);
+  check('and back again is readable, still',
+    (await v.$$('#rowsIn .masked')).length === 0,
+    (await v.$$('#rowsIn .masked')).length + ' blurred');
 
   /* An ampersand stored as an HTML entity was escaped twice and rendered as
      "&amp;" in three programme names. */
@@ -209,7 +242,15 @@ const homeCounts = async ctx => {
     de.reduce((a, b) => a + b, 0) === await tabs(),
     de.reduce((a, b) => a + b, 0) + ' vs ' + await tabs());
 
-  await rp.selectOption('#fCgpa', '6.5');
+  /* The destination is Germany, so the grade question is the German one and the
+     calculator is how a 6.5 CGPA becomes an answer to it. */
+  await rp.click('#openGg');
+  await rp.fill('#ggMax', '10');
+  await rp.fill('#ggPass', '4');
+  await rp.fill('#ggNow', '6.5');
+  await rp.waitForTimeout(400);
+  await rp.click('#ggUse');
+  await rp.waitForTimeout(500);
   await rp.click('#fGo');
   await rp.waitForTimeout(1200);
   const cg = await counts();
@@ -220,7 +261,7 @@ const homeCounts = async ctx => {
     cg.reduce((a, b) => a + b, 0) + ' vs ' + await tabs());
 
   /* And pressing one filters BOTH tabs, which is the thing it is for. */
-  await rp.selectOption('#fCgpa', '');
+  await rp.selectOption('#fGgpa', '');
   await rp.click('#fGo');
   await rp.waitForTimeout(1000);
   const wide = await tabs();

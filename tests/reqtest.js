@@ -19,8 +19,9 @@ const reqPanel = async (ctx, code) => {
   await p.goto(BASE + '/#results', { waitUntil: 'domcontentloaded' });
   await p.waitForTimeout(2200);
   /* Entry requirements are a property of the destination, so either tab has a
-     Requirements button — but the public tab is the one that always has a row
-     for a given country, since that is where the bulk of the catalogue is. */
+     Requirements button — but the free tab is the one that always has a row for
+     a given country. The other holds the gated universities, and only Germany
+     has any. */
   await p.click('.rtab[data-rt="pub"]').catch(() => {});
   await p.waitForTimeout(800);
   const text = await p.evaluate(cc => {

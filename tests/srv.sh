@@ -11,16 +11,44 @@ DIR=/tmp/db-$PORT
 # ran against stale code.
 # `ss` is not installed here, so ask the kernel: /proc/net/tcp holds the
 # listening socket's inode, and one of the process fds points at it.
-for pid in $(pgrep -f "node serve.js"); do
-  if tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qx "PORT=$PORT"; then
-    kill "$pid" 2>/dev/null
-  fi
-done
-sleep 1
-rm -rf "$DIR"; mkdir -p "$DIR"
-cd "$(dirname "$0")/.." || exit 1
-setsid env PORT="$PORT" DATA_DIR="$DIR" "$@" node serve.js > "/tmp/serve-$PORT.log" 2>&1 < /dev/null &
+holders() {
+  local out=""
+  local pid
+  for pid in $(pgrep -f "node serve.js"); do
+    if tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qx "PORT=$PORT"; then
+      out="$out $pid"
+    fi
+  done
+  echo $out
+}
+
+for pid in $(holders); do kill "$pid" 2>/dev/null; done
+
+# WAIT for it to actually go, rather than sleeping a second and hoping.
+#
+# `rm -rf` on a database an old server still has open does not give you an
+# empty database: the process is still writing, and the file comes back with
+# yesterday's rows in it. That is what was behind three different suites going
+# red under the full run and green on their own — leadtest, servicetest and
+# seotest all inherited data from the run before and failed on a duplicate that
+# should not have existed.
 for i in $(seq 1 40); do
+  [ -z "$(holders)" ] && break
+  sleep 0.25
+done
+# Still there after ten seconds: it is not going to stop politely.
+for pid in $(holders); do kill -9 "$pid" 2>/dev/null; done
+sleep 0.5
+
+rm -rf "$DIR"; mkdir -p "$DIR"
+cd /home/claude/glovels/build || exit 1
+setsid env PORT="$PORT" DATA_DIR="$DIR" "$@" node serve.js > "/tmp/serve-$PORT.log" 2>&1 < /dev/null &
+# Sixty seconds, not twenty. Boot seeds 171 programmes, six blog posts and three
+# accounts, and under the load of a full run — with the previous suite's browser
+# still shutting down — it does not always finish inside twenty. The runner then
+# printed "SERVER FAILED", and the suites after it died on connection errors,
+# which reads exactly like a code regression and is not one.
+for i in $(seq 1 120); do
   sleep 0.5
   # A health check alone is not proof THIS server started. When an older
   # process still holds the port, the new one dies with EADDRINUSE and the old

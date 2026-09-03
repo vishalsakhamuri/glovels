@@ -25,10 +25,11 @@ const asVisitor = async (browser) => {
   const p = await c.newPage();
   await p.goto(BASE + '/#results', { waitUntil: 'domcontentloaded' });
   await p.waitForTimeout(3000);
-  /* The results open on the Private tab now, so a visitor's first sight is real
-     universities rather than blurred bars. Everything this suite is about lives
-     on the other one. */
-  await p.click('.rtab[data-rt="pub"]').catch(() => {});
+  /* The results open on the free tab, so a visitor's first sight is real
+     universities rather than blurred bars. The gate this suite is about lives
+     on the other one — a public university's name is what a package buys, and
+     that is the tab that says a package is needed. */
+  await p.click('.rtab[data-rt="priv"]').catch(() => {});
   await p.waitForTimeout(900);
   const out = {
     source: await p.content(),

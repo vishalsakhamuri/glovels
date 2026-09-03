@@ -107,9 +107,23 @@ const openService = async (page, id) => {
   check('the new turnaround is there', h.text.includes('final same day'));
 
   /* ---------------------------------------------------- add a service */
+  /*
+   * The name has to be one the shipped catalogue does not already use.
+   *
+   * This invented "Accommodation Search" — and so does the seeded service
+   * `accom`, which openOnRequestServices switches ON because it is priced on
+   * request. So the hide check below asked whether "Accommodation Search" had
+   * gone from the home page while a different, live service of exactly that
+   * name was still on it, and could never pass.
+   *
+   * It passed for two years anyway, because ./srv.sh deleted the database
+   * while the previous server still had it open and the rows came back — with
+   * `accom` left inactive from an earlier suite. Fixing the harness to wait
+   * for the old process to die is what finally showed this.
+   */
   await page.click('#addSvc');
   await page.waitForSelector('#sName');
-  await page.fill('#sName', 'Accommodation Search');
+  await page.fill('#sName', 'Campus Room Finder');
   await page.fill('#sDesc', 'A room found and booked before you land, near your campus.');
   await page.fill('#sMeta', '5–7 days');
   await page.fill('#sPrice', '2999');
@@ -117,23 +131,40 @@ const openService = async (page, id) => {
   await page.click('#smSave');
   await page.waitForTimeout(800);
 
-  h = await home(ctx, ['Accommodation Search', '2,999']);
+  h = await home(ctx, ['Campus Room Finder', '2,999']);
   check('a brand-new service appears on the home page',
-    h.names.includes('Accommodation Search'));
+    h.names.includes('Campus Room Finder'));
   check('with its price', h.text.includes('2,999'));
 
   const pub = await (await ctx.request.get(BASE + '/api/content')).json();
   check('it got a usable id',
-    pub.services.items.some(x => x.id === 'accommodation-search'),
+    pub.services.items.some(x => x.id === 'campus-room-finder'),
     pub.services.items.map(x => x.id).slice(-3).join(','));
 
   /* --------------------------------------------------------- hide it */
-  check('the new service can be reopened', await openService(page, 'accommodation-search'));
+  check('the new service can be reopened', await openService(page, 'campus-room-finder'));
+  /* The sheet's markup arrives before the service is loaded into it, so
+     waiting for #sName to be VISIBLE is not the same as waiting for it to hold
+     the right service. Unchecking Active a frame too early hides whichever one
+     the sheet was last showing, and the failure then reads as "hiding does not
+     work" three lines further down. */
+  await page.waitForFunction(
+    () => document.getElementById('sName')
+      && document.getElementById('sName').value === 'Campus Room Finder',
+    null, { timeout: 8000 });
+  check('and the sheet is holding the right one',
+    (await page.inputValue('#sName')) === 'Campus Room Finder',
+    await page.inputValue('#sName'));
   await page.uncheck('#sActive');
   await page.click('#smSave');
   await page.waitForTimeout(800);
+  const hidden = await (await ctx.request.get(BASE + '/api/content')).json();
+  const row = hidden.services.items.find(x => x.id === 'campus-room-finder');
+  check('hiding turns it off in the record', row && row.active === false,
+    row ? 'active=' + row.active : 'the service is gone');
   h = await home(ctx);
-  check('hiding takes it off the home page', !h.names.includes('Accommodation Search'));
+  check('hiding takes it off the home page', !h.names.includes('Campus Room Finder'),
+    h.names.filter(n => /Campus|Room/.test(n)).join(',') || '(none shown)');
 
   /* ------------------------------------ a category decides where it shows */
   await openService(page, 'ielts').catch(() => false);

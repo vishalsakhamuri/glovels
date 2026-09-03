@@ -38,9 +38,21 @@ const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
   check('a deadline on an unsubmitted application is one of them',
     (first.alerts || []).some(a => a.kind === 'deadline'),
     (first.alerts || []).map(a => a.kind).join(','));
+  /* Named, which is what this check is called and what the office needs — not
+     a particular tense.
+     
+     It asserted /closes/ and went red on 1 September, because the alert had
+     become "Arden University closed yesterday for Vishal Sakhamuri". That is
+     the server behaving correctly: a deadline somebody has MISSED is exactly
+     the thing a needs-doing list should be shouting about, and it changes tense
+     when it goes past. The test had quietly encoded "every deadline is in the
+     future", which stopped being true the day one was not. */
+  const dl = (first.alerts || []).filter(a => a.kind === 'deadline');
   check('and it names the student and the university',
-    (first.alerts || []).filter(a => a.kind === 'deadline')
-      .every(a => a.title.length > 20 && /closes/.test(a.title)));
+    dl.length > 0 && dl.every(a => a.title.length > 20
+      && /\bclose[sd]\b/.test(a.title)
+      && / for \S/.test(a.title)),
+    JSON.stringify(dl.map(a => a.title)).slice(0, 140));
   check('an administrator gets the split by person',
     Array.isArray(first.byPerson) && first.byPerson.length > 0,
     JSON.stringify(first.byPerson));
@@ -78,14 +90,39 @@ const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
     && String(a.subject.studentId) === String(me.user.id)));
 
   /* ------------------------------------------------- a file that is not finished */
-  const todo = ALERTS.forStudent(db, { id: me.user.id });
-  check('a student is told exactly what is missing from their own file',
+  /* What is missing DEPENDS ON WHAT THEY BOUGHT now. This used to demand all
+     twenty-seven items from everybody, including somebody who paid ₹99 for
+     three university names — a purchase that had already been delivered in
+     full and still read as "your file is 0% complete". So the check has to be
+     made against a student who has actually bought the thing that needs
+     documents: applications being filed. */
+  const filer = await browser.newContext();
+  const filerMail = 'filer' + stamp + '@example.com';
+  await filer.request.post(BASE + '/api/orders', {
+    headers: { 'x-forwarded-for': '10.44.7.1' },
+    data: { packageId: 'pkg-boarding', name: 'Filer ' + stamp, email: filerMail,
+      phone: '+919000009090', acceptedTerms: true },
+  });
+  /* Straight out of the database rather than through a staff endpoint — this
+     suite already has the store open, and borrowing an admin session here
+     would only be a longer way to ask the same question. */
+  const filerRow = db.studentByEmail(filerMail);
+  check('the buyer exists to be asked about', !!filerRow, filerMail);
+  const todo = ALERTS.forStudent(db, { id: filerRow.id });
+  check('a student whose applications we file is told what is missing',
     Array.isArray(todo.documentsMissing) && todo.documentsMissing.length > 0,
     JSON.stringify(todo.documentsMissing));
   check('as names, not as a percentage on its own',
     todo.documentsMissing.every(x => /[a-z]/i.test(x)));
   check('and a percentage as well, for the bar',
-    todo.complete > 0 && todo.complete < 100, todo.complete + '%');
+    todo.complete >= 0 && todo.complete < 100, todo.complete + '%');
+
+  /* And the other half of the same rule: somebody who bought a shortlist is
+     asked for the handful the matcher reads and NOT for a visa file. */
+  const light = ALERTS.forStudent(db, { id: me.user.id });
+  check('while a shortlist customer is not asked for documents at all',
+    (light.documentsMissing || []).length === 0,
+    (light.documentsMissing || []).join(', '));
 
   /* A brand-new account is not nagged: an empty profile on day one is an
      account made on day one, not a problem. */
@@ -100,11 +137,16 @@ const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
     !ALERTS.all(db).alerts.some(a => a.kind === 'profile'
       && String(a.subject.studentId) === String(newId)));
 
-  /* ...but they are told, on their own screen, straight away. */
+  /* ...but they are told, on their own screen, straight away. An account that
+     has bought nothing is asked for the two things we need to reach them, and
+     no more: the rest depends on what they buy. */
   const theirs = await (await fresh.request.get(BASE + '/api/state')).json();
   check('though they are told themselves, immediately',
-    (theirs.todo.profileMissing || []).length > 10,
-    (theirs.todo.profileMissing || []).length + ' fields');
+    (theirs.todo.profileMissing || []).length > 0,
+    (theirs.todo.profileMissing || []).join(', '));
+  check('and are not handed a visa checklist for an account they opened today',
+    (theirs.todo.documentsMissing || []).length === 0,
+    (theirs.todo.documentsMissing || []).join(', '));
 
   const page = await fresh.newPage();
   const errs = [];
@@ -114,10 +156,14 @@ const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
   check('and it is on the screen they land on', await page.isVisible('.todo-card'));
   const card = await page.textContent('.todo-card');
   check('naming what is missing rather than scolding them',
-    /full name/.test(card) && /Passport/.test(card), card.slice(0, 90));
-  check('with a way to go and fix each half',
+    /full name/.test(card), card.slice(0, 90));
+  /* No document half for an account that has bought nothing — and a card with
+     an empty "0 documents" row would be the screen inventing work. */
+  check('with a way to go and fix what there is',
     (await page.$$('.todo-card a[href="profile.html"]')).length === 1
-    && (await page.$$('.todo-card a[href="documents.html"]')).length === 1);
+    && (await page.$$('.todo-card a[href="documents.html"]')).length === 0);
+  check('and it does not threaten them with a visa they have not bought',
+    !/visa cannot be applied/i.test(card), card.slice(0, 120));
   check('no page errors on the dashboard', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   /* ------------------------------------------------ a follow-up that was promised */

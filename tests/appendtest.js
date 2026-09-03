@@ -10,7 +10,7 @@
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
-const SHEET = require('../server/sheet.js');
+const SHEET = require('/home/claude/glovels/build/server/sheet.js');
 
 const BASE = 'http://localhost:8099';
 const ok = [], bad = [];
@@ -29,22 +29,29 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const fingerprint = before.map(p => p.id + '|' + p.totalInr + '|' + p.active).sort().join('\n');
 
   /* A sheet with the right header and THREE rows. No ids — these are new.
-     Nothing else from the catalogue is in the file at all. */
+     Nothing else from the catalogue is in the file at all.
+
+     `application` is required now: every row has to say whether applying
+     through us is free (we are partnered) or needs a package. A blank there
+     does not fail loudly, it makes the row invisible to whoever filters on
+     it — so the file is refused instead. Same for the budget band. */
   const header = ['id', 'programme', 'university', 'city', 'country code', 'level', 'field',
-    'public university', 'total tuition inr', 'budget band', 'course url',
+    'public university', 'application', 'total tuition inr', 'budget band', 'course url',
     'intake 1 season', 'intake 1 deadline', 'intake 2 season', 'intake 2 deadline',
     'on the site', 'showcase', 'showcase position'];
   const rows = [
     /* Written the way a counsellor writes: "Masters", not "master". */
     ['', 'MSc Data Science', 'Coventry University', 'Coventry', 'GB', 'Masters', 'Computing',
-      'no', 1850000, '', 'https://example.com/a', 'Fall', '2027-01-15', '', '', 'yes', 'no', ''],
+      'no', 'Package', 1850000, 'u20', 'https://example.com/a', 'Fall', '2027-01-15', '', '', 'yes', 'no', ''],
     ['', 'MBA Global Business', 'Griffith College', 'Dublin', 'IE', 'MBA', 'Business',
-      'no', 2600000, '', 'https://example.com/b', 'autumn', '2027-02-01', '', '', 'yes', 'yes', 3],
+      'no', 'Package', 2600000, 'above20', 'https://example.com/b', 'autumn', '2027-02-01', '', '', 'yes', 'yes', 3],
+    /* A university we have since partnered with. Free to apply to, and still
+       a private one — the two are different facts. */
     ['', 'MS Cybersecurity', 'SRH Berlin', 'Berlin', 'DE', 'MSc', 'Computing',
-      'no', 3100000, '', 'https://example.com/c', 'winter', '2027-01-10', '', '', 'yes', 'no', ''],
+      'no', 'Free', 3100000, 'above20', 'https://example.com/c', 'winter', '2027-01-10', '', '', 'yes', 'no', ''],
     /* A destination Glovels does not sell yet. It must be refused by name. */
     ['', 'MS Analytics', 'Pace University', 'New York', 'US', 'Masters', 'Computing',
-      'no', 3300000, '', 'https://example.com/d', 'fall', '2027-01-10', '', '', 'yes', 'no', ''],
+      'no', 'Package', 3300000, 'above20', 'https://example.com/d', 'fall', '2027-01-10', '', '', 'yes', 'no', ''],
   ];
   fs.writeFileSync('/tmp/new-unis.xlsx', SHEET.writeXlsx(header, rows, 'Catalogue'));
 

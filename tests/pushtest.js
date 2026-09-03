@@ -194,14 +194,34 @@ function fakeDb() {
     junk.status());
 
   /* A notification carries a student's words. One account must not be able to
-     arrange for those to be sent to another. */
+     arrange for those to be sent to another.
+     
+     What changed, and what did not. A student may now register a device of
+     their own — an app that cannot tell them their counsellor replied is a
+     bookmark with a nicer icon, and that is the whole point of the phone in
+     their hand. What is still refused is TAKING SOMEBODY ELSE'S. The endpoint
+     is the primary key and saving is an INSERT OR REPLACE, so registering an
+     endpoint already registered to another account would move it and start
+     delivering that person's messages to this one's phone. That was
+     unreachable while these routes were staff-only; opening them made it
+     reachable, so the server checks the owner first. */
   const student = await real.newContext();
   await student.request.post(BASE + '/api/auth/login',
     { data: { email: 'student@glovels.com', password: 'glovels123' } });
-  check('a student cannot register for staff notifications',
-    (await student.request.post(BASE + '/api/push/subscribe',
-      { data: { subscription: shaped } })).status() === 403);
-  check('nor read the key', (await student.request.get(BASE + '/api/push/key')).status() === 403);
+  check('a student may read the key, because they have an app too',
+    (await student.request.get(BASE + '/api/push/key')).status() === 200);
+  const steal = await student.request.post(BASE + '/api/push/subscribe',
+    { data: { subscription: shaped } });
+  check('but cannot take over a device that is already somebody else’s',
+    steal.status() === 409, steal.status() + ' ' + (await steal.text()).slice(0, 70));
+  /* And the staff device is still the staff device afterwards. A refusal that
+     leaves the row moved anyway would report the right status and do the wrong
+     thing. */
+  const stillOurs = await staff.request.post(BASE + '/api/push/subscribe',
+    { data: { subscription: shaped } });
+  check('and the device is still registered to the person who registered it',
+    stillOurs.status() === 200 && (await stillOurs.json()).devices === 1,
+    stillOurs.status());
 
   const gone = await staff.request.post(BASE + '/api/push/unsubscribe',
     { data: { endpoint: shaped.endpoint } });

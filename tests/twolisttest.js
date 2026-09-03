@@ -12,6 +12,21 @@
  * The check that matters is the one across the boundary: a university the
  * student marks must NOT appear on the counsellor's list, on either screen,
  * until a counsellor puts it there.
+ *
+ * THE STUDENT-FACING HALF IS NOW SWITCHED OFF. Vishal: "this option is not
+ * required ... we may add this feature later not now." So the student no
+ * longer has a way to mark one, and no longer sees the list of what they
+ * marked — but nothing underneath it has been torn out, and this suite is the
+ * thing that has to prove that:
+ *
+ *   - the screen offers no way in and shows no such list  (checked here)
+ *   - the endpoint still records `addedBy: 'student'`     (checked here)
+ *   - a marked one still stays OFF the office's list      (checked here)
+ *   - the counsellor can still see and promote one        (checked here)
+ *
+ * Marking is driven through the API rather than the button, which is the only
+ * honest way to test a feature whose front door is closed — and it means the
+ * day the button comes back, everything behind it is already known to work.
  */
 const { chromium } = require('playwright');
 
@@ -29,11 +44,25 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   const state = await (await stu.request.get(BASE + '/api/state')).json();
 
   check('the server says who put each university on the list',
-    (state.shortlist || []).every(r => r.addedBy === 'student' || r.addedBy === 'office'),
+    (state.shortlist || []).every(r => ['student', 'office', 'matched'].includes(r.addedBy)),
     (state.shortlist || []).map(r => r.addedBy).join(','));
-  check('and there are some of each to tell apart',
-    (state.shortlist || []).some(r => r.addedBy === 'office')
-    && (state.shortlist || []).some(r => r.addedBy === 'student'));
+
+  /* Marked through the door the button used to press. The record has to carry
+     the same answer whether a person clicked it or not — the day this is
+     switched back on, that is what the screen will be reading. */
+  const cat = await (await stu.request.get(BASE + '/api/catalogue')).json();
+  const spare = (cat.programmes || []).find(p =>
+    !(state.shortlist || []).some(r => String(r.id) === String(p.id)));
+  check('there is a university not already on the list', !!spare, spare && spare.id);
+  const id = spare && spare.id;
+  const marked = await stu.request.post(BASE + '/api/shortlist', { data: { id } });
+  check('a student can still mark one through the endpoint', marked.ok(),
+    marked.status() + '');
+
+  const after = await (await stu.request.get(BASE + '/api/state')).json();
+  const row = (after.shortlist || []).find(r => String(r.id) === String(id));
+  check('and the server records it as theirs', row && row.addedBy === 'student',
+    row && row.addedBy);
 
   const page = await stu.newPage();
   const errs = [];
@@ -43,42 +72,33 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
 
   const wrap = flat(await page.textContent('#mineWrap'));
   check('the student sees their counsellor’s shortlist', /counsellor.{0,3}s shortlist/i.test(wrap));
-  check('and, separately, what they are interested in', /interested in/i.test(wrap));
-  check('the counsellor’s list comes first, because it is the answer to '
-    + '"what is happening with my application"',
-    wrap.search(/counsellor.{0,3}s shortlist/i) < wrap.search(/interested in/i));
 
-  /* Marking interest must not put it on the office's list. */
+  /* ------------------------------------------------- switched off, both halves
+   *
+   * The list AND the way in go together. Hiding the list while leaving "I am
+   * interested" on the cards would let a student press it and watch nothing
+   * happen — a screen doing something and showing nothing reads as broken,
+   * not as switched off. */
+  check('the interest list is not on the student’s screen',
+    !/interested in/i.test(wrap), wrap.slice(0, 90));
+  check('nor the empty panel that went with it', !/nothing marked yet/i.test(wrap));
+  check('and there is no way to mark one on this tab',
+    (await page.$$('[data-add]')).length === 0);
   await page.click('.tab[data-pane="browse"]');
-  await page.waitForTimeout(900);
-  const btn = page.locator('[data-add]').first();
-  check('browsing offers interest, not a shortlist place',
-    /interested/i.test(await btn.textContent()), await btn.textContent());
-  const id = await btn.getAttribute('data-add');
-  await btn.click();
-  await page.waitForTimeout(2400);
+  await page.waitForTimeout(1100);
+  check('nor on the programmes tab', (await page.$$('[data-add]')).length === 0);
 
+  /* The count above the tab has to agree with the page under it. This student
+     HAS a marked university — put there a moment ago — and a tab reading one
+     more than the screen shows is the number arguing with the page. */
   await page.click('.tab[data-pane="mine"]');
-  await page.waitForTimeout(900);
-  const sections = await page.evaluate(() => {
-    const h = [...document.querySelectorAll('#mineWrap h3')];
-    return h.map(x => {
-      const cards = [];
-      let n = x.parentElement.nextElementSibling;
-      if (n && n.classList.contains('sl-grid')) {
-        n.querySelectorAll('[data-add], article, .sl-card').forEach(c => cards.push(c.textContent));
-      }
-      return { title: x.textContent, count: n && n.classList.contains('sl-grid')
-        ? n.children.length : 0 };
-    });
-  });
-  check('the new one lands under interest, not under the counsellor’s list',
-    sections.length >= 2, JSON.stringify(sections));
-
-  const after = await (await stu.request.get(BASE + '/api/state')).json();
-  const row = (after.shortlist || []).find(r => String(r.id) === String(id));
-  check('and the server records it as theirs', row && row.addedBy === 'student',
-    row && row.addedBy);
+  await page.waitForTimeout(1100);
+  const shown = await page.evaluate(() => ({
+    tab: Number((document.querySelector('#nMine') || {}).textContent || -1),
+    cards: document.querySelectorAll('#mineWrap .sl-grid > *').length,
+  }));
+  check('the counter counts what is on the screen', shown.tab === shown.cards,
+    'tab says ' + shown.tab + ', screen shows ' + shown.cards);
 
   check('no page errors for the student', errs.length === 0, errs.slice(0, 2).join(' | '));
 
@@ -120,12 +140,18 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
     now && now.addedBy);
   check('no page errors for the counsellor', operrs.length === 0, operrs.slice(0, 2).join(' | '));
 
-  /* It moves on the student's screen too, without them doing anything. */
+  /* Once the office has taken it, it is on the student's screen — which is the
+     half of this that is NOT switched off, and the reason the endpoint had to
+     keep working. */
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2800);
   const mine = await (await stu.request.get(BASE + '/api/state')).json();
   check('the student sees it move to their counsellor’s list',
     (mine.shortlist || []).find(r => String(r.id) === String(id)).addedBy === 'office');
+  check('  · and it is drawn there now, not hidden with the marked ones',
+    flat(await page.textContent('#mineWrap'))
+      .includes(String(spare.university || '').slice(0, 18)),
+    spare.university);
 
   /* And the office's list cannot be demoted by the student clicking again. */
   await stu.request.post(BASE + '/api/shortlist', { data: { id } });

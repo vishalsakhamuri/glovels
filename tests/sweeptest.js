@@ -53,8 +53,12 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   const uni = flat(await stu.p.textContent('#mineWrap'));
   check('student · My Universities shows the counsellor’s shortlist',
     /counsellor.{0,3}s shortlist/i.test(uni));
-  check('student · and, separately, what they are interested in',
-    /interested in/i.test(uni));
+  /* The interest list is switched off — "we may add this feature later not
+     now" — so its ABSENCE is the check. Everything underneath it still works
+     and twolisttest proves that; here it only has to be off the screen. */
+  check('student · and no interest list, which is switched off for now',
+    !/interested in/i.test(uni) && !/nothing marked yet/i.test(uni),
+    uni.slice(0, 80));
   check('student · with no Remove button on either',
     (await stu.p.$$('[data-rm]')).length === 0);
 
