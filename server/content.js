@@ -435,7 +435,19 @@ function cleanLegal(v) {
   const f = v && typeof v === 'object' ? v : {};
   const o = f.officer && typeof f.officer === 'object' ? f.officer : {};
   return {
-    entity: str(f.entity, 120) || 'Glovels Overseas Consultants Private Limited',
+    /* THE REGISTERED NAME, and it was the wrong one.
+     *
+     * Patch 35 renamed the company and patch 82 swept the page titles. This
+     * default was missed, and it is the worst place to miss it: every legal
+     * page SHIPS the correct name in its markup and then this script replaces
+     * it at runtime with the old one. So the five pages whose entire job is to
+     * state the registered name correctly were the five stating it wrongly,
+     * and no check that reads the files could see it.
+     *
+     * It has to have a default rather than falling back to blank — the name
+     * sits inline in a sentence, and an empty one reads "This site is operated
+     * by ." — so the default is the name on the PAN and the GST records. */
+    entity: str(f.entity, 120) || 'Glovels Consultants Private Limited',
     cin: str(f.cin, 40).toUpperCase(),
     gstin: str(f.gstin, 20).toUpperCase(),
     /* Kept as typed, newlines and all — an address on one line is not an
