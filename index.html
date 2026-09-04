@@ -2107,11 +2107,13 @@ function rowHtml(r){
      one. nofollow because a directory of outbound links is not an endorsement
      and search engines should not read it as one. A row with no url in the
      catalogue simply reads as it always did. */
-  const uni = esc(unent(r.university));
+  const uniShort = esc(unent(r.shortName || r.university));
+  const uniLong = esc(unent(r.university));
+  const uni = uniShort;
   const safeUrl = /^https?:\/\//i.test(String(r.url || '')) ? r.url : '';
   const uniHtml = safeUrl
     ? `<a class="ulink" href="${esc(safeUrl)}" target="_blank" rel="noopener nofollow"
-        title="Open ${uni}'s own website">${uni} \u2197</a>`
+        title="Open ${uniLong}'s own website">${uni} \u2197</a>`
     : uni;
   const dlNow = deadlineOf(r);
   const dl = dlNow.at ? new Date(dlNow.at).toLocaleDateString('en-GB',
@@ -3223,6 +3225,12 @@ render();
     const live = byId.get(String(row.id));
     if (!live) return;
     if (row.germanGpa !== live.germanGpa) { row.germanGpa = live.germanGpa; bars++; }
+    /* The name a counsellor says out loud. Blank is a real answer — every row
+       outside Germany has one — so this compares rather than only filling in,
+       and a short name the office CLEARS goes back to the full name. */
+    if ((live.shortName || '') !== (row.shortName || '')) {
+      row.shortName = live.shortName || ''; bars++;
+    }
     /* Undefined and null mean different things to the filter — "not stated" and
        "explicitly cleared" both fall through to the country rule, but only a
        real change is worth a redraw. */

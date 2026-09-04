@@ -109,6 +109,7 @@ A full run is seventy-odd suites and takes about half an hour.
 |---|---|
 | `admintest.js` | The Organisation screen: the counters lead somewhere, and a student can be made. |
 | `teamtest.js` | Roles and permissions, against a production-mode server with no demo accounts. |
+| `viewtest.js` | Counsellor View: the student documents that were names and not links, "Under review by university", seven admission outcomes instead of two, a Remove that asks first, the message that names the course, the German short name from sheet to card, and the sort on the student list. |
 | `paneltest.js` | The admin panel: the eye on every password field, the drafts that were live, the screens that never called `staffBoot` — and the registered company name, as rendered. |
 | `shortlisttest.js` | The counsellor running the student's list, which is the day-to-day work of the business. |
 | `assigntest.js` | Who is doing this one, asked on each of the three screens where work arrives. |

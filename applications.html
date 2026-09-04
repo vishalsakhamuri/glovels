@@ -995,6 +995,18 @@ const api = async (method, path, body, isForm) => {
   return data;
 };
 
+/* The same reading of a university's name as the block above — see the note
+   there. Function declarations, so a page that includes both blocks is fine. */
+function uniName(p) {
+  const short = String((p && p.shortName) || '').trim();
+  return short || String((p && p.university) || (p && p.id) || '');
+}
+function uniFull(p) { return String((p && p.university) || (p && p.id) || ''); }
+function uniBoth(p) {
+  const s = uniName(p), f = uniFull(p);
+  return s && f && s !== f ? s + ' (' + f + ')' : (s || f);
+}
+
 function esc(s) {
   return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
@@ -1288,15 +1300,35 @@ function buildPool() {
 boot(function () {
 buildPool();
 
-/* The five stages an application actually passes through. Kept as data so the
-   tracker, the counters and the "what happens next" line cannot disagree. */
 const STAGES = [
   {k:'docs',   n:'Documents collected', d:'Everything the university asks for, verified and in order.'},
   {k:'draft',  n:'Application drafted', d:'Forms filled, SOP and LORs attached, checked line by line.'},
   {k:'sent',   n:'Submitted',           d:'Filed with the university, reference number on record.'},
-  {k:'review', n:'Under review',        d:'With the admissions committee. We follow up on a schedule.'},
+  {k:'review', n:'Under review by university',
+   d:'With the admissions committee. We follow up on a schedule.'},
   {k:'decided',n:'Decision',            d:'Offer, rejection or a request for more information.'}
 ];
+
+const OUTCOMES = [
+  {k:'',            n:'No decision yet', tone:'',     open:true},
+  {k:'offer',       n:'Offer',           tone:'ok',   open:false},
+  {k:'waitlist',    n:'Waitlisted',      tone:'wait', open:true,
+   d:'Admission is not possible at the moment. The place may still come.'},
+  {k:'deferred',    n:'Deferred',        tone:'wait', open:true,
+   d:'Held over to a later intake.'},
+  {k:'rejected',    n:'Rejected',        tone:'bad',  open:false},
+  {k:'relinquished',n:'Relinquished',    tone:'',     open:false,
+   d:'An offer came and was not accepted.'},
+  {k:'enrolled',    n:'Enrolled',        tone:'ok',   open:false,
+   d:'Accepted, and enrolled.'}
+];
+
+const outcomeOf = k => OUTCOMES.find(o => o.k === String(k || '')) || OUTCOMES[0];
+/* An offer arrived at some point. Enrolled and relinquished both had one, and
+   counting only 'offer' understates the year every time somebody records what
+   actually happened next. */
+const hadOffer = k => ['offer', 'enrolled', 'relinquished'].includes(String(k || ''));
+
 
 
 
@@ -1350,13 +1382,20 @@ function block(id) {
       '<span style="font-size:22px">' + flag + '</span>' +
       '<div style="flex:1;min-width:200px">' +
         '<h3 style="margin:0 0 3px;font-size:15.5px">' + esc(p.program) + '</h3>' +
-        '<div style="font-size:12.8px;color:var(--navy-700)">' + esc(p.university) + '</div>' +
+        '<div style="font-size:12.8px;color:var(--navy-700)" title="' + esc(uniFull(p))
+          + '">' + esc(uniName(p)) + '</div>' +
         '<div style="font-size:11.8px;color:var(--muted);margin-top:2px">' + esc(cname) +
           ' · ' + (p.isPublic ? 'Public' : 'Private') + '</div>' +
       '</div>' +
+      /* The university's own answer, in its own words. This read "Offer
+         received" for an offer and "Not offered" for everything else, which
+         was true while there were only two answers and became false the moment
+         there were seven: a student who has ENROLLED was being shown "Not
+         offered" on the application they enrolled through. */
       (done
-        ? '<span class="badge ' + (s.outcome === 'offer' ? 'badge-start' : 'badge-value') + '">' +
-          (s.outcome === 'offer' ? 'Offer received' : 'Not offered') + '</span>'
+        ? '<span class="badge ' + (outcomeOf(s.outcome).tone === 'ok' ? 'badge-start'
+            : outcomeOf(s.outcome).tone === 'bad' ? 'badge-value' : 'badge-value') + '">' +
+          esc(outcomeOf(s.outcome).n) + '</span>'
         : dl ? '<span class="badge ' + (left != null && left < 30 ? 'badge-best' : 'badge-value') + '">' +
           (left != null && left < 0 ? 'Deadline passed'
             : left + ' days to ' + dl.toLocaleDateString('en-GB', {day:'numeric', month:'short'})) +
@@ -1405,8 +1444,14 @@ function paint() {
   const st = list.map(stateOf);
   $('#kTotal').textContent = list.length;
   $('#kSent').textContent  = st.filter(s => s.stage >= 2).length;
-  $('#kDec').textContent   = st.filter(s => s.outcome).length;
-  $('#kOffer').textContent = st.filter(s => s.outcome === 'offer').length;
+  /* Decided means the university has finished. A waitlist and a deferral are
+     recorded answers and are NOT finished — the office is still chasing both,
+     and a student told "1 decided" about a waitlist stops expecting news. */
+  $('#kDec').textContent   = st.filter(s => s.outcome && !outcomeOf(s.outcome).open).length;
+  /* An offer ARRIVED — which is also true of one that was taken up and one
+     that was not. Counting only the rows still sitting at 'offer' understates
+     the year every time somebody records what happened next. */
+  $('#kOffer').textContent = st.filter(s => hadOffer(s.outcome)).length;
   save();
 }
 

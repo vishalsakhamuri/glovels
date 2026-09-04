@@ -26,7 +26,7 @@ in THE record, not a second one shaped like it, and two hand-maintained copies
 of "what a passport is called" is how two screens start disagreeing.
 """
 
-from portal_fields import SECTIONS_JS, DOCS_JS, VISA_JS
+from portal_fields import SECTIONS_JS, DOCS_JS, VISA_JS, APPS_JS
 
 # Colleagues on a partner account. Built in patch 57, switched off in 58 —
 # Vishal: "this is not required for now". The endpoints, the agencyOf() scoping
@@ -289,15 +289,17 @@ Rahul Verma, rahul@example.com, 9876543211, United Kingdom, Master’s"
 """
 
 SCRIPT = r"""
-""" + SECTIONS_JS + r"""
+""" + APPS_JS + SECTIONS_JS + r"""
 """ + DOCS_JS + r"""
 """ + VISA_JS + r"""
 
 /* The five stages an application passes through, in the office's own words.
    The partner reads the same names their student would, so a conversation
-   between the two of them is about the same thing. */
-const STAGE_NAME = ['Not started', 'Documents collected', 'Application drafted',
-  'Submitted', 'Under review', 'Decision'];
+   between the two of them is about the same thing — which is why this is now
+   built from the SAME list rather than a fourth copy of it. "Not started"
+   leads because a partner's row can have no application at all yet; the five
+   after it are the five. */
+const STAGE_NAME = ['Not started'].concat(STAGES.map(s => s.n));
 
 let ME = null, STUDENTS = [], filter = '', dest = '', OPEN = null, TAB = 'details';
 
@@ -337,7 +339,8 @@ const destOf = s => s.destination || '';
 function row(s) {
   const unis = s.shortlist.length
     ? s.shortlist.slice(0, 2).map(u =>
-        '<span class="sl-chip">' + esc(u.university) + '</span>').join(' ')
+        '<span class="sl-chip" title="' + esc(uniFull(u)) + '">' + esc(uniName(u))
+          + '</span>').join(' ')
       + (s.shortlist.length > 2
           ? '<span style="display:block;margin-top:4px;font-size:11.4px;color:var(--muted)">and '
             + (s.shortlist.length - 2) + ' more</span>'
@@ -598,7 +601,7 @@ function unisPane(s) {
     + 'style="margin:0;min-width:640px"><thead><tr><th>University</th><th>Programme</th>'
     + '<th>Where</th><th>Application</th></tr></thead><tbody>'
     + s.shortlist.map(u =>
-      '<tr><td><b>' + esc(u.university) + '</b>'
+      '<tr><td><b title="' + esc(uniFull(u)) + '">' + esc(uniName(u)) + '</b>'
       + (u.isPublic ? ' <span class="st ok" style="margin-left:5px">public</span>' : '')
       + '</td>'
       + '<td style="font-size:12.6px">' + esc(u.program || '—') + '</td>'
@@ -607,7 +610,8 @@ function unisPane(s) {
           ? '<span class="st ' + (u.stage >= 5 ? 'ok' : 'wait') + '">'
             + esc(STAGE_NAME[Math.min(u.stage, 5)]) + '</span>'
           : '<span class="st none">not started</span>')
-        + (u.outcome === 'offer' ? ' <span class="st ok">offer</span>' : '')
+        + (u.outcome ? ' <span class="st ' + (outcomeOf(u.outcome).tone || 'wait')
+            + '">' + esc(outcomeOf(u.outcome).n.toLowerCase()) + '</span>' : '')
         + '</td></tr>').join('')
     + '</tbody></table></div>'
     + '<p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">'

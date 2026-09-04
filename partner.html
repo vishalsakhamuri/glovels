@@ -1145,6 +1145,37 @@ Rahul Verma, rahul@example.com, 9876543211, United Kingdom, Master’s"
 <script>
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* WHAT A UNIVERSITY IS CALLED ON A SCREEN.
+ *
+ * "Let's use university name in German shortened format. For ex: TU Dortmund,
+ * HAW Kiel, FH Dortmund, TU Berlin, FU Berlin, HU Berlin, HTW Berlin, BHT
+ * Berlin etc."
+ *
+ * Nobody says "Berliner Hochschule für Technik" — a counsellor on a call says
+ * BHT Berlin, and a student reading the long form on their own shortlist could
+ * not tell it was the same place they had just been told about.
+ *
+ * The short name is a column in the catalogue sheet, typed by the office, and
+ * it is blank for every row outside Germany. Blank means USE THE FULL NAME —
+ * this never abbreviates anything itself, because a wrong abbreviation on a
+ * student's shortlist is worse than a long right one and only the office can
+ * tell the difference between FH Kiel and HAW Kiel.
+ *
+ * The full name is never thrown away: uniFull() is what a document, an invoice
+ * or a hover is built from.
+ */
+function uniName(p) {
+  const short = String((p && p.shortName) || '').trim();
+  return short || String((p && p.university) || (p && p.id) || '');
+}
+function uniFull(p) { return String((p && p.university) || (p && p.id) || ''); }
+/* The pair, for the one place there is room for both. */
+function uniBoth(p) {
+  const s = uniName(p), f = uniFull(p);
+  return s && f && s !== f ? s + ' (' + f + ')' : (s || f);
+}
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
@@ -1630,6 +1661,35 @@ async function bell(me) {
 
 
 
+const STAGES = [
+  {k:'docs',   n:'Documents collected', d:'Everything the university asks for, verified and in order.'},
+  {k:'draft',  n:'Application drafted', d:'Forms filled, SOP and LORs attached, checked line by line.'},
+  {k:'sent',   n:'Submitted',           d:'Filed with the university, reference number on record.'},
+  {k:'review', n:'Under review by university',
+   d:'With the admissions committee. We follow up on a schedule.'},
+  {k:'decided',n:'Decision',            d:'Offer, rejection or a request for more information.'}
+];
+
+const OUTCOMES = [
+  {k:'',            n:'No decision yet', tone:'',     open:true},
+  {k:'offer',       n:'Offer',           tone:'ok',   open:false},
+  {k:'waitlist',    n:'Waitlisted',      tone:'wait', open:true,
+   d:'Admission is not possible at the moment. The place may still come.'},
+  {k:'deferred',    n:'Deferred',        tone:'wait', open:true,
+   d:'Held over to a later intake.'},
+  {k:'rejected',    n:'Rejected',        tone:'bad',  open:false},
+  {k:'relinquished',n:'Relinquished',    tone:'',     open:false,
+   d:'An offer came and was not accepted.'},
+  {k:'enrolled',    n:'Enrolled',        tone:'ok',   open:false,
+   d:'Accepted, and enrolled.'}
+];
+
+const outcomeOf = k => OUTCOMES.find(o => o.k === String(k || '')) || OUTCOMES[0];
+/* An offer arrived at some point. Enrolled and relinquished both had one, and
+   counting only 'offer' understates the year every time somebody records what
+   actually happened next. */
+const hadOffer = k => ['offer', 'enrolled', 'relinquished'].includes(String(k || ''));
+
 /* ---------------------------------------------------------------- helpers
  *
  * A year of passing was a `number` box. Vishal, three times over: "the
@@ -2106,9 +2166,11 @@ const VISA_DOCS = [
 
 /* The five stages an application passes through, in the office's own words.
    The partner reads the same names their student would, so a conversation
-   between the two of them is about the same thing. */
-const STAGE_NAME = ['Not started', 'Documents collected', 'Application drafted',
-  'Submitted', 'Under review', 'Decision'];
+   between the two of them is about the same thing — which is why this is now
+   built from the SAME list rather than a fourth copy of it. "Not started"
+   leads because a partner's row can have no application at all yet; the five
+   after it are the five. */
+const STAGE_NAME = ['Not started'].concat(STAGES.map(s => s.n));
 
 let ME = null, STUDENTS = [], filter = '', dest = '', OPEN = null, TAB = 'details';
 
@@ -2148,7 +2210,8 @@ const destOf = s => s.destination || '';
 function row(s) {
   const unis = s.shortlist.length
     ? s.shortlist.slice(0, 2).map(u =>
-        '<span class="sl-chip">' + esc(u.university) + '</span>').join(' ')
+        '<span class="sl-chip" title="' + esc(uniFull(u)) + '">' + esc(uniName(u))
+          + '</span>').join(' ')
       + (s.shortlist.length > 2
           ? '<span style="display:block;margin-top:4px;font-size:11.4px;color:var(--muted)">and '
             + (s.shortlist.length - 2) + ' more</span>'
@@ -2409,7 +2472,7 @@ function unisPane(s) {
     + 'style="margin:0;min-width:640px"><thead><tr><th>University</th><th>Programme</th>'
     + '<th>Where</th><th>Application</th></tr></thead><tbody>'
     + s.shortlist.map(u =>
-      '<tr><td><b>' + esc(u.university) + '</b>'
+      '<tr><td><b title="' + esc(uniFull(u)) + '">' + esc(uniName(u)) + '</b>'
       + (u.isPublic ? ' <span class="st ok" style="margin-left:5px">public</span>' : '')
       + '</td>'
       + '<td style="font-size:12.6px">' + esc(u.program || '—') + '</td>'
@@ -2418,7 +2481,8 @@ function unisPane(s) {
           ? '<span class="st ' + (u.stage >= 5 ? 'ok' : 'wait') + '">'
             + esc(STAGE_NAME[Math.min(u.stage, 5)]) + '</span>'
           : '<span class="st none">not started</span>')
-        + (u.outcome === 'offer' ? ' <span class="st ok">offer</span>' : '')
+        + (u.outcome ? ' <span class="st ' + (outcomeOf(u.outcome).tone || 'wait')
+            + '">' + esc(outcomeOf(u.outcome).n.toLowerCase()) + '</span>' : '')
         + '</td></tr>').join('')
     + '</tbody></table></div>'
     + '<p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">'

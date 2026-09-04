@@ -8968,6 +8968,70 @@ patch(
 )
 
 
+# ---------------------------------------------------------------- index.html
+#
+# The short name, onto rows this page shipped with.
+#
+# THE FIFTH TIME this same omission has been fixed in this file. The live
+# catalogue merge refreshes a known row field by field, and a field nobody adds
+# to that list is a field the office can edit for ever without a visitor ever
+# seeing it. It has been the university address, then the course URLs, then the
+# two entry bars, then the intake dates, and now this.
+#
+# It matters more here than it looks. A short name is typed by the office into
+# a spreadsheet column and nothing else creates one — so without this line the
+# column would be filled in for 158 German rows, served correctly by
+# /api/catalogue, and the finder would go on printing "Berliner Hochschule für
+# Technik" for ever, on the one screen the whole exercise was for.
+patch(
+    "index.html",
+    "a short name the office types reaches the rows this page shipped with",
+    """    if (row.germanGpa !== live.germanGpa) { row.germanGpa = live.germanGpa; bars++; }""",
+    """    if (row.germanGpa !== live.germanGpa) { row.germanGpa = live.germanGpa; bars++; }
+    /* The name a counsellor says out loud. Blank is a real answer — every row
+       outside Germany has one — so this compares rather than only filling in,
+       and a short name the office CLEARS goes back to the full name. */
+    if ((live.shortName || '') !== (row.shortName || '')) {
+      row.shortName = live.shortName || ''; bars++;
+    }""",
+    marker="row.shortName = live.shortName || ''",
+)
+
+
+# ---------------------------------------------------------------- index.html
+#
+# The finder card says what the university is CALLED.
+#
+# "Let's use university name in German shortened format. For ex: TU Dortmund,
+# HAW Kiel, FH Dortmund, TU Berlin, FU Berlin, HU Berlin, HTW Berlin, BHT
+# Berlin etc."
+#
+# The short name is a typed column in the catalogue sheet — blank outside
+# Germany, and blank means use the full name. Nothing is abbreviated in code:
+# FH Kiel and HAW Kiel are different institutions, and a rule that turns one
+# into the other is a rule nobody in the office can correct.
+#
+# The full name is not lost. It is the link's title, so it is one hover away
+# and still what a screen reader announces on the link.
+patch(
+    "index.html",
+    "the finder card uses the short university name where there is one",
+    """  const uni = esc(unent(r.university));""",
+    """  const uniShort = esc(unent(r.shortName || r.university));
+  const uniLong = esc(unent(r.university));
+  const uni = uniShort;""",
+    marker="const uniShort = esc(unent(r.shortName || r.university));",
+)
+
+patch(
+    "index.html",
+    "and its link still carries the full name",
+    """        title="Open ${uni}'s own website">${uni} \\u2197</a>`""",
+    """        title="Open ${uniLong}'s own website">${uni} \\u2197</a>`""",
+    marker='title="Open ${uniLong}',
+)
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

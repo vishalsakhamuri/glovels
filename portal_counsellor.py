@@ -1,6 +1,6 @@
 """The counsellor's workspace — their caseload, and the live conversation."""
 
-from portal_fields import CGPA_JS
+from portal_fields import CGPA_JS, APPS_JS
 
 BODY = """
     <style>
@@ -36,10 +36,26 @@ BODY = """
           <b style="font-size:14px;color:var(--navy-900)">My students</b>
           <span class="pill" id="caseCount" style="margin-left:auto">0</span>
         </div>
-        <div style="padding:11px 13px;border-bottom:1px solid var(--line)">
+        <div style="padding:11px 13px;border-bottom:1px solid var(--line);display:grid;gap:8px">
           <input id="findStudent" placeholder="Search by name or email" style="width:100%;
             padding:9px 11px;font:400 13px/1.4 var(--sans);color:var(--navy-900);
             border:1.5px solid #d8dde4;border-radius:9px">
+          <!-- The order was whatever /api/staff/students happened to return, so
+               the student who wrote an hour ago could be nine rows down. Latest
+               message first is the default because this is a Conversations
+               screen: the top of the list should be the person waiting. -->
+          <label style="display:flex;align-items:center;gap:7px;font:600 11.4px/1
+            var(--sans);color:var(--muted)">
+            <span>Sort</span>
+            <select id="sortStudents" style="flex:1;padding:7px 9px;font:600 12px/1.3
+              var(--sans);color:var(--navy-900);border:1.5px solid #d8dde4;
+              border-radius:8px;background:var(--paper)">
+              <option value="latest">Latest message</option>
+              <option value="unread">Unread first</option>
+              <option value="name">Name (A–Z)</option>
+              <option value="oldest">Longest without a reply</option>
+            </select>
+          </label>
         </div>
         <div id="caseList" style="max-height:min(620px,66vh);overflow-y:auto"></div>
         <div id="casePager"></div>
@@ -55,12 +71,18 @@ BODY = """
     </div>
 """
 
-SCRIPT = CGPA_JS + r"""
+SCRIPT = CGPA_JS + APPS_JS + r"""
 let STUDENTS = [];
 /* The record currently open, so the row renderer can read this student's
    application stages without every caller threading them through. */
 let CASE = null;
 let openId = null;
+/* Held outside the handler so a second Remove cancels the first one's reset. */
+let dropTimer = null;
+/* Latest message first. It is a Conversations screen; the top of the list
+   should be whoever is waiting. */
+let sortBy = 'latest';
+try { sortBy = localStorage.getItem('glovels:caseSort') || 'latest'; } catch (x) {}
 let ME = null;
 let filter = '';
 
@@ -93,10 +115,27 @@ function row(s) {
     '</span></button>';
 }
 
+/* When somebody last said anything on this thread. A student who has never
+   written sorts to the bottom of "latest" rather than to the top, which is
+   what a 0 would do. */
+const saidAt = s => (s.lastMessage && Date.parse(s.lastMessage.at)) || 0;
+
+const SORTS = {
+  latest: (a, b) => saidAt(b) - saidAt(a),
+  /* Unread first, and within that the oldest unanswered at the top — the one
+     that has been waiting longest is the one to open. */
+  unread: (a, b) => (b.unread > 0) - (a.unread > 0) || saidAt(a) - saidAt(b),
+  name: (a, b) => String(a.name || '').localeCompare(String(b.name || '')),
+  /* Somebody who wrote and has not been answered. A thread with no messages at
+     all is not waiting on us, so it goes last rather than first. */
+  oldest: (a, b) => (saidAt(a) || Infinity) - (saidAt(b) || Infinity),
+};
+
 function paintCase() {
   const q = filter.toLowerCase();
   const list = STUDENTS.filter(s =>
-    !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q));
+    !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q))
+    .sort(SORTS[sortBy] || SORTS.latest);
   $('#caseCount').textContent = STUDENTS.length +
     (STUDENTS.reduce((a, s) => a + s.unread, 0) ? ' · ' + STUDENTS.reduce((a, s) => a + s.unread, 0) + ' unread' : '');
   /* The roster scrolls in its own pane, so a long one was never the wall of
@@ -151,10 +190,31 @@ function bubble(m) {
         (fromStudent ? '' : 'text-align:right') + '">' + timeAgo(m.at) + '</div></div></div>';
 }
 
+/* THE FILE, NOT THE NAME OF IT.
+ *
+ * "When clicked on their profile — under documents — we are seeing the file
+ * names but not able to download the files."
+ *
+ * The route was already there and already correct: it resolves the student
+ * from the id in the URL, checks the assignment first, and refuses anybody the
+ * student is not assigned to. This screen simply printed the filename as text
+ * and never linked to it — so a counsellor could see that a passport had been
+ * uploaded and could not open it, while being asked on the same row to press
+ * Verify, which means "I have opened this and checked it".
+ *
+ * `download` rather than a plain link: the response comes back as an
+ * attachment either way, and saying so on the anchor stops a browser opening a
+ * PDF in a tab the counsellor then has to find their way back from. */
 function docRow(d) {
   const L = {ok: 'Verified', wait: 'In review', none: 'Not uploaded'};
+  const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/'
+    + encodeURIComponent(d.key) + '/file';
   return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
-    '<span style="flex:1">' + esc(d.file) + '</span>' +
+    '<span style="flex:1;min-width:0">' +
+      (d.file
+        ? '<a href="' + href + '" download style="color:var(--blue-deep);font-weight:600;' +
+          'word-break:break-word">' + esc(d.file) + '</a>'
+        : esc(d.file || '')) + '</span>' +
     '<span class="st ' + d.status + '">' + L[d.status] + '</span>' +
     (d.status === 'wait'
       ? '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
@@ -163,25 +223,20 @@ function docRow(d) {
         '" style="margin-left:8px">Query</button>') + '</li>';
 }
 
-/* The five stages, the same five the student's own tracker draws. Kept here as
-   the same list rather than a second one, because two lists that must agree
-   eventually will not. */
-const APP_STAGES = ['Documents collected', 'Application drafted', 'Submitted',
-  'Under review', 'Decision'];
 
 /* One row on the student's list: what it is, where it has got to, and the two
    things a counsellor does to it. */
 function uniRow(p) {
   const a = (CASE && CASE.apps && CASE.apps[p.id]) || { stage: 0, outcome: '' };
-  const done = a.outcome === 'offer' ? 'ok' : a.outcome === 'rejected' ? 'bad' : '';
+  const done = outcomeOf(a.outcome).tone;
 
-  const options = APP_STAGES.map((n, i) =>
+  const options = STAGES.map((s, i) =>
     '<option value="' + i + '"' + (i === Number(a.stage || 0) ? ' selected' : '') + '>' +
-    esc(n) + '</option>').join('');
+    esc(s.n) + '</option>').join('');
 
   return '<li style="align-items:flex-start;gap:10px">' +
     '<div style="flex:1;min-width:0">' +
-      '<b style="display:block">' + esc(p.university || p.id) + '</b>' +
+      '<b style="display:block" title="' + esc(uniFull(p)) + '">' + esc(uniName(p)) + '</b>' +
       '<span style="display:block;font-size:12px;color:var(--muted)">' +
         esc(p.program || '') + ' \u00b7 ' + money(p) + '</span>' +
     '</div>' +
@@ -191,12 +246,15 @@ function uniRow(p) {
     '<select data-outcome="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
       'var(--sans);border:1.5px solid ' + (done === 'bad' ? '#e0b4ae' : '#d8dde4') +
       ';border-radius:8px;background:var(--paper)">' +
-      '<option value=""' + (!a.outcome ? ' selected' : '') + '>No decision yet</option>' +
-      '<option value="offer"' + (a.outcome === 'offer' ? ' selected' : '') + '>Offer</option>' +
-      '<option value="rejected"' + (a.outcome === 'rejected' ? ' selected' : '') +
-        '>Rejected</option>' +
+      /* Seven, not three. A waitlist and a deferral were both being recorded as
+         one of the two answers that were available, and a waitlist filed under
+         Rejected is a place the office stops waiting for. */
+      OUTCOMES.map(o => '<option value="' + esc(o.k) + '"' +
+        (String(a.outcome || '') === o.k ? ' selected' : '') + '>' +
+        esc(o.n) + '</option>').join('') +
     '</select>' +
     '<button type="button" class="btn btn-ghost btn-sm" data-unidrop="' + esc(p.id) +
+      '" data-uniname="' + esc(uniName(p)) +
       '" title="Take this off their list">Remove</button>' +
     '</li>';
 }
@@ -363,7 +421,8 @@ function paintRecord(r) {
             + '<ul class="doclist">' + want.map(function (p) {
                 return '<li style="align-items:center;gap:10px">'
                   + '<div style="flex:1;min-width:0">'
-                  + '<b style="display:block">' + esc(p.university || p.id) + '</b>'
+                  + '<b style="display:block" title="' + esc(uniFull(p)) + '">'
+                    + esc(uniName(p)) + '</b>'
                   + '<span style="display:block;font-size:12px;color:var(--muted)">'
                   + esc(p.program || '') + ' \u00b7 ' + money(p) + '</span></div>'
                   + '<button type="button" class="btn btn-ghost btn-sm" data-promote="'
@@ -508,7 +567,7 @@ async function searchUnis(q) {
   box.innerHTML = hits.length
     ? '<ul class="doclist" style="margin:0">' + hits.map(p =>
         '<li><div style="flex:1;min-width:0"><b style="display:block">' +
-        esc(p.university || p.id) + '</b><span style="display:block;font-size:11.8px;' +
+        esc(uniName(p)) + '</b><span style="display:block;font-size:11.8px;' +
         'color:var(--muted)">' + esc(p.name || p.program || '') + ' \u00b7 ' +
         esc(p.country || '') + '</span>' + short(p) + '</div>' +
         (on.has(String(p.id))
@@ -628,17 +687,60 @@ document.addEventListener('click', async e => {
 
   const drop = e.target.closest('[data-unidrop]');
   if (drop) {
-    /* No confirm dialog: it is one row, it is reversible by adding it back, and
-       a dialog on every remove makes agreeing a shortlist of ten a chore. */
+    /* ASK FIRST. "With just one click we are able to remove the program from
+       the list. Add a warning message or confirmation screen."
+     *
+     * The note that used to be here said a dialog was not worth it because the
+     * remove "is reversible by adding it back". That was wrong, and the server
+     * says so three lines below the delete: the APPLICATION goes with the
+     * shortlist row. One press threw away the stage, the outcome and the whole
+     * record of what had been filed, and sent the student a message saying the
+     * university had been taken off their list. Adding it back gives a fresh
+     * row at stage zero. There is nothing to put back.
+     *
+     * Two presses on the same button rather than a browser confirm(): it does
+     * not block the page, it names the university in the button itself, and
+     * agreeing a shortlist of ten is still ten presses and not ten dialogs —
+     * which was the real point of the original note. */
+    if (drop.dataset.sure !== '1') {
+      $$('[data-unidrop]').forEach(b => {
+        if (b === drop) return;
+        b.dataset.sure = '';
+        b.textContent = 'Remove';
+        b.style.cssText = '';
+      });
+      drop.dataset.sure = '1';
+      /* Inline rather than a class: there is no danger button in the portal
+         sheet, and one control on one screen does not earn a global style. */
+      drop.style.cssText = 'border-color:#c0392b;color:#7a2118;background:#fdf3f2;'
+        + 'font-weight:700';
+      drop.textContent = 'Remove ' + (drop.dataset.uniname || 'it') + '?';
+      drop.title = 'This also deletes the application — the stage, the decision '
+        + 'and everything recorded against it. Press again to remove.';
+      clearTimeout(dropTimer);
+      dropTimer = setTimeout(() => {
+        drop.dataset.sure = '';
+        drop.textContent = 'Remove';
+        drop.style.cssText = '';
+      }, 5000);
+      return;
+    }
+    clearTimeout(dropTimer);
     drop.disabled = true;
     try {
       await api('DELETE', '/api/staff/student/' + openId + '/shortlist/' +
         encodeURIComponent(drop.dataset.unidrop));
       await refreshCase();
-      toast('Taken off their list.');
+      toast('Taken off their list, and the application with it.');
     } catch (err) {
       drop.disabled = false;
-      alert(err.message || 'That did not remove.');
+      drop.dataset.sure = '';
+      drop.textContent = 'Remove';
+      drop.style.cssText = '';
+      /* toast, not alert(): a modal dialog stops every other script on the page
+         until somebody dismisses it, and this one is reporting a failure the
+         counsellor can do nothing about from inside it. */
+      toast(err.message || 'That did not remove.', 'bad');
     }
   }
 });
@@ -788,6 +890,20 @@ document.addEventListener('click', async e => {
 $('#findStudent').addEventListener('input', e => {
   filter = e.target.value;
   PAGE_AT.case = 0;
+  paintCase();
+});
+
+/* The remembered choice, shown on the control that made it. Without this the
+   list is sorted one way and the box says another. */
+$('#sortStudents').value = sortBy;
+
+$('#sortStudents').addEventListener('change', e => {
+  sortBy = e.target.value;
+  PAGE_AT.case = 0;
+  /* Remembered per browser. A counsellor who works unread-first works
+     unread-first every morning, and re-choosing it daily is the kind of small
+     friction nobody reports and everybody feels. */
+  try { localStorage.setItem('glovels:caseSort', sortBy); } catch (x) {}
   paintCase();
 });
 

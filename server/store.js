@@ -460,6 +460,13 @@ function sqliteDriver(file) {
       be read as "needs 2.5 out of 10" and let every applicant through.
       NULL means the programme has not stated one. */
    'ALTER TABLE programmes ADD COLUMN german_gpa REAL',
+   /* What the university is CALLED — TU Dortmund, HAW Kiel, BHT Berlin.
+      Typed by the office in the catalogue sheet, blank for every row outside
+      Germany, and blank means "use the full name" rather than "abbreviate it
+      yourself". Nothing derives one: FH Kiel and HAW Kiel are two different
+      institutions, and a rule that turns one into the other cannot be
+      corrected by the person who noticed. */
+   "ALTER TABLE programmes ADD COLUMN short_name TEXT NOT NULL DEFAULT ''",
    /* The posts a writer chose to send the reader to next, as slugs, in the
       order they chose them. Picked while writing rather than computed from
       tags — "related posts should be selected while writing the blog" — because
@@ -927,11 +934,13 @@ function open(dir) {
                   || !Number.isFinite(Number(p.germanGpa)))
         ? null : Math.max(1, Math.min(4, Number(p.germanGpa)));
       db.run(`INSERT OR REPLACE INTO programmes
-        (id, program, university, city, country, level, field, band, is_public, fit,
-         min_cgpa, total_inr, url, intakes, active, featured, feature_sort, fee_model,
-         german_gpa, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        String(p.id), p.program, p.university, p.city || '', p.country,
+        (id, program, university, short_name, city, country, level, field, band,
+         is_public, fit, min_cgpa, total_inr, url, intakes, active, featured,
+         feature_sort, fee_model, german_gpa, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        String(p.id), p.program, p.university,
+        String(p.shortName == null ? '' : p.shortName).trim().slice(0, 40),
+        p.city || '', p.country,
         p.level || '', p.field || '', p.band || '', p.isPublic ? 1 : 0,
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,

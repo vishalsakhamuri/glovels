@@ -102,6 +102,16 @@ function liveCatalogue() {
        that is only decoration. */
     germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
     url: r.url || '',
+    /* What the university is CALLED — TU Dortmund, BHT Berlin. Typed by the
+       office, blank outside Germany, and blank means "use the full name".
+       Handed to the finder AND the matcher for the same reason the German
+       grade is: a name that reaches the API and stops at the page is a column
+       the office fills in for nothing. */
+    shortName: r.short_name || '',
+    /* Grouped on the FULL name, deliberately. The short name is a display
+       choice and can be edited or cleared; keying on it would move a
+       university's programmes into a different bucket the moment somebody
+       typed one, and the quota counts universities. */
     uKey: uKeyOf(r.university),
     /* The office's choice of what leads the showcase on the home page. */
     featured: !!r.featured, featureSort: r.feature_sort || 0,

@@ -166,7 +166,9 @@ function card(p, inList) {
   return '<article class="sl" data-id="' + p.id + '">' +
     '<span class="sl-flag">' + flagOf(p) + '</span>' +
     '<h3>' + esc(p.program) + '</h3>' +
-    '<div class="uni">' + esc(p.university) + '</div>' +
+    /* The short name where the office has typed one, and the full name on
+       hover. See uniName() in build_portal.py. */
+    '<div class="uni" title="' + esc(uniFull(p)) + '">' + esc(uniName(p)) + '</div>' +
     '<div class="city">' + esc([p.city, nameOf(p)].filter(Boolean).join(' · ')) + '</div>' +
     /* What this row asks of the student, rather than how it is constituted.
        Public-versus-private is a German fact — six of our seven destinations

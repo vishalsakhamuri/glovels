@@ -512,3 +512,47 @@ function cgpaTenOf(p) {
   return Math.round(raw / max * 10 * 100) / 100;
 }
 """
+
+
+# Where an application has got to, and what came back — the same two lists the
+# server keeps in server/apps.js, for the four screens that draw them.
+#
+# They were four separate copies. portal_counsellor.py even carried the comment
+# "kept here as the same list rather than a second one, because two lists that
+# must agree eventually will not" directly above the second one. Renaming a
+# stage meant finding five places, and the counsellor's screen and the
+# student's would have disagreed about the same application in the meantime.
+#
+# Mirrors server/apps.js. `said` is not mirrored — the sentence a student reads
+# is written on the server, where the message is sent, and a browser has no
+# business composing it.
+APPS_JS = r"""
+const STAGES = [
+  {k:'docs',   n:'Documents collected', d:'Everything the university asks for, verified and in order.'},
+  {k:'draft',  n:'Application drafted', d:'Forms filled, SOP and LORs attached, checked line by line.'},
+  {k:'sent',   n:'Submitted',           d:'Filed with the university, reference number on record.'},
+  {k:'review', n:'Under review by university',
+   d:'With the admissions committee. We follow up on a schedule.'},
+  {k:'decided',n:'Decision',            d:'Offer, rejection or a request for more information.'}
+];
+
+const OUTCOMES = [
+  {k:'',            n:'No decision yet', tone:'',     open:true},
+  {k:'offer',       n:'Offer',           tone:'ok',   open:false},
+  {k:'waitlist',    n:'Waitlisted',      tone:'wait', open:true,
+   d:'Admission is not possible at the moment. The place may still come.'},
+  {k:'deferred',    n:'Deferred',        tone:'wait', open:true,
+   d:'Held over to a later intake.'},
+  {k:'rejected',    n:'Rejected',        tone:'bad',  open:false},
+  {k:'relinquished',n:'Relinquished',    tone:'',     open:false,
+   d:'An offer came and was not accepted.'},
+  {k:'enrolled',    n:'Enrolled',        tone:'ok',   open:false,
+   d:'Accepted, and enrolled.'}
+];
+
+const outcomeOf = k => OUTCOMES.find(o => o.k === String(k || '')) || OUTCOMES[0];
+/* An offer arrived at some point. Enrolled and relinquished both had one, and
+   counting only 'offer' understates the year every time somebody records what
+   actually happened next. */
+const hadOffer = k => ['offer', 'enrolled', 'relinquished'].includes(String(k || ''));
+"""

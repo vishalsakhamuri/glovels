@@ -294,6 +294,37 @@ def staff_page(slug, title, h1, sub, body, script, role_note, nav=None, tools=Tr
 <script>
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* WHAT A UNIVERSITY IS CALLED ON A SCREEN.
+ *
+ * "Let's use university name in German shortened format. For ex: TU Dortmund,
+ * HAW Kiel, FH Dortmund, TU Berlin, FU Berlin, HU Berlin, HTW Berlin, BHT
+ * Berlin etc."
+ *
+ * Nobody says "Berliner Hochschule für Technik" — a counsellor on a call says
+ * BHT Berlin, and a student reading the long form on their own shortlist could
+ * not tell it was the same place they had just been told about.
+ *
+ * The short name is a column in the catalogue sheet, typed by the office, and
+ * it is blank for every row outside Germany. Blank means USE THE FULL NAME —
+ * this never abbreviates anything itself, because a wrong abbreviation on a
+ * student's shortlist is worse than a long right one and only the office can
+ * tell the difference between FH Kiel and HAW Kiel.
+ *
+ * The full name is never thrown away: uniFull() is what a document, an invoice
+ * or a hover is built from.
+ */
+function uniName(p) {{
+  const short = String((p && p.shortName) || '').trim();
+  return short || String((p && p.university) || (p && p.id) || '');
+}}
+function uniFull(p) {{ return String((p && p.university) || (p && p.id) || ''); }}
+/* The pair, for the one place there is room for both. */
+function uniBoth(p) {{
+  const s = uniName(p), f = uniFull(p);
+  return s && f && s !== f ? s + ' (' + f + ')' : (s || f);
+}}
+
 function esc(s) {{
   return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}}[c]));
 }}
@@ -729,6 +760,18 @@ const api = async (method, path, body, isForm) => {{
     {{ status: r.status, data, mustChange: !!data.mustChange }});
   return data;
 }};
+
+/* The same reading of a university's name as the block above — see the note
+   there. Function declarations, so a page that includes both blocks is fine. */
+function uniName(p) {{
+  const short = String((p && p.shortName) || '').trim();
+  return short || String((p && p.university) || (p && p.id) || '');
+}}
+function uniFull(p) {{ return String((p && p.university) || (p && p.id) || ''); }}
+function uniBoth(p) {{
+  const s = uniName(p), f = uniFull(p);
+  return s && f && s !== f ? s + ' (' + f + ')' : (s || f);
+}}
 
 function esc(s) {{
   return String(s).replace(/[&<>"]/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}}[c]));

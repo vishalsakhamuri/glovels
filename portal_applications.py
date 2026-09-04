@@ -1,4 +1,5 @@
 """Applications — one tracker per shortlisted university."""
+from portal_fields import APPS_JS
 
 BODY = """
     <style>
@@ -30,16 +31,7 @@ BODY = """
     <div id="appList"></div>
 """
 
-SCRIPT = r"""
-/* The five stages an application actually passes through. Kept as data so the
-   tracker, the counters and the "what happens next" line cannot disagree. */
-const STAGES = [
-  {k:'docs',   n:'Documents collected', d:'Everything the university asks for, verified and in order.'},
-  {k:'draft',  n:'Application drafted', d:'Forms filled, SOP and LORs attached, checked line by line.'},
-  {k:'sent',   n:'Submitted',           d:'Filed with the university, reference number on record.'},
-  {k:'review', n:'Under review',        d:'With the admissions committee. We follow up on a schedule.'},
-  {k:'decided',n:'Decision',            d:'Offer, rejection or a request for more information.'}
-];
+SCRIPT = APPS_JS + r"""
 
 
 
@@ -93,13 +85,20 @@ function block(id) {
       '<span style="font-size:22px">' + flag + '</span>' +
       '<div style="flex:1;min-width:200px">' +
         '<h3 style="margin:0 0 3px;font-size:15.5px">' + esc(p.program) + '</h3>' +
-        '<div style="font-size:12.8px;color:var(--navy-700)">' + esc(p.university) + '</div>' +
+        '<div style="font-size:12.8px;color:var(--navy-700)" title="' + esc(uniFull(p))
+          + '">' + esc(uniName(p)) + '</div>' +
         '<div style="font-size:11.8px;color:var(--muted);margin-top:2px">' + esc(cname) +
           ' · ' + (p.isPublic ? 'Public' : 'Private') + '</div>' +
       '</div>' +
+      /* The university's own answer, in its own words. This read "Offer
+         received" for an offer and "Not offered" for everything else, which
+         was true while there were only two answers and became false the moment
+         there were seven: a student who has ENROLLED was being shown "Not
+         offered" on the application they enrolled through. */
       (done
-        ? '<span class="badge ' + (s.outcome === 'offer' ? 'badge-start' : 'badge-value') + '">' +
-          (s.outcome === 'offer' ? 'Offer received' : 'Not offered') + '</span>'
+        ? '<span class="badge ' + (outcomeOf(s.outcome).tone === 'ok' ? 'badge-start'
+            : outcomeOf(s.outcome).tone === 'bad' ? 'badge-value' : 'badge-value') + '">' +
+          esc(outcomeOf(s.outcome).n) + '</span>'
         : dl ? '<span class="badge ' + (left != null && left < 30 ? 'badge-best' : 'badge-value') + '">' +
           (left != null && left < 0 ? 'Deadline passed'
             : left + ' days to ' + dl.toLocaleDateString('en-GB', {day:'numeric', month:'short'})) +
@@ -148,8 +147,14 @@ function paint() {
   const st = list.map(stateOf);
   $('#kTotal').textContent = list.length;
   $('#kSent').textContent  = st.filter(s => s.stage >= 2).length;
-  $('#kDec').textContent   = st.filter(s => s.outcome).length;
-  $('#kOffer').textContent = st.filter(s => s.outcome === 'offer').length;
+  /* Decided means the university has finished. A waitlist and a deferral are
+     recorded answers and are NOT finished — the office is still chasing both,
+     and a student told "1 decided" about a waitlist stops expecting news. */
+  $('#kDec').textContent   = st.filter(s => s.outcome && !outcomeOf(s.outcome).open).length;
+  /* An offer ARRIVED — which is also true of one that was taken up and one
+     that was not. Counting only the rows still sitting at 'offer' understates
+     the year every time somebody records what happened next. */
+  $('#kOffer').textContent = st.filter(s => hadOffer(s.outcome)).length;
   save();
 }
 

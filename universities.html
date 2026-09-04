@@ -1008,6 +1008,18 @@ const api = async (method, path, body, isForm) => {
   return data;
 };
 
+/* The same reading of a university's name as the block above — see the note
+   there. Function declarations, so a page that includes both blocks is fine. */
+function uniName(p) {
+  const short = String((p && p.shortName) || '').trim();
+  return short || String((p && p.university) || (p && p.id) || '');
+}
+function uniFull(p) { return String((p && p.university) || (p && p.id) || ''); }
+function uniBoth(p) {
+  const s = uniName(p), f = uniFull(p);
+  return s && f && s !== f ? s + ' (' + f + ')' : (s || f);
+}
+
 function esc(s) {
   return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
@@ -1430,7 +1442,9 @@ function card(p, inList) {
   return '<article class="sl" data-id="' + p.id + '">' +
     '<span class="sl-flag">' + flagOf(p) + '</span>' +
     '<h3>' + esc(p.program) + '</h3>' +
-    '<div class="uni">' + esc(p.university) + '</div>' +
+    /* The short name where the office has typed one, and the full name on
+       hover. See uniName() in build_portal.py. */
+    '<div class="uni" title="' + esc(uniFull(p)) + '">' + esc(uniName(p)) + '</div>' +
     '<div class="city">' + esc([p.city, nameOf(p)].filter(Boolean).join(' · ')) + '</div>' +
     /* What this row asks of the student, rather than how it is constituted.
        Public-versus-private is a German fact — six of our seven destinations

@@ -28,6 +28,7 @@ const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
 const GRADES = require('./grades.js');
+const APPS = require('./apps.js');
 const PLANS = require('./plans.js');
 const MONEY = require('./money.js');
 const MATCHES = require('./matches.js');
@@ -225,6 +226,19 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   const cat = () => (typeof catalogue === 'function' ? catalogue() : (catalogue || []));
   const countryMap = () => (typeof countries === 'function' ? countries() : (countries || {}));
   const lookup = id => cat().find(p => p.id === String(id)) || null;
+
+  /* How a programme is named to a student, in one place.
+   *
+   * Every message about a shortlist said the university and nothing else, so a
+   * student with three courses at TU Berlin got three messages that read the
+   * same. The course is the thing; the university is where it is. A catalogue
+   * row calls the course `program` and a shortlist row calls it `program` too,
+   * so this reads both. */
+  const progSaid = p => {
+    const uni = (p && (p.university || p.id)) || 'that programme';
+    const course = p && String(p.program || '').trim();
+    return course ? course + ' at ' + uni : String(uni);
+  };
 
   /* Secure is added in production only. Setting it on plain HTTP means the
      browser silently drops the cookie and sign-in appears to do nothing. */
@@ -2421,7 +2435,11 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            row sits, not what it is. None of the three is the name. */
         uKey: p.uKey, featured: p.featured, featureSort: p.featureSort,
         nLen: String(p.program || '').length,
-        uLen: String(p.university || '').length,
+        /* The width of the blur on a locked row. It is what will be SHOWN
+           once it is unlocked, so a row with a short name blurs at the
+           short name's width — otherwise a locked German row reads as a
+           much longer name than the one that appears when it opens. */
+        uLen: String(p.shortName || p.university || '').length,
       };
     });
 
@@ -3307,8 +3325,19 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         /* The student is told, on their own thread, because a university
            appearing on their list without explanation is unsettling — and
            because this is the counsellor doing visible work. */
-        db.addMessage(id, 'them', 'I have added ' + (p.university || p.id)
-          + (p.name ? ' — ' + p.name : '') + ' to your list.');
+        /* THE COURSE, NOT ONLY THE UNIVERSITY.
+         *
+         * "System is sending message to student with the university name only.
+         * Course name is not mentioned."
+         *
+         * It was meant to. The line read `p.name`, and a catalogue row has no
+         * `name` — the course is `program`. So the whole clause was undefined
+         * on all 171 rows and fell away silently, and a student with three
+         * programmes at one university got three identical messages.
+         *
+         * A university offers many courses; the course is the thing being
+         * added. It leads. */
+        db.addMessage(id, 'them', 'I have added ' + progSaid(p) + ' to your list.');
         live.toStudent(id, 'shortlist', {});
       }
       return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
@@ -3329,7 +3358,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       db.removeApplication(id, progId);
       if (row) {
         db.log(s.name, 'removed a university', st.name + ' — ' + (row.university || progId));
-        db.addMessage(id, 'them', 'I have taken ' + (row.university || progId) + ' off your list.');
+        db.addMessage(id, 'them', 'I have taken ' + progSaid(row)
+          + ' off your list.');
         live.toStudent(id, 'shortlist', {});
       }
       return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
@@ -3355,18 +3385,19 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       if (!row) return json(res, 404, { error: 'That is not on this student\'s list.' });
 
       const b = await readJson(req);
-      const stage = Math.max(0, Math.min(4, Math.round(Number(b.stage) || 0)));
-      const outcome = /^(offer|rejected)$/.test(String(b.outcome || ''))
-        ? String(b.outcome) : '';
+      const stage = APPS.cleanStage(b.stage);
+      const outcome = APPS.cleanOutcome(b.outcome);
 
       const before = db.getApplications(id).find(a => String(a.prog_id) === progId);
       db.putApplication(id, progId, stage, outcome);
 
-      const words = ['Documents collected', 'Application drafted', 'Submitted',
-        'Under review', 'Decision'][stage];
-      const said = outcome === 'offer' ? 'an offer from ' + (row.university || progId)
-        : outcome === 'rejected' ? (row.university || progId) + ' has said no'
-        : (row.university || progId) + ': ' + words;
+      /* The sentence the student reads, from the one list rather than written
+         again here. It used to say "Offer" or "has said no" and nothing else,
+         so a waitlist and a deferral both reached the student as the stage
+         they happened to be on. */
+      const said = outcome
+        ? APPS.outcomeOf(outcome).said(progSaid(row))
+        : progSaid(row) + ': ' + APPS.STAGES[stage].n;
 
       /* Only when it actually moved. A counsellor tidying up ten rows should
          not send a student ten messages saying nothing changed. */
@@ -5128,7 +5159,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * Every write is logged with who did it. On a list several people edit, "who
    * put this on the site?" is a question that gets asked.
    */
-  const FIELD_LIMITS = { program: 140, university: 140, city: 80, url: 400, field: 80 };
+  const FIELD_LIMITS = { program: 140, university: 140, city: 80, url: 400, field: 80,
+    /* A short name is short. 40 is room for the longest real one and not
+       room for somebody pasting the full name into the wrong column. */
+    shortName: 40 };
 
   const FALLBACK_BANDS = [
     { id: 'u10', ceilInr: 1000000 }, { id: 'u20', ceilInr: 2000000 },
@@ -5168,6 +5202,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         country: r.country, level: r.level, field: r.field, band: want,
         isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
         germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+        shortName: r.short_name || '',
         totalInr: r.total_inr, url: r.url,
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
         active: !!r.active, featured: !!r.featured, featureSort: r.feature_sort || 0,
@@ -5223,6 +5258,25 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       id: String(b.id || '').trim() || ('own-' + crypto.randomBytes(5).toString('hex')),
       program: t('program', FIELD_LIMITS.program),
       university: t('university', FIELD_LIMITS.university),
+      /* WHAT THE UNIVERSITY IS ACTUALLY CALLED.
+       *
+       * "Let's use university name in German shortened format. For ex: TU
+       * Dortmund, HAW Kiel, FH Dortmund, TU Berlin, FU Berlin, HU Berlin, HTW
+       * Berlin, BHT Berlin etc."
+       *
+       * Nobody in Germany writes "Berliner Hochschule für Technik" and nobody
+       * searching for it types that either — a counsellor on a call says BHT
+       * Berlin, the student's own screen said the other thing, and they were
+       * not obviously the same place.
+       *
+       * TYPED, not derived. "Technische Universität X" → "TU X" is a rule that
+       * works until Darmstadt (h_da), Kiel (FH Kiel and HAW Kiel are different
+       * institutions) and every Fachhochschule that renamed itself. A wrong
+       * abbreviation on a shortlist is worse than a long correct one, and a
+       * derived one cannot be corrected by the office. So it is a column, it
+       * is blank for everything outside Germany, and blank means "use the full
+       * name" rather than "guess". */
+      shortName: t('shortName', FIELD_LIMITS.shortName),
       city: t('city', FIELD_LIMITS.city),
       country,
       level: normLevel(b.level),
@@ -5285,6 +5339,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
       isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
         germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+        shortName: r.short_name || '',
         totalInr: r.total_inr, url: r.url || '',
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
       active: !!r.active, updatedAt: r.updated_at, updatedBy: r.updated_by || '',
@@ -5335,6 +5390,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
         germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
+        shortName: p.short_name || '',
         totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         intakes: (() => { try { return JSON.parse(p.intakes); } catch (e) { return []; } })(),
@@ -5413,6 +5469,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
         germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
+        shortName: p.short_name || '',
         totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         featured: !!p.featured, featureSort: p.feature_sort || 0,
@@ -5496,7 +5553,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * a screen that just says "done".
    */
   const SHEET_COLUMNS = [
-    ['id', 'id'], ['programme', 'program'], ['university', 'university'], ['city', 'city'],
+    ['id', 'id'], ['programme', 'program'], ['university', 'university'],
+    /* The name a counsellor says out loud. Beside the full name, because
+       filling it in is reading the row you are already on. */
+    ['short name', 'shortName'], ['city', 'city'],
     ['country code', 'country'], ['level', 'level'], ['field', 'field'],
     ['public university', 'isPublic'],
     /* Free or Package: what applying through us costs the student.
@@ -5545,7 +5605,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     let ins = [];
     try { ins = JSON.parse(r.intakes) || []; } catch (e) {}
     return [
-      r.id, r.program, r.university, r.city || '', r.country, r.level || '', r.field || '',
+      /* In the same position as its header — a row whose cells are one column
+         out of step is a row that silently rewrites the wrong fields. */
+      r.id, r.program, r.university, r.short_name || '', r.city || '', r.country,
+      r.level || '', r.field || '',
       r.is_public ? 'yes' : 'no',
       r.fee_model === 'free' ? 'Free' : 'Package',
       Number(r.total_inr || 0), r.band || '', r.url || '',
@@ -5637,6 +5700,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          on the merged Germany workbook. */
       gpa: 'germanGpa', 'german grade': 'germanGpa',
       'german gpa': 'germanGpa', 'gpa (german)': 'germanGpa',
+      'short name': 'shortName', 'shortname': 'shortName',
+      'short': 'shortName', 'abbreviation': 'shortName', 'abbr': 'shortName',
     });
 
     const seen = Object.keys(objects[0] || {});
@@ -5714,7 +5779,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
          editable column is `minimum cgpa`, and only that one is stored. */
       const draft = {
         id: String(g('id') || '').trim(),
-        program: g('program'), university: g('university'), city: g('city'),
+        program: g('program'), university: g('university'),
+        /* The name a counsellor says out loud. Blank is a real answer and
+           means "use the full name" — every row outside Germany has one —
+           so this is read straight through rather than defaulted. */
+        shortName: g('shortName'),
+        city: g('city'),
         country: String(g('country') || '').toUpperCase().trim(),
         level: String(g('level') || '').toLowerCase().trim(),
         field: g('field'),
@@ -5880,6 +5950,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
            first upload of that column is a sheet where it is the ONLY edit on
            all 171 rows — precisely the case this list exists to catch. */
         germanGpa: bar(existing.german_gpa),
+        /* And the short name, for the fourth time in this comparison, for the
+           same reason every time: the FIRST upload of a new column is a sheet
+           where that column is the only edit on all 171 rows. A field missing
+           from this list makes every one of those rows read "already right",
+           the apply pass skips them, the office is told nothing needed doing,
+           and the whole upload is thrown away without a word. */
+        shortName: String(existing.short_name || ''),
         intakes: asIntakes(oldIntakes),
       };
       const after = {
@@ -5891,6 +5968,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         minCgpa: bar(clean.minCgpa), fit: Number(clean.fit || 0),
         feeModel: clean.feeModel,
         germanGpa: bar(clean.germanGpa),
+        shortName: String(clean.shortName || ''),
         intakes: asIntakes(clean.intakes),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
@@ -5957,7 +6035,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const existing = db.programme(id);
       const clean = cleanProgramme({
         id,
-        program: g('program'), university: g('university'), city: g('city'),
+        program: g('program'), university: g('university'),
+        /* Read here as well as in the plan above. The comment twenty lines
+           down says why: a field the preview understands and the apply drops
+           is the worst of both — the office is shown a change that then does
+           not happen. */
+        shortName: g('shortName'),
+        city: g('city'),
         country: String(g('country') || '').toUpperCase().trim(),
         level: String(g('level') || '').toLowerCase().trim(), field: g('field'),
         isPublic: NO_(g('isPublic')) ? false : YES(g('isPublic')),
