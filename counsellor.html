@@ -1562,6 +1562,131 @@ const outcomeOf = k => OUTCOMES.find(o => o.k === String(k || '')) || OUTCOMES[0
    actually happened next. */
 const hadOffer = k => ['offer', 'enrolled', 'relinquished'].includes(String(k || ''));
 
+/* `note` is the sentence under the card. It exists because half of what the
+   counsellors were correcting was not WHICH document but HOW it should arrive:
+   every semester in one file, not eight; the consolidated card as well as the
+   marksheets, not instead of them; all the experience letters together rather
+   than one upload per employer. A checklist of nouns cannot say any of that,
+   and a student who gets it wrong finds out weeks later.
+
+   `(if available)` is in the NAME of every optional document, not only in the
+   Optional chip beside it — the chip is read as "we would still like it", and
+   students were chasing a degree certificate they cannot have yet. */
+const DOCS = [
+  {id:'passport', name:'Passport',              need:1, blocks:'Visa appointment, university application',
+   note:'The photo page. It must be valid for at least six months after you land.'},
+  {id:'x',        name:'Class 10 marksheet',    need:1, blocks:'University application'},
+  {id:'xii',      name:'Class 12 marksheet',    need:1, blocks:'University application'},
+  {id:'degree',   name:'Semester-wise marksheets', need:1, blocks:'University application, APS',
+   note:'Every semester, in ONE file, in order. Not one upload per semester — a '
+      + 'set that arrives in eight pieces is checked as eight documents and one '
+      + 'of them always goes missing.'},
+  {id:'consol',   name:'Consolidated grade card', need:1, blocks:'University application, APS',
+   note:'The single sheet your university issues with every semester on it. It is '
+      + 'not the same as the marksheets above, and most universities abroad ask '
+      + 'for both.'},
+  {id:'degcert',  name:'Original degree certificate (if available)', need:0,
+   blocks:'Final admission',
+   note:'The final certificate, once your university issues it. If you have not '
+      + 'graduated yet, send the provisional below and this when it arrives.'},
+  {id:'provis',   name:'Provisional certificate (if available)', need:0,
+   blocks:'Final admission',
+   note:'What your university gives you before the original is printed. It is '
+      + 'accepted everywhere the original is, for admission.'},
+  {id:'english',  name:'English test scorecard',need:1, blocks:'University application, visa'},
+  {id:'cv',       name:'Academic CV',           need:1, blocks:'University application'},
+  /* `ours` means WE write it and hand it back — the screens show a download
+     rather than an upload box, and it arrives verified because the person who
+     would verify it is the person who wrote it. */
+  {id:'sop',      name:'Statement of Purpose',  need:1, ours:1,
+   blocks:'University application'},
+  {id:'lor',      name:'Letters of Recommendation', need:1, ours:1,
+   blocks:'University application'},
+  {id:'work',     name:'Work experience letters (if available)', need:0,
+   blocks:'Some Master’s programmes count experience towards entry',
+   note:'All of them in ONE file — every employer, in order, oldest first. '
+      + 'Internships count.'},
+  {id:'certs',    name:'Certificates and achievements (if available)', need:0,
+   blocks:'Nothing on its own — it strengthens the application',
+   note:'All of them in ONE file: courses, workshops, publications, prizes, '
+      + 'volunteering. One upload per certificate is not read as a stronger file, '
+      + 'it is read as an unsorted one.'},
+  {id:'finance',  name:'Financial documents',   need:1, blocks:'Visa, blocked account'},
+  {id:'photo',    name:'Passport photograph (if available)', need:0,
+   blocks:'Visa appointment',
+   note:'Recent, white background, no glasses. Your counsellor will tell you the '
+      + 'exact size your consulate wants before the appointment.'},
+  {id:'aps',      name:'APS certificate — Germany (if available)', need:0,
+   blocks:'German application — 6–8 weeks, start early'}
+];
+
+/* One number, in one place, and it is the SERVER's number.
+ *
+ * The upload screen refused at 20 MB and the server refused at 10. A student
+ * with a 15 MB scan watched the whole upload finish and was then told it was
+ * too big — the friendly check let through exactly the files the real one
+ * rejects, which is worse than having no friendly check at all. */
+const MAX_UPLOAD_MB = 10;
+
+/* And the TYPES, in one place, for exactly the same reason.
+ *
+ * The picker carried an accept list and the card advertised "PDF, JPG, PNG or
+ * Word", and the server checked neither — so a .txt went into the Class 12
+ * slot and an .html into the CV slot and both sat there looking like
+ * documents. `accept` filters a dialog; every browser lets somebody switch it
+ * to All Files. The rule is on the server now and these three lines are what
+ * the student is shown, built from the same list so they cannot drift apart.
+ *
+ * HEIC is on it. This card tells a student to photograph the pages when a scan
+ * is too big, and an iPhone photographing pages produces HEIC. */
+const UPLOAD_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'doc', 'docx'];
+const UPLOAD_ACCEPT = UPLOAD_EXT.map(e => '.' + e).join(',');
+const UPLOAD_SAYS = 'PDF, a photo (JPG, PNG or HEIC) or Word';
+const notOurType = name => {
+  const ext = String(name || '').toLowerCase().split('.').pop();
+  return UPLOAD_EXT.includes(ext) ? null
+    : 'Glovels takes ' + UPLOAD_SAYS + '. “' + String(name || 'That file').slice(0, 60)
+      + '” is not one of those — open it, and save or export it as a PDF.';
+};
+
+const VISA_DOCS = [
+  {id:'visa-offer',      name:'Offer / admission letter',   need:1,
+   blocks:'Everything after it — the visa file starts here'},
+  {id:'visa-funds',      name:'Blocked account or proof of funds', need:1,
+   blocks:'Visa appointment. Germany needs the blocked account confirmation itself'},
+  {id:'visa-insurance',  name:'Travel and health insurance', need:1,
+   blocks:'Visa appointment — cover must satisfy the consulate'},
+  {id:'visa-form',       name:'Completed visa application form', need:1,
+   blocks:'The appointment. We check it line by line before you sign'},
+  /* Written by the counsellor, not collected from the student. It is the
+     letter that explains the application to the consulate, and it goes out
+     with the file rather than being asked for. */
+  {id:'visa-cover',      name:'Visa cover letter',          need:1, ours:1,
+   blocks:'Nothing — it goes with the file. We write it once the offer is in'},
+  {id:'visa-appointment',name:'Appointment confirmation',   need:1,
+   blocks:'Nothing, but it fixes every date after it'},
+  {id:'visa-police',     name:'Police clearance certificate', need:0,
+   blocks:'Some destinations only — your counsellor will say'},
+  {id:'visa-decision',   name:'Visa decision letter',       need:0,
+   blocks:'Tickets and accommodation. Upload it the day it arrives'},
+  {id:'visa-travel',     name:'Ticket and accommodation',   need:0,
+   blocks:'Pre-departure briefing and city registration'},
+  /* THE LAST TWO DOCUMENTS IN THE WHOLE JOURNEY, and there was nowhere to put
+     either. "Enrolment docs are missing in this succession. Tuition fee or
+     semester fee invoice. Document option for enrolment certificate."
+     They come after the visa, which is why they belong on this screen rather
+     than with the application papers: a student who has landed still has two
+     things to send us, and the file was ending at the plane ticket. */
+  {id:'fee-invoice',     name:'Tuition or semester fee invoice', need:0,
+   blocks:'Enrolment. Some universities want it paid before they register you',
+   note:'The invoice the university sends for the semester contribution or '
+      + 'tuition. Send the invoice itself, not the bank receipt.'},
+  {id:'enrolment',       name:'Enrolment certificate',       need:0,
+   blocks:'City registration, a bank account, a student travel pass',
+   note:'The Immatrikulationsbescheinigung, or whatever your university calls '
+      + 'it. It is the proof you are a student and half of Germany asks for it.'}
+];
+
 let STUDENTS = [];
 /* The record currently open, so the row renderer can read this student's
    application stages without every caller threading them through. */
@@ -1696,7 +1821,8 @@ function bubble(m) {
  * attachment either way, and saying so on the anchor stops a browser opening a
  * PDF in a tab the counsellor then has to find their way back from. */
 function docRow(d) {
-  const L = {ok: 'Verified', wait: 'In review', none: 'Not uploaded'};
+  const L = {ok: 'Accepted', wait: 'In review', rescan: 'Waiting for a scan',
+             none: 'Not uploaded'};
   const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/'
     + encodeURIComponent(d.key) + '/file';
   return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
@@ -1706,11 +1832,19 @@ function docRow(d) {
           'word-break:break-word">' + esc(d.file) + '</a>'
         : esc(d.file || '')) + '</span>' +
     '<span class="st ' + d.status + '">' + L[d.status] + '</span>' +
-    (d.status === 'wait'
-      ? '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
-        '" style="margin-left:8px">Verify</button>'
-      : '<button type="button" class="btn btn-ghost btn-sm" data-unverify="' + esc(d.key) +
-        '" style="margin-left:8px">Query</button>') + '</li>';
+    /* THREE ANSWERS. Accept it, send it back for a proper scan, or put it back
+       in the queue. "Query" alone meant a counsellor who could not READ a file
+       had to choose between accepting it and rejecting it, and then explain the
+       real answer in a message the student might never open. */
+    (d.status === 'ok'
+      ? '<button type="button" class="btn btn-ghost btn-sm" data-unverify="' + esc(d.key) +
+        '" style="margin-left:8px">Query</button>'
+      : '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
+        '" style="margin-left:8px">Accept</button>') +
+    (d.status === 'rescan' ? ''
+      : '<button type="button" class="btn btn-ghost btn-sm" data-rescan="' + esc(d.key) +
+        '" style="margin-left:6px" title="Ask for a proper scan">Ask for a scan</button>') +
+    '</li>';
 }
 
 
@@ -1852,11 +1986,36 @@ function paintRecord(r) {
                 'they are final. It lands on their Documents screen already verified, ' +
                 'and the agency that sent them can download it.</p>' +
               '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+                /* EVERY SLOT, not the three we write.
+                 *
+                 * "Sometimes, students share the docs on email or WhatsApp and
+                 * ask us to use them. If we can upload them in the portal, it
+                 * will be a repository."
+                 *
+                 * The three we produce lead, because delivering finished work
+                 * is the commonest use of this control and those behave
+                 * differently — a second draft replaces the first and lands
+                 * accepted. Everything below the rule is the STUDENT'S own
+                 * document arriving by another road: it joins the set and it
+                 * still has to be checked by somebody, because uploading a file
+                 * and reading a file are two different acts. */
                 '<select id="delivKey" style="padding:8px 10px;font:600 12.4px/1.4 ' +
                   'var(--sans);border:1.5px solid #d8dde4;border-radius:9px">' +
-                  '<option value="sop">Statement of Purpose</option>' +
-                  '<option value="lor">Letters of Recommendation</option>' +
-                  '<option value="visa-cover">Visa cover letter</option>' +
+                  '<optgroup label="Work we produce">' +
+                    '<option value="sop">Statement of Purpose</option>' +
+                    '<option value="lor">Letters of Recommendation</option>' +
+                    '<option value="visa-cover">Visa cover letter</option>' +
+                  '</optgroup>' +
+                  '<optgroup label="Their document, sent to us another way">' +
+                    DOCS.filter(d => !['sop','lor','visa-cover'].includes(d.id))
+                      .map(d => '<option value="' + esc(d.id) + '">' + esc(d.name)
+                        + '</option>').join('') +
+                  '</optgroup>' +
+                  '<optgroup label="Visa file">' +
+                    VISA_DOCS.filter(d => d.id !== 'visa-cover')
+                      .map(d => '<option value="' + esc(d.id) + '">' + esc(d.name)
+                        + '</option>').join('') +
+                  '</optgroup>' +
                 '</select>' +
                 '<label class="btn btn-ghost btn-sm" style="cursor:pointer">' +
                   'Choose the file' +
@@ -2362,14 +2521,17 @@ document.addEventListener('click', async e => {
   const c = e.target.closest('[data-canned]');
   if (c) { $('#rbox').value = c.dataset.canned; $('#rbox').focus(); return; }
 
-  const v = e.target.closest('[data-verify]') || e.target.closest('[data-unverify]');
+  const v = e.target.closest('[data-verify]') || e.target.closest('[data-unverify]')
+    || e.target.closest('[data-rescan]');
   if (v && openId) {
-    const key = v.dataset.verify || v.dataset.unverify;
-    const status = v.dataset.verify ? 'ok' : 'wait';
+    const key = v.dataset.verify || v.dataset.unverify || v.dataset.rescan;
+    const status = v.dataset.verify ? 'ok' : v.dataset.rescan ? 'rescan' : 'wait';
     try {
       await api('POST', '/api/staff/student/' + openId + '/document/' + encodeURIComponent(key), { status });
-      toast(status === 'ok' ? 'Marked verified — the student sees it straight away.'
-                            : 'Sent back for another look.');
+      toast(status === 'ok' ? 'Accepted — the student sees it straight away.'
+        : status === 'rescan'
+          ? 'Asked for a scanned copy. Their card says what to send.'
+          : 'Sent back for another look.');
       paintRecord(await api('GET', '/api/staff/student/' + openId));
       $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x.dataset.t === 'file')));
       $$('#pane .pane').forEach(x => x.classList.toggle('active', x.id === 't-file'));

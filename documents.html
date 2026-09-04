@@ -996,6 +996,21 @@ select.assign.none:hover{border-color:#a5342b}
       .docnote{margin:8px 0 0;font:400 12px/1.6 var(--sans);color:var(--navy-800);
         background:#f5f8fc;border-left:3px solid var(--navy-600,#1c4d78);
         border-radius:0 8px 8px 0;padding:8px 11px}
+      /* Every file in one slot. Compact, because eight semester marksheets in
+         a card that is 290px wide is the case this has to survive. */
+      .dfiles{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:5px}
+      .dfiles li{display:flex;align-items:center;gap:7px;font:400 12px/1.4 var(--sans);
+        color:var(--navy-800);min-width:0}
+      .dfiles a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .dfiles .dsize{flex:none;font-size:11px;color:var(--muted)}
+      .dfiles .ico{flex:none;color:var(--green-deep,#278a58)}
+      .dfiles .dxf{flex:none;appearance:none;border:0;background:none;cursor:pointer;
+        font:700 11px/1 var(--sans);color:var(--muted);text-decoration:underline;
+        text-underline-offset:2px;padding:2px}
+      .dfiles .dxf:hover{color:#7a2118}
+      /* What a status means, when it means something to do about it. */
+      .docsay{margin:9px 0 0;font:400 12px/1.55 var(--sans);color:#5b4409;
+        background:#fdf6e6;border:1px solid #e6d5a8;border-radius:9px;padding:8px 10px}
       .doclimit{margin:0 0 14px;font:400 12.5px/1.6 var(--sans);color:var(--muted)}
       .doclimit b{color:var(--navy-900)}
     </style>
@@ -1453,8 +1468,28 @@ const notOurType = name => {
    session, so one student cannot fetch another's passport by guessing a URL.
    DB.docs holds only the metadata needed to draw the card. */
 DB.docs = DB.docs || {};
-const S = {NONE:'none', REVIEW:'wait', OK:'ok'};
-const LABEL = {none:'Not uploaded', wait:'In review', ok:'Verified'};
+/* THREE ANSWERS, not two.
+ *
+ * "In the status of the document, keep the options as in review, upload a
+ * scanned copy or accepted."
+ *
+ * `rescan` is the one that was missing and the one that does the work. A
+ * photograph of a certificate taken at an angle is not rejected and it is not
+ * accepted — and with only those two states a counsellor had to choose one and
+ * say the rest in a message the student may never open. Now the card itself
+ * says it, on the document it is about.
+ *
+ * "Accepted" rather than "Verified", because that is the counsellors' own
+ * word for it and the two mean the same thing here. */
+const S = {NONE:'none', REVIEW:'wait', RESCAN:'rescan', OK:'ok'};
+const LABEL = {none:'Not uploaded', wait:'In review',
+               rescan:'Send a scanned copy', ok:'Accepted'};
+/* What the student should DO about each, said on the card. A status nobody can
+   act on is a status that sits there. */
+const SAYS = {
+  rescan: 'Your counsellor could not read this one. Send a proper scan rather '
+        + 'than a photograph, or a clearer picture in good light.',
+};
 
 function stOf(id) { return (DB.docs[id] && DB.docs[id].status) || S.NONE; }
 
@@ -1504,9 +1539,26 @@ function card(d) {
     '</div>' +
     '<div class="city">Blocks: ' + esc(d.blocks) + '</div>' +
     (d.note ? '<p class="docnote">' + esc(d.note) + '</p>' : '') +
-    (rec ? '<div class="sl-meta" style="margin-top:10px">' + ico('check') +
-      ' <a href="/api/documents/' + encodeURIComponent(d.id) + '/file" style="color:var(--blue-deep);' +
-      'font-weight:600">' + esc(rec.file) + '</a> · ' + rec.size + '</div>' : '') +
+    /* What the status MEANS, when it means something to do. */
+    (SAYS[st] ? '<p class="docsay">' + esc(SAYS[st]) + '</p>' : '') +
+    /* EVERY FILE IN THE SLOT, oldest first — the order a set was sent in.
+     *
+     * A slot used to hold one document and a second upload replaced the first.
+     * Eight semester marksheets are eight files, and telling a student to merge
+     * them into one PDF is asking them to do a job with software they do not
+     * have. Each one is downloadable and each one can be taken off on its own;
+     * the SLOT keeps a single status, so a set is checked as the one thing it
+     * is and cannot end up half accepted. */
+    (rec && rec.files && rec.files.length
+      ? '<ul class="dfiles">' + rec.files.map((f, i) =>
+          '<li>' + ico('check') +
+          '<a href="/api/documents/file/' + encodeURIComponent(f.id) + '" ' +
+            'style="color:var(--blue-deep);font-weight:600">' + esc(f.file) + '</a>' +
+          '<span class="dsize">' + esc(f.size) + '</span>' +
+          '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" ' +
+            'aria-label="Remove ' + esc(f.file) + '">Remove</button>' +
+          '</li>').join('') + '</ul>'
+      : '') +
     /* Reachable by keyboard, and announced as what it is.
      *
      * "The student can click and choose the file to upload, however the
@@ -1519,12 +1571,12 @@ function card(d) {
      * tabindex, role and aria-label make it a button to every assistive
      * technology; the Enter and Space handlers below make it one in fact. */
     '<div class="drop" tabindex="0" role="button" aria-label="' +
-      esc((stOf(d.id) === S.NONE ? 'Upload ' : 'Replace ') + d.name) +
+      esc((stOf(d.id) === S.NONE ? 'Upload ' : 'Add another file to ') + d.name) +
       '" data-drop="' + d.id + '" style="margin-top:12px;border:1.5px dashed ' +
       (st === S.NONE ? '#cfd6de' : '#bfe0cc') + ';border-radius:12px;padding:14px;text-align:center;' +
       'cursor:pointer;font:600 12.2px/1.4 var(--sans);color:var(--muted);transition:.16s">' +
       (st === S.NONE ? 'Drop a file here, or click to choose'
-                     : 'Replace this file') +
+                     : 'Add another file') +
     '</div>' +
     (rec ? '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + d.id +
       '" style="margin-top:9px">Remove</button>' : '') +
@@ -1624,6 +1676,18 @@ $('#docGrid').addEventListener('focusout', e => {
 });
 
 $('#docGrid').addEventListener('click', e => {
+  /* ONE FILE out of a set, leaving the rest. Ahead of the whole-slot remove
+     below, and ahead of the drop card it sits inside — a press on Remove must
+     not also open the file chooser. */
+  const one = e.target.closest('[data-dropfile]');
+  if (one) {
+    e.preventDefault();
+    e.stopPropagation();
+    api('DELETE', '/api/documents/file/' + encodeURIComponent(one.dataset.dropfile))
+      .then(r => { DB.docs = r.docs; paint(); toast('Removed that file.'); })
+      .catch(() => toast('Could not remove that file.'));
+    return;
+  }
   const rm = e.target.closest('[data-rm]');
   if (rm) {
     const key = rm.dataset.rm;
@@ -1659,9 +1723,9 @@ $('#docGrid').addEventListener('click', e => {
    the types the uploader actually enforces. */
 (function () {
   const el = $('#docLimit');
-  if (el) el.innerHTML = UPLOAD_SAYS + '. One file per document, up to '
-    + '<b>' + MAX_UPLOAD_MB + ' MB</b> each — if a scan is bigger than that, '
-    + 'photograph the pages instead.';
+  if (el) el.innerHTML = UPLOAD_SAYS + '. Up to <b>' + MAX_UPLOAD_MB
+    + ' MB</b> each, and you can add several files to one document — every '
+    + 'semester marksheet, for instance. Your counsellor checks the set as one.';
 }());
 
 paint();

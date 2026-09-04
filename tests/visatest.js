@@ -23,7 +23,14 @@ const F='/tmp/visa-funds-'+stamp+'.pdf';
  /* VISA_DOCS is not a global on this page — it lives inside the page's own
     closure — so the number is counted from the slot definitions inlined in the
     source instead. */
- const wantVisa = ((await p.content()).match(/\{id:'visa-[a-z]+'/g) || []).length;
+ /* Counted from the definitions the page was built from, and NOT from
+    /visa-[a-z]+/ — the enrolment pair added in the document-store patch lives
+    on this screen and is called fee-invoice and enrolment. A pattern that
+    assumed a prefix reported 9 where there were 11 and read as a bug in the
+    screen. The block is bounded by VISA_DOCS itself so the profile's own
+    sections cannot leak into the count. */
+ const visaSrc = (await p.content()).split('const VISA_DOCS')[1] || '';
+ const wantVisa = ((visaSrc.split('];')[0] || '').match(/\{id:'[a-z0-9-]+'/g) || []).length;
  check('there is a card per visa document',
    wantVisa > 0 && (await p.$$('#visaGrid .sl')).length === wantVisa,
    (await p.$$('#visaGrid .sl')).length + ' cards for ' + wantVisa + ' documents');

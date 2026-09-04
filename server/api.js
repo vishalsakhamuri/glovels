@@ -57,7 +57,11 @@ const FALLBACK_PACKAGES = {
  * counsellor writes them and hands them back, so they arrive verified and the
  * screens that show them offer a download rather than an upload box.
  */
-const DELIVERABLE_SLOTS = ['sop', 'lor', 'visa-cover'];
+const DOCSLOTS = require('./docs.js');
+/* What Glovels writes. The wider list of everything a counsellor may upload —
+   including the student's own documents, arriving by email or WhatsApp — is in
+   docs.js, checked against the screens at build time. */
+const DELIVERABLE_SLOTS = DOCSLOTS.OURS;
 const SLOT_SAID = {
   sop: 'Statement of Purpose',
   lor: 'recommendation letters',
@@ -288,6 +292,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     };
   };
 
+  /* How big a file is, in one place. It was written out three times. */
+  const sizeSaid = b => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB'
+                                     : Math.max(1, Math.round(b / 1024)) + ' KB');
+
   const msgShape = studentId => m => ({
     who: m.sender, t: m.body, file: m.file, at: m.created_at,
     attachment: attachmentOf(studentId, m.file),
@@ -410,14 +418,33 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
      need a slice of it and there is no benefit in six round trips on load. */
   function stateFor(s) {
     const orders = db.ordersFor(s.id);
+    /* A SLOT HOLDS A SET, and still answers as one thing.
+     *
+     * `file`, `size` and `status` are the newest file and the slot's status,
+     * exactly as before, because a dozen readers across five screens depend on
+     * that shape — the readiness ring, the counsellor's download link, the
+     * agency's cards, the visa checklist. `files` is new and carries the whole
+     * set, oldest first, for the screens that show it.
+     *
+     * Adding rather than replacing is what makes this safe to ship in one
+     * patch: nothing that reads a slot as one document had to change. */
     const docs = {};
     db.getDocuments(s.id).forEach(d => {
-      docs[d.doc_key] = {
+      const one = {
+        id: d.id,
         file: d.filename,
-        size: d.bytes > 1048576 ? (d.bytes / 1048576).toFixed(1) + ' MB'
-                                : Math.max(1, Math.round(d.bytes / 1024)) + ' KB',
-        status: d.status,
+        bytes: d.bytes,
+        size: sizeSaid(d.bytes),
+        at: d.uploaded_at,
       };
+      const slot = docs[d.doc_key] || (docs[d.doc_key] = { files: [] });
+      slot.files.push(one);
+      /* Newest wins for the single-file view, and the status belongs to the
+         SLOT — rows share it, and setDocStatus writes them all. */
+      slot.id = one.id;
+      slot.file = one.file;
+      slot.size = one.size;
+      slot.status = d.status;
     });
     const apps = {};
     db.getApplications(s.id).forEach(a => { apps[a.prog_id] = { stage: a.stage, outcome: a.outcome }; });
@@ -1159,24 +1186,54 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     const stored = key + '-' + Date.now() + ext;
     fs.writeFileSync(path.join(dir, stored), parsed.file.data);
 
-    /* Replacing a document removes the previous file rather than leaving it on
-       disk — it is a passport scan, not a build artifact. */
-    const prev = db.docByKey(s.id, key);
-    if (prev) {
-      try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
+    /* A SLOT HOLDS A SET NOW, so this ADDS rather than replaces.
+     *
+     * "Add multi doc upload option for English tests, semester mark sheets,
+     * GRE/GMAT etc." Eight semester marksheets are eight files, and telling a
+     * student to merge them into one PDF first is asking them to do a job with
+     * software they do not have.
+     *
+     * `replace=yes` keeps the old behaviour for the screens that mean it — a
+     * passport is one document and a second one is a correction, not a second
+     * page. The card says which it is doing. */
+    if (/^(y|yes|1|true)$/i.test(String(parsed.fields.replace || ''))) {
+      /* Replacing removes the previous files rather than leaving them on disk:
+         these are passport scans, not build artifacts. */
+      for (const prev of db.docsInKey(s.id, key)) {
+        try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
+      }
       db.removeDocument(s.id, key);
     }
+    /* A new file puts the whole slot back in front of the counsellor. Adding a
+       ninth marksheet to a set they already accepted has to be looked at
+       again — otherwise "accepted" means "accepted as it was last week". */
     db.addDocument(s.id, key, parsed.file.filename, stored, parsed.file.data.length);
+    db.setDocStatus(s.id, key, 'wait');
+    return json(res, 200, { docs: stateFor(s).docs });
+  });
+
+  /* Remove ONE file, or the whole slot.
+   *
+   * /api/documents/<key>      — the slot and everything in it, as before.
+   * /api/documents/file/<id>  — one file out of a set, leaving the rest.
+   *
+   * The id route is first because the key route's pattern would swallow it. */
+  route('DELETE', /^\/api\/documents\/file\/(\d+)$/, async (req, res, s, m) => {
+    const rec = db.docById(s.id, Number(m[1]));
+    /* Resolved from the SESSION and the id together, so an id from another
+       student's file finds nothing rather than deleting it. */
+    if (!rec) return json(res, 404, { error: 'Not found' });
+    try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
+    db.removeDocFile(s.id, rec.id);
     return json(res, 200, { docs: stateFor(s).docs });
   });
 
   route('DELETE', /^\/api\/documents\/(.+)$/, async (req, res, s, m) => {
     const key = decodeURIComponent(m[1]);
-    const rec = db.docByKey(s.id, key);
-    if (rec) {
+    for (const rec of db.docsInKey(s.id, key)) {
       try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
-      db.removeDocument(s.id, key);
     }
+    db.removeDocument(s.id, key);
     return json(res, 200, { docs: stateFor(s).docs });
   });
 
@@ -1201,6 +1258,21 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
 
   /* Serves a student their own file back, and nobody else's — the path is
      built from the session, so an id in the URL cannot reach another student. */
+  /* One file by its own id, when a slot holds several. Ahead of the key route
+     because that pattern would otherwise swallow "file/12". */
+  route('GET', /^\/api\/documents\/file\/(\d+)$/, async (req, res, s, m) => {
+    const rec = db.docById(s.id, Number(m[1]));
+    if (!rec) return json(res, 404, { error: 'Not found' });
+    const file = path.join(uploadDir, String(s.id), rec.stored_name);
+    if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': 'attachment; filename="' + rec.filename.replace(/"/g, '') + '"',
+      'Cache-Control': 'no-store',
+    });
+    return fs.createReadStream(file).pipe(res);
+  });
+
   route('GET', /^\/api\/documents\/(.+)\/file$/, async (req, res, s, m) => {
     const rec = db.docByKey(s.id, decodeURIComponent(m[1]));
     if (!rec) return json(res, 404, { error: 'Not found' });
@@ -3507,11 +3579,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
 
       const key = String(m[2]).toLowerCase();
       /* Only the slots the screens actually draw. A typo in a URL must not
-         create a document nothing will ever show. */
-      if (!DELIVERABLE_SLOTS.includes(key)) {
+         create a document nothing will ever show.
+         WIDER THAN IT WAS: this accepted the three things we write and nothing
+         else, so a counsellor holding a marksheet a student had emailed them
+         had no way to put it on the file. It now accepts every real slot, and
+         the route above treats ours and theirs differently. */
+      if (!DOCSLOTS.known(key)) {
         return json(res, 422, {
-          error: 'That is not something we produce. Send it in the conversation instead.',
-          slots: DELIVERABLE_SLOTS,
+          error: 'There is no document slot called “' + key + '”.',
+          slots: DOCSLOTS.ALL,
         });
       }
 
@@ -3525,22 +3601,42 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const stored = key + '-' + Date.now() + ext;
       fs.writeFileSync(path.join(dir, stored), parsed.file.data);
 
-      /* A second draft replaces the first on disk as well as in the table. */
-      const prev = db.docByKey(id, key);
-      if (prev) {
-        try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
+      /* TWO DIFFERENT ERRANDS THROUGH ONE ROUTE, and they are not the same.
+       *
+       * DELIVERING OUR OWN WORK — the SOP, the LORs, the visa cover letter.
+       * A second draft replaces the first, on disk as well as in the table,
+       * because a draft is not a page of a set. It lands verified, because we
+       * wrote it. The student is told it is ready.
+       *
+       * PUTTING UP THE STUDENT'S OWN DOCUMENT, which is new. "Sometimes,
+       * students share the docs on email or WhatsApp and ask us to use them.
+       * If we can upload them in the portal, it will be a repository."
+       *
+       * That one is the student's marksheet arriving by another road. It joins
+       * the set rather than replacing it, it is NOT automatically verified —
+       * somebody still has to open it and say so, and a counsellor uploading a
+       * file is not the same act as a counsellor checking one — and the
+       * student is told it was added on their behalf rather than that we
+       * finished something. */
+      const ours = Object.prototype.hasOwnProperty.call(SLOT_SAID, key);
+      if (ours) {
+        for (const prev of db.docsInKey(id, key)) {
+          try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
+        }
         db.removeDocument(id, key);
       }
       db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length);
-      db.setDocStatus(id, key, 'ok');
-      db.log(s.name, 'delivered finished work',
+      db.setDocStatus(id, key, ours ? 'ok' : 'wait');
+      db.log(s.name, ours ? 'delivered finished work' : 'uploaded a document for a student',
         st.name + ' \u00b7 ' + key + ' \u00b7 ' + parsed.file.filename);
 
       /* The student is told, in the one place they already watch. The agency
          is not — they have no conversation, and the file is simply on the
          student's Documents tab next time they open it. */
-      db.addMessage(id, 'them', 'Your ' + (SLOT_SAID[key] || key)
-        + ' is ready — it is on your Documents screen.', '');
+      db.addMessage(id, 'them', ours
+        ? 'Your ' + SLOT_SAID[key] + ' is ready — it is on your Documents screen.'
+        : 'I have put ' + parsed.file.filename + ' on your Documents screen for '
+          + 'you. Check it is the right one — it still has to be verified.', '');
       const msgs = db.getMessages(id).map(msgShape(id));
       live.toStudent(id, 'message', { studentId: id, msg: msgs[msgs.length - 1] });
 
@@ -3551,6 +3647,24 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
      route builds the path from their session; this one builds it from the id
      in the URL, so it checks the assignment first — an id in a URL is a guess
      until somebody says otherwise. */
+  /* One file out of a set, to the person looking after them. Same assignment
+     check as the slot route below; ahead of it for the same reason. */
+  route('GET', /^\/api\/staff\/student\/(\d+)\/document\/file\/(\d+)$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const rec = db.docById(id, Number(m[2]));
+      if (!rec) return json(res, 404, { error: 'Not found' });
+      const file = path.join(uploadDir, String(id), rec.stored_name);
+      if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': 'attachment; filename="' + rec.filename.replace(/"/g, '') + '"',
+        'Cache-Control': 'no-store',
+      });
+      return fs.createReadStream(file).pipe(res);
+    }));
+
   route('GET', /^\/api\/staff\/student\/(\d+)\/document\/(.+)\/file$/,
     caseworkOnly(async (req, res, s, m) => {
       const id = Number(m[1]);
@@ -3592,7 +3706,14 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const id = Number(m[1]);
       if (!db.canSee(s, id)) return json(res, 403, { error: 'Not yours' });
       const b = await readJson(req);
-      const status = ['ok', 'wait', 'none'].includes(b.status) ? b.status : 'wait';
+      /* THREE ANSWERS, not two. "In the status of the document, keep the
+         options as in review, upload a scanned copy or accepted."
+         `rescan` is the one that was missing and the one that does work: a
+         photograph of a certificate at an angle is not rejected and it is not
+         accepted, and with only those two the counsellor had to pick one and
+         say the rest in a message the student may not read. */
+      const status = ['ok', 'wait', 'rescan', 'none'].includes(b.status)
+        ? b.status : 'wait';
       db.setDocStatus(id, m[2], status);
       live.toStudent(id, 'documents', { key: m[2], status });
       return json(res, 200, { ok: true });

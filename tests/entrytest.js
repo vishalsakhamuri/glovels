@@ -145,9 +145,18 @@ const PROFILE = {
   /* ------------------------------------------------- they answer the questions */
   const saved = await buyer.request.put(BASE + '/api/profile', { data: { profile: PROFILE } });
   const saveOut = await saved.json();
+  /* Read defensively, and say what came back.
+   *
+   * This dereferenced saveOut.matched directly. When the save answered
+   * anything else — a 422 on a value, a 401 from a session that had not
+   * settled — the suite threw a TypeError and reported NO COUNT AT ALL, so a
+   * full run showed "entrytest: did not report a count" and nothing about
+   * why. A suite that dies is a suite nobody can diagnose; the failure has to
+   * arrive as a failed check with the response in it. */
+  const matched = saveOut && saveOut.matched;
   check('saving the profile delivers the shortlist in the same breath',
-    saved.status() === 200 && saveOut.matched.added === 3,
-    JSON.stringify(saveOut.matched));
+    saved.status() === 200 && matched && matched.added === 3,
+    saved.status() + ' ' + JSON.stringify(saveOut).slice(0, 160));
 
   const state2 = await (await buyer.request.get(BASE + '/api/state')).json();
   const got = state2.shortlist || [];
@@ -172,15 +181,15 @@ const PROFILE = {
      honest behaviour is not an empty shortlist and not a silent one: widen the
      search by one constraint, and SAY which. */
     const inBudget = got.every(p => Number(p.totalInr || 0) <= 1000000);
-  const told = /above the budget you gave/i.test(saveOut.matched.note || '');
+  const told = /above the budget you gave/i.test((matched || {}).note || '');
   check('the budget is either respected or the widening is admitted to',
     inBudget || told,
-    (saveOut.matched.note || '(no note)').slice(0, 80));
+    ((matched || {}).note || '(no note)').slice(0, 80));
   check('and the constraint that came off is named',
-    inBudget || (saveOut.matched.relaxed || []).includes('budget'),
-    JSON.stringify(saveOut.matched.relaxed));
+    inBudget || ((matched || {}).relaxed || []).includes('budget'),
+    JSON.stringify((matched || {}).relaxed));
   check('the country they asked for is not what got dropped',
-    !(saveOut.matched.relaxed || []).includes('country'));
+    !((matched || {}).relaxed || []).includes('country'));
 
   /* The thing that makes it feel real: they are told. */
   const msgs = (state2.msgs || []).map(m => m.t || m.body || '').join(' ');

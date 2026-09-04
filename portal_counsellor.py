@@ -1,6 +1,6 @@
 """The counsellor's workspace — their caseload, and the live conversation."""
 
-from portal_fields import CGPA_JS, APPS_JS
+from portal_fields import CGPA_JS, APPS_JS, DOCS_JS, VISA_JS
 
 BODY = """
     <style>
@@ -71,7 +71,7 @@ BODY = """
     </div>
 """
 
-SCRIPT = CGPA_JS + APPS_JS + r"""
+SCRIPT = CGPA_JS + APPS_JS + DOCS_JS + VISA_JS + r"""
 let STUDENTS = [];
 /* The record currently open, so the row renderer can read this student's
    application stages without every caller threading them through. */
@@ -206,7 +206,8 @@ function bubble(m) {
  * attachment either way, and saying so on the anchor stops a browser opening a
  * PDF in a tab the counsellor then has to find their way back from. */
 function docRow(d) {
-  const L = {ok: 'Verified', wait: 'In review', none: 'Not uploaded'};
+  const L = {ok: 'Accepted', wait: 'In review', rescan: 'Waiting for a scan',
+             none: 'Not uploaded'};
   const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/'
     + encodeURIComponent(d.key) + '/file';
   return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
@@ -216,11 +217,19 @@ function docRow(d) {
           'word-break:break-word">' + esc(d.file) + '</a>'
         : esc(d.file || '')) + '</span>' +
     '<span class="st ' + d.status + '">' + L[d.status] + '</span>' +
-    (d.status === 'wait'
-      ? '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
-        '" style="margin-left:8px">Verify</button>'
-      : '<button type="button" class="btn btn-ghost btn-sm" data-unverify="' + esc(d.key) +
-        '" style="margin-left:8px">Query</button>') + '</li>';
+    /* THREE ANSWERS. Accept it, send it back for a proper scan, or put it back
+       in the queue. "Query" alone meant a counsellor who could not READ a file
+       had to choose between accepting it and rejecting it, and then explain the
+       real answer in a message the student might never open. */
+    (d.status === 'ok'
+      ? '<button type="button" class="btn btn-ghost btn-sm" data-unverify="' + esc(d.key) +
+        '" style="margin-left:8px">Query</button>'
+      : '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
+        '" style="margin-left:8px">Accept</button>') +
+    (d.status === 'rescan' ? ''
+      : '<button type="button" class="btn btn-ghost btn-sm" data-rescan="' + esc(d.key) +
+        '" style="margin-left:6px" title="Ask for a proper scan">Ask for a scan</button>') +
+    '</li>';
 }
 
 
@@ -362,11 +371,36 @@ function paintRecord(r) {
                 'they are final. It lands on their Documents screen already verified, ' +
                 'and the agency that sent them can download it.</p>' +
               '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+                /* EVERY SLOT, not the three we write.
+                 *
+                 * "Sometimes, students share the docs on email or WhatsApp and
+                 * ask us to use them. If we can upload them in the portal, it
+                 * will be a repository."
+                 *
+                 * The three we produce lead, because delivering finished work
+                 * is the commonest use of this control and those behave
+                 * differently — a second draft replaces the first and lands
+                 * accepted. Everything below the rule is the STUDENT'S own
+                 * document arriving by another road: it joins the set and it
+                 * still has to be checked by somebody, because uploading a file
+                 * and reading a file are two different acts. */
                 '<select id="delivKey" style="padding:8px 10px;font:600 12.4px/1.4 ' +
                   'var(--sans);border:1.5px solid #d8dde4;border-radius:9px">' +
-                  '<option value="sop">Statement of Purpose</option>' +
-                  '<option value="lor">Letters of Recommendation</option>' +
-                  '<option value="visa-cover">Visa cover letter</option>' +
+                  '<optgroup label="Work we produce">' +
+                    '<option value="sop">Statement of Purpose</option>' +
+                    '<option value="lor">Letters of Recommendation</option>' +
+                    '<option value="visa-cover">Visa cover letter</option>' +
+                  '</optgroup>' +
+                  '<optgroup label="Their document, sent to us another way">' +
+                    DOCS.filter(d => !['sop','lor','visa-cover'].includes(d.id))
+                      .map(d => '<option value="' + esc(d.id) + '">' + esc(d.name)
+                        + '</option>').join('') +
+                  '</optgroup>' +
+                  '<optgroup label="Visa file">' +
+                    VISA_DOCS.filter(d => d.id !== 'visa-cover')
+                      .map(d => '<option value="' + esc(d.id) + '">' + esc(d.name)
+                        + '</option>').join('') +
+                  '</optgroup>' +
                 '</select>' +
                 '<label class="btn btn-ghost btn-sm" style="cursor:pointer">' +
                   'Choose the file' +
@@ -872,14 +906,17 @@ document.addEventListener('click', async e => {
   const c = e.target.closest('[data-canned]');
   if (c) { $('#rbox').value = c.dataset.canned; $('#rbox').focus(); return; }
 
-  const v = e.target.closest('[data-verify]') || e.target.closest('[data-unverify]');
+  const v = e.target.closest('[data-verify]') || e.target.closest('[data-unverify]')
+    || e.target.closest('[data-rescan]');
   if (v && openId) {
-    const key = v.dataset.verify || v.dataset.unverify;
-    const status = v.dataset.verify ? 'ok' : 'wait';
+    const key = v.dataset.verify || v.dataset.unverify || v.dataset.rescan;
+    const status = v.dataset.verify ? 'ok' : v.dataset.rescan ? 'rescan' : 'wait';
     try {
       await api('POST', '/api/staff/student/' + openId + '/document/' + encodeURIComponent(key), { status });
-      toast(status === 'ok' ? 'Marked verified — the student sees it straight away.'
-                            : 'Sent back for another look.');
+      toast(status === 'ok' ? 'Accepted — the student sees it straight away.'
+        : status === 'rescan'
+          ? 'Asked for a scanned copy. Their card says what to send.'
+          : 'Sent back for another look.');
       paintRecord(await api('GET', '/api/staff/student/' + openId));
       $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x.dataset.t === 'file')));
       $$('#pane .pane').forEach(x => x.classList.toggle('active', x.id === 't-file'));

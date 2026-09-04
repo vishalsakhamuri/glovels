@@ -108,6 +108,7 @@ run formtest.js     8099
 run formtest2.js    8099
 run gradetest.js    8099
 run doclisttest.js  8099
+run docsettest.js   8099
 run boundstest.js   8099
 run intaketest.js   8099
 run importtest.js   8099

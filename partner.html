@@ -2304,7 +2304,21 @@ const VISA_DOCS = [
   {id:'visa-decision',   name:'Visa decision letter',       need:0,
    blocks:'Tickets and accommodation. Upload it the day it arrives'},
   {id:'visa-travel',     name:'Ticket and accommodation',   need:0,
-   blocks:'Pre-departure briefing and city registration'}
+   blocks:'Pre-departure briefing and city registration'},
+  /* THE LAST TWO DOCUMENTS IN THE WHOLE JOURNEY, and there was nowhere to put
+     either. "Enrolment docs are missing in this succession. Tuition fee or
+     semester fee invoice. Document option for enrolment certificate."
+     They come after the visa, which is why they belong on this screen rather
+     than with the application papers: a student who has landed still has two
+     things to send us, and the file was ending at the plane ticket. */
+  {id:'fee-invoice',     name:'Tuition or semester fee invoice', need:0,
+   blocks:'Enrolment. Some universities want it paid before they register you',
+   note:'The invoice the university sends for the semester contribution or '
+      + 'tuition. Send the invoice itself, not the bank receipt.'},
+  {id:'enrolment',       name:'Enrolment certificate',       need:0,
+   blocks:'City registration, a bank account, a student travel pass',
+   note:'The Immatrikulationsbescheinigung, or whatever your university calls '
+      + 'it. It is the proof you are a student and half of Germany asks for it.'}
 ];
 
 

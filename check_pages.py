@@ -234,10 +234,56 @@ def check(path, use_node=True):
     return out
 
 
+def doc_slots_agree():
+    """The document keys the SCREENS draw, against the ones the SERVER accepts.
+
+    Two lists that must agree. The stages and the outcomes were the same shape
+    and they agreed until they did not — for four files and several months —
+    so this one is checked on every build rather than trusted to a comment.
+
+    portal_fields.py holds the names, the notes and what each document blocks,
+    which is right: that is what a student reads. server/docs.js holds only the
+    keys, because an upload route that accepts any string lets a typo in a URL
+    create a document nothing will ever draw. Neither can be derived from the
+    other without moving one of them somewhere worse, so instead: if they ever
+    disagree, the build stops and says which key.
+    """
+    fields = (HERE / 'portal_fields.py').read_text(encoding='utf-8')
+    server = (HERE / 'server' / 'docs.js').read_text(encoding='utf-8')
+    if not fields or not server:
+        return []
+    # Every {id:'...'} inside the DOCS and VISA_DOCS blocks.
+    def block(name):
+        i = fields.find(name)
+        if i < 0:
+            return ''
+        j = fields.find('"""', fields.find('r"""', i) + 4)
+        return fields[i:j if j > 0 else len(fields)]
+    # Every id in either block. Matching only visa-* in the second one was a
+    # trap this check fell into on its first run: the two enrolment slots live
+    # on the visa screen and are not called visa-anything.
+    on_screen = set(re.findall(r"\{id:'([a-z0-9-]+)'", block('DOCS_JS ='))) \
+        | set(re.findall(r"\{id:'([a-z0-9-]+)'", block('VISA_JS =')))
+    known = set(re.findall(r"'([a-z0-9-]+)'", server[:server.find('const APP_FILE')]))
+    out = []
+    for k in sorted(on_screen - known):
+        out.append(f'server/docs.js does not know the document slot "{k}", '
+                   f'which portal_fields.py draws — an upload to it is refused')
+    for k in sorted(known - on_screen):
+        if k in ('proof', 'decision'):
+            continue
+        out.append(f'server/docs.js accepts a document slot "{k}" that no screen '
+                   f'draws — a file uploaded to it would be invisible')
+    return out
+
+
 def run(files=None, quiet=False):
     use_node = _node()
     pages = [pathlib.Path(f) for f in files] if files else sorted(HERE.glob('*.html'))
     bad = 0
+    for line in doc_slots_agree():
+        print(f'  ✗ document slots: {line}')
+        bad += 1
     for p in pages:
         for line in check(p, use_node):
             print(f'  ✗ {p.name}: {line}')

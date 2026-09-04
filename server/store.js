@@ -803,9 +803,39 @@ function open(dir) {
       db.run('DELETE FROM applications WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
 
     /* ---- documents ---- */
-    getDocuments: id => db.all('SELECT * FROM documents WHERE student_id = ?', Number(id)),
+    getDocuments: id => db.all(
+      'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id)),
+    /* MANY FILES PER SLOT, ONE SLOT PER DOCUMENT.
+     *
+     * "Add multi doc upload option for English tests, semester mark sheets,
+     * GRE/GMAT etc."
+     *
+     * The table always allowed it — addDocument INSERTs — but every reader took
+     * one row and the upload path deleted the previous one first, so the slot
+     * behaved as though it held a single file. A student with eight semester
+     * marksheets had to merge them into one PDF before they could send them.
+     *
+     * docByKey keeps returning the NEWEST, because everything that reads a slot
+     * as one thing (the counsellor's download link, the readiness ring, the
+     * message that says a document is ready) is still right to: the verification
+     * is of the SLOT. That is deliberate — verify each file separately and a
+     * slot becomes partly verified, and every gate that reads "documents
+     * verified" then has to decide what partly means. */
     docByKey: (studentId, key) =>
-      db.one('SELECT * FROM documents WHERE student_id = ? AND doc_key = ?', Number(studentId), String(key)),
+      db.one('SELECT * FROM documents WHERE student_id = ? AND doc_key = ? '
+        + 'ORDER BY id desc LIMIT 1', Number(studentId), String(key)),
+    /** Every file in one slot, oldest first — the order a set was sent in. */
+    docsInKey: (studentId, key) => db.all(
+      'SELECT * FROM documents WHERE student_id = ? AND doc_key = ? ORDER BY id asc',
+      Number(studentId), String(key)),
+    /** One file by its own id, checked against the student it belongs to. */
+    docById: (studentId, docId) => db.one(
+      'SELECT * FROM documents WHERE student_id = ? AND id = ?',
+      Number(studentId), Number(docId)),
+    /** One file out of a slot, leaving the rest of the set alone. */
+    removeDocFile: (studentId, docId) => db.run(
+      'DELETE FROM documents WHERE student_id = ? AND id = ?',
+      Number(studentId), Number(docId)),
     addDocument(studentId, key, filename, storedName, bytes) {
       db.run(`INSERT INTO documents (student_id, doc_key, filename, stored_name, bytes, status, uploaded_at)
               VALUES (?, ?, ?, ?, ?, 'wait', ?)`,

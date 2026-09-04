@@ -57,9 +57,32 @@ let pass=0,fail=0; const ok=(c,m)=>{c?pass++:(fail++,console.log('  FAIL: '+m));
  const r2=await put('visa-cover','Deliv-Student-visa-cover.pdf');
  ok(r2.ok(),'and a visa cover letter — '+r2.status());
 
- // a slot we do NOT produce is refused
+ /* THE RULE CHANGED HERE, deliberately.
+ *
+ * This used to refuse every slot except the three we write. The counsellors
+ * asked for the opposite: "sometimes, students share the docs on email or
+ * WhatsApp and ask us to use them. If we can upload them in the portal, it
+ * will be a repository."
+ *
+ * So a student's own slot is ACCEPTED now — and the thing worth checking is
+ * that it is not treated as OUR work: it joins the set rather than replacing
+ * it, and it does not arrive verified, because uploading a file and reading a
+ * file are two different acts and one person doing both in one motion is how a
+ * document goes unchecked. */
  const r3=await put('passport','their-passport.pdf');
- ok(r3.status()===422,'a slot we do not produce is refused — '+r3.status());
+ ok(r3.ok(),'a counsellor can put up a document the student emailed them — '+r3.status());
+ /* Read from the office's own view of the record: this student was created by
+    the agency and has never signed in, so there is no student session here. */
+ const rec=await(await admin.request.get(BASE+'/api/staff/student/'+sid)).json();
+ const passportRow=(rec.docs||[]).find(d=>d.key==='passport')
+   ||((rec.docs||{}).passport);
+ ok(passportRow&&passportRow.status==='wait',
+   'and it still has to be checked by somebody — '+JSON.stringify(passportRow));
+
+ // A slot that does not exist is still refused: a typo in a URL must not
+ // create a document no screen will ever draw.
+ const r4=await put('not-a-real-slot','nowhere.pdf');
+ ok(r4.status()===422,'a slot that does not exist is refused — '+r4.status());
 
  // the partner sees it
  const st=await (await P.request.get(BASE+'/api/partner/student/'+sid)).json();
