@@ -2801,6 +2801,19 @@ document.addEventListener('click', async e => {
       return;
     }
     const items = (C.services.items || []).slice();
+    /* SAID HERE, BEFORE THE ROUND TRIP. The server refuses this too — a check
+       in a browser is a suggestion — but finding out after a save that the
+       service you just typed already existed is a worse way to learn it. */
+    const same = String(body.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const clash = items.find(x => (!editingSvc || x.id !== editingSvc.id)
+      && String(x.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === same);
+    if (clash) {
+      $('#smErr').textContent = 'There is already a service called “' + clash.name
+        + '”. Two with the same name are indistinguishable on the page — rename '
+        + 'this one, or edit the one that exists.';
+      $('#smErr').style.display = 'block';
+      return;
+    }
     if (editingSvc) {
       items[items.findIndex(x => x.id === editingSvc.id)] = body;
     } else {

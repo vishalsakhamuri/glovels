@@ -6,6 +6,21 @@
  * site and then reads the public home page to see whether it changed.
  */
 const { chromium } = require('playwright');
+/* A NAME OF ITS OWN, per run.
+ *
+ * This created "Campus Room Finder" every time. Against a fresh database that
+ * is fine, and runtests.sh gives it one — but run it twice against the same
+ * server, as anybody debugging it does, and the second run was creating a
+ * SECOND service with the same name. That used to be allowed: the cleaner
+ * quietly renamed the id to `-2` and left two rows reading identically, so the
+ * suite then hid one of them and found the name still on the home page.
+ *
+ * The product refuses that now, which is right — two services with one name are
+ * indistinguishable to the office and to the visitor. So the suite stops
+ * needing a virgin database to pass. The id is derived from the name, so this
+ * carries through to it. */
+const SVC = 'Campus Room Finder ' + Date.now();
+const SVC_ID = SVC.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const BASE = 'http://localhost:8086';
 const ok = [], bad = [];
@@ -123,7 +138,7 @@ const openService = async (page, id) => {
    */
   await page.click('#addSvc');
   await page.waitForSelector('#sName');
-  await page.fill('#sName', 'Campus Room Finder');
+  await page.fill('#sName', SVC);
   await page.fill('#sDesc', 'A room found and booked before you land, near your campus.');
   await page.fill('#sMeta', '5–7 days');
   await page.fill('#sPrice', '2999');
@@ -131,39 +146,56 @@ const openService = async (page, id) => {
   await page.click('#smSave');
   await page.waitForTimeout(800);
 
-  h = await home(ctx, ['Campus Room Finder', '2,999']);
+  h = await home(ctx, [SVC, '2,999']);
   check('a brand-new service appears on the home page',
-    h.names.includes('Campus Room Finder'));
+    h.names.includes(SVC));
   check('with its price', h.text.includes('2,999'));
 
   const pub = await (await ctx.request.get(BASE + '/api/content')).json();
   check('it got a usable id',
-    pub.services.items.some(x => x.id === 'campus-room-finder'),
+    pub.services.items.some(x => x.id === SVC_ID),
     pub.services.items.map(x => x.id).slice(-3).join(','));
 
   /* --------------------------------------------------------- hide it */
-  check('the new service can be reopened', await openService(page, 'campus-room-finder'));
+  check('the new service can be reopened', await openService(page, SVC_ID));
   /* The sheet's markup arrives before the service is loaded into it, so
      waiting for #sName to be VISIBLE is not the same as waiting for it to hold
      the right service. Unchecking Active a frame too early hides whichever one
      the sheet was last showing, and the failure then reads as "hiding does not
      work" three lines further down. */
+  /* SVC is passed IN: waitForFunction runs the callback in the browser, where
+     a constant from this file does not exist. It was a literal string before,
+     which is why nothing noticed. */
   await page.waitForFunction(
-    () => document.getElementById('sName')
-      && document.getElementById('sName').value === 'Campus Room Finder',
-    null, { timeout: 8000 });
+    want => document.getElementById('sName')
+      && document.getElementById('sName').value === want,
+    SVC, { timeout: 8000 });
   check('and the sheet is holding the right one',
-    (await page.inputValue('#sName')) === 'Campus Room Finder',
+    (await page.inputValue('#sName')) === SVC,
     await page.inputValue('#sName'));
   await page.uncheck('#sActive');
   await page.click('#smSave');
   await page.waitForTimeout(800);
+  const C0 = await (await ctx.request.get(BASE + '/api/staff/content')).json();
   const hidden = await (await ctx.request.get(BASE + '/api/content')).json();
-  const row = hidden.services.items.find(x => x.id === 'campus-room-finder');
+  const row = hidden.services.items.find(x => x.id === SVC_ID);
   check('hiding turns it off in the record', row && row.active === false,
     row ? 'active=' + row.active : 'the service is gone');
   h = await home(ctx);
-  check('hiding takes it off the home page', !h.names.includes('Campus Room Finder'),
+  /* AND THE SAME NAME CANNOT BE USED TWICE. The cleaner renames a duplicate
+     ID — it has to, because "Add to plan" tracks a service by id and two rows
+     sharing one add and remove each other — but it says nothing about the
+     name, so a second "SOP Writing" used to appear on the public page reading
+     exactly like the first. Refused where there is somebody to tell. */
+  const dupe = await ctx.request.put(BASE + '/api/staff/content/services',
+    { data: { value: { tabs: (C0.services || {}).tabs || [],
+      items: ((C0.services || {}).items || []).concat([
+        { id: 'another-one', name: SVC, desc: 'a second one with the same name',
+          priceInr: 100, active: true, cats: ['top'] }]) } } });
+  check('a second service with the same name is refused', dupe.status() === 422,
+    dupe.status() + ' ' + (await dupe.text()).slice(0, 90));
+
+  check('hiding takes it off the home page', !h.names.includes(SVC),
     h.names.filter(n => /Campus|Room/.test(n)).join(',') || '(none shown)');
 
   /* ------------------------------------ a category decides where it shows */

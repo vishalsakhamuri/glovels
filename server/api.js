@@ -6262,6 +6262,42 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
             fields: wrong.map(([n, why]) => ({ name: n, why })),
           });
         }
+
+        /* TWO THINGS WITH THE SAME NAME.
+         *
+         * cleanServices renames a duplicate ID rather than dropping it, and it
+         * is right to: "Add to plan" tracks a service by id, so two rows
+         * sharing one would add and remove each other. But renaming the id
+         * does nothing about the NAME, so adding a service that already exists
+         * quietly produced a second row reading exactly like the first — two
+         * "SOP Writing" cards on the public page, one of which the office
+         * cannot tell from the other.
+         *
+         * It is the cleaner's shape that makes this the wrong place for it to
+         * be caught: a cleaner returns a value, so its only options are to
+         * mangle the row or drop it, and both lose something silently. Here
+         * there is somebody to tell. Same reasoning as the price above.
+         *
+         * Case- and space-insensitive, because "SOP writing" and "SOP  Writing"
+         * are the same service to everybody except a string comparison. */
+        const byName = new Map();
+        const twice = [];
+        for (const x of ((value && value.items) || [])) {
+          const name = String(x.title || x.name || '').trim().toLowerCase()
+            .replace(/\s+/g, ' ');
+          if (!name) continue;
+          if (byName.has(name)) twice.push(String(x.title || x.name));
+          else byName.set(name, true);
+        }
+        if (twice.length) {
+          return json(res, 422, {
+            error: 'There is already ' + (key === 'packages' ? 'a package' : 'a service')
+              + ' called “' + twice[0] + '”. Two with the same name are '
+              + 'indistinguishable on the page and to whoever has to edit one of '
+              + 'them later — rename this one, or edit the one that exists.',
+            fields: twice.map(n => ({ name: n, why: 'that name is already in use' })),
+          });
+        }
       }
 
       const saved = content.save(key, value, s.name);
