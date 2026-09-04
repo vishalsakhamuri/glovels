@@ -478,7 +478,9 @@ function head(s) {
 function detailsPane(s) {
   const p = s.profile || {};
   const field = f => {
-    const v = p[f.k] == null ? '' : String(p[f.k]);
+    /* Same as the student's own form: a default is shown rather than assumed,
+       so whoever is filling this in reads it and can correct it. */
+    const v = p[f.k] == null || p[f.k] === '' ? (f.def || '') : String(p[f.k]);
     const id = 'f_' + f.k;
     let input;
     if (f.t === 'multi') {
@@ -512,7 +514,11 @@ function detailsPane(s) {
     } else if (f.t === 'select') {
       /* `years` builds its own list. Reading f.o for one of those gave an
          empty dropdown — a required field nobody could fill. */
-      const opts = f.years ? YEARS(f.years[0], f.years[1]) : (f.o || []);
+      let opts = f.years ? YEARS(f.years[0], f.years[1]) : (f.o || []);
+      /* An answer already on the record is never dropped by a list that has
+         since changed — see the same note on the student's own form. Without
+         it, opening this form emptied the answer and saving wrote the blank. */
+      if (v && !opts.includes(v)) opts = opts.concat([v]);
       input = '<select id="' + id + '" data-f="' + f.k + '">'
         + opts.map(o => '<option' + (o === v ? ' selected' : '') + '>'
             + esc(o) + '</option>').join('') + '</select>';

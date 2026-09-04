@@ -150,11 +150,25 @@ let seq = 0;
     hasBands && !/optional/i.test(await labelOf('e_write')));
   /* A Medium of Instruction letter has no bands. Asking for four of them makes
      a profile that can never reach 100%, and a meter nobody can clear is a
-     meter nobody trusts. */
+     meter nobody trusts.
+     THE RULE GOT STRICTER. They used to be shown and merely marked optional,
+     which this checked. From the Student View round they are not shown at all:
+     a Listening score is not a hard question for somebody filing a letter that
+     has no Listening score, it is a question about a thing that does not
+     exist. Present-and-optional was the weaker half of the same idea. */
   await page.selectOption('[name="e_test"]', 'Medium of Instruction letter');
   await page.waitForTimeout(500);
-  check('  · and optional where it reports none',
-    hasBands && /optional/i.test(await labelOf('e_write')));
+  const moiKeys = await keys();
+  check('  · and not asked at all where it reports none',
+    !moiKeys.includes('e_write') && !moiKeys.includes('e_low'),
+    moiKeys.join(','));
+  /* And somebody who has not sat one is asked for nothing about a score. */
+  await page.selectOption('[name="e_test"]', 'Not taken yet');
+  await page.waitForTimeout(500);
+  const noneKeys = await keys();
+  check('  · nor of somebody who has not taken a test',
+    !noneKeys.includes('e_score') && !noneKeys.includes('e_write'),
+    noneKeys.join(','));
   await page.selectOption('[name="e_test"]', 'IELTS');
   await page.waitForTimeout(400);
 

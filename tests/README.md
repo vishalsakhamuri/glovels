@@ -90,6 +90,7 @@ A full run is seventy-odd suites and takes about half an hour.
 |---|---|
 | `profiletest.js` | The intake form, after the counsellors' testing round — including the three findings that change what the matcher is told. |
 | `formtest.js` | The profile form after Student View Corrections: a given name and a surname, and eight other changes. |
+| `formtest2.js` | The profile after Student View Changes: the passing grade prefilled with 5, backlogs as numbers, a master's degree section, TOEFL home-or-centre, who issued a Medium of Instruction letter, the GRE broken into six, and a finished test folding to one line. Also the select that used to delete an answer whose option had been removed. |
 | `studenttest.js` | The dashboard and the messages screen, and the readiness figure that was not true. |
 | `portaltest.js` | The portal after the 1.4 round: no demo answers, account deletion behind a heading, the upload cards in the tab order, and a stage the student may not mark done. |
 | `doclisttest.js` | The document checklist, and how each document has to arrive rather than only which one. |

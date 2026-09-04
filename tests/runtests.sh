@@ -105,6 +105,7 @@ run twatest.js      8099
 run round2test.js   8099
 run studenttest.js  8099
 run formtest.js     8099
+run formtest2.js    8099
 run gradetest.js    8099
 run doclisttest.js  8099
 run boundstest.js   8099

@@ -289,7 +289,18 @@ CSS = """
    whose they are is how a manager's email lands under a professor's name. */
 .fgrp{border:1.5px solid var(--line);border-left-width:4px;border-radius:12px;
   padding:14px 15px 4px;margin:0 0 15px}
-.fgrp > b{display:block;font:800 12.6px/1 var(--sans);margin-bottom:3px}
+.fgrp > b{display:flex;align-items:center;gap:10px;font:800 12.6px/1 var(--sans);
+  margin-bottom:3px}
+/* Change / Hide on a folded test. A link rather than a button in weight: it is
+   a way back into the form, not an action on the record. */
+.fgrp > b .grptog{margin-left:auto;appearance:none;border:0;background:none;
+  cursor:pointer;font:700 11.4px/1 var(--sans);color:var(--blue-deep);
+  text-decoration:underline;text-underline-offset:3px;padding:2px 0}
+.fgrp > b .grptog:hover{color:var(--navy-900)}
+.fgrp > b .grptog:focus-visible{outline:2px solid var(--blue,#1a4fb4);
+  outline-offset:2px;border-radius:4px}
+/* The one line a folded group shows: what was sat, and what was scored. */
+.fgrp .grpsum{margin:7px 0 0;font:600 13.4px/1.5 var(--sans);color:var(--navy-900)}
 .fgrp > span{display:block;font-size:11.8px;color:var(--muted);margin-bottom:13px;line-height:1.5}
 .fgrp.blue{border-left-color:var(--blue-deep);background:#f6f9ff}
 .fgrp.blue > b{color:var(--blue-deep)}

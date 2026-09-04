@@ -181,6 +181,51 @@ function overall() {
   return Math.round(req.filter(filled).length / req.length * 100);
 }
 
+/* Which groups stay open for this visit: the ones opened by hand, and the ones
+   being worked in. */
+let OPEN_GRP = [];
+
+/* The group a control sits in, marked as in use. */
+function keepOpen(el) {
+  const box = el.closest('.fgrp');
+  const tog = box && box.querySelector('.grptog');
+  const g = tog && tog.dataset.grp;
+  if (g && OPEN_GRP.indexOf(g) < 0) OPEN_GRP.push(g);
+  /* A group with no toggle yet — nothing to summarise — is found by the field
+     it holds instead, so the FIRST answer in it also counts as working in it. */
+  if (!g && box) {
+    const any = box.querySelector('.field[data-k]');
+    const f = any && SECTIONS[cur].fields.find(x => x.k === any.dataset.k);
+    if (f && f.grp && OPEN_GRP.indexOf(f.grp) < 0) OPEN_GRP.push(f.grp);
+  }
+}
+
+/* The one line a folded group shows: the test, and the score. Nothing else —
+   that is the whole request, and a summary that creeps into four facts is a
+   second copy of the form.
+
+   Returns '' when there is nothing to summarise, which is what keeps an
+   unanswered group open: a group folds because it is DONE, not because it is
+   a test. */
+function groupSummary(g, rows) {
+  const val = suffix => {
+    const f = rows.find(x => x.k.endsWith(suffix));
+    return f ? String(DB.profile[f.k] || '').trim() : '';
+  };
+  const test = val('_test');
+  if (!test) return '';
+  /* Answers that mean there is no scorecard. Folding these away would hide the
+     one thing a counsellor needs to see. */
+  if (/^(not taken yet|not required|planning to take)$/i.test(test)) return '';
+  const score = val('_score');
+  /* BOTH, and this is the difference between the feature and a trap.
+     "Collapse the test score, AFTER filling it." Folding on the test name
+     alone meant choosing IELTS hid the box asking for the score — the form
+     closed itself over the work still to do. */
+  if (!score) return '';
+  return test + ' \u00b7 ' + score;
+}
+
 function drawNav() {
   $('#secNav').innerHTML = SECTIONS.map((s, i) => {
     const p = pctOf(s);
@@ -223,7 +268,12 @@ function drawForm() {
   /* One field. The three input shapes that are not a plain box each exist for
      a reason written beside them. */
   const fieldHtml = f => {
-    const v = DB.profile[f.k] || '';
+    /* A field may ship with an answer already in it. Only `d_pass` does today
+       — see the note beside it — and the rule is that a default is SHOWN, so
+       the student reads it and can correct it, rather than assumed silently on
+       the server where nobody would ever see it. Once shown it is theirs: the
+       next save stores it like any other answer. */
+    const v = DB.profile[f.k] || (DB.profile[f.k] === 0 ? '0' : (f.def || ''));
     const req = !!f.must;
     let input;
 
@@ -266,10 +316,23 @@ function drawForm() {
 
     } else if (f.t === 'select') {
       /* `years` builds the list from today, so it is never a year out of date. */
-      const opts = f.years ? YEARS(f.years[0], f.years[1]) : (f.o || []);
+      let opts = f.years ? YEARS(f.years[0], f.years[1]) : (f.o || []);
+      /* AN ANSWER ALREADY GIVEN IS NEVER DROPPED.
+       *
+       * A stored value that is not in the list matched no option, so the
+       * browser showed the blank one — and the next save wrote that blank back.
+       * The student's answer was deleted by the act of opening the form, and
+       * nothing said so.
+       *
+       * It matters the moment a list changes. Backlogs went from ranges to
+       * numbers in this patch: without this line every student who had answered
+       * "1-2" would have had it silently emptied. Kept at the end and marked,
+       * so it reads as the old answer it is and inviting a fresh one. */
+      if (v && !opts.includes(v)) opts = opts.concat([v]);
       input = '<select name="' + f.k + '">' + opts.map(o =>
         '<option value="' + esc(o) + '"' + (o === v ? ' selected' : '') + '>' +
-        (o === '' ? 'Select…' : esc(o)) + '</option>').join('') + '</select>';
+        (o === '' ? 'Select…' : esc(o) + ((f.o && !f.o.includes(o) && !f.years)
+          ? ' (what you answered before)' : '')) + '</option>').join('') + '</select>';
 
     } else if (f.t === 'textarea') {
       input = '<textarea name="' + f.k + '" rows="4" placeholder="' + esc(f.ph || '') + '" style="' +
@@ -301,10 +364,34 @@ function drawForm() {
     live.forEach(f => { if (f.grp && seen.indexOf(f.grp) < 0) seen.push(f.grp); });
     body += seen.map(g => {
       const meta = groups[g] || { name: g, tone: 'blue' };
+      /* A FINISHED TEST FOLDS AWAY.
+       *
+       * "Let's add an option to collapse the test score, after filling it.
+       * Display only exam and overall score."
+       *
+       * A student who sat IELTS and a GRE was looking at eighteen boxes, all
+       * of them answered, to reach the two that were not. A group that has
+       * been ANSWERED shows one line — the test and the score — and opens
+       * again on a press.
+       *
+       * Collapsed by DEFAULT once answered, because the point is the screen a
+       * returning student sees. It is not remembered between visits: the state
+       * that matters is whether the thing is filled in, and that is read from
+       * the answers themselves rather than from a preference that can fall out
+       * of step with them. */
+      const rows = live.filter(f => f.grp === g);
+      const sum = groupSummary(g, rows);
+      const shut = sum && OPEN_GRP.indexOf(g) < 0;
       return '<div class="fgrp ' + esc(meta.tone || 'blue') + '">' +
-        '<b>' + esc(meta.name) + '</b>' +
-        (meta.note ? '<span>' + esc(meta.note) + '</span>' : '') +
-        live.filter(f => f.grp === g).map(fieldHtml).join('') + '</div>';
+        '<b>' + esc(meta.name) +
+          (sum ? '<button type="button" class="grptog" data-grp="' + esc(g) + '">'
+            + (shut ? 'Change' : 'Hide') + '</button>' : '') +
+        '</b>' +
+        (shut
+          ? '<p class="grpsum">' + esc(sum) + '</p>'
+          : (meta.note ? '<span>' + esc(meta.note) + '</span>' : '')
+            + rows.map(fieldHtml).join('')) +
+        '</div>';
     }).join('');
   } else {
     body = live.map(fieldHtml).join('');
@@ -326,8 +413,17 @@ function drawForm() {
      relevance, and redrawing the form under somebody's finger loses their
      place in a list of forty years. */
   $$('#pForm select[name]').forEach(el => el.addEventListener('change', () => {
+    /* Whatever group this field belongs to is now being WORKED IN, so it stays
+       open for the rest of the visit however complete it becomes. A section
+       folding itself away mid-answer is worse than one that never folds. */
+    keepOpen(el);
     readForm(); save(); drawForm(); paint();
   }));
+  /* Same for typing. The redraw only happens on a select, but a score typed
+     into a text box is exactly what would make the group foldable — so the
+     group has to be marked before the next redraw, not after it. */
+  $$('#pForm input[name], #pForm textarea[name]').forEach(el =>
+    el.addEventListener('input', () => keepOpen(el), { once: true }));
   $$('#pForm .d3 select, #pForm .multi input').forEach(el =>
     el.addEventListener('change', () => {
       readForm(); save(); paint();
@@ -493,6 +589,22 @@ const goTo = i => {
  *
  * The page's own checks still run first, because they are instant and they
  * name the box. What is new is that anything they let through is WAITED for. */
+/* Opening a folded test again, and folding it back. Delegated, because the
+   form is redrawn on every change and a handler bound to a button would go
+   with it. */
+$('#pForm').addEventListener('click', e => {
+  const b = e.target.closest('.grptog');
+  if (!b) return;
+  e.preventDefault();
+  const g = b.dataset.grp;
+  const at = OPEN_GRP.indexOf(g);
+  if (at < 0) OPEN_GRP.push(g); else OPEN_GRP.splice(at, 1);
+  /* readForm first: the student may have typed into another field on this
+     section, and redrawing without reading would throw it away. */
+  readForm();
+  drawForm();
+});
+
 $('#saveBtn').addEventListener('click', async () => {
   readForm();
   const bad = firstProblem();

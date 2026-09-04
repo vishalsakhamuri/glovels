@@ -34,6 +34,11 @@ function YEARS(back, ahead) {
    never reach 100%. */
 const BANDED = p => /ielts|toefl|pte/i.test(String(p.e_test || ''));
 
+/* Answers that mean "there is no scorecard", so nothing about a score should
+   be asked. "Not taken yet" was missing from this list entirely — a student who
+   had simply not sat one had to claim it was not required. */
+const NOAPT = v => !v || /not required|not taken|planning/i.test(String(v || ''));
+
 /* The boards a school-leaving certificate in India actually comes from.
  *
  * "If they select state board, provide an option to enter state board. Drop
@@ -226,22 +231,89 @@ const SECTIONS = [
      * because a default here is a wrong answer for half of them. */
     {k:'d_max',    l:'Maximum grade at your university', t:'text', ph:'10',
      help:'10 for most Indian CGPAs. 100 if your transcript is in percent, 4 on a GPA.'},
-    {k:'d_pass',   l:'Minimum passing grade at your university', t:'text', ph:'4',
-     help:'It differs at every university \u2014 it is in your academic regulations '
-        + 'and printed on many transcripts. We will not guess it: without it we '
-        + 'can only show your German grade as a range.'},
+    /* FIVE, prefilled, and that is a change of mind worth writing down.
+     *
+     * This shipped with no default at all, on the argument that the pass mark
+     * decides the German grade — the same 6.84 is 2.5 where the pass mark is 4
+     * and 2.8 where it is 5 — so a wrong default is a wrong grade.
+     *
+     * That was right about the arithmetic and wrong about people. Almost
+     * nobody knows their pass mark off the top of their head, so the box sat
+     * empty, and an empty box does not produce a careful answer: it produces
+     * NO German grade at all, which is worse than a stated assumption a
+     * student can correct. The counsellors asked for 5 because 5 is what most
+     * of the Indian universities they see actually use.
+     *
+     * So it is prefilled and it SAYS it is prefilled. A student who checks
+     * their regulations and finds 4 changes one character. */
+    {k:'d_pass',   l:'Minimum passing grade at your university', t:'text', ph:'5',
+     def:'5',
+     help:'We have filled in 5, which is the commonest. It differs at every '
+        + 'university \u2014 it is in your academic regulations and printed on '
+        + 'many transcripts. Check it: it moves your German grade.'},
     /* Total, not active.
      *
      * A university form asks how many subjects were ever failed, not how many
      * are outstanding today — a student who cleared all six last term answers
      * "None" to "active backlogs" and the form they eventually sign says
      * something different from what they told us. */
+    /* A NUMBER, because a university form asks for a number.
+     *
+     * This offered "1-2", "3-5" and "More than 5", and every one of those has
+     * to be turned back into a figure by whoever fills the actual application
+     * — from a range that cannot be. A student with four backlogs picked "3-5"
+     * and the form still needed to say 4.
+     *
+     * An answer already given is kept: the select appends a stored value that
+     * is no longer on the list rather than silently blanking it. */
     {k:'d_backlog',l:'Total backlogs (including cleared)', t:'select',
-     o:['','None','1-2','3-5','More than 5'],
+     o:['','0','1','2','3','4','5','6','7','8','9','10','More than 10'],
      help:'Every subject you have ever failed, even if you passed it later. '
         + 'A university asks for the total; declaring it is never the problem, '
         + 'a mismatch later is.'}
   ]},
+  /* A MASTER'S, for the people who have one.
+   *
+   * "Add master's details for people with master's degree."
+   *
+   * Two kinds of student were being asked the wrong questions. Somebody with a
+   * master's applying for a second one, or for a PhD, had nowhere to put it —
+   * so their strongest qualification was absent from a record built to argue
+   * their case, and a counsellor found out about it on a call.
+   *
+   * The whole section is OPTIONAL and hangs off the first question. A student
+   * who answers No sees nothing else, so the form is not longer for the great
+   * majority who have only a bachelor.
+   *
+   * DELIBERATELY NOT READ BY THE MATCHER. German master's admission is decided
+   * on the bachelor — that is what the Bavarian formula converts and what every
+   * bar in the catalogue is written against — so adding a second grade to that
+   * comparison would change who qualifies for what on the strength of a field
+   * nobody has checked. It is here to be read by a person. */
+  {id:'masters', icon:'i-cap', name:'Master\u2019s degree', fields:[
+    {k:'m_has',    l:'Do you have a master\u2019s degree?', t:'select',
+     o:['','No','Yes','In progress'],
+     help:'Leave this as No if your highest degree is a bachelor.'},
+    {k:'m_uni',    l:'University', t:'text', ph:'University of Hyderabad',
+     show:p=>/^(yes|in progress)$/i.test(p.m_has||'')},
+    {k:'m_course', l:'Course', t:'text', ph:'M.Tech Computer Science',
+     show:p=>/^(yes|in progress)$/i.test(p.m_has||'')},
+    {k:'m_start',  l:'Year of joining', t:'select', years:[40, 0],
+     show:p=>/^(yes|in progress)$/i.test(p.m_has||'')},
+    {k:'m_year',   l:'Year of completion', t:'select', years:[40, 3],
+     show:p=>/^(yes|in progress)$/i.test(p.m_has||'')},
+    {k:'m_cgpa',   l:'Your overall grade', t:'text', ph:'8.1',
+     show:p=>/^yes$/i.test(p.m_has||''),
+     help:'Whatever your transcript prints. The two boxes below say what scale.'},
+    {k:'m_max',    l:'Maximum grade at that university', t:'text', ph:'10',
+     show:p=>/^yes$/i.test(p.m_has||'')},
+    {k:'m_pass',   l:'Minimum passing grade at that university', t:'text', ph:'5',
+     show:p=>/^yes$/i.test(p.m_has||'')},
+    {k:'m_backlog',l:'Total backlogs (including cleared)', t:'select',
+     o:['','0','1','2','3','4','5','6','7','8','9','10','More than 10'],
+     show:p=>/^yes$/i.test(p.m_has||'')}
+  ]},
+
   /* Two tests, because people take two.
    *
    * "Under English test — add options for multiple tests." Somebody who sat
@@ -260,16 +332,42 @@ const SECTIONS = [
   }, fields:[
     {k:'e_test',  l:'Test taken', t:'select', grp:'e1',
      o:['','IELTS','TOEFL','PTE','Duolingo','Medium of Instruction letter','Not taken yet']},
-    {k:'e_score', l:'Overall score', t:'text', ph:'7.0', grp:'e1'},
-    {k:'e_date',  l:'Test date', t:'date3', back:6, ahead:2, grp:'e1'},
+    /* Home or centre, for the one test where it changes what a university
+       will take. TOEFL iBT Home Edition is not accepted everywhere, and a
+       counsellor who finds that out at submission has lost the intake. Only
+       shown for TOEFL, because only TOEFL asks it. */
+    {k:'e_mode',  l:'Where you sat it', t:'select', grp:'e1',
+     o:['','At a test centre','At home (Home Edition)'],
+     show:p=>/toefl/i.test(String(p.e_test||'')),
+     help:'Some universities do not accept the at-home version. Worth knowing '
+        + 'before we file rather than after.'},
+    /* A Medium of Instruction letter is issued BY somewhere, and which
+       somewhere decides whether it is accepted: a letter from the college is
+       refused where the university's own is taken. Asked only when MOI is the
+       answer. */
+    {k:'e_moi_from', l:'Who issued the letter', t:'select', grp:'e1',
+     o:['','My bachelor\u2019s college','My bachelor\u2019s university'],
+     show:p=>/medium of instruction/i.test(String(p.e_test||'')),
+     help:'Many universities accept only one issued by the university itself, '
+        + 'not the affiliated college.'},
+    {k:'e_score', l:'Overall score', t:'text', ph:'7.0', grp:'e1',
+     show:p=>!/^(not taken yet)$/i.test(String(p.e_test||'')),
+     opt:p=>/^medium of instruction letter$/i.test(String(p.e_test||''))},
+    {k:'e_date',  l:'Test date', t:'date3', back:6, ahead:2, grp:'e1',
+     show:p=>!/^not taken yet$/i.test(String(p.e_test||''))},
+    /* The bands are HIDDEN, not merely optional, for a test that does not have
+       them. Asking somebody who has not sat a test — or who is filing a Medium
+       of Instruction letter — for their Listening score is noise on a form
+       that is already long, and it was being asked. */
     {k:'e_low',   l:'Lowest band', t:'text', ph:'6.5', grp:'e1',
+     show:p=>BANDED(p),
      help:'Most German and UK programmes require no band below 6.0.'},
     /* Per skill, because a university asks per skill. A 7.0 overall with a 5.5
        in writing is refused by programmes a 6.5 flat would pass. */
-    {k:'e_listen', l:'Listening', t:'text', ph:'7.0', grp:'e1', opt:p=>!BANDED(p)},
-    {k:'e_read',   l:'Reading',   t:'text', ph:'7.5', grp:'e1', opt:p=>!BANDED(p)},
-    {k:'e_write',  l:'Writing',   t:'text', ph:'6.5', grp:'e1', opt:p=>!BANDED(p)},
-    {k:'e_speak',  l:'Speaking',  t:'text', ph:'7.0', grp:'e1', opt:p=>!BANDED(p)},
+    {k:'e_listen', l:'Listening', t:'text', ph:'7.0', grp:'e1', show:p=>BANDED(p)},
+    {k:'e_read',   l:'Reading',   t:'text', ph:'7.5', grp:'e1', show:p=>BANDED(p)},
+    {k:'e_write',  l:'Writing',   t:'text', ph:'6.5', grp:'e1', show:p=>BANDED(p)},
+    {k:'e_speak',  l:'Speaking',  t:'text', ph:'7.0', grp:'e1', show:p=>BANDED(p)},
     {k:'e2_test',  l:'Test taken', t:'select', grp:'e2', opt:()=>true,
      o:['','IELTS','TOEFL','PTE','Duolingo','Cambridge English','Other']},
     {k:'e2_score', l:'Overall score', t:'text', ph:'65', grp:'e2', opt:()=>true},
@@ -283,12 +381,47 @@ const SECTIONS = [
     a1:{name:'Your test', tone:'blue', note:'The one your programmes ask for.'},
     a2:{name:'A second test, if you sat one', tone:'green', note:'Optional.'}
   }, fields:[
+    /* "Not taken yet" is a different answer from "Not required" and from
+       "Planning to take", and a student who has simply not sat one had to pick
+       something untrue. It leads, because it is the commonest. */
     {k:'a_test',  l:'Test', t:'select', grp:'a1',
-     o:['','Not required','GRE','GMAT','GATE','SAT','ACT','NEET','Planning to take']},
-    {k:'a_score', l:'Score', t:'text', ph:'318', grp:'a1',
-     opt:p=>!p.a_test||/not required|planning/i.test(p.a_test)},
+     o:['','Not taken yet','Not required','GRE','GMAT','GATE','SAT','ACT','NEET',
+        'Planning to take']},
+    {k:'a_score', l:'Overall score', t:'text', ph:'318', grp:'a1',
+     show:p=>!NOAPT(p.a_test)},
     {k:'a_date',  l:'Test date', t:'date3', back:6, ahead:2, grp:'a1',
-     opt:p=>!p.a_test||/not required|planning/i.test(p.a_test)},
+     show:p=>!NOAPT(p.a_test)},
+    /* Where it was sat. Same reason as TOEFL: the at-home version of the GRE
+       is not taken everywhere, and finding that out at submission costs the
+       intake. */
+    {k:'a_mode',  l:'Where you sat it', t:'select', grp:'a1',
+     o:['','At a test centre','At home'],
+     show:p=>/^(gre|gmat)$/i.test(String(p.a_test||''))},
+    /* THE GRE IS THREE SCORES, NOT ONE.
+     *
+     * "GRE — add additional fields — Quantitative Reasoning Score, Verbal
+     * Reasoning Score, Analytical Writing Analysis — Score and Percentile."
+     *
+     * A single 318 is the sum of two of the three, and it is not what a
+     * programme asks for: a Master's in engineering reads the quant score and
+     * a taught Master's in the humanities reads the verbal one. The percentile
+     * matters as much as the score — 160 quant is a different applicant from
+     * 160 verbal, and only the percentile says so.
+     *
+     * All optional. A student who knows their overall and has to go and find
+     * the breakdown should not be blocked from saving. */
+    {k:'a_q',     l:'Quantitative Reasoning \u2014 score', t:'text', ph:'165', grp:'a1',
+     show:p=>/^gre$/i.test(String(p.a_test||'')), opt:()=>true},
+    {k:'a_q_pc',  l:'Quantitative Reasoning \u2014 percentile', t:'text', ph:'88', grp:'a1',
+     show:p=>/^gre$/i.test(String(p.a_test||'')), opt:()=>true},
+    {k:'a_v',     l:'Verbal Reasoning \u2014 score', t:'text', ph:'153', grp:'a1',
+     show:p=>/^gre$/i.test(String(p.a_test||'')), opt:()=>true},
+    {k:'a_v_pc',  l:'Verbal Reasoning \u2014 percentile', t:'text', ph:'58', grp:'a1',
+     show:p=>/^gre$/i.test(String(p.a_test||'')), opt:()=>true},
+    {k:'a_aw',    l:'Analytical Writing \u2014 score', t:'text', ph:'4.0', grp:'a1',
+     show:p=>/^gre$/i.test(String(p.a_test||'')), opt:()=>true},
+    {k:'a_aw_pc', l:'Analytical Writing \u2014 percentile', t:'text', ph:'54', grp:'a1',
+     show:p=>/^gre$/i.test(String(p.a_test||'')), opt:()=>true},
     {k:'a2_test',  l:'Test', t:'select', grp:'a2', opt:()=>true,
      o:['','GRE','GMAT','GATE','SAT','ACT','NEET','Other']},
     {k:'a2_score', l:'Score', t:'text', ph:'700', grp:'a2', opt:()=>true},
