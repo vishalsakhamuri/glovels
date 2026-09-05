@@ -220,6 +220,99 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
     'and the enrolment certificate is on the visa screen, where the journey ends');
   ok(/fee invoice/i.test(vtext), 'with the fee invoice beside it');
   ok(verrs.length === 0, 'no page errors on the visa screen — ' + verrs.slice(0, 2).join(' | '));
+
+  /* ============ 8. Other documents, and who may take a file back off */
+  /*
+   * "Give an option for the counsellor to attach a few more docs in case
+   * required. Same for the student. You can name it Other docs and they can
+   * upload multiple files."
+   *
+   * Every other slot is a document we asked for by name, which is what makes
+   * the checklist useful and also what makes it a wall: a university welcome
+   * pack, an accommodation contract, a bank letter nobody anticipated. Those
+   * went into the chat, where a file is impossible to find three weeks later.
+   *
+   * AND THE RULE UNDERNEATH IT, which is the half worth testing:
+   *
+   *   "Disable in student view whichever the counsellor will attach."
+   *
+   * A student may take back what they put on their own file, and nothing
+   * anybody else did. That used to be decided by the KEY — right for the two
+   * application files and silently wrong for everything else a counsellor can
+   * upload, which is now every slot there is. It is asked of the ROW now,
+   * because a prefix cannot answer "who put this here".
+   */
+  for (const n of ['my-bank-letter.pdf', 'my-lease.pdf']) {
+    const r = await send('other', n);
+    ok(r.ok(), 'a student can put ' + n + ' in Other documents — ' + r.status());
+  }
+  const theirsToo = await put('other', 'welcome-pack.pdf');
+  ok(theirsToo.ok(),
+    'and their counsellor can add to the same slot — ' + theirsToo.status());
+
+  st = await state();
+  const spare = (st.docs || {}).other || {};
+  ok((spare.files || []).length === 3,
+    'all three are in it, from both sides — '
+    + (spare.files || []).map(f => f.file).join(','));
+  ok(spare.status === 'ok',
+    'and what the office adds is not waiting for the office to check it — '
+    + spare.status);
+  ok((spare.files || []).filter(f => f.by === 'student').length === 2
+     && (spare.files || []).filter(f => f.by === 'staff').length === 1,
+    'each file says who put it there — '
+    + (spare.files || []).map(f => f.by).join(','));
+
+  const own = (spare.files || []).find(f => f.by === 'student');
+  const not = (spare.files || []).find(f => f.by === 'staff');
+  const dropMine = await stu.request.delete(BASE + '/api/documents/file/' + own.id);
+  ok(dropMine.ok(), 'a student can remove their own file — ' + dropMine.status());
+  const dropTheirs = await stu.request.delete(BASE + '/api/documents/file/' + not.id);
+  ok(dropTheirs.status() === 403,
+    'and cannot remove one their counsellor put there — ' + dropTheirs.status());
+  ok(/counsellor/i.test((await dropTheirs.json()).error || ''),
+    'with a reason that says whose it is, rather than "not found"');
+
+  /* The whole-slot clear, on a slot holding both. Refusing it would leave a
+     student unable to remove their own; clearing the lot would let one press
+     delete ours. */
+  const clear = await stu.request.delete(BASE + '/api/documents/other');
+  ok(clear.ok(), 'clearing the slot works on a mixed one — ' + clear.status());
+  st = await state();
+  const left = ((st.docs || {}).other || {}).files || [];
+  ok(left.length === 1 && left[0].by === 'staff',
+    'and takes only what was theirs, leaving ours — ' + left.map(f => f.file).join(','));
+  const clearAgain = await stu.request.delete(BASE + '/api/documents/other');
+  ok(clearAgain.status() === 403,
+    'a slot with nothing of theirs left in it refuses the clear — '
+    + clearAgain.status());
+
+  /* The same rule on a document we WROTE, which is where it matters most —
+     the key tells you nothing there. */
+  const sopFile = ((st.docs || {}).sop || {}).files || [];
+  ok(sopFile.length === 1 && sopFile[0].by === 'staff', 'our own draft is marked ours');
+  const dropSop = await stu.request.delete(BASE + '/api/documents/file/' + sopFile[0].id);
+  ok(dropSop.status() === 403,
+    'and a student cannot delete the SOP we wrote for them — ' + dropSop.status());
+
+  /* Optional, and it has to stay that way: a slot that can always hold one
+     more file would make "8 of 14 uploaded" impossible to finish. */
+  await docs.reload({ waitUntil: 'domcontentloaded' });
+  await docs.waitForTimeout(2800);
+  const dtext = (await docs.textContent('body')) || '';
+  ok(/Other documents/i.test(dtext), 'the slot is on the Documents screen');
+  const otherCard = (await docs.textContent('[data-id="other"]')) || '';
+  ok(/If available/i.test(otherCard),
+    'marked as not required — ' + otherCard.replace(/\s+/g, ' ').slice(0, 120));
+  /* It blocks nothing, and the card must not say "Blocks:" with nothing after
+     it — every other slot on this list has an answer there, so the label was
+     rendered unconditionally and read as a value that had failed to load. */
+  ok(!/Blocks:\s*$/m.test(otherCard) && !/Blocks:\s*Anything else/i.test(otherCard),
+    'and does not carry an empty "Blocks:" label — '
+    + otherCard.replace(/\s+/g, ' ').slice(0, 110));
+  ok(/from your counsellor/i.test(otherCard),
+    'and the file the office added says so instead of offering a Remove — '
+    + otherCard.replace(/\s+/g, ' ').slice(0, 140));
   ok(derrs.length === 0, 'no page errors on documents — ' + derrs.slice(0, 2).join(' | '));
 
   await browser.close();

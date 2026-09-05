@@ -491,6 +491,19 @@ function sqliteDriver(file) {
       * it was about. */
    "ALTER TABLE applications ADD COLUMN note TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE applications ADD COLUMN note_at TEXT NOT NULL DEFAULT ''",
+   /* WHO PUT THIS FILE HERE — 'student' or 'staff'.
+      *
+      * Asked because the answer decides who may take it away again. A student
+      * may remove anything they uploaded, and must not be able to remove what
+      * their counsellor put on the file: a submission confirmation, a decision
+      * letter, a document the office produced. Before this the row could not
+      * say, so the rule had to be guessed from the KEY — which worked for the
+      * `app:` files and for nothing else.
+      *
+      * Defaults to 'student' so every row written before this column existed
+      * reads as the student's own, which is what almost all of them are and
+      * the answer that takes nothing away from anybody. */
+   "ALTER TABLE documents ADD COLUMN uploaded_by TEXT NOT NULL DEFAULT 'student'",
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
@@ -909,10 +922,16 @@ function open(dir) {
     removeDocFile: (studentId, docId) => db.run(
       'DELETE FROM documents WHERE student_id = ? AND id = ?',
       Number(studentId), Number(docId)),
-    addDocument(studentId, key, filename, storedName, bytes) {
-      db.run(`INSERT INTO documents (student_id, doc_key, filename, stored_name, bytes, status, uploaded_at)
-              VALUES (?, ?, ?, ?, ?, 'wait', ?)`,
-        Number(studentId), String(key), filename, storedName, Number(bytes), now());
+    /* `who` is 'student' or 'staff', and it decides who may remove the row
+       later. It defaults to 'student' rather than being required: the one
+       route that omits it is the student's own upload, and a caller who forgets
+       gets the answer that grants nothing. */
+    addDocument(studentId, key, filename, storedName, bytes, who) {
+      db.run(`INSERT INTO documents
+                (student_id, doc_key, filename, stored_name, bytes, status, uploaded_at, uploaded_by)
+              VALUES (?, ?, ?, ?, ?, 'wait', ?, ?)`,
+        Number(studentId), String(key), filename, storedName, Number(bytes), now(),
+        who === 'staff' ? 'staff' : 'student');
       return this.docByKey(studentId, key);
     },
     setDocStatus: (studentId, key, status) =>

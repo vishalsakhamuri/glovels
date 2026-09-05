@@ -172,7 +172,11 @@ function card(d) {
       'text-transform:uppercase;padding:4px 7px;border-radius:var(--r-pill);white-space:nowrap">' +
       LABEL[st] + '</span>' +
     '</div>' +
-    '<div class="city">Blocks: ' + esc(d.blocks) + '</div>' +
+    /* Only when it blocks something. "Other documents" is the first slot on
+       this list that blocks nothing — nobody can say in advance what is in it
+       — and this line rendered a bare "Blocks:" with nothing after it, which
+       reads as a value that failed to load rather than as an absence. */
+    (d.blocks ? '<div class="city">Blocks: ' + esc(d.blocks) + '</div>' : '') +
     (d.note ? '<p class="docnote">' + esc(d.note) + '</p>' : '') +
     /* What the status MEANS, when it means something to do. */
     (SAYS[st] ? '<p class="docsay">' + esc(SAYS[st]) + '</p>' : '') +
@@ -190,8 +194,19 @@ function card(d) {
           '<a href="/api/documents/file/' + encodeURIComponent(f.id) + '" ' +
             'style="color:var(--blue-deep);font-weight:600">' + esc(f.file) + '</a>' +
           '<span class="dsize">' + esc(f.size) + '</span>' +
-          '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" ' +
-            'aria-label="Remove ' + esc(f.file) + '">Remove</button>' +
+          /* NO REMOVE ON A FILE THE OFFICE PUT HERE.
+             "Disable in student view whichever the counsellor will attach."
+             They can open it — that is why it is on their file — and their
+             counsellor can take it off. What they cannot do is delete the
+             office's own record: a decision letter, a draft we wrote, a
+             document their agency filed for them. Said in words beside the
+             file rather than by a button quietly missing, because a control
+             that is simply absent reads as a bug. The route refuses it too;
+             this only stops somebody pressing a button that would fail. */
+          (f.by === 'staff'
+            ? '<span class="dsize" style="font-style:italic">from your counsellor</span>'
+            : '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" ' +
+              'aria-label="Remove ' + esc(f.file) + '">Remove</button>') +
           '</li>').join('') + '</ul>'
       : '') +
     /* Reachable by keyboard, and announced as what it is.
@@ -213,8 +228,15 @@ function card(d) {
       (st === S.NONE ? 'Drop a file here, or click to choose'
                      : 'Add another file') +
     '</div>' +
-    (rec ? '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + d.id +
-      '" style="margin-top:9px">Remove</button>' : '') +
+    /* "Remove" on the whole slot clears the student's OWN files in it and
+       leaves the rest, so a slot holding three of their marksheets and one of
+       ours still has a working Remove. It is hidden only when there is nothing
+       of theirs in it to remove. */
+    (rec && (rec.files || []).some(f => f.by !== 'staff')
+      ? '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + d.id +
+        '" style="margin-top:9px">Remove' +
+        ((rec.files || []).some(f => f.by === 'staff') ? ' my files' : '') + '</button>'
+      : '') +
     (d.need ? '' : '<span class="sl-chip" style="width:fit-content">If available</span>') +
     '</div>';
 }

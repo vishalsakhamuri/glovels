@@ -107,7 +107,16 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
      degree certificate that cannot exist yet. */
   const optional = cards.filter(c => c.chip);
   ok(optional.length >= 4, 'there are optional documents at all — ' + optional.length);
-  const silent = optional.filter(c => !/\(if available\)/i.test(c.name));
+  /* "Other documents" is exempt, and it is the only exemption.
+     The rule is about a NAMED document a student might chase — a degree
+     certificate they cannot have yet, a provisional they have not been given.
+     That slot is not a named document at all; it is the catch-all for whatever
+     is not on this list, so there is nothing to chase and "Other documents (if
+     available)" would mean nothing. Written as an exception rather than by
+     loosening the pattern, because the pattern is the rule and a rule with a
+     hole in it stops being read. */
+  const silent = optional.filter(c => c.name !== 'Other documents'
+    && !/\(if available\)/i.test(c.name));
   ok(silent.length === 0,
     'and every one of them says "(if available)" in its name — '
     + JSON.stringify(silent.map(c => c.name)));

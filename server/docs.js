@@ -36,6 +36,11 @@ const OURS = ['sop', 'lor', 'visa-cover'];
 const THEIRS = [
   'passport', 'x', 'xii', 'degree', 'consol', 'degcert', 'provis',
   'english', 'cv', 'work', 'certs', 'finance', 'photo', 'aps',
+  /* The catch-all, and the only slot on this list that is not a document we
+     asked for by name. Either side may add to it and it holds as many files as
+     it needs — see the note beside it in portal_fields.py for why it is
+     `need:0` and why it is last. */
+  'other',
   /* The enrolment pair, new with this patch. "Enrolment docs are missing in
      this succession. Tuition fee or semester fee invoice. Document option for
      enrolment certificate." They are the last two documents in the whole

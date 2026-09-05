@@ -2250,7 +2250,35 @@ const DOCS = [
    note:'Recent, white background, no glasses. Your counsellor will tell you the '
       + 'exact size your consulate wants before the appointment.'},
   {id:'aps',      name:'APS certificate — Germany (if available)', need:0,
-   blocks:'German application — 6–8 weeks, start early'}
+   blocks:'German application — 6–8 weeks, start early'},
+  /* THE ONE SLOT THAT IS NOT A NAMED DOCUMENT.
+   *
+   * "Give an option for the counsellor to attach a few more docs in case
+   * required. Same for the student. You can name it Other docs and they can
+   * upload multiple files."
+   *
+   * Every other row on this list is a document we asked for by name, and that
+   * is what makes the list useful — a student can read it and know what is
+   * wanted. It is also what makes it a wall: a university welcome pack, an
+   * accommodation contract, a scholarship form, a bank letter nobody
+   * anticipated. There was nowhere to put any of them, so they went into the
+   * chat, where a file is impossible to find three weeks later.
+   *
+   * `need:0`, and that is load-bearing. The readiness figure is "how many of
+   * the documents we ASKED FOR have arrived", and a slot that can always hold
+   * one more file would make that number impossible to finish. It never
+   * blocks anything either, for the same reason: nobody can say in advance
+   * what is in it.
+   *
+   * LAST on the list on purpose. It is the answer to "what about…", and a
+   * catch-all offered before the named slots is a catch-all everything lands
+   * in. */
+  {id:'other',    name:'Other documents', need:0,
+   blocks:'',
+   note:'Anything else that belongs on your file and is not on this list — a '
+      + 'university letter, an accommodation contract, a bank statement your '
+      + 'counsellor asked for. As many files as you need. Your counsellor can '
+      + 'add to it too.'}
 ];
 
 /* One number, in one place, and it is the SERVER's number.

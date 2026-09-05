@@ -243,11 +243,28 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
      back. Both are the office's record of its own work, so a student clearing
      one out — as they can any of their own uploads, and should be able to —
      would be deleting our evidence rather than their own document. */
-  const notTheirs = key => /^app:/i.test(String(key || ''));
+  /* WHAT A STUDENT MAY TAKE BACK OFF THEIR OWN FILE.
+   *
+   * Everything they put there, and nothing anybody else did.
+   *
+   * "Disable in student view whichever the counsellor will attach."
+   *
+   * They can still OPEN all of it — that is the whole point of putting it on
+   * their file — and the counsellor's own screen can remove any of it. What
+   * they cannot do is delete a submission confirmation, a decision letter, an
+   * SOP we wrote, or a marksheet their agency filed for them.
+   *
+   * ASKED OF THE ROW, not of the key. This started as a test on the `app:`
+   * prefix, which was right for those two slots and silently wrong for every
+   * other thing a counsellor uploads — and the set of things a counsellor can
+   * upload is now every slot there is. A prefix cannot answer "who put this
+   * here"; the row can, so the row is asked.
+   */
+  const notTheirs = rec => String((rec || {}).uploaded_by || 'student') === 'staff';
   const refuseAppFile = res => json(res, 403, {
-    error: 'Submission confirmations and decision letters are your counsellor’s '
-         + 'record of your application, so they stay on the file. Message your '
-         + 'counsellor if one of them looks wrong.',
+    error: 'That one was put on your file by your counsellor, so it stays there '
+         + '— it is the office’s record, not an upload of yours. Message your '
+         + 'counsellor if it looks wrong.',
   });
 
   const progSaid = p => {
@@ -327,7 +344,8 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     const key = 'shared-' + Date.now() + '-' + crypto.randomInt(100, 999);
     const stored = key + ext;
     fs.writeFileSync(path.join(dir, stored), file.data);
-    db.addDocument(studentId, key, file.filename, stored, file.data.length);
+    db.addDocument(studentId, key, file.filename, stored, file.data.length,
+      who === 'them' ? 'staff' : 'student');
     /* A file the counsellor sent is not waiting for the counsellor to check
        it. A file the student sent is. */
     if (who === 'them') db.setDocStatus(studentId, key, 'ok');
@@ -448,6 +466,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         bytes: d.bytes,
         size: sizeSaid(d.bytes),
         at: d.uploaded_at,
+        /* 'student' or 'staff'. The card hides its own Remove on a file the
+           office put there — and the route refuses it too, because a control
+           absent from a page is not the same as a rule. */
+        by: String(d.uploaded_by || 'student'),
       };
       const slot = docs[d.doc_key] || (docs[d.doc_key] = { files: [] });
       slot.files.push(one);
@@ -1282,7 +1304,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     /* A new file puts the whole slot back in front of the counsellor. Adding a
        ninth marksheet to a set they already accepted has to be looked at
        again — otherwise "accepted" means "accepted as it was last week". */
-    db.addDocument(s.id, key, parsed.file.filename, stored, parsed.file.data.length);
+    /* 'student' explicitly, though it is also the default. This is THE route a
+       student uploads through, and the one line that decides they may take
+       their own file away again should say so rather than rely on a default
+       somebody could change. */
+    db.addDocument(s.id, key, parsed.file.filename, stored, parsed.file.data.length,
+      'student');
     db.setDocStatus(s.id, key, 'wait');
     return json(res, 200, { docs: stateFor(s).docs });
   });
@@ -1298,7 +1325,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     /* Resolved from the SESSION and the id together, so an id from another
        student's file finds nothing rather than deleting it. */
     if (!rec) return json(res, 404, { error: 'Not found' });
-    if (notTheirs(rec.doc_key)) return refuseAppFile(res);
+    if (notTheirs(rec)) return refuseAppFile(res);
     try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
     db.removeDocFile(s.id, rec.id);
     return json(res, 200, { docs: stateFor(s).docs });
@@ -1306,12 +1333,24 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
 
   route('DELETE', /^\/api\/documents\/(.+)$/, async (req, res, s, m) => {
     const key = decodeURIComponent(m[1]);
-    if (notTheirs(key)) return refuseAppFile(res);
-    for (const rec of db.docsInKey(s.id, key)) {
-      try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
+    /* CLEARING A SLOT CLEARS THE STUDENT'S OWN FILES IN IT, and leaves
+       anything the office put there.
+       *
+       * A slot holds a set now, and a set can be mixed: three marksheets the
+       * student uploaded and a fourth their counsellor had on email. Refusing
+       * the whole clear because one file is ours would leave them unable to
+       * remove their own; clearing the lot would let one press delete ours.
+       * So it removes what is theirs and says how many it left behind. */
+    const all = db.docsInKey(s.id, key);
+    const mine = all.filter(r => !notTheirs(r));
+    if (!mine.length) {
+      return all.length ? refuseAppFile(res) : json(res, 404, { error: 'Not found' });
     }
-    db.removeDocument(s.id, key);
-    return json(res, 200, { docs: stateFor(s).docs });
+    for (const rec of mine) {
+      try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
+      db.removeDocFile(s.id, rec.id);
+    }
+    return json(res, 200, { docs: stateFor(s).docs, kept: all.length - mine.length });
   });
 
   /* THERE IS NO STUDENT ROUTE THAT VERIFIES A DOCUMENT, and there was.
@@ -3119,7 +3158,13 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
         db.removeDocument(st.id, key);
       }
-      db.addDocument(st.id, key, parsed.file.filename, stored, parsed.file.data.length);
+      /* 'staff'. An agency is not the office — that distinction is enforced
+         everywhere else in this file — but it is not the STUDENT either, and
+         this column answers one question only: may the student remove this
+         row? A file the agency filed on their behalf is not theirs to delete
+         out from under the people doing their paperwork. */
+      db.addDocument(st.id, key, parsed.file.filename, stored, parsed.file.data.length,
+        'staff');
       db.log(s.email, 'partner uploaded a document',
         s.name + ' \u2192 ' + st.name + ' \u00b7 ' + key);
 
@@ -3765,6 +3810,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
        * deliverable is ready or that we uploaded something for them to check —
        * they are being told what happened to an application. */
       const perApp = /^app:(.+):(proof|decision)$/.exec(key);
+      /* A FOURTH CASE, and it is the counsellor's half of "Other documents".
+       *
+       * That slot is a catch-all either side can add to, so what arrives in it
+       * from the office is a university letter, an accommodation contract, a
+       * form somebody asked for — our own file, going the other way. It joins
+       * the set like the student's own documents do (a welcome pack is not a
+       * second draft of anything), but it is NOT waiting to be checked: a
+       * counsellor does not verify a document they just sent. */
+      const spare = !perApp && key === 'other';
       const ours = !perApp && Object.prototype.hasOwnProperty.call(SLOT_SAID, key);
       if (ours) {
         for (const prev of db.docsInKey(id, key)) {
@@ -3772,8 +3826,9 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         }
         db.removeDocument(id, key);
       }
-      db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length);
-      db.setDocStatus(id, key, ours || perApp ? 'ok' : 'wait');
+      db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length,
+        'staff');
+      db.setDocStatus(id, key, ours || perApp || spare ? 'ok' : 'wait');
       db.log(s.name,
         perApp ? 'filed an application record'
           : ours ? 'delivered finished work' : 'uploaded a document for a student',
@@ -3789,7 +3844,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const onApp = perApp
         && db.getShortlist(id).find(x => String(x.prog_id) === perApp[1]);
       db.addMessage(id, 'them',
-        perApp
+        spare
+          ? 'I have added ' + parsed.file.filename + ' to Other documents on your '
+            + 'Documents screen.'
+          : perApp
           ? (perApp[2] === 'proof'
               ? 'Your application to ' + (onApp ? progSaid(onApp) : 'one of your universities')
                 + ' has been submitted — the confirmation is on your Applications screen.'
