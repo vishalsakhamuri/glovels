@@ -76,6 +76,24 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     && /href="tu-munich"/.test(html));
   check('a link back to the list', /href="\.\.\/university">All universities/.test(html));
 
+  /* The DAAD. */
+  check('a German university links to its DAAD listing',
+    /<a class="pill daad" href="https:\/\/www2\.daad\.de\/deutschland\/studienangebote\/international-programmes\/en\/result\/\?ins%5B%5D=248&amp;display=list" target="_blank" rel="noopener">DAAD listing/.test(html));
+  check('and says so in words, with the link', /<div class="daadbox">/.test(html) && /See every programme it lists for University of Stuttgart/.test(html));
+  check('and the DAAD address is in the university record for Google', /"sameAs":\["https:\/\/www\.f05\.uni-stuttgart\.de","https:\/\/www2\.daad\.de[^"]+"\]/.test(html)
+    || /"sameAs":\[[^\]]*www2\.daad\.de[^\]]*\]/.test(html));
+  const DE = staffCat.programmes.filter(p => p.active && p.country === 'DE').map(p => p.university);
+  let daadAll = true, daadMissing = [];
+  const listAll = (await (await staff.request.get(BASE + '/api/staff/universities')).json()).universities;
+  for (const u of listAll) {
+    if (u.country === 'DE' && !u.daadUrl) { daadAll = false; daadMissing.push(u.slug); }
+    if (u.country !== 'DE' && u.daadUrl) { daadAll = false; daadMissing.push('non-German: ' + u.slug); }
+  }
+  check('every German university in the catalogue has one, and no other does', daadAll, daadMissing.join(', '));
+  const nonDe = listAll.find(u => u.country !== 'DE');
+  const nonDeHtml = await (await guest.request.get(BASE + nonDe.url)).text();
+  check('a university outside Germany has no DAAD box', !/<div class="daadbox">/.test(nonDeHtml) && !/DAAD listing/.test(nonDeHtml), nonDe.slug);
+
   /* Not baked into the home page. */
   const home = await (await guest.request.get(BASE + '/')).text();
   check('the home page does not carry the university pages', !/About University of Stuttgart/.test(home)
@@ -174,6 +192,14 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('a script typed into About is text, not a script', !/<script>alert\(1\)/.test(html) && /&lt;script&gt;/.test(html));
   r = await staff.request.put(BASE + '/api/staff/university/' + slug, { data: { cover: 'javascript:alert(1)' } });
   check('a cover that is not a picture address is refused', r.status() === 422);
+  r = await staff.request.put(BASE + '/api/staff/university/' + slug, { data: { daad: 'https://evil.example/x' } });
+  check('a DAAD link that is not the DAAD is refused', r.status() === 422);
+  r = await staff.request.put(BASE + '/api/staff/university/' + slug, { data: { daad: '999' } });
+  html = await (await guest.request.get(BASE + '/university/' + slug)).text();
+  check('a typed institution number replaces the shipped one', r.status() === 200 && /ins%5B%5D=999&amp;display=list/.test(html));
+  r = await staff.request.put(BASE + '/api/staff/university/' + slug, { data: { daad: '' } });
+  html = await (await guest.request.get(BASE + '/university/' + slug)).text();
+  check('and clearing it goes back to the shipped one', /ins%5B%5D=248&amp;display=list/.test(html));
   r = await staff.request.put(BASE + '/api/staff/university/' + slug, { data: { hidden: true } });
   html = await (await guest.request.get(BASE + '/university/' + slug)).text();
   check('taken off search: the page still opens', /<h1>University of Stuttgart<\/h1>/.test(html));
@@ -197,6 +223,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await ap.click('#uniList li[data-uni="' + slug + '"]');
   await ap.waitForSelector('#uAbout', { timeout: 5000 }).catch(() => {});
   check('and opens an editor with what was written', /Why students pick Stuttgart/.test(await ap.inputValue('#uAbout')));
+  check('the editor shows the DAAD field with the link the page uses', await ap.locator('#uDaad').count() === 1
+    && /ins%5B%5D=248/.test(await ap.innerHTML('#uniEd')));
   await ap.fill('#uAbout', 'Written from the screen.');
   await ap.click('#uSave');
   await ap.waitForSelector('#uSaid:has-text("Saved")', { timeout: 5000 }).catch(() => {});

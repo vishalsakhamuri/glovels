@@ -36,6 +36,7 @@ const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 const IMAGES = require('./images.js');
 const WIX = require('./wix.js');
 const UNIS = require('./unis.js');
+const DAAD = require('./daad.js');
 
 const DAY = 864e5;
 
@@ -5722,6 +5723,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
         slug: u.slug, name: u.name, shortName: u.shortName, city: u.city, country: u.country,
         isPublic: u.isPublic, feeModel: u.feeModel, programmes: u.programmes.length,
         url: '/university/' + u.slug,
+        daadUrl: DAAD.daadUrl(u.slug, x.daad),
         written: !!(x.about || x.cover || x.metaTitle || x.metaDesc), hidden: x.hidden,
         updatedAt: meta ? meta.updated_at : '', updatedBy: meta ? meta.who : '',
       };
@@ -5733,7 +5735,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
     if (!u) return json(res, 404, { error: 'No university at that address' });
     return json(res, 200, { university: { slug: u.slug, name: u.name, city: u.city,
       country: u.country, programmes: u.programmes.length },
-      extras: UNIS.cleanExtras(db.content('university:' + u.slug)) });
+      extras: UNIS.cleanExtras(db.content('university:' + u.slug)),
+      /* The link the page will print — typed, or shipped for German universities. */
+      daadUrl: DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad) });
   }));
 
   route('PUT', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, needs('catalogue', async (req, res, s, m) => {
@@ -5743,6 +5747,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
     if (x.cover && !PROSE.safeImg(x.cover)) {
       return json(res, 422, { error: 'The cover has to be a picture address — upload one, or paste a link ending in .jpg or .png.' });
     }
+    const badDaad = DAAD.refuse(x.daad);
+    if (badDaad) return json(res, 422, { error: badDaad });
     db.setContent('university:' + u.slug, x, s.name);
     db.log(s.name, x.hidden ? 'took a university page off search' : 'wrote a university page', u.name);
     return json(res, 200, { extras: x, html: PROSE.render(x.about) });

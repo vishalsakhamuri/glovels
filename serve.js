@@ -55,6 +55,7 @@ const { Live } = require('./server/live.js');
 const { makeContent } = require('./server/content.js');
 const PROSE = require('./server/prose.js');
 const UNIS = require('./server/unis.js');
+const DAAD = require('./server/daad.js');
 
 /* catalogue.json is now the SEED, not the source of truth. Once it is in the
    database the staff screens own it, and this file is only read again on a
@@ -742,6 +743,10 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
   background:var(--paper)}
 .uni-lead .pill.pub{color:#14603a;border-color:#bfe0cc;background:#eaf6ee}
 .uni-lead .pill.priv{color:#5b4409;border-color:#e6d5a8;background:#fdf6e6}
+.uni-lead a.pill.daad{color:#0b3d91;border-color:#b9cdf0;background:#eef3fc;text-decoration:none}
+.daadbox{margin:0 0 22px;padding:13px 16px;border-radius:12px;background:#eef3fc;border:1px solid #b9cdf0;
+  font:400 13.6px/1.65 var(--sans);color:var(--navy-800)}
+.daadbox a{font-weight:700;color:#0b3d91}
 .factbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:18px 0 26px}
 .factbox>div{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .factbox span{display:block;font:600 11.2px/1.4 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -883,6 +888,10 @@ function universityPage(u) {
   const n = u.programmes.length;
   const called = u.shortName && u.shortName !== u.name ? u.shortName : '';
   const free = u.feeModel === 'free';
+  /* The DAAD listing for this institution — Germany's own register of what
+     it offers internationally. German universities only; typed on the
+     University pages tab, or shipped in daad.js. */
+  const daad = DAAD.daadUrl(u.slug, x.daad);
 
   const feeLine = u.feeMin === 0 && u.feeMax === 0 ? 'No tuition — public university'
     : u.feeMin === u.feeMax ? UNIS.money(u.feeMin)
@@ -975,10 +984,19 @@ function universityPage(u) {
     + (u.city ? '<span class="pill">' + esc(u.city) + '</span>' : '')
     + '<span class="pill">' + n + ' programme' + (n === 1 ? '' : 's') + '</span>'
     + (u.url ? '<a class="pill" href="' + esc(u.url) + '" target="_blank" rel="noopener nofollow">Official site ↗</a>' : '')
+    + (daad ? '<a class="pill daad" href="' + esc(daad) + '" target="_blank" rel="noopener">DAAD listing ↗</a>' : '')
     + '</div>'
     + (PROSE.safeImg(x.cover) ? '<figure class="uni-cover"><img src="' + esc(x.cover) + '" alt="' + esc(u.name) + '" decoding="async"></figure>' : '')
     + '<div class="factbox">' + facts.map(f => '<div><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>').join('') + '</div>'
     + '<h2>About ' + esc(called || u.name) + '</h2>' + about
+    + (daad
+        ? '<div class="daadbox"><b>On the DAAD.</b> ' + esc(called || u.name) + ' is listed in the DAAD\'s '
+          + 'International Programmes database — the German Academic Exchange Service\'s own register of '
+          + 'what German universities offer international students. '
+          + '<a href="' + esc(daad) + '" target="_blank" rel="noopener">See every programme it lists for '
+          + esc(called || u.name) + ' ↗</a> — the fees, deadlines and language requirements there are the '
+          + 'university\'s own words.</div>'
+        : '')
     + '<h2 id="programmes">Programmes at ' + esc(called || u.name) + '</h2>'
     + '<p>Every programme below is one we have placed students in or checked ourselves. '
       + 'Fees are the total for the whole course, in rupees at today\'s rate; deadlines are the '
@@ -1004,7 +1022,7 @@ function universityPage(u) {
     '@context': 'https://schema.org', '@type': 'CollegeOrUniversity',
     name: u.name, alternateName: called || undefined, url: u.url || url_,
     address: { '@type': 'PostalAddress', addressLocality: u.city || undefined, addressCountry: u.country },
-    sameAs: u.url || undefined,
+    sameAs: [u.url, daad].filter(Boolean),
   }, {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
     itemListElement: [
@@ -1055,6 +1073,7 @@ function universitiesIndexPage() {
         + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
         + ' · ' + (u.tuitionFree && u.feeMax === 0 ? 'no tuition' : 'from ' + esc(UNIS.money(u.feeMin)))
         + (u.feeModel === 'free' ? ' · free to apply through us' : '')
+        + (DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad) ? ' · on the DAAD' : '')
         + '</small></span><span class="n">' + u.programmes.length + ' programme'
         + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>').join('')
       + '</ul>';

@@ -106,6 +106,8 @@ function cleanExtras(v) {
     cover: str(o.cover, 400),
     metaTitle: str(o.metaTitle, 120),
     metaDesc: str(o.metaDesc, 320),
+    /* The DAAD institution number, or a daad.de address. See daad.js. */
+    daad: str(o.daad, 300),
     /* The office can take one page off search without taking the university
        off the finder — a page with nothing written on it yet, say. */
     hidden: !!o.hidden,

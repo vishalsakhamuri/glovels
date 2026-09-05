@@ -820,6 +820,7 @@ function paintUnis() {
     '<li data-uni="' + esc(u.slug) + '"' + (u.slug === uniOpen ? ' class="on"' : '') + '>'
     + '<b>' + esc(u.name) + '</b><span>' + esc(dest(u.country)) + (u.city ? ' · ' + esc(u.city) : '')
     + ' · ' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's')
+    + (u.daadUrl ? ' · DAAD' : '')
     + (u.hidden ? ' · <span style="color:#7a2118;font-weight:700">off search</span>'
       : u.written ? ' · <span class="w">written</span>' : '') + '</span></li>').join('')
     || '<li><span>Nothing matches.</span></li>';
@@ -872,6 +873,16 @@ async function openUni(slug) {
     + '<span class="cnt" id="cMetaDesc">0 / 165</span></label>'
     + '<input id="uMetaDesc" value="' + esc(x.metaDesc) + '"></div></div>'
 
+    + '<div class="field"><label for="uDaad">DAAD '
+    + '<small style="font-weight:400;color:var(--muted)">— the institution number from the DAAD International '
+    + 'Programmes search (the <code>ins</code> in its address), or a daad.de link. German universities '
+    + 'we ship already have one; typing here replaces it.</small></label>'
+    + '<input id="uDaad" value="' + esc(x.daad) + '" placeholder="248">'
+    + (r.daadUrl ? '<p style="margin:6px 0 0;font-size:11.6px;color:var(--muted)">The page links to '
+      + '<a href="' + esc(r.daadUrl) + '" target="_blank" rel="noopener">' + esc(r.daadUrl) + '</a></p>'
+      : '<p style="margin:6px 0 0;font-size:11.6px;color:var(--muted)">No DAAD link on this page — '
+      + 'the DAAD lists German universities only.</p>') + '</div>'
+
     + '<label style="display:flex;gap:8px;align-items:center;font:400 13px/1.5 var(--sans);margin:4px 0 16px">'
     + '<input type="checkbox" id="uHidden" style="width:auto"' + (x.hidden ? ' checked' : '') + '> '
     + 'Keep this page out of search engines and off the list (the page still opens by its address)</label>'
@@ -888,7 +899,7 @@ async function openUni(slug) {
     uniCount('cMetaDesc', $('#uMetaDesc').value.trim().length, 165, 0);
   };
   counts();
-  ['uAbout', 'uCover', 'uMetaTitle', 'uMetaDesc'].forEach(id =>
+  ['uAbout', 'uCover', 'uMetaTitle', 'uMetaDesc', 'uDaad'].forEach(id =>
     $('#' + id).addEventListener('input', () => { uniDirty = true; counts(); }));
   $('#uHidden').addEventListener('change', () => { uniDirty = true; });
   $('#uCover').addEventListener('input', () => { $('#uCoverPrev').innerHTML = thumb($('#uCover').value.trim()); });
@@ -915,6 +926,7 @@ async function openUni(slug) {
       await api('PUT', '/api/staff/university/' + slug, {
         about: $('#uAbout').value, cover: $('#uCover').value.trim(),
         metaTitle: $('#uMetaTitle').value.trim(), metaDesc: $('#uMetaDesc').value.trim(),
+        daad: $('#uDaad').value.trim(),
         hidden: $('#uHidden').checked,
       });
       uniDirty = false;
