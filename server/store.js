@@ -282,6 +282,13 @@ CREATE INDEX IF NOT EXISTS idx_orders_email    ON orders(email);
 
 const now = () => new Date().toISOString();
 
+/* A file that belongs to one APPLICATION rather than to the student — the
+   screenshot of a submission, the decision letter that came back. The shape is
+   owned by server/docs.js (`app:<progId>:proof` / `:decision`); matched here on
+   the prefix alone, because this file must not depend on that one to answer
+   "is this a document?" — it is asked on every read of every document. */
+const isAppFile = key => String(key || '').startsWith('app:');
+
 /* ------------------------------------------------------------------ sqlite */
 
 function sqliteDriver(file) {
@@ -473,6 +480,17 @@ function sqliteDriver(file) {
       the person who wrote the guide knows which one answers the next question
       and a tag match does not. */
    "ALTER TABLE posts ADD COLUMN related TEXT NOT NULL DEFAULT ''",
+   /* WHAT IS ACTUALLY HAPPENING ON THIS ONE APPLICATION, in a counsellor's own
+      words. "A status update text box for each application."
+      *
+      * The stage says which of five steps it has reached and the outcome says
+      * what the university answered. Neither can say "their portal was down on
+      * Friday, we filed on Monday and the reference is TUM-4471" — and that is
+      * the sentence a student writes in asking for. Without somewhere to put
+      * it, it went into the chat, where it scrolled away from the application
+      * it was about. */
+   "ALTER TABLE applications ADD COLUMN note TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE applications ADD COLUMN note_at TEXT NOT NULL DEFAULT ''",
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
@@ -794,16 +812,71 @@ function open(dir) {
 
     /* ---- applications ---- */
     getApplications: id => db.all('SELECT * FROM applications WHERE student_id = ?', Number(id)),
-    putApplication(studentId, progId, stage, outcome) {
-      db.run(`INSERT OR REPLACE INTO applications (student_id, prog_id, stage, outcome, updated_at)
-              VALUES (?, ?, ?, ?, ?)`,
-        Number(studentId), String(progId), Number(stage) || 0, outcome || '', now());
+    /* INSERT OR REPLACE writes the WHOLE row, so every column this does not
+       mention is set back to its default. That was harmless while the row held
+       nothing but the stage and the outcome, and stopped being harmless the
+       moment it held a counsellor's note: advancing the stage would have wiped
+       what somebody had typed, silently, on the screen that shows it. So the
+       note is carried through unless this call is the one changing it. */
+    putApplication(studentId, progId, stage, outcome, note) {
+      const had = db.one('SELECT note, note_at FROM applications WHERE student_id = ? AND prog_id = ?',
+        Number(studentId), String(progId)) || {};
+      const keep = note === undefined ? String(had.note || '') : String(note || '');
+      const when = note === undefined ? String(had.note_at || '')
+        : (keep ? now() : '');
+      db.run(`INSERT OR REPLACE INTO applications
+                (student_id, prog_id, stage, outcome, updated_at, note, note_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        Number(studentId), String(progId), Number(stage) || 0, outcome || '', now(),
+        keep, when);
+    },
+    /* The note on its own, without having to know the stage to write it. The
+       row may not exist yet — an application nobody has moved off stage zero
+       is still an application somebody can say something about — so this
+       creates it rather than failing quietly on zero rows updated. */
+    putApplicationNote(studentId, progId, note) {
+      const had = db.one('SELECT stage, outcome FROM applications WHERE student_id = ? AND prog_id = ?',
+        Number(studentId), String(progId)) || {};
+      this.putApplication(studentId, progId, Number(had.stage) || 0,
+        had.outcome || '', String(note || ''));
     },
     removeApplication: (studentId, progId) =>
       db.run('DELETE FROM applications WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
 
     /* ---- documents ---- */
+    /* THE CHECKLIST DOCUMENTS, AND ONLY THOSE.
+     *
+     * Files that belong to one APPLICATION rather than to the student — the
+     * screenshot of a submission, the decision letter that came back — live in
+     * this same table under an `app:<progId>:<kind>` key, because they are
+     * files against a student and everything about storing, serving and
+     * deleting them is already right here.
+     *
+     * They are not documents in the sense every counter in this codebase means
+     * it. There are six of those counters — "8 of 14 uploaded", the readiness
+     * ring, the agency's card, the office overview, the alert that chases a
+     * missing marksheet — and filing two applications would have moved every
+     * one of them without a single document arriving.
+     *
+     * So the DEFAULT excludes them, and code that wants them asks by name. A
+     * counter written next year is then right without its author having heard
+     * of any of this, which is the only kind of safe there is.
+     *
+     * SPLIT IN JAVASCRIPT, not in the WHERE clause. The JSON fallback parses
+     * only "WHERE col = ? AND col = ?" — it would read `doc_key NOT LIKE
+     * 'app:%'` as no condition at all and hand back every row, so the two
+     * stores would disagree about what a document is, and only one of them is
+     * ever running when anybody looks.
+     */
     getDocuments: id => db.all(
+      'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id))
+      .filter(d => !isAppFile(d.doc_key)),
+    /** The per-application files, which getDocuments deliberately leaves out. */
+    getAppFiles: id => db.all(
+      'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id))
+      .filter(d => isAppFile(d.doc_key)),
+    /** Both, for the one projection that draws every file a student has. */
+    getAllFiles: id => db.all(
       'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id)),
     /* MANY FILES PER SLOT, ONE SLOT PER DOCUMENT.
      *

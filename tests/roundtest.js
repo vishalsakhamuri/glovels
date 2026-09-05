@@ -101,7 +101,13 @@ const toCsv = rows => rows.map(r => r.map(c => {
     { data: { name: 'Round Six', email, phone: '9876500061', password: 'a-real-password-' + S } });
 
   const send = (name, type, buf, key) => stu.request.post(BASE + '/api/documents',
-    { multipart: { key: key || 'class12', file: { name, mimeType: type, buffer: buf } } });
+    /* `xii`, not the name this used. There is no slot by that name — the
+       Class 12 marksheet is `xii` in server/docs.js and in the screens — so
+       every upload here landed under a key no screen draws, and the file was
+       invisible on the Documents page it was supposedly proving. It passed
+       because the route accepted any string it was given; that route now
+       refuses a slot that does not exist, which is what surfaced this. */
+    { multipart: { key: key || 'xii', file: { name, mimeType: type, buffer: buf } } });
 
   /* ====================================================== 1. the file types */
   const txt = await send('QA Wrong Type-Sudhin.txt', 'text/plain', Buffer.from('not a marksheet'));
@@ -174,10 +180,10 @@ const toCsv = rows => rows.map(r => r.map(c => {
   ok(!!row, 'the student is on the office list');
   if (row) {
     const v = await admin.request.post(
-      BASE + '/api/staff/student/' + row.id + '/document/class12', { data: { status: 'ok' } });
+      BASE + '/api/staff/student/' + row.id + '/document/xii', { data: { status: 'ok' } });
     ok(v.ok(), 'the office can verify a document — ' + v.status());
     const st2 = await (await stu.request.get(BASE + '/api/state')).json();
-    ok(((st2.docs || {}).class12 || {}).status === 'ok',
+    ok(((st2.docs || {}).xii || {}).status === 'ok',
       'and it shows as verified on the student\'s file');
   }
 

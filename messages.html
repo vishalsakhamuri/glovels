@@ -928,7 +928,7 @@ select.assign.none:hover{border-color:#a5342b}
       <a href="#" id="signOut" class="p-out">
         <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
     </div>
-    <nav class="p-nav"><a href="dashboard.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Dashboard</a><a href="profile.html"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg> My Profile</a><a href="documents.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Documents</a><a href="universities.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> My Universities</a><a href="applications.html"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Applications</a><a href="services.html"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> Services</a><a href="scholarships.html"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Scholarships</a><a href="visa.html"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Visa &amp; Enrollment</a><a href="messages.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Messages</a></nav>
+    <nav class="p-nav"><a href="dashboard.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Dashboard</a><a href="profile.html"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg> My Profile</a><a href="documents.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Documents</a><a href="universities.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> My Programs</a><a href="applications.html"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Applications</a><a href="services.html"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> Services</a><a href="scholarships.html"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Scholarships</a><a href="visa.html"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Visa &amp; Enrollment</a><a href="messages.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Messages</a></nav>
   </aside>
   <main class="p-main">
     <div class="p-demo" id="pDemo"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> <span id="pDemoTxt">Signed in. Everything on this screen is saved to your account on the server.</span></div>
@@ -1270,6 +1270,11 @@ async function boot(run) {
     short:   state.shortlist.map(p => p.id),
     apps:    state.apps || {},
     docs:    state.docs || {},
+    /* The files filed against one APPLICATION — the submission confirmation
+       and the decision letter — kept apart from `docs` for the same reason the
+       server keeps them apart: `docs` is the student's own checklist and six
+       counters read it as "how far through their documents are they". */
+    appFiles: state.appFiles || {},
     saved:   state.saved || [],
     msgs:    state.msgs || [],
     user:    state.user,

@@ -238,6 +238,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * same. The course is the thing; the university is where it is. A catalogue
    * row calls the course `program` and a shortlist row calls it `program` too,
    * so this reads both. */
+  /* A file the student may READ but may not write or remove: the screenshot
+     proving we filed their application, and the letter the university sent
+     back. Both are the office's record of its own work, so a student clearing
+     one out — as they can any of their own uploads, and should be able to —
+     would be deleting our evidence rather than their own document. */
+  const notTheirs = key => /^app:/i.test(String(key || ''));
+  const refuseAppFile = res => json(res, 403, {
+    error: 'Submission confirmations and decision letters are your counsellor’s '
+         + 'record of your application, so they stay on the file. Message your '
+         + 'counsellor if one of them looks wrong.',
+  });
+
   const progSaid = p => {
     const uni = (p && (p.university || p.id)) || 'that programme';
     const course = p && String(p.program || '').trim();
@@ -446,8 +458,39 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       slot.size = one.size;
       slot.status = d.status;
     });
+    /* THE FILES THAT BELONG TO AN APPLICATION, in their own basket.
+     *
+     * Not folded into `docs` above, and `getDocuments` deliberately leaves
+     * them out — see the note on it in store.js. `docs` is the CHECKLIST, and
+     * six counters read it as "how far through their documents is this
+     * student". A submission screenshot is not one of the fourteen things they
+     * were asked for, and counting it would move every one of those numbers
+     * without a document arriving.
+     *
+     * Keyed `proof` / `decision` under the programme id, so the application
+     * card can draw its own two slots without parsing keys. */
+    const appFiles = {};
+    db.getAppFiles(s.id).forEach(d => {
+      const m = /^app:(.+):(proof|decision)$/.exec(d.doc_key);
+      if (!m) return;
+      const bag = appFiles[m[1]] || (appFiles[m[1]] = {});
+      const slot = bag[m[2]] || (bag[m[2]] = { key: d.doc_key, files: [] });
+      slot.files.push({ id: d.id, file: d.filename, bytes: d.bytes,
+        size: sizeSaid(d.bytes), at: d.uploaded_at });
+      slot.file = d.filename;
+      slot.at = d.uploaded_at;
+    });
     const apps = {};
-    db.getApplications(s.id).forEach(a => { apps[a.prog_id] = { stage: a.stage, outcome: a.outcome }; });
+    db.getApplications(s.id).forEach(a => {
+      apps[a.prog_id] = {
+        stage: a.stage, outcome: a.outcome,
+        /* The counsellor's sentence about this one application, and when it
+           was written. Read-only to the student — the endpoint that sets it is
+           behind caseworkOnly — but shown to them, because a note nobody reads
+           is a note nobody writes. */
+        note: String(a.note || ''), noteAt: String(a.note_at || ''),
+      };
+    });
     const c = s.counsellor_id ? db.studentById(s.counsellor_id) : null;
     return {
       user: publicStudent(s),
@@ -466,6 +509,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       })),
       apps,
       docs,
+      appFiles,
       /* What was bought that the machine delivers, and whether it has been.
          The dashboard needs to say one of three things — it is on your
          shortlist, it is waiting on six questions, or you have not bought one
@@ -1177,8 +1221,39 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
        disk while the screen said 10 MB was the limit. */
     const parsed = await oneFile(req, res);
     if (!parsed) return undefined;
-    const key = String(parsed.fields.key || '').replace(/[^a-z0-9_-]/gi, '');
+    const asked = String(parsed.fields.key || '').trim();
+    const key = asked.replace(/[^a-z0-9_-]/gi, '');
     if (!key) return json(res, 400, { error: 'Missing file or key' });
+
+    /* THE FILES THAT BELONG TO AN APPLICATION ARE THE OFFICE'S RECORD.
+     *
+     * The screenshot proving we filed on the 14th, and the letter the
+     * university sent back. A student uploading either would be writing our
+     * evidence that we did our job — and the staff route that puts them there
+     * is behind caseworkOnly for that reason.
+     *
+     * Refused on the RAW key, before the sanitiser above has had its way with
+     * it. `app:x:proof` loses its colons to that regex and lands as
+     * `appxproof`, which the check below happens to refuse — so this rule was
+     * already being enforced, by accident, by a character class written for
+     * something else. Anybody widening that regex to allow a colon would have
+     * opened this route without knowing it existed. */
+    if (/^app:/i.test(asked)) {
+      return json(res, 403, {
+        error: 'Submission screenshots and decision letters are added by your '
+             + 'counsellor — they are our record of filing your application.',
+      });
+    }
+    /* And a slot no screen will ever draw. The staff route has refused an
+       invented key since the document sets went in; this one — the route every
+       student actually uploads through — accepted anything the sanitiser left
+       behind, and a typo in a key made a file that existed and was invisible. */
+    if (!DOCSLOTS.known(key)) {
+      return json(res, 422, {
+        error: 'There is no document slot called "' + key + '".',
+        slots: DOCSLOTS.ALL,
+      });
+    }
 
     const dir = path.join(uploadDir, String(s.id));
     fs.mkdirSync(dir, { recursive: true });
@@ -1223,6 +1298,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     /* Resolved from the SESSION and the id together, so an id from another
        student's file finds nothing rather than deleting it. */
     if (!rec) return json(res, 404, { error: 'Not found' });
+    if (notTheirs(rec.doc_key)) return refuseAppFile(res);
     try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
     db.removeDocFile(s.id, rec.id);
     return json(res, 200, { docs: stateFor(s).docs });
@@ -1230,6 +1306,7 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
 
   route('DELETE', /^\/api\/documents\/(.+)$/, async (req, res, s, m) => {
     const key = decodeURIComponent(m[1]);
+    if (notTheirs(key)) return refuseAppFile(res);
     for (const rec of db.docsInKey(s.id, key)) {
       try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
     }
@@ -3344,6 +3421,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       profile: db.getProfile(id),
       shortlist: stateFor(st).shortlist,
       apps: stateFor(st).apps,
+      /* The submission confirmations and decision letters, in their own basket
+         and NOT in `docs` below — that list is the student's own checklist and
+         the counters beside it read it as one. */
+      appFiles: stateFor(st).appFiles,
       docs: db.getDocuments(id).map(d => ({
         key: d.doc_key, file: d.filename, status: d.status, at: d.uploaded_at,
         bytes: d.bytes,
@@ -3459,9 +3540,15 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       const b = await readJson(req);
       const stage = APPS.cleanStage(b.stage);
       const outcome = APPS.cleanOutcome(b.outcome);
+      /* ABSENT AND EMPTY ARE DIFFERENT ANSWERS. A screen that moves the stage
+         and says nothing about the note must not erase the note; a counsellor
+         clearing the box must be able to erase it. `undefined` keeps, `''`
+         clears — and the store reads the same distinction. */
+      const note = b.note === undefined ? undefined
+        : String(b.note || '').replace(/\s+$/, '').slice(0, 600);
 
       const before = db.getApplications(id).find(a => String(a.prog_id) === progId);
-      db.putApplication(id, progId, stage, outcome);
+      db.putApplication(id, progId, stage, outcome, note);
 
       /* The sentence the student reads, from the one list rather than written
          again here. It used to say "Offer" or "has said no" and nothing else,
@@ -3477,9 +3564,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       if (moved) {
         db.log(s.name, 'moved an application', st.name + ' — ' + said);
         db.addMessage(id, 'them', 'Update on your applications — ' + said + '.');
-        live.toStudent(id, 'apps', {});
       }
-      return json(res, 200, { apps: stateFor(st).apps, moved });
+      /* The note is its own event, with its own sentence. Folding it into the
+         one above would send "Update on your applications — Filed" to somebody
+         whose stage did not move and whose counsellor had just explained why
+         it had not — which is the opposite of what they were told. */
+      const noted = note !== undefined && note !== String((before || {}).note || '');
+      if (noted && note) {
+        db.log(s.name, 'wrote an application note', st.name + ' — ' + progSaid(row));
+        db.addMessage(id, 'them', progSaid(row) + ' — ' + note);
+      }
+      if (moved || noted) live.toStudent(id, 'apps', {});
+      return json(res, 200, { apps: stateFor(st).apps, moved, noted });
     }));
 
   route('POST', /^\/api\/staff\/student\/(\d+)\/message$/, caseworkOnly(async (req, res, s, m) => {
@@ -3570,14 +3666,30 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
    * upload is 'wait' because somebody here has to look at it, and this one was
    * written by somebody here. Nobody verifies their own homework twice.
    */
-  route('POST', /^\/api\/staff\/student\/(\d+)\/document\/([a-z0-9_-]+)\/file$/i,
+  /* The colon is in this pattern for the application files — `app:<progId>:proof`.
+     Without it the route could not be reached by the two slots this patch adds
+     at all: the URL simply would not match, and the request would 404 on a
+     route that was otherwise entirely ready for it. */
+  route('POST', /^\/api\/staff\/student\/(\d+)\/document\/([a-z0-9_.:%-]+)\/file$/i,
     caseworkOnly(async (req, res, s, m) => {
       const id = Number(m[1]);
       if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
       const st = db.studentById(id);
       if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
 
-      const key = String(m[2]).toLowerCase();
+      /* Lower-cased for a checklist slot, whose keys are all lower case and
+         whose screens send them that way. NOT for an application file: the
+         middle of that key is a programme id, and folding its case would file
+         the screenshot against a programme that does not exist. */
+      /* Percent-decoded first. The router matches on url.parse().pathname,
+         which does not decode, so a client that escapes the colons sends
+         `app%3A90001%3Aproof` — which reaches here only because the pattern
+         above would not match it at all. Decoding anyway means a caller that
+         escapes and one that does not both work, rather than one of them
+         getting a 404 from a route that was ready for it. */
+      let raw = String(m[2]);
+      try { raw = decodeURIComponent(raw); } catch (e) { /* leave it as sent */ }
+      const key = /^app:/i.test(raw) ? raw : raw.toLowerCase();
       /* Only the slots the screens actually draw. A typo in a URL must not
          create a document nothing will ever show.
          WIDER THAN IT WAS: this accepted the three things we write and nothing
@@ -3590,6 +3702,18 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
           slots: DOCSLOTS.ALL,
         });
       }
+      /* An application file has to belong to an application. The key's shape
+         is checked above; that only says it LOOKS like one. A programme id
+         that is not on this student's list would file a decision letter
+         against a course they never applied to, and it would sit in the
+         database drawing nothing, on a screen that reads the shortlist. */
+      const appOn = /^app:(.+):(proof|decision)$/.exec(key);
+      if (appOn && !db.getShortlist(id).some(x => String(x.prog_id) === appOn[1])) {
+        return json(res, 404, {
+          error: 'That programme is not on this student\'s list, so there is no '
+               + 'application to file it against.',
+        });
+      }
 
       const parsed = await oneFile(req, res);
       if (!parsed) return true;
@@ -3598,7 +3722,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       fs.mkdirSync(dir, { recursive: true });
       const ext = (path.extname(parsed.file.filename) || '').slice(0, 10)
         .replace(/[^.a-z0-9]/gi, '');
-      const stored = key + '-' + Date.now() + ext;
+      /* The key goes into a FILENAME, and an application key carries colons.
+         Windows refuses them outright and every shell quotes them; the stored
+         name is ours to choose, so it is chosen to be dull. */
+      const stored = key.replace(/[^a-z0-9_-]/gi, '-') + '-' + Date.now() + ext;
       fs.writeFileSync(path.join(dir, stored), parsed.file.data);
 
       /* TWO DIFFERENT ERRANDS THROUGH ONE ROUTE, and they are not the same.
@@ -3618,7 +3745,27 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
        * file is not the same act as a counsellor checking one — and the
        * student is told it was added on their behalf rather than that we
        * finished something. */
-      const ours = Object.prototype.hasOwnProperty.call(SLOT_SAID, key);
+      /* A THIRD ERRAND, and it is neither of the two above.
+       *
+       * "Option to upload the screenshot of the submitted application and the
+       * decision PDF." Those are filed against ONE application, not against
+       * the student, and the two questions this route asks about every other
+       * file both have the wrong answer here.
+       *
+       * Does it replace? No — a submission can be two screenshots and a
+       * decision can arrive as a letter and an attachment.
+       *
+       * Does it need verifying? No. "Verified" on this site means a counsellor
+       * opened a student's document and confirmed it is readable, current and
+       * matches their profile. Nobody verifies our own screenshot of our own
+       * filing, and leaving it "In review" would put a permanent unfinished
+       * item on a screen that lists what the student still has to do.
+       *
+       * And the message is different again. The student is not being told a
+       * deliverable is ready or that we uploaded something for them to check —
+       * they are being told what happened to an application. */
+      const perApp = /^app:(.+):(proof|decision)$/.exec(key);
+      const ours = !perApp && Object.prototype.hasOwnProperty.call(SLOT_SAID, key);
       if (ours) {
         for (const prev of db.docsInKey(id, key)) {
           try { fs.unlinkSync(path.join(dir, prev.stored_name)); } catch (e) {}
@@ -3626,17 +3773,32 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         db.removeDocument(id, key);
       }
       db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length);
-      db.setDocStatus(id, key, ours ? 'ok' : 'wait');
-      db.log(s.name, ours ? 'delivered finished work' : 'uploaded a document for a student',
+      db.setDocStatus(id, key, ours || perApp ? 'ok' : 'wait');
+      db.log(s.name,
+        perApp ? 'filed an application record'
+          : ours ? 'delivered finished work' : 'uploaded a document for a student',
         st.name + ' \u00b7 ' + key + ' \u00b7 ' + parsed.file.filename);
 
       /* The student is told, in the one place they already watch. The agency
          is not — they have no conversation, and the file is simply on the
          student's Documents tab next time they open it. */
-      db.addMessage(id, 'them', ours
-        ? 'Your ' + SLOT_SAID[key] + ' is ready — it is on your Documents screen.'
-        : 'I have put ' + parsed.file.filename + ' on your Documents screen for '
-          + 'you. Check it is the right one — it still has to be verified.', '');
+      /* Three files, three sentences. The one for an application file names
+         the course rather than the Documents screen, because that is not where
+         it went and sending somebody to look for it there is worse than saying
+         nothing. */
+      const onApp = perApp
+        && db.getShortlist(id).find(x => String(x.prog_id) === perApp[1]);
+      db.addMessage(id, 'them',
+        perApp
+          ? (perApp[2] === 'proof'
+              ? 'Your application to ' + (onApp ? progSaid(onApp) : 'one of your universities')
+                + ' has been submitted — the confirmation is on your Applications screen.'
+              : 'The decision letter for ' + (onApp ? progSaid(onApp) : 'one of your applications')
+                + ' is on your Applications screen.')
+          : ours
+          ? 'Your ' + SLOT_SAID[key] + ' is ready — it is on your Documents screen.'
+          : 'I have put ' + parsed.file.filename + ' on your Documents screen for '
+            + 'you. Check it is the right one — it still has to be verified.', '');
       const msgs = db.getMessages(id).map(msgShape(id));
       live.toStudent(id, 'message', { studentId: id, msg: msgs[msgs.length - 1] });
 

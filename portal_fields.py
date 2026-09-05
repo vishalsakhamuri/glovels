@@ -661,6 +661,53 @@ function cgpaTenOf(p) {
 """
 
 
+# German grades, for the screens inside the account.
+#
+# THE FUNCTION ITSELF IS NOT NEW. It has been in index.html since the German
+# grade patch, injected by apply_fixes.py, and everything it is and why it
+# truncates rather than rounds is written above GRADE_JS there.
+#
+# What is new is that the portal needs it. The programme cards now state the
+# German grade a course asks for — "add German grade requirement on the cards"
+# — and a bar stated without saying whether this student meets it is half a
+# sentence. The CGPA line two rows above it has said "above yours" for months.
+#
+# DEFINED ONCE, in the file the portal already imports from, and imported by
+# apply_fixes.py for index.html. Two copies of a conversion formula is the
+# exact shape of the stages and the outcomes, which were four copies and
+# agreed until they did not — and this one is worse, because two copies of a
+# formula do not look different when they disagree. They just give a student
+# 2.5 on one screen and 2.6 on the next.
+GERMAN_JS = r"""
+/* Their own German grade, off the profile they filled in. Null when we cannot
+   know — a missing pass mark is not a reason to guess. `d_pass` defaults to 5
+   on the form, so this is answerable for anybody who has entered a CGPA. */
+function myGerman(p) {
+  const o = Number(String((p || {}).d_cgpa || '').replace(/[^0-9.]/g, ''));
+  const mx = Number(String((p || {}).d_max || '').replace(/[^0-9.]/g, ''));
+  const max = Number.isFinite(mx) && mx > 0 && mx <= 100 ? mx : 10;
+  const pass = Number(String((p || {}).d_pass || '').replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(o) || o <= 0 || !Number.isFinite(pass)) return null;
+  if (max <= pass || o < pass || o > max) return null;
+  const g = 1 + 3 * (max - o) / (max - pass);
+  /* Truncated, not rounded, and clamped to the ends of the scale. Both
+     decisions are argued where this formula was first written; the short of it
+     is that every tool a counsellor will check us against truncates, and 0.1
+     is the difference between meeting a 2.5 bar and missing it. */
+  return Math.floor(Math.max(1, Math.min(4, g)) * 10) / 10;
+}
+
+/* THE SCALE RUNS BACKWARDS and that is the whole trap in this feature.
+   1.0 is the best grade there is and 4.0 is the pass, so a student MEETS a
+   requirement of 2.5 by having 2.5 or LESS. Writing this as a named function
+   rather than an inline `<=` is deliberate: every reader of `mine <= bar` has
+   to stop and remember which way round it goes, and one of them eventually
+   will not. */
+const meetsGerman = (mine, bar) =>
+  (mine == null || bar == null) ? true : mine <= bar;
+"""
+
+
 # Where an application has got to, and what came back — the same two lists the
 # server keeps in server/apps.js, for the four screens that draw them.
 #

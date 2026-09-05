@@ -95,6 +95,7 @@ A full run is seventy-odd suites and takes about half an hour.
 | `portaltest.js` | The portal after the 1.4 round: no demo answers, account deletion behind a heading, the upload cards in the tab order, and a stage the student may not mark done. |
 | `doclisttest.js` | The document checklist, and how each document has to arrive rather than only which one. |
 | `docsettest.js` | A document slot holds a SET: many files, one status, each removable on its own. The three statuses, a new file putting an accepted set back in review, the counsellor uploading a student's own document without it counting as checked, and the enrolment pair. |
+| `trackertest.js` | The application tracker after the last Student View block: My Programs, the German grade on the cards with the fit score gone, six counters instead of four, the counsellor's note surviving a stage move, and the submission screenshot and decision letter kept out of the document counters. |
 | `sharedtest.js` | A file shared in the conversation actually being uploaded, not just named. |
 | `visatest.js` | The visa file: a card per document, uploaded, on the record, and waiting to be checked. |
 | `applytest.js` | Applying to a private university is free, and the button does it. |

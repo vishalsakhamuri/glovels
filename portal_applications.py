@@ -12,10 +12,28 @@ BODY = """
       @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
     </style>
 
-    <div class="out tiles" style="--tiles:4;margin:0 0 20px">
-      <div><b id="kTotal">0</b><span>Applications</span></div>
+    <!--
+      SIX, and they are the six the counsellors asked for by name:
+      "application overview: shortlisted, in prep, submitted, waitlist,
+      rejections, offers."
+
+      The four that were here answered a different question. "Applications",
+      "Submitted", "Decisions in", "Offers" told a student how much had gone
+      out and how much had come back, and said nothing at all about the part
+      they are actually waiting through — the weeks between being shortlisted
+      and being filed, which is most of the elapsed time and all of the
+      anxiety. "In prep" is that gap, named.
+
+      And a waitlist and a rejection are now their own numbers rather than
+      both hiding inside "Decisions in", which counted them together with
+      offers and therefore counted nothing anybody wanted to know.
+    -->
+    <div class="out tiles" style="--tiles:6;margin:0 0 20px">
+      <div><b id="kTotal">0</b><span>Shortlisted</span></div>
+      <div><b id="kPrep">0</b><span>In prep</span></div>
       <div><b id="kSent">0</b><span>Submitted</span></div>
-      <div><b id="kDec">0</b><span>Decisions in</span></div>
+      <div><b id="kWait">0</b><span>Waitlisted</span></div>
+      <div><b id="kRej">0</b><span>Rejections</span></div>
       <div><b id="kOffer">0</b><span>Offers</span></div>
     </div>
 
@@ -68,6 +86,66 @@ function daysLeft(p) {
   const d = nextDeadline(p);
   if (!d) return null;
   return Math.round((d - new Date()) / 86400000);
+}
+
+/* WHAT IS ACTUALLY HAPPENING ON THIS ONE, in the counsellor's own words.
+ *
+ * "A status update text box for each application."
+ *
+ * The tracker above says which of five steps it has reached and the badge says
+ * what the university answered. Neither can say "their portal was down on
+ * Friday, we filed on Monday, the reference is TUM-4471" — and that sentence
+ * is the entire reason a student opens this screen. It went into the chat
+ * before, where it scrolled away from the application it was about and had to
+ * be found again by a person who did not know what they were looking for.
+ *
+ * Read-only here. The route that writes it is behind caseworkOnly, and this
+ * screen has no box: a student typing into their counsellor's record of the
+ * office's own work is the same mistake as the stage buttons that used to be
+ * on this card.
+ */
+function noteBlock(s) {
+  const note = String((s && s.note) || '').trim();
+  if (!note) return '';
+  const when = (s && s.noteAt) ? new Date(s.noteAt) : null;
+  return '<div style="background:#f6f8fc;border:1px solid var(--line);border-radius:11px;' +
+    'padding:12px 14px;margin-bottom:14px">' +
+    '<div style="font:700 11.4px/1 var(--sans);letter-spacing:.05em;text-transform:uppercase;' +
+      'color:var(--muted);margin-bottom:6px">Latest from your counsellor' +
+      (when && !isNaN(when) ? ' · ' + when.toLocaleDateString('en-GB',
+        {day:'numeric', month:'short', year:'numeric'}) : '') + '</div>' +
+    '<div style="font:400 13px/1.6 var(--sans);color:var(--navy-800);white-space:pre-wrap">' +
+      esc(note) + '</div></div>';
+}
+
+/* THE TWO FILES THAT BELONG TO THIS APPLICATION AND TO NOTHING ELSE.
+ *
+ * "Option to upload the screenshot of the submitted application, and the
+ * decision PDF."
+ *
+ * Not on the Documents screen, which is the fourteen things the STUDENT has to
+ * provide and whose counters would have moved for a file they did not send.
+ * These are ours: proof we filed, and what came back. The student may open
+ * both and may remove neither — the server refuses it as well, because a
+ * control being absent from a page is not the same as an endpoint being shut.
+ */
+function filesBlock(id) {
+  const bag = (DB.appFiles || {})[id] || {};
+  const rows = [['proof', 'Submission confirmation'], ['decision', 'Decision letter']]
+    .map(([k, label]) => {
+      const slot = bag[k];
+      if (!slot || !(slot.files || []).length) return '';
+      return '<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;' +
+        'font-size:12.6px;margin-top:5px">' +
+        '<b style="font-weight:600;color:var(--navy-800)">' + label + '</b>' +
+        slot.files.map(f => '<a href="/api/documents/file/' + f.id + '" target="_blank" ' +
+          'rel="noopener" style="color:var(--blue-deep);text-decoration:underline">' +
+          esc(f.file) + '</a>').join('<span style="color:var(--muted)">·</span>') +
+        '</div>';
+    }).join('');
+  if (!rows) return '';
+  return '<div style="border-top:1px solid var(--line);padding-top:11px;margin-bottom:14px">' +
+    rows + '</div>';
 }
 
 function block(id) {
@@ -128,6 +206,9 @@ function block(id) {
      * and how to ask. Nothing is taken away from the student that was theirs:
      * they can still see exactly where the application has got to, which is
      * what this screen is for. */
+    noteBlock(s) +
+    filesBlock(id) +
+
     '<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">' +
       '<span style="font:400 12.4px/1.55 var(--sans);color:var(--muted)">' +
         (done ? 'This one is finished.'
@@ -143,14 +224,22 @@ function paint() {
   $('#appList').innerHTML = list.map(block).join('') ||
     '<div class="sl-empty"><b>No applications yet</b><p>Add universities to your shortlist and ' +
     'each one gets its own tracker here.</p>' +
-    '<a class="btn btn-primary" href="universities.html">Go to My Universities</a></div>';
+    '<a class="btn btn-primary" href="universities.html">Go to My Programs</a></div>';
   const st = list.map(stateOf);
   $('#kTotal').textContent = list.length;
-  $('#kSent').textContent  = st.filter(s => s.stage >= 2).length;
-  /* Decided means the university has finished. A waitlist and a deferral are
-     recorded answers and are NOT finished — the office is still chasing both,
-     and a student told "1 decided" about a waitlist stops expecting news. */
-  $('#kDec').textContent   = st.filter(s => s.outcome && !outcomeOf(s.outcome).open).length;
+  /* SUBMITTED IS STAGE 2 OR PAST IT — filed, under review, decided. Once a
+     thing has been sent it stays sent, so this counts forward rather than
+     matching one stage. */
+  const sent = s => s.stage >= 2;
+  $('#kSent').textContent  = st.filter(sent).length;
+  /* IN PREP is the rest: shortlisted, documents being collected, application
+     being drafted — everything before it goes out. It is deliberately the
+     complement of "submitted" rather than a stage test of its own, so the two
+     always add up to the shortlist and a stage added later cannot fall
+     through the gap between them. */
+  $('#kPrep').textContent  = st.filter(s => !sent(s)).length;
+  $('#kWait').textContent  = st.filter(s => s.outcome === 'waitlist').length;
+  $('#kRej').textContent   = st.filter(s => s.outcome === 'rejected').length;
   /* An offer ARRIVED — which is also true of one that was taken up and one
      that was not. Counting only the rows still sitting at 'offer' understates
      the year every time somebody records what happened next. */

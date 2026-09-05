@@ -5739,11 +5739,18 @@ publishedNames();""",
       + 'come back to them without searching again. They are readable below straight '
       + 'away too.</span></li>'""",
           """    + '<li><b>Sign in to see your ' + (buying.publicUnis || 'matched')
-      + ' universities</b><span>They are named on <b>My Universities</b> in your '
+      + ' universities</b><span>They are named on <b>My Programs</b> in your '
       + 'account, with the fee, the intake and the deadline on each one \\u2014 and '
       + 'they stay there, so you can come back to them without searching again. '
       + 'They are not shown on this page: the list is yours, not this '
-      + 'browser\\u2019s.</span></li>'""")
+      + 'browser\\u2019s.</span></li>'""",
+          # The marker is the half of this that the My Universities → My
+          # Programs rename does not touch. It defaulted to the whole new text,
+          # which meant renaming one word inside it made this patch believe it
+          # had never run — and then fail, because its anchor had long since
+          # been replaced. A marker has to be the part of the line that does
+          # not move.
+          marker="+ '<li><b>Sign in to see your '")
 
 
 the_names_live_in_the_account_not_the_home_page()
@@ -9029,6 +9036,53 @@ patch(
     """        title="Open ${uni}'s own website">${uni} \\u2197</a>`""",
     """        title="Open ${uniLong}'s own website">${uni} \\u2197</a>`""",
     marker='title="Open ${uniLong}',
+)
+
+
+# ---------------------------------------------------------------------------
+# "My Universities" is called "My Programs".
+#
+#   "Change name of the tab to My Programs instead of My Universities."
+#
+# It was never a list of universities. A student with three courses at TU
+# Dortmund had one university and three rows, and the row they act on — the
+# thing with a deadline, an entry bar and an application of its own — is the
+# programme. The screen said otherwise in the menu, in the heading, and in
+# every sentence that sent somebody to it.
+#
+# THE GENERATED PAGES ARE DONE IN build_portal.py: the nav list, the page
+# title, and the dashboard's own link all come from there, so profile.html,
+# documents.html, messages.html, universities.html and applications.html get
+# it from the build.
+#
+# THESE THREE CANNOT. index.html and dashboard.html are designer files, edited
+# in place and never regenerated — so the words are only in the delivered file
+# and only a patch here can reach them. Each carries its own marker taken from
+# the NEW text, which is what makes running the build twice a no-op.
+patch(
+    "dashboard.html",
+    "the menu says My Programs",
+    '<use href="#i-cap"/></svg> My Universities</a>',
+    '<use href="#i-cap"/></svg> My Programs</a>',
+    marker='<use href="#i-cap"/></svg> My Programs</a>',
+)
+
+patch(
+    "dashboard.html",
+    "and so does the empty shortlist card",
+    "'universities in mind, mark them on My Universities and your counsellor will see them.</p>'",
+    "'universities in mind, mark them on My Programs and your counsellor will see them.</p>'",
+    marker="mark them on My Programs",
+)
+
+# The sentence a visitor reads the moment they have paid, which is the one
+# place on the public site that names the screen they are being sent to.
+patch(
+    "index.html",
+    "the confirmation names My Programs",
+    "They are named on <b>My Universities</b> in your ",
+    "They are named on <b>My Programs</b> in your ",
+    marker="named on <b>My Programs</b>",
 )
 
 

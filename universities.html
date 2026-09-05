@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My Universities | Glovels</title>
+<title>My Programs | Glovels</title>
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -928,12 +928,12 @@ select.assign.none:hover{border-color:#a5342b}
       <a href="#" id="signOut" class="p-out">
         <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a>
     </div>
-    <nav class="p-nav"><a href="dashboard.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Dashboard</a><a href="profile.html"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg> My Profile</a><a href="documents.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Documents</a><a href="universities.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> My Universities</a><a href="applications.html"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Applications</a><a href="services.html"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> Services</a><a href="scholarships.html"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Scholarships</a><a href="visa.html"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Visa &amp; Enrollment</a><a href="messages.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Messages</a></nav>
+    <nav class="p-nav"><a href="dashboard.html"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Dashboard</a><a href="profile.html"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg> My Profile</a><a href="documents.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Documents</a><a href="universities.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> My Programs</a><a href="applications.html"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Applications</a><a href="services.html"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> Services</a><a href="scholarships.html"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Scholarships</a><a href="visa.html"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Visa &amp; Enrollment</a><a href="messages.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Messages</a></nav>
   </aside>
   <main class="p-main">
     <div class="p-demo" id="pDemo"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> <span id="pDemoTxt">Signed in. Everything on this screen is saved to your account on the server.</span></div>
     <div class="p-top">
-      <div><h1>My universities</h1><p>The programmes on your shortlist, and the full catalogue they were picked from.</p></div>
+      <div><h1>My programs</h1><p>The programmes on your shortlist, and the full catalogue they were picked from.</p></div>
       
     </div>
 
@@ -1222,6 +1222,11 @@ async function boot(run) {
     short:   state.shortlist.map(p => p.id),
     apps:    state.apps || {},
     docs:    state.docs || {},
+    /* The files filed against one APPLICATION — the submission confirmation
+       and the decision letter — kept apart from `docs` for the same reason the
+       server keeps them apart: `docs` is the student's own checklist and six
+       counters read it as "how far through their documents are they". */
+    appFiles: state.appFiles || {},
     saved:   state.saved || [],
     msgs:    state.msgs || [],
     user:    state.user,
@@ -1333,6 +1338,33 @@ function cgpaTenOf(p) {
   return Math.round(raw / max * 10 * 100) / 100;
 }
 
+/* Their own German grade, off the profile they filled in. Null when we cannot
+   know — a missing pass mark is not a reason to guess. `d_pass` defaults to 5
+   on the form, so this is answerable for anybody who has entered a CGPA. */
+function myGerman(p) {
+  const o = Number(String((p || {}).d_cgpa || '').replace(/[^0-9.]/g, ''));
+  const mx = Number(String((p || {}).d_max || '').replace(/[^0-9.]/g, ''));
+  const max = Number.isFinite(mx) && mx > 0 && mx <= 100 ? mx : 10;
+  const pass = Number(String((p || {}).d_pass || '').replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(o) || o <= 0 || !Number.isFinite(pass)) return null;
+  if (max <= pass || o < pass || o > max) return null;
+  const g = 1 + 3 * (max - o) / (max - pass);
+  /* Truncated, not rounded, and clamped to the ends of the scale. Both
+     decisions are argued where this formula was first written; the short of it
+     is that every tool a counsellor will check us against truncates, and 0.1
+     is the difference between meeting a 2.5 bar and missing it. */
+  return Math.floor(Math.max(1, Math.min(4, g)) * 10) / 10;
+}
+
+/* THE SCALE RUNS BACKWARDS and that is the whole trap in this feature.
+   1.0 is the best grade there is and 4.0 is the pass, so a student MEETS a
+   requirement of 2.5 by having 2.5 or LESS. Writing this as a named function
+   rather than an inline `<=` is deliberate: every reader of `mine <= bar` has
+   to stop and remember which way round it goes, and one of them eventually
+   will not. */
+const meetsGerman = (mine, bar) =>
+  (mine == null || bar == null) ? true : mine <= bar;
+
 /* The shortlist comes from the server — it is this student's, stored against
    their account, and it is what the dashboard renders too. Adding or removing
    here writes through to the database. */
@@ -1398,6 +1430,38 @@ function clears(p) {
   const mine = myCgpa(), bar = barOf(p);
   if (mine == null || bar == null) return true;   // nothing stated, nothing to fail
   return mine >= bar;
+}
+
+/* THE GERMAN GRADE THIS PROGRAMME ASKS FOR, on the card that asks for it.
+ *
+ * "Add German grade requirement on the cards."
+ *
+ * Only where the catalogue states one — it is a German column and blank on
+ * every row outside Germany, and inventing one from the CGPA bar would be
+ * publishing a requirement no university set.
+ *
+ * Its own line rather than beside the CGPA, because the two scales run in
+ * OPPOSITE directions: 2.5 German is a good grade and 2.5 out of ten is a
+ * failing one, and two numbers on one line invite exactly that reading.
+ *
+ * AND THE VERDICT IS IN WORDS, not only in the colour. Red alone tells a
+ * colour-blind student nothing, and this is the line that decides whether they
+ * apply.
+ */
+function germanLine(p) {
+  const bar = (p.germanGpa == null || p.germanGpa === '') ? null : Number(p.germanGpa);
+  if (!Number.isFinite(bar)) return '';
+  const mine = myGerman((typeof DB !== 'undefined' && DB.profile) || {});
+  const okay = meetsGerman(mine, bar);
+  return '<div class="sl-meta" style="color:' + (okay ? 'var(--muted)' : '#b42318') + '">'
+    + 'Asks for German ' + bar.toFixed(1) + ' or better'
+    /* "Or better" means a LOWER number, which is why the comparison is never
+       written inline here — see meetsGerman. Both figures are printed so the
+       student can check the direction themselves rather than trusting ours. */
+    + (mine == null ? ''
+       : okay ? ' — yours is ' + mine.toFixed(1)
+              : ' — yours is ' + mine.toFixed(1) + ', which does not meet it')
+    + '</div>';
 }
 
 function flagOf(p) { return (COUNTRIES[p.country] || {}).flag || ''; }
@@ -1468,7 +1532,19 @@ function card(p, inList) {
     '<div class="sl-meta"><b>' + money(p) + '</b></div>' +
     (nextDeadline(p) ? '<div class="sl-meta" style="color:var(--muted)">Next deadline: ' +
       nextDeadline(p) + '</div>' : '') +
-    (p.fit ? '<div class="sl-chip" style="width:fit-content">Fit score ' + p.fit + '</div>' : '') +
+    /* THE FIT SCORE IS GONE FROM HERE.
+     *
+     * "Remove fit score, add German grade requirement." It was a number out of
+     * 100 that the office types into a spreadsheet column, shown to the
+     * student with no scale, no definition and nothing to do about it. A
+     * student cannot raise their fit score, cannot tell whether 72 is good,
+     * and was being asked to weigh it against a course they could read the
+     * actual entry bar for two lines below.
+     *
+     * The column stays — the office ranks matches by it and the sheet still
+     * carries it. It is simply not a thing to put in front of the person it is
+     * about. The German grade that replaces it IS actionable: it is the number
+     * on the transcript they already have. */
     /* Said on the card, not only in the filter. A student browsing with the
        filter switched off is entitled to know which of these would turn them
        away, and a student who clears it is entitled to see that they do. */
@@ -1483,6 +1559,7 @@ function card(p, inList) {
       '<div class="sl-meta" style="color:' + (clears(p) ? 'var(--muted)' : '#b42318') + '">' +
       (clears(p) ? 'Asks for ' + barOf(p) + '+ CGPA'
                  : 'Asks for ' + barOf(p) + '+ CGPA — above yours') + '</div>') +
+    germanLine(p) +
     '<div class="sl-go" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       (inList === 'matched'
         /* A university the package delivered. It is not "waiting" on anybody —
@@ -1675,7 +1752,15 @@ function filtered() {
   l.sort((x, y) =>
     s === 'cost' ? x.totalInr - y.totalInr :
     s === 'dl'   ? dl(x) - dl(y) :
-    s === 'uni'  ? x.university.localeCompare(y.university) :
+    /* THE SORT STAYS, the number on the card goes.
+       Removing "Best fit" from here as well was an over-reach, and reachtest
+       caught it: the default order changed, so a programme it had put in the
+       catalogue moved past the "show more" cap and the suite could no longer
+       find it. The note asked for the SCORE off the cards — a raw number out
+       of 100 with no scale, which a student can neither interpret nor act on.
+       "Best fit" as an ordering is a different thing: it is the office saying
+       which of 171 rows to read first, and it is the sensible default for a
+       list this long. */
                    (y.fit || 0) - (x.fit || 0));
   return l;
 }

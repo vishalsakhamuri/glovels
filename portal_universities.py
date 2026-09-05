@@ -1,6 +1,6 @@
-"""My Universities — the shortlist, plus the catalogue it is picked from."""
+"""My Programs — the shortlist, plus the catalogue it is picked from."""
 
-from portal_fields import CGPA_JS
+from portal_fields import CGPA_JS, GERMAN_JS
 
 BODY = """
     <div class="tabs" style="margin-bottom:18px">
@@ -45,7 +45,7 @@ BODY = """
     </section>
 """
 
-SCRIPT = CGPA_JS + r"""
+SCRIPT = CGPA_JS + GERMAN_JS + r"""
 /* The shortlist comes from the server — it is this student's, stored against
    their account, and it is what the dashboard renders too. Adding or removing
    here writes through to the database. */
@@ -111,6 +111,38 @@ function clears(p) {
   const mine = myCgpa(), bar = barOf(p);
   if (mine == null || bar == null) return true;   // nothing stated, nothing to fail
   return mine >= bar;
+}
+
+/* THE GERMAN GRADE THIS PROGRAMME ASKS FOR, on the card that asks for it.
+ *
+ * "Add German grade requirement on the cards."
+ *
+ * Only where the catalogue states one — it is a German column and blank on
+ * every row outside Germany, and inventing one from the CGPA bar would be
+ * publishing a requirement no university set.
+ *
+ * Its own line rather than beside the CGPA, because the two scales run in
+ * OPPOSITE directions: 2.5 German is a good grade and 2.5 out of ten is a
+ * failing one, and two numbers on one line invite exactly that reading.
+ *
+ * AND THE VERDICT IS IN WORDS, not only in the colour. Red alone tells a
+ * colour-blind student nothing, and this is the line that decides whether they
+ * apply.
+ */
+function germanLine(p) {
+  const bar = (p.germanGpa == null || p.germanGpa === '') ? null : Number(p.germanGpa);
+  if (!Number.isFinite(bar)) return '';
+  const mine = myGerman((typeof DB !== 'undefined' && DB.profile) || {});
+  const okay = meetsGerman(mine, bar);
+  return '<div class="sl-meta" style="color:' + (okay ? 'var(--muted)' : '#b42318') + '">'
+    + 'Asks for German ' + bar.toFixed(1) + ' or better'
+    /* "Or better" means a LOWER number, which is why the comparison is never
+       written inline here — see meetsGerman. Both figures are printed so the
+       student can check the direction themselves rather than trusting ours. */
+    + (mine == null ? ''
+       : okay ? ' — yours is ' + mine.toFixed(1)
+              : ' — yours is ' + mine.toFixed(1) + ', which does not meet it')
+    + '</div>';
 }
 
 function flagOf(p) { return (COUNTRIES[p.country] || {}).flag || ''; }
@@ -181,7 +213,19 @@ function card(p, inList) {
     '<div class="sl-meta"><b>' + money(p) + '</b></div>' +
     (nextDeadline(p) ? '<div class="sl-meta" style="color:var(--muted)">Next deadline: ' +
       nextDeadline(p) + '</div>' : '') +
-    (p.fit ? '<div class="sl-chip" style="width:fit-content">Fit score ' + p.fit + '</div>' : '') +
+    /* THE FIT SCORE IS GONE FROM HERE.
+     *
+     * "Remove fit score, add German grade requirement." It was a number out of
+     * 100 that the office types into a spreadsheet column, shown to the
+     * student with no scale, no definition and nothing to do about it. A
+     * student cannot raise their fit score, cannot tell whether 72 is good,
+     * and was being asked to weigh it against a course they could read the
+     * actual entry bar for two lines below.
+     *
+     * The column stays — the office ranks matches by it and the sheet still
+     * carries it. It is simply not a thing to put in front of the person it is
+     * about. The German grade that replaces it IS actionable: it is the number
+     * on the transcript they already have. */
     /* Said on the card, not only in the filter. A student browsing with the
        filter switched off is entitled to know which of these would turn them
        away, and a student who clears it is entitled to see that they do. */
@@ -196,6 +240,7 @@ function card(p, inList) {
       '<div class="sl-meta" style="color:' + (clears(p) ? 'var(--muted)' : '#b42318') + '">' +
       (clears(p) ? 'Asks for ' + barOf(p) + '+ CGPA'
                  : 'Asks for ' + barOf(p) + '+ CGPA — above yours') + '</div>') +
+    germanLine(p) +
     '<div class="sl-go" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       (inList === 'matched'
         /* A university the package delivered. It is not "waiting" on anybody —
@@ -388,7 +433,15 @@ function filtered() {
   l.sort((x, y) =>
     s === 'cost' ? x.totalInr - y.totalInr :
     s === 'dl'   ? dl(x) - dl(y) :
-    s === 'uni'  ? x.university.localeCompare(y.university) :
+    /* THE SORT STAYS, the number on the card goes.
+       Removing "Best fit" from here as well was an over-reach, and reachtest
+       caught it: the default order changed, so a programme it had put in the
+       catalogue moved past the "show more" cap and the suite could no longer
+       find it. The note asked for the SCORE off the cards — a raw number out
+       of 100 with no scale, which a student can neither interpret nor act on.
+       "Best fit" as an ordering is a different thing: it is the office saying
+       which of 171 rows to read first, and it is the sensible default for a
+       list this long. */
                    (y.fit || 0) - (x.fit || 0));
   return l;
 }

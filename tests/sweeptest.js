@@ -37,7 +37,10 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   await stu.p.waitForTimeout(3000);
 
   const nav = flat(await stu.p.textContent('.p-side, aside, nav'));
-  ['Dashboard', 'My Profile', 'Documents', 'My Universities', 'Applications',
+  /* "My Programs", not "My Universities". A student with three courses at TU
+     Dortmund has one university and three rows, and the row they act on is the
+     programme. */
+  ['Dashboard', 'My Profile', 'Documents', 'My Programs', 'Applications',
    'Services', 'Scholarships', 'Visa', 'Messages'].forEach(item =>
     check('student · ' + item + ' is in the sidebar', nav.includes(item)));
 
@@ -51,7 +54,7 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   await stu.p.goto(BASE + '/universities', { waitUntil: 'domcontentloaded' });
   await stu.p.waitForTimeout(2800);
   const uni = flat(await stu.p.textContent('#mineWrap'));
-  check('student · My Universities shows the counsellor’s shortlist',
+  check('student · My Programs shows the counsellor’s shortlist',
     /counsellor.{0,3}s shortlist/i.test(uni));
   /* The interest list is switched off — "we may add this feature later not
      now" — so its ABSENCE is the check. Everything underneath it still works

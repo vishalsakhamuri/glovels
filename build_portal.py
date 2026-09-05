@@ -136,7 +136,7 @@ NAV = [
     ("dashboard",    "i-grid",   "Dashboard"),
     ("profile",      "i-user",   "My Profile"),
     ("documents",    "i-file",   "Documents"),
-    ("universities", "i-cap",    "My Universities"),
+    ("universities", "i-cap",    "My Programs"),
     ("applications", "i-plane",  "Applications"),
     ("services",     "i-star",   "Services"),
     ("scholarships", "i-wallet", "Scholarships"),
@@ -950,6 +950,11 @@ async function boot(run) {{
     short:   state.shortlist.map(p => p.id),
     apps:    state.apps || {{}},
     docs:    state.docs || {{}},
+    /* The files filed against one APPLICATION — the submission confirmation
+       and the decision letter — kept apart from `docs` for the same reason the
+       server keeps them apart: `docs` is the student's own checklist and six
+       counters read it as "how far through their documents are they". */
+    appFiles: state.appFiles || {{}},
     saved:   state.saved || [],
     msgs:    state.msgs || [],
     user:    state.user,
@@ -1414,7 +1419,7 @@ def main():
         ("documents", "Documents", "Documents",
          "Upload once. Your counsellor verifies each file before it goes anywhere.",
          portal_documents),
-        ("universities", "My Universities", "My universities",
+        ("universities", "My Programs", "My programs",
          "The programmes on your shortlist, and the full catalogue they were picked from.",
          portal_universities),
         ("applications", "Applications", "Applications",
@@ -1568,7 +1573,7 @@ const next = (__m && __m.delivered > 0)
        + ' ready',
      'Named, with the fee, the intake and the deadline on each one. They are yours '
      + 'to keep \u2014 and your counsellor can add or drop any of them with you.',
-     'See my universities', 'universities.html', 'cap']
+     'See my programs', 'universities.html', 'cap']
   : (__m && __m.owed && __m.needsProfile)
   ? ['Answer six questions and your ' + __m.owed + ' universities appear',
      'What you are applying for, where, and what you can spend. Nobody has to ring '

@@ -1880,7 +1880,50 @@ function uniRow(p) {
     '<button type="button" class="btn btn-ghost btn-sm" data-unidrop="' + esc(p.id) +
       '" data-uniname="' + esc(uniName(p)) +
       '" title="Take this off their list">Remove</button>' +
+
+    /* THE THREE THINGS A DROPDOWN CANNOT SAY, on their own line under it.
+     *
+     * "A status update text box for each application. Option to upload the
+     * screenshot of the submitted application and the decision PDF."
+     *
+     * A stage is one of five and an outcome is one of seven. Neither can say
+     * "their portal was down on Friday, we filed Monday, reference TUM-4471",
+     * and neither is evidence. Both of those went into the chat before, where
+     * they scrolled away from the application they were about.
+     *
+     * Full width below the controls rather than beside them: this row already
+     * carries two selects and a button, and on a laptop a third control on the
+     * same line pushed Remove off the edge. */
+    '<div style="flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;' +
+      'margin-top:9px">' +
+      '<textarea data-note="' + esc(p.id) + '" rows="2" maxlength="600" ' +
+        'placeholder="What is happening on this one — filed, chased, reference number…" ' +
+        'style="flex:1;min-width:220px;padding:8px 10px;font:400 12.4px/1.5 var(--sans);' +
+        'border:1.5px solid #d8dde4;border-radius:9px;background:var(--paper);resize:vertical">' +
+        esc(String(a.note || '')) + '</textarea>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-notesave="' + esc(p.id) + '">' +
+        'Save note</button>' +
+      /* The two files. `data-appfile` carries the kind; the row's own id says
+         which application, so the key is built in one place rather than
+         spelled out in the markup twice. */
+      '<button type="button" class="btn btn-ghost btn-sm" data-appfile="proof" ' +
+        'data-app="' + esc(p.id) + '" title="Screenshot or PDF of the submitted application">' +
+        'Submission' + appFileMark(p.id, 'proof') + '</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-appfile="decision" ' +
+        'data-app="' + esc(p.id) + '" title="The letter the university sent back">' +
+        'Decision' + appFileMark(p.id, 'decision') + '</button>' +
+    '</div>' +
     '</li>';
+}
+
+/* Whether a file is already on this application, said on the button that adds
+   one. A counsellor looking at twenty rows needs to see which are evidenced
+   without opening any of them, and "Submission" on a row that has one and on a
+   row that has none is the same button doing two jobs silently. */
+function appFileMark(id, kind) {
+  const slot = (((CASE && CASE.appFiles) || {})[id] || {})[kind];
+  const n = (slot && (slot.files || []).length) || 0;
+  return n ? ' ✓' + (n > 1 ? ' ' + n : '') : '';
 }
 
 function paintRecord(r) {
@@ -2401,6 +2444,96 @@ document.addEventListener('change', e => {
     e.target.value = '';
   }
 });
+
+/* ------------------------------------- the note and the files on one application */
+
+/* SAVED ON A PRESS, not on every keystroke and not on blur.
+ *
+ * The stage and outcome selects above save on change, which is right for a
+ * control with five values. A textarea is not: saving as somebody types sends
+ * a request per character and messages the student a sentence at a time, and
+ * saving on blur means clicking away mid-thought is a decision they did not
+ * know they were making. */
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-notesave]');
+  if (!b) return;
+  const id = b.dataset.notesave;
+  const row = b.closest('li');
+  const box = row && row.querySelector('[data-note]');
+  if (!box) return;
+  /* The stage and outcome go up with it, because this endpoint sets all three
+     and sending the note alone would reset the other two to their defaults.
+     They are read off the row rather than remembered, so a counsellor who
+     changed the dropdown and then typed a note saves what is on the screen. */
+  const stage = Number((row.querySelector('[data-stage]') || {}).value || 0);
+  const outcome = (row.querySelector('[data-outcome]') || {}).value || '';
+  b.disabled = true;
+  const was = b.textContent;
+  b.textContent = 'Saving…';
+  try {
+    const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +
+      encodeURIComponent(id), { stage, outcome, note: box.value });
+    toast(r.noted ? 'Saved, and the student has been told.' : 'Saved.');
+    await refreshCase();
+  } catch (err) {
+    b.disabled = false;
+    b.textContent = was;
+    toast(err.message || 'That did not save.', 'bad');
+  }
+});
+
+/* The submission screenshot and the decision letter. One hidden input, reused,
+   with the application and the kind parked on it — a file input per row would
+   be forty of them on a list of twenty. */
+let appPick = null;
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-appfile]');
+  if (!b) return;
+  if (!appPick) {
+    appPick = document.createElement('input');
+    appPick.type = 'file';
+    appPick.accept = '.pdf,.jpg,.jpeg,.png,.heic,image/*,application/pdf';
+    appPick.style.display = 'none';
+    document.body.appendChild(appPick);
+    appPick.addEventListener('change', () => {
+      const f = appPick.files && appPick.files[0];
+      const app = appPick.dataset.app, kind = appPick.dataset.kind;
+      appPick.value = '';
+      if (f) sendAppFile(app, kind, f);
+    });
+  }
+  appPick.dataset.app = b.dataset.app;
+  appPick.dataset.kind = b.dataset.appfile;
+  appPick.click();
+});
+
+async function sendAppFile(id, kind, f) {
+  if (f.size > 10 * 1024 * 1024) { toast('That file is over 10 MB.', 'bad'); return; }
+  toast('Uploading ' + f.name + '…');
+  try {
+    const form = new FormData();
+    form.append('file', f, f.name);
+    /* `app:<progId>:<kind>` — the shape server/docs.js matches on. Built here
+       rather than passed down in the markup so there is one place that knows
+       it on this screen. */
+    /* NOT encodeURIComponent'd. The server routes on url.parse().pathname,
+       which does not percent-decode, so an encoded colon arrives as %3A and
+       matches no route at all — a 404 on an endpoint that is entirely ready
+       for the request. A colon is legal in a path segment (RFC 3986 pchar);
+       the programme id either side of it is [a-z0-9-] and needs no escaping. */
+    const key = 'app:' + id + ':' + kind;
+    const r = await fetch('/api/staff/student/' + openId + '/document/'
+      + key + '/file',
+      { method: 'POST', credentials: 'same-origin', body: form });
+    const d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(d.error || 'That did not go through.');
+    toast(kind === 'proof' ? 'Submission confirmation is on the application.'
+                           : 'Decision letter is on the application.');
+    await refreshCase();
+  } catch (err) {
+    toast(err.message || 'That did not go through.', 'bad');
+  }
+}
 
 function ping() {
   const now = Date.now();
