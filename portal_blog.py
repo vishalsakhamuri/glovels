@@ -61,6 +61,36 @@ BODY = """
       .relbox small{display:block;font:400 11.4px/1.5 var(--sans);color:var(--muted);
         margin-top:2px}
       .relbox:has(input:checked){border-color:var(--navy-700,#13385c);background:#f0f5fb}
+
+      .pictools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px}
+      .pictools .hint{font:400 11.6px/1.5 var(--sans);color:var(--muted)}
+      .ed textarea#pBody.dropping{outline:2px dashed var(--navy-700,#13385c);outline-offset:2px}
+      .coverrow{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:start}
+      .coverrow img{width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;
+        border:1px solid var(--line);background:#f2f5f9;display:block}
+      .coverrow .nopic{width:120px;aspect-ratio:16/9;border-radius:8px;border:1px dashed
+        var(--line);display:grid;place-items:center;font:600 11px/1.3 var(--sans);
+        color:var(--muted);text-align:center}
+      @media (max-width:560px){ .coverrow{grid-template-columns:1fr} }
+      .picgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;
+        max-height:280px;overflow-y:auto;padding:2px}
+      .picgrid button{padding:0;border:1px solid var(--line);border-radius:8px;background:#fff;
+        cursor:pointer;overflow:hidden;text-align:left}
+      .picgrid button:hover{border-color:var(--navy-700,#13385c)}
+      .picgrid img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+      .picgrid small{display:block;padding:4px 6px;font:400 10.6px/1.3 var(--sans);
+        color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+      .wixbox{margin:0 0 18px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+        background:var(--paper,#fff)}
+      .wixbox h3{margin:0 0 6px;font:700 14px/1.3 var(--sans);color:var(--navy-900)}
+      .wixbox p{margin:0 0 10px;font:400 12.6px/1.6 var(--sans);color:var(--muted)}
+      .wixbox .bar{height:8px;border-radius:99px;background:#eef2f7;overflow:hidden;margin:10px 0}
+      .wixbox .bar i{display:block;height:100%;background:var(--navy-700,#13385c);width:0;
+        transition:width .4s}
+      .wixbox .items{max-height:200px;overflow-y:auto;font:400 12px/1.6 ui-monospace,SFMono-Regular,
+        Menlo,monospace;color:var(--navy-800);border-top:1px solid var(--line);padding-top:8px}
+      .wixbox .items .failed{color:#7a2118}
     </style>
 
     <div class="out tiles" style="--tiles:4;margin:0 0 18px">
@@ -70,14 +100,33 @@ BODY = """
       <div><b id="kWords">—</b><span>Words published</span></div>
     </div>
 
+    <div class="wixbox" id="wixBox" hidden>
+      <h3>The posts on glovels.com</h3>
+      <p>Every post on the old site is read, its pictures are copied onto this server,
+        and each one arrives here as a <b>draft</b> at the same address. Nothing goes on
+        the site until you open it and press Publish. A post that already exists here is
+        left alone.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-primary btn-sm" id="wixGo">Bring them across</button>
+        <label style="font:400 12.4px/1.5 var(--sans);color:var(--navy-800);display:flex;
+          gap:6px;align-items:center"><input type="checkbox" id="wixOver"> Replace drafts
+          that were brought across before</label>
+        <button type="button" class="btn btn-ghost btn-sm" id="wixHide">Close</button>
+      </div>
+      <div class="bar" id="wixBar" hidden><i></i></div>
+      <p id="wixSaid" style="margin:8px 0 0"></p>
+      <div class="items" id="wixItems" hidden></div>
+    </div>
+
     <div class="blog-cols">
       <div class="p-card" style="padding:0">
         <div style="padding:12px 15px;border-bottom:1px solid var(--line);display:flex;
           gap:10px;align-items:center">
           <b style="font:700 12.4px/1 var(--sans);letter-spacing:.07em;
             text-transform:uppercase;color:var(--muted)">Posts</b>
-          <button type="button" class="btn btn-primary btn-sm" id="newPost"
-            style="margin-left:auto">+ New</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="wixBtn"
+            style="margin-left:auto" title="Copy every post on glovels.com into this blog, as drafts">From glovels.com</button>
+          <button type="button" class="btn btn-primary btn-sm" id="newPost">+ New</button>
         </div>
         <ul class="plist" id="postList"></ul>
       </div>
@@ -235,10 +284,28 @@ function editor(p) {
       + '<textarea id="pExcerpt" rows="3" maxlength="500" placeholder="Leave it empty and we use your '
       + 'first two sentences.">' + esc(p.excerpt || '') + '</textarea></div>'
 
+    + '<div class="field"><label for="pCover">Cover picture'
+      + '<small> — shown under the headline and on the blog list. Optional.</small></label>'
+      + '<div class="coverrow"><div id="coverPrev">' + coverThumb(p.cover) + '</div>'
+      + '<div><input id="pCover" value="' + esc(p.cover || '') + '" '
+        + 'placeholder="/images/… — or upload one">'
+      + '<div class="pictools" style="margin-top:8px">'
+        + '<button type="button" class="btn btn-ghost btn-sm" id="coverUp">Upload a picture</button>'
+        + '<button type="button" class="btn btn-ghost btn-sm" id="coverPick">Choose one already up</button>'
+        + '<button type="button" class="btn btn-ghost btn-sm" id="coverClear">Remove</button>'
+      + '</div></div></div></div>'
+
     + '<div class="field"><label for="pBody">The post'
       + '<span class="cnt" id="cWords">0 words</span></label>'
+      + '<div class="pictools">'
+        + '<button type="button" class="btn btn-ghost btn-sm" id="picAdd">Add a picture</button>'
+        + '<button type="button" class="btn btn-ghost btn-sm" id="picPick">Pictures already up</button>'
+        + '<span class="hint">Or paste one, or drop a file onto the text. It goes in where the cursor is.</span>'
+      + '</div>'
       + '<textarea id="pBody" placeholder="Write it the way you would type it.">'
-      + esc(p.body || '') + '</textarea></div>'
+      + esc(p.body || '') + '</textarea>'
+      + '<div id="picGrid" hidden style="margin-top:8px"></div></div>'
+    + '<input type="file" id="picFile" accept="image/jpeg,image/png,image/gif,image/webp" hidden>'
 
     + '<div class="helpbox" style="margin-bottom:20px">'
       + '<b>What the box understands.</b> '
@@ -247,9 +314,10 @@ function editor(p) {
         + 'one nests it underneath &middot; '
       + '<code>[words](https://…)</code> makes a link &middot; '
       + '<code>**bold**</code>. A blank line starts a new paragraph.'
-      + '<br><br><b>A picture:</b> <code>![what it shows](https://…/photo.jpg)</code> — '
-      + 'the words in the square brackets are read out to a blind reader, printed if '
-      + 'the picture fails to load, and read by Google. They are not optional. Add '
+      + '<br><br><b>A picture:</b> press <b>Add a picture</b> above the box, or paste one in. '
+      + 'It arrives as <code>![what it shows](/images/photo.jpg)</code> — replace the words '
+      + 'in the square brackets with what the picture shows: they are read out to a blind '
+      + 'reader, printed if the picture fails to load, and read by Google. Add '
       + '<code>"a caption"</code> after the address to print one underneath.'
       + '<br><br><b>A table:</b> one row per line with <code>|</code> between the '
       + 'columns, and <code>|---|---|</code> under the first row.'
@@ -336,8 +404,205 @@ function editor(p) {
   $('#pSave').onclick = () => save('draft', p);
   $('#pPub').onclick = () => save('published', p);
   if ($('#pDrop')) $('#pDrop').onclick = () => drop(p);
+  pictures();
   preview();
 }
+
+/* ------------------------------------------------------------- pictures */
+
+function coverThumb(url) {
+  return url ? '<img src="' + esc(url) + '" alt="">'
+    : '<div class="nopic">No cover<br>picture</div>';
+}
+
+/** Send one file up; resolve to its address on this site. */
+async function uploadPicture(file) {
+  const fd = new FormData();
+  fd.append('file', file, file.name || 'picture');
+  /* fetch directly: this screen's api() speaks JSON only, and a FormData put
+     through JSON.stringify arrives as the two characters {}. */
+  const r = await fetch('/api/staff/images', { method: 'POST', credentials: 'same-origin', body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+  return d.image;
+}
+
+/* Put text into the body where the cursor is, and keep the cursor after it. */
+function insertAtCursor(text) {
+  const ta = $('#pBody');
+  const a = ta.selectionStart, b = ta.selectionEnd, v = ta.value;
+  /* On its own line, with a blank line each side, so it renders as a figure
+     rather than inline in the middle of a sentence. */
+  const before = v.slice(0, a), after = v.slice(b);
+  const lead = before && !/\n\n$/.test(before) ? (/\n$/.test(before) ? '\n' : '\n\n') : '';
+  const tail = after && !/^\n\n/.test(after) ? (/^\n/.test(after) ? '\n' : '\n\n') : '';
+  ta.value = before + lead + text + tail + after;
+  const at = (before + lead + text).length;
+  ta.setSelectionRange(at, at);
+  ta.focus();
+  dirty = true;
+  preview();
+}
+
+function pictureLine(image, alt) {
+  return '![' + (alt || 'What the picture shows') + '](' + image.url + ')';
+}
+
+const say = (msg, bad) => {
+  const err = $('#pErr');
+  if (!err) return;
+  err.textContent = msg;
+  err.style.display = msg ? 'block' : 'none';
+  err.style.background = bad ? '#fdf3f2' : '#eaf6ee';
+  err.style.borderColor = bad ? '#f0c8c4' : '#bfe0cc';
+  err.style.color = bad ? '#7a2118' : '#14603a';
+};
+
+/* The grid of pictures already on the server, to reuse one. `onPick` gets the
+   image; the grid closes itself. */
+async function showGrid(onPick) {
+  const g = $('#picGrid');
+  if (!g.hidden) { g.hidden = true; return; }
+  g.hidden = false;
+  g.innerHTML = '<p class="hint" style="margin:0">Loading…</p>';
+  try {
+    const r = await api('GET', '/api/staff/images');
+    if (!r.images.length) {
+      g.innerHTML = '<p class="hint" style="margin:0">Nothing has been uploaded yet. '
+        + 'Add a picture and it will be here next time.</p>';
+      return;
+    }
+    g.innerHTML = '<div class="picgrid">' + r.images.map((im, i) =>
+      '<button type="button" data-pic="' + i + '" title="' + esc(im.name) + '">'
+      + '<img src="' + esc(im.url) + '" alt="" loading="lazy"><small>' + esc(im.name)
+      + '</small></button>').join('') + '</div>';
+    g.querySelectorAll('[data-pic]').forEach(b => {
+      b.onclick = () => { g.hidden = true; onPick(r.images[Number(b.dataset.pic)]); };
+    });
+  } catch (e) {
+    g.innerHTML = '<p class="hint" style="margin:0;color:#7a2118">' + esc(e.message) + '</p>';
+  }
+}
+
+function pictures() {
+  const file = $('#picFile');
+  const ta = $('#pBody');
+  let target = 'body';                      // where the next chosen file goes
+
+  const take = async f => {
+    if (!f) return;
+    if (!/^image\//.test(f.type || '')) { say('That is not a picture.', true); return; }
+    say('Uploading ' + (f.name || 'picture') + '…');
+    try {
+      const im = await uploadPicture(f);
+      say('');
+      if (target === 'cover') setCover(im.url);
+      else insertAtCursor(pictureLine(im, ''));
+    } catch (e) { say(e.message, true); }
+  };
+
+  const setCover = url => {
+    $('#pCover').value = url || '';
+    $('#coverPrev').innerHTML = coverThumb(url);
+    dirty = true;
+  };
+
+  $('#picAdd').onclick = () => { target = 'body'; file.value = ''; file.click(); };
+  $('#coverUp').onclick = () => { target = 'cover'; file.value = ''; file.click(); };
+  file.onchange = () => take(file.files && file.files[0]);
+  $('#coverClear').onclick = () => setCover('');
+  $('#pCover').addEventListener('input', () => {
+    $('#coverPrev').innerHTML = coverThumb($('#pCover').value.trim());
+    dirty = true;
+  });
+  $('#picPick').onclick = () => showGrid(im => insertAtCursor(pictureLine(im, '')));
+  $('#coverPick').onclick = () => showGrid(im => setCover(im.url));
+
+  /* Paste: a screenshot on the clipboard, or a file copied from a folder. */
+  ta.addEventListener('paste', e => {
+    const items = [...((e.clipboardData && e.clipboardData.items) || [])];
+    const pic = items.find(i => i.kind === 'file' && /^image\//.test(i.type));
+    if (!pic) return;
+    e.preventDefault();
+    target = 'body';
+    take(pic.getAsFile());
+  });
+  /* Drop: a file dragged from the desktop onto the text. */
+  ta.addEventListener('dragover', e => { e.preventDefault(); ta.classList.add('dropping'); });
+  ta.addEventListener('dragleave', () => ta.classList.remove('dropping'));
+  ta.addEventListener('drop', e => {
+    ta.classList.remove('dropping');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    e.preventDefault();
+    target = 'body';
+    /* Where it was dropped, not where the cursor last was. */
+    if (document.caretPositionFromPoint) {
+      const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos && pos.offsetNode === ta) ta.setSelectionRange(pos.offset, pos.offset);
+    }
+    take(f);
+  });
+}
+
+/* --------------------------------------------- the glovels.com import */
+
+let wixTimer = null;
+
+function paintWix(st) {
+  const bar = $('#wixBar'), said = $('#wixSaid'), items = $('#wixItems');
+  if (!st || st.never) {
+    bar.hidden = true; items.hidden = true;
+    said.textContent = '';
+    return;
+  }
+  bar.hidden = false;
+  bar.firstElementChild.style.width = st.total ? Math.round(100 * st.done / st.total) + '%' : '0%';
+  if (st.error) {
+    said.textContent = st.error;
+    said.style.color = '#7a2118';
+  } else {
+    said.style.color = '';
+    said.textContent = (st.running ? 'Working — ' : 'Done. ')
+      + st.done + ' of ' + st.total + ' read · ' + st.created + ' brought across'
+      + (st.replaced ? ' · ' + st.replaced + ' replaced' : '')
+      + ' · ' + st.skipped + ' already here · ' + st.failed + ' failed · '
+      + st.pictures + ' pictures copied.';
+  }
+  const rows = (st.items || []).filter(i => i.result && i.result !== 'created').slice(-60);
+  items.hidden = !rows.length;
+  items.innerHTML = rows.map(i => '<div class="' + esc(i.result) + '">' + esc(i.slug)
+    + ' — ' + esc(i.result) + (i.note ? ': ' + esc(i.note) : '') + '</div>').join('');
+  $('#wixGo').disabled = !!st.running;
+  $('#wixGo').textContent = st.running ? 'Working…' : 'Bring them across';
+}
+
+async function pollWix() {
+  try {
+    const r = await api('GET', '/api/staff/wix/status');
+    paintWix(r.status);
+    if (r.status && r.status.running) wixTimer = setTimeout(pollWix, 1500);
+    else { wixTimer = null; await load(); }
+  } catch (e) { $('#wixSaid').textContent = e.message; }
+}
+
+document.addEventListener('click', async e => {
+  if (e.target.closest('#wixBtn')) {
+    const box = $('#wixBox');
+    if (!box) return;
+    box.hidden = !box.hidden;
+    if (!box.hidden) pollWix();
+    return;
+  }
+  if (e.target.closest('#wixHide')) { $('#wixBox').hidden = true; return; }
+  if (e.target.closest('#wixGo')) {
+    $('#wixGo').disabled = true;
+    try {
+      await api('POST', '/api/staff/wix/import', { overwrite: $('#wixOver').checked });
+      if (!wixTimer) pollWix();
+    } catch (err) { $('#wixSaid').textContent = err.message; $('#wixGo').disabled = false; }
+  }
+});
 
 function count(el, n, limit, low) {
   el.textContent = n + ' / ' + limit;
@@ -380,6 +645,7 @@ function body() {
     metaDesc: $('#pMetaDesc').value.trim(),
     keywords: $('#pKeywords').value.trim(),
     ogImage: $('#pOg').value.trim(),
+    cover: $('#pCover').value.trim(),
     author: $('#pAuthor').value.trim(),
     publishedAt: $('#pPublished').value,
     related: [...$('#relPick').querySelectorAll('input:checked')]

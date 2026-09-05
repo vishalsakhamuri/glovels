@@ -318,6 +318,15 @@ footer.site{background:linear-gradient(180deg,var(--navy-900),#06121e);color:#b9
   color:var(--muted)}
 .prose p > img{max-width:100%;height:auto;border-radius:10px;vertical-align:middle}
 
+/* The cover: the picture the office chose for the post, printed once under the
+   headline and again on its card on the index. Cropped to the same shape
+   everywhere so a list of posts is a list, not a staircase. */
+.prose .cover{margin:0 0 26px}
+.prose .cover img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;
+  border-radius:14px;border:1px solid var(--line);background:#f2f5f9}
+.postcard .thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;
+  border-radius:10px;border:1px solid var(--line);background:#f2f5f9;margin:0 0 12px}
+
 /* Tables. The wrapper scrolls, not the page: a fee table with five columns is
    wider than a phone, and without this the whole article slides sideways and
    its left edge — where the sentences start — goes off the screen. */

@@ -33,6 +33,8 @@ const PLANS = require('./plans.js');
 const MONEY = require('./money.js');
 const MATCHES = require('./matches.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
+const IMAGES = require('./images.js');
+const WIX = require('./wix.js');
 
 const DAY = 864e5;
 
@@ -213,7 +215,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push, siteUrl, config, content }) {
+function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, live, push, siteUrl, config, content }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -223,6 +225,10 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
   const PACKAGES = () => (content ? content.priceList() : FALLBACK_PACKAGES);
   const CFG = config || { secureCookies: false, maxLoginAttempts: 1e9, loginWindowMs: 60000 };
   fs.mkdirSync(uploadDir, { recursive: true });
+  /* Pictures for the blog. Public, unlike uploads/, and its own directory
+     for exactly that reason. */
+  const IMG_DIR = imageDir || path.join(path.dirname(uploadDir), 'images');
+  fs.mkdirSync(IMG_DIR, { recursive: true });
 
   /* The catalogue is editable now, so it cannot be captured once at start-up.
      Both are read fresh — a programme a counsellor adds is valid on the very
@@ -7108,6 +7114,84 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
       },
     };
   };
+
+  /* ------------------------------------------------------------- pictures */
+  /*
+   * A picture goes from a laptop to the server here, and comes back as an
+   * address the editor can print: `![what it shows](/images/name.jpg)`.
+   *
+   * The office could type that line from the day the editor existed and could
+   * never use it, because every address had to already exist somewhere. This
+   * is the upload. The rules are in images.js — what is accepted, how it is
+   * named, where it lives — and the route is deliberately small.
+   */
+  route('POST', '/api/staff/images', needs('content', async (req, res, s) => {
+    const ct = req.headers['content-type'] || '';
+    const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+    if (!bm) return json(res, 400, { error: 'Expected a file upload' });
+    const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
+    if (!parsed.file || !parsed.file.data || !parsed.file.data.length) {
+      return json(res, 400, { error: 'No file arrived. Try again.' });
+    }
+    const r = IMAGES.store(IMG_DIR, parsed.file.filename, parsed.file.data);
+    if (r.error) return json(res, 415, { error: r.error });
+    db.log(s.name, 'uploaded a picture', r.name + ' · ' + Math.round(r.bytes / 1024) + ' KB');
+    return json(res, 200, { image: r });
+  }));
+
+  /* The ones already up, newest first — so a picture used in one post can be
+     put in another without uploading it twice. */
+  route('GET', '/api/staff/images', needs('content', async (req, res) =>
+    json(res, 200, { images: IMAGES.list(IMG_DIR).slice(0, 300) })));
+
+  route('DELETE', /^\/api\/staff\/images\/([a-z0-9][a-z0-9-]{0,120}\.(?:jpg|png|gif|webp))$/,
+    needs('content', async (req, res, s, m) => {
+      const f = IMAGES.fileFor(IMG_DIR, m[1]);
+      if (!f) return json(res, 404, { error: 'No such picture' });
+      /* A picture a live post still prints is not deleted from under it. */
+      const used = db.allPosts().filter(p =>
+        String(p.body || '').includes('/images/' + m[1]) || p.cover === '/images/' + m[1]
+        || p.og_image === '/images/' + m[1]);
+      if (used.length) {
+        return json(res, 409, { error: 'That picture is in ' + used.length + ' post(s): '
+          + used.slice(0, 3).map(p => p.title).join(', ')
+          + (used.length > 3 ? '…' : '') + '. Take it out of them first.' });
+      }
+      fs.unlinkSync(f.path);
+      db.log(s.name, 'deleted a picture', m[1]);
+      return json(res, 200, { ok: true });
+    }));
+
+  /* --------------------------------------------- the blog on glovels.com */
+  /*
+   * One job at a time, held in memory: the office presses the button, the
+   * screen polls, and a hundred and twenty pages come across in a few minutes.
+   * Nothing is published by it — see wix.js.
+   */
+  let wixJob = null;
+  const wixBase = () => (config && config.wixBase) || process.env.WIX_BASE || WIX.DEFAULT_BASE;
+
+  route('POST', '/api/staff/wix/import', needs('content', async (req, res, s) => {
+    if (wixJob && wixJob.running) {
+      return json(res, 409, { error: 'An import is already running.', status: wixJob });
+    }
+    const b = await readJson(req);
+    const only = Array.isArray(b.only)
+      ? b.only.map(x => PROSE.slugify(x)).filter(Boolean).slice(0, 500) : [];
+    wixJob = { running: true, total: 0, done: 0, items: [] };
+    db.log(s.name, 'started bringing the glovels.com blog across',
+      only.length ? only.length + ' post(s)' : 'every post');
+    /* Not awaited: the request returns at once and the screen watches. */
+    WIX.importAll({
+      db, imageDir: IMG_DIR, base: wixBase(), overwrite: !!b.overwrite, only,
+      author: String(b.author || '').slice(0, 90), by: s.name,
+      report: st => { wixJob = st; },
+    }).catch(e => { wixJob = { running: false, error: String(e && e.message || e), items: [] }; });
+    return json(res, 202, { started: true, status: wixJob });
+  }));
+
+  route('GET', '/api/staff/wix/status', needs('content', async (req, res) =>
+    json(res, 200, { status: wixJob || { running: false, never: true }, base: wixBase() })));
 
   route('POST', '/api/staff/posts', needs('content', async (req, res, s) => {
     const r = await readPost(req, s, null);

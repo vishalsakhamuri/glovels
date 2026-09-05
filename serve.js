@@ -70,6 +70,9 @@ try {
 
 const db = store.open(DATA);
 const UPLOADS = path.join(DATA, 'uploads');
+/* Pictures in blog posts. Public, and on the data disk so they survive a deploy. */
+const IMAGES_DIR = path.join(DATA, 'images');
+const IMAGES = require('./server/images.js');
 
 /* The shape the rest of the application expects, read fresh from the database
    every time — so a programme a counsellor adds is live on the next request
@@ -178,7 +181,7 @@ const content = makeContent({ db, file: path.join(ROOT, 'content.json') });
    every registered device silently, so it must survive a redeploy. */
 const push = require('./server/push.js').open({ db, siteUrl: SITE_URL, log: console });
 
-const api = makeApi({ db, uploadDir: UPLOADS, catalogue: liveCatalogue, countries: liveCountries,
+const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content });
 
 /* First run only: a demo account with a shortlist, documents, applications and
@@ -603,9 +606,18 @@ function postPage(post, isDraft) {
       + '</ul></div>'
     : '';
 
+  /* The cover, printed under the headline when the office chose one. A
+     relative address is fine here — the page is at /post/<slug> and the
+     picture at /images/<name>, both absolute paths. */
+  const coverBlock = PROSE.safeImg(post.cover || '')
+    ? '<figure class="cover"><img src="' + esc(post.cover) + '" alt="' + esc(post.title)
+      + '" decoding="async"></figure>'
+    : '';
+
   const body =
       byline
     + (post.excerpt ? '<p class="lead">' + esc(post.excerpt) + '</p>' : '')
+    + coverBlock
     + (isDraft
         ? '<div style="margin:0 0 18px;padding:12px 15px;border-radius:11px;'
           + 'background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;'
@@ -669,6 +681,9 @@ function blogIndexPage(posts) {
   if (!t) return null;
   const cards = posts.map(p =>
     '<a class="postcard" href="post/' + esc(p.slug) + '">'
+    + (PROSE.safeImg(p.cover || '')
+        ? '<img class="thumb" src="' + esc(p.cover) + '" alt="" loading="lazy" decoding="async">'
+        : '')
     + '<div class="postmeta">' + esc(shownDate(p.published_at || p.created_at))
       + ' &middot; ' + (p.read_mins || 1) + ' min'
       + (p.tag ? ' &middot; ' + esc(p.tag) : '') + '</div>'
@@ -966,6 +981,17 @@ const server = http.createServer(async (req, res) => {
 
   /* Ahead of the static files, so the generated answer wins over the one on
      disk rather than depending on which is found first. */
+  /* A picture somebody uploaded for a post. The name is minted by images.js and
+     nothing else is looked up, so ../ cannot reach the database beside it. A
+     name changes when the file does, hence the year-long cache. */
+  const pic = /^\/images\/([a-z0-9][a-z0-9-]{0,120}\.(?:jpg|png|gif|webp))$/.exec(pathname);
+  if (pic) {
+    const f = IMAGES.fileFor(IMAGES_DIR, pic[1]);
+    if (!f) return notFound(res);
+    return send(res, 200, fs.readFileSync(f.path), f.mime,
+      { 'Cache-Control': 'public, max-age=31536000, immutable' });
+  }
+
   if (pathname === '/robots.txt') return send(res, 200, robotsTxt(), TYPES['.txt']);
   if (pathname === '/sitemap.xml') {
     if (!CFG.allowIndexing) return notFound(res);
