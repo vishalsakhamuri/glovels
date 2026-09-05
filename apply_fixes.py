@@ -9086,6 +9086,75 @@ patch(
 )
 
 
+# ---------------------------------------------------------------- index.html
+#
+# "More details" on a finder row.
+#
+# Every university has a page now — /university/<slug>, rendered by the server
+# from the live catalogue (server/unis.js). The finder is where a student meets
+# a university, so a named row links to its page. A LOCKED row does not: the
+# name is what the package buys, and a link whose address is the name would
+# hand it over.
+#
+# The slug is computed here exactly as unis.js computes it. Two copies of one
+# rule, and the university test reads both pages to check they agree.
+patch(
+    "index.html",
+    "the finder can spell a university's page address",
+    """function nextOn(deadline){""",
+    """/* The address of a university's own page — the same rule as server/unis.js,
+   so the link and the page cannot disagree. */
+function uniSlug(name){
+  return String(name || '').toLowerCase().normalize('NFKD')
+    .replace(/[\\u0300-\\u036f]/g, '').replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
+}
+
+function nextOn(deadline){""",
+    marker="function uniSlug(name){",
+)
+
+patch(
+    "index.html",
+    "a named finder row links to the university's page",
+    """    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}</div></div>""",
+    """    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div></div>""",
+    marker='class="umore"',
+)
+
+patch(
+    "index.html",
+    "and the link looks like one",
+    """.msub .ulink{""",
+    """.msub .umore{font-weight:700;color:var(--navy-700);white-space:nowrap}
+.msub .umore:hover{text-decoration:underline}
+.msub .ulink{""",
+    marker=".msub .umore{",
+)
+
+
+# ------------------------------------------------------- study-in-*.html
+#
+# The destination pages point at the universities in that country.
+for _f in sorted(HERE.glob("study-in-*.html")):
+    _t = _f.read_text(encoding="utf-8")
+    if 'class="btn btn-ghost" href="university#' in _t:
+        skipped.append(f"{_f.name}: links to its universities")
+        continue
+    _m = re.search(r'<p style="margin-top:26px"><a class="btn btn-primary" href="index\.html#results">\s*See programmes in ([^<]+?) <svg', _t)
+    if not _m:
+        skipped.append(f"{_f.name}: no programmes button to sit beside")
+        continue
+    _country = _m.group(1).strip()
+    _slug = re.sub(r"[^a-z0-9]+", "-", _country.lower()).strip("-")
+    _new = _t.replace('<p style="margin-top:26px"><a class="btn btn-primary" href="index.html#results">',
+        '<p style="margin-top:26px"><a class="btn btn-ghost" href="university#' + _slug
+        + '" style="margin-right:8px">Universities in ' + _country
+        + '</a><a class="btn btn-primary" href="index.html#results">', 1)
+    write(_f, _new)
+    applied.append(f"{_f.name}: links to its universities")
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

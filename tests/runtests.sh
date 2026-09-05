@@ -65,6 +65,11 @@ run blogtest.js     8099
 # og:image, a canonical, an indexable article — is only wrong when there is a
 # real site address to be absolute against.
 run postseotest.js  8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
+# Pictures in posts, and the glovels.com blog brought across from a stand-in
+# Wix the suite runs itself on 8123.
+run imagetest.js    8099 WIX_BASE=http://localhost:8123
+# A page per university: the sitemap and the robots tag need the live settings.
+run unitest.js      8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
 run leadtest.js     8099
 run assigntest.js   8099
 run sopdetailtest.js 8099

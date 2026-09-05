@@ -960,6 +960,8 @@ select.assign.none:hover{border-color:#a5342b}
       <button class="tab" data-t="dest" aria-selected="false">Destinations
         <span class="n" id="nDest">0</span></button>
       <button class="tab" data-t="sheet" aria-selected="false">Spreadsheet</button>
+      <button class="tab" data-t="pages" aria-selected="false">University pages
+        <span class="n" id="nPages">0</span></button>
       <button class="tab" data-t="log" aria-selected="false">Recent changes</button>
     </div>
 
@@ -1131,6 +1133,53 @@ select.assign.none:hover{border-color:#a5342b}
     </section>
 
     <!-- ------------------------------------------------------------- log -->
+    <!-- --------------------------------------------------- university pages -->
+    <section class="pane" id="t-pages">
+      <div class="p-card" style="margin-bottom:14px">
+        <h3>A page for every university</h3>
+        <p style="margin:0;font-size:12.8px;color:var(--muted);line-height:1.6">Every university in
+          the catalogue has its own page on the site at <code>/university/&lt;name&gt;</code>, built
+          from its programmes: fees, intakes, the CGPA it asks for and an Apply button. That page
+          exists whether or not anything is written here. What you add here is what a table cannot
+          carry &mdash; a paragraph about the place, a picture, and the title Google prints &mdash;
+          and it is what makes the page rank for the university's name.</p>
+      </div>
+      <div class="blog-cols" style="display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start">
+        <div class="p-card" style="padding:0">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--line)">
+            <input id="uq" placeholder="Find a university" style="width:100%;padding:8px 11px;
+              font:400 13px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px"></div>
+          <ul class="plist" id="uniList" style="list-style:none;margin:0;padding:0;max-height:64vh;
+            overflow-y:auto"></ul>
+        </div>
+        <div class="p-card" id="uniEd">
+          <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.7">Pick a university on
+            the left. The ones marked <b>written</b> have something on their page already.</p>
+        </div>
+      </div>
+      <style>
+        #uniList li{padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;
+          display:flex;flex-direction:column;gap:3px}
+        #uniList li:hover{background:#f7f9fc}
+        #uniList li.on{background:#f0f5fb;box-shadow:inset 3px 0 0 var(--navy-700)}
+        #uniList b{font:700 12.8px/1.4 var(--sans);color:var(--navy-900)}
+        #uniList span{font-size:11.4px;color:var(--muted)}
+        #uniList .w{color:#14603a;font-weight:700}
+        @media (max-width:1000px){ .blog-cols{grid-template-columns:1fr !important} }
+        #uniEd textarea{width:100%;min-height:220px;padding:10px 12px;border:1.5px solid #d8dde4;
+          border-radius:9px;font:400 13.6px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+        #uniEd input{width:100%;padding:9px 12px;border:1.5px solid #d8dde4;border-radius:9px;
+          font:400 13.4px/1.4 var(--sans)}
+        #uniEd .field{margin-bottom:13px}
+        #uniEd .cnt{float:right;font:600 11px/1.3 var(--sans);color:var(--muted)}
+        #uniEd .cnt.over{color:#7a2118}
+        #uniEd .coverrow{display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:start}
+        #uniEd .coverrow img,#uniEd .coverrow .nopic{width:130px;aspect-ratio:16/9;object-fit:cover;
+          border-radius:8px;border:1px solid var(--line);background:#f2f5f9;display:grid;
+          place-items:center;font:600 11px/1.3 var(--sans);color:var(--muted)}
+      </style>
+    </section>
+
     <section class="pane" id="t-log">
       <div class="p-card"><ul class="doclist" id="logRows"></ul></div>
     </section>
@@ -2203,6 +2252,132 @@ async function reload() {
   DESTS = r.countries;
   LOG = r.audit;
   paintDests(); paintProgs(); paintLog();
+  loadUnis().catch(() => {});
+}
+
+/* ------------------------------------------------------ university pages */
+
+let UNIS = [], uniOpen = null, uniDirty = false;
+
+async function loadUnis() {
+  const r = await api('GET', '/api/staff/universities');
+  UNIS = r.universities;
+  $('#nPages').textContent = UNIS.length;
+  paintUnis();
+}
+
+function paintUnis() {
+  const q = ($('#uq').value || '').trim().toLowerCase();
+  const rows = UNIS.filter(u => !q || (u.name + ' ' + u.shortName + ' ' + u.city).toLowerCase().includes(q));
+  const dest = code => (DESTS.find(d => d.code === code) || {}).name || code;
+  $('#uniList').innerHTML = rows.map(u =>
+    '<li data-uni="' + esc(u.slug) + '"' + (u.slug === uniOpen ? ' class="on"' : '') + '>'
+    + '<b>' + esc(u.name) + '</b><span>' + esc(dest(u.country)) + (u.city ? ' · ' + esc(u.city) : '')
+    + ' · ' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's')
+    + (u.hidden ? ' · <span style="color:#7a2118;font-weight:700">off search</span>'
+      : u.written ? ' · <span class="w">written</span>' : '') + '</span></li>').join('')
+    || '<li><span>Nothing matches.</span></li>';
+}
+
+function uniCount(id, n, limit, low) {
+  const el = $('#' + id);
+  el.textContent = n + ' / ' + limit;
+  el.className = 'cnt' + (n > limit ? ' over' : '');
+}
+
+async function openUni(slug) {
+  if (uniDirty && !confirm('You have unsaved changes on this page. Leave them?')) return;
+  const r = await api('GET', '/api/staff/university/' + slug);
+  uniOpen = slug; uniDirty = false;
+  paintUnis();
+  const u = r.university, x = r.extras;
+  const thumb = url => url ? '<img src="' + esc(url) + '" alt="">' : '<div class="nopic">No picture</div>';
+  $('#uniEd').innerHTML =
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">'
+    + '<h3 style="margin:0">' + esc(u.name) + '</h3>'
+    + '<a class="btn btn-ghost btn-sm" href="' + esc('/university/' + u.slug) + '" target="_blank" rel="noopener">'
+    + 'Open the page ↗</a>'
+    + '<span style="font-size:12px;color:var(--muted)">' + u.programmes + ' programme'
+    + (u.programmes === 1 ? '' : 's') + ' on it</span></div>'
+
+    + '<div class="field"><label for="uAbout">About the university '
+    + '<small style="font-weight:400;color:var(--muted)">— what a student should know that the fee table does not say. '
+    + 'Same box as the blog: <code>## Heading</code>, <code>- item</code>, <code>**bold**</code>.</small>'
+    + '<span class="cnt" id="cAbout">0 / 6000</span></label>'
+    + '<textarea id="uAbout" placeholder="Where it is, what it is known for, what the campus and the city are like, '
+    + 'what our students say about it…">' + esc(x.about) + '</textarea></div>'
+
+    + '<div class="field"><label for="uCover">Picture <small style="font-weight:400;color:var(--muted)">'
+    + '— shown at the top of the page and in the link preview. Optional.</small></label>'
+    + '<div class="coverrow"><div id="uCoverPrev">' + thumb(x.cover) + '</div><div>'
+    + '<input id="uCover" value="' + esc(x.cover) + '" placeholder="/images/… — or upload one">'
+    + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+    + '<button type="button" class="btn btn-ghost btn-sm" id="uCoverUp">Upload a picture</button>'
+    + '<button type="button" class="btn btn-ghost btn-sm" id="uCoverClear">Remove</button>'
+    + '<input type="file" id="uCoverFile" accept="image/jpeg,image/png,image/gif,image/webp" hidden>'
+    + '</div></div></div></div>'
+
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" class="two">'
+    + '<div class="field"><label for="uMetaTitle">Title for search '
+    + '<small style="font-weight:400;color:var(--muted)">— empty uses “' + esc(u.name) + ' — courses, fees &amp; deadlines”</small>'
+    + '<span class="cnt" id="cMetaTitle">0 / 65</span></label>'
+    + '<input id="uMetaTitle" value="' + esc(x.metaTitle) + '"></div>'
+    + '<div class="field"><label for="uMetaDesc">The sentence under it '
+    + '<span class="cnt" id="cMetaDesc">0 / 165</span></label>'
+    + '<input id="uMetaDesc" value="' + esc(x.metaDesc) + '"></div></div>'
+
+    + '<label style="display:flex;gap:8px;align-items:center;font:400 13px/1.5 var(--sans);margin:4px 0 16px">'
+    + '<input type="checkbox" id="uHidden" style="width:auto"' + (x.hidden ? ' checked' : '') + '> '
+    + 'Keep this page out of search engines and off the list (the page still opens by its address)</label>'
+
+    + '<p id="uErr" role="alert" style="display:none;margin:0 0 12px;padding:11px 13px;border-radius:10px;'
+    + 'font:600 12.9px/1.55 var(--sans);background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118"></p>'
+    + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+    + '<button type="button" class="btn btn-primary" id="uSave">Save</button>'
+    + '<span id="uSaid" style="font:600 12.6px/1.5 var(--sans);color:#14603a"></span></div>';
+
+  const counts = () => {
+    uniCount('cAbout', $('#uAbout').value.length, 6000, 0);
+    uniCount('cMetaTitle', $('#uMetaTitle').value.trim().length, 65, 0);
+    uniCount('cMetaDesc', $('#uMetaDesc').value.trim().length, 165, 0);
+  };
+  counts();
+  ['uAbout', 'uCover', 'uMetaTitle', 'uMetaDesc'].forEach(id =>
+    $('#' + id).addEventListener('input', () => { uniDirty = true; counts(); }));
+  $('#uHidden').addEventListener('change', () => { uniDirty = true; });
+  $('#uCover').addEventListener('input', () => { $('#uCoverPrev').innerHTML = thumb($('#uCover').value.trim()); });
+  $('#uCoverClear').onclick = () => { $('#uCover').value = ''; $('#uCoverPrev').innerHTML = thumb(''); uniDirty = true; };
+  $('#uCoverUp').onclick = () => { $('#uCoverFile').value = ''; $('#uCoverFile').click(); };
+  $('#uCoverFile').onchange = async () => {
+    const f = $('#uCoverFile').files && $('#uCoverFile').files[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append('file', f, f.name || 'picture');
+    try {
+      const r2 = await fetch('/api/staff/images', { method: 'POST', credentials: 'same-origin', body: fd });
+      const d = await r2.json().catch(() => ({}));
+      if (!r2.ok) throw new Error(d.error || ('HTTP ' + r2.status));
+      $('#uCover').value = d.image.url;
+      $('#uCoverPrev').innerHTML = thumb(d.image.url);
+      uniDirty = true;
+    } catch (e) { $('#uErr').textContent = e.message; $('#uErr').style.display = 'block'; }
+  };
+  $('#uSave').onclick = async () => {
+    const err = $('#uErr'); err.style.display = 'none';
+    $('#uSave').disabled = true;
+    try {
+      await api('PUT', '/api/staff/university/' + slug, {
+        about: $('#uAbout').value, cover: $('#uCover').value.trim(),
+        metaTitle: $('#uMetaTitle').value.trim(), metaDesc: $('#uMetaDesc').value.trim(),
+        hidden: $('#uHidden').checked,
+      });
+      uniDirty = false;
+      $('#uSaid').textContent = 'Saved — it is on the page now.';
+      setTimeout(() => { if ($('#uSaid')) $('#uSaid').textContent = ''; }, 5000);
+      await loadUnis();
+    } catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+    $('#uSave').disabled = false;
+  };
 }
 
 /* ------------------------------------------------- entry requirements */
@@ -2309,6 +2484,9 @@ function reqFromForm() {
  * `feeTouched` is what makes that safe: a deliberate choice — a private
  * university we are not partnered with, which is a real thing — is never
  * overwritten by changing the type afterwards. */
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'uq') paintUnis();
+});
 document.addEventListener('change', e => {
   if (e.target.id === 'fFee') feeTouched = true;
   if (e.target.id === 'fPublic' && !feeTouched) {
@@ -2336,6 +2514,8 @@ document.addEventListener('click', async e => {
   if (e.target.closest('#bulkShow')) return bulkDo('show');
   if (e.target.closest('#bulkDelete')) return bulkDo('delete');
 
+  const ul = e.target.closest('[data-uni]');
+  if (ul) return openUni(ul.dataset.uni);
   const t = e.target.closest('.tab[data-t]');
   if (t) {
     $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));

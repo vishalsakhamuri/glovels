@@ -133,6 +133,8 @@ A full run is seventy-odd suites and takes about half an hour.
 | `sopdetailtest.js` | The studio asking what the experience actually was, rather than pasting one fixed phrase per chip. |
 | `blogtest.js` | The blog, written and published by the office. |
 | `postseotest.js` | The blog after Blogs Changes: the half of a post that decides whether anybody ever reaches it. |
+| `imagetest.js` | Pictures in blog posts, and the blog on glovels.com brought across. |
+| `unitest.js` | A page for every university: what Google reads, the finder's link, applying, and what the office writes about it. |
 
 ### Talking
 

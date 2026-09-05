@@ -54,6 +54,7 @@ const notifier = require('./server/notify.js');
 const { Live } = require('./server/live.js');
 const { makeContent } = require('./server/content.js');
 const PROSE = require('./server/prose.js');
+const UNIS = require('./server/unis.js');
 
 /* catalogue.json is now the SEED, not the source of truth. Once it is in the
    database the staff screens own it, and this file is only read again on a
@@ -412,6 +413,12 @@ function sitemapXml() {
      cannot find it — and a page nobody has asked to have indexed is a page
      that will not be. */
   if (!pages.includes('success-stories')) pages.push('success-stories');
+  /* The university pages, from the catalogue — every one the office has not
+     taken off search. */
+  pages.push('university');
+  UNIS.group(liveCatalogue()).forEach(u => {
+    if (!UNIS.cleanExtras(db.content('university:' + u.slug)).hidden) pages.push('university/' + u.slug);
+  });
   pages.sort();
   const base = CFG.siteUrl || '';
   return '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -718,6 +725,365 @@ function blogIndexPage(posts) {
 }
 
 /*
+ * A page for each university, and the list of them.
+ *
+ * Rendered from the live catalogue on request — see server/unis.js. Nothing
+ * here is in index.html; the finder links to it with "More details" and a
+ * search engine reaches it through the sitemap.
+ */
+const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
+.uni-lead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 18px}
+.uni-lead .pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;
+  font:700 11.6px/1.3 var(--sans);letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);
+  background:var(--paper)}
+.uni-lead .pill.pub{color:#14603a;border-color:#bfe0cc;background:#eaf6ee}
+.uni-lead .pill.priv{color:#5b4409;border-color:#e6d5a8;background:#fdf6e6}
+.factbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:18px 0 26px}
+.factbox>div{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.factbox span{display:block;font:600 11.2px/1.4 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.factbox b{display:block;margin-top:4px;font:700 15.5px/1.35 var(--sans);color:var(--navy-900)}
+.uni-cover{margin:0 0 24px}
+.uni-cover img{display:block;width:100%;aspect-ratio:16/8;object-fit:cover;border-radius:14px;border:1px solid var(--line);background:#f2f5f9}
+.progs{display:grid;gap:12px;margin:14px 0 8px}
+.prog{display:grid;grid-template-columns:1fr auto;gap:12px 18px;align-items:center;background:var(--paper);
+  border:1px solid var(--line);border-radius:14px;padding:15px 17px}
+.prog h3{margin:0;font-size:16px;line-height:1.3;color:var(--navy-900)}
+.prog .meta{margin:5px 0 0;font:400 12.8px/1.6 var(--sans);color:var(--muted)}
+.prog .meta b{color:var(--navy-800);font-weight:700}
+.prog .act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+.prog .act a.course{font:600 12.4px/1.4 var(--sans);color:var(--navy-700)}
+@media (max-width:600px){.prog{grid-template-columns:1fr}.prog .act{justify-content:flex-start}}
+.uni-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0 6px;padding:0;list-style:none}
+.uni-steps li{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font:400 13.4px/1.6 var(--sans);color:var(--navy-800)}
+.uni-steps li b{display:block;font:700 13.6px/1.4 var(--sans);color:var(--navy-900);margin-bottom:4px}
+.uni-others{columns:2;column-gap:28px;padding-left:18px;margin:12px 0 0}
+@media (max-width:600px){.uni-others{columns:1}}
+.uni-others li{break-inside:avoid;margin:0 0 7px;font-size:14px}
+.ulist{list-style:none;padding:0;margin:14px 0 30px;display:grid;gap:10px}
+.ulist li a{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--paper);
+  border:1px solid var(--line);border-radius:12px;padding:13px 16px;text-decoration:none;color:inherit}
+.ulist li a:hover{border-color:var(--navy-700)}
+.ulist b{font:700 15px/1.35 var(--sans);color:var(--navy-900)}
+.ulist small{display:block;margin-top:3px;font:400 12.4px/1.5 var(--sans);color:var(--muted)}
+.ulist .n{font:700 12px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
+/* The apply sheet */
+.apsheet{position:fixed;inset:0;background:rgba(6,18,30,.55);display:none;align-items:center;justify-content:center;z-index:500;padding:18px}
+.apsheet.on{display:flex}
+.apsheet .box{background:#fff;border-radius:16px;max-width:440px;width:100%;padding:22px 22px 18px;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.apsheet h2{margin:0 0 4px;font-size:19px}
+.apsheet p{margin:0 0 14px;font:400 13.2px/1.6 var(--sans);color:var(--muted)}
+.apsheet label{display:block;font:600 12.4px/1.4 var(--sans);color:var(--navy-800);margin:10px 0 4px}
+.apsheet input{width:100%;padding:10px 12px;border:1.5px solid #d8dde4;border-radius:9px;font:400 14px/1.4 var(--sans)}
+.apsheet .row{display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap}
+.apsheet .said{font:600 12.6px/1.5 var(--sans);margin-top:10px}
+.apsheet .said.bad{color:#7a2118}.apsheet .said.ok{color:#14603a}
+</style>`;
+
+/* Apply, from a university page. Signed-in students go on their own shortlist
+   (the server checks the package); everybody else fills three boxes and a
+   counsellor calls. The same /api/apply the finder uses — one rule, one place. */
+const UNI_JS = `<div class="apsheet" id="apSheet" role="dialog" aria-modal="true" aria-labelledby="apT">
+<div class="box"><h2 id="apT">Apply</h2><p id="apLead"></p>
+<form id="apForm" novalidate>
+<label for="apName">Your name</label><input id="apName" autocomplete="name" required>
+<label for="apEmail">Email</label><input id="apEmail" type="email" autocomplete="email" required>
+<label for="apPhone">Mobile (India)</label><input id="apPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98xxxxxxxx" required>
+<div class="row"><button class="btn btn-primary" type="submit" id="apGo">Send</button>
+<button class="btn btn-ghost" type="button" id="apClose">Cancel</button></div>
+<div class="said" id="apSaid" role="status"></div>
+<p style="margin:12px 0 0;font-size:11.6px">By sending you agree to be contacted about this application. <a href="../privacy.html">Privacy</a>.</p>
+</form></div></div>
+<script>
+(function(){
+  var sheet = document.getElementById('apSheet'), form = document.getElementById('apForm');
+  var said = document.getElementById('apSaid'), cur = null;
+  function post(body){
+    return fetch('/api/apply', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({ sourcePage: location.pathname,
+        referrer: document.referrer || 'direct' }, body)) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){
+        if (!r.ok) { var e = new Error(d.error || 'That did not go through.'); e.needsPackage = !!d.needsPackage; throw e; }
+        return d; }); });
+  }
+  function say(msg, cls){ said.textContent = msg; said.className = 'said ' + (cls || ''); }
+  function open(b){
+    cur = b; say('');
+    document.getElementById('apT').textContent = 'Apply to ' + b.dataset.uni;
+    document.getElementById('apLead').textContent = b.dataset.prog
+      + '. Three details and a counsellor calls you back within one working day to start it.';
+    sheet.classList.add('on');
+    document.getElementById('apName').focus();
+  }
+  function shut(){ sheet.classList.remove('on'); }
+  document.getElementById('apClose').onclick = shut;
+  sheet.addEventListener('click', function(e){ if (e.target === sheet) shut(); });
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('[data-apply]');
+    if (!b) return;
+    e.preventDefault();
+    b.disabled = true;
+    post({ id: b.dataset.apply }).then(function(d){
+      b.disabled = false;
+      if (d.needDetails) return open(b);
+      if (d.signedIn) {
+        b.textContent = d.already ? 'On your list' : 'Added to your list';
+        b.classList.add('btn-ghost');
+        var go = document.createElement('a'); go.className = 'course'; go.href = '../dashboard.html';
+        go.textContent = 'Open your dashboard'; b.parentNode.appendChild(go);
+      }
+    }).catch(function(err){
+      b.disabled = false;
+      if (err.needsPackage) { location.href = '../index.html#packages'; return; }
+      alert(err.message);
+    });
+  });
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    if (!cur) return;
+    var name = document.getElementById('apName').value.trim();
+    var email = document.getElementById('apEmail').value.trim();
+    var phone = document.getElementById('apPhone').value.trim();
+    if (!name || !email || !phone) return say('All three are needed to call you back.', 'bad');
+    var go = document.getElementById('apGo'); go.disabled = true;
+    post({ id: cur.dataset.apply, name: name, email: email, phone: phone, consent: 'apply' })
+      .then(function(d){
+        go.disabled = false;
+        say('Sent. A counsellor will call you within one working day about ' + cur.dataset.uni + '.', 'ok');
+        cur.textContent = 'Applied'; cur.disabled = true;
+        setTimeout(shut, 2600);
+      })
+      .catch(function(err){ go.disabled = false; say(err.message, 'bad'); });
+  });
+})();
+</script>`;
+
+const SEASON = s => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+const dateShort = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+
+/** Everything the page needs about one university, or null. */
+function universityOf(slug) {
+  const u = UNIS.find(liveCatalogue(), slug);
+  if (!u) return null;
+  u.extras = UNIS.cleanExtras(db.content('university:' + u.slug));
+  return u;
+}
+
+function universityPage(u) {
+  const t = templates();
+  if (!t) return null;
+  const countries = liveCountries();
+  const c = countries[u.country] || { name: u.country, flag: '' };
+  const x = u.extras || UNIS.cleanExtras(null);
+  const url_ = absolute('/university/' + u.slug);
+  const n = u.programmes.length;
+  const called = u.shortName && u.shortName !== u.name ? u.shortName : '';
+  const free = u.feeModel === 'free';
+
+  const feeLine = u.feeMin === 0 && u.feeMax === 0 ? 'No tuition — public university'
+    : u.feeMin === u.feeMax ? UNIS.money(u.feeMin)
+    : (u.feeMin === 0 ? '₹0 to ' : UNIS.money(u.feeMin) + ' to ') + UNIS.money(u.feeMax);
+
+  const title = x.metaTitle
+    || (called ? called + ' (' + u.name + ')' : u.name) + ' — courses, fees & deadlines';
+  const desc = x.metaDesc
+    || u.name + (u.city ? ' in ' + u.city : '') + ', ' + c.name + ': ' + n + ' programme'
+      + (n === 1 ? '' : 's') + ' for Indian students — ' + feeLine.toLowerCase()
+      + (u.seasons.length ? ', ' + u.seasons.map(SEASON).join(' and ').toLowerCase() + ' intake' + (u.seasons.length > 1 ? 's' : '') : '')
+      + ', the CGPA you need, and how to apply' + (free ? ' free through Glovels.' : ' with Glovels.');
+
+  /* The next deadline across every programme, for the fact box. */
+  const soonest = u.programmes.flatMap(p => (p.intakes || []).filter(i => i && i.deadline)
+    .map(i => ({ season: i.season, at: UNIS.nextOn(i.deadline) }))).filter(i => i.at)
+    .sort((a, b) => a.at - b.at)[0];
+
+  const cgpa = u.minCgpa != null ? u.minCgpa.toFixed(1) + '+ on 10'
+    : (u.isPublic && c.minCgpaPublic ? c.minCgpaPublic + '+ on 10 (' + c.name + ' public)'
+      : (!u.isPublic && c.minCgpaPrivate ? c.minCgpaPrivate + '+ on 10' : 'Assessed on your profile'));
+
+  const facts = [
+    ['Programmes we track', n + (n === 1 ? ' programme' : ' programmes')],
+    ['Type', u.isPublic ? 'Public university' : 'Private university'],
+    ['Applying through Glovels', free ? 'Free — we are partnered' : 'With a package'],
+    ['Total cost', feeLine],
+    ['Intakes', u.seasons.length ? u.seasons.map(SEASON).join(' & ') : 'Ask a counsellor'],
+    ['Next deadline', soonest ? SEASON(soonest.season) + ' · ' + dateShort(soonest.at) : '—'],
+    ['CGPA', cgpa],
+    u.germanGpa != null ? ['German grade', 'up to ' + u.germanGpa.toFixed(1)] : null,
+    ['City', (u.city ? u.city + ', ' : '') + c.name],
+  ].filter(Boolean);
+
+  const about = x.about
+    ? PROSE.render(x.about)
+    : '<p>' + esc(u.name) + ' is a ' + (u.isPublic ? 'public' : 'private') + ' university'
+      + (u.city ? ' in ' + esc(u.city) : '') + ', ' + esc(c.name) + '. Glovels tracks '
+      + n + ' programme' + (n === 1 ? '' : 's') + ' here'
+      + (u.fields.length ? ' in ' + esc(u.fields.slice(0, 4).join(', ')) : '') + ', with '
+      + (u.tuitionFree ? 'no tuition fees' : 'total costs from ' + esc(UNIS.money(u.feeMin)))
+      + (u.seasons.length ? ' and ' + esc(u.seasons.map(SEASON).join(' and ').toLowerCase())
+        + ' intake' + (u.seasons.length > 1 ? 's' : '') : '')
+      + '. ' + (free
+        ? 'We are partnered with the university, so applying through Glovels costs you nothing — '
+          + 'a counsellor checks your profile, prepares the file and follows it up.'
+        : 'Applications here are filed by a counsellor as part of a Glovels package: the '
+          + 'shortlist, the SOP and the follow-up are done for you.')
+      + '</p>';
+
+  const progs = u.programmes.map(p => {
+    const dl = (p.intakes || []).filter(i => i && i.deadline)
+      .map(i => ({ season: i.season, at: UNIS.nextOn(i.deadline) })).filter(i => i.at)
+      .sort((a, b) => a.at - b.at);
+    const fee = Number(p.totalInr) || 0;
+    const courseUrl = /^https?:\/\//i.test(String(p.url || '')) ? p.url : '';
+    const fm = p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel
+      : (p.isPublic ? 'package' : 'free');
+    return '<article class="prog" id="' + esc(UNIS.slugOf(p.program)) + '">'
+      + '<div><h3>' + esc(p.program) + '</h3><p class="meta">'
+      + '<b>' + esc(UNIS.levelOf(p.level)) + '</b>'
+      + (p.field ? ' · ' + esc(p.field) : '')
+      + ' · <b>' + (fee ? esc(UNIS.money(fee)) + ' total' : 'No tuition') + '</b>'
+      + (dl.length ? ' · ' + dl.map(d => esc(SEASON(d.season)) + ' intake, apply by '
+        + esc(dateShort(d.at))).join('; ') : '')
+      + (p.minCgpa != null ? ' · CGPA ' + esc(Number(p.minCgpa).toFixed(1)) + '+' : '')
+      + (p.germanGpa != null ? ' · German grade up to ' + esc(Number(p.germanGpa).toFixed(1)) : '')
+      + '</p></div>'
+      + '<div class="act">'
+      + (courseUrl ? '<a class="course" href="' + esc(courseUrl) + '" target="_blank" rel="noopener nofollow">Course page ↗</a>' : '')
+      + '<button type="button" class="btn btn-sm ' + (fm === 'free' ? 'btn-primary' : 'btn-gold')
+        + '" data-apply="' + esc(p.id) + '" data-uni="' + esc(u.name) + '" data-prog="' + esc(p.program) + '">'
+        + (fm === 'free' ? 'Apply free' : 'Apply') + '</button>'
+      + '</div></article>';
+  }).join('');
+
+  const others = UNIS.group(liveCatalogue()).filter(o => o.country === u.country && o.slug !== u.slug);
+  const othersBlock = others.length
+    ? '<h2>Other universities in ' + esc(c.name) + '</h2><ul class="uni-others">'
+      + others.slice(0, 40).map(o => '<li><a href="' + esc(o.slug) + '">' + esc(o.name) + '</a>'
+        + ' <span style="color:var(--muted);font-size:12.4px">· ' + o.programmes.length
+        + ' programme' + (o.programmes.length === 1 ? '' : 's') + '</span></li>').join('')
+      + '</ul>'
+    : '';
+
+  const body =
+      '<div class="uni-lead">'
+    + '<span class="pill ' + (u.isPublic ? 'pub' : 'priv') + '">' + (u.isPublic ? 'Public' : 'Private') + '</span>'
+    + '<span class="pill">' + esc(c.flag ? c.flag + ' ' : '') + esc(c.name) + '</span>'
+    + (u.city ? '<span class="pill">' + esc(u.city) + '</span>' : '')
+    + '<span class="pill">' + n + ' programme' + (n === 1 ? '' : 's') + '</span>'
+    + (u.url ? '<a class="pill" href="' + esc(u.url) + '" target="_blank" rel="noopener nofollow">Official site ↗</a>' : '')
+    + '</div>'
+    + (PROSE.safeImg(x.cover) ? '<figure class="uni-cover"><img src="' + esc(x.cover) + '" alt="' + esc(u.name) + '" decoding="async"></figure>' : '')
+    + '<div class="factbox">' + facts.map(f => '<div><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>').join('') + '</div>'
+    + '<h2>About ' + esc(called || u.name) + '</h2>' + about
+    + '<h2 id="programmes">Programmes at ' + esc(called || u.name) + '</h2>'
+    + '<p>Every programme below is one we have placed students in or checked ourselves. '
+      + 'Fees are the total for the whole course, in rupees at today\'s rate; deadlines are the '
+      + 'university\'s and come round every year.</p>'
+    + '<div class="progs">' + progs + '</div>'
+    + '<h2>How applying works</h2>'
+    + '<ol class="uni-steps">'
+    + '<li><b>1. Press Apply</b>Three details, and a counsellor calls you within one working day. '
+      + 'Signed in already? It goes straight onto your list.</li>'
+    + '<li><b>2. Your profile is read properly</b>Marksheets, backlogs, tests. You are told which '
+      + 'programmes here you actually clear before anything is filed.</li>'
+    + '<li><b>3. We file it</b>' + (free
+        ? 'Free at this university — we are partnered with it, so the application, the SOP and the follow-up cost you nothing.'
+        : 'Through a Glovels package: SOP, documents, the application itself and every follow-up until the decision.')
+      + '</li>'
+    + '</ol>'
+    + '<p style="margin-top:22px"><a class="btn btn-primary" href="../index.html#counsel">Book free counselling</a> '
+    + '<a class="btn btn-ghost" href="../index.html#results">See how you match</a></p>'
+    + othersBlock
+    + '<p style="margin-top:26px"><a class="btn btn-ghost" href="../university">All universities</a></p>';
+
+  const jsonld = [{
+    '@context': 'https://schema.org', '@type': 'CollegeOrUniversity',
+    name: u.name, alternateName: called || undefined, url: u.url || url_,
+    address: { '@type': 'PostalAddress', addressLocality: u.city || undefined, addressCountry: u.country },
+    sameAs: u.url || undefined,
+  }, {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: absolute('/') },
+      { '@type': 'ListItem', position: 2, name: 'Universities', item: absolute('/university') },
+      { '@type': 'ListItem', position: 3, name: u.name, item: url_ },
+    ],
+  }];
+
+  const page = fill(t.page, Object.assign(metaHoles({
+    title, desc, canonical: url_,
+    keywords: [u.name, called, u.city, c.name, 'study in ' + c.name, 'fees', 'admission', 'Indian students']
+      .filter(Boolean).join(', '),
+    image: PROSE.safeImg(x.cover) ? x.cover : DEFAULT_OG,
+    imageAlt: u.name, type: 'website', indexable: !x.hidden,
+    jsonld: jsonld[0],
+  }), {
+    H1: esc(u.name),
+    DATELINE: esc((called ? called + ' · ' : '') + (u.isPublic ? 'Public university' : 'Private university')
+      + (u.city ? ' in ' + u.city : '') + ', ' + c.name + ' · ' + n + ' programme' + (n === 1 ? '' : 's')),
+    CRUMBS: '<a href="../index.html">Home</a> / <a href="../university">Universities</a> / ' + esc(called || u.name),
+    BODY: body,
+  }));
+  /* The breadcrumb record beside the university's own, the stylesheet, and
+     the apply sheet. */
+  return page.replace('</head>', UNI_CSS + '<script type="application/ld+json">'
+      + JSON.stringify(jsonld[1]).replace(/</g, '\\u003c') + '</script>\n</head>')
+    .replace('</body>', UNI_JS + '</body>');
+}
+
+function universitiesIndexPage() {
+  const t = templates();
+  if (!t) return null;
+  const all = UNIS.group(liveCatalogue());
+  const countries = liveCountries();
+  const shown = all.filter(u => !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden);
+  const byCountry = new Map();
+  shown.forEach(u => { if (!byCountry.has(u.country)) byCountry.set(u.country, []); byCountry.get(u.country).push(u); });
+  const order = [...byCountry.keys()].sort((a, b) => byCountry.get(b).length - byCountry.get(a).length);
+  const body = order.map(code => {
+    const c = countries[code] || { name: code, flag: '' };
+    const list = byCountry.get(code);
+    return '<h2 id="' + esc(UNIS.slugOf(c.name)) + '">' + esc(c.flag ? c.flag + ' ' : '') + esc(c.name)
+      + ' <span style="font-size:14px;color:var(--muted);font-weight:400">· ' + list.length
+      + ' universit' + (list.length === 1 ? 'y' : 'ies') + '</span></h2>'
+      + '<ul class="ulist">' + list.map(u =>
+        '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.name) + '</b><small>'
+        + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
+        + ' · ' + (u.tuitionFree && u.feeMax === 0 ? 'no tuition' : 'from ' + esc(UNIS.money(u.feeMin)))
+        + (u.feeModel === 'free' ? ' · free to apply through us' : '')
+        + '</small></span><span class="n">' + u.programmes.length + ' programme'
+        + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>').join('')
+      + '</ul>';
+  }).join('') || '<p style="color:var(--muted)">No universities are on the site yet.</p>';
+
+  const page = fill(t.page, Object.assign(metaHoles({
+    title: 'Universities abroad for Indian students — fees, intakes & how to apply',
+    desc: shown.length + ' universities across ' + byCountry.size + ' countries that Glovels places '
+      + 'students at: public and private, what each costs in total, when to apply, and which '
+      + 'ones you can apply to free through us.',
+    canonical: absolute('/university'),
+    keywords: 'universities abroad, study abroad universities, public universities germany, fees, intakes, Indian students',
+    image: DEFAULT_OG, imageAlt: 'Glovels — universities abroad', type: 'website', indexable: true,
+    jsonld: {
+      '@context': 'https://schema.org', '@type': 'ItemList',
+      name: 'Universities Glovels places students at',
+      itemListElement: shown.slice(0, 100).map((u, i) => ({
+        '@type': 'ListItem', position: i + 1, name: u.name, url: absolute('/university/' + u.slug),
+      })),
+    },
+  }), {
+    H1: 'Universities we place students at',
+    DATELINE: shown.length + ' universities in ' + byCountry.size + ' countries. Every one has its own page '
+      + 'with the programmes we track, what they cost in total, and a way to apply.',
+    CRUMBS: '<a href="index.html">Home</a> / Universities',
+    BODY: '<p class="lead">Pick a university to see its programmes, fees, intake deadlines and the CGPA '
+      + 'it asks for. Not sure which ones you clear? <a href="index.html#results">The finder</a> reads '
+      + 'your profile and tells you.</p>' + body,
+  }));
+  return page.replace('</head>', UNI_CSS + '</head>');
+}
+
+/*
  * The receipt for what somebody accepted when they paid.
  *
  * "The student should be shown proof that during payment he has accepted all
@@ -1009,6 +1375,27 @@ const server = http.createServer(async (req, res) => {
   /* Ahead of the static files, because there is no file — the page is the
      database, rendered. `success-stories.html` reaches it through the same
      .html redirect every other internal link on this site goes through. */
+  /* One page per university, and the list. Rendered from the live catalogue;
+     not files, so they sit ahead of the static handler. A .html spelling or a
+     trailing slash goes to the clean address like every other page. */
+  if (pathname === '/university' || pathname === '/university/' || pathname === '/university.html') {
+    if (pathname !== '/university') return send(res, 301, '', 'text/html', { Location: '/university' });
+    const page = universitiesIndexPage();
+    if (page) return send(res, 200, forIndexing(page, 'university'), TYPES['.html']);
+  }
+  const uniUrl = /^\/university\/([a-z0-9-]{1,90})(?:\.html|\/)?$/.exec(pathname);
+  if (uniUrl) {
+    if (pathname !== '/university/' + uniUrl[1]) {
+      return send(res, 301, '', 'text/html', { Location: '/university/' + uniUrl[1] });
+    }
+    const u = universityOf(uniUrl[1]);
+    if (!u) return notFound(res);
+    const page = universityPage(u);
+    /* A page the office took off search keeps its noindex whatever the site
+       setting says — forIndexing would put it back. */
+    if (page) return send(res, 200, u.extras.hidden ? page : forIndexing(page, 'university-' + u.slug), TYPES['.html']);
+  }
+
   if (pathname === '/success-stories') {
     const page = successStoriesPage();
     if (page) return send(res, 200, forIndexing(page, 'success-stories'), TYPES['.html']);

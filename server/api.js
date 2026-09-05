@@ -35,6 +35,7 @@ const MATCHES = require('./matches.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 const IMAGES = require('./images.js');
 const WIX = require('./wix.js');
+const UNIS = require('./unis.js');
 
 const DAY = 864e5;
 
@@ -5705,6 +5706,48 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
     audit: db.auditTrail(25).map(a => ({ who: a.who, what: a.what, detail: a.detail, at: a.created_at })),
   })));
 
+  /* ---------------------------------------------------- university pages */
+  /*
+   * What the office writes ABOUT a university, for its page at
+   * /university/<slug>. The programmes come from the catalogue; this is the
+   * paragraph, the picture and the search title that a table of fees does not
+   * carry. Kept in the content table under university:<slug>, so it survives
+   * every edit to the rows beneath it.
+   */
+  route('GET', '/api/staff/universities', staffOnly(async (req, res) => json(res, 200, {
+    universities: UNIS.group(cat()).map(u => {
+      const x = UNIS.cleanExtras(db.content('university:' + u.slug));
+      const meta = db.contentMeta('university:' + u.slug);
+      return {
+        slug: u.slug, name: u.name, shortName: u.shortName, city: u.city, country: u.country,
+        isPublic: u.isPublic, feeModel: u.feeModel, programmes: u.programmes.length,
+        url: '/university/' + u.slug,
+        written: !!(x.about || x.cover || x.metaTitle || x.metaDesc), hidden: x.hidden,
+        updatedAt: meta ? meta.updated_at : '', updatedBy: meta ? meta.who : '',
+      };
+    }),
+  })));
+
+  route('GET', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, staffOnly(async (req, res, s, m) => {
+    const u = UNIS.find(cat(), m[1]);
+    if (!u) return json(res, 404, { error: 'No university at that address' });
+    return json(res, 200, { university: { slug: u.slug, name: u.name, city: u.city,
+      country: u.country, programmes: u.programmes.length },
+      extras: UNIS.cleanExtras(db.content('university:' + u.slug)) });
+  }));
+
+  route('PUT', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, needs('catalogue', async (req, res, s, m) => {
+    const u = UNIS.find(cat(), m[1]);
+    if (!u) return json(res, 404, { error: 'No university at that address' });
+    const x = UNIS.cleanExtras(await readJson(req));
+    if (x.cover && !PROSE.safeImg(x.cover)) {
+      return json(res, 422, { error: 'The cover has to be a picture address — upload one, or paste a link ending in .jpg or .png.' });
+    }
+    db.setContent('university:' + u.slug, x, s.name);
+    db.log(s.name, x.hidden ? 'took a university page off search' : 'wrote a university page', u.name);
+    return json(res, 200, { extras: x, html: PROSE.render(x.about) });
+  }));
+
   route('PUT', '/api/staff/programme', needs('catalogue', async (req, res, s) => {
     const b = await readJson(req);
     const existing = b.id ? db.programme(b.id) : null;
@@ -7125,7 +7168,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
    * is the upload. The rules are in images.js — what is accepted, how it is
    * named, where it lives — and the route is deliberately small.
    */
-  route('POST', '/api/staff/images', needs('content', async (req, res, s) => {
+  /* Either permission: a picture goes into a blog post (content) or onto a
+     university page (catalogue), and the same file may do both. */
+  const eitherPerm = handler => staffOnly(async (req, res, s, m) => {
+    if (!can(s, 'content') && !can(s, 'catalogue')) {
+      return json(res, 403, { error: 'You do not have access to change the website. An '
+        + 'administrator can give it to you on the Organisation screen.' });
+    }
+    return handler(req, res, s, m);
+  });
+  route('POST', '/api/staff/images', eitherPerm(async (req, res, s) => {
     const ct = req.headers['content-type'] || '';
     const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
     if (!bm) return json(res, 400, { error: 'Expected a file upload' });
@@ -7141,7 +7193,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
 
   /* The ones already up, newest first — so a picture used in one post can be
      put in another without uploading it twice. */
-  route('GET', '/api/staff/images', needs('content', async (req, res) =>
+  route('GET', '/api/staff/images', eitherPerm(async (req, res) =>
     json(res, 200, { images: IMAGES.list(IMG_DIR).slice(0, 300) })));
 
   route('DELETE', /^\/api\/staff\/images\/([a-z0-9][a-z0-9-]{0,120}\.(?:jpg|png|gif|webp))$/,
