@@ -66,7 +66,7 @@ A full run is seventy-odd suites and takes about half an hour.
 |---|---|
 | `cattest.js` | The Catalogue screen: the same filters as the public site, and the CGPA on the screen. |
 | `sheettest.js` | The catalogue spreadsheet round trip, wrong rows included. |
-| `importtest.js` | The import preview refusing what it used to wave through: an unknown id, a fee that is not a number, a CGPA of 99. |
+| `importtest.js` | The import preview refusing what it used to wave through: an unknown id, a fee that is not a number, a CGPA of 99 — and the id that is MISSING, which is how one university came to be on the live site twice. |
 | `appendtest.js` | An Excel upload of new universities ADDS to the list and alters nothing else. |
 | `bulktest.js` | Selecting many universities and removing them — a programme a student has shortlisted is hidden, never deleted. |
 | `reqtest.js` | Entry requirements edited in the office and read on the website. |
@@ -159,6 +159,15 @@ A full run is seventy-odd suites and takes about half an hour.
 | `roundtest.js` | The 1.6 round: the file types nothing enforced, the student verifying their own documents, one password minimum, an optional section's heading, one answer per press on the profile, and a package on sale at nothing. |
 
 ## The harness bugs worth knowing about
+
+`runtests.sh` used to `cd` to a path one directory ABOVE the repository — an
+untracked scratch copy of every suite — while `srv.sh` started the server from
+the repository itself. So a full run exercised current code against whatever
+version of a test had last been copied up there. A suite edited here, run on its
+own and green, came back from the full run with its old count: `23 passed` where
+running it by hand gave `45`. The difference was exactly the checks just added,
+which is the only reason anybody looked. It now runs the suites that sit beside
+it.
 
 `srv.sh` used to check only that the port answered. When an older process still
 held it, the new server died with EADDRINUSE, the old one answered the health

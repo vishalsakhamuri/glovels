@@ -18,9 +18,9 @@ const ok = [], bad = [];
 const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + note : ''));
 const stamp = Date.now();
 
-const PLANS = require(path.join(__dirname, 'build', 'server', 'plans.js'));
-const ALERTS = require(path.join(__dirname, 'build', 'server', 'alerts.js'));
-const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
+const PLANS = require(path.join(__dirname, '..', 'server', 'plans.js'));
+const ALERTS = require(path.join(__dirname, '..', 'server', 'alerts.js'));
+const store = require(path.join(__dirname, '..', 'server', 'store.js'));
 
 (async () => {
   /* ------------------------------------------------------ the arithmetic */

@@ -4,7 +4,19 @@
 # Order matters less than isolation: several of these delete universities or
 # rewrite the home page, and a suite that inherits another's leftovers passes or
 # fails for reasons that have nothing to do with the code.
-cd /home/claude/glovels || exit 1
+# THE SUITES THAT LIVE BESIDE THIS SCRIPT, not the ones at a path typed into it.
+#
+# This said `cd /home/claude/glovels` — one directory ABOVE the repository, an
+# untracked scratch copy of every suite. So a full run read whichever version of
+# a test happened to have been copied up there, while `srv.sh` started the
+# server from the repository. Edit a suite, add checks to it, watch them pass on
+# their own, then read "ok importtest.js 23 passed" out of a full run that never
+# saw the file. The two counts differ by exactly the checks you just wrote,
+# which is the only reason it was ever noticed.
+#
+# A test harness that reads from somewhere other than where the work is done
+# reports on a build nobody has.
+cd "$(cd "$(dirname "$0")" && pwd)" || exit 1
 PASS=0; FAIL=0; REPORT=/tmp/testreport.txt
 : > "$REPORT"
 

@@ -1093,6 +1093,12 @@ select.assign.none:hover{border-color:#a5342b}
           <b>Keep the id.</b> A row that arrives with an id is treated as a change to that
           programme; a row with the id blank is treated as a new one. That is the only
           thing the sheet needs you to preserve &mdash; the column headings are matched loosely.</p>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          <b>Clearing an id does not mean &ldquo;re-add this row&rdquo;.</b> A blank id means
+          one thing only: this course has never been on the site. Clear it on a row that is
+          already here and you get a second copy of the same programme &mdash; which is also
+          what happens if a file of new universities is uploaded twice. Both are refused now,
+          and the message names the id to paste if you meant to edit.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <a class="btn btn-primary" href="/api/staff/catalogue.xlsx">Download as Excel</a>
           <a class="btn btn-ghost" href="/api/staff/catalogue.csv">Download as CSV</a>

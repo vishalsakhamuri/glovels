@@ -70,6 +70,10 @@ const toCsv = rows => rows.map(r => r.map(c => {
   const COL = {
     id: at('id'), fee: at('total tuition inr'), cgpa: at('minimum cgpa'),
     fit: at('fit score'), gpa: at('german gpa'), dl: at('intake 1 deadline'),
+    /* The four the duplicate check is matched on, and the column that hides a
+       row without deleting it. */
+    prog: at('programme'), uni: at('university'), level: at('level'),
+    country: at('country code'), live: at('on the site'),
   };
   ok(Object.values(COL).every(i => i >= 0),
     'the exported sheet has the columns this is about — ' + JSON.stringify(COL));
@@ -86,6 +90,21 @@ const toCsv = rows => rows.map(r => r.map(c => {
       { multipart: form });
     return { status: res.status(), body: await res.json() };
   };
+
+  /* The same thing for a file whose SHAPE is the point — three rows, or two
+     copies of one row — rather than two rows with cells edited. */
+  const uploadRows = async (body, opts) => {
+    const form = { file: { name: 'catalogue.csv', mimeType: 'text/csv',
+      buffer: Buffer.from(toCsv([rows[0]].concat(body)), 'utf8') } };
+    if (opts) Object.assign(form, opts);
+    const res = await admin.request.post(BASE + '/api/staff/catalogue/import',
+      { multipart: form });
+    return { status: res.status(), body: await res.json() };
+  };
+  const whyOf = r => ((r.body.plan || {}).rejected || [])
+    .flatMap(x => x.why || []).join(' | ');
+  const warnOf = r => JSON.stringify([].concat((r.body.plan || {}).update || [],
+    (r.body.plan || {}).create || [], (r.body.plan || {}).unchanged || []));
 
   /* ============================================================== CAT-01 */
   /* The PREVIEW, because the preview is what the office reads before pressing
@@ -142,6 +161,79 @@ const toCsv = rows => rows.map(r => r.map(c => {
   ok(/cannot be imported/i.test(applied.body.error || ''),
     'with a reason — ' + (applied.body.error || '').slice(0, 90));
 
+  /* ============================================================== CAT-05 */
+  /* THE OTHER HALF OF THE ID COLUMN, and the one nothing checked at all.
+   *
+   * A blank id means "I have never seen this course before". Nothing tested
+   * whether that was TRUE, so clearing an id on a row already in the catalogue
+   * queued a second copy of it, and the preview said "1 added" — accurate and
+   * useless. That is how Vistula University came to be on the live site twice.
+   *
+   * The one that will happen more often is the whole file: the sheet of new
+   * universities, uploaded a second time. Every id in it is blank, because
+   * every row was new when it was made, so the second upload adds all of them
+   * again. Twenty courses, forty records, and no screen anywhere saying they
+   * are the same. */
+  const dup = await upload([[1, COL.id, '']]);
+  ok(dup.body.counts && dup.body.counts.rejected === 1,
+    'a row already in the catalogue, with its id cleared, cannot import — '
+    + JSON.stringify(dup.body.counts));
+  const dupWhy = whyOf(dup);
+  ok(dupWhy.includes(rows[1][COL.id]),
+    'and the reason names the id to paste back — ' + dupWhy.slice(0, 200));
+  ok(/twice/i.test(dupWhy),
+    'and says what pressing Apply would have done — ' + dupWhy.slice(0, 220));
+  ok(!/id column/.test(JSON.stringify((dup.body.plan || {}).create || [])),
+    'and it is NOT queued as a new programme');
+
+  /* The whole file, which is the accident this is really for. */
+  const both = await upload([[1, COL.id, ''], [2, COL.id, '']]);
+  ok(both.body.counts.rejected === 2,
+    'yesterday\'s file of new universities, uploaded again, adds nothing — '
+    + JSON.stringify(both.body.counts));
+  ok((both.body.counts.create || 0) === 0,
+    'not one row of it is queued as new — ' + JSON.stringify(both.body.counts));
+
+  /* The door, not only the preview. */
+  const dupApply = await upload([[1, COL.id, '']], { confirm: 'yes' });
+  ok(dupApply.status === 422,
+    'and confirming it is refused outright — ' + dupApply.status);
+
+  /* What must NOT be caught, or the guard is a wall: a course that really is
+     new, with the id blank, which is how every university gets added. */
+  const fresh = rows[1].slice();
+  fresh[COL.id] = '';
+  fresh[COL.prog] = 'MSc Something Nobody Has Listed ' + Date.now();
+  const newOne = await uploadRows([fresh]);
+  ok(newOne.body.counts.rejected === 0 && newOne.body.counts.create === 1,
+    'a genuinely new course with a blank id is still added — '
+    + JSON.stringify(newOne.body.counts) + ' ' + whyOf(newOne).slice(0, 140));
+
+  /* And the thing it is matched ON. The same programme name at a DIFFERENT
+     university is a different course, and refusing it would stop the office
+     adding the twelve MSc Computer Science rows every intake needs. */
+  const elsewhere = rows[1].slice();
+  elsewhere[COL.id] = '';
+  elsewhere[COL.uni] = 'A University Not In This Catalogue ' + Date.now();
+  const other = await uploadRows([elsewhere]);
+  ok(other.body.counts.rejected === 0 && other.body.counts.create === 1,
+    'the same course name at another university is not a duplicate — '
+    + JSON.stringify(other.body.counts) + ' ' + whyOf(other).slice(0, 140));
+
+  /* Two copies of one NEW row, inside one file. Neither is in the database, so
+     the check above cannot see it — nothing has been written when the second
+     one is read — and applying the file would create both. */
+  const twice = fresh.slice();
+  const pair = await uploadRows([fresh, twice]);
+  ok(pair.body.counts.rejected === 1,
+    'the same new row twice in one file: one of them is refused — '
+    + JSON.stringify(pair.body.counts));
+  ok(/line 2 of this file/i.test(whyOf(pair)),
+    'and the message points at the row it collides with, not at the database — '
+    + whyOf(pair).slice(0, 160));
+  ok(pair.body.counts.create === 1,
+    'leaving exactly one to be added — ' + JSON.stringify(pair.body.counts));
+
   /* ==================================== and what must still be allowed */
   /* A deadline from a cycle that has ended. The year is not read at all any
      more, so refusing this would refuse most of the catalogue. */
@@ -176,6 +268,52 @@ const toCsv = rows => rows.map(r => r.map(c => {
     'with nothing rejected at all — ' + JSON.stringify(clean.body.counts));
   ok(((clean.body.plan || {}).rejected || []).length === 0,
     'with nothing rejected — ' + JSON.stringify((clean.body.plan || {}).rejected || []));
+
+  /* ============================== a row that was removed is still a row */
+  /* Removing a programme HIDES it — students' shortlists still point at it.
+     So re-uploading it with a blank id is the worst version of the duplicate:
+     the shortlists stay on the dead copy while the site shows the fresh one.
+     The repair is to bring the original back, and the message has to say so,
+     because "it already exists" is a confusing thing to read about something
+     that is not on the site. */
+  const hide = await upload([[1, COL.live, 'no']], { confirm: 'yes' });
+  ok(hide.status === 200, 'a row can be taken off the site from the sheet — ' + hide.status);
+  const gone = await upload([[1, COL.id, ''], [1, COL.live, 'yes']]);
+  ok(gone.body.counts.rejected === 1,
+    'and re-uploading it as new is still refused — ' + JSON.stringify(gone.body.counts));
+  ok(/removed from the site/i.test(whyOf(gone)),
+    'and the message says it is there but hidden, which is not obvious — '
+    + whyOf(gone).slice(0, 200));
+  ok(/set active to yes/i.test(whyOf(gone)),
+    'and names the column that brings it back — ' + whyOf(gone).slice(0, 220));
+
+  /* ================= a duplicate ALREADY in the catalogue is said, not blocked */
+  /* The two Vistula rows are both in the download, both carry ids, and both
+     come back up on every ordinary edit. Refusing them would mean nobody can
+     change a tuition fee until the old duplicate is cleaned up — a check whose
+     first act is to block unrelated work is a check somebody turns off. */
+  const made = await uploadRows([fresh], { confirm: 'yes' });
+  ok(made.status === 200, 'the new row applies — ' + made.status);
+  const again = parseCsv(await (await admin.request.get(BASE + '/api/staff/catalogue.csv')).text());
+  const mine = again.find(r => r[COL.prog] === fresh[COL.prog]);
+  ok(!!mine, 'and comes back down with an id of its own — ' + (mine && mine[COL.id]));
+  if (mine) {
+    /* Rename it into a course that already exists: the same collision, arriving
+       by the other door. */
+    const collide = rows[2].slice();
+    collide[COL.id] = mine[COL.id];
+    const soft = await uploadRows([collide]);
+    ok(soft.body.counts.rejected === 0,
+      'an id\'d row that matches another id\'d row is NOT refused — '
+      + JSON.stringify(soft.body.counts) + ' ' + whyOf(soft).slice(0, 160));
+    ok(/same course/i.test(warnOf(soft)),
+      'but the preview says the two are the same course — ' + warnOf(soft).slice(0, 220));
+    ok(warnOf(soft).includes(rows[2][COL.id]),
+      'and names the other one, so somebody can go and look at it');
+    ok(soft.body.counts.warned >= 1,
+      'and it is counted as a warning rather than swallowed — '
+      + JSON.stringify(soft.body.counts));
+  }
 
   /* ============================================ and on the screen itself */
   const page = await admin.newPage();

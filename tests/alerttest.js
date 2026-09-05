@@ -19,9 +19,15 @@ const ok = [], bad = [];
 const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + note : ''));
 const stamp = Date.now();
 
-const ALERTS = require(path.join(__dirname, 'build', 'server', 'alerts.js'));
-const DIGEST = require(path.join(__dirname, 'build', 'server', 'digest.js'));
-const store = require(path.join(__dirname, 'build', 'server', 'store.js'));
+/* `..`, not `build` — the server is one directory up from this suite. These
+   three read `__dirname/build/server/...` for as long as the runner ran the
+   suites out of a scratch copy one level above the repository, where that
+   happened to resolve. It stopped resolving the moment the runner started
+   reading the suites that are actually checked in, which is the whole point of
+   that change: a path that only works from somewhere else was never right. */
+const ALERTS = require(path.join(__dirname, '..', 'server', 'alerts.js'));
+const DIGEST = require(path.join(__dirname, '..', 'server', 'digest.js'));
+const store = require(path.join(__dirname, '..', 'server', 'store.js'));
 
 (async () => {
   const browser = await chromium.launch();

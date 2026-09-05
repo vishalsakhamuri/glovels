@@ -5859,6 +5859,56 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
     const plan = { create: [], update: [], unchanged: [], rejected: [], warned: 0,
       unknownColumns: unknown, notes: [] };
 
+    /* ------------------------------------------------------------------
+     * THE SAME COURSE, TWICE.
+     *
+     * A blank id means one thing to this endpoint: I HAVE NEVER SEEN THIS
+     * BEFORE. It does not mean "re-add", it does not mean "refresh", and
+     * until now nothing checked whether it was true.
+     *
+     * So the accident was silent and it has already happened once on the live
+     * site — Vistula University appearing twice, because a row that was
+     * already in the catalogue came back up with its id cleared. The preview
+     * said "1 added", which was accurate and useless.
+     *
+     * The one that will happen more often is the whole FILE: the sheet of new
+     * universities, uploaded a second time. Every id in it is blank, because
+     * every row was new when it was made — so a second upload adds all twenty
+     * again. Two records per course, two ids, two cards in the finder, two
+     * things a student can shortlist, and no screen anywhere saying they are
+     * the same course. They then drift: somebody corrects the tuition on one
+     * of them next month and the other keeps the old number.
+     *
+     * Refused rather than warned. A warning on a preview is read past, and by
+     * the time anybody notices, the duplicate is on the site with a
+     * shortlist pointing at it. The fix is one paste, and the message carries
+     * the thing to paste.
+     *
+     * WHAT COUNTS AS THE SAME COURSE: university, programme, level and
+     * country. Not the id — the id is what is missing. Not the city, because
+     * a campus is not a distinguishing fact anybody types consistently, and
+     * two rows differing only in a blank city are the duplicate this is for.
+     *
+     * HIDDEN ROWS COUNT. A programme removed from the site is hidden, not
+     * deleted — students' shortlists still point at it. Re-uploading it as
+     * new would leave those shortlists on the dead copy while the site shows
+     * the fresh one. The right repair is to bring the original back, so the
+     * message says so and names the column that does it.
+     */
+    const sameCourse = (uni, prog, level, country) =>
+      [uni, prog, level, country]
+        .map(v => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim())
+        .join(' | ');
+    const already = new Map();
+    db.programmes(true).forEach(r => {
+      const k = sameCourse(r.university, r.program, r.level, r.country);
+      if (!already.has(k)) already.set(k, r);
+    });
+    /* And the same row twice inside ONE file, which neither the check above
+       nor the database can see: nothing has been written yet when the second
+       one is read. */
+    const inThisFile = new Map();
+
     objects.forEach((o, n) => {
       const line = n + 2;                        // +1 header, +1 for 1-based rows
       const g = key => {
@@ -5991,6 +6041,55 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         why.push(`there is no programme with id ${draft.id} — an id means a change to `
           + 'an existing row, so leave that cell empty to add a new one');
       }
+
+      /* The other half of the same mistake, and the one nothing caught: an id
+         that is MISSING on a course we already have. See the note above the
+         loop.
+         *
+         * WHICH HALF DECIDES WHETHER THIS REFUSES OR ONLY SAYS SO, and the
+         * distinction is not fussiness — it is the difference between a check
+         * that protects the office and one that locks them out.
+         *
+         *   A BLANK id on a course we already have is the mistake being made
+         *   right now, in this file, and applying it creates the duplicate.
+         *   Refused.
+         *
+         *   An id'd row that matches another id'd row is a duplicate that is
+         *   ALREADY in the catalogue — the two Vistula rows are both in the
+         *   download, both carry ids, and both come back up on every ordinary
+         *   edit. Refusing that would mean nobody can change a tuition fee
+         *   until the old duplicate is cleaned up, and a check whose first act
+         *   is to block unrelated work gets switched off. So it is said, once,
+         *   loudly, and the file goes through. */
+      /* The NORMALISED level, not the typed one, because that is what the
+         database holds. "Masters" and "MSc" are one level here, and a level
+         nothing recognises is stored blank — so a file carrying an
+         unrecognised level, uploaded twice, has to match itself on blank
+         rather than on two raw strings that happen to differ. */
+      const dupKey = sameCourse(draft.university, draft.program,
+        normLevel(draft.level), draft.country);
+      const twin = already.get(dupKey);
+      const earlier = inThisFile.get(dupKey);
+      const clash = (earlier && earlier.line) || (twin && String(twin.id) !== String(draft.id) ? twin : null);
+      const clashSaid = earlier
+        ? `line ${earlier.line} of this file`
+        : (twin ? `id ${twin.id}` : '');
+      if (clash && !draft.id) {
+        why.push(`${draft.university} — ${draft.program} is already here, as ${clashSaid}`
+          + (!earlier && twin && !twin.active ? ', currently removed from the site' : '')
+          + `. A blank id always ADDS a new programme, so this line would put the same `
+          + 'course on the site twice. '
+          + (earlier
+              ? 'Delete one of the two rows'
+              : `Put ${twin.id} in the id column to change that row instead`
+                + (twin.active ? '' : ' and set active to yes to bring it back')
+                + ', or delete this line'));
+      } else if (clash) {
+        warn.push(`this row and ${clashSaid} are the same course — same university, `
+          + 'programme, level and country. One of them is a duplicate: open the '
+          + 'Catalogue screen and remove whichever one students are not already '
+          + 'shortlisted onto');
+      }
       if (!draft.program) why.push('no programme name');
       if (!draft.university) why.push('no university');
       if (!draft.country) why.push('no country code');
@@ -6027,6 +6126,12 @@ function makeApi({ db, uploadDir, catalogue, countries, mail, notify, live, push
         plan.rejected.push({ line, what: draft.university + ' — ' + draft.program, why });
         return;
       }
+      /* Claimed by the first row that survives, so the SECOND one is the one
+         named as the duplicate. A rejected row does not claim it — otherwise a
+         row refused for a missing country would make the good row further down
+         read as "the same course as line 12", and the office would be sent to
+         fix the wrong line. */
+      if (!inThisFile.has(dupKey)) inThisFile.set(dupKey, { line, id: draft.id });
 
       const existing = draft.id ? db.programme(draft.id) : null;
       const clean = cleanProgramme(draft, existing);
