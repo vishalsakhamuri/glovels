@@ -49,8 +49,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
        a private one — the two are different facts. */
     ['', 'MS Cybersecurity', 'SRH Berlin', 'Berlin', 'DE', 'MSc', 'Computing',
       'no', 'Free', 3100000, 'above20', 'https://example.com/c', 'winter', '2027-01-10', '', '', 'yes', 'no', ''],
-    /* A destination Glovels does not sell yet. It must be refused by name. */
-    ['', 'MS Analytics', 'Pace University', 'New York', 'US', 'Masters', 'Computing',
+    /* A destination Glovels does not sell yet. It must be refused by name.
+       (It was the US until patch 99 gave the US a page and a destination.) */
+    ['', 'MS Analytics', 'Pace University', 'São Paulo', 'BR', 'Masters', 'Computing',
       'no', 'Package', 3300000, 'above20', 'https://example.com/d', 'fall', '2027-01-10', '', '', 'yes', 'no', ''],
   ];
   fs.writeFileSync('/tmp/new-unis.xlsx', SHEET.writeXlsx(header, rows, 'Catalogue'));
@@ -77,7 +78,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     check('the plan does not propose removing anything',
       !/remove|delete|will be dropped/i.test(plan), plan.slice(0, 160));
     check('the unsellable destination is named, not silently dropped',
-      /US.*does not exist yet|does not exist yet/.test(plan) && /Pace University/.test(plan),
+      /BR.*does not exist yet|does not exist yet/.test(plan) && /Pace University/.test(plan),
       plan.slice(0, 220));
     check('"Masters" and "Fall" are read, not thrown away',
       !/level "Masters"|season "Fall"/.test(plan), plan.slice(0, 220));

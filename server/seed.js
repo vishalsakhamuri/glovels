@@ -998,7 +998,43 @@ function packagesBelongToADestination({ db }) {
   return fresh.length || added;
 }
 
-module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps,
+/*
+ * Destinations shipped since this database was seeded.
+ *
+ * seedCatalogue writes countries.json into an EMPTY database and never looks
+ * at it again, so the eight destinations added with their pages (USA,
+ * Australia, France, the Czech Republic, Finland, Singapore, Japan, New
+ * Zealand) would exist on the site and not on the Destinations tab — and a
+ * programme cannot be added under a destination that is not there.
+ *
+ * Same rule as addMissingServices: added once, recorded as offered, and a
+ * destination the office deletes does not come back on the next deploy.
+ */
+function addMissingCountries({ db, countries }) {
+  const shipped = Object.values(countries || {});
+  if (!shipped.length || !db.countries(true).length) return 0;
+  const offered = new Set((db.content('destinations-offered') || []).map(String));
+  const have = new Set(db.countries(true).map(c => String(c.code).toUpperCase()));
+  const FACT_KEYS = ['minCgpaPublic', 'minCgpaPrivate', 'degreeRule', 'backlogRule',
+    'extraNote', 'tests', 'fundsLabel', 'fundsInr', 'fundsNote', 'livingInr',
+    'workRights', 'deadlineNote', 'documents', 'hasPublicTrack', 'tuitionFree'];
+  let n = 0;
+  const sortBase = db.countries(true).length * 10;
+  shipped.forEach((c, i) => {
+    const code = String(c.code || '').toUpperCase();
+    if (!code || have.has(code) || offered.has(code)) return;
+    const facts = {};
+    FACT_KEYS.forEach(k => { if (c[k] !== undefined) facts[k] = c[k]; });
+    db.saveCountry({ code, name: c.name, flag: c.flag, region: c.region || '',
+      sort: sortBase + i * 10, facts });
+    n++;
+  });
+  db.setContent('destinations-offered', [...new Set([...offered, ...shipped.map(c => String(c.code).toUpperCase())])], 'system');
+  if (n) db.log('system', 'destinations added', n + ' shipped with the site');
+  return n;
+}
+
+module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, addMissingCountries,
   addMissingServices,
   addEntryTiers,
   moveEntryTiersToServices,

@@ -201,6 +201,10 @@ seed.bumpBrowseCaps({ db });
 /* Services shipped since this database was seeded. Added hidden — the office
    turns each on when there is somebody briefed to sell it. */
 const newServices = seed.addMissingServices({ db, content: content.shipped() });
+/* Destinations shipped since the database was seeded — the eight that came with
+   their own pages. Their pages exist either way; this puts them on the
+   Destinations tab so programmes can be filed under them. */
+const newCountries = seed.addMissingCountries({ db, countries: seedCountries });
 /* The ₹99, ₹999 and ₹4,999 tiers on a deployment seeded before they existed.
    Visible immediately — a hidden ₹99 card is the same as no ₹99 card. */
 const newTiers = seed.addEntryTiers({ db, content: content.shipped() });
@@ -1375,6 +1379,47 @@ const server = http.createServer(async (req, res) => {
   /* Ahead of the static files, because there is no file — the page is the
      database, rendered. `success-stories.html` reaches it through the same
      .html redirect every other internal link on this site goes through. */
+  /*
+   * The addresses glovels.com has today, on Wix.
+   *
+   * "SEOs are ranked good and SEOs are working well. In the new website also we
+   *  want to make sure we continue the same."
+   *
+   * The blog posts keep their addresses — /post/<slug> is the same on both
+   * sites, which is why the import keeps the slug. The PAGES do not: the Wix
+   * site says /canada-pr and /study-in-uk, this one says /migrate-canada-pr and
+   * /study-in-united-kingdom. The day the domain moves, every one of those old
+   * addresses is a link Google holds and a student has bookmarked, and a 404
+   * on it throws the ranking away. A 301 hands it over.
+   *
+   * Only addresses that are on the Wix sitemap today, and only where this site
+   * has the page. Not /services: that is the student's Services screen here.
+   * Anything not listed is a 404, honestly.
+   */
+  const WIX_MOVED = {
+    '/about': '/about-us', '/contact': '/contact-us', '/career': '/careers',
+    '/french': '/language-french', '/glovels-referral-program': '/refer',
+    '/terms-of-use': '/terms', '/privacy-policy': '/privacy',
+    '/study-in-uk': '/study-in-united-kingdom',
+    '/canada-pr': '/migrate-canada-pr', '/australia-pr': '/migrate-australia-pr',
+    '/germanyopportunitycard': '/work-opportunity-card',
+    '/nursing-jobs-in-germany': '/work-nursing-germany',
+    '/pharma-jobs-in-germany': '/work-pharma-germany',
+    '/medical-pg-in-germany': '/work-medical-pg-germany',
+    '/ielts-toefl-pte': '/test-ielts-toefl-pte', '/gre-gmat-sat': '/test-gre-gmat-sat',
+    '/pricing-india': '/#packages', '/pricing-global': '/#packages',
+    '/book-online': '/#counsel',
+    '/useful-links': '/glossary', '/project': '/success-stories',
+  };
+  if (Object.prototype.hasOwnProperty.call(WIX_MOVED, pathname)) {
+    return send(res, 301, '', 'text/html', { Location: WIX_MOVED[pathname] });
+  }
+  /* Wix's blog categories and tags: /blog/categories/german, /blog/tags/x.
+     The posts keep their own addresses; the lists land on the index. */
+  if (/^\/blog\/(?:categories|tags)\//.test(pathname)) {
+    return send(res, 301, '', 'text/html', { Location: '/blog' });
+  }
+
   /* One page per university, and the list. Rendered from the live catalogue;
      not files, so they sit ahead of the static handler. A .html spelling or a
      trailing slash goes to the clean address like every other page. */
@@ -1540,7 +1585,7 @@ ${configure.describe(CFG)}
   Email: ${mail.mode === 'smtp' ? 'sending through ' + (mail.status().host || 'mail.env')
     : 'NOT SENDING \u2014 written to data/outbox/ as .eml files. Set SMTP_HOST,\n         SMTP_USER and SMTP_PASS in the environment (or mail.env) and restart.\n         Organisation \u2192 Email says the same thing, with a test button.'}.
   WhatsApp: ${notify.whatsappReady ? 'configured' : 'off — the messenger works without it'}.
-${newTiers ? `  ${newTiers} entry package(s) added and live — the machine delivers them.\n` : ''}${movedTiers ? `  ${movedTiers} entry tier(s) moved into Services, where a private-university\n  shortlist belongs.\n` : ''}${newServices ? `  ${newServices} new service(s) added to the catalogue.\n` : ''}${openedServices ? `  ${openedServices} of them are priced on request and are live \u2014 the button asks a\n  counsellor.\n` : ''}${deliveringPkgs ? `  ${deliveringPkgs} package(s) now deliver the public universities they unlock \u2014 a\n  student who pays gets a shortlist without waiting for anybody.\n` : ''}${phantomCards ? `  ${phantomCards} home-page card(s) removed \u2014 they were the code that draws the\n  cards, scraped as if they were content.\n` : ''}${chipAsks ? `  The SOP and LOR studio now asks what each ticked thing actually was.\n` : ''}${feeModels ? `  ${feeModels} university row(s) now say what applying costs \u2014 free where we are\n  partnered, a package where we are not. The column is on the catalogue sheet.\n` : ''}${destPkgs ? `  Packages are scoped to a destination now: Germany keeps its four, and the\n  other six countries have three of their own on a second tab.\n` : ''}${filledPosts ? `  ${filledPosts} blog post(s) written into their drafts. Read them and press Publish in\n  Blog \u2192 the post.\n` : ''}${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
+${newTiers ? `  ${newTiers} entry package(s) added and live — the machine delivers them.\n` : ''}${movedTiers ? `  ${movedTiers} entry tier(s) moved into Services, where a private-university\n  shortlist belongs.\n` : ''}${newServices ? `  ${newServices} new service(s) added to the catalogue.\n` : ''}${newCountries ? `  ${newCountries} destination(s) added \u2014 they have pages on the site and are on the\n  Destinations tab now, with no programmes yet.\n` : ''}${openedServices ? `  ${openedServices} of them are priced on request and are live \u2014 the button asks a\n  counsellor.\n` : ''}${deliveringPkgs ? `  ${deliveringPkgs} package(s) now deliver the public universities they unlock \u2014 a\n  student who pays gets a shortlist without waiting for anybody.\n` : ''}${phantomCards ? `  ${phantomCards} home-page card(s) removed \u2014 they were the code that draws the\n  cards, scraped as if they were content.\n` : ''}${chipAsks ? `  The SOP and LOR studio now asks what each ticked thing actually was.\n` : ''}${feeModels ? `  ${feeModels} university row(s) now say what applying costs \u2014 free where we are\n  partnered, a package where we are not. The column is on the catalogue sheet.\n` : ''}${destPkgs ? `  Packages are scoped to a destination now: Germany keeps its four, and the\n  other six countries have three of their own on a second tab.\n` : ''}${filledPosts ? `  ${filledPosts} blog post(s) written into their drafts. Read them and press Publish in\n  Blog \u2192 the post.\n` : ''}${adminSeed && adminSeed.created ? `  Administrator created: ${adminSeed.email}\n` : ''}${adminSeed && adminSeed.existed ? `  Administrator: ${adminSeed.email} (already existed — ADMIN_PASSWORD does not reset it.\n  Lost it? Set ADMIN_RESET=true, redeploy, sign in, then set it back to false.)\n` : ''}${adminSeed && adminSeed.reset ? `  ⚠ ADMIN PASSWORD WAS RESET for ${adminSeed.email} from ADMIN_PASSWORD.\n    Every session it had is signed out. TURN ADMIN_RESET OFF NOW — left on, it\n    resets the password on every single deploy.\n` : ''}${seeded ? `  Three accounts created, all with the password ${seeded.password_all}:
     student     ${seeded.email}      ${seeded.shortlisted} universities, 6 documents, 1 paid order
     counsellor  ${seeded.counsellor}       answers the chat — open /counsellor
     admin       ${seeded.admin}        assigns counsellors — open /admin

@@ -11,6 +11,9 @@ const BASE = process.argv[2] || 'http://localhost:8099';
 
 const PUBLIC = ['/', '/study-in-germany', '/study-in-canada', '/study-in-ireland',
   '/study-in-poland', '/study-in-spain', '/study-in-italy', '/study-in-united-kingdom',
+  '/study-in-usa', '/study-in-australia', '/study-in-france', '/study-in-czechrepublic',
+  '/study-in-finland', '/study-in-singapore', '/study-in-japan', '/study-in-new-zealand',
+  '/visa-processing', '/university',
   '/about-us', '/contact-us', '/careers', '/blog', '/scholarships', '/glossary',
   '/test-ielts-toefl-pte', '/test-gre-gmat-sat', '/language-german', '/language-french',
   '/migrate-canada-pr', '/migrate-australia-pr', '/work-opportunity-card',

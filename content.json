@@ -1898,6 +1898,78 @@
    "sectionLabel": ""
   },
   {
+   "key": "header|a|567cc2f6|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in United States",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|e298987f|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Australia",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|541fd614|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in France",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|1441c27a|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Czech Republic",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|c91b5f3d|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Finland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|4ae7948b|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Singapore",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|a072baf9|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Japan",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|de0a9e6e|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in New Zealand",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
    "key": "header|button|895da821|0",
    "section": "header",
    "kind": "text",
@@ -1966,6 +2038,15 @@
    "kind": "text",
    "element": "a",
    "original": "Australia PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "header|a|3c53aa9b|0",
+   "section": "header",
+   "kind": "text",
+   "element": "a",
+   "original": "Visa processing",
    "note": "",
    "sectionLabel": ""
   },
@@ -2213,6 +2294,78 @@
    "sectionLabel": ""
   },
   {
+   "key": "page|a|567cc2f6|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in United States",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|e298987f|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Australia",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|541fd614|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in France",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|1441c27a|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Czech Republic",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|c91b5f3d|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Finland",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|4ae7948b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Singapore",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|a072baf9|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in Japan",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|de0a9e6e|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Study in New Zealand",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
    "key": "page|button|895da821|0",
    "section": "page",
    "kind": "text",
@@ -2281,6 +2434,15 @@
    "kind": "text",
    "element": "a",
    "original": "Australia PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "page|a|3c53aa9b|0",
+   "section": "page",
+   "kind": "text",
+   "element": "a",
+   "original": "Visa processing",
    "note": "",
    "sectionLabel": ""
   },
@@ -5575,6 +5737,15 @@
    "kind": "text",
    "element": "a",
    "original": "Australia PR",
+   "note": "",
+   "sectionLabel": ""
+  },
+  {
+   "key": "footer|a|3c53aa9b|0",
+   "section": "footer",
+   "kind": "text",
+   "element": "a",
+   "original": "Visa processing",
    "note": "",
    "sectionLabel": ""
   },

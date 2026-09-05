@@ -23,6 +23,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
 const SLUGS = [
   'study-in-canada', 'study-in-germany', 'study-in-united-kingdom',
   'study-in-ireland', 'study-in-poland', 'study-in-spain', 'study-in-italy',
+  'study-in-usa', 'study-in-australia', 'study-in-france', 'study-in-czechrepublic',
+  'study-in-finland', 'study-in-singapore', 'study-in-japan', 'study-in-new-zealand',
   'work-medical-pg-germany', 'work-nursing-germany', 'work-pharma-germany',
   'work-opportunity-card', 'language-german', 'language-french',
   'migrate-canada-pr', 'migrate-australia-pr', 'test-ielts-toefl-pte',

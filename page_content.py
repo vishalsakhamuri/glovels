@@ -2324,6 +2324,830 @@ PAGES["disclaimers"] = {
     ],
 }
 
+# ---------------------------------------------------------------------------
+# The eight destinations glovels.com had pages for and this site did not.
+#
+# "All the pages are not copied." Written fresh rather than lifted from the
+# Wix pages — those were half boilerplate (How it works, 7 Reasons, a contact
+# form) and duplicated word for word across two live domains suppresses one of
+# them in search. The facts in the fact box above each of these come from
+# countries.json and are edited from the Destinations tab; the prose is here.
+# None of these has a programme in the catalogue yet, so the pages say so and
+# send the reader to a counsellor rather than to an empty finder.
+
+# ------------------------------------------------------------------------ USA
+PAGES["study-in-usa"] = {
+    "sections": [
+        {
+            "h": "Why the United States",
+            "p": [
+                "The USA has more universities in the world's top hundred than every "
+                "other country combined, and a research budget to match. For an Indian "
+                "engineer or scientist it remains the destination where the best labs, "
+                "the largest companies and the most generous graduate funding sit in one "
+                "place.",
+                "It is also the most expensive route on this site, and the one where the "
+                "gap between a good decision and a bad one is widest. A funded MS at a "
+                "state university and an unfunded one at a private university can differ "
+                "by ₹40 lakh over two years for the same degree title. Choosing well is "
+                "the whole job.",
+                "Master's programmes are two years, taught, and usually let you work as "
+                "a research or teaching assistant — which is how a large number of Indian "
+                "students bring the cost down to something ordinary.",
+            ],
+        },
+        {
+            "h": "Life in the USA",
+            "p": [
+                "Costs vary more by city than by country elsewhere: a college town in the "
+                "Midwest or the South can be half the price of Boston or the Bay Area for "
+                "the same quality of programme. Most Indian students share apartments "
+                "off campus after the first semester.",
+                "Health insurance is compulsory and is usually bought through the "
+                "university. Budget for it separately — it is not in the tuition figure.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>Fall (August / September) — the main intake.</b> Almost every "
+                "programme, and almost all the funding.",
+                "<b>Spring (January) — secondary.</b> Fewer programmes, less assistantship "
+                "money, but a real option for somebody who missed Fall.",
+            ],
+            "note": "Fall deadlines are early: December to February for a start the "
+                    "following August. GRE and TOEFL have to be done before that. Begin "
+                    "12 to 15 months ahead.",
+        },
+        {
+            "h": "Tests and requirements",
+            "ul": [
+                "<b>English</b> — TOEFL iBT 80 to 100 or IELTS 6.5 to 7.0, depending on "
+                "the university; Duolingo is accepted by many since 2020",
+                "<b>GRE</b> — still asked for by many engineering and science Master's, "
+                "optional at a growing number; <b>GMAT</b> for most MBAs",
+                "<b>Degree</b> — a 4-year Bachelor is the norm; a 3-year degree is "
+                "accepted by many universities with a WES evaluation, and rejected by some",
+            ],
+            "note": "Three strong recommendation letters and a specific statement of "
+                    "purpose matter more here than anywhere else. Admissions committees "
+                    "read them.",
+        },
+        {
+            "h": "The F-1 visa",
+            "p": [
+                "The university issues an I-20 once you are admitted and have shown "
+                "funds for the first year. You pay the SEVIS fee, complete the DS-160, "
+                "and attend an interview at the consulate — Hyderabad has one. The "
+                "interview is short and decides everything.",
+            ],
+            "ul": [
+                "Valid passport and the I-20",
+                "SEVIS fee receipt and DS-160 confirmation",
+                "Proof of funds — bank statements, loan sanction, sponsor letters",
+                "Academic records and test scores",
+                "Evidence of ties to India and a clear plan for after the degree",
+            ],
+            "note": "Appointment slots in India fill months ahead of Fall. Book the "
+                    "moment the I-20 arrives.",
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "Optional Practical Training gives 12 months of work authorisation after "
+                "any degree, and STEM graduates get a further 24 — three years in total "
+                "to find an employer willing to sponsor an H-1B. That lottery is the "
+                "uncertain part of the American route, and the reason many students "
+                "treat a STEM Master's as the safer bet.",
+            ],
+        },
+    ],
+    "faq": [
+        ("Is a 3-year Indian Bachelor's accepted?",
+         "By many universities, usually with a WES or ECE credential evaluation. Some "
+         "top programmes still ask for 16 years of education. We check per programme "
+         "before you apply."),
+        ("How much does it cost in total?",
+         "Anywhere from ₹25 lakh to ₹80 lakh for a two-year Master's, depending on the "
+         "university and the city. Assistantships and scholarships can bring a public "
+         "university down to the lower end."),
+        ("Is the GRE compulsory?",
+         "No longer everywhere, but a good score still helps at the universities that "
+         "read it and for assistantships. We tell you programme by programme."),
+        ("Can I work while studying?",
+         "20 hours a week on campus during term, full-time in breaks. Off-campus work "
+         "needs authorisation and is usually the CPT internship in the second year."),
+        ("What is OPT?",
+         "Work authorisation after your degree — 12 months, plus 24 more for STEM "
+         "fields. It is the bridge to an H-1B."),
+        ("How early should I start?",
+         "Twelve to fifteen months before the Fall you want to join. Tests, "
+         "recommendations and the SOP take longer than anybody expects."),
+    ],
+}
+
+# ------------------------------------------------------------------ Australia
+PAGES["study-in-australia"] = {
+    "sections": [
+        {
+            "h": "Why Australia",
+            "p": [
+                "Eight of Australia's universities sit in the world's top hundred, the "
+                "degrees are recognised everywhere, and the country has the most "
+                "generous post-study work rights of any English-speaking destination — "
+                "two to four years, depending on the degree and where you studied.",
+                "Master's programmes are 1.5 to 2 years and practical by design: "
+                "engineering, IT, nursing, business analytics, public health and "
+                "construction management are the fields Indian students choose most, "
+                "and the ones the job market rewards.",
+                "It is not cheap. Tuition is ₹20 to ₹35 lakh a year at the big "
+                "universities, and Sydney and Melbourne are expensive to live in. "
+                "Regional universities cost less and carry longer work rights.",
+            ],
+        },
+        {
+            "h": "Life in Australia",
+            "p": [
+                "Melbourne, Sydney, Brisbane, Perth and Adelaide each have large Indian "
+                "communities; Adelaide and Perth are noticeably cheaper. Most students "
+                "share houses. The climate is kind, the cities are safe, and public "
+                "transport is student-discounted.",
+                "Overseas Student Health Cover is compulsory for the length of the visa "
+                "and is bought before you apply for it.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>February — the main intake.</b> Every programme.",
+                "<b>July — the second.</b> Most programmes, and a real intake rather than "
+                "a leftover one.",
+                "<b>November</b> — a handful of universities and pathways.",
+            ],
+            "note": "Apply four to six months ahead of the intake. The visa itself can "
+                    "take one to three months, so the offer needs to be in hand early.",
+        },
+        {
+            "h": "Tests and requirements",
+            "ul": [
+                "<b>English</b> — IELTS 6.5 with no band below 6.0 for most Master's; PTE "
+                "Academic is widely accepted and often faster to book",
+                "<b>Degree</b> — a 3-year Indian Bachelor's is accepted for most Master's",
+                "<b>Genuine Student requirement</b> — a written statement explaining "
+                "why this course, why Australia, and what you will do afterwards",
+            ],
+            "note": "The Genuine Student statement is where most Indian refusals happen. "
+                    "It is read carefully. We draft it with you, not for you.",
+        },
+        {
+            "h": "The student visa (subclass 500)",
+            "p": [
+                "You apply online after the university issues a Confirmation of "
+                "Enrolment. Funds are checked: a year of living costs (set by the "
+                "government and revised most years), first-year tuition, and travel.",
+            ],
+            "ul": [
+                "Confirmation of Enrolment (CoE)",
+                "Genuine Student statement",
+                "Proof of funds — savings, education loan, or a sponsor",
+                "OSHC health cover for the visa period",
+                "English test result and academic records",
+                "Medical examination",
+            ],
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "The Temporary Graduate visa (subclass 485) gives two years of work "
+                "rights after a Master's by coursework, three after a Master's by "
+                "research, and an extra year or two for regional study. It is the "
+                "standard route into skilled migration, and the reason Australia is "
+                "on this site's Migrate menu as well.",
+            ],
+        },
+    ],
+    "faq": [
+        ("Is a 3-year degree enough?",
+         "Yes, for most Master's programmes. Some — engineering in particular — want "
+         "a 4-year degree or relevant work experience."),
+        ("How many hours can I work?",
+         "48 hours a fortnight during term, unlimited in scheduled breaks."),
+        ("What is the Genuine Student requirement?",
+         "A statement, assessed by the visa officer, that you intend to study and have "
+         "thought it through. It replaced the old GTE rule in 2024 and it is decisive."),
+        ("How long can I stay after graduating?",
+         "Two years after a coursework Master's, three after a research Master's, "
+         "longer for regional campuses."),
+        ("Which cities are cheapest?",
+         "Adelaide, Perth and regional campuses. Sydney and Melbourne are the most "
+         "expensive by a wide margin."),
+        ("When should I start?",
+         "Eight to ten months before the intake, so the offer, the OSHC and the visa "
+         "have room."),
+    ],
+}
+
+# --------------------------------------------------------------------- France
+PAGES["study-in-france"] = {
+    "sections": [
+        {
+            "h": "Why France",
+            "p": [
+                "France's public universities charge non-EU students a few thousand "
+                "euros a year, and the Grandes Écoles — the engineering and business "
+                "schools that lead the country — offer a growing number of English-taught "
+                "Master's. It is one of the most affordable serious destinations in "
+                "Western Europe, and it is deliberately courting Indian students.",
+                "The strengths are aerospace, engineering, luxury and fashion "
+                "management, hospitality, finance and data science. Toulouse for "
+                "aerospace and Paris for business are the two names most Indian students "
+                "arrive with, and both are earned.",
+                "Around 1,700 programmes are taught in English. Daily life is in "
+                "French, and A2 makes an enormous difference to the year.",
+            ],
+        },
+        {
+            "h": "Life in France",
+            "p": [
+                "Paris is expensive and everywhere else is not. Lyon, Toulouse, "
+                "Grenoble, Lille and Nantes are all university cities with lower rents "
+                "and strong industry. Students get a housing allowance (CAF) that "
+                "returns a meaningful part of the rent, subsidised university meals, and "
+                "discounted transport.",
+                "Health cover through the French system is free for students once "
+                "registered — one of the quiet advantages of the country.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>September — the main intake.</b> Nearly all programmes.",
+                "<b>January / February</b> — a limited number of Master's and MBAs.",
+            ],
+            "note": "The Campus France process has its own calendar and closes months "
+                    "before September. Start in the autumn before you intend to go.",
+        },
+        {
+            "h": "Language and tests",
+            "ul": [
+                "<b>English-taught programmes</b> — IELTS 6.0 to 6.5 or TOEFL; many "
+                "business schools accept a medium-of-instruction letter",
+                "<b>French-taught programmes</b> — DELF B2, sometimes DALF C1",
+                "<b>GMAT / GRE</b> — for most business schools' Master's in Management "
+                "and MBAs, optional elsewhere",
+            ],
+        },
+        {
+            "h": "Campus France, and the visa",
+            "p": [
+                "France has a step most countries do not: the Études en France "
+                "procedure run by Campus France. You register, upload your documents, "
+                "attend an interview at the Campus France office, and only then apply "
+                "for the long-stay student visa (VLS-TS). Miss the window and the year "
+                "is gone.",
+            ],
+            "ul": [
+                "Admission letter from a recognised institution",
+                "Campus France interview certificate (NOC)",
+                "Proof of funds — about €615 a month for the year",
+                "Proof of accommodation for the first months",
+                "Travel insurance covering the initial period",
+                "Academic records and language results",
+            ],
+            "note": "The VLS-TS has to be validated online within three months of "
+                    "arriving. It is a five-minute step that people forget, and the "
+                    "consequences are not five minutes.",
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "A Master's graduate can apply for the APS (recherche d'emploi / "
+                "création d'entreprise) residence permit — twelve months to find work "
+                "or start something, renewable once for Indian graduates under the "
+                "India–France agreement. A job offer converts it to a work permit or, "
+                "for the well-paid, a Talent Passport.",
+            ],
+        },
+    ],
+    "faq": [
+        ("Do I need to speak French?",
+         "Not for the English-taught programmes. For the year itself, for part-time "
+         "work and for staying afterwards, yes — start on it before you leave."),
+        ("What does Campus France do?",
+         "It is the mandatory pre-visa process: registration, document check, and an "
+         "interview. The visa application cannot begin until it is complete."),
+        ("How much are fees?",
+         "Public universities charge non-EU students roughly €3,000 to €4,000 a year. "
+         "Grandes Écoles and business schools charge €10,000 to €25,000."),
+        ("Can I work while studying?",
+         "Yes — 964 hours a year, roughly 20 hours a week, with no separate permit."),
+        ("Can I stay after graduating?",
+         "Yes. The APS permit gives twelve months, extendable for Indian graduates, "
+         "to find a job that converts it."),
+        ("When should I start?",
+         "About a year ahead. Campus France opens in the autumn for the following "
+         "September and closes in spring."),
+    ],
+}
+
+# ------------------------------------------------------------- Czech Republic
+PAGES["study-in-czechrepublic"] = {
+    "sections": [
+        {
+            "h": "Why the Czech Republic",
+            "p": [
+                "Charles University in Prague is one of the oldest in the world, the "
+                "Czech Technical University and Brno University of Technology are "
+                "respected engineering schools, and the whole country costs a fraction "
+                "of Western Europe. Tuition in Czech is free at public universities; "
+                "English-taught programmes charge, but modestly — typically €3,000 to "
+                "€8,000 a year, with medicine at the top of that range.",
+                "Indian students come for medicine, engineering, IT, economics and "
+                "the sciences. Prague and Brno both have established Indian communities "
+                "and a job market that runs short of engineers.",
+            ],
+        },
+        {
+            "h": "Life in the Czech Republic",
+            "p": [
+                "Living costs are among the lowest on this site — ₹45,000 to ₹65,000 a "
+                "month covers a shared flat, food and a transport pass in Prague, less "
+                "in Brno or Olomouc. University dormitories are cheap and plentiful.",
+                "The country is safe, central, and an hour or two by train from Vienna, "
+                "Dresden and Bratislava. Winters are cold and the light goes early; "
+                "it is worth knowing before you arrive.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>September / October — the main intake.</b> Nearly all programmes.",
+                "<b>February</b> — a small number of programmes, mostly at private "
+                "universities.",
+            ],
+            "note": "Applications for September usually close between February and "
+                    "April, and the nostrification of your degree has to be done before "
+                    "enrolment. Start ten months ahead.",
+        },
+        {
+            "h": "Language and requirements",
+            "ul": [
+                "<b>English-taught programmes</b> — IELTS 6.0 to 6.5, or a "
+                "medium-of-instruction letter at many universities",
+                "<b>Czech-taught programmes</b> — B2 Czech, usually after a "
+                "preparatory year; these are the tuition-free ones",
+                "<b>Nostrification</b> — official recognition of your Indian degree by "
+                "a Czech university or the ministry, needed to enrol",
+                "<b>Entrance exams</b> — common for medicine and some engineering "
+                "programmes, often held in India or online",
+            ],
+        },
+        {
+            "h": "The visa",
+            "p": [
+                "More than 90 days needs the long-term visa for study purposes, applied "
+                "for at the Czech embassy in Delhi. Appointments are limited, so the "
+                "admission letter needs to arrive early.",
+            ],
+            "ul": [
+                "Admission letter",
+                "Proof of accommodation for the whole stay",
+                "Proof of funds — about CZK 130,000 for the year",
+                "Comprehensive health insurance from a Czech-recognised insurer",
+                "Criminal record certificate, apostilled",
+                "Academic records, apostilled and translated",
+            ],
+            "note": "Apostilles take weeks. Get every certificate apostilled the moment "
+                    "you decide to apply, not after the offer.",
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "Graduates of Czech universities can apply for a residence permit to "
+                "look for work for up to nine months, and a job offer converts it to "
+                "an Employee Card. Time on a study permit counts partly toward "
+                "permanent residence.",
+            ],
+        },
+    ],
+    "faq": [
+        ("Is study really free?",
+         "In Czech, at public universities, yes. In English it is paid, but at a "
+         "fraction of Western European fees."),
+        ("What is nostrification?",
+         "Recognition of your Indian qualification by a Czech authority. It is "
+         "mandatory before you can enrol and takes one to two months."),
+        ("Can I work while studying?",
+         "Yes — full-time students on a study visa have no hour limit, although "
+         "employers will expect you to attend."),
+        ("Is the Czech Republic good for medicine?",
+         "It is one of the most popular destinations for English-taught MBBS-equivalent "
+         "degrees, and the degrees are recognised across the EU."),
+        ("How cold is it?",
+         "Cold. Winters are regularly below zero. Everybody manages."),
+        ("Can I stay afterwards?",
+         "Yes — up to nine months to find work, then an Employee Card."),
+    ],
+}
+
+# -------------------------------------------------------------------- Finland
+PAGES["study-in-finland"] = {
+    "sections": [
+        {
+            "h": "Why Finland",
+            "p": [
+                "Finland runs one of the best education systems in the world, teaches "
+                "hundreds of Master's programmes in English, and is short of skilled "
+                "people. Aalto, Helsinki, Tampere, Oulu and the universities of applied "
+                "sciences are strong in technology, design, energy, wireless, forestry "
+                "and business.",
+                "Tuition for non-EU students is €8,000 to €18,000 a year, and nearly "
+                "every university offers scholarships that cut it in half or to nothing "
+                "for good applicants. The cost of the year is often lower than the "
+                "headline suggests.",
+                "The post-study permit is generous — two years to find work — and the "
+                "government has made it easier, not harder, since 2022.",
+            ],
+        },
+        {
+            "h": "Life in Finland",
+            "p": [
+                "Helsinki is the most expensive city; Tampere, Turku, Oulu and "
+                "Jyväskylä are cheaper and every one of them is a proper university "
+                "town. Student housing foundations offer rooms well below market rent. "
+                "Student meals are subsidised to a few euros.",
+                "It is dark and cold from November to February. Finns cope with saunas, "
+                "cross-country skis and coffee. So will you.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>August / September — the main intake</b>, with a single joint "
+                "application window in January.",
+                "<b>January</b> — a small number of programmes, mostly at universities "
+                "of applied sciences.",
+            ],
+            "note": "The joint application in January is the whole game: one form, up "
+                    "to six programmes, closes in two to three weeks. Miss it and the "
+                    "next chance is a year away.",
+        },
+        {
+            "h": "Language and requirements",
+            "ul": [
+                "<b>English</b> — IELTS 6.5 or equivalent; some programmes accept a "
+                "degree taught in English as proof",
+                "<b>Degree</b> — a 3-year Indian Bachelor's is accepted for most "
+                "Master's",
+                "<b>Entrance exams or portfolios</b> — used by some programmes instead "
+                "of grades alone; design and architecture in particular",
+            ],
+        },
+        {
+            "h": "The residence permit",
+            "p": [
+                "Students apply for a residence permit for studies online through "
+                "Enter Finland and give biometrics at VFS. Since 2022 it is granted for "
+                "the length of the degree, not renewed yearly.",
+            ],
+            "ul": [
+                "Admission letter and proof of tuition paid or scholarship",
+                "Proof of funds — about €800 a month, €9,600 for the year",
+                "Health insurance covering the stay",
+                "Passport and academic records",
+            ],
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "Graduates can stay for two years to look for work, and many find it "
+                "before they graduate — Finnish universities are tightly connected to "
+                "the companies around them. Permanent residence is possible after four "
+                "years, and study time counts toward it in full.",
+            ],
+        },
+    ],
+    "faq": [
+        ("How much are fees?",
+         "€8,000 to €18,000 a year for non-EU students, with scholarships of 50% to "
+         "100% common for strong applicants."),
+        ("Do I need Finnish?",
+         "Not for an English-taught degree. For staying and working afterwards it "
+         "helps enormously, and universities offer free courses."),
+        ("Can I work while studying?",
+         "Yes — 30 hours a week on average during term, no limit in holidays."),
+        ("How long can I stay after graduating?",
+         "Two years on a job-search permit, with study time counting toward "
+         "permanent residence."),
+        ("When is the application?",
+         "The joint application window opens in early January and closes within "
+         "weeks. Everything has to be ready before it opens."),
+        ("Is it very cold?",
+         "Yes. Housing is warm, transport runs, and nobody stops for the weather."),
+    ],
+}
+
+# ------------------------------------------------------------------ Singapore
+PAGES["study-in-singapore"] = {
+    "sections": [
+        {
+            "h": "Why Singapore",
+            "p": [
+                "The National University of Singapore and Nanyang Technological "
+                "University are two of the top fifteen universities in the world, four "
+                "hours from Hyderabad, in a country that runs in English and has "
+                "built its economy on exactly the fields Indian students study — "
+                "finance, computing, engineering, logistics and biomedical science.",
+                "Beyond the two public giants sit SMU, SUTD and a set of private "
+                "institutions that deliver British and Australian degrees locally at a "
+                "lower cost. The quality gap between the tiers is real, and we say so.",
+                "Fees at the public universities are ₹25 to ₹40 lakh a year for a "
+                "Master's. The trade is a short flight, a familiar culture, and a job "
+                "market with a large Indian professional community.",
+            ],
+        },
+        {
+            "h": "Life in Singapore",
+            "p": [
+                "Safe, clean, hot, and expensive to rent in. Most students live in "
+                "university housing or shared HDB flats in the outer estates. Food is "
+                "cheap and excellent; everything else is not. Budget ₹1 to ₹1.3 lakh "
+                "a month.",
+                "Little India, Tamil as an official language, and direct flights home "
+                "make it the easiest destination on this site to settle into.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>August — the main intake.</b> All programmes at the public "
+                "universities.",
+                "<b>January</b> — a smaller intake, some Master's programmes.",
+            ],
+            "note": "NUS and NTU close applications for August between January and "
+                    "March, and they are selective. Private institutions run several "
+                    "intakes a year.",
+        },
+        {
+            "h": "Tests and requirements",
+            "ul": [
+                "<b>English</b> — IELTS 6.5 or TOEFL; often waived for a degree taught "
+                "in English",
+                "<b>GRE / GMAT</b> — asked for by many NUS and NTU Master's and by the "
+                "MBAs",
+                "<b>Degree</b> — a good Bachelor's, usually first-class or high second "
+                "for the public universities",
+            ],
+            "note": "The public universities are competitive. A 7.5 CGPA is a "
+                    "realistic floor for NUS and NTU engineering Master's; private "
+                    "institutions are more open.",
+        },
+        {
+            "h": "The Student's Pass",
+            "p": [
+                "After admission the institution registers you on the SOLAR system "
+                "and you apply for the Student's Pass online. It is normally granted "
+                "within a few weeks, and collected in person after arrival.",
+            ],
+            "ul": [
+                "Admission letter and SOLAR registration",
+                "Passport and photographs",
+                "Proof of funds for tuition and a year of living costs",
+                "Academic records and test scores",
+                "Medical examination on arrival",
+            ],
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "Graduates can take a Long-Term Visit Pass for up to a year to look "
+                "for work, and an Employment Pass once hired above the salary "
+                "threshold. Singapore favours graduates of its own universities in "
+                "that process, which is part of what the fees buy.",
+            ],
+        },
+    ],
+    "faq": [
+        ("How hard is it to get into NUS or NTU?",
+         "Hard. They rank alongside the best in the world and select accordingly. We "
+         "tell you honestly where you stand before you pay an application fee."),
+        ("Are private institutions worth it?",
+         "For some degrees and some students, yes — a recognised British or Australian "
+         "degree at a lower cost. The employer recognition is lower than NUS or NTU "
+         "and we say so."),
+        ("Can I work while studying?",
+         "16 hours a week during term at approved institutions, full-time in "
+         "vacations."),
+        ("How much does it cost?",
+         "₹25 to ₹40 lakh a year in fees at the public universities, plus ₹12 to ₹15 "
+         "lakh a year to live."),
+        ("Can I stay afterwards?",
+         "A Long-Term Visit Pass gives up to a year to find work; an Employment Pass "
+         "follows a qualifying job offer."),
+        ("Is it far?",
+         "Four hours from Hyderabad. The closest serious destination there is."),
+    ],
+}
+
+# ---------------------------------------------------------------------- Japan
+PAGES["study-in-japan"] = {
+    "sections": [
+        {
+            "h": "Why Japan",
+            "p": [
+                "Japan has the third-largest economy in the world, an ageing "
+                "population, and a declared shortage of engineers — and it has spent "
+                "a decade opening its universities to international students. The "
+                "University of Tokyo, Kyoto, Osaka, Tohoku, Tokyo Tech and Nagoya are "
+                "world-class, and more than a thousand programmes are now taught in "
+                "English.",
+                "Fees are moderate: national universities charge around ¥535,000 a "
+                "year, roughly ₹3 lakh, for every student regardless of nationality. "
+                "The MEXT scholarship and university scholarships are real and are won "
+                "by Indian students every year.",
+                "Robotics, materials, automotive, electronics, AI and game development "
+                "are the fields Japan leads, and where a Japanese Master's opens doors "
+                "that nothing else does.",
+            ],
+        },
+        {
+            "h": "Life in Japan",
+            "p": [
+                "Tokyo is expensive; Osaka, Nagoya, Fukuoka, Sendai and Sapporo are "
+                "considerably less. University housing is cheap where it exists. "
+                "Budget ₹80,000 to ₹1.1 lakh a month depending on the city.",
+                "The country is safe, orderly and welcoming to students, and the "
+                "language barrier is the real hurdle. Japanese is not required for "
+                "an English-taught degree; it is required for almost everything else, "
+                "and universities teach it free.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>April — the traditional Japanese academic year.</b> Most programmes.",
+                "<b>September / October — the international intake.</b> Most "
+                "English-taught programmes, and the one Indian students usually take.",
+            ],
+            "note": "Applications close six to nine months before the intake, and the "
+                    "Certificate of Eligibility takes another two to three months after "
+                    "admission. Start a year ahead.",
+        },
+        {
+            "h": "Language and requirements",
+            "ul": [
+                "<b>English-taught programmes</b> — IELTS 6.0 to 6.5 or TOEFL iBT 80",
+                "<b>Japanese-taught programmes</b> — JLPT N2, sometimes N1",
+                "<b>Degree</b> — 16 years of education for a Master's; a 3-year "
+                "Bachelor's needs a bridge or is refused, university by university",
+                "<b>Research proposal and a supervisor</b> — most graduate admissions "
+                "at national universities start with a professor agreeing to take you",
+            ],
+            "note": "Finding a supervisor is the step nobody in India expects. We write "
+                    "to professors with you, months before the formal application.",
+        },
+        {
+            "h": "The visa",
+            "p": [
+                "The university applies to Japanese Immigration for a Certificate of "
+                "Eligibility on your behalf. With the CoE, the student visa itself is "
+                "issued by the Japanese consulate in a week or two.",
+            ],
+            "ul": [
+                "Admission letter",
+                "Certificate of Eligibility (CoE)",
+                "Proof of funds for tuition and the first year",
+                "Passport, photographs and academic records",
+            ],
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "Graduates can switch to a Designated Activities visa for up to a year "
+                "to look for work, and Japan's Engineer / Specialist in Humanities "
+                "work visa follows a job offer with few obstacles for a graduate of a "
+                "Japanese university. Japanese to N2 is what makes the difference in "
+                "that search.",
+            ],
+        },
+    ],
+    "faq": [
+        ("Do I need Japanese?",
+         "Not for an English-taught degree. For working in Japan afterwards, "
+         "realistically yes — N2 is the level employers look for."),
+        ("How much are fees?",
+         "Around ₹3 lakh a year at national universities, more at private ones. "
+         "Scholarships are common."),
+        ("What is MEXT?",
+         "The Japanese government scholarship — full tuition, a monthly stipend and "
+         "airfare. It is competitive and Indian students win it every year."),
+        ("Can I work while studying?",
+         "28 hours a week with a work permission stamp, which is routine to get."),
+        ("Is a 3-year Bachelor's accepted?",
+         "Usually not directly for a Master's. Some universities run a research "
+         "student year first. We check per programme."),
+        ("Can I stay afterwards?",
+         "Yes — up to a year to find work, then a work visa on a job offer."),
+    ],
+}
+
+# ---------------------------------------------------------------- New Zealand
+PAGES["study-in-new-zealand"] = {
+    "sections": [
+        {
+            "h": "Why New Zealand",
+            "p": [
+                "All eight of New Zealand's universities are ranked in the world's top "
+                "500, the degrees follow the British system, and the country has "
+                "linked its post-study work visa directly to what you studied and "
+                "where — up to three years after a Master's.",
+                "It is smaller and quieter than Australia, and for many Indian "
+                "students that is the point: lower rents outside Auckland, smaller "
+                "classes, and a job market where a graduate engineer, nurse, IT "
+                "specialist or agricultural scientist is wanted by name on the skills "
+                "shortage list.",
+                "Tuition is ₹15 to ₹30 lakh a year for a Master's. Auckland, Otago, "
+                "Canterbury and Victoria Wellington are the names to know.",
+            ],
+        },
+        {
+            "h": "Life in New Zealand",
+            "p": [
+                "Auckland is the largest and most expensive city; Wellington, "
+                "Christchurch, Dunedin and Hamilton are cheaper university cities. "
+                "Budget ₹90,000 to ₹1.1 lakh a month. Most students share flats; "
+                "university halls are common in the first year.",
+                "The country is safe, outdoors-minded and slow to rush. Flights home "
+                "are long — that is the honest cost of the distance.",
+            ],
+        },
+        {
+            "h": "Intakes",
+            "ul": [
+                "<b>February — the main intake.</b> Every programme.",
+                "<b>July — the second intake.</b> Most Master's programmes.",
+            ],
+            "note": "Apply four to six months ahead. Visa processing has been slow at "
+                    "times; the offer needs to be in hand early.",
+        },
+        {
+            "h": "Tests and requirements",
+            "ul": [
+                "<b>English</b> — IELTS 6.5 with no band below 6.0 for most Master's; "
+                "PTE accepted",
+                "<b>Degree</b> — a 3-year Indian Bachelor's is accepted for most "
+                "Master's, sometimes with a postgraduate diploma year first",
+                "<b>Funds</b> — NZ$20,000 a year for living costs, plus first-year "
+                "tuition, shown for the visa",
+            ],
+        },
+        {
+            "h": "The student visa",
+            "p": [
+                "You apply online after receiving an Offer of Place and paying the "
+                "first year's fees or showing them. Immigration New Zealand assesses "
+                "genuine intent and funds.",
+            ],
+            "ul": [
+                "Offer of Place from the institution",
+                "Fee receipt or proof of ability to pay",
+                "Proof of funds — NZ$20,000 a year for living",
+                "Medical and chest X-ray certificates",
+                "Police clearance certificate",
+                "Health and travel insurance",
+            ],
+        },
+        {
+            "h": "After you graduate",
+            "p": [
+                "The Post Study Work Visa gives up to three years after a Master's "
+                "from a university, open to any employer. Skilled work in a shortage "
+                "occupation leads to the Accredited Employer Work Visa and, from "
+                "there, to residence — which is why New Zealand is a migration "
+                "destination as well as a study one.",
+            ],
+        },
+    ],
+    "faq": [
+        ("Is a 3-year degree accepted?",
+         "For most Master's programmes, yes. Some ask for a postgraduate diploma "
+         "year first, which is a normal route rather than a penalty."),
+        ("Can I work while studying?",
+         "20 hours a week during term, full-time in scheduled holidays."),
+        ("How long is the post-study work visa?",
+         "Up to three years after a Master's from a New Zealand university."),
+        ("How much does it cost?",
+         "₹15 to ₹30 lakh a year in fees, plus around ₹12 lakh a year to live."),
+        ("Which cities are cheapest?",
+         "Dunedin, Hamilton and Palmerston North; Christchurch and Wellington in the "
+         "middle; Auckland at the top."),
+        ("Can I bring my partner?",
+         "Partners of Master's students in certain fields can apply for an open "
+         "work visa. The rules changed in 2023 — we check the current list."),
+    ],
+}
+
+
 # ---------------------------------------------------------------- rendering
 
 def render(slug, page):

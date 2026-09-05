@@ -70,6 +70,9 @@ run postseotest.js  8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
 run imagetest.js    8099 WIX_BASE=http://localhost:8123
 # A page per university: the sitemap and the robots tag need the live settings.
 run unitest.js      8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
+# The eight destinations and visa-processing, and the deploy that adds the
+# destinations to an older database.
+run desttest.js     8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
 run leadtest.js     8099
 run assigntest.js   8099
 run sopdetailtest.js 8099
