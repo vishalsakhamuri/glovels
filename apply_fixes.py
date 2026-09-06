@@ -9155,6 +9155,25 @@ for _f in sorted(HERE.glob("study-in-*.html")):
     applied.append(f"{_f.name}: links to its universities")
 
 
+# ------------------------------------------------------------- every page
+#
+# A way in to the university pages that does not go through the finder.
+#
+# The footer's "Browse the catalogue" pointed back at the finder; it points at
+# /university now. Not in the top menu — Vishal: "we don't need it on the menu
+# bar" — the menu is full and the finder's More details is the front door.
+for _f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html"))):
+    if _f.name.startswith("_"):
+        continue
+    _t = _f.read_text(encoding="utf-8")
+    _pre = "../" if _f.parent.name == "post" else ""
+    _oldf = 'href="' + _pre + 'index.html#catalogue">Browse the catalogue'
+    if _oldf in _t:
+        write(_f, _t.replace(_oldf, 'href="' + _pre + 'university">All universities'))
+        applied.append(f"{_f.name}: the footer points at the universities")
+    else:
+        skipped.append(f"{_f.name}: the footer points at the universities")
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)
