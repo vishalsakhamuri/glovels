@@ -54,6 +54,7 @@ const notifier = require('./server/notify.js');
 const { Live } = require('./server/live.js');
 const { makeContent } = require('./server/content.js');
 const PROSE = require('./server/prose.js');
+const SQUEEZE = require('./server/squeeze.js');
 const UNIS = require('./server/unis.js');
 const DAAD = require('./server/daad.js');
 
@@ -85,7 +86,20 @@ const IMAGES = require('./server/images.js');
 const uKeyOf = name => 'u' + require('crypto')
   .createHash('sha1').update(String(name || '').trim().toLowerCase()).digest('hex').slice(0, 8);
 
+/* Built once per change to the table (see universities() below for the
+   same idea): the finder, the search, the filter and every university page
+   ask for this, and mapping seven hundred rows per request was measurable
+   once the table behind them held seventeen thousand. */
+let catAt = -1;
+let catList = null;
 function liveCatalogue() {
+  const stamp = db.catalogueVersion();
+  if (catList && stamp === catAt) return catList;
+  catList = rawCatalogue();
+  catAt = stamp;
+  return catList;
+}
+function rawCatalogue() {
   return db.programmes().map(r => ({
     id: r.id, program: r.program, university: r.university, city: r.city || '',
     country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
@@ -203,7 +217,38 @@ const content = makeContent({ db, file: path.join(ROOT, 'content.json') });
    every registered device silently, so it must survive a redeploy. */
 const push = require('./server/push.js').open({ db, siteUrl: SITE_URL, log: console });
 
+/* The programme ids index.html was BUILT with. The finder renders those
+   before it asks the server, so the server has to name the ones that have
+   since been hidden or made search-only — and only those: naming every
+   hidden row in the table meant sixteen thousand ids in every finder
+   response. Re-read when the file changes. */
+let bakedAt = 0;
+let bakedList = [];
+function bakedIds() {
+  try {
+    const f = path.join(ROOT, 'index.html');
+    const at = fs.statSync(f).mtimeMs;
+    if (at !== bakedAt) {
+      const html = fs.readFileSync(f, 'utf8');
+      const i = html.indexOf('"programs": [');
+      let out = [];
+      if (i >= 0) {
+        let depth = 0, j = i + 12, k = j;
+        for (; k < html.length; k++) {
+          if (html[k] === '[') depth++;
+          else if (html[k] === ']' && --depth === 0) break;
+        }
+        out = [...html.slice(j, k + 1).matchAll(/\{"id": "([^"]+)"/g)].map(m => m[1]);
+      }
+      bakedList = out;
+      bakedAt = at;
+    }
+  } catch (e) { /* no page, nothing baked */ }
+  return bakedList;
+}
+
 const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
+  universities, bakedIds,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content });
 
 /* First run only: a demo account with a shortlist, documents, applications and
@@ -298,13 +343,21 @@ function send(res, code, body, type, extra) {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Frame-Options': 'SAMEORIGIN',
-    'Cache-Control': 'no-store',        // local dev: never serve a stale page
+    /* Pages and API answers are never cached — a hidden programme has to be
+       gone on the next click. Pictures, icons and fonts are fetched once a
+       day: they change rarely, and re-downloading the logo on every page of
+       a visit is what a slow site is made of. */
+    'Cache-Control': /^(image\/|font\/|application\/manifest)/.test(String(type || ''))
+      ? 'public, max-age=86400' : 'no-store',
   };
   /* Only on HTTPS. Sending HSTS over plain HTTP does nothing, and sending it
      from a laptop would pin localhost to HTTPS in the developer's browser. */
   if (CFG.production) headers['Strict-Transport-Security'] = 'max-age=31536000';
-  res.writeHead(code, Object.assign(headers, extra || {}));
-  res.end(body);
+  /* Squeezed for the browser that asked (server/squeeze.js). A HEAD gets the
+     headers and no body. */
+  const out = SQUEEZE.squeeze(res.req, body, headers['Content-Type'], Object.assign(headers, extra || {}));
+  res.writeHead(code, out.headers);
+  res.end(res.req && res.req.method === 'HEAD' ? undefined : out.body);
 }
 
 function notFound(res) {
@@ -1232,7 +1285,7 @@ function rootLinks(html) {
   return html.replace(/href="(?:\.\.\/)?([a-z0-9][a-z0-9-]*)\.html(#[^"]*)?"/g, (m, name, hash) =>
     'href="' + (name === 'index' ? '/' : '/' + name) + (hash || '') + '"')
     .replace(/href="\.\.\/university"/g, 'href="/university"')
-    .replace(/(href|src)="(?:\.\.\/)?(favicon\.png|og\/[^"]+|assets\/[^"]+|app\.webmanifest|icon-\d+\.png)"/g,
+    .replace(/(href|src)="(?:\.\.\/)?(favicon\.(?:png|svg)|og\/[^"]+|assets\/[^"]+|app\.webmanifest|icon-\d+\.png)"/g,
       (m, attr, file) => attr + '="/' + file + '"');
 }
 

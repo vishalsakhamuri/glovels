@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Glovels: the logo's blue and lime, the graduate's cap over a G. -->
+  <rect width="64" height="64" rx="14" fill="#153d7e"/>
+  <text x="32" y="50" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="40" fill="#ffffff">G</text>
+  <!-- mortarboard -->
+  <g transform="translate(32 13)">
+    <polygon points="-15,0 0,-7 15,0 0,7" fill="#adc908"/>
+    <path d="M-8 3v5c0 2.5 3.6 4.5 8 4.5s8-2 8-4.5V3L0 7z" fill="#8fae00"/>
+    <path d="M15 0v9" stroke="#adc908" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="15" cy="10.5" r="1.8" fill="#adc908"/>
+  </g>
+</svg>

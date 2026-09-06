@@ -427,6 +427,7 @@ function sqliteDriver(file) {
    "ALTER TABLE students ADD COLUMN closed_at TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE students ADD COLUMN close_note TEXT NOT NULL DEFAULT ''",
    "CREATE INDEX IF NOT EXISTS idx_push_staff ON push_subs(staff_id)",
+   'CREATE INDEX IF NOT EXISTS idx_prog_active ON programmes(active)',
    "CREATE INDEX IF NOT EXISTS idx_lead_notes ON lead_notes(lead_id)",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
@@ -1045,8 +1046,13 @@ function open(dir) {
        can add a university from the operations screen and the site shows it
        without anyone running a build. */
     programmes(all) {
-      const rows = db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '');
-      return all ? rows : rows.filter(r => r.active);
+      /* The live rows are asked for on every finder request and every
+         university page; the hidden ones outnumber them twenty to one. Let
+         the database do the filtering, on its index, rather than reading
+         seventeen thousand rows to keep seven hundred. */
+      return all
+        ? db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '')
+        : db.all('SELECT * FROM programmes WHERE active = ? ORDER BY university asc', 1);
     },
     /* Goes up on every write to the table, so a page that groups the whole
        catalogue can keep the grouping until something changes rather than

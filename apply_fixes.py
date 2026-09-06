@@ -9375,6 +9375,31 @@ patch(
     marker=".cmore{",
 )
 
+# ------------------------------------------------------------- every page
+#
+# The favicon.
+#
+# "The favicon is missing — and have the image in SVG so that it looks good."
+# favicon.png was the whole wide logo, 211 by 94, which at sixteen pixels is
+# a blue smudge — hence "missing". It is a square mark now: the logo's blue,
+# the graduate's cap over a G. The SVG is what a browser that can draw one
+# picks (every current one), so it is sharp at any size; the PNG stays for
+# the rest, and it is the same mark at 64 pixels.
+for _f in sorted(list(HERE.glob("*.html")) + list(HERE.glob("_*.tpl.html")) + list((HERE / "post").glob("*.html"))):
+    _t = _f.read_text(encoding="utf-8")
+    if 'href="favicon.svg"' in _t or 'href="../favicon.svg"' in _t:
+        skipped.append(f"{_f.name}: svg favicon")
+        continue
+    _pre = "../" if _f.parent.name == "post" else ""
+    _old = '<link rel="icon" href="' + _pre + 'favicon.png">'
+    if _old not in _t:
+        skipped.append(f"{_f.name}: no favicon link to replace")
+        continue
+    _new = ('<link rel="icon" href="' + _pre + 'favicon.svg" type="image/svg+xml">'
+            '<link rel="alternate icon" href="' + _pre + 'favicon.png" type="image/png">')
+    write(_f, _t.replace(_old, _new, 1))
+    applied.append(f"{_f.name}: svg favicon")
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

@@ -35,6 +35,7 @@ const MATCHES = require('./matches.js');
 const { cleanWriting: CLEAN_WRITING } = require('./content.js');
 const IMAGES = require('./images.js');
 const WIX = require('./wix.js');
+const SQUEEZE = require('./squeeze.js');
 const UNIS = require('./unis.js');
 const DAAD = require('./daad.js');
 
@@ -90,13 +91,12 @@ const EARNED = new Set(['paid', 'owing', 'part']);
 /* ------------------------------------------------------------------ helpers */
 
 const json = (res, code, obj, headers) => {
-  const body = Buffer.from(JSON.stringify(obj));
-  res.writeHead(code, Object.assign({
+  const out = SQUEEZE.squeeze(res.req, Buffer.from(JSON.stringify(obj)), 'application/json', Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': body.length,
     'Cache-Control': 'no-store',
   }, headers || {}));
-  res.end(body);
+  res.writeHead(code, out.headers);
+  res.end(out.body);
 };
 
 const readBody = req => new Promise((resolve, reject) => {
@@ -217,7 +217,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, live, push, siteUrl, config, content }) {
+function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, bakedIds, mail, notify, live, push, siteUrl, config, content }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -237,6 +237,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
      next request, not after a restart. */
   const cat = () => (typeof catalogue === 'function' ? catalogue() : (catalogue || []));
   const countryMap = () => (typeof countries === 'function' ? countries() : (countries || {}));
+  /* The catalogue grouped by university — the server's cached grouping when
+     it lends one, a fresh one otherwise (tests hand in a plain array). */
+  const unisOf = () => (typeof universities === 'function' ? universities() : UNIS.group(cat()));
   const lookup = id => cat().find(p => p.id === String(id)) || null;
 
   /* How a programme is named to a student, in one place.
@@ -2652,7 +2655,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       /* Explicitly listed, so the page removes exactly what was switched off and
          nothing else. Filtering by "not in this list" would delete every row the
          database has never heard of. */
-      inactive: db.programmes(true).filter(r => !r.active || r.search_only).map(r => r.id),
+      inactive: (typeof bakedIds === 'function' ? bakedIds() : db.programmes(true).map(r => r.id))
+        .filter(id => { const r = db.programme(id); return r && (!r.active || r.search_only); }),
       unlockedCount: spent,
     });
   }, { open: true });
@@ -5735,7 +5739,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
     const words = q.split(/\s+/).filter(Boolean);
     const hits = hay => words.every(w => hay.includes(w));
     const cm = countryMap();
-    const unis = UNIS.group(cat());
+    const unis = unisOf();
     const universities = unis
       .filter(u => hits(norm(u.name + ' ' + u.shortName + ' ' + u.city + ' ' + ((cm[u.country] || {}).name || ''))))
       .slice(0, 8)
@@ -5809,7 +5813,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
 
     const out = [];
     let total = 0;
-    for (const u of UNIS.group(cat())) {
+    for (const u of unisOf()) {
       if (u.country !== code || hidden(u.slug)) continue;
       if (words.length) {
         const hay = norm(u.name + ' ' + u.shortName + ' ' + u.city);
@@ -5836,7 +5840,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
    * every edit to the rows beneath it.
    */
   route('GET', '/api/staff/universities', staffOnly(async (req, res) => json(res, 200, {
-    universities: UNIS.group(cat()).map(u => {
+    universities: unisOf().map(u => {
       const x = UNIS.cleanExtras(db.content('university:' + u.slug));
       const meta = db.contentMeta('university:' + u.slug);
       return {
@@ -5852,7 +5856,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
   })));
 
   route('GET', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, staffOnly(async (req, res, s, m) => {
-    const u = UNIS.find(cat(), m[1]);
+    const u = unisOf().find(x => x.slug === m[1]) || null;
     if (!u) return json(res, 404, { error: 'No university at that address' });
     return json(res, 200, { university: { slug: u.slug, name: u.name, city: u.city,
       country: u.country, programmes: u.programmes.length },
@@ -5862,7 +5866,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
   }));
 
   route('PUT', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, needs('catalogue', async (req, res, s, m) => {
-    const u = UNIS.find(cat(), m[1]);
+    const u = unisOf().find(x => x.slug === m[1]) || null;
     if (!u) return json(res, 404, { error: 'No university at that address' });
     const x = UNIS.cleanExtras(await readJson(req));
     if (x.cover && !PROSE.safeImg(x.cover)) {

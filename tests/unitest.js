@@ -456,6 +456,29 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('a link to a folded programme opens it', await fp.locator('#' + lastId).isVisible());
   await fp.close();
 
+  /* ------------------------------------------------- fast, and the icon */
+  /* "Our site should be super fast." Half a megabyte of home page went down
+     the wire uncompressed. */
+  let rz = await guest.request.get(BASE + '/', { headers: { 'Accept-Encoding': 'br' } });
+  check('the home page is sent compressed', rz.headers()['content-encoding'] === 'br'
+    && /Accept-Encoding/.test(rz.headers().vary || '') && Number(rz.headers()['content-length']) < 200000, rz.headers()['content-length'] + ' bytes');
+  rz = await guest.request.get(BASE + '/api/catalogue', { headers: { 'Accept-Encoding': 'gzip' } });
+  check('and so is the finder\'s data', rz.headers()['content-encoding'] === 'gzip' && Array.isArray((await rz.json()).programmes));
+  rz = await guest.request.get(BASE + '/favicon.png', { headers: { 'Accept-Encoding': 'br' } });
+  check('a picture is not (it is already compressed), and is cached a day', !rz.headers()['content-encoding']
+    && /max-age=86400/.test(rz.headers()['cache-control'] || ''));
+  check('a page is never cached', /no-store/.test((await guest.request.get(BASE + '/')).headers()['cache-control'] || ''));
+  const cat9 = await (await guest.request.get(BASE + '/api/catalogue')).json();
+  check('the finder\'s data names only baked rows as inactive, not the whole hidden table', cat9.inactive.length < 200, cat9.inactive.length + ' ids');
+  /* "The favicon is missing — have the image in SVG so that it looks good." */
+  rz = await guest.request.get(BASE + '/favicon.svg');
+  check('an SVG favicon', rz.status() === 200 && /image\/svg\+xml/.test(rz.headers()['content-type']) && /<svg/.test(await rz.text()));
+  for (const [u, pre] of [['/', ''], ['/university/' + slug, '/'], ['/post/expatrio-vs-fintiba-blocked-account', '../'], ['/study-in-germany', '']]) {
+    const h = await (await guest.request.get(BASE + u)).text();
+    check('linked from ' + u, h.includes('<link rel="icon" href="' + pre + 'favicon.svg" type="image/svg+xml">')
+      && h.includes('<link rel="alternate icon" href="' + pre + 'favicon.png" type="image/png">'));
+  }
+
   /* The Catalogue screen's tab. */
   const ap = await staff.newPage();
   ap.on('pageerror', e => errors.push(String(e)));
