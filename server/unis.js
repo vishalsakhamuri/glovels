@@ -66,10 +66,15 @@ function group(catalogue) {
     }
     if (!u.shortName && p.shortName) u.shortName = String(p.shortName).trim();
     if (!u.city && p.city) u.city = String(p.city).trim();
-    if (!u.url && /^https?:\/\//i.test(String(p.url || ''))) {
-      /* The university's own site, from the first course page: everything
-         up to the first path segment. */
-      try { u.url = new URL(p.url).origin; } catch (e) { /* leave it */ }
+    if (/^https?:\/\//i.test(String(p.url || ''))) {
+      /* The university's own site, from its course pages: the origin with
+         the fewest dots — uni-heidelberg.de over mathinf.uni-heidelberg.de,
+         which is where the course page happened to be. */
+      try {
+        const o = new URL(p.url);
+        const dots = h => (h.match(/\./g) || []).length;
+        if (!u.url || dots(o.hostname) < dots(new URL(u.url).hostname)) u.url = o.origin;
+      } catch (e) { /* leave it */ }
     }
     const fm = p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel
       : (p.isPublic ? 'package' : 'free');

@@ -379,13 +379,91 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const sc4 = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
   check('and "yes" puts it back', sc4.programmes.some(p => p.id === soIds[0] && p.active && !p.searchOnly));
 
+  /* ------------------------------------------- a destination the office adds */
+  /* "Admin should be able to add new countries and their universities. Based
+      on the countries added, the dropdown should show new countries and
+      programmes." A country and a university, added the way the Destinations
+      tab and + Add a programme do, and every surface that has to know. */
+  r = await staff.request.put(BASE + '/api/staff/country', { data: { code: 'NL', name: 'Netherlands', flag: '🇳🇱', region: 'Europe',
+    facts: { minCgpaPublic: 7, fundsInr: 1200000, fundsLabel: 'Proof of funds', tests: ['IELTS 6.5', 'TOEFL 90'],
+      documents: ['Passport', 'Degree and transcripts'], workRights: '16 hours a week in term.', hasPublicTrack: true } } });
+  check('a destination can be added', r.status() === 200);
+  r = await staff.request.put(BASE + '/api/staff/programme', { data: { program: 'MSc Computer Science', university: 'Delft University of Technology',
+    city: 'Delft', country: 'NL', level: 'master', field: 'Computer Science & IT', isPublic: false, feeModel: 'package', totalInr: 3500000,
+    url: 'https://www.tudelft.nl/', intakes: [{ season: 'winter', deadline: '2027-01-15' }], active: true } });
+  check('and a university in it', r.status() === 200);
+  const catNL = await (await guest.request.get(BASE + '/api/catalogue')).json();
+  check('the finder is handed the new country and its programme', !!catNL.countries.NL && catNL.programmes.some(p => p.country === 'NL'));
+  const hp = await guest.newPage();
+  await hp.goto(BASE + '/');
+  await hp.waitForFunction(() => [...document.querySelectorAll('#fCountry option')].some(o => o.value === 'NL'), null, { timeout: 6000 }).catch(() => {});
+  check('and the home-page dropdown offers it', await hp.locator('#fCountry option[value="NL"]').count() === 1);
+  check('and the Study Abroad menu lists it', (await hp.content()).includes('href="study-in-netherlands.html">Study in Netherlands</a>'));
+  await hp.close();
+  r = await guest.request.get(BASE + '/study-in-netherlands');
+  html = await r.text();
+  check('it has a Study in page, written from the Destinations tab', r.status() === 200 && /<h1>Study in Netherlands<\/h1>/.test(html)
+    && /7\+ on 10/.test(html) && /₹12 lakh/.test(html) && /IELTS 6\.5/.test(html) && /16 hours a week/.test(html));
+  check('with the university list, the filters and the search box', /href="university\/delft-university-of-technology"/.test(html)
+    && /id="uFilter"/.test(html) && /data-country="NL"/.test(html) && /id="uSearch"/.test(html));
+  check('indexable, canonical, in the sitemap', /content="index,follow/.test(html)
+    && /<link rel="canonical" href="https:\/\/glovels\.example\/study-in-netherlands">/.test(html)
+    && (await (await guest.request.get(BASE + '/sitemap.xml')).text()).includes('/study-in-netherlands</loc>'));
+  check('a .html spelling goes to the clean address', (await guest.request.get(BASE + '/study-in-netherlands.html', { maxRedirects: 0 })).status() === 301);
+  check('the written pages keep their file', /GLOVELS-PAGE-COPY/.test(await (await guest.request.get(BASE + '/study-in-germany')).text()));
+  check('the menu on a post and on a university page has it too',
+    (await (await guest.request.get(BASE + '/university/delft-university-of-technology')).text()).includes('href="/study-in-netherlands">Study in Netherlands</a>'));
+  check('a country nobody added is a 404', (await guest.request.get(BASE + '/study-in-mars')).status() === 404);
+  check('the search box finds the new university', (await (await guest.request.get(BASE + '/api/universities/search?q=delft')).json()).universities.some(u => u.slug === 'delft-university-of-technology'));
+
+  /* --------------------------------------------- the showcase cards */
+  /* "On click is not working — it should open the university with more
+      details." */
+  const shp = await guest.newPage();
+  const serr = [];
+  shp.on('pageerror', e => serr.push(String(e)));
+  await shp.goto(BASE + '/');
+  await shp.waitForSelector('#cgrid .ccard', { timeout: 6000 }).catch(() => {});
+  const cards = await shp.locator('#cgrid .ccard').count();
+  check('every named showcase card carries a More details link', cards > 0
+    && await shp.locator('#cgrid .ccard:not(.clocked) a.cmore').count() === await shp.locator('#cgrid .ccard:not(.clocked)').count()
+    && await shp.locator('#cgrid .ccard.clocked a.cmore').count() === 0, cards + ' cards');
+  const cardUni = await shp.locator('#cgrid .ccard:has(a.cmore) .cuni').first().textContent();
+  await shp.locator('#cgrid .ccard:has(a.cmore) h4').first().click();
+  await shp.waitForLoadState('load');
+  check('and a click anywhere on the card opens the university page', /\/university\/[a-z0-9-]+#/.test(shp.url())
+    && (await shp.locator('h1').textContent()).trim() === cardUni.trim(), shp.url());
+  check('no script errors on the home page', !serr.length, serr.join(' | '));
+  await shp.close();
+
+  /* ------------------------------------------- more programmes */
+  /* "We can give an option, More programmes, then it opens the complete
+      list." */
+  html = await (await guest.request.get(BASE + '/university/tu-munich')).text();
+  const nTum = staffCat.programmes.filter(p => p.university === 'TU Munich' && p.active).length;
+  check('a long list shows six and folds the rest', nTum > 6
+    && (html.match(/<article class="prog"/g) || []).length === 6
+    && (html.match(/<article class="prog folded" id="[^"]+" hidden>/g) || []).length === nTum - 6
+    && html.includes('Show all ' + nTum + ' programmes'));
+  check('every programme is still in the HTML for Google', (html.match(/data-apply="/g) || []).length === nTum);
+  check('a short list has no button', !/id="progMore"/.test(await (await guest.request.get(BASE + '/university/' + slug)).text()));
+  const fp = await guest.newPage();
+  await fp.goto(BASE + '/university/tu-munich');
+  await fp.click('#progMore');
+  check('the button opens the complete list', await fp.locator('#progs .prog:visible').count() === nTum && await fp.locator('#progMore').isHidden());
+  const lastId = await fp.locator('#progs .prog').last().getAttribute('id');
+  await fp.goto(BASE + '/university/tu-munich#' + lastId);
+  check('a link to a folded programme opens it', await fp.locator('#' + lastId).isVisible());
+  await fp.close();
+
   /* The Catalogue screen's tab. */
   const ap = await staff.newPage();
   ap.on('pageerror', e => errors.push(String(e)));
   await ap.goto(BASE + '/catalogue');
   await ap.click('.tab[data-t="pages"]');
   await ap.waitForSelector('#uniList li[data-uni]', { timeout: 6000 }).catch(() => {});
-  check('University pages tab lists them', await ap.locator('#uniList li[data-uni]').count() === unis.size);
+  /* Plus the one added above. */
+  check('University pages tab lists them', await ap.locator('#uniList li[data-uni]').count() === unis.size + 1);
   await ap.click('#uniList li[data-uni="' + slug + '"]');
   await ap.waitForSelector('#uAbout', { timeout: 5000 }).catch(() => {});
   check('and opens an editor with what was written', /Why students pick Stuttgart/.test(await ap.inputValue('#uAbout')));

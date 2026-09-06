@@ -441,6 +441,7 @@ function sitemapXml() {
   /* The university pages, from the catalogue — every one the office has not
      taken off search. */
   pages.push('university');
+  addedDestinations().forEach(c => pages.push('study-in-' + studySlugOf(c)));
   universities().forEach(u => {
     if (!UNIS.cleanExtras(db.content('university:' + u.slug)).hidden) pages.push('university/' + u.slug);
   });
@@ -822,6 +823,8 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
 .apsheet .row{display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap}
 .apsheet .said{font:600 12.6px/1.5 var(--sans);margin-top:10px}
 .apsheet .said.bad{color:#7a2118}.apsheet .said.ok{color:#14603a}
+.progmore{margin:14px 0 30px;text-align:center}
+.progmore .btn{min-width:240px;justify-content:center}
 /* The name search on the /university list — the finder's, with its own home. */
 .usearch{position:relative;margin:0 0 22px}
 .usearch>svg{position:absolute;left:14px;top:15px;width:17px;height:17px;color:var(--muted);pointer-events:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
@@ -909,6 +912,16 @@ const UNI_JS = `<div class="apsheet" id="apSheet" role="dialog" aria-modal="true
 <div class="said" id="apSaid" role="status"></div>
 <p style="margin:12px 0 0;font-size:11.6px">By sending you agree to be contacted about this application. <a href="../privacy.html">Privacy</a>.</p>
 </form></div></div>
+<script>(function(){
+  var b = document.getElementById('progMore'), box = document.getElementById('progs');
+  if (!b || !box) return;
+  var open = function(){ box.querySelectorAll('.prog.folded').forEach(function(a){ a.hidden = false; });
+    b.parentNode.hidden = true; b.setAttribute('aria-expanded', 'true'); };
+  b.addEventListener('click', open);
+  /* A link straight to a programme that is behind the button opens it. */
+  var h = location.hash.slice(1);
+  if (h) { var t = document.getElementById(h); if (t && t.classList.contains('folded')) { open(); t.scrollIntoView(); } }
+})();</script>
 <script>
 (function(){
   var sheet = document.getElementById('apSheet'), form = document.getElementById('apForm');
@@ -1079,7 +1092,16 @@ function universityPage(u) {
           + 'shortlist, the SOP and the follow-up are done for you.')
       + '</p>';
 
-  const progs = u.programmes.map(p => {
+  /* "We can give an option, More programmes, then it opens the complete
+     list." The first few are on the page as it loads — the ones the office
+     put on the site ahead of the search-only ones — and the rest sit behind
+     one button. All of them are in the HTML, so Google reads every programme
+     and a link to #<programme> lands on it whether it was among the first
+     or not (the script opens the list when the address names one). */
+  const PROG_FIRST = 6;
+  const ordered = u.programmes.slice().sort((a, b) => (!!a.searchOnly - !!b.searchOnly));
+  const progs = ordered.map((p, i) => {
+    const folded = i >= PROG_FIRST;
     const dl = (p.intakes || []).filter(i => i && i.deadline)
       .map(i => ({ season: i.season, at: UNIS.nextOn(i.deadline) })).filter(i => i.at)
       .sort((a, b) => a.at - b.at);
@@ -1087,7 +1109,7 @@ function universityPage(u) {
     const courseUrl = /^https?:\/\//i.test(String(p.url || '')) ? p.url : '';
     const fm = p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel
       : (p.isPublic ? 'package' : 'free');
-    return '<article class="prog" id="' + esc(UNIS.slugOf(p.program)) + '">'
+    return '<article class="prog' + (folded ? ' folded' : '') + '" id="' + esc(UNIS.slugOf(p.program)) + '"' + (folded ? ' hidden' : '') + '>'
       + '<div><h3>' + esc(p.program) + '</h3><p class="meta">'
       + '<b>' + esc(UNIS.levelOf(p.level)) + '</b>'
       + (p.field ? ' · ' + esc(p.field) : '')
@@ -1141,7 +1163,9 @@ function universityPage(u) {
     + '<p>Every programme below is one we have placed students in or checked ourselves. '
       + 'Fees are the total for the whole course, in rupees at today\'s rate; deadlines are the '
       + 'university\'s and come round every year.</p>'
-    + '<div class="progs">' + progs + '</div>'
+    + '<div class="progs" id="progs">' + progs + '</div>'
+    + (n > PROG_FIRST ? '<p class="progmore"><button type="button" class="btn btn-ghost" id="progMore" aria-expanded="false" aria-controls="progs">'
+      + 'Show all ' + n + ' programmes</button></p>' : '')
     + packagesBlock(u, c)
     + '<h2>How applying works</h2>'
     + '<ol class="uni-steps">'
@@ -1368,10 +1392,37 @@ const DEST_CSS = `<style>/* GLOVELS-DEST-UNIS */
 .ucount{font:700 13px/1.5 var(--sans);color:var(--navy-800);margin:8px 0 0}
 </style>`;
 const DEST_MAX = 50;
+
+/*
+ * A "Study in …" page for a destination the office adds.
+ *
+ * "Admin should be able to add new countries and their universities."
+ *
+ * Fifteen countries have a page written for them on disk, at the addresses
+ * glovels.com had (study-in-usa, study-in-czechrepublic). A destination added
+ * on the Catalogue → Destinations tab has no file, so the server writes its
+ * page on request from what the office typed there — the CGPA bars, the
+ * funds, the tests, the documents — with the same university list, filters
+ * and search box the written pages carry. It joins the Study Abroad menu on
+ * every page and the sitemap. Write a page for it in build_destinations.py
+ * later if it earns one; the file wins the moment it exists.
+ */
+const STUDY_SLUGS = { DE: 'germany', CA: 'canada', GB: 'united-kingdom', IE: 'ireland', PL: 'poland',
+  ES: 'spain', IT: 'italy', US: 'usa', AU: 'australia', FR: 'france', CZ: 'czechrepublic',
+  FI: 'finland', SG: 'singapore', JP: 'japan', NZ: 'new-zealand' };
+const studySlugOf = c => STUDY_SLUGS[c.code] || UNIS.slugOf(c.name);
+const hasStudyFile = slug => fs.existsSync(path.join(ROOT, 'study-in-' + slug + '.html'));
+/** The active destinations without a page on disk — the ones the office added. */
+function addedDestinations() {
+  return Object.values(liveCountries()).filter(c => c.active !== false && c.name && !hasStudyFile(studySlugOf(c)));
+}
+const countryByStudySlug = want => Object.values(liveCountries()).find(c => studySlugOf(c) === want) || null;
+
 function withDestinationUniversities(html, slug) {
   const want = String(slug || '').replace(/^study-in-/, '');
   const countries = liveCountries();
-  const code = Object.keys(countries).find(k => UNIS.slugOf(countries[k].name) === want);
+  const cc = countryByStudySlug(want);
+  const code = cc && cc.code;
   if (!code) return html;
   const anchor = html.indexOf('<p style="margin-top:26px"><a class="btn btn-ghost" href="university#');
   if (anchor < 0) return html;
@@ -1475,6 +1526,73 @@ const UFILTER_JS = `<script>(function(){
   f.addEventListener('input', function (e) { if (e.target.id === 'ufQ') { clearTimeout(t); t = setTimeout(ask, 220); } });
   clear.addEventListener('click', function () { f.reset(); ask(); });
 })();</script>`;
+
+function studyPage(c) {
+  const t = templates();
+  if (!t) return null;
+  const slug = studySlugOf(c);
+  const f = c.facts || c;
+  const money = n => UNIS.money(n);
+  const unis = universities().filter(u => u.country === c.code);
+  const n = unis.length;
+  const free = unis.some(u => u.feeModel === 'free');
+  const title = 'Study in ' + c.name + ' for Indian students — requirements, universities & how to apply';
+  const desc = 'Study in ' + c.name + ' from India: '
+    + (f.minCgpaPublic || f.minCgpaPrivate ? 'the CGPA you need (' + (f.minCgpaPublic || f.minCgpaPrivate) + '+ on 10), ' : '')
+    + (f.fundsInr ? 'the funds to show (' + money(f.fundsInr) + '), ' : '')
+    + (f.tests && f.tests.length ? 'accepted tests, ' : '')
+    + (n ? n + ' universit' + (n === 1 ? 'y' : 'ies') + ' with fees and intakes, ' : '')
+    + 'and how Glovels gets you there' + (free ? ' — free to apply through us.' : '.');
+  const fact = (label, value) => value ? '<div><span>' + label + '</span><b>' + value + '</b></div>' : '';
+  const factbox = '<div class="factbox">'
+    + fact('CGPA for public universities', f.minCgpaPublic ? f.minCgpaPublic + '+ on 10' : '')
+    + fact('CGPA for private universities', f.minCgpaPrivate ? f.minCgpaPrivate + '+ on 10' : '')
+    + fact(f.fundsLabel || 'Funds to show', f.fundsInr ? money(f.fundsInr) : '')
+    + fact('Living costs, per year', f.livingInr ? money(f.livingInr) : '')
+    + fact('Tuition', f.tuitionFree ? 'Free or near-free at public universities' : (f.hasPublicTrack ? 'Public and private routes' : ''))
+    + fact('Universities we track', n ? String(n) : '')
+    + '</div>';
+  const para = (h, v) => v ? '<h2>' + h + '</h2><p>' + esc(v) + '</p>' : '';
+  const list = (h, arr) => arr && arr.length ? '<h2>' + h + '</h2><ul>' + arr.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '';
+  const body = '<p class="lead">' + esc(c.name) + ' is a destination Glovels places students in. '
+    + 'Below: what it asks of an Indian applicant, what to budget for, the universities we track there with their fees and intakes, and a way to apply. '
+    + 'Not sure it is the right country for your profile? <a href="index.html#counsel">Talk to a counsellor</a> — the first call is free.</p>'
+    + factbox
+    + para('Your degree', f.degreeRule) + para('Backlogs', f.backlogRule)
+    + list('Tests accepted', f.tests)
+    + para('Funds', f.fundsNote) + para('Working, and staying', f.workRights) + para('Deadlines', f.deadlineNote)
+    + list('Documents you will need', f.documents)
+    + para('Good to know', f.extraNote)
+    + '<p style="margin-top:26px"><a class="btn btn-ghost" href="university#' + esc(UNIS.slugOf(c.name)) + '" style="margin-right:8px">Universities in '
+    + esc(c.name) + '</a><a class="btn btn-primary" href="index.html#results">See programmes in ' + esc(c.name) + '</a></p>';
+  const page = fill(t.page, Object.assign(metaHoles({
+    title, desc, canonical: absolute('/study-in-' + slug),
+    keywords: ['study in ' + c.name, c.name + ' universities', 'Indian students', 'CGPA', 'fees', 'intakes', 'visa'].join(', '),
+    image: DEFAULT_OG, imageAlt: 'Study in ' + c.name + ' with Glovels', type: 'website', indexable: true,
+    jsonld: { '@context': 'https://schema.org', '@type': 'WebPage', name: title, url: absolute('/study-in-' + slug),
+      description: desc, isPartOf: { '@type': 'WebSite', name: 'Glovels', url: absolute('/') } },
+  }), {
+    H1: 'Study in ' + esc(c.name),
+    DATELINE: esc((c.flag ? c.flag + ' ' : '') + c.name + (c.region ? ' · ' + c.region : '')
+      + (n ? ' · ' + n + ' universit' + (n === 1 ? 'y' : 'ies') + ' we track' : '')),
+    CRUMBS: '<a href="index.html">Home</a> / Study Abroad / ' + esc(c.name),
+    BODY: body,
+  }));
+  return withDestinationUniversities(page.replace('</head>', UNI_CSS + '</head>'), 'study-in-' + slug);
+}
+
+/* The Study Abroad menu on every page lists the fifteen written pages. A
+   destination the office added goes on the end of it — desktop and phone —
+   as the page goes out, with the same href prefix its neighbours have. */
+function withAddedDestinations(html) {
+  const added = addedDestinations();
+  if (!added.length) return html;
+  /* Three spellings of the same link: `study-in-x.html` at the root,
+     `../study-in-x.html` under /post/, `/study-in-x` on a university page
+     after rootLinks. The new ones copy whichever their neighbour has. */
+  return html.replace(/<a href="((?:\.\.\/|\/)?)study-in-new-zealand(\.html)?">Study in New Zealand<\/a>/g, (m, pre, ext) =>
+    m + added.map(c => '<a href="' + pre + 'study-in-' + esc(studySlugOf(c)) + (ext || '') + '">Study in ' + esc(c.name) + '</a>').join(''));
+}
 
 /*
  * The receipt for what somebody accepted when they paid.
@@ -1683,6 +1801,9 @@ function successStoriesPage() {
 const NOINDEX = /<meta name="robots" content="noindex,nofollow"\s*\/?>/i;
 
 function forIndexing(html, slug) {
+  /* Every public page goes through here, which makes it the one place to add
+     the office's destinations to the menu. */
+  if (!PORTAL_PAGES.has(slug)) html = withAddedDestinations(html);
   if (!CFG.allowIndexing) return html;
   if (PORTAL_PAGES.has(slug)) return html;
   return html.replace(NOINDEX,
@@ -1807,6 +1928,18 @@ const server = http.createServer(async (req, res) => {
      The posts keep their own addresses; the lists land on the index. */
   if (/^\/blog\/(?:categories|tags)\//.test(pathname)) {
     return send(res, 301, '', 'text/html', { Location: '/blog' });
+  }
+
+  /* A "Study in …" page for a destination the office added — only when no
+     file of that name exists; the written pages keep the static path. */
+  const studyUrl = /^\/study-in-([a-z0-9-]{1,60})(?:\.html|\/)?$/.exec(pathname);
+  if (studyUrl && !hasStudyFile(studyUrl[1])) {
+    const c = countryByStudySlug(studyUrl[1]);
+    if (c && c.active !== false) {
+      if (pathname !== '/study-in-' + studyUrl[1]) return send(res, 301, '', 'text/html', { Location: '/study-in-' + studyUrl[1] });
+      const page = studyPage(c);
+      if (page) return send(res, 200, forIndexing(page, 'study-in-' + studyUrl[1]), TYPES['.html']);
+    }
   }
 
   /* One page per university, and the list. Rendered from the live catalogue;

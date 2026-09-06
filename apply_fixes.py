@@ -9319,6 +9319,62 @@ function showPackages(scroll){""",
     marker="function buyFromAddress(){",
 )
 
+# ---------------------------------------------------------------- index.html
+#
+# A showcase card opens the university's page.
+#
+# "On click is not working — it should open the university with more
+#  details." The cards under "Real universities, matched to what you're
+# looking for" were pictures of programmes: nothing on them went anywhere. A
+# named card is a link now, to the university's page at the programme, and
+# says so; a locked card stays a locked card — the name is what a package
+# buys, and a link whose address is the name would hand it over.
+patch(
+    "index.html",
+    "a showcase card links to the university page",
+    """    + (trend?'<span class="ctrend">'+ico('spark')+'Trending field</span>':'')
+    + '</div><div class="cfoot"><span class="cfee">'+fee+'</span>'""",
+    """    + (trend?'<span class="ctrend">'+ico('spark')+'Trending field</span>':'')
+    + (p.locked || !p.university ? '' : '<a class="cmore" href="university/' + cSlug(p.university)
+        + '#' + cSlug(p.program) + '">More details ' + ico('arrow') + '</a>')
+    + '</div><div class="cfoot"><span class="cfee">'+fee+'</span>'""",
+    marker='class="cmore"',
+)
+patch(
+    "index.html",
+    "and the whole card is the click target",
+    """$$('[data-bandtab]').forEach(t => t.onclick = () => {""",
+    """/* The address a name becomes — the same arithmetic as the finder's uniSlug
+   and the server's slugOf, written here because the finder's is not in this
+   scope. */
+function cSlug(name){
+  return String(name || '').toLowerCase().normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
+}
+/* Anywhere on a named card. The link inside is the address; the card is
+   the target, because that is what people press. */
+$('#cgrid').addEventListener('click', e => {
+  if (e.target.closest('a, button')) return;
+  const a = e.target.closest('.ccard') && e.target.closest('.ccard').querySelector('a.cmore');
+  if (a) location.href = a.href;
+});
+
+$$('[data-bandtab]').forEach(t => t.onclick = () => {""",
+    marker="querySelector('a.cmore')",
+)
+patch(
+    "index.html",
+    "and its stylesheet",
+    """.ctrend{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);""",
+    """.ccard:has(a.cmore){cursor:pointer}
+.cmore{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font:700 12px/1 var(--sans);color:var(--navy-700);text-decoration:none}
+.cmore .ico{width:13px;height:13px}
+.ccard:hover .cmore{color:var(--navy-900);text-decoration:underline}
+.ctrend{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);""",
+    marker=".cmore{",
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

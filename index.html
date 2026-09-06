@@ -825,6 +825,10 @@ html.review-copy .build-strip{display:block !important}
 .ccard h4{font-size:14.4px;margin:9px 0 3px;color:var(--navy-900);line-height:1.3}
 .cuni{font-size:12.8px;color:var(--navy-700);line-height:1.4}
 .ccity{font-size:11.8px;color:var(--muted);margin-top:2px}
+.ccard:has(a.cmore){cursor:pointer}
+.cmore{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font:700 12px/1 var(--sans);color:var(--navy-700);text-decoration:none}
+.cmore .ico{width:13px;height:13px}
+.ccard:hover .cmore{color:var(--navy-900);text-decoration:underline}
 .ctrend{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);
   background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8;padding:5px 8px;
   border-radius:var(--r-pill);margin-top:9px}
@@ -4131,6 +4135,8 @@ function card(p){
     + '<div class="cuni">'+esc(p.university)+'</div>'
     + '<div class="ccity">'+esc(p.city || c.name)+(p.city?', '+esc(c.name):'')+'</div>'
     + (trend?'<span class="ctrend">'+ico('spark')+'Trending field</span>':'')
+    + (p.locked || !p.university ? '' : '<a class="cmore" href="university/' + cSlug(p.university)
+        + '#' + cSlug(p.program) + '">More details ' + ico('arrow') + '</a>')
     + '</div><div class="cfoot"><span class="cfee">'+fee+'</span>'
     + (basis?'<span class="cbasis">'+basis+'</span>':'')
     + '<span class="ctype '+(p.isPublic?'pub':'priv')+'">'+(p.isPublic?'Public':'Private')+'</span>'
@@ -4159,6 +4165,22 @@ function render(){
     ? 'Showing '+shaped.length+' of '+total+' programmes'+(field?' in '+field:'')
     : '';
 }
+
+/* The address a name becomes — the same arithmetic as the finder's uniSlug
+   and the server's slugOf, written here because the finder's is not in this
+   scope. */
+function cSlug(name){
+  return String(name || '').toLowerCase().normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '').replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
+}
+/* Anywhere on a named card. The link inside is the address; the card is
+   the target, because that is what people press. */
+$('#cgrid').addEventListener('click', e => {
+  if (e.target.closest('a, button')) return;
+  const a = e.target.closest('.ccard') && e.target.closest('.ccard').querySelector('a.cmore');
+  if (a) location.href = a.href;
+});
 
 $$('[data-bandtab]').forEach(t => t.onclick = () => {
   $$('[data-bandtab]').forEach(o => o.setAttribute('aria-selected','false'));
