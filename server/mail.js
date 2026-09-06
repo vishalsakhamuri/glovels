@@ -104,12 +104,18 @@ function quotedPrintable(text) {
   return out.join('\r\n');
 }
 
+/* A header is one line. An address with a line break in it — from a form,
+   say — would end the header and start writing its own: a Bcc to a thousand
+   people, a different subject. Nothing that validates addresses today lets a
+   line break through; this is so that nothing tomorrow can either. */
+const oneLine = v => String(v == null ? '' : v).replace(/[\r\n\0]+/g, ' ').trim();
+
 function buildMessage({ from, to, replyTo, subject, text, html, messageId, date }) {
   const boundary = 'glv-' + crypto.randomBytes(12).toString('hex');
   const head = [
-    'From: ' + from,
-    'To: ' + to,
-    replyTo ? 'Reply-To: ' + replyTo : null,
+    'From: ' + oneLine(from),
+    'To: ' + oneLine(to),
+    replyTo ? 'Reply-To: ' + oneLine(replyTo) : null,
     'Subject: ' + encodeHeader(subject),
     'Date: ' + date,
     'Message-ID: ' + messageId,

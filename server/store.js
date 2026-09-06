@@ -555,7 +555,28 @@ function sqliteDriver(file) {
   const one = (sql, ...a) => db.prepare(sql).get(...a) || null;
   const run = (sql, ...a) => db.prepare(sql).run(...a);
 
-  return { kind: 'sqlite', all, one, run, close: () => db.close() };
+  /*
+   * A consistent copy of the database in another file, while the server keeps
+   * running. Node's own backup API where it has one (22.16+); otherwise the
+   * WAL is folded into the main file and the file copied in the same
+   * synchronous tick, which — with one process and a synchronous driver — is
+   * a moment in which nothing else can write.
+   *
+   * Not VACUUM INTO: the full-text index is aligned to rowids, and a vacuum
+   * is allowed to renumber them, so a restore from such a copy could search
+   * and find the wrong programme.
+   */
+  async function snapshot(toFile) {
+    const sqlite = require('node:sqlite');
+    if (typeof sqlite.backup === 'function') {
+      await sqlite.backup(db, toFile);
+      return;
+    }
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    fs.copyFileSync(file, toFile);
+  }
+
+  return { kind: 'sqlite', all, one, run, snapshot, close: () => db.close() };
 }
 
 /* -------------------------------------------------------------------- json */
@@ -663,7 +684,8 @@ function jsonDriver(file) {
     throw new Error('json driver cannot run: ' + s.slice(0, 60));
   }
 
-  return { kind: 'json', all, one, run, close: flush };
+  const snapshot = async toFile => { flush(); fs.copyFileSync(file, toFile); };
+  return { kind: 'json', all, one, run, snapshot, close: flush };
 }
 
 /* ------------------------------------------------------------------ facade */
@@ -755,6 +777,8 @@ function open(dir) {
   const store = {
     kind: db.kind,
     close: db.close,
+    /** A consistent copy of the whole database, written to `toFile`. */
+    snapshot: toFile => db.snapshot(toFile),
 
     /* ---- students ---- */
     createStudent(email, name, phone, hash, salt, role) {

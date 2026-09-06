@@ -151,6 +151,13 @@ const notify = notifier.open({
         if (i > 0) cfg[t.slice(0, i).trim()] = t.slice(i + 1).trim();
       });
     } catch (e) {}
+    /* The environment wins, as it does for mail: on a host there is no file,
+       there is an Environment tab. */
+    ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_TEMPLATE', 'WHATSAPP_LANG',
+      'WHATSAPP_VERIFY_TOKEN', 'WHATSAPP_APP_SECRET'].forEach(k => {
+      const v = String(process.env[k] == null ? '' : process.env[k]).trim();
+      if (v) cfg[k] = v;
+    });
     return cfg;
   })(),
   siteUrl: SITE_URL,
@@ -198,9 +205,10 @@ function bakedIds() {
   return bakedList;
 }
 
+const backup = require('./server/backup.js').open({ db, dataDir: DATA, log: console });
 const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
-  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content });
+  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup });
 
 /* First run only: a demo account with a shortlist, documents, applications and
    an order, so there is something to look at before anyone signs up. */
@@ -291,12 +299,44 @@ const TYPES = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
+/*
+ * What a page may load and do, said to the browser.
+ *
+ * Honest about its strength: the portal pages carry their scripts inline, so
+ * script-src must allow inline script, and that is the one thing a content
+ * policy most wants to forbid. What it does still close off is worth having —
+ * no plugins, no <base> hijack, no framing by another site, nothing at all
+ * over plain HTTP, and the Razorpay checkout as the only frame. A page that
+ * needs a new outside origin adds it here, on purpose, rather than the whole
+ * internet being allowed by default.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://*.razorpay.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self' https://*.razorpay.com",
+  "frame-src https://*.razorpay.com",
+  "media-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'self'",
+  "form-action 'self' https://*.razorpay.com",
+].join('; ');
+
+/* The browser features a page may use. None of these pages ask for a
+   camera, a microphone or the visitor's location; a script that arrived by
+   some other route should not be able to either. */
+const PERMISSIONS = 'camera=(), microphone=(), geolocation=(), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com")';
+
 function send(res, code, body, type, extra) {
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Frame-Options': 'SAMEORIGIN',
+    'Permissions-Policy': PERMISSIONS,
     /* Pages and API answers are never cached — a hidden programme has to be
        gone on the next click. Pictures, icons and fonts are fetched once a
        day: they change rarely, and re-downloading the logo on every page of
@@ -306,7 +346,12 @@ function send(res, code, body, type, extra) {
   };
   /* Only on HTTPS. Sending HSTS over plain HTTP does nothing, and sending it
      from a laptop would pin localhost to HTTPS in the developer's browser. */
-  if (CFG.production) headers['Strict-Transport-Security'] = 'max-age=31536000';
+  if (CFG.production) {
+    headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+    headers['Content-Security-Policy'] = CSP + '; upgrade-insecure-requests';
+  } else if (/^text\/html/.test(String(type || ''))) {
+    headers['Content-Security-Policy'] = CSP;
+  }
   /* Squeezed for the browser that asked (server/squeeze.js). A HEAD gets the
      headers and no body. */
   const out = SQUEEZE.squeeze(res.req, body, headers['Content-Type'], Object.assign(headers, extra || {}));
@@ -2277,7 +2322,19 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
+/*
+ * How long a request may dawdle. Node's defaults leave the request body open
+ * indefinitely, so a client that sends one byte a minute holds a connection
+ * for as long as it likes, and enough of them hold them all. Headers within
+ * thirty seconds; a whole request — a ten-megabyte scan over a weak mobile
+ * signal is the slow case — within five minutes. Neither touches a response
+ * already being written, so the messenger's open connection is unaffected.
+ */
+server.headersTimeout = 30 * 1000;
+server.requestTimeout = 5 * 60 * 1000;
+
 server.listen(PORT, CFG.host, () => {
+  backup.schedule();
   /* The real path, not a hard-coded "data/". On a host DATA_DIR is a mounted
      volume somewhere else entirely, and a start-up line that names the wrong
      directory is the line you trust while looking for a database that is not

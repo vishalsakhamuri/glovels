@@ -143,6 +143,7 @@ run mailtest.js      8081
 run pwresettest.js   8099
 run legaltest.js    8099
 run paytest.js      8099
+run hardentest.js   8099 WHATSAPP_APP_SECRET=testsecret
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 

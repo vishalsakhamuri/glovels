@@ -265,8 +265,10 @@ them to happen to log in.
 **WhatsApp** is written as a driver and switched off. Turning it on needs three things
 no amount of code can conjure: a Meta Business account with the number verified, a
 permanent token and phone-number ID, and a **public HTTPS webhook** — which a laptop
-cannot be. Put `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_ID` in `mail.env` and it starts
-working; until then the messenger works without it.
+cannot be. Put `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_ID` in `mail.env` (or the host's
+environment) and it starts working; until then the messenger works without it. Replies
+coming BACK from Meta are only accepted once `WHATSAPP_APP_SECRET` is set too — the
+webhook checks Meta's signature with it and refuses everything without one.
 
 ### Still a demo in one place, and it is marked
 

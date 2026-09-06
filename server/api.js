@@ -94,17 +94,31 @@ const json = (res, code, obj, headers) => {
   const out = SQUEEZE.squeeze(res.req, Buffer.from(JSON.stringify(obj)), 'application/json', Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
   }, headers || {}));
   res.writeHead(code, out.headers);
   res.end(out.body);
 };
 
-const readBody = req => new Promise((resolve, reject) => {
+/*
+ * How much a request may carry, by what it is. A passport scan is ten
+ * megabytes; a contact form is a few hundred bytes. One cap for both meant
+ * any visitor could make the server buffer and parse twenty-five megabytes of
+ * JSON on the enquiry endpoint, before a single check had run.
+ */
+const MAX_UPLOAD_BODY = 25 * 1024 * 1024;
+const MAX_JSON_BODY = 64 * 1024;
+const MAX_WEBHOOK_BODY = 1024 * 1024;
+
+const readBody = (req, max = MAX_UPLOAD_BODY) => new Promise((resolve, reject) => {
   const chunks = [];
   let size = 0;
+  const declared = Number(req.headers['content-length'] || 0);
+  if (declared > max) { req.destroy(); reject(new Error('too large')); return; }
   req.on('data', c => {
     size += c.length;
-    if (size > 25 * 1024 * 1024) { req.destroy(); reject(new Error('too large')); return; }
+    if (size > max) { req.destroy(); reject(new Error('too large')); return; }
     chunks.push(c);
   });
   req.on('end', () => resolve(Buffer.concat(chunks)));
@@ -112,7 +126,8 @@ const readBody = req => new Promise((resolve, reject) => {
 });
 
 const readJson = async req => {
-  const raw = (await readBody(req)).toString('utf8');
+  let raw = '';
+  try { raw = (await readBody(req, MAX_JSON_BODY)).toString('utf8'); } catch (e) { return {}; }
   if (!raw) return {};
   try { return JSON.parse(raw); } catch (e) { return {}; }
 };
@@ -120,7 +135,7 @@ const readJson = async req => {
 /* The bytes exactly as they arrived. A webhook signature is computed over those
    bytes, and JSON.parse followed by JSON.stringify is not the identity — key
    order and whitespace both move — so a re-serialised body never verifies. */
-const readRaw = req => readBody(req);
+const readRaw = req => readBody(req, MAX_WEBHOOK_BODY);
 
 const inrOf = paise => '\u20b9' + Math.round(Number(paise || 0) / 100).toLocaleString('en-IN');
 
@@ -217,7 +232,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content }) {
+function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -884,9 +899,23 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     error: 'That is a lot of messages in a short time. Wait a few minutes, '
          + 'or call us on +91 78393 99999 — a person answers faster than this form.',
   });
-  const clientIp = req =>
-    String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-    || (req.socket && req.socket.remoteAddress) || 'unknown';
+  /*
+   * Whose address this is. Behind Render the socket is the proxy, and the
+   * visitor is in X-Forwarded-For. That header is a list, and anything a
+   * client sends is at the LEFT of it — the proxy appends the address it
+   * actually saw. Reading the first entry, as this did, let a script put a
+   * fresh made-up address on every request and never meet a limit at all.
+   *
+   * So: the rightmost entry that is not a private or loopback address. That
+   * is the last hop that came in from the internet, whatever the client
+   * wrote before it, and it still works with no proxy at all.
+   */
+  const privateIp = a => /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80|::ffff:(10\.|127\.|192\.168\.))/i.test(a);
+  const clientIp = req => {
+    const hops = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
+    for (let i = hops.length - 1; i >= 0; i--) if (!privateIp(hops[i])) return hops[i];
+    return hops[0] || (req.socket && req.socket.remoteAddress) || 'unknown';
+  };
 
   const ROUTES = [];
   /*
@@ -921,6 +950,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('POST', '/api/auth/signup', async (req, res) => {
     const b = await readJson(req);
+    /* Every account made here sends a welcome email. Ten an hour from one
+       address is a family or a college lab; a hundred is a script. */
+    if (floodedBy(clientIp(req), 'signup', 10, 60 * 60 * 1000)) return slowDown(res);
     const name = String(b.name || '').trim();
     const email = String(b.email || '').trim().toLowerCase();
     const phone = String(b.phone || '').trim();
@@ -2359,6 +2391,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const b = await readJson(req);
     const body = String(b.body || '').trim().slice(0, 2000);
     if (!body) return json(res, 422, { error: 'Nothing to send' });
+    /* Starting a chat is limited; sending into one was not, so a single
+       cookie could push messages at every counsellor's screen for as long
+       as it liked. Two a second, sustained, is more than a person types. */
+    if (floodedBy(clientIp(req), 'chat-send', 120, 60 * 1000)) return slowDown(res);
 
     /* Signed in: this is their real conversation with their counsellor. */
     if (s && s.role === 'student') {
@@ -2838,6 +2874,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('POST', '/api/auth/forgot', async (req, res) => {
     const b = await readJson(req);
     const email = String(b.email || '').trim().toLowerCase();
+    /* Each of these sends an email, to an address the caller chose. Without a
+       limit this form is a way to pour mail at somebody's inbox, and to burn
+       through the day's sending allowance doing it. Per address AND per
+       target, for the same reason sign-in counts both. */
+    if (floodedBy(clientIp(req), 'forgot', 6, 60 * 60 * 1000)
+      || floodedBy(email, 'forgot-to', 3, 60 * 60 * 1000)) return slowDown(res);
     const s = db.studentByEmail(email);
 
     /* The same answer whether or not the account exists. Saying "no such
@@ -2858,6 +2900,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('POST', '/api/auth/reset', async (req, res) => {
     const b = await readJson(req);
+    if (floodedBy(clientIp(req), 'reset', 10, 60 * 60 * 1000)) return slowDown(res);
     const pw = String(b.password || '');
     if (pw.length < 8) return json(res, 422, { error: 'Use at least 8 characters' });
     const s = db.useReset(String(b.token || ''));
@@ -4184,6 +4227,37 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * looked exactly like a delivered one. Mail is never allowed to fail a
    * request, which is right, and which is why it has to be VISIBLE instead.
    */
+  /*
+   * The copy that leaves the building. Everything on the data disk as one
+   * .tar — an administrator downloads it, and keeps it somewhere that is not
+   * this host. Admins only, and logged: the file is every student's record.
+   */
+  route('GET', '/api/staff/backup.tar', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (!backup) return json(res, 503, { error: 'Backups are not set up on this server.' });
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    db.log(s.name || s.email, 'Backup downloaded', stamp);
+    try {
+      await backup.tarTo(res, stamp);
+    } catch (e) {
+      if (!res.headersSent) return json(res, 500, { error: 'The backup could not be written: ' + (e && e.message) });
+      res.destroy();
+    }
+  }));
+
+  /* The copies on the disk, and a button to take one now. */
+  route('GET', '/api/staff/backups', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    return json(res, 200, { ok: true, copies: backup ? backup.list() : [], dir: backup ? backup.dir : '' });
+  }));
+  route('POST', '/api/staff/backups', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (!backup) return json(res, 503, { error: 'Backups are not set up on this server.' });
+    const file = await backup.nightly();
+    db.log(s.name || s.email, 'Backup taken', path.basename(file));
+    return json(res, 200, { ok: true, file: path.basename(file), copies: backup.list() });
+  }));
+
   route('GET', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     return json(res, 200, mail.status ? mail.status()
@@ -7210,8 +7284,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return true;
   }, { open: true });
 
+  /*
+   * Signed by Meta over the raw bytes, like Razorpay's. This route writes
+   * messages into student conversations AS A COUNSELLOR — matched on the last
+   * ten digits of the sender's number, which are on the website — so an
+   * unverified body was a way for anybody to put words in a counsellor's
+   * mouth. Refused outright when there is no secret to verify with.
+   */
   route('POST', '/api/whatsapp/webhook', async (req, res) => {
-    const b = await readJson(req);
+    const raw = await readRaw(req);
+    if (!notify.webhookReady) {
+      return json(res, 503, { error: 'No WHATSAPP_APP_SECRET is configured, so replies cannot be verified.' });
+    }
+    if (!notify.verifySignature(raw, req.headers['x-hub-signature-256'])) {
+      db.log('system', 'WhatsApp webhook refused', 'signature did not verify');
+      return json(res, 403, { error: 'Signature did not verify.' });
+    }
+    let b = {};
+    try { b = JSON.parse(raw.toString('utf8') || '{}'); } catch (e) { b = {}; }
     notify.parseWebhook(b).forEach(m => {
       /* A counsellor replying from their phone: match the sender's number to a
          staff account, and put the reply on the student they last spoke to. */
@@ -7575,7 +7665,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   /* ------------------------------------------------------------ dispatch */
 
+  /*
+   * A request that changes something must come from this site. Browsers name
+   * the page that made a request in Origin, and a page on another site —
+   * one a student was lured to — cannot take that header off. The session
+   * cookie is SameSite=Lax, which already stops most of this in a current
+   * browser; this is the check for the ones it does not.
+   *
+   * Only when Origin is present: a webhook, a curl, a script has none and is
+   * not a browser carrying somebody's cookie. `null` is a sandboxed frame or
+   * a file:// page and is refused.
+   */
+  const crossSite = req => {
+    if (req.method === 'GET' || req.method === 'HEAD') return false;
+    const origin = req.headers.origin;
+    if (!origin) return false;
+    let host = '';
+    try { host = new URL(origin).host; } catch (e) { return true; }
+    return host.toLowerCase() !== String(req.headers.host || '').toLowerCase();
+  };
+
   return async function handle(req, res, pathname) {
+    if (crossSite(req)) {
+      json(res, 403, { error: 'That request came from another site.' });
+      return true;
+    }
     for (const r of ROUTES) {
       if (r.method !== req.method) continue;
       let m = null;

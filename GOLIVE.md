@@ -78,6 +78,44 @@ To turn indexing on or off regardless — a soft launch, or a hold after the
 domain moves — set `ALLOW_INDEXING` to `true` or `false`. The start-up log says
 which way it went, on the line beginning `Search engines:`.
 
+## Backups, and what is guarding the door
+
+Everything — the database and every uploaded document — is on the one disk
+Render mounts at `/data`. Two copies exist from this patch on:
+
+- **Nightly, on the disk.** Five minutes after start and every 24 hours the
+  server writes `data/backups/glovels-YYYY-MM-DD.db` and keeps the last seven.
+  This is the copy for a wrong delete or a bad import: yesterday's rows, one
+  file away. It does not survive losing the disk.
+- **The download.** Signed in as an administrator, open
+  `/api/staff/backup.tar` — the whole data directory as one archive, the
+  database taken as a fresh snapshot. **Download it once a week and keep it
+  off the host** (a laptop, a Drive folder). This is the copy that survives
+  losing the disk. Restoring is: stop the server, untar over `/data`, start.
+  `POST /api/staff/backups` takes a nightly copy on demand; `GET` lists them.
+
+What now stands between the public and the server, all in `tests/hardentest.js`:
+
+- Every public form has a **honeypot** and a **per-address budget** — enquiry,
+  apply, order, sign-up, sign-in, forgot-password (per address AND per target
+  inbox), reset, chat. The address is read from the RIGHT of
+  `X-Forwarded-For`, so a script writing its own does not get a fresh budget.
+- A **POST from another site's page is refused** (Origin check) on top of the
+  SameSite cookie.
+- JSON bodies are capped at **64 KB**; uploads keep their 10 MB.
+- **Content-Security-Policy** and **Permissions-Policy** on every page: no
+  plugins, no framing by other sites, no camera or location, Razorpay the only
+  outside script. A new outside service (analytics, a chat widget) must be
+  added to `CSP` in `serve.js` or the browser silently refuses it.
+- **The WhatsApp webhook verifies Meta's signature** and refuses everything
+  until `WHATSAPP_APP_SECRET` (Meta developer console → App settings → Basic)
+  is set alongside the token. Without it, anybody could have posted a message
+  into a student's conversation as a counsellor.
+
+What this does NOT do, and is on you: two-factor authentication on the
+Render, one.com, GitHub and Brevo accounts — the domain and the deploy are
+worth more than anything on the disk — and the weekly download above.
+
 ## Turning payments on
 
 The checkout is wired to Razorpay and switched off. With no keys set, an order
@@ -150,6 +188,7 @@ lists them under `NOTE`.
     node sweep.js                      # every control on every screen does something
     node mobiletest.js                 # nothing scrolls sideways on a phone
     node paytest.js                    # what a forged payment cannot do
+    node hardentest.js                 # what a script, a flood and another site cannot do
     node legaltest.js                  # the legal pages, and the contact form
     node e2e.js                        # one person's walk through the whole business
 

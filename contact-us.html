@@ -1053,7 +1053,10 @@ if (location.protocol === 'file:') {
       email: $('ctMail').value.trim(),
       destination: $('ctDest').value.trim(),
       message: $('ctMsg').value.trim(),
-      source: 'contact-us'
+      source: 'contact-us',
+      /* The field no person can see. The server drops anything that fills
+         it, and a script that fills every box it finds fills this one. */
+      website: $('ctTrap').value
     };
 
     fetch('/send.php', {

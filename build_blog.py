@@ -112,6 +112,9 @@ FORM = """
         <div class="field"><label for="bfMsg">What would you like to know?</label>
           <textarea id="bfMsg" name="message" rows="3"
             placeholder="Optional — your CGPA, your intake, the course you have in mind"></textarea></div>
+        <label for="bfSite" class="sr" style="position:absolute;left:-9999px">Leave this field empty</label>
+        <input id="bfSite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
+          style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
         <button class="btn btn-green" type="submit" id="bfGo">Ask a counsellor</button>
         <p class="bf-note" id="bfMsgOut" role="status"></p>
         <p class="bf-fine">We use this to reply to you about this question. Nothing else.</p>
@@ -260,6 +263,7 @@ FORM_JS = """
           note: 'From the blog: ' + document.title.replace(/ \\| Glovels$/, ''),
           message: f.message.value.trim(),
           consent: 'blog',
+          website: f.website ? f.website.value : '',
           sourcePage: location.pathname,
           referrer: document.referrer || 'direct'
         })

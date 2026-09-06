@@ -30,6 +30,7 @@
  */
 
 const https = require('https');
+const crypto = require('crypto');
 
 function post(url, token, payload) {
   return new Promise((resolve, reject) => {
@@ -65,6 +66,10 @@ const waNumber = phone => String(phone || '').replace(/\D+/g, '').replace(/^0+/,
 function open({ mail, config, siteUrl, log = console }) {
   const cfg = config || {};
   const waReady = !!(cfg.WHATSAPP_TOKEN && cfg.WHATSAPP_PHONE_ID);
+  /* The app secret from Meta's developer console, App settings → Basic. Meta
+     signs every callback with it (X-Hub-Signature-256 over the raw body);
+     without it a callback cannot be told from anybody's POST. */
+  const appSecret = String(cfg.WHATSAPP_APP_SECRET || '').trim();
   const template = cfg.WHATSAPP_TEMPLATE || 'glovels_new_message';
   const api = 'https://graph.facebook.com/v21.0/' + cfg.WHATSAPP_PHONE_ID + '/messages';
 
@@ -131,13 +136,22 @@ function open({ mail, config, siteUrl, log = console }) {
     whatsappText,
     whatsappTemplate,
     whatsappReady: waReady,
+    webhookReady: !!appSecret,
+    /** Meta's signature over the raw callback body: "sha256=<hex hmac>". */
+    verifySignature(raw, header) {
+      if (!appSecret) return false;
+      const got = String(header || '').replace(/^sha256=/i, '').trim();
+      if (!/^[0-9a-f]{64}$/i.test(got)) return false;
+      const want = crypto.createHmac('sha256', appSecret).update(raw).digest('hex');
+      return crypto.timingSafeEqual(Buffer.from(got, 'hex'), Buffer.from(want, 'hex'));
+    },
     status() {
       return {
         mail: mail.mode,
         whatsapp: waReady ? 'configured' : 'off — needs WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in mail.env',
-        webhook: waReady
-          ? siteUrl + '/api/whatsapp/webhook  (must be a public HTTPS URL for Meta to reach it)'
-          : 'n/a',
+        webhook: !waReady ? 'n/a'
+          : !appSecret ? 'off — set WHATSAPP_APP_SECRET so replies from Meta can be verified'
+          : siteUrl + '/api/whatsapp/webhook  (must be a public HTTPS URL for Meta to reach it)',
       };
     },
     /** Meta's webhook verification handshake: echo hub.challenge back. */
