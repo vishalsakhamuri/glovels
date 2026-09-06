@@ -309,12 +309,45 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('the sheet says "search" in the on-the-site column', csv.split('\n').some(l => l.startsWith(soIds[0] + ',') && /,search,/.test(l)));
   /* "A few universities on the country pages." */
   html = await (await guest.request.get(BASE + '/study-in-germany')).text();
-  const dl = (html.match(/<h2 id="universities">Universities in Germany we place students at<\/h2><ul class="ulist">([\s\S]*?)<\/ul>/) || [])[1] || '';
+  const dl = (html.match(/<h2 id="universities">Universities in Germany we place students at<\/h2>[\s\S]*?<ul class="ulist" id="uList">([\s\S]*?)<\/ul>/) || [])[1] || '';
   const dn = (dl.match(/<li>/g) || []).length;
   check('the Germany page lists a few universities, at most fifty', dn > 0 && dn <= 50, dn + ' listed');
-  check('linked to their pages, not the search-only one', /href="university\/tu-munich"/.test(dl)
-    && !dl.includes('href="university/' + soSlug + '"'));
-  check('and counts the rest as searchable', /And \d+ more in Germany/.test(html) && /href="university">Search by name/.test(html));
+  check('linked to their pages, on-the-site ones first and the search-only one after', /href="university\/tu-munich"/.test(dl)
+    && dl.includes('href="university/' + soSlug + '"')
+    && dl.indexOf('href="university/tu-munich"') < dl.indexOf('href="university/' + soSlug + '"'));
+  check('and no "more" line while they all fit', !/And \d+ more in Germany/.test(html));
+  check('and a search box on the country page', /id="uSearch"/.test(html) && /api\/universities\/search/.test(html));
+  /* "We can have the home page criteria — filter — on the country screen as
+     well." */
+  check('the finder\'s criteria are on the country page', ['ufLevel', 'ufField', 'ufCgpa', 'ufGgpa', 'ufIntake', 'ufBudget', 'ufApply', 'ufQ']
+    .every(id => html.includes('id="' + id + '"')) && /data-country="DE"/.test(html));
+  check('the UK page has no German-grade field', !/id="ufGgpa"/.test(await (await guest.request.get(BASE + '/study-in-united-kingdom')).text()));
+  let fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE&cgpa=7.2')).json();
+  check('a 7.2 CGPA in Germany clears only the private universities', fr.total > 0 && fr.universities.every(u => !u.isPublic), fr.total + ' universities');
+  fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE&budget=1')).json();
+  check('"no tuition" keeps only universities with a ₹0 programme', fr.total > 0 && fr.universities.every(u => u.feeMin === 0));
+  fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE&q=stutt&level=master')).json();
+  check('a name narrows it, and the row says how many programmes clear', fr.total === 1 && fr.universities[0].slug === 'university-of-stuttgart'
+    && fr.universities[0].matching >= 1);
+  fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE')).json();
+  check('with no criteria it is the whole country, search-only included, fifty at most',
+    fr.universities.length <= 50 && fr.universities.some(u => u.slug === soSlug) && fr.universities[0].listed);
+  check('an unknown country is a 404', (await guest.request.get(BASE + '/api/universities/filter?country=XX')).status() === 404);
+  const dp = await guest.newPage();
+  const derr = [];
+  dp.on('pageerror', e => derr.push(String(e)));
+  await dp.goto(BASE + '/study-in-germany');
+  const nBefore = await dp.locator('#uList li').count();
+  await dp.selectOption('#ufCgpa', '7.2');
+  await dp.waitForFunction(n => document.querySelectorAll('#uList li').length !== n, nBefore, { timeout: 5000 }).catch(() => {});
+  const nAfter = await dp.locator('#uList li').count();
+  check('choosing a CGPA on the page redraws the list', nAfter > 0 && nAfter < nBefore, nBefore + ' → ' + nAfter);
+  check('and says how many match', /universit(y|ies) match/.test(await dp.textContent('#uCount')));
+  await dp.click('#ufClear');
+  await dp.waitForFunction(n => document.querySelectorAll('#uList li').length === n, nBefore, { timeout: 5000 }).catch(() => {});
+  check('Clear filters puts the first list back', await dp.locator('#uList li').count() === nBefore && await dp.locator('#ufClear').isHidden());
+  check('no script errors on the country page', !derr.length, derr.join(' | '));
+  await dp.close();
   check('a country with nothing on the site gets no heading',
     !/id="universities"/.test(await (await guest.request.get(BASE + '/study-in-japan')).text()));
   r = await staff.request.post(BASE + '/api/staff/programmes/bulk', { data: { ids: soIds, action: 'show' } });

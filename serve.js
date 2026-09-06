@@ -1341,11 +1341,12 @@ function universitiesIndexPage() {
  *  a specific search from Google or in the search bar."
  *
  * The country page is static — written by build_destinations.py — and this
- * puts the universities the office has put ON THE SITE in that country into
- * it as it goes out, fifty at most, in front of the "Universities in X"
- * button. Search-only universities are counted, not listed: "and 140 more
- * you can search for". The page is not touched on disk, so a rebuild cannot
- * lose it and a country with nothing on the site gets no empty heading.
+ * puts that country's universities into it as it goes out, fifty at most,
+ * in front of the "Universities in X" button — on-the-site ones first, then
+ * search-only ones, which have pages too. Past fifty they are counted, not
+ * listed: "and 140 more you can search for". The page is not touched on
+ * disk, so a rebuild cannot lose it and a country with no university gets no
+ * empty heading.
  */
 const DEST_CSS = `<style>/* GLOVELS-DEST-UNIS */
 .ulist{list-style:none;padding:0;margin:14px 0 8px;display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
@@ -1356,6 +1357,15 @@ const DEST_CSS = `<style>/* GLOVELS-DEST-UNIS */
 .ulist small{display:block;margin-top:3px;font:400 12.2px/1.5 var(--sans);color:var(--muted)}
 .ulist .n{font:700 12px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
 .umore{font:400 13.6px/1.6 var(--sans);color:var(--muted);margin:0 0 6px}
+.ufilter{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0 6px;padding:14px;
+  background:var(--paper);border:1px solid var(--line);border-radius:14px}
+.ufilter .field label{display:block;font:600 11.2px/1.4 var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+.ufilter select,.ufilter input{width:100%;height:40px;padding:0 10px;border:1.5px solid var(--line);border-radius:10px;background:#fff;
+  font:400 13.4px/1.4 var(--sans);color:var(--navy-900)}
+.ufilter select:focus,.ufilter input:focus{outline:none;border-color:var(--navy-700)}
+.ufilter .act{display:flex;align-items:flex-end}
+.ufilter .act .btn{height:40px;width:100%;justify-content:center}
+.ucount{font:700 13px/1.5 var(--sans);color:var(--navy-800);margin:8px 0 0}
 </style>`;
 const DEST_MAX = 50;
 function withDestinationUniversities(html, slug) {
@@ -1367,26 +1377,104 @@ function withDestinationUniversities(html, slug) {
   if (anchor < 0) return html;
   const all = universities().filter(u => u.country === code
     && !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden);
-  const listed = all.filter(u => u.listed);
-  if (!listed.length) return html;
+  if (!all.length) return html;
   const c = countries[code];
-  /* The ones the office featured lead; then whoever has the most on offer. */
-  const lead = listed.slice().sort((a, b) =>
-    (b.programmes.some(p => p.featured) - a.programmes.some(p => p.featured))
+  /* Every university in the country with a page, search-only ones included —
+     "the home page search for universities looks fine, no changes to it; on
+     the country pages we can display up to 50". The ones the office put on
+     the site lead, then the featured, then whoever has the most on offer. */
+  const lead = all.slice().sort((a, b) =>
+    (b.listed - a.listed)
+    || (b.programmes.some(p => p.featured) - a.programmes.some(p => p.featured))
     || (b.programmes.length - a.programmes.length) || a.name.localeCompare(b.name)).slice(0, DEST_MAX);
   const more = all.length - lead.length;
-  const block = '<h2 id="universities">Universities in ' + esc(c.name) + ' we place students at</h2>'
-    + '<ul class="ulist">' + lead.map(u =>
-      '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.shortName || u.name) + '</b><small>'
+  const li = u => '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.shortName || u.name) + '</b><small>'
       + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
       + ' · ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
       + (u.feeModel === 'free' ? ' · free to apply through us' : '')
       + '</small></span><span class="n">' + u.programmes.length + ' programme'
-      + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>').join('') + '</ul>'
-    + (more ? '<p class="umore">And ' + more + ' more in ' + esc(c.name) + ' — every one has its own page. '
-      + '<a href="university">Search by name</a>, or type it in the box on the <a href="index.html#results">home page</a>.</p>' : '');
-  return (html.slice(0, anchor) + block + html.slice(anchor)).replace('</head>', DEST_CSS + '</head>');
+      + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>';
+
+  /* "We can have the home page criteria — filter — on the country screen as
+     well." The finder's fields, minus the country, over this country's
+     universities; every change asks /api/universities/filter. The options
+     are what this country's programmes actually have, so nobody filters
+     Germany to a level nothing there offers. */
+  const levels = [...new Set(all.flatMap(u => u.programmes.map(p => String(p.level || 'master').toLowerCase())))].sort();
+  const fields = [...new Set(all.flatMap(u => u.programmes.map(p => p.field).filter(Boolean)))].sort();
+  const LEVEL_NAMES = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma',
+    foundation: 'Foundation / Pathway', pathway: 'Foundation / Pathway', phd: 'PhD' };
+  const opt = (v, t) => '<option value="' + esc(v) + '">' + esc(t) + '</option>';
+  const sel = (id, label, options) => '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '">'
+    + options + '</select></div>';
+  const filterBar = '<form class="ufilter" id="uFilter" data-country="' + esc(code) + '" onsubmit="return false">'
+    + '<div class="field"><label for="ufQ">University or city</label><input id="ufQ" type="search" autocomplete="off" placeholder="Munich, Heidelberg, RWTH…"></div>'
+    + sel('ufLevel', 'Study level', opt('', 'Any level') + levels.map(l => opt(l, LEVEL_NAMES[l] || l)).join(''))
+    + sel('ufField', 'Field', opt('', 'Any field') + fields.map(f => opt(f, f)).join(''))
+    + sel('ufCgpa', 'Your CGPA', opt('', 'Any CGPA') + opt('9.5', '9.0 – 10.0') + opt('8.5', '8.0 – 8.9') + opt('7.5', '7.5 – 7.9')
+      + opt('7.2', '7.0 – 7.4') + opt('6.5', '6.0 – 6.9') + opt('5.5', 'below 6.0'))
+    + (code === 'DE' ? sel('ufGgpa', 'Your German grade', opt('', 'Any grade') + opt('1.5', '1.0 – 1.5 (excellent)') + opt('2.0', '1.6 – 2.0 (very good)')
+      + opt('2.5', '2.1 – 2.5 (good)') + opt('3.0', '2.6 – 3.0 (satisfactory)') + opt('3.5', '3.1 – 3.5 (sufficient)') + opt('4.0', '3.6 – 4.0 (pass)')) : '')
+    + sel('ufIntake', 'Intake', opt('', 'Any intake') + opt('winter', 'Winter') + opt('summer', 'Summer'))
+    + sel('ufBudget', 'Total tuition', opt('', 'Any budget') + opt('1', 'No tuition') + opt('500000', 'Up to ₹5 lakh') + opt('1000000', 'Up to ₹10 lakh')
+      + opt('2000000', 'Up to ₹20 lakh') + opt('4000000', 'Up to ₹40 lakh'))
+    + sel('ufApply', 'Applying', opt('', 'Free or with a package') + opt('free', 'Free to apply through us'))
+    + '<div class="field act"><button type="button" class="btn btn-ghost" id="ufClear" hidden>Clear filters</button></div>'
+    + '</form><p class="ucount" id="uCount" aria-live="polite">' + (more ? 'Showing ' + lead.length + ' of ' + all.length : all.length) + ' universit'
+    + (all.length === 1 ? 'y' : 'ies') + ' in ' + esc(c.name) + '</p>';
+
+  const block = '<h2 id="universities">Universities in ' + esc(c.name) + ' we place students at</h2>'
+    + filterBar
+    + '<ul class="ulist" id="uList">' + lead.map(li).join('') + '</ul>'
+    + '<p class="umore" id="uMore">' + (more ? 'And ' + more + ' more in ' + esc(c.name) + ' — narrow the filters above, or search below.'
+      : 'Looking for another university? Every one we track has its own page — search for it below.') + '</p>'
+    /* "For more they can search — that option should be there." The same box
+       the /university list has, on the country page itself. */
+    + USEARCH_HTML;
+  return (html.slice(0, anchor) + block + html.slice(anchor))
+    .replace('</head>', UNI_CSS + DEST_CSS + '</head>').replace('</body>', USEARCH_JS + UFILTER_JS + '</body>');
 }
+
+const UFILTER_JS = `<script>(function(){
+  var f = document.getElementById('uFilter'), list = document.getElementById('uList'),
+      count = document.getElementById('uCount'), moreEl = document.getElementById('uMore'), clear = document.getElementById('ufClear');
+  if (!f || !list) return;
+  var code = f.dataset.country, first = list.innerHTML, firstCount = count.textContent, firstMore = moreEl.textContent, t = null, seq = 0;
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var money = function (v) { v = Number(v) || 0; if (!v) return '\u20b90';
+    if (v >= 1e7) return '\u20b9' + (v / 1e7).toFixed(v % 1e7 ? 1 : 0) + ' crore';
+    if (v >= 1e5) return '\u20b9' + (v / 1e5).toFixed(v % 1e5 ? 1 : 0) + ' lakh';
+    return '\u20b9' + v.toLocaleString('en-IN'); };
+  var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  var state = function () { return { q: val('ufQ'), level: val('ufLevel'), field: val('ufField'), cgpa: val('ufCgpa'),
+    ggpa: val('ufGgpa'), intake: val('ufIntake'), budget: val('ufBudget'), apply: val('ufApply') }; };
+  var row = function (u) {
+    return '<li><a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
+      + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' \u00b7 ' + esc(u.city) : '')
+      + ' \u00b7 ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + money(u.feeMin))
+      + (u.feeModel === 'free' ? ' \u00b7 free to apply through us' : '')
+      + '</small></span><span class="n">' + (u.matching < u.programmes ? u.matching + ' of ' + u.programmes : u.programmes)
+      + ' programme' + (u.programmes === 1 ? '' : 's') + ' \u2192</span></a></li>';
+  };
+  function ask() {
+    var s = state(), on = Object.keys(s).some(function (k) { return s[k]; });
+    clear.hidden = !on;
+    if (!on) { list.innerHTML = first; count.textContent = firstCount; moreEl.textContent = firstMore; return; }
+    var my = ++seq, qs = Object.keys(s).filter(function (k) { return s[k]; })
+      .map(function (k) { return k + '=' + encodeURIComponent(s[k]); }).join('&');
+    fetch('/api/universities/filter?country=' + code + '&' + qs).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || my !== seq) return;
+      var U = d.universities || [];
+      list.innerHTML = U.map(row).join('') || '<li style="color:var(--muted);padding:8px 0">Nothing clears every filter. Loosen one, or <a href="index.html#counsel">ask a counsellor</a> \u2014 we add universities on request.</li>';
+      count.textContent = (d.total > U.length ? 'Showing ' + U.length + ' of ' + d.total : d.total) + ' universit' + (d.total === 1 ? 'y' : 'ies') + ' match';
+      moreEl.textContent = d.total > U.length ? 'And ' + (d.total - U.length) + ' more match \u2014 narrow the filters, or search below.' : 'Every one has its own page. Search for another below.';
+    }).catch(function () {});
+  }
+  f.addEventListener('change', ask);
+  f.addEventListener('input', function (e) { if (e.target.id === 'ufQ') { clearTimeout(t); t = setTimeout(ask, 220); } });
+  clear.addEventListener('click', function () { f.reset(); ask(); });
+})();</script>`;
 
 /*
  * The receipt for what somebody accepted when they paid.

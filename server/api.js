@@ -5761,6 +5761,72 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
     return json(res, 200, { universities, programmes }, { 'Cache-Control': 'public, max-age=60' });
   }, { open: true });
 
+  /* ------------------------------------------------ filter, per country */
+  /*
+   * "If the user is on an individual country page he can search and select
+   *  the universities he wants — we can have the home page criteria, filter,
+   *  on the country screen as well."
+   *
+   * The finder's criteria — level, field, CGPA, German grade, intake, budget
+   * — over ONE country's universities, search-only ones included, fifty at
+   * most. A university is in if one of its programmes clears every filter,
+   * and the reply says how many of its programmes did. The page asks this on
+   * every change rather than carrying the country's whole catalogue, which
+   * for the Germany that is coming would be the very list this exists to
+   * avoid.
+   */
+  route('GET', '/api/universities/filter', async (req, res) => {
+    const q = url.parse(req.url, true).query;
+    const code = String(q.country || '').toUpperCase().slice(0, 2);
+    const cm = countryMap();
+    const c = cm[code];
+    if (!c) return json(res, 404, { error: 'No such destination.' });
+    const level = String(q.level || '').toLowerCase().trim();
+    const field = String(q.field || '').trim();
+    const cgpa = Number(q.cgpa) || 0;
+    const gg = Number(q.ggpa) || 0;
+    const season = /^(summer|winter)$/.test(String(q.intake || '')) ? String(q.intake) : '';
+    const budget = Number(q.budget) || 0;       // total tuition, rupees; 0 = any
+    const free = String(q.apply || '') === 'free';
+    const words = String(q.q || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean).slice(0, 6);
+    const norm = v => String(v || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    const hidden = slug => { try { return !!UNIS.cleanExtras(db.content('university:' + slug)).hidden; } catch (e) { return false; } };
+
+    const clears = (p, u) => {
+      if (level && String(p.level || 'master').toLowerCase() !== level) return false;
+      if (field && String(p.field || '') !== field) return false;
+      if (cgpa) {
+        const bar = p.minCgpa != null ? Number(p.minCgpa)
+          : Number(p.isPublic ? c.minCgpaPublic : c.minCgpaPrivate) || 0;
+        if (bar && cgpa < bar) return false;
+      }
+      if (gg && p.germanGpa != null && gg > Number(p.germanGpa)) return false;
+      if (season && !(p.intakes || []).some(i => i && String(i.season || '').toLowerCase() === season)) return false;
+      if (budget && Number(p.totalInr || 0) > budget) return false;
+      if (free && p.feeModel !== 'free') return false;
+      return true;
+    };
+
+    const out = [];
+    let total = 0;
+    for (const u of UNIS.group(cat())) {
+      if (u.country !== code || hidden(u.slug)) continue;
+      if (words.length) {
+        const hay = norm(u.name + ' ' + u.shortName + ' ' + u.city);
+        if (!words.every(w => hay.includes(w))) continue;
+      }
+      const n = u.programmes.filter(p => clears(p, u)).length;
+      if (!n) continue;
+      total++;
+      out.push({ slug: u.slug, name: u.shortName || u.name, city: u.city, isPublic: u.isPublic,
+        feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
+        featured: u.programmes.some(p => p.featured), programmes: u.programmes.length, matching: n,
+        url: '/university/' + u.slug });
+    }
+    out.sort((a, b) => (b.listed - a.listed) || (b.featured - a.featured) || (b.matching - a.matching) || a.name.localeCompare(b.name));
+    return json(res, 200, { country: code, total, universities: out.slice(0, 50) }, { 'Cache-Control': 'public, max-age=60' });
+  }, { open: true });
+
   /* ---------------------------------------------------- university pages */
   /*
    * What the office writes ABOUT a university, for its page at
