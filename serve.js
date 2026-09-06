@@ -1853,6 +1853,28 @@ function successStoriesPage() {
 
 const NOINDEX = /<meta name="robots" content="noindex,nofollow"\s*\/?>/i;
 
+/*
+ * A diagnostic switch: ?nojs=<word>,<word> serves a public page with every
+ * inline <script> whose text contains one of those words taken out, and
+ * ?nojs=all with none at all. Public pages only, never the office's screens.
+ *
+ * It exists because PageSpeed Insights cannot score the home page — its
+ * engine finds the first paint but not the largest one, an error nothing
+ * here can reproduce with an older Chrome — while a university page scores
+ * 99. Loading the home page through PageSpeed with one block of script
+ * removed at a time says which block it is. A page without its scripts is
+ * a page that does not work, so the switch is only ever typed by hand.
+ */
+function withoutScripts(html, query, slug) {
+  const m = /(?:^|&)nojs=([^&]*)/.exec(query || '');
+  if (!m || PORTAL_PAGES.has(slug)) return html;
+  const words = decodeURIComponent(m[1]).split(',').map(w => w.trim()).filter(Boolean);
+  if (!words.length) return html;
+  const all = words.includes('all');
+  return html.replace(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/g, block =>
+    (all || words.some(w => block.includes(w))) ? '<!-- nojs -->' : block);
+}
+
 function forIndexing(html, slug) {
   /* Every public page goes through here, which makes it the one place to add
      the office's destinations to the menu. */
@@ -2128,6 +2150,7 @@ const server = http.createServer(async (req, res) => {
     const slug = path.basename(file, '.html');
     let html = fs.readFileSync(file, 'utf8');
     if (slug.startsWith('study-in-')) html = withDestinationUniversities(html, slug);
+    html = withoutScripts(html, query, slug);
     return send(res, 200, forIndexing(html, slug), TYPES['.html']);
   }
 
