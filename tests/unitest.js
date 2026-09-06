@@ -311,7 +311,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   html = await (await guest.request.get(BASE + '/study-in-germany')).text();
   const dl = (html.match(/<h2 id="universities">Universities in Germany we place students at<\/h2><ul class="ulist">([\s\S]*?)<\/ul>/) || [])[1] || '';
   const dn = (dl.match(/<li>/g) || []).length;
-  check('the Germany page lists a few universities, at most twelve', dn > 0 && dn <= 12, dn + ' listed');
+  check('the Germany page lists a few universities, at most fifty', dn > 0 && dn <= 50, dn + ' listed');
   check('linked to their pages, not the search-only one', /href="university\/tu-munich"/.test(dl)
     && !dl.includes('href="university/' + soSlug + '"'));
   check('and counts the rest as searchable', /And \d+ more in Germany/.test(html) && /href="university">Search by name/.test(html));

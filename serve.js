@@ -1342,7 +1342,7 @@ function universitiesIndexPage() {
  *
  * The country page is static — written by build_destinations.py — and this
  * puts the universities the office has put ON THE SITE in that country into
- * it as it goes out, a dozen at most, in front of the "Universities in X"
+ * it as it goes out, fifty at most, in front of the "Universities in X"
  * button. Search-only universities are counted, not listed: "and 140 more
  * you can search for". The page is not touched on disk, so a rebuild cannot
  * lose it and a country with nothing on the site gets no empty heading.
@@ -1357,7 +1357,7 @@ const DEST_CSS = `<style>/* GLOVELS-DEST-UNIS */
 .ulist .n{font:700 12px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
 .umore{font:400 13.6px/1.6 var(--sans);color:var(--muted);margin:0 0 6px}
 </style>`;
-const DEST_MAX = 12;
+const DEST_MAX = 50;
 function withDestinationUniversities(html, slug) {
   const want = String(slug || '').replace(/^study-in-/, '');
   const countries = liveCountries();
