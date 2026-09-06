@@ -850,6 +850,23 @@ const UNI_JS = `<div class="apsheet" id="apSheet" role="dialog" aria-modal="true
     b.disabled = true;
     post({ id: b.dataset.apply }).then(function(d){
       b.disabled = false;
+      /* Nobody signed in, at a with-a-package university: what the home page
+         does for a locked row — the package is the way in, so show the
+         packages on this page rather than a form nobody can act on yet. A
+         free university gets the three-detail form, as on the home page. A
+         signed-in student never lands here: their apply went on their list,
+         or the server said it needs a package (below). */
+      if (d.needDetails && b.dataset.fee === 'package' && document.getElementById('packages')) {
+        var why = document.getElementById('pkgWhy');
+        var note = document.getElementById('apNeed') || (function(){
+          var d2 = document.createElement('div'); d2.id = 'apNeed'; d2.className = 'daadbox';
+          d2.style.borderColor = '#e6d5a8'; d2.style.background = '#fdf6e6';
+          why.parentNode.insertBefore(d2, why); return d2; })();
+        note.innerHTML = '<b>' + b.dataset.prog.replace(/</g, '&lt;') + '</b> is applied to through a package. '
+          + 'Choose one below — it opens at the checkout, and a counsellor files this application as part of it.';
+        document.getElementById('packages').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       if (d.needDetails) return open(b);
       if (d.signedIn) {
         b.textContent = d.already ? 'On your list' : 'Added to your list';
@@ -992,7 +1009,7 @@ function universityPage(u) {
       + '<div class="act">'
       + (courseUrl ? '<a class="course" href="' + esc(courseUrl) + '" target="_blank" rel="noopener nofollow">Course page ↗</a>' : '')
       + '<button type="button" class="btn btn-sm ' + (fm === 'free' ? 'btn-primary' : 'btn-gold')
-        + '" data-apply="' + esc(p.id) + '" data-uni="' + esc(u.name) + '" data-prog="' + esc(p.program) + '">'
+        + '" data-apply="' + esc(p.id) + '" data-fee="' + fm + '" data-uni="' + esc(u.name) + '" data-prog="' + esc(p.program) + '">'
         + (fm === 'free' ? 'Apply free' : 'Apply') + '</button>'
       + '</div></article>';
   }).join('');

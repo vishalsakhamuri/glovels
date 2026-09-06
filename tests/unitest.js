@@ -183,9 +183,17 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const btn = page.locator('[data-apply]').first();
   await btn.click();
   await page.waitForSelector('#apSheet.on', { timeout: 4000 }).catch(() => {});
-  check('Apply, signed out, asks for three details', await page.locator('#apSheet.on').count() === 1);
-  check('and names the university and the programme', /University of Stuttgart/.test(await page.textContent('#apT'))
-    && /Electrical Engineering|Information Technology/.test(await page.textContent('#apLead')));
+  /* Stuttgart is a with-a-package university: signed out, Apply shows the
+     packages on the page, as the home page does for a locked row. */
+  check('Apply, signed out, at a with-a-package university shows the packages instead of a form',
+    await page.locator('#apSheet.on').count() === 0 && await page.locator('#apNeed').count() === 1
+    && /applied to through a package/.test(await page.textContent('#apNeed')));
+  /* A free-to-apply university asks for the three details. */
+  await page.goto(BASE + freeU.url);
+  await page.locator('[data-apply]').first().click();
+  await page.waitForSelector('#apSheet.on', { timeout: 4000 }).catch(() => {});
+  check('Apply, signed out, at a free university asks for three details', await page.locator('#apSheet.on').count() === 1);
+  check('and names the university and the programme', new RegExp(freeU.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(await page.textContent('#apT')));
   await page.fill('#apName', 'Uni Page Tester');
   await page.fill('#apEmail', 'unipage' + Date.now() + '@example.com');
   await page.fill('#apPhone', '9876501234');
@@ -195,9 +203,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     await page.textContent('#apSaid'));
   const leads = await (await staff.request.get(BASE + '/api/staff/leads')).json().catch(() => ({}));
   const lead = (leads.leads || leads.enquiries || []).find(l => l.name === 'Uni Page Tester');
-  check('and reaches the office as a lead naming the university', !!lead && /University of Stuttgart/.test(lead.note || ''),
+  check('and reaches the office as a lead naming the university', !!lead && (lead.note || '').includes(freeU.name),
     lead ? lead.note : 'no lead found');
-  check('recorded as coming from the university page', !!lead && /\/university\/university-of-stuttgart/.test(lead.page || ''), lead && lead.page);
+  check('recorded as coming from the university page', !!lead && (lead.page || '').includes(freeU.url), lead && lead.page);
 
   /* Signed in as a student: onto the shortlist, or the package rule. */
   const student = await browser.newContext();
