@@ -141,7 +141,7 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
   ok(cerrs.length === 0, 'no page errors on the catalogue — ' + cerrs.slice(0, 2).join(' | '));
 
   /* ====================== 4. the blog screen knows what is on the site */
-  const posts = await (await admin.request.get(BASE + '/api/staff/posts')).json();
+  const posts = await (await admin.request.get(BASE + '/api/staff/posts?per=500')).json();
   const disk = (posts.posts || []).filter(p => p.onDisk);
   ok(disk.length > 0,
     'there are posts serving from their original page — ' + disk.length);

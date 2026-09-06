@@ -56,7 +56,7 @@ function datesIn(text) {
   const admin = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   await admin.request.post(BASE + '/api/auth/login',
     { data: { email: 'admin@glovels.com', password: 'glovels123' } });
-  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const row = (cat.programmes || []).find(p => !p.isPublic && p.country === 'DE');
   ok(!!row, 'there is a named German programme to date — ' + (row && row.university));
 

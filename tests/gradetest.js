@@ -321,7 +321,7 @@ const toCsv = rows => '﻿' + rows.map(r =>
    * hat, and just as invisible on screen.
    *
    * It happened. This is the check that caught it. */
-  const staffCat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json();
+  const staffCat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const cgOnly = (staffCat.programmes || []).find(p => p.country === 'DE' && !p.isPublic);
   await admin.request.put(BASE + '/api/staff/programme',
     { data: Object.assign({}, cgOnly, { germanGpa: '', minCgpa: 9.4 }) });

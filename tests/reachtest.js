@@ -92,7 +92,7 @@ const check = (n, p, note) => (p ? ok : bad).push(n + (note ? ' — ' + note : '
     { multipart: { file, confirm: 'yes' } })).json();
   check('and confirming actually writes it', applied.updated === 1, JSON.stringify(applied));
 
-  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const prog = cat.programmes.find(p => p.university === uni && p.country === 'DE');
   check('the number typed into Excel is on the programme',
     prog && Number(prog.minCgpa) === 9.4, prog && JSON.stringify(prog.minCgpa));

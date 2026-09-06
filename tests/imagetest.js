@@ -248,7 +248,7 @@ function wixServer() {
     /1 failed/.test(said) && /gone-post — failed/.test(await page.textContent('#wixItems')));
   check('pictures were copied', /2 pictures copied/.test(said), said);
 
-  r = await staff.request.get(BASE + '/api/staff/posts');
+  r = await staff.request.get(BASE + '/api/staff/posts?per=500');
   const posts = (await r.json()).posts;
   const p1 = posts.find(p => p.slug === 'first-post-from-wix');
   const p2 = posts.find(p => p.slug === 'second-post-from-wix');

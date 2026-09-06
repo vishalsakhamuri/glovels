@@ -97,7 +97,7 @@ const toCsv = rows => rows.map(r => r.map(c => {
   ok(!!row, 'and is on the office list');
   const SID = row && row.id;
 
-  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const prog = (cat.programmes || cat.items || [])[0];
   ok(!!prog, 'there is a programme to put on their list');
   const add = await admin.request.post(BASE + '/api/staff/student/' + SID + '/shortlist',

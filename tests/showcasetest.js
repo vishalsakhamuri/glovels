@@ -127,7 +127,7 @@ const showcase = async (ctx, expect) => {
     inBand.join(' | '));
 
   /* Featuring must not have changed anything else about it. */
-  const back = (await (await ctx.request.get(BASE + '/api/staff/catalogue')).json())
+  const back = (await (await ctx.request.get(BASE + '/api/staff/catalogue?per=500')).json())
     .programmes.find(p => p.id === newId);
   check('featuring left the fee alone', back.totalInr === 1450000, back.totalInr);
   check('and the position is stored', back.featureSort === 1, back.featureSort);
@@ -139,7 +139,7 @@ const showcase = async (ctx, expect) => {
       level: 'master', field: 'Aerospace & Robotics', isPublic: false,
       totalInr: 1500000, active: true },
   });
-  const after = (await (await ctx.request.get(BASE + '/api/staff/catalogue')).json())
+  const after = (await (await ctx.request.get(BASE + '/api/staff/catalogue?per=500')).json())
     .programmes.find(p => p.id === newId);
   check('an unrelated edit does not unfeature it', after.featured === true, after.featured);
 

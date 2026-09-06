@@ -153,7 +153,7 @@ const check = (n, p, note) => (p ? ok : bad).push(n + (note ? ' — ' + note : '
     /of \d+ programmes/.test(cat), cat.replace(/\s+/g, ' ').trim());
   const total = Number((cat.match(/of (\d+) programmes/) || [])[1] || 0);
   check('and the pager knows the whole catalogue',
-    total === (await (await admin.request.get(BASE + '/api/staff/catalogue')).json())
+    total === (await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json())
       .programmes.length, total);
   /* Select-everything has to keep meaning everything. */
   await page.check('#selAll');

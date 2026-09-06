@@ -106,7 +106,10 @@ const APP_STAGES = [[4, 'offer'], [3, ''], [2, ''], [2, ''], [1, ''], [0, '']];
 function repairEntities(db) {
   const decode = decodeEntities;
   let n = 0;
-  db.programmes(true).forEach(r => {
+  /* Only the rows with an ampersand in them — an entity cannot be anywhere
+     else, and a million rows are not read to find the six. */
+  const rows = typeof db.rowsWithAmpersand === 'function' ? db.rowsWithAmpersand() : db.programmes(true);
+  rows.forEach(r => {
     const fixed = {
       program: decode(r.program), university: decode(r.university),
       city: decode(r.city), field: decode(r.field),
@@ -133,7 +136,15 @@ const decodeEntities = s => String(s == null ? '' : s)
   .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
 
 function seedCatalogue({ db, catalogue, countries }) {
-  if (db.programmes(true).length) return repairEntities(db) ? 0 : 0;
+  if (db.catalogueStats().total) {
+    /* Once. Reading every row on every start was nothing at 171 rows and
+       is a full scan of a million at the size the catalogue is heading. */
+    if (!db.content('entitiesRepairedV1')) {
+      repairEntities(db);
+      db.setContent('entitiesRepairedV1', { done: true }, 'system');
+    }
+    return 0;
+  }
   /* The entry requirements come in with the destination. Everything that is
      not code/name/flag/region is a fact the finder's Requirements panel shows,
      and it is seeded here so the office can edit it from day one rather than
@@ -177,7 +188,7 @@ function seedCatalogue({ db, catalogue, countries }) {
  * words is a headline with a URL on it.
  */
 function seedPosts({ db, root }) {
-  if (db.allPosts().length) return 0;
+  if (db.postStats().total) return 0;
   const dir = path.join(root, 'post');
   let files = [];
   try { files = fs.readdirSync(dir).filter(f => f.endsWith('.html') && !f.startsWith('_')); }
@@ -635,11 +646,10 @@ function fillEmptyPosts({ db, root }) {
   } catch (e) { return 0; }
   if (!Array.isArray(shipped) || !shipped.length) return 0;
 
-  const have = db.allPosts();
   let n = 0;
 
   for (const s of shipped) {
-    const row = have.find(x => x.slug === s.slug);
+    const row = db.postBySlug(s.slug);
     if (!row) continue;
     if (String(row.body || '').trim()) continue;      /* somebody has written */
 
@@ -829,12 +839,15 @@ function everyRowSaysWhatItCosts({ db }) {
   if (db.content('feeModelV1')) return 0;
   db.setContent('feeModelV1', { done: true }, 'system');
 
-  let n = 0;
-  db.programmes(true).forEach(r => {
-    if (r.fee_model === 'free' || r.fee_model === 'package') return;
-    db.setFeeModel(r.id, r.is_public ? 'package' : 'free');
-    n++;
-  });
+  let n = typeof db.feeModelFill === 'function' ? db.feeModelFill() : null;
+  if (n == null) {
+    n = 0;
+    db.programmes(true).forEach(r => {
+      if (r.fee_model === 'free' || r.fee_model === 'package') return;
+      db.setFeeModel(r.id, r.is_public ? 'package' : 'free');
+      n++;
+    });
+  }
   if (n) db.log('system', 'Application cost set on every programme', n + ' rows');
   return n;
 }
@@ -856,13 +869,16 @@ function everyRowSaysWhatItCosts({ db }) {
 function feeModelIsFreeToApply({ db }) {
   if (db.content('feeModelV2')) return 0;
 
-  let n = 0;
-  db.programmes(true).forEach(r => {
-    const wroteBefore = r.is_public ? 'free' : 'package';
-    if (r.fee_model !== wroteBefore) return;
-    db.setFeeModel(r.id, r.is_public ? 'package' : 'free');
-    n++;
-  });
+  let n = typeof db.feeModelFlip === 'function' ? db.feeModelFlip() : null;
+  if (n == null) {
+    n = 0;
+    db.programmes(true).forEach(r => {
+      const wroteBefore = r.is_public ? 'free' : 'package';
+      if (r.fee_model !== wroteBefore) return;
+      db.setFeeModel(r.id, r.is_public ? 'package' : 'free');
+      n++;
+    });
+  }
   /* Marked done AFTER the work, not before it. Writing the flag first means a
      migration that throws half way through is never attempted again — which is
      exactly what happened to the first draft of this one, and it looked from

@@ -51,7 +51,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     FILTERS.filter(h => !header.includes(h)).join(', ') || 'all present');
 
   /* --------------------------------------------------- saving one, and blank */
-  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const priv = cat.programmes.find(p => !p.isPublic && p.country === 'DE');
   const pub = cat.programmes.find(p => p.isPublic && p.country === 'DE');
   check('there is a private German programme to work with', !!priv, priv && priv.university);

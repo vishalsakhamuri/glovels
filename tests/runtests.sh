@@ -111,6 +111,7 @@ run counscardtest.js 8099
 run twolisttest.js   8099
 run visatest.js      8099
 run sweeptest.js     8099
+run scaletest.js     8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
 run scholartest.js   8099
 run pushtest.js      8099
 run moneytest.js     8099

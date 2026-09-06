@@ -65,7 +65,7 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
      whether "in prep" was written as the complement of "submitted" or as a test
      for one particular stage — so the check passed either way and proved
      nothing. The untouched row is what tells them apart. */
-  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const progs = (cat.programmes || []).slice(0, 5);
   ok(progs.length === 5, 'five programmes to work with — ' + progs.length);
   for (const p of progs) {

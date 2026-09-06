@@ -217,7 +217,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, bakedIds, mail, notify, live, push, siteUrl, config, content }) {
+function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -237,10 +237,28 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
      next request, not after a restart. */
   const cat = () => (typeof catalogue === 'function' ? catalogue() : (catalogue || []));
   const countryMap = () => (typeof countries === 'function' ? countries() : (countries || {}));
-  /* The catalogue grouped by university — the server's cached grouping when
-     it lends one, a fresh one otherwise (tests hand in a plain array). */
-  const unisOf = () => (typeof universities === 'function' ? universities() : UNIS.group(cat()));
-  const lookup = id => cat().find(p => p.id === String(id)) || null;
+  /* One university by its page address — the server's lookup (one indexed
+     query) when it lends one, a grouping of the catalogue otherwise (tests
+     hand in a plain array). */
+  const uniOf = slug => (typeof universityRows === 'function' ? universityRows(slug) : (UNIS.find(cat(), slug) || null));
+  /* The rows the matcher works from: the student's destinations, from the
+     database — not the whole catalogue, which at its planned size is not a
+     thing to hold in memory per request. No destination chosen: the rows on
+     the site. */
+  const rowsFor = profile => {
+    const cs = (profile && profile.countries && profile.countries.length) ? profile.countries : null;
+    if (typeof db.rowsForCountries !== 'function') return cat();
+    return (cs ? db.rowsForCountries(cs) : db.rowsOnSite()).map(UNIS.fromRow);
+  };
+  /* One programme by id — any live one, including the search-only rows that
+     never reach the finder (a student shortlists from a university page). */
+  const lookup = id => {
+    if (typeof db.programme === 'function' && typeof UNIS.fromRow === 'function') {
+      const r = db.programme(String(id));
+      return r && r.active ? UNIS.fromRow(r) : null;
+    }
+    return cat().find(p => p.id === String(id)) || null;
+  };
 
   /* How a programme is named to a student, in one place.
    *
@@ -559,7 +577,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
         let held = 0;
         if (usable && got < owed.count) {
           try {
-            held = MATCHES.plan(cat(), prof, owed.count, owed.kind, countryMap()).cgpaHeld || 0;
+            held = MATCHES.plan(rowsFor(prof), prof, owed.count, owed.kind, countryMap()).cgpaHeld || 0;
           } catch (e) { held = 0; }
         }
         return {
@@ -699,7 +717,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
        them the matcher only ever saw a programme's OWN CGPA bar, which almost
        no row states — the rule lives on the country — so the paid shortlist
        ignored a requirement the free finder enforced. */
-    const made = MATCHES.plan(cat(), profile, owed.count, owed.kind, countryMap());
+    const made = MATCHES.plan(rowsFor(profile), profile, owed.count, owed.kind, countryMap());
     const picks = made.items;
     const have = new Set(db.getShortlist(student.id).map(r => String(r.prog_id)));
     picks.forEach(p => {
@@ -5551,6 +5569,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
    */
   function rebandAll(who) {
     let moved = 0;
+    /* The database does it when it can: a million rows are not each read
+       whole, re-saved and re-indexed for a band that lives in one column. */
+    if (typeof db.rebandAll === 'function') return db.rebandAll(bandFor, who);
     db.programmes(true).forEach(r => {
       const want = bandFor(r.total_inr);
       if (want === r.band) return;
@@ -5695,31 +5716,64 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
     return out;
   }
 
-  route('GET', '/api/staff/catalogue', staffOnly(async (req, res) => json(res, 200, {
-    programmes: db.programmes(true).map(r => ({
-      id: r.id, program: r.program, university: r.university, city: r.city || '',
-      country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
-      isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
-        germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
-        shortName: r.short_name || '',
-        totalInr: r.total_inr, url: r.url || '',
-      feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
-      active: !!r.active, searchOnly: !!r.search_only,
-      updatedAt: r.updated_at, updatedBy: r.updated_by || '',
-      featured: !!r.featured, featureSort: r.feature_sort || 0,
-      intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
-    })),
-    countries: db.countries(true).map(c => {
+  route('GET', '/api/staff/catalogue', staffOnly(async (req, res) => {
+    /* A page of programmes, filtered and searched by the database — the
+       screen used to take every row and filter in the browser, which at the
+       size the catalogue is heading is a download nobody finishes. */
+    const qs = url.parse(req.url, true).query;
+    const perCountry = db.countByCountry();
+    const countries = db.countries(true).map(c => {
       let facts = {};
       try { facts = JSON.parse(c.facts || '{}') || {}; } catch (e) {}
       return {
         code: c.code, name: c.name, flag: c.flag || '', region: c.region || '',
         active: !!c.active, sort: c.sort, facts,
-        programmes: db.programmes(true).filter(p => p.country === c.code).length,
+        programmes: perCountry[c.code] || 0,
       };
-    }),
-    audit: db.auditTrail(25).map(a => ({ who: a.who, what: a.what, detail: a.detail, at: a.created_at })),
-  })));
+    });
+    const bars = {};
+    countries.forEach(c => { bars[c.code] = { pub: c.facts.minCgpaPublic, priv: c.facts.minCgpaPrivate }; });
+    const page = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
+      type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
+      status: qs.status == null ? '' : String(qs.status), page: qs.page, per: qs.per || 100 });
+    return json(res, 200, {
+      programmes: page.rows.map(r => ({
+        id: r.id, program: r.program, university: r.university, city: r.city || '',
+        country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
+        isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
+        germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+        shortName: r.short_name || '',
+        totalInr: r.total_inr, url: r.url || '',
+        feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
+        active: !!r.active, searchOnly: !!r.search_only,
+        updatedAt: r.updated_at, updatedBy: r.updated_by || '',
+        featured: !!r.featured, featureSort: r.feature_sort || 0,
+        intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
+      })),
+      total: page.total, page: page.page, per: page.per,
+      stats: db.catalogueStats(),
+      fields: db.fieldCounts(),
+      countries,
+      audit: db.auditTrail(25).map(a => ({ who: a.who, what: a.what, detail: a.detail, at: a.created_at })),
+    });
+  }));
+
+  /* The ids the same filters match — what "select all" in the office covers.
+     Capped at what one bulk change takes (2,000), and says how many there
+     were in all. */
+  route('GET', '/api/staff/catalogue/ids', staffOnly(async (req, res) => {
+    const qs = url.parse(req.url, true).query;
+    const bars = {};
+    db.countries(true).forEach(c => {
+      let facts = {};
+      try { facts = JSON.parse(c.facts || '{}') || {}; } catch (e) {}
+      bars[c.code] = { pub: facts.minCgpaPublic, priv: facts.minCgpaPrivate };
+    });
+    const page = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
+      type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
+      status: qs.status == null ? '' : String(qs.status), page: 1, per: 2000 });
+    return json(res, 200, { ids: page.rows.map(r => r.id), total: page.total });
+  }));
 
   /* ------------------------------------------------- search by name */
   /*
@@ -5739,15 +5793,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
     const words = q.split(/\s+/).filter(Boolean);
     const hits = hay => words.every(w => hay.includes(w));
     const cm = countryMap();
-    const unis = unisOf();
+    /* The full-text index answers with rows; grouped here into universities
+       and programmes. A programme whose NAME matches comes before one whose
+       field does: "data" should find "Data Science" before a diploma filed
+       under it. */
+    const rows = (typeof db.searchRows === 'function' ? db.searchRows(q, 400).map(UNIS.fromRow)
+      : cat().filter(p => hits(norm(p.university + ' ' + p.shortName + ' ' + p.city + ' ' + p.program + ' ' + p.field))));
+    const unis = UNIS.group(rows);
     const universities = unis
       .filter(u => hits(norm(u.name + ' ' + u.shortName + ' ' + u.city + ' ' + ((cm[u.country] || {}).name || ''))))
       .slice(0, 8)
       .map(u => ({ name: u.name, shortName: u.shortName, slug: u.slug, city: u.city,
         country: u.country, countryName: (cm[u.country] || {}).name || u.country,
-        programmes: u.programmes.length, url: '/university/' + u.slug }));
-    /* A programme whose NAME matches comes before one whose field does:
-       "data" should find "Data Science" before a diploma filed under it. */
+        programmes: (typeof db.rowsForUniversity === 'function' ? db.rowsForUniversity(u.slug).length : u.programmes.length),
+        url: '/university/' + u.slug }));
     const programmes = [];
     for (const u of unis) {
       for (const p of u.programmes) {
@@ -5811,23 +5870,23 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
       return true;
     };
 
+    /* The database picks the universities (store.filterUniversities); the
+       office's off-search pages are dropped after. */
+    const found = typeof db.filterUniversities === 'function'
+      ? db.filterUniversities({ country: code, level, field, cgpa, ggpa: gg, season, budget, free, q: words,
+          bars: { pub: c.minCgpaPublic, priv: c.minCgpaPrivate }, limit: 60 })
+      : Object.assign([], { total: 0 });
     const out = [];
-    let total = 0;
-    for (const u of unisOf()) {
-      if (u.country !== code || hidden(u.slug)) continue;
-      if (words.length) {
-        const hay = norm(u.name + ' ' + u.shortName + ' ' + u.city);
-        if (!words.every(w => hay.includes(w))) continue;
-      }
-      const n = u.programmes.filter(p => clears(p, u)).length;
-      if (!n) continue;
-      total++;
+    for (const f of found) {
+      if (hidden(f.slug)) continue;
+      const u = UNIS.group(f.rows.map(UNIS.fromRow))[0];
+      if (!u) continue;
       out.push({ slug: u.slug, name: u.shortName || u.name, city: u.city, isPublic: u.isPublic,
         feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
-        featured: u.programmes.some(p => p.featured), programmes: u.programmes.length, matching: n,
+        featured: u.programmes.some(p => p.featured), programmes: u.programmes.length, matching: f.matching,
         url: '/university/' + u.slug });
     }
-    out.sort((a, b) => (b.listed - a.listed) || (b.featured - a.featured) || (b.matching - a.matching) || a.name.localeCompare(b.name));
+    const total = found.total || out.length;
     return json(res, 200, { country: code, total, universities: out.slice(0, 50) }, { 'Cache-Control': 'public, max-age=60' });
   }, { open: true });
 
@@ -5839,24 +5898,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
    * carry. Kept in the content table under university:<slug>, so it survives
    * every edit to the rows beneath it.
    */
-  route('GET', '/api/staff/universities', staffOnly(async (req, res) => json(res, 200, {
-    universities: unisOf().map(u => {
-      const x = UNIS.cleanExtras(db.content('university:' + u.slug));
-      const meta = db.contentMeta('university:' + u.slug);
-      return {
-        slug: u.slug, name: u.name, shortName: u.shortName, city: u.city, country: u.country,
-        isPublic: u.isPublic, feeModel: u.feeModel, programmes: u.programmes.length,
-        listed: !!u.listed,
-        url: '/university/' + u.slug,
-        daadUrl: DAAD.daadUrl(u.slug, x.daad),
-        written: !!(x.about || x.cover || x.metaTitle || x.metaDesc), hidden: x.hidden,
-        updatedAt: meta ? meta.updated_at : '', updatedBy: meta ? meta.who : '',
-      };
-    }),
-  })));
+  route('GET', '/api/staff/universities', staffOnly(async (req, res) => {
+    /* A page of them, with a search — two hundred thousand do not fit a
+       list, or a response. */
+    const qs = url.parse(req.url, true).query;
+    const page = db.universitiesPage({ q: qs.q, page: qs.page, per: qs.per || 100 });
+    return json(res, 200, {
+      universities: page.universities.map(u => {
+        const x = UNIS.cleanExtras(db.content('university:' + u.slug));
+        const meta = db.contentMeta('university:' + u.slug);
+        return {
+          slug: u.slug, name: u.name, shortName: u.shortName || '', city: u.city || '', country: u.country,
+          isPublic: !!u.isPublic, feeModel: u.feeModel || (u.isPublic ? 'package' : 'free'),
+          programmes: u.n, listed: !!u.listed,
+          url: '/university/' + u.slug,
+          daadUrl: DAAD.daadUrl(u.slug, x.daad),
+          written: !!(x.about || x.cover || x.metaTitle || x.metaDesc), hidden: x.hidden,
+          updatedAt: meta ? meta.updated_at : '', updatedBy: meta ? meta.who : '',
+        };
+      }),
+      total: page.total, page: page.page, per: page.per,
+    });
+  }));
 
   route('GET', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, staffOnly(async (req, res, s, m) => {
-    const u = unisOf().find(x => x.slug === m[1]) || null;
+    const u = uniOf(m[1]);
     if (!u) return json(res, 404, { error: 'No university at that address' });
     return json(res, 200, { university: { slug: u.slug, name: u.name, city: u.city,
       country: u.country, programmes: u.programmes.length },
@@ -5866,7 +5932,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
   }));
 
   route('PUT', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, needs('catalogue', async (req, res, s, m) => {
-    const u = unisOf().find(x => x.slug === m[1]) || null;
+    const u = uniOf(m[1]);
     if (!u) return json(res, 404, { error: 'No university at that address' });
     const x = UNIS.cleanExtras(await readJson(req));
     if (x.cover && !PROSE.safeImg(x.cover)) {
@@ -5948,7 +6014,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
 
   route('DELETE', /^\/api\/staff\/country\/([A-Za-z]{2})$/, needs('catalogue', async (req, res, s, m) => {
     const code = m[1].toUpperCase();
-    const n = db.programmes(true).filter(p => p.country === code).length;
+    const n = db.countByCountry()[code] || 0;
     if (n) return json(res, 409, {
       error: n + ' programme' + (n === 1 ? '' : 's') + ' still use that destination. '
            + 'Move or remove them first.',
@@ -6126,7 +6192,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
     ['showcase', 'featured'], ['showcase position', 'featureSort'],
   ];
 
-  const sheetRows = () => db.programmes(true).map(r => {
+  const sheetRows = country => (country && typeof db.rowsAll === 'function' ? db.rowsAll(country) : db.programmes(true)).map(r => {
     let ins = [];
     try { ins = JSON.parse(r.intakes) || []; } catch (e) {}
     return [
@@ -6164,8 +6230,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
 
   route('GET', /^\/api\/staff\/catalogue\.(xlsx|csv)$/, staffOnly(async (req, res, s, m) => {
     const headers = SHEET_COLUMNS.map(c => c[0]);
-    const rows = sheetRows();
-    const stamp = new Date().toISOString().slice(0, 10);
+    /* ?country=DE — one destination's rows. The whole catalogue as one Excel
+       file stops at 60,000 rows (a workbook of a million rows is built in
+       memory and opened by nobody); the CSV has no cap. */
+    const qs = url.parse(req.url, true).query;
+    const country = String(qs.country || '').toUpperCase().slice(0, 3);
+    const rows = sheetRows(country);
+    const stamp = new Date().toISOString().slice(0, 10) + (country ? '-' + country : '');
+    if (m[1] === 'xlsx' && rows.length > 60000) {
+      return json(res, 413, { error: 'That is ' + rows.length.toLocaleString('en-IN')
+        + ' rows — too many for one Excel file. Download the CSV, or one country at a time.' });
+    }
     if (m[1] === 'csv') {
       const body = Buffer.from(SHEET.writeCsv(headers, rows), 'utf8');
       res.writeHead(200, {
@@ -6208,6 +6283,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
 
     const objects = SHEET.toObjects(rows);
     if (!objects.length) return json(res, 422, { error: 'That sheet has no rows under its header.' });
+    /* One upload is checked, previewed and applied in one request; fifty
+       thousand rows is what that comfortably holds. A bigger catalogue comes
+       in as several files — a country per file is the natural cut. */
+    if (objects.length > 50000) {
+      return json(res, 413, { error: 'That sheet has ' + objects.length.toLocaleString('en-IN')
+        + ' rows. Upload at most 50,000 at a time — one destination per file is the easiest split.' });
+    }
 
     /* Column names are matched loosely — "Country Code", "country code" and
        "country" all land in the same place — because the person editing the
@@ -6308,10 +6390,19 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
       [uni, prog, level, country]
         .map(v => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim())
         .join(' | ');
+    /* The rows already here at each university the sheet names — by the
+       university's page address, one indexed read each, rather than the
+       whole table. */
     const already = new Map();
-    db.programmes(true).forEach(r => {
-      const k = sameCourse(r.university, r.program, r.level, r.country);
-      if (!already.has(k)) already.set(k, r);
+    const seenUnis = new Set();
+    objects.forEach(o => {
+      const slug = UNIS.slugOf(o.university);
+      if (!slug || seenUnis.has(slug)) return;
+      seenUnis.add(slug);
+      (db.rowsForUniversityAll ? db.rowsForUniversityAll(slug) : db.programmes(true).filter(r => UNIS.slugOf(r.university) === slug)).forEach(r => {
+        const k = sameCourse(r.university, r.program, r.level, r.country);
+        if (!already.has(k)) already.set(k, r);
+      });
     });
     /* And the same row twice inside ONE file, which neither the check above
        nor the database can see: nothing has been written yet when the second
@@ -7185,7 +7276,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
          while all five were readable at their address, and the admin believed
          nothing was published. */
       onDisk: !!onDisk(p.slug) && p.status !== 'published',
-      words: String(p.body || '').trim().split(/\s+/).filter(Boolean).length,
+      words: p.words != null && (p.body == null || String(p.body).length >= 900) ? Number(p.words) || 0
+        : String(p.body || '').trim().split(/\s+/).filter(Boolean).length,
     };
     if (full) { o.body = p.body || ''; o.html = PROSE.render(p.body); }
     return o;
@@ -7193,9 +7285,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
 
   /* What a visitor may read. Published, and with something in it — a post with
      an empty body is a headline with a URL, which is worse than no post. */
-  route('GET', '/api/posts', async (req, res) => json(res, 200, {
-    posts: db.livePosts().map(p => postShape(p, false)),
-  }), { open: true });
+  route('GET', '/api/posts', async (req, res) => {
+    /* A page of them (?page=&per=, 50 by default) — the list is walked, not
+       downloaded whole. */
+    const qs = url.parse(req.url, true).query;
+    const pg = db.livePostsPage(qs.page, qs.per || 50);
+    return json(res, 200, { posts: pg.rows.map(p => postShape(p, false)),
+      total: pg.total, page: pg.page, per: pg.per });
+  }, { open: true });
 
   route('GET', /^\/api\/posts\/([a-z0-9-]{1,90})$/, async (req, res, s, m) => {
     const p = db.postBySlug(m[1]);
@@ -7212,9 +7309,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
 
   /* ---- and the side that writes them ---- */
 
-  route('GET', '/api/staff/posts', needs('content', async (req, res) => json(res, 200, {
-    posts: db.allPosts().map(p => postShape(p, false)),
-  })));
+  route('GET', '/api/staff/posts', needs('content', async (req, res) => {
+    /* The office's list, a page at a time with a search — ?q= over the
+       headline, address, topic and author; ?status=published|draft; ?page=,
+       ?per= (100). The four tiles are counted by the database over everything. */
+    const qs = url.parse(req.url, true).query;
+    const pg = db.postsPage({ q: qs.q, status: qs.status === 'published' ? 'published' : qs.status ? 'draft' : '',
+      page: qs.page, per: qs.per || 100 });
+    const stats = db.postStats();
+    /* A draft whose original page is still on disk is on the site (see
+       onDisk above) — counted from the handful of files, not from every
+       draft. */
+    let files = [];
+    try { files = fs.readdirSync(path.join(__dirname, '..', 'post')).filter(f => f.endsWith('.html') && !f.startsWith('_')); } catch (e) {}
+    const stillUp = files.map(f => db.postBySlug(f.slice(0, -5))).filter(p => p && p.status !== 'published').length;
+    stats.live += stillUp; stats.draft -= stillUp;
+    return json(res, 200, { posts: pg.rows.map(p => postShape(p, false)),
+      total: pg.total, page: pg.page, per: pg.per, stats });
+  }));
 
   route('GET', /^\/api\/staff\/post\/(\d+)$/, needs('content', async (req, res, s, m) => {
     const p = db.postById(Number(m[1]));
@@ -7343,9 +7455,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
       const f = IMAGES.fileFor(IMG_DIR, m[1]);
       if (!f) return json(res, 404, { error: 'No such picture' });
       /* A picture a live post still prints is not deleted from under it. */
-      const used = db.allPosts().filter(p =>
-        String(p.body || '').includes('/images/' + m[1]) || p.cover === '/images/' + m[1]
-        || p.og_image === '/images/' + m[1]);
+      const used = db.postsUsingImage('/images/' + m[1]);
       if (used.length) {
         return json(res, 409, { error: 'That picture is in ' + used.length + ' post(s): '
           + used.slice(0, 3).map(p => p.title).join(', ')
@@ -7420,11 +7530,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universities, 
         status: 'draft', body: p.body, updatedBy: s.name,
       }));
       db.log(s.name, 'took a post off the site', p.title);
-      return json(res, 200, { unpublished: true, posts: db.allPosts().map(x => postShape(x, false)) });
+      return json(res, 200, { unpublished: true });
     }
     db.deletePost(p.id);
     db.log(s.name, 'deleted a draft', p.title);
-    return json(res, 200, { deleted: true, posts: db.allPosts().map(x => postShape(x, false)) });
+    return json(res, 200, { deleted: true });
   }));
 
   /* -------------------------------------------------------------- alerts */

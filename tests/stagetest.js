@@ -219,7 +219,7 @@ const PROFILE = { fullName: 'Stage', phone: '+919000006060', d_cgpa: '8.2',
   const gone = await office.request.delete(BASE + '/api/staff/student/' + them.id
     + '/shortlist/' + encodeURIComponent(drop.id));
   check('a counsellor can take one off', gone.status() === 200, gone.status());
-  const swapTo = (await (await office.request.get(BASE + '/api/staff/catalogue')).json())
+  const swapTo = (await (await office.request.get(BASE + '/api/staff/catalogue?per=500')).json())
     .programmes.find(p => p.isPublic && p.country === 'DE'
       && !(rich.state.shortlist || []).some(s => String(s.id) === String(p.id)));
   const added = await office.request.post(BASE + '/api/staff/student/' + them.id + '/shortlist',

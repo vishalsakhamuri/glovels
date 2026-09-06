@@ -52,7 +52,8 @@ const txt = (p, s) => p.textContent(s).catch(() => '');
     const c = document.querySelector('.svc');
     if (!c) return null;
     const top = c.querySelector('.svc-top');
-    const h = c.querySelector('h4');
+    /* h3 since patch 111 (heading levels h1→h2→h3 for accessibility). */
+    const h = c.querySelector('h3, h4');
     if (!top || !h) return null;
     const tb = top.getBoundingClientRect(), hb = h.getBoundingClientRect();
     const ic = c.querySelector('.svc-ic');
@@ -186,7 +187,7 @@ const txt = (p, s) => p.textContent(s).catch(() => '');
   const admin = await browser.newContext();
   await admin.request.post(BASE + '/api/auth/login',
     { data: { email: 'admin@glovels.com', password: 'glovels123' } });
-  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json()
+  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json()
     .catch(() => ({}));
   const priv = (cat.programmes || []).find(x => !x.isPublic);
   ok(!!priv, 'the office can see a private university to edit — '

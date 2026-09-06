@@ -28,7 +28,7 @@ const stamp = Date.now();
   const guest = await browser.newContext({ viewport: { width: 1400, height: 950 } });
 
   /* --------------------------------- the posts that were already on the site */
-  const seeded = await (await staff.request.get(BASE + '/api/staff/posts')).json();
+  const seeded = await (await staff.request.get(BASE + '/api/staff/posts?per=500')).json();
   check('the posts already on the site were brought in',
     (seeded.posts || []).length >= 6, (seeded.posts || []).length + ' posts');
   check('and every one of them is a draft, because none has a body',
@@ -214,7 +214,7 @@ const stamp = Date.now();
     !!lead && (lead.note || '').includes(title), lead && lead.note);
 
   /* ------------------------------------------------------------ taking it off */
-  const mine = await (await staff.request.get(BASE + '/api/staff/posts')).json();
+  const mine = await (await staff.request.get(BASE + '/api/staff/posts?per=500')).json();
   const row = (mine.posts || []).find(p => p.slug === slug);
   const off = await staff.request.delete(BASE + '/api/staff/post/' + row.id);
   const offBody = await off.json();
@@ -227,7 +227,7 @@ const stamp = Date.now();
   const stu = await browser.newContext();
   await stu.request.post(BASE + '/api/auth/login',
     { data: { email: 'student@glovels.com', password: 'glovels123' } });
-  const denied = await stu.request.get(BASE + '/api/staff/posts');
+  const denied = await stu.request.get(BASE + '/api/staff/posts?per=500');
   check('a student cannot open the blog editor', denied.status() === 403, denied.status());
   const anon = await guest.request.post(BASE + '/api/staff/posts',
     { data: { title: 'Not mine', body: 'x', status: 'published' } });
@@ -244,7 +244,7 @@ const stamp = Date.now();
      the list, as a paragraph between two bullets. Every line was treated as its
      own thing, so it happened the moment anybody wrapped at eighty columns —
      which is every post here. */
-  const shipped = await (await staff.request.get(BASE + '/api/staff/posts')).json();
+  const shipped = await (await staff.request.get(BASE + '/api/staff/posts?per=500')).json();
   check('the six posts arrive with words in them',
     (shipped.posts || []).length >= 6, (shipped.posts || []).length);
   const blank = [];

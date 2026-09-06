@@ -27,7 +27,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const who = await (await stu.request.get(BASE + '/api/state')).json();
   const id = who.user.id;
 
-  const cat = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await staff.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const before = await (await stu.request.get(BASE + '/api/state')).json();
   const on = new Set((before.shortlist || []).map(x => String(x.id)));
   const fresh = (cat.programmes || []).find(p => p.active !== false && !on.has(String(p.id)));

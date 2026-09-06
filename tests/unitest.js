@@ -15,7 +15,7 @@
 const { chromium } = require('playwright');
 const SHEET = require('/home/claude/glovels/build/server/sheet.js');
 
-const BASE = 'http://localhost:8099';
+const BASE = process.env.BASE || 'http://localhost:8099';
 const ok = [], bad = [];
 const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + note : ''));
 
@@ -32,7 +32,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('/university is a page', r.status() === 200);
   const links = [...html.matchAll(/href="university\/([a-z0-9-]+)"/g)].map(m => m[1]);
   const cat = await (await guest.request.get(BASE + '/api/catalogue')).json();
-  const staffCat = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  const staffCat = await (await staff.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const unis = new Set(staffCat.programmes.filter(p => p.active).map(p => p.university));
   check('it lists every university in the catalogue once', new Set(links).size === unis.size,
     links.length + ' links for ' + unis.size + ' universities');
@@ -85,7 +85,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     || /"sameAs":\[[^\]]*www2\.daad\.de[^\]]*\]/.test(html));
   const DE = staffCat.programmes.filter(p => p.active && p.country === 'DE').map(p => p.university);
   let daadAll = true, daadMissing = [];
-  const listAll = (await (await staff.request.get(BASE + '/api/staff/universities')).json()).universities;
+  const listAll = (await (await staff.request.get(BASE + '/api/staff/universities?per=500')).json()).universities;
   for (const u of listAll) {
     if (u.country === 'DE' && !u.daadUrl) { daadAll = false; daadMissing.push(u.slug); }
     if (u.country !== 'DE' && u.daadUrl) { daadAll = false; daadMissing.push('non-German: ' + u.slug); }
@@ -104,7 +104,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('a with-a-package university lists the packages that cover it', /<h2 id="packages">Packages that cover/.test(html)
     && /Choose Offer Letter/.test(html) && /₹49,999/.test(html));
   check('each one hands over to the home page checkout', /href="\/\?buy=pkg-offer#packages"/.test(html));
-  const freeU = (await (await staff.request.get(BASE + '/api/staff/universities')).json()).universities.find(x => x.feeModel === 'free');
+  const freeU = (await (await staff.request.get(BASE + '/api/staff/universities?per=500')).json()).universities.find(x => x.feeModel === 'free');
   const freeHtml = await (await guest.request.get(BASE + freeU.url)).text();
   check('a free-to-apply university has no packages block — Apply is the button there', !/<h2 id="packages">/.test(freeHtml), freeU.slug);
   check('every tab the home page shows is on the page, the country\'s own open first',
@@ -226,7 +226,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('and stays on the page rather than being sent away', after === before);
 
   /* ------------------------------------- what the office writes about it */
-  r = await staff.request.get(BASE + '/api/staff/universities');
+  r = await staff.request.get(BASE + '/api/staff/universities?per=500');
   const list = (await r.json()).universities;
   check('the staff list has every university with its address', list.length === unis.size
     && list.every(u => /^\/university\//.test(u.url)));
@@ -302,9 +302,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('and the search box finds it', hit.universities.some(u => u.slug === soSlug), soUni);
   html = await (await guest.request.get(BASE + '/university/' + slug)).text();
   check('but "other universities" on a page does not list it', !html.includes('href="' + soSlug + '"'));
-  const sc2 = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  const sc2 = await (await staff.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   check('the office sees it as search only', sc2.programmes.filter(p => soIds.includes(p.id)).every(p => p.active && p.searchOnly));
-  const su = await (await staff.request.get(BASE + '/api/staff/universities')).json();
+  const su = await (await staff.request.get(BASE + '/api/staff/universities?per=500')).json();
   check('and the university as not listed', su.universities.some(u => u.slug === soSlug && u.listed === false)
     && su.universities.some(u => u.slug === slug && u.listed === true));
   const csv = await (await staff.request.get(BASE + '/api/staff/catalogue.csv')).text();
@@ -373,12 +373,12 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('a sheet with "search" in on-the-site is an update, not "already right"', plan.counts && plan.counts.update === 1
     && plan.counts.rejected === 0, JSON.stringify(plan.counts));
   await staff.request.post(BASE + '/api/staff/catalogue/import', { multipart: { file: xfile, confirm: 'yes' } });
-  const sc3 = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  const sc3 = await (await staff.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   check('and lands as search only', sc3.programmes.some(p => p.id === soIds[0] && p.active && p.searchOnly));
   target[hdr.indexOf('on the site')] = 'yes';
   xfile.buffer = Buffer.from(SHEET.writeXlsx(sheet[0], rows, 'Catalogue'));
   await staff.request.post(BASE + '/api/staff/catalogue/import', { multipart: { file: xfile, confirm: 'yes' } });
-  const sc4 = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  const sc4 = await (await staff.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   check('and "yes" puts it back', sc4.programmes.some(p => p.id === soIds[0] && p.active && !p.searchOnly));
 
   /* ------------------------------------------- a destination the office adds */

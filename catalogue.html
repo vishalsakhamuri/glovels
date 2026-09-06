@@ -1106,9 +1106,16 @@ select.assign.none:hover{border-color:#a5342b}
           what happens if a file of new universities is uploaded twice. Both are refused now,
           and the message names the id to paste if you meant to edit.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <a class="btn btn-primary" href="/api/staff/catalogue.xlsx">Download as Excel</a>
-          <a class="btn btn-ghost" href="/api/staff/catalogue.csv">Download as CSV</a>
+          <select id="dlCountry" aria-label="Which destination to download" style="padding:9px 11px;
+            font:600 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;background:#fff">
+            <option value="">The whole catalogue</option>
+          </select>
+          <a class="btn btn-primary" id="dlXlsx" href="/api/staff/catalogue.xlsx">Download as Excel</a>
+          <a class="btn btn-ghost" id="dlCsv" href="/api/staff/catalogue.csv">Download as CSV</a>
         </div>
+        <p style="margin:10px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">One Excel file
+          holds up to 60,000 rows; past that, download a destination at a time or the CSV, which has
+          no limit.</p>
       </div>
 
       <div class="p-card">
@@ -1159,6 +1166,7 @@ select.assign.none:hover{border-color:#a5342b}
               font:400 13px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px"></div>
           <ul class="plist" id="uniList" style="list-style:none;margin:0;padding:0;max-height:64vh;
             overflow-y:auto"></ul>
+          <div id="uniPager" style="padding:0 10px"></div>
         </div>
         <div class="p-card" id="uniEd">
           <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.7">Pick a university on
@@ -1730,7 +1738,12 @@ async function bell(me) {
 })();
 
 
-let PROGS = [], DESTS = [], LOG = [], editing = null;
+/* PROGS is the page the database sent — never the whole catalogue. The office
+   used to download every row and filter in the browser; at the size the
+   catalogue is heading (two hundred thousand universities) that is a download
+   nobody finishes, so the search, the filters and the paging all happen in the
+   database and the screen only ever holds a hundred rows. */
+let PROGS = [], DESTS = [], LOG = [], STATS = {}, FIELDS = [], TOTAL = 0, editing = null;
 /* See the change handler at the foot of this file. */
 let feeTouched = false;
 
@@ -1741,9 +1754,11 @@ const feeOf = p => (p.feeModel === 'free' || p.feeModel === 'package')
 
 /* PICKED survives a repaint and a change of search: a counsellor filters to
    Poland, ticks four, filters to Spain, ticks two, and expects six. SHOWN is
-   what the current search matched — every one of them, not the 400 drawn. */
+   the page on the screen — the tick at the top selects that page, and the
+   count above the table says how many the search found in all, so nobody
+   reads "select all" as "select the two hundred thousand". */
 const PICKED = new Set();
-let SHOWN = [];
+let SHOWN = [], PICK_CAPPED = 0;
 
 const inr = n => n === 0 ? '₹0'
   : '₹' + (n / 100000).toFixed(n % 100000 ? 1 : 0) + 'L';
@@ -1783,46 +1798,58 @@ function barOf(p) {
 
 /* ---------------------------------------------------------------- painting */
 
-function paintProgs() {
-  const q = $('#q').value.trim().toLowerCase();
-  const c = $('#fc').value;
-  const lv = $('#fl').value, fd = $('#ff').value, ty = $('#ft').value,
-        bd = $('#fb').value, cg = Number($('#fg').value || 0);
-  const st = $('#fs').value;
-  const list = PROGS.filter(p =>
-    (!c || p.country === c) &&
-    (!lv || String(p.level || '').toLowerCase() === lv) &&
-    (!fd || p.field === fd) &&
-    /* Two axes on one control, because the office needs both: how the student
-       applies (which is what the site filters on) and whether the place is
-       public (which the CGPA rules still read). */
-    (!ty || (ty === 'pub' ? p.isPublic
-             : ty === 'pri' ? !p.isPublic
-             : feeOf(p) === ty)) &&
-    (!bd || p.band === bd) &&
-    /* Exactly what the public finder does with the same number: a programme
-       whose bar is above the student's is not shown to them. Checking that
-       from the office used to mean making an account. */
-    (!cg || barOf(p).n == null || cg >= barOf(p).n) &&
-    (st === '' || String(!p.active ? 0 : p.searchOnly ? 2 : 1) === st) &&
-    (!q || (p.university + ' ' + p.program + ' ' + (p.field || '')).toLowerCase().includes(q)));
+/* The filters as the API takes them. Two axes on one control (#ft), because
+   the office needs both: how the student applies (which is what the site
+   filters on) and whether the place is public (which the CGPA rules read).
+   The CGPA box does exactly what the public finder does with the same
+   number: a programme whose bar is above the student's is left out. */
+function progQuery() {
+  return {
+    q: $('#q').value.trim(), country: $('#fc').value, level: $('#fl').value,
+    field: $('#ff').value, type: $('#ft').value, band: $('#fb').value,
+    cgpa: $('#fg').value, status: $('#fs').value,
+  };
+}
 
+/* One request per keystroke is a request too many. The last one wins:
+   a reply to a search the office has already typed past is thrown away. */
+let progReq = 0;
+async function fetchProgs() {
+  const f = progQuery();
+  const per = sizeOf('prog');
+  const qs = Object.keys(f).filter(k => f[k] !== '').map(k => k + '=' + encodeURIComponent(f[k]));
+  qs.push('page=' + (pageOf('prog') + 1), 'per=' + per);
+  const mine = ++progReq;
+  $('#progRows').style.opacity = '.55';
+  try {
+    const r = await api('GET', '/api/staff/catalogue?' + qs.join('&'));
+    if (mine !== progReq) return;
+    PROGS = r.programmes; TOTAL = r.total; STATS = r.stats || {}; FIELDS = r.fields || [];
+    DESTS = r.countries; LOG = r.audit;
+    /* The database clamps the page; follow it, or the pager says 7 while the
+       rows are page 3's. */
+    PAGE_AT.prog = Math.max(0, (r.page || 1) - 1);
+    paintDests(); paintProgs(); paintLog();
+  } finally { if (mine === progReq) $('#progRows').style.opacity = ''; }
+}
+let progTimer = null;
+function fetchProgsSoon() {
+  clearTimeout(progTimer);
+  progTimer = setTimeout(() => { fetchProgs().catch(err => toast(err.message)); }, 220);
+}
+
+function paintProgs() {
+  const f = progQuery();
   /* A filtered screen has to look filtered, or somebody reads a short list as
      a short catalogue and starts wondering where the universities went. */
-  const on = [c, lv, fd, ty, bd, $('#fg').value, st].filter(x => x !== '' && x != null).length;
+  const on = [f.country, f.level, f.field, f.type, f.band, f.cgpa, f.status].filter(x => x !== '').length;
   $('#fClear').style.display = on ? '' : 'none';
 
-  $('#nProg').textContent = PROGS.length;
-  /* What the tick boxes cover is what the search found, not the page drawn —
-     "select everything" that quietly means "the page you can see" is a trap.
-     This was already right when the cap was a silent 400; it stays right now
-     that the cap is a page. */
-  SHOWN = list.map(p => p.id);
-  /* The 400 that used to be here was a silent one: at 401 universities the
-     401st simply was not on the screen and nothing said so. A page says its
-     own size out loud and can be walked through. */
-  $('#progPager').innerHTML = pagerHtml('prog', list.length, 'programmes', paintProgs);
-  $('#progRows').innerHTML = paged('prog', list).map(p => {
+  $('#nProg').textContent = STATS.total == null ? PROGS.length : STATS.total;
+  SHOWN = PROGS.map(p => p.id);
+  /* The pager walks the database, not an array: clicking a page asks for it. */
+  $('#progPager').innerHTML = pagerHtml('prog', TOTAL, 'programmes', () => { fetchProgs().catch(err => toast(err.message)); });
+  $('#progRows').innerHTML = PROGS.map(p => {
     const d = destOf(p.country);
     return '<tr' + (PICKED.has(p.id) ? ' style="background:#f4f7fb"' : '') + '>' +
       '<td><input type="checkbox" data-pick="' + esc(p.id) + '"' +
@@ -1858,10 +1885,11 @@ function paintProgs() {
   }).join('') || '<tr><td colspan="9" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
 
   paintBulk();
-  $('#kLive').textContent = PROGS.filter(p => p.active && !p.searchOnly).length;
-  $('#kSearch').textContent = PROGS.filter(p => p.active && p.searchOnly).length;
-  $('#kHidden').textContent = PROGS.filter(p => !p.active).length;
-  $('#kFree').textContent = PROGS.filter(p => p.active && p.totalInr === 0).length;
+  /* Counted by the database over the whole catalogue, not over the page. */
+  $('#kLive').textContent = STATS.onSite == null ? '—' : STATS.onSite;
+  $('#kSearch').textContent = STATS.searchOnly == null ? '—' : STATS.searchOnly;
+  $('#kHidden').textContent = STATS.hidden == null ? '—' : STATS.hidden;
+  $('#kFree').textContent = STATS.zeroTuition == null ? '—' : STATS.zeroTuition;
 }
 
 function paintDests() {
@@ -1893,15 +1921,18 @@ function paintDests() {
   $('#fc').innerHTML = '<option value="">Every destination</option>' +
     DESTS.map(d => '<option value="' + esc(d.code) + '">' + (d.flag || '') + ' ' + esc(d.name) + '</option>').join('');
   $('#fc').value = keep;
+  const keepD = $('#dlCountry').value;
+  $('#dlCountry').innerHTML = '<option value="">The whole catalogue</option>' +
+    DESTS.map(d => '<option value="' + esc(d.code) + '">' + (d.flag || '') + ' ' + esc(d.name)
+      + ' (' + d.programmes + ')</option>').join('');
+  $('#dlCountry').value = keepD;
 
   /* The field list is built from the catalogue rather than written down, so a
      field can never appear in the filter with nothing behind it — and a new
      one somebody types into a programme shows up here without a developer. */
   const keepF = $('#ff').value;
-  const fields = [...new Set(PROGS.map(p => p.field).filter(Boolean))].sort();
   $('#ff').innerHTML = '<option value="">Any field</option>' +
-    fields.map(f => '<option value="' + esc(f) + '">' + esc(f) + ' ('
-      + PROGS.filter(p => p.field === f).length + ')</option>').join('');
+    FIELDS.map(f => '<option value="' + esc(f.field) + '">' + esc(f.field) + ' (' + f.n + ')</option>').join('');
   $('#ff').value = keepF;
 }
 
@@ -2227,7 +2258,7 @@ function paintBulk() {
      inline display beats the stylesheet rule behind `hidden`, so the bar would
      sit there permanently offering to delete things. */
   $('#bulkBar').style.display = n ? 'flex' : 'none';
-  $('#bulkCount').textContent = n + (n === 1 ? ' selected' : ' selected');
+  $('#bulkCount').textContent = n + ' selected' + (PICK_CAPPED && n >= 2000 ? ' (the first 2,000 of ' + PICK_CAPPED.toLocaleString('en-IN') + ')' : '');
   const all = $('#selAll');
   const shownPicked = SHOWN.filter(id => PICKED.has(id)).length;
   all.checked = SHOWN.length > 0 && shownPicked === SHOWN.length;
@@ -2252,7 +2283,7 @@ async function bulkDo(action, verb) {
 
   try {
     const r = await api('POST', '/api/staff/programmes/bulk', {ids, action});
-    PICKED.clear();
+    PICKED.clear(); PICK_CAPPED = 0;
     await reload();
     const bits = [];
     if (r.deleted) bits.push(r.deleted + ' removed');
@@ -2269,28 +2300,36 @@ async function bulkDo(action, verb) {
 }
 
 async function reload() {
-  const r = await api('GET', '/api/staff/catalogue');
-  PROGS = r.programmes;
-  DESTS = r.countries;
-  LOG = r.audit;
-  paintDests(); paintProgs(); paintLog();
+  await fetchProgs();
   loadUnis().catch(() => {});
 }
 
 /* ------------------------------------------------------ university pages */
 
-let UNIS = [], uniOpen = null, uniDirty = false;
+let UNIS = [], UNI_TOTAL = 0, uniOpen = null, uniDirty = false;
 
+/* The list is a page of the database, searched there: the box on the left
+   asks for the universities whose name, short name or city has the words. */
+let uniReq = 0, uniTimer = null;
 async function loadUnis() {
-  const r = await api('GET', '/api/staff/universities');
-  UNIS = r.universities;
-  $('#nPages').textContent = UNIS.length;
+  const q = ($('#uq').value || '').trim();
+  const mine = ++uniReq;
+  const r = await api('GET', '/api/staff/universities?page=' + (pageOf('uni') + 1)
+    + '&per=' + sizeOf('uni') + (q ? '&q=' + encodeURIComponent(q) : ''));
+  if (mine !== uniReq) return;
+  UNIS = r.universities; UNI_TOTAL = r.total;
+  PAGE_AT.uni = Math.max(0, (r.page || 1) - 1);
+  $('#nPages').textContent = UNI_TOTAL;
   paintUnis();
+}
+function loadUnisSoon() {
+  clearTimeout(uniTimer);
+  uniTimer = setTimeout(() => { loadUnis().catch(err => toast(err.message)); }, 220);
 }
 
 function paintUnis() {
-  const q = ($('#uq').value || '').trim().toLowerCase();
-  const rows = UNIS.filter(u => !q || (u.name + ' ' + u.shortName + ' ' + u.city).toLowerCase().includes(q));
+  const rows = UNIS;
+  $('#uniPager').innerHTML = pagerHtml('uni', UNI_TOTAL, 'universities', () => { loadUnis().catch(err => toast(err.message)); });
   const dest = code => (DESTS.find(d => d.code === code) || {}).name || code;
   $('#uniList').innerHTML = rows.map(u =>
     '<li data-uni="' + esc(u.slug) + '"' + (u.slug === uniOpen ? ' class="on"' : '') + '>'
@@ -2520,7 +2559,7 @@ function reqFromForm() {
  * university we are not partnered with, which is a real thing — is never
  * overwritten by changing the type afterwards. */
 document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'uq') paintUnis();
+  if (e.target && e.target.id === 'uq') { PAGE_AT.uni = 0; loadUnisSoon(); }
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'fFee') feeTouched = true;
@@ -2538,13 +2577,26 @@ document.addEventListener('change', e => {
     return;
   }
   if (e.target.id === 'selAll') {
-    SHOWN.forEach(id => e.target.checked ? PICKED.add(id) : PICKED.delete(id));
+    if (!e.target.checked) { SHOWN.forEach(id => PICKED.delete(id)); paintProgs(); return; }
+    /* Everything the search found, not the page on the screen — "select
+       all" that quietly means "the hundred you can see" is a trap. The
+       database hands back the ids, up to the 2,000 one change can take. */
+    SHOWN.forEach(id => PICKED.add(id));
     paintProgs();
+    const f = progQuery();
+    const qs = Object.keys(f).filter(k => f[k] !== '').map(k => k + '=' + encodeURIComponent(f[k])).join('&');
+    api('GET', '/api/staff/catalogue/ids' + (qs ? '?' + qs : '')).then(r => {
+      r.ids.forEach(id => PICKED.add(id));
+      PICK_CAPPED = r.total > r.ids.length ? r.total : 0;
+      paintProgs();
+      if (PICK_CAPPED) toast('The first 2,000 of ' + r.total.toLocaleString('en-IN')
+        + ' are selected — one change takes up to 2,000. Narrow the filters, or do it in turns.');
+    }).catch(err => toast(err.message));
   }
 });
 
 document.addEventListener('click', async e => {
-  if (e.target.closest('#bulkClear')) { PICKED.clear(); paintProgs(); return; }
+  if (e.target.closest('#bulkClear')) { PICKED.clear(); PICK_CAPPED = 0; paintProgs(); return; }
   if (e.target.closest('#bulkHide')) return bulkDo('hide');
   if (e.target.closest('#bulkShow')) return bulkDo('show');
   if (e.target.closest('#bulkSearch')) return bulkDo('search');
@@ -2702,7 +2754,7 @@ document.addEventListener('click', async e => {
 
 ['q', 'fc', 'fl', 'ff', 'ft', 'fb', 'fg', 'fs'].forEach(id => {
   /* A new search starts at its first page. */
-  const go = () => { PAGE_AT.prog = 0; paintProgs(); };
+  const go = () => { PAGE_AT.prog = 0; fetchProgsSoon(); };
   $('#' + id).addEventListener('input', go);
   $('#' + id).addEventListener('change', go);
 });
@@ -2710,8 +2762,16 @@ $('#fClear').addEventListener('click', () => {
   ['fc', 'fl', 'ff', 'ft', 'fb', 'fg', 'fs'].forEach(id => { $('#' + id).value = ''; });
   $('#q').value = '';
   PAGE_AT.prog = 0;
-  paintProgs();
+  fetchProgsSoon();
 });
+/* The download links follow the destination chosen beside them. */
+$('#dlCountry').addEventListener('change', () => {
+  const c = $('#dlCountry').value;
+  $('#dlXlsx').href = '/api/staff/catalogue.xlsx' + (c ? '?country=' + encodeURIComponent(c) : '');
+  $('#dlCsv').href = '/api/staff/catalogue.csv' + (c ? '?country=' + encodeURIComponent(c) : '');
+});
+/* Both tables are a page of the database: a hundred rows each. */
+PAGE_SIZES.prog = 100; PAGE_SIZES.uni = 100;
 addEventListener('keydown', e => {
   if (e.key === 'Escape') $('#progModal').classList.remove('on');
 });

@@ -18,7 +18,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await ctx.request.post(BASE + '/api/auth/login',
     { data: { email: 'admin@glovels.com', password: 'glovels123' } });
 
-  const all = async () => (await (await ctx.request.get(BASE + '/api/staff/catalogue')).json()).programmes;
+  const all = async () => (await (await ctx.request.get(BASE + '/api/staff/catalogue?per=500')).json()).programmes;
   const before = await all();
 
   const page = await ctx.newPage();

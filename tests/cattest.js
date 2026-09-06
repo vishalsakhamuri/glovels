@@ -55,7 +55,7 @@ const check = (n, p, note) => (p ? ok : bad).push(n + (note ? ' — ' + note : '
   const rows = () => page.$$eval('#progRows tr[data-row], #progRows tr', r =>
     r.filter(x => x.querySelector('[data-edit]')).length);
   const all = await rows();
-  check('the table draws a page of programmes', all > 0 && all <= 25, all);
+  check('the table draws a page of programmes', all > 0 && all <= 100, all);
 
   const total = async () => Number(((await page.textContent('#progPager'))
     .match(/of (\d+) programmes/) || [])[1] || 0);
@@ -179,7 +179,7 @@ const check = (n, p, note) => (p ? ok : bad).push(n + (note ? ' — ' + note : '
     { multipart: { file, confirm: 'yes' } })).json();
   check('confirming adds them', done.created === 3, JSON.stringify(done));
 
-  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?country=PL')).json();
   const pl = cat.programmes.filter(p => p.country === 'PL' && p.isPublic);
   check('all three are in the catalogue', pl.length === 3, pl.length);
   check('the ones with their own bar kept it',

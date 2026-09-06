@@ -131,4 +131,28 @@ const money = n => {
   return '₹' + v.toLocaleString('en-IN');
 };
 
-module.exports = { slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS };
+/**
+ * A database row as the programme object the finder, the matcher and the
+ * pages are handed. One mapper, so a column added to the table reaches every
+ * consumer or none — the shape of bug that column-by-column mapping breeds.
+ */
+const crypto = require('crypto');
+const uKeyOf = name => 'u' + crypto.createHash('sha1').update(String(name || '').trim().toLowerCase()).digest('hex').slice(0, 8);
+function fromRow(r) {
+  return {
+    id: r.id, program: r.program, university: r.university, city: r.city || '',
+    country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
+    isPublic: !!r.is_public, fit: r.fit || null, totalInr: r.total_inr || 0,
+    feeModel: r.fee_model === 'free' || r.fee_model === 'package' ? r.fee_model : (r.is_public ? 'package' : 'free'),
+    minCgpa: r.min_cgpa == null ? null : Number(r.min_cgpa),
+    germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+    url: r.url || '',
+    shortName: r.short_name || '',
+    uKey: uKeyOf(r.university),
+    featured: !!r.featured, featureSort: r.feature_sort || 0,
+    searchOnly: !!r.search_only,
+    intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
+  };
+}
+
+module.exports = { slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf };

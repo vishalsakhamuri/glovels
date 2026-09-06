@@ -129,7 +129,7 @@ const check = (name, pass, note) => (pass ? ok : bad).push(name + (note ? ' — 
   check('it warns the bad row will be skipped', /will be skipped/.test(planText));
 
   /* Nothing may have been written yet. */
-  const midFee = (await (await ctx.request.get(BASE + '/api/staff/catalogue')).json())
+  const midFee = (await (await ctx.request.get(BASE + '/api/staff/catalogue?per=500')).json())
     .programmes.find(p => p.id === victimId).totalInr;
   check('the preview wrote nothing', midFee === feeBefore, midFee + ' vs ' + feeBefore);
 
@@ -140,7 +140,7 @@ const check = (name, pass, note) => (pass ? ok : bad).push(name + (note ? ' — 
   const done = await page.textContent('#sOut');
   check('it reports what it did', /1 added, 1 updated/.test(done), done.trim().slice(0, 90));
 
-  const after = await (await ctx.request.get(BASE + '/api/staff/catalogue')).json();
+  const after = await (await ctx.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const v = after.programmes.find(p => p.id === victimId);
   check('the fee actually changed', v.totalInr === feeBefore + 111000, v.totalInr);
   const nu = after.programmes.find(p => p.program === 'MSc Marine Robotics');

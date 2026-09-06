@@ -128,7 +128,19 @@ BODY = """
             style="margin-left:auto" title="Copy every post on glovels.com into this blog, as drafts">From glovels.com</button>
           <button type="button" class="btn btn-primary btn-sm" id="newPost">+ New</button>
         </div>
+        <div style="padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px;
+          flex-wrap:wrap;min-width:0">
+          <input id="pq" placeholder="Find a post" aria-label="Find a post" style="flex:1 1 140px;min-width:0;
+            width:auto;padding:8px 11px;font:400 13px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">
+          <select id="pst" aria-label="Which posts" style="flex:0 1 auto;min-width:0;max-width:100%;padding:8px 9px;
+            font:600 12.4px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;background:#fff">
+            <option value="">All</option>
+            <option value="published">On the site</option>
+            <option value="draft">Not on the site</option>
+          </select>
+        </div>
         <ul class="plist" id="postList"></ul>
+        <div id="postPager" style="padding:0 10px"></div>
       </div>
 
       <div class="p-card ed" id="editor">
@@ -141,7 +153,9 @@ BODY = """
 """
 
 SCRIPT = r"""
-let POSTS = [], openId = null, dirty = false;
+/* POSTS is the page the database sent, not the whole blog — at ten thousand
+   posts the list is searched and paged there, a hundred at a time. */
+let POSTS = [], POST_TOTAL = 0, STATS = {}, openId = null, dirty = false;
 
 const fmtWhen = iso => {
   if (!iso) return '';
@@ -165,19 +179,44 @@ const dateOnly = iso => {
 
 /* The published posts this one can point at, as tick boxes. Itself is never
    offered: a post that reads next to itself is a loop with a byline. */
+const relBox = (x, on) =>
+  '<label class="relbox"><input type="checkbox" value="' + esc(x.slug) + '"'
+  + (on ? ' checked' : '') + '>'
+  + '<span><b>' + esc(x.title) + '</b>'
+  + '<small>' + esc(x.tag || 'No topic') + ' &middot; ' + fmtWhen(x.publishedAt)
+  + '</small></span></label>';
+
 function relBoxes(p) {
-  const chosen = new Set(String(p.related || '').split(/[,\s]+/).filter(Boolean));
-  const others = POSTS.filter(x => x.status === 'published' && x.slug !== p.slug);
-  if (!others.length) {
-    return '<p style="margin:0;font-size:12.4px;color:var(--muted)">Nothing else is '
-      + 'on the site yet. Publish a second post and they can point at each other.</p>';
+  /* The ones already chosen are drawn at once (so Save cannot lose them);
+     the rest come from a search of the published posts — a list of ten
+     thousand tick boxes is not a way to pick three. */
+  return '<input id="relQ" placeholder="Find a published post to add" aria-label="Find a published post"'
+    + ' style="width:100%;margin:0 0 9px;padding:8px 11px;font:400 13px/1.4 var(--sans);'
+    + 'border:1.5px solid #d8dde4;border-radius:9px">'
+    + '<div id="relChosen"></div><div id="relFound"></div>';
+}
+
+let relReq = 0;
+async function loadRel(p) {
+  const chosen = String(p.related || '').split(/[,\s]+/).filter(Boolean);
+  const q = ($('#relQ') ? $('#relQ').value : '').trim();
+  const mine = ++relReq;
+  const r = await api('GET', '/api/staff/posts?status=published&per=30'
+    + (q ? '&q=' + encodeURIComponent(q) : ''));
+  if (mine !== relReq || !$('#relFound')) return;
+  const ticked = new Set([...$('#relPick').querySelectorAll('input:checked')].map(b => b.value));
+  chosen.forEach(sl => ticked.add(sl));
+  /* Draw the chosen ones once, from what the search knows plus the slug. */
+  if (!$('#relChosen').children.length && chosen.length) {
+    const known = new Map(r.posts.map(x => [x.slug, x]));
+    $('#relChosen').innerHTML = chosen.filter(sl => sl !== p.slug).map(sl =>
+      relBox(known.get(sl) || { slug: sl, title: sl, tag: '', publishedAt: '' }, true)).join('');
   }
-  return others.map(x =>
-    '<label class="relbox"><input type="checkbox" value="' + esc(x.slug) + '"'
-    + (chosen.has(x.slug) ? ' checked' : '') + '>'
-    + '<span><b>' + esc(x.title) + '</b>'
-    + '<small>' + esc(x.tag || 'No topic') + ' &middot; ' + fmtWhen(x.publishedAt)
-    + '</small></span></label>').join('');
+  const shown = new Set([...$('#relChosen').querySelectorAll('input')].map(b => b.value));
+  const others = r.posts.filter(x => x.slug !== p.slug && !shown.has(x.slug));
+  $('#relFound').innerHTML = others.map(x => relBox(x, ticked.has(x.slug))).join('')
+    || (r.total ? '' : '<p style="margin:0;font-size:12.4px;color:var(--muted)">Nothing else is '
+      + 'on the site yet. Publish a second post and they can point at each other.</p>');
 }
 
 /* Kept in step with the server's slugify. A writer who sees one address here
@@ -206,13 +245,12 @@ const slugify = s => String(s || '').toLowerCase()
 const isLive = p => p.status === 'published' || p.onDisk;
 
 function paintList() {
-  const live = POSTS.filter(isLive);
-  const draft = POSTS.filter(p => !isLive(p));
-  $('#kLive').textContent = live.length;
-  $('#kDraft').textContent = draft.length;
-  $('#kEmpty').textContent = POSTS.filter(p => !p.words).length;
-  $('#kWords').textContent = live.reduce((n, p) => n + (p.words || 0), 0)
-    .toLocaleString('en-IN');
+  /* Counted by the database over the whole blog, not over the page. */
+  $('#kLive').textContent = STATS.live == null ? '—' : STATS.live;
+  $('#kDraft').textContent = STATS.draft == null ? '—' : STATS.draft;
+  $('#kEmpty').textContent = STATS.empty == null ? '—' : STATS.empty;
+  $('#kWords').textContent = (STATS.words || 0).toLocaleString('en-IN');
+  $('#postPager').innerHTML = pagerHtml('post', POST_TOTAL, 'posts', () => { load().catch(e => toast(e.message)); });
 
   $('#postList').innerHTML = POSTS.map(p =>
     '<li data-post="' + p.id + '"' + (p.id === openId ? ' class="on"' : '') + '>'
@@ -398,6 +436,12 @@ function editor(p) {
      un-flagged form — the change that is hardest to notice is the one that
      looked like it worked. */
   $('#relPick').addEventListener('change', () => { dirty = true; });
+  let relTimer = null;
+  $('#relQ').addEventListener('input', () => {
+    clearTimeout(relTimer);
+    relTimer = setTimeout(() => { loadRel(p).catch(() => {}); }, 220);
+  });
+  loadRel(p).catch(() => {});
   $('#pAuthor').addEventListener('input', () => { dirty = true; });
   $('#pPublished').addEventListener('change', () => { dirty = true; });
 
@@ -687,11 +731,10 @@ async function drop(p) {
   const live = p.status === 'published';
   if (!live && !confirm('Delete “' + p.title + '”? It was never on the site, '
       + 'so nothing links to it.')) return;
-  const r = await api('DELETE', '/api/staff/post/' + p.id);
-  POSTS = r.posts;
+  await api('DELETE', '/api/staff/post/' + p.id);
   openId = live ? p.id : null;
-  paintList();
-  if (live) { const now = POSTS.find(x => x.id === p.id); if (now) open_(now.id); }
+  await load();
+  if (live) open_(p.id);
   else $('#editor').innerHTML = '<p style="margin:0;font-size:13px;color:var(--muted)">'
     + 'Deleted. Pick another post, or start a new one.</p>';
 }
@@ -705,11 +748,21 @@ async function open_(id) {
   editor(r.post);
 }
 
+let loadReq = 0, loadTimer = null;
 async function load() {
-  const r = await api('GET', '/api/staff/posts');
-  POSTS = r.posts;
+  const q = ($('#pq').value || '').trim(), st = $('#pst').value;
+  const mine = ++loadReq;
+  const r = await api('GET', '/api/staff/posts?page=' + (pageOf('post') + 1) + '&per=' + sizeOf('post')
+    + (q ? '&q=' + encodeURIComponent(q) : '') + (st ? '&status=' + st : ''));
+  if (mine !== loadReq) return;
+  POSTS = r.posts; POST_TOTAL = r.total; STATS = r.stats || {};
+  PAGE_AT.post = Math.max(0, (r.page || 1) - 1);
   paintList();
 }
+PAGE_SIZES.post = 100;
+const loadSoon = () => { clearTimeout(loadTimer); loadTimer = setTimeout(() => { load().catch(e => toast(e.message)); }, 220); };
+$('#pq').addEventListener('input', () => { PAGE_AT.post = 0; loadSoon(); });
+$('#pst').addEventListener('change', () => { PAGE_AT.post = 0; loadSoon(); });
 
 document.addEventListener('click', e => {
   const row = e.target.closest('[data-post]');

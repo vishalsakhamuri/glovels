@@ -80,82 +80,33 @@ const IMAGES = require('./server/images.js');
 /* The shape the rest of the application expects, read fresh from the database
    every time — so a programme a counsellor adds is live on the next request
    rather than on the next restart. */
-/* A stable id for "the same university", used to count distinct universities
-   without naming them. Derived from the name, so two programmes at one
-   university agree, and it reveals nothing a gated row was hiding. */
-const uKeyOf = name => 'u' + require('crypto')
-  .createHash('sha1').update(String(name || '').trim().toLowerCase()).digest('hex').slice(0, 8);
-
-/* Built once per change to the table (see universities() below for the
-   same idea): the finder, the search, the filter and every university page
-   ask for this, and mapping seven hundred rows per request was measurable
-   once the table behind them held seventeen thousand. */
-let catAt = -1;
-let catList = null;
-function liveCatalogue() {
-  const stamp = db.catalogueVersion();
-  if (catList && stamp === catAt) return catList;
-  catList = rawCatalogue();
-  catAt = stamp;
-  return catList;
-}
-function rawCatalogue() {
-  return db.programmes().map(r => ({
-    id: r.id, program: r.program, university: r.university, city: r.city || '',
-    country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
-    isPublic: !!r.is_public, fit: r.fit || null, totalInr: r.total_inr || 0,
-    /* What applying through us costs the student — free where we are
-       partnered, a package where we are not. This is the object the finder AND
-       the matcher are handed, so leaving it out meant a partnership marked in
-       the sheet was stored, shown on the sheet, shown in the office, and
-       invisible to both of the things that use it. Exactly the shape of the
-       bug the CGPA comment above this one is about, one column along. */
-    feeModel: r.fee_model === 'free' || r.fee_model === 'package'
-      ? r.fee_model : (r.is_public ? 'package' : 'free'),
-    /* The CGPA THIS programme asks for. The finder has always preferred it
-       over the country's rule — and never received it, because the catalogue
-       handed to the page did not carry the field. */
-    minCgpa: r.min_cgpa == null ? null : Number(r.min_cgpa),
-    /* The German grade the programme asks for, 1.0 best to 4.0 pass. Handed to
-       the finder AND the matcher, because a bar nobody filters on is a bar
-       that is only decoration. */
-    germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
-    url: r.url || '',
-    /* What the university is CALLED — TU Dortmund, BHT Berlin. Typed by the
-       office, blank outside Germany, and blank means "use the full name".
-       Handed to the finder AND the matcher for the same reason the German
-       grade is: a name that reaches the API and stops at the page is a column
-       the office fills in for nothing. */
-    shortName: r.short_name || '',
-    /* Grouped on the FULL name, deliberately. The short name is a display
-       choice and can be edited or cleared; keying on it would move a
-       university's programmes into a different bucket the moment somebody
-       typed one, and the quota counts universities. */
-    uKey: uKeyOf(r.university),
-    /* The office's choice of what leads the showcase on the home page. */
-    featured: !!r.featured, featureSort: r.feature_sort || 0,
-    /* On its university's page and in the search box, but NOT in the finder
-       or on any list. See the column's note in store.js. */
-    searchOnly: !!r.search_only,
-    intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
-  }));
-}
-/* The catalogue as universities, grouped once per change rather than once per
-   request. A page for one university needs the whole list grouped — for its
-   "other universities" and the index — and with a catalogue that is meant to
-   grow to every university there is, grouping a hundred thousand rows on every
-   Googlebot visit is the slow site the office was worried about. Keyed on the
-   table's newest edit and its size, so an edit on the Catalogue screen is
-   live on the next request, as before. */
-let groupedAt = '';
-let groupedList = null;
-function universities() {
-  const stamp = db.catalogueVersion();
-  if (!groupedList || stamp !== groupedAt) {
-    groupedList = UNIS.group(liveCatalogue());
-    groupedAt = stamp;
-  }
-  return groupedList;
+/*
+ * The catalogue, asked of the database.
+ *
+ * "In future we will have 200k universities." Nothing here holds the
+ * catalogue in memory any more: the finder gets the rows the office put on
+ * the site (a few hundred), a university page gets that university's rows,
+ * a country page gets fifty universities, the search box asks the full-text
+ * index. Each is one indexed query, so a million rows answer like a hundred
+ * (server/store.js, "the catalogue, asked of the database").
+ */
+const fromRow = UNIS.fromRow;
+/** The rows on the site — the finder's catalogue. */
+function liveCatalogue() { return db.rowsOnSite().map(fromRow); }
+/** One university, from its page address, or null. */
+function universityRows(slug) { return UNIS.group(db.rowsForUniversity(slug).map(fromRow))[0] || null; }
+/** The universities on the site (in a country, or all), grouped. */
+function listedUniversities(country) { return UNIS.group(db.rowsOnSite(country).map(fromRow)); }
+/* Which university pages the office took off search — read once per request
+   that needs all of them, rather than one content row per university. */
+function hiddenUniversitySlugs() {
+  const out = new Set();
+  try {
+    db.contentKeys('university:').forEach(k => {
+      try { if (UNIS.cleanExtras(db.content(k)).hidden) out.add(k.slice('university:'.length)); } catch (e) { /* skip */ }
+    });
+  } catch (e) { /* none */ }
+  return out;
 }
 function liveCountries() {
   const out = {};
@@ -248,7 +199,7 @@ function bakedIds() {
 }
 
 const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
-  universities, bakedIds,
+  universityRows, bakedIds,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content });
 
 /* First run only: a demo account with a shortlist, documents, applications and
@@ -447,8 +398,8 @@ const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
   'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404']);
 
-function sitemapXml() {
-  const pages = [];
+function sitemapXml(part, partNo) {
+  let pages = [];
   const walk = (dir, prefix) => {
     for (const name of fs.readdirSync(dir)) {
       const full = path.join(dir, name);
@@ -476,17 +427,19 @@ function sitemapXml() {
      not be listed — a sitemap is a request to index. The static files that are
      already live stay, because they are already live; they are dropped the
      moment the post that replaces them is published. */
-  const live = new Set(db.livePosts().map(p => 'post/' + p.slug));
-  const drafted = new Set(db.allPosts().filter(p => p.status !== 'published')
-    .map(p => 'post/' + p.slug));
-  for (let i = pages.length - 1; i >= 0; i--) {
-    const p = pages[i];
-    if (!p.startsWith('post/')) continue;
-    if (live.has(p)) continue;
-    if (drafted.has(p) && fs.existsSync(path.join(ROOT, p + '.html'))) continue;
-    pages.splice(i, 1);
+  const live = new Set(db.postSlugs(true).map(p => 'post/' + p.slug));
+  /* A post/ file stays listed while its post is still a draft — the six
+     pages that predate the editor. Looked up per file (there are six), not
+     by reading every draft (there may be thousands). */
+  const stillDraft = p => { const row = db.postBySlug(p.slice(5)); return !!row && row.status !== 'published'; };
+  const kept = new Set();
+  for (const p of pages) {
+    if (!p.startsWith('post/') || live.has(p) || stillDraft(p)) kept.add(p);
   }
-  live.forEach(p => { if (!pages.includes(p)) pages.push(p); });
+  /* Sets, not includes(): ten thousand posts against ten thousand pages
+     is a hundred million comparisons the other way. */
+  live.forEach(p => kept.add(p));
+  pages = [...kept];
   /* Rendered from the database rather than sitting on disk, so the walk above
      cannot find it — and a page nobody has asked to have indexed is a page
      that will not be. */
@@ -495,15 +448,34 @@ function sitemapXml() {
      taken off search. */
   pages.push('university');
   addedDestinations().forEach(c => pages.push('study-in-' + studySlugOf(c)));
-  universities().forEach(u => {
-    if (!UNIS.cleanExtras(db.content('university:' + u.slug)).hidden) pages.push('university/' + u.slug);
-  });
   pages.sort();
   const base = CFG.siteUrl || '';
-  return '<?xml version="1.0" encoding="UTF-8"?>\n'
+  const urlset = list => '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + pages.map(p => '  <url><loc>' + base + '/' + p + '</loc></url>').join('\n')
+    + list.map(p => '  <url><loc>' + base + '/' + p + '</loc></url>').join('\n')
     + '\n</urlset>\n';
+  /* Google reads at most 50,000 addresses from one sitemap file. The pages
+     and the posts fit in one; the university pages come in files of 40,000
+     (sitemap-universities-1.xml, -2.xml, …), and /sitemap.xml is then an
+     index that names them all. Under the limit it stays one plain file, as
+     it always was. */
+  const hidden = hiddenUniversitySlugs();
+  const nUnis = db.countUniversities({});
+  const PER = 40000;
+  if (part === 'universities') {
+    const slugs = db.uniSlugs({ limit: PER, offset: (Math.max(1, Number(partNo) || 1) - 1) * PER }).filter(sl => !hidden.has(sl));
+    return urlset(slugs.map(sl => 'university/' + sl));
+  }
+  if (nUnis + pages.length <= 45000) {
+    return urlset(pages.concat(db.uniSlugs({}).filter(sl => !hidden.has(sl)).map(sl => 'university/' + sl)));
+  }
+  if (part === 'pages') return urlset(pages);
+  const files = ['sitemap-pages.xml'];
+  for (let n = 1; (n - 1) * PER < nUnis; n++) files.push('sitemap-universities-' + n + '.xml');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + files.map(f => '  <sitemap><loc>' + base + '/' + f + '</loc></sitemap>').join('\n')
+    + '\n</sitemapindex>\n';
 }
 
 /*
@@ -680,9 +652,9 @@ function postPage(post, isDraft) {
      should be selected while writing the blog". A slug that has since been
      unpublished simply does not appear — a related link to a 404 is worse than
      one fewer link. */
-  const live = new Map(db.livePosts().map(p => [p.slug, p]));
-  const related = relatedOf(post)
-    .filter(s => s !== post.slug).map(s => live.get(s)).filter(Boolean);
+  const wanted = relatedOf(post).filter(s => s !== post.slug);
+  const live = new Map(db.livePostsBySlugs(wanted).map(p => [p.slug, p]));
+  const related = wanted.map(s => live.get(s)).filter(Boolean);
   const relatedBlock = related.length
     ? '<div class="postfoot"><h2>Read next</h2><ul class="related">'
       + related.map(p => '<li><a href="' + esc(p.slug) + '">'
@@ -752,19 +724,42 @@ function postPage(post, isDraft) {
  * from their file, until the post that replaces them is published; then the
  * database version wins and the file is never reached again.
  */
-function blogList() {
-  const live = db.livePosts();
-  const shown = new Set(live.map(p => p.slug));
-  const stillOnDisk = db.allPosts().filter(p =>
-    !shown.has(p.slug) && p.status !== 'published'
-    && fs.existsSync(path.join(ROOT, 'post', p.slug + '.html')));
-  return live.concat(stillOnDisk).sort((a, b) =>
-    String(b.published_at || b.created_at).localeCompare(String(a.published_at || a.created_at)));
+const BLOG_PER = 24;
+function blogList(pageNo) {
+  /* A page of the live posts, from the database — ten thousand posts are
+     not read, sorted and printed on every visit to /blog. The handful of
+     old files still serving from disk ride along on the first page. */
+  const pg = db.livePostsPage(pageNo || 1, BLOG_PER);
+  let posts = pg.rows;
+  if (pg.page === 1) {
+    const shown = new Set(posts.map(p => p.slug));
+    let files = [];
+    try { files = fs.readdirSync(path.join(ROOT, 'post')).filter(f => f.endsWith('.html') && !f.startsWith('_')).map(f => f.slice(0, -5)); } catch (e) {}
+    const stillOnDisk = files.filter(sl => !shown.has(sl)).map(sl => db.postBySlug(sl))
+      .filter(p => p && p.status !== 'published');
+    posts = posts.concat(stillOnDisk).sort((a, b) =>
+      String(b.published_at || b.created_at).localeCompare(String(a.published_at || a.created_at)));
+  }
+  return Object.assign(posts, { total: pg.total, page: pg.page, per: pg.per,
+    pages: Math.max(1, Math.ceil(pg.total / pg.per)) });
 }
 
 function blogIndexPage(posts) {
   const t = templates();
   if (!t) return null;
+  const pageNo = posts.page || 1, pages = posts.pages || 1;
+  const pageUrl = n => n <= 1 ? '/blog' : '/blog?page=' + n;
+  /* Newer / older, and where in the run this page sits. Plain links, so a
+     crawler walks every page of the blog from the first. */
+  const pager = pages > 1
+    ? '<nav class="blogpager" aria-label="More posts" style="display:flex;gap:10px;align-items:center;'
+      + 'justify-content:space-between;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--line);'
+      + 'font:600 13.5px/1.4 var(--sans)">'
+      + (pageNo > 1 ? '<a href="' + pageUrl(pageNo - 1) + '" rel="prev">&larr; Newer posts</a>' : '<span></span>')
+      + '<span style="color:var(--muted)">Page ' + pageNo + ' of ' + pages + '</span>'
+      + (pageNo < pages ? '<a href="' + pageUrl(pageNo + 1) + '" rel="next">Older posts &rarr;</a>' : '<span></span>')
+      + '</nav>'
+    : '';
   const cards = posts.map(p =>
     '<a class="postcard" href="post/' + esc(p.slug) + '">'
     + (PROSE.safeImg(p.cover || '')
@@ -777,10 +772,10 @@ function blogIndexPage(posts) {
     + '<p>' + esc(p.excerpt || PROSE.summarise(p.body)) + '</p></a>').join('');
 
   return fill(t.index, Object.assign(metaHoles({
-    title: 'Blog — study-abroad guides for Indian students',
+    title: 'Blog — study-abroad guides for Indian students' + (pageNo > 1 ? ' (page ' + pageNo + ')' : ''),
     desc: 'Guides on public universities, blocked accounts, CGPA cut-offs and '
         + 'deadlines — the questions students actually ask.',
-    canonical: absolute('/blog'),
+    canonical: absolute(pageUrl(pageNo)),
     keywords: 'study abroad blog, public universities germany, blocked account, '
             + 'student visa india',
     type: 'website', indexable: true,
@@ -798,8 +793,8 @@ function blogIndexPage(posts) {
     H1: 'The blog',
     DATELINE: 'Guides on public universities, blocked accounts, CGPA cut-offs and '
       + 'deadlines — the questions students actually ask.',
-    BODY: cards || '<p style="color:var(--muted)">Nothing published yet. '
-      + 'The first guides are being written.</p>',
+    BODY: (cards || '<p style="color:var(--muted)">Nothing published yet. '
+      + 'The first guides are being written.</p>') + pager,
   }));
 }
 
@@ -1075,7 +1070,7 @@ const dateShort = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month
 
 /** Everything the page needs about one university, or null. */
 function universityOf(slug) {
-  const u = universities().find(x => x.slug === String(slug)) || null;
+  const u = universityRows(String(slug));
   if (!u) return null;
   u.extras = UNIS.cleanExtras(db.content('university:' + u.slug));
   return u;
@@ -1183,7 +1178,7 @@ function universityPage(u) {
   /* Only the ones the office put on the site. A search-only university is
      reached from Google and the search box, not from a list — a list of
      every university in the catalogue is what "search only" exists to avoid. */
-  const others = universities().filter(o => o.listed && o.country === u.country && o.slug !== u.slug);
+  const others = listedUniversities(u.country).filter(o => o.slug !== u.slug);
   const othersBlock = others.length
     ? '<h2>Other universities in ' + esc(c.name) + '</h2><ul class="uni-others">'
       + others.slice(0, 40).map(o => '<li><a href="' + esc(o.slug) + '">' + esc(o.name) + '</a>'
@@ -1354,13 +1349,13 @@ function packagesBlock(u, country) {
 function universitiesIndexPage() {
   const t = templates();
   if (!t) return null;
-  const all = universities();
   const countries = liveCountries();
   /* The ones on the site. Search-only universities have pages and are in the
      sitemap, but the list is not where a student meets them: they come up in
      the search box, and on Google. */
-  const shown = all.filter(u => u.listed && !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden);
-  const unlisted = all.filter(u => !u.listed && !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden).length;
+  const hidden = hiddenUniversitySlugs();
+  const shown = listedUniversities().filter(u => !hidden.has(u.slug));
+  const unlisted = Math.max(0, db.countUniversities({}) - db.countUniversities({ listed: true }));
   const byCountry = new Map();
   shown.forEach(u => { if (!byCountry.has(u.country)) byCountry.set(u.country, []); byCountry.get(u.country).push(u); });
   const order = [...byCountry.keys()].sort((a, b) => byCountry.get(b).length - byCountry.get(a).length);
@@ -1479,19 +1474,21 @@ function withDestinationUniversities(html, slug) {
   if (!code) return html;
   const anchor = html.indexOf('<p style="margin-top:26px"><a class="btn btn-ghost" href="university#');
   if (anchor < 0) return html;
-  const all = universities().filter(u => u.country === code
-    && !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden);
-  if (!all.length) return html;
+  const hidden = hiddenUniversitySlugs();
+  const total = db.countUniversities({ country: code });
+  if (!total) return html;
   const c = countries[code];
   /* Every university in the country with a page, search-only ones included —
      "the home page search for universities looks fine, no changes to it; on
      the country pages we can display up to 50". The ones the office put on
-     the site lead, then the featured, then whoever has the most on offer. */
-  const lead = all.slice().sort((a, b) =>
+     the site lead, then the featured, then whoever has the most on offer —
+     the database picks them (rowsForCountryPage). */
+  const lead = UNIS.group(db.rowsForCountryPage(code, DEST_MAX + 10).map(fromRow))
+    .filter(u => !hidden.has(u.slug)).sort((a, b) =>
     (b.listed - a.listed)
     || (b.programmes.some(p => p.featured) - a.programmes.some(p => p.featured))
     || (b.programmes.length - a.programmes.length) || a.name.localeCompare(b.name)).slice(0, DEST_MAX);
-  const more = all.length - lead.length;
+  const more = Math.max(0, total - lead.length);
   const li = u => '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.shortName || u.name) + '</b><small>'
       + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
       + ' · ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
@@ -1504,8 +1501,9 @@ function withDestinationUniversities(html, slug) {
      universities; every change asks /api/universities/filter. The options
      are what this country's programmes actually have, so nobody filters
      Germany to a level nothing there offers. */
-  const levels = [...new Set(all.flatMap(u => u.programmes.map(p => String(p.level || 'master').toLowerCase())))].sort();
-  const fields = [...new Set(all.flatMap(u => u.programmes.map(p => p.field).filter(Boolean)))].sort();
+  const opts = db.filterOptions(code);
+  const levels = opts.levels;
+  const fields = opts.fields;
   const LEVEL_NAMES = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma',
     foundation: 'Foundation / Pathway', pathway: 'Foundation / Pathway', phd: 'PhD' };
   const opt = (v, t) => '<option value="' + esc(v) + '">' + esc(t) + '</option>';
@@ -1524,8 +1522,8 @@ function withDestinationUniversities(html, slug) {
       + opt('2000000', 'Up to ₹20 lakh') + opt('4000000', 'Up to ₹40 lakh'))
     + sel('ufApply', 'Applying', opt('', 'Free or with a package') + opt('free', 'Free to apply through us'))
     + '<div class="field act"><button type="button" class="btn btn-ghost" id="ufClear" hidden>Clear filters</button></div>'
-    + '</form><p class="ucount" id="uCount" aria-live="polite">' + (more ? 'Showing ' + lead.length + ' of ' + all.length : all.length) + ' universit'
-    + (all.length === 1 ? 'y' : 'ies') + ' in ' + esc(c.name) + '</p>';
+    + '</form><p class="ucount" id="uCount" aria-live="polite">' + (more ? 'Showing ' + lead.length + ' of ' + total : total) + ' universit'
+    + (total === 1 ? 'y' : 'ies') + ' in ' + esc(c.name) + '</p>';
 
   const block = '<h2 id="universities">Universities in ' + esc(c.name) + ' we place students at</h2>'
     + filterBar
@@ -1586,9 +1584,8 @@ function studyPage(c) {
   const slug = studySlugOf(c);
   const f = c.facts || c;
   const money = n => UNIS.money(n);
-  const unis = universities().filter(u => u.country === c.code);
-  const n = unis.length;
-  const free = unis.some(u => u.feeModel === 'free');
+  const n = db.countUniversities({ country: c.code });
+  const free = db.rowsOnSite(c.code).some(r => r.fee_model === 'free');
   const title = 'Study in ' + c.name + ' for Indian students — requirements, universities & how to apply';
   const desc = 'Study in ' + c.name + ' from India: '
     + (f.minCgpaPublic || f.minCgpaPrivate ? 'the CGPA you need (' + (f.minCgpaPublic || f.minCgpaPrivate) + '+ on 10), ' : '')
@@ -2046,6 +2043,11 @@ const server = http.createServer(async (req, res) => {
     if (!CFG.allowIndexing) return notFound(res);
     return send(res, 200, sitemapXml(), TYPES['.xml']);
   }
+  const smPart = /^\/sitemap-(pages|universities-(\d{1,3}))\.xml$/.exec(pathname);
+  if (smPart) {
+    if (!CFG.allowIndexing) return notFound(res);
+    return send(res, 200, sitemapXml(smPart[1] === 'pages' ? 'pages' : 'universities', Number(smPart[2] || 1)), TYPES['.xml']);
+  }
 
   /*
    * /acceptance/<reference> — the receipt for what somebody accepted.
@@ -2179,7 +2181,9 @@ const server = http.createServer(async (req, res) => {
    * the one the office can edit.
    */
   if (pathname === '/blog' || pathname === '/blog.html') {
-    const html = blogIndexPage(blogList());
+    const list = blogList(Number(url.parse(req.url, true).query.page) || 1);
+    if (list.page > list.pages) return notFound(res);
+    const html = blogIndexPage(list);
     if (html) return send(res, 200, externalizeScripts(html, 'blog'), TYPES['.html']);
   }
   const postUrl = /^\/post\/([a-z0-9-]{1,90})(?:\.html)?$/.exec(pathname);
@@ -2285,7 +2289,7 @@ ${configure.describe(CFG)}
     Sign in    ${SITE_URL}/login
     Portal     ${SITE_URL}/dashboard
 
-  ${db.countStudents()} account(s), ${db.programmes().length} programmes across ${db.countries().length} destinations.
+  ${db.countStudents()} account(s), ${db.catalogueStats().onSite + db.catalogueStats().searchOnly} programmes across ${db.countries().length} destinations.
   Data is stored in ${where}.${importedCat ? '\n  Catalogue imported from catalogue.json (' + importedCat + ' programmes) — it lives in the database now.' : ''}
   Email: ${mail.mode === 'smtp' ? 'sending through ' + (mail.status().host || 'mail.env')
     : 'NOT SENDING \u2014 written to data/outbox/ as .eml files. Set SMTP_HOST,\n         SMTP_USER and SMTP_PASS in the environment (or mail.env) and restart.\n         Organisation \u2192 Email says the same thing, with a test button.'}.

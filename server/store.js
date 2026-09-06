@@ -22,6 +22,7 @@
  * application makes is in this file.
  */
 
+const UNIS = require('./unis.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -522,6 +523,32 @@ function sqliteDriver(file) {
    "ALTER TABLE documents ADD COLUMN uploaded_by TEXT NOT NULL DEFAULT 'student'",
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
+   /* The catalogue at the size it is going to be — "200k universities".
+      Every question the site asks of it is answered by the database on an
+      index, never by reading the table into memory:
+        uni_slug   the university's page address, so /university/<slug> is one
+                   indexed read; derived from the name in saveProgramme.
+        the composite indexes  the on-site rows, a country's rows, a
+                   university's rows.
+        prog_fts   a full-text index over the words a student types — name,
+                   short name, city, programme, field — kept in step by
+                   saveProgramme/deleteProgramme and rebuilt on start when it
+                   is out of step (an old database, a crash mid-write). */
+   "ALTER TABLE programmes ADD COLUMN uni_slug TEXT NOT NULL DEFAULT ''",
+   'CREATE INDEX IF NOT EXISTS idx_prog_slug ON programmes(uni_slug, active)',
+   'CREATE INDEX IF NOT EXISTS idx_prog_site ON programmes(active, search_only, country)',
+   'CREATE INDEX IF NOT EXISTS idx_prog_country ON programmes(country, active, search_only, uni_slug)',
+   /* The office's table walks the catalogue in name order, a page at a time;
+      without this the first page is a sort of every row. */
+   'CREATE INDEX IF NOT EXISTS idx_prog_order ON programmes(uni_slug, program)',
+   "CREATE VIRTUAL TABLE IF NOT EXISTS prog_fts USING fts5(id UNINDEXED, university, short_name, city, program, field, tokenize='unicode61 remove_diacritics 2')",
+   /* Ten thousand posts: the lists (the public index, the office's list, the
+      sitemap) read a page of them without the bodies, so the word count a
+      list prints is a column kept at save time rather than a body read. */
+   'ALTER TABLE posts ADD COLUMN words INTEGER NOT NULL DEFAULT 0',
+   'DROP INDEX IF EXISTS idx_posts_status',
+   'CREATE INDEX IF NOT EXISTS idx_posts_live ON posts(status, published_at, id, words)',
+   'CREATE INDEX IF NOT EXISTS idx_posts_updated ON posts(updated_at, id)',
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -651,7 +678,81 @@ function open(dir) {
   }
   let catVersion = 1;
 
-  return {
+  /* The full-text index, kept in step with the table.
+
+     Each index row sits at the programme's rowid. The id column in the
+     index is not indexed (FTS5 UNINDEXED), so a DELETE by id is a scan of
+     the whole index — at a million rows, one save took twelve milliseconds
+     and a sheet of fifty thousand took ten minutes. By rowid it is one
+     lookup. INSERT OR REPLACE gives a row a NEW rowid, so the old index row
+     is dropped BEFORE the save (ftsDrop) and the new one written after
+     (ftsPut). The database is never VACUUMed, which is what keeps rowids. */
+  const ftsPut = p => {
+    if (db.kind !== 'sqlite') return;
+    try {
+      db.run('INSERT INTO prog_fts (rowid, id, university, short_name, city, program, field) VALUES ((SELECT rowid FROM programmes WHERE id = ?), ?, ?, ?, ?, ?, ?)',
+        String(p.id), String(p.id), String(p.university || ''), String(p.shortName == null ? '' : p.shortName), String(p.city || ''),
+        String(p.program || ''), String(p.field || ''));
+    } catch (e) { /* the index is a convenience; the table is the truth */ }
+  };
+  /* The FTS5 query for what somebody typed: each word as a prefix. */
+  const ftsMatch = q => {
+    /* Split where the tokenizer splits — on anything that is not a letter or
+       a digit — so "Bauhaus-Universität" asks for bauhaus AND universitat,
+       which is how the index holds it. */
+    const words = String(q || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+      .split(/[^a-z0-9]+/).filter(Boolean).slice(0, 8);
+    return words.length ? words.map(w => '"' + w + '"*').join(' ') : '';
+  };
+  const wordsOf = body => String(body || '').trim().split(/\s+/).filter(Boolean).length;
+  /* Everything on a post except the body — what a list needs. The body head
+     comes along for the excerpt the index prints when none was written. */
+  const POST_LITE = 'id, slug, title, excerpt, cover, author, tag, status, meta_title, meta_desc, keywords, og_image, related, read_mins, published_at, created_at, updated_at, updated_by, words, substr(body, 1, 900) AS body';
+  const POST_LITE_P = POST_LITE.replace(/(^|, )(?=[a-z_]+(, |$))/g, '$1p.').replace('substr(body', 'substr(p.body');
+  const ftsDrop = id => { if (db.kind === 'sqlite') { try { db.run('DELETE FROM prog_fts WHERE rowid IN (SELECT rowid FROM programmes WHERE id = ?)', String(id)); } catch (e) {} } };
+  /* On start: page addresses for rows written before the column existed,
+     and the index rebuilt when it does not match the table. Both are a
+     one-off on an old database and nothing on a new one. */
+  if (db.kind === 'sqlite') {
+    try {
+      const missing = db.all("SELECT id, university FROM programmes WHERE uni_slug = ''");
+      if (missing.length) {
+        db.run('BEGIN');
+        missing.forEach(r => db.run('UPDATE programmes SET uni_slug = ? WHERE id = ?', UNIS.slugOf(r.university), r.id));
+        db.run('COMMIT');
+      }
+      const n = (db.one('SELECT COUNT(*) AS n FROM programmes') || {}).n || 0;
+      const f = (db.one('SELECT COUNT(*) AS n FROM prog_fts') || {}).n || 0;
+      /* Rebuilt when the counts differ, or once when the index predates the
+         rowid scheme (a flag in the content table says which). */
+      const keyed = !!db.one('SELECT key FROM content WHERE key = ?', 'ftsRowidV2');
+      if (n !== f || !keyed) {
+        db.run('DELETE FROM prog_fts');
+        db.run('BEGIN');
+        db.all('SELECT rowid AS rid, id, university, short_name, city, program, field FROM programmes').forEach(r =>
+          db.run('INSERT INTO prog_fts (rowid, id, university, short_name, city, program, field) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            r.rid, r.id, r.university || '', r.short_name || '', r.city || '', r.program || '', r.field || ''));
+        db.run('INSERT OR REPLACE INTO content (key, value, who, updated_at) VALUES (?, ?, ?, ?)', 'ftsRowidV2', '{"done":true}', 'system', now());
+        db.run('COMMIT');
+      }
+    } catch (e) { try { db.run('ROLLBACK'); } catch (e2) {} }
+    /* Word counts for posts written before the column existed. */
+    try {
+      const uncounted = db.all("SELECT id, body FROM posts WHERE words = 0 AND body IS NOT NULL AND body <> ''");
+      if (uncounted.length) {
+        db.run('BEGIN');
+        uncounted.forEach(r => { const n = wordsOf(r.body); if (n) db.run('UPDATE posts SET words = ? WHERE id = ?', n, r.id); });
+        db.run('COMMIT');
+      }
+    } catch (e) { try { db.run('ROLLBACK'); } catch (e2) {} }
+  }
+
+  const livePostsAll = () => db.all('SELECT * FROM posts WHERE status = ?', 'published')
+    .filter(p => p.body && String(p.body).trim())
+    .sort((a, b) => String(b.published_at || b.created_at)
+      .localeCompare(String(a.published_at || a.created_at)));
+
+  const store = {
     kind: db.kind,
     close: db.close,
 
@@ -1040,6 +1141,323 @@ function open(dir) {
       return rows.length;
     },
 
+    /* ---- the catalogue, asked of the database ----
+     *
+     * Nothing below reads the whole table. Each answers one question the
+     * site asks — this university, this country's on-site universities, the
+     * rows that match what a student typed — on an index, so a catalogue of
+     * a million rows answers as fast as one of a hundred. The JSON driver
+     * (no SQLite on the machine) answers the same questions by filtering in
+     * JavaScript, which is fine for a development database. */
+    catalogueStats() {
+      if (db.kind !== 'sqlite') {
+        const rows = db.all('SELECT * FROM programmes WHERE id > ?', '');
+        return { total: rows.length, onSite: rows.filter(r => r.active && !r.search_only).length,
+          searchOnly: rows.filter(r => r.active && r.search_only).length, hidden: rows.filter(r => !r.active).length,
+          zeroTuition: rows.filter(r => r.active && !r.total_inr).length };
+      }
+      const r = db.one(`SELECT COUNT(*) AS total,
+        SUM(CASE WHEN active = 1 AND search_only = 0 THEN 1 ELSE 0 END) AS onSite,
+        SUM(CASE WHEN active = 1 AND search_only = 1 THEN 1 ELSE 0 END) AS searchOnly,
+        SUM(CASE WHEN active = 0 THEN 1 ELSE 0 END) AS hidden,
+        SUM(CASE WHEN active = 1 AND total_inr = 0 THEN 1 ELSE 0 END) AS zeroTuition
+        FROM programmes`) || {};
+      return { total: r.total || 0, onSite: r.onSite || 0, searchOnly: r.searchOnly || 0, hidden: r.hidden || 0, zeroTuition: r.zeroTuition || 0 };
+    },
+    /** Rows on the site — the finder's, and the lists'. Small by design. */
+    rowsOnSite(country) {
+      if (db.kind !== 'sqlite') {
+        return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && !r.search_only && (!country || r.country === country));
+      }
+      return country
+        ? db.all('SELECT * FROM programmes WHERE active = 1 AND search_only = 0 AND country = ? ORDER BY university', country)
+        : db.all('SELECT * FROM programmes WHERE active = 1 AND search_only = 0 ORDER BY university');
+    },
+    /** Every live row at one university, by its page address. */
+    rowsForUniversity(slug) {
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.uni_slug === String(slug));
+      return db.all('SELECT * FROM programmes WHERE uni_slug = ? AND active = 1', String(slug));
+    },
+    /** Every row at one university, hidden ones too — the import's duplicate check. */
+    rowsForUniversityAll(slug) {
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.uni_slug === String(slug));
+      return db.all('SELECT * FROM programmes WHERE uni_slug = ?', String(slug));
+    },
+    /** Live rows in these countries — what the matcher works from. */
+    rowsForCountries(codes) {
+      const cs = [...new Set((codes || []).map(c => String(c || '').toUpperCase()).filter(Boolean))];
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && (!cs.length || cs.includes(r.country)));
+      if (!cs.length) return db.all('SELECT * FROM programmes WHERE active = 1');
+      return db.all('SELECT * FROM programmes WHERE active = 1 AND country IN (' + cs.map(() => '?').join(',') + ')', ...cs);
+    },
+    /** Live universities, counted. listed: on the site only. */
+    countUniversities({ country, listed } = {}) {
+      if (db.kind !== 'sqlite') {
+        const s = new Set();
+        db.all('SELECT * FROM programmes WHERE id > ?', '').forEach(r => { if (r.active && (!listed || !r.search_only) && (!country || r.country === country)) s.add(r.uni_slug); });
+        return s.size;
+      }
+      const w = ['active = 1']; const a = [];
+      if (listed) w.push('search_only = 0');
+      if (country) { w.push('country = ?'); a.push(country); }
+      return (db.one('SELECT COUNT(DISTINCT uni_slug) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
+    },
+    /** Live programmes per country — the office's counters. */
+    countByCountry() {
+      const out = {};
+      if (db.kind !== 'sqlite') {
+        db.all('SELECT * FROM programmes WHERE id > ?', '').forEach(r => { out[r.country] = (out[r.country] || 0) + 1; });
+        return out;
+      }
+      db.all('SELECT country, COUNT(*) AS n FROM programmes GROUP BY country').forEach(r => { out[r.country] = r.n; });
+      return out;
+    },
+    /** The page addresses of live universities, in slices — for the sitemap. */
+    uniSlugs({ country, listed, limit, offset } = {}) {
+      if (db.kind !== 'sqlite') {
+        const s = [...new Set(db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && (!listed || !r.search_only) && (!country || r.country === country)).map(r => r.uni_slug))].sort();
+        return s.slice(offset || 0, (offset || 0) + (limit || s.length));
+      }
+      const w = ['active = 1']; const a = [];
+      if (listed) w.push('search_only = 0');
+      if (country) { w.push('country = ?'); a.push(country); }
+      return db.all('SELECT DISTINCT uni_slug FROM programmes WHERE ' + w.join(' AND ') + ' ORDER BY uni_slug'
+        + (limit ? ' LIMIT ' + Number(limit) + ' OFFSET ' + Number(offset || 0) : ''), ...a).map(r => r.uni_slug);
+    },
+    /**
+     * Universities in a country for its page: the ones on the site first,
+     * then whoever has the most on offer, `limit` in all. Returns their rows.
+     */
+    rowsForCountryPage(country, limit) {
+      if (db.kind !== 'sqlite') {
+        const rows = db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.country === country);
+        const by = {}; rows.forEach(r => { const u = by[r.uni_slug] = by[r.uni_slug] || { n: 0, listed: 0 }; u.n++; if (!r.search_only) u.listed = 1; });
+        const keep = new Set(Object.entries(by).sort((a, b) => (b[1].listed - a[1].listed) || (b[1].n - a[1].n)).slice(0, limit).map(e => e[0]));
+        return rows.filter(r => keep.has(r.uni_slug));
+      }
+      const top = db.all(`SELECT uni_slug FROM programmes WHERE active = 1 AND country = ?
+        GROUP BY uni_slug ORDER BY MIN(search_only) ASC, MAX(featured) DESC, COUNT(*) DESC, MIN(university) ASC LIMIT ?`, country, Number(limit)).map(r => r.uni_slug);
+      if (!top.length) return [];
+      return db.all('SELECT * FROM programmes WHERE active = 1 AND country = ? AND uni_slug IN (' + top.map(() => '?').join(',') + ')', country, ...top);
+    },
+    /**
+     * The search box: rows whose university, short name, city, programme or
+     * field carry every word typed, each word as a prefix. Through the
+     * full-text index; ids come back in the index's own order.
+     */
+    searchRows(q, limit) {
+      const words = String(q || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+        .split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, '')).filter(Boolean).slice(0, 6);
+      if (!words.length) return [];
+      if (db.kind !== 'sqlite') {
+        return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && words.every(w =>
+          (r.university + ' ' + r.short_name + ' ' + r.city + ' ' + r.program + ' ' + r.field).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').includes(w)))
+          .slice(0, limit || 200);
+      }
+      const match = ftsMatch(q);
+      /* By rowid, which the index row shares with the programme (ftsPut):
+         a thousand rowid lookups are eight milliseconds; the same list by
+         the text id was four hundred. */
+      const rids = db.all('SELECT rowid AS rid FROM prog_fts WHERE prog_fts MATCH ? LIMIT ?', match, Number(limit || 200) * 3).map(r => r.rid);
+      if (!rids.length) return [];
+      return db.all('SELECT * FROM programmes WHERE active = 1 AND rowid IN (' + rids.map(() => '?').join(',') + ')', ...rids).slice(0, limit || 200);
+    },
+    /**
+     * The country page's filters, answered by the database: the live rows
+     * in `country` clearing every filter, grouped by university with the
+     * number that cleared, universities on the site first. `bars` are the
+     * country's CGPA rules for rows that state none.
+     */
+    filterUniversities({ country, level, field, cgpa, ggpa, season, budget, free, q, bars, limit }) {
+      const w = ['active = 1', 'country = ?']; const a = [country];
+      if (level) { w.push("LOWER(COALESCE(NULLIF(level, ''), 'master')) = ?"); a.push(String(level).toLowerCase()); }
+      if (field) { w.push('field = ?'); a.push(field); }
+      if (cgpa) {
+        w.push('((min_cgpa IS NOT NULL AND min_cgpa <= ?) OR (min_cgpa IS NULL AND ((is_public = 1 AND ? <= ?) OR (is_public = 0 AND ? <= ?))))');
+        a.push(cgpa, Number((bars || {}).pub) || 0, cgpa, Number((bars || {}).priv) || 0, cgpa);
+      }
+      if (ggpa) { w.push('(german_gpa IS NULL OR german_gpa >= ?)'); a.push(ggpa); }
+      if (season) { w.push('intakes LIKE ?'); a.push('%"season":"' + season + '"%'); }
+      if (budget) { w.push('total_inr <= ?'); a.push(budget); }
+      if (free) w.push("fee_model = 'free'");
+      (q || []).forEach(word => { w.push("LOWER(university || ' ' || short_name || ' ' || city) LIKE ?"); a.push('%' + word + '%'); });
+      if (db.kind !== 'sqlite') {
+        /* The development store: the same question, in JavaScript. */
+        const rows = db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.country === country);
+        const ok = r => (!level || String(r.level || 'master').toLowerCase() === String(level).toLowerCase())
+          && (!field || r.field === field)
+          && (!cgpa || (r.min_cgpa != null ? r.min_cgpa <= cgpa : ((r.is_public ? Number((bars || {}).pub) || 0 : Number((bars || {}).priv) || 0) <= cgpa)))
+          && (!ggpa || r.german_gpa == null || r.german_gpa >= ggpa)
+          && (!season || String(r.intakes || '').includes('"season":"' + season + '"'))
+          && (!budget || (r.total_inr || 0) <= budget) && (!free || r.fee_model === 'free')
+          && (q || []).every(word => (r.university + ' ' + r.short_name + ' ' + r.city).toLowerCase().includes(word));
+        const by = {}; rows.forEach(r => { const u = by[r.uni_slug] = by[r.uni_slug] || { slug: r.uni_slug, matching: 0, rows: [] }; u.rows.push(r); if (ok(r)) u.matching++; });
+        return Object.values(by).filter(u => u.matching).sort((x, y) => (y.rows.some(r => !r.search_only) - x.rows.some(r => !r.search_only)) || (y.matching - x.matching)).slice(0, limit || 50);
+      }
+      const groups = db.all('SELECT uni_slug, COUNT(*) AS matching, MIN(search_only) AS so, MAX(featured) AS f FROM programmes WHERE ' + w.join(' AND ')
+        + ' GROUP BY uni_slug ORDER BY so ASC, f DESC, matching DESC, MIN(university) ASC LIMIT ?', ...a, Number(limit || 50));
+      const total = (db.one('SELECT COUNT(DISTINCT uni_slug) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
+      if (!groups.length) return Object.assign([], { total });
+      const rows = db.all('SELECT * FROM programmes WHERE active = 1 AND country = ? AND uni_slug IN (' + groups.map(() => '?').join(',') + ')', country, ...groups.map(g => g.uni_slug));
+      const by = {}; rows.forEach(r => { (by[r.uni_slug] = by[r.uni_slug] || []).push(r); });
+      return Object.assign(groups.map(g => ({ slug: g.uni_slug, matching: g.matching, rows: by[g.uni_slug] || [] })), { total });
+    },
+    /**
+     * The office's list, a page at a time, with its own search. status:
+     * '' everything, '1' on the site, '2' search only, '0' hidden.
+     */
+    programmesPage({ q, country, level, field, type, band, cgpa, status, page, per, bars }) {
+      const w = ['1 = 1']; const a = [];
+      if (country) { w.push('country = ?'); a.push(country); }
+      if (level) { w.push("LOWER(COALESCE(NULLIF(level, ''), 'master')) = ?"); a.push(String(level).toLowerCase()); }
+      if (field) { w.push('field = ?'); a.push(field); }
+      if (band) { w.push('band = ?'); a.push(band); }
+      /* Two axes on one control, as on the screen: how the student applies
+         (fee_model, with the same fallback the site uses) or whether the place
+         is public. */
+      const feeModelSql = "CASE WHEN fee_model IN ('free', 'package') THEN fee_model WHEN is_public = 1 THEN 'package' ELSE 'free' END";
+      const feeOf = r => (r.fee_model === 'free' || r.fee_model === 'package') ? r.fee_model : (r.is_public ? 'package' : 'free');
+      if (type === 'pub') w.push('is_public = 1');
+      else if (type === 'pri') w.push('is_public = 0');
+      else if (type === 'free' || type === 'package') { w.push(feeModelSql + ' = ?'); a.push(type); }
+      /* The bar a programme asks for: its own, else its destination's rule for
+         that kind of university (bars: {code: {pub, priv}}). Exactly what the
+         public finder does with the same number. */
+      const cg = Number(cgpa) || 0;
+      const barRules = bars || {};
+      const barOf = r => {
+        if (r.min_cgpa != null && r.min_cgpa !== '') return Number(r.min_cgpa);
+        const f = barRules[r.country] || {};
+        const own = r.is_public ? f.pub : f.priv;
+        return own == null || own === '' ? null : Number(own);
+      };
+      if (cg) {
+        const cases = Object.keys(barRules).map(code => {
+          const f = barRules[code];
+          const pub = f.pub == null || f.pub === '' ? 'NULL' : Number(f.pub) || 0;
+          const priv = f.priv == null || f.priv === '' ? 'NULL' : Number(f.priv) || 0;
+          a.push(code);
+          return 'WHEN ? THEN CASE WHEN is_public = 1 THEN ' + pub + ' ELSE ' + priv + ' END';
+        });
+        const rule = cases.length ? '(CASE country ' + cases.join(' ') + ' ELSE NULL END)' : 'NULL';
+        w.push('COALESCE(min_cgpa, ' + rule + ', 0) <= ?'); a.push(cg);
+      }
+      if (status === '1') w.push('active = 1 AND search_only = 0');
+      else if (status === '2') w.push('active = 1 AND search_only = 1');
+      else if (status === '0') w.push('active = 0');
+      const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+      /* The words go to the full-text index, not to LIKE over a million rows. */
+      const match = ftsMatch(q);
+      if (match) { w.push('rowid IN (SELECT rowid FROM prog_fts WHERE prog_fts MATCH ?)'); a.push(match); }
+      const perN = Math.max(1, Math.min(2000, Number(per) || 100));
+      const pageN = Math.max(1, Number(page) || 1);
+      if (db.kind !== 'sqlite') {
+        const rows = db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '').filter(r =>
+          (!country || r.country === country) && (!level || String(r.level || 'master').toLowerCase() === String(level).toLowerCase())
+          && (!field || r.field === field) && (!band || r.band === band)
+          && (!type || (type === 'pub' ? !!r.is_public : type === 'pri' ? !r.is_public : feeOf(r) === type))
+          && (!cg || barOf(r) == null || cg >= barOf(r))
+          && (status === '' || status == null || (status === '1' ? (r.active && !r.search_only) : status === '2' ? (r.active && r.search_only) : !r.active))
+          && words.every(word => (r.university + ' ' + r.program + ' ' + (r.field || '') + ' ' + (r.city || '')).toLowerCase().includes(word)));
+        return { rows: rows.slice((pageN - 1) * perN, pageN * perN), total: rows.length, page: pageN, per: perN };
+      }
+      const total = (db.one('SELECT COUNT(*) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
+      const rows = db.all('SELECT * FROM programmes WHERE ' + w.join(' AND ') + ' ORDER BY uni_slug ASC, program ASC LIMIT ? OFFSET ?', ...a, perN, (pageN - 1) * perN);
+      return { rows, total, page: pageN, per: perN };
+    },
+    /** The two fee-model migrations, as one statement each rather than a read of every row. */
+    feeModelFill() {
+      if (db.kind !== 'sqlite') return null;
+      const r = db.run("UPDATE programmes SET fee_model = CASE WHEN is_public = 1 THEN 'package' ELSE 'free' END WHERE fee_model NOT IN ('free', 'package')");
+      return Number((r && r.changes) || 0);
+    },
+    feeModelFlip() {
+      if (db.kind !== 'sqlite') return null;
+      const r = db.run("UPDATE programmes SET fee_model = CASE WHEN is_public = 1 THEN 'package' ELSE 'free' END WHERE fee_model = CASE WHEN is_public = 1 THEN 'free' ELSE 'package' END");
+      return Number((r && r.changes) || 0);
+    },
+    /** The rows with an & in a name — the only ones an entity repair can touch. */
+    rowsWithAmpersand() {
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => /&/.test(r.program + r.university + (r.city || '') + (r.field || '')));
+      return db.all("SELECT * FROM programmes WHERE instr(program, '&') > 0 OR instr(university, '&') > 0 OR instr(COALESCE(city, ''), '&') > 0 OR instr(COALESCE(field, ''), '&') > 0");
+    },
+    /** Every row of one country (or all), for the sheet download. */
+    rowsAll(country) {
+      if (!country) return db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '');
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE country = ?', country).sort((a, b) => a.university.localeCompare(b.university));
+      return db.all('SELECT * FROM programmes WHERE country = ? ORDER BY university ASC, program ASC', country);
+    },
+    /** Put every programme in the band its fee now falls in — one column, in one transaction. */
+    rebandAll(bandFor, who) {
+      const rows = db.all('SELECT * FROM programmes WHERE id > ?', '');
+      let moved = 0;
+      if (db.kind === 'sqlite') db.run('BEGIN');
+      try {
+        rows.forEach(r => {
+          const want = bandFor(r.total_inr);
+          if (want === r.band) return;
+          db.run('UPDATE programmes SET band = ?, updated_at = ?, updated_by = ? WHERE id = ?', want, now(), who || 'system', r.id);
+          moved++;
+        });
+        if (db.kind === 'sqlite') db.run('COMMIT');
+      } catch (e) { if (db.kind === 'sqlite') db.run('ROLLBACK'); throw e; }
+      if (moved) catVersion++;
+      return moved;
+    },
+    /** Every field in the catalogue with how many programmes carry it — the office filter's options. */
+    fieldCounts() {
+      if (db.kind !== 'sqlite') {
+        const n = {};
+        db.all('SELECT * FROM programmes WHERE id > ?', '').forEach(r => { if (r.field) n[r.field] = (n[r.field] || 0) + 1; });
+        return Object.keys(n).sort().map(f => ({ field: f, n: n[f] }));
+      }
+      return db.all("SELECT field, COUNT(*) AS n FROM programmes WHERE field <> '' GROUP BY field ORDER BY field");
+    },
+    /** Universities for the office's University pages tab: a page of them, by name. */
+    universitiesPage({ q, page, per }) {
+      const perN = Math.max(1, Math.min(500, Number(per) || 100));
+      const pageN = Math.max(1, Number(page) || 1);
+      const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+      if (db.kind !== 'sqlite') {
+        const by = {};
+        db.all('SELECT * FROM programmes WHERE id > ?', '').forEach(r => { if (!r.active) return; const fm = (r.fee_model === 'free' || r.fee_model === 'package') ? r.fee_model : (r.is_public ? 'package' : 'free'); const u = by[r.uni_slug] = by[r.uni_slug] || { slug: r.uni_slug, name: r.university, shortName: r.short_name || '', city: r.city || '', country: r.country, n: 0, listed: 0, isPublic: !!r.is_public, feeModel: fm }; u.n++; if (fm === 'free') u.feeModel = 'free'; if (!r.search_only) u.listed = 1; });
+        const list = Object.values(by).filter(u => words.every(wd => (u.name + ' ' + u.shortName + ' ' + u.city).toLowerCase().includes(wd))).sort((x, y) => x.name.localeCompare(y.name));
+        return { universities: list.slice((pageN - 1) * perN, pageN * perN), total: list.length, page: pageN, per: perN };
+      }
+      const w = ['active = 1']; const a = [];
+      const match = ftsMatch(q);
+      if (match) { w.push('rowid IN (SELECT rowid FROM prog_fts WHERE prog_fts MATCH ?)'); a.push(match); }
+      const total = match
+        ? (db.one('SELECT COUNT(DISTINCT uni_slug) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0
+        : store.countUniversities({});
+      /* In slug order, which the (uni_slug, active) index hands over
+         without sorting two hundred thousand groups by name. */
+      const universities = db.all(`SELECT uni_slug AS slug, MIN(university) AS name, MAX(short_name) AS shortName, MAX(city) AS city,
+        MIN(country) AS country, COUNT(*) AS n, MAX(CASE WHEN search_only = 0 THEN 1 ELSE 0 END) AS listed, MAX(is_public) AS isPublic,
+        MIN(CASE WHEN fee_model IN ('free', 'package') THEN fee_model WHEN is_public = 1 THEN 'package' ELSE 'free' END) AS feeModel
+        FROM programmes WHERE ` + w.join(' AND ') + ' GROUP BY uni_slug ORDER BY uni_slug ASC LIMIT ? OFFSET ?', ...a, perN, (pageN - 1) * perN)
+        .map(u => Object.assign(u, { isPublic: !!u.isPublic, listed: !!u.listed }));
+      return { universities, total, page: pageN, per: perN };
+    },
+
+    /** The keys in the content table under a prefix — 'university:' for the pages the office wrote on. */
+    contentKeys(prefix) {
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM content WHERE key > ?', '').map(r => r.key).filter(k => k.startsWith(prefix));
+      return db.all('SELECT key FROM content WHERE key LIKE ?', String(prefix) + '%').map(r => r.key);
+    },
+    /** The levels and fields a country's live programmes actually have — the country page's filter options. */
+    filterOptions(country) {
+      if (db.kind !== 'sqlite') {
+        const rows = db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.country === country);
+        return { levels: [...new Set(rows.map(r => String(r.level || 'master').toLowerCase()))].sort(),
+          fields: [...new Set(rows.map(r => r.field).filter(Boolean))].sort() };
+      }
+      return {
+        levels: db.all("SELECT DISTINCT LOWER(COALESCE(NULLIF(level, ''), 'master')) AS l FROM programmes WHERE active = 1 AND country = ? ORDER BY l", country).map(r => r.l),
+        fields: db.all("SELECT DISTINCT field FROM programmes WHERE active = 1 AND country = ? AND field <> '' ORDER BY field", country).map(r => r.field),
+      };
+    },
+
     /* ---- the catalogue: what the site offers ---- */
     /* This used to be a build artefact — a JSON file generated from a
        spreadsheet nobody in the office had. It is a table now, so a counsellor
@@ -1059,6 +1477,13 @@ function open(dir) {
        redo it per request. Per process: a second server on the same file
        reads the table fresh on start, which is the same answer. */
     catalogueVersion: () => catVersion,
+    /** Run fn inside one transaction — a sheet of fifty thousand rows is one write, not fifty thousand. */
+    transaction(fn) {
+      if (db.kind !== 'sqlite') return fn();
+      db.run('BEGIN');
+      try { const out = fn(); db.run('COMMIT'); return out; }
+      catch (e) { try { db.run('ROLLBACK'); } catch (e2) {} throw e; }
+    },
     programme: id => db.one('SELECT * FROM programmes WHERE id = ?', String(id)),
     saveProgramme(p, who) {
       /* Blank is not zero. A programme with no stated CGPA follows its
@@ -1083,11 +1508,12 @@ function open(dir) {
                   || !Number.isFinite(Number(p.germanGpa)))
         ? null : Math.max(1, Math.min(4, Number(p.germanGpa)));
       catVersion++;
+      ftsDrop(p.id);
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, short_name, city, country, level, field, band,
          is_public, fit, min_cgpa, total_inr, url, intakes, active, featured,
-         feature_sort, fee_model, german_gpa, search_only, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         feature_sort, fee_model, german_gpa, search_only, uni_slug, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university,
         String(p.shortName == null ? '' : p.shortName).trim().slice(0, 40),
         p.city || '', p.country,
@@ -1095,7 +1521,8 @@ function open(dir) {
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
         p.featured ? 1 : 0, Number(p.featureSort || 0), fee, gg,
-        p.searchOnly ? 1 : 0, now(), who || '');
+        p.searchOnly ? 1 : 0, UNIS.slugOf(p.university), now(), who || '');
+      ftsPut(p);
       return this.programme(p.id);
     },
 
@@ -1108,7 +1535,7 @@ function open(dir) {
       db.run('UPDATE programmes SET fee_model = ? WHERE id = ?',
         /^(free|package)$/.test(String(fee)) ? String(fee) : '', String(id));
     },
-    deleteProgramme: id => { catVersion++; db.run('DELETE FROM programmes WHERE id = ?', String(id)); },
+    deleteProgramme: id => { catVersion++; ftsDrop(id); db.run('DELETE FROM programmes WHERE id = ?', String(id)); },
 
     countries(all) {
       const rows = db.all('SELECT * FROM countries WHERE code > ? ORDER BY sort asc', '');
@@ -1579,42 +2006,136 @@ function open(dir) {
     },
 
     allPosts: () => db.all('SELECT * FROM posts WHERE id > ? ORDER BY id desc', 0),
+    /* ---- posts, a page at a time (ten thousand of them do not fit a response) ---- */
+    /** {live, draft, empty, words, total} over the whole table, counted by the database. */
+    postStats() {
+      if (db.kind !== 'sqlite') {
+        const rows = db.all('SELECT * FROM posts WHERE id > ?', 0);
+        const live = rows.filter(p => p.status === 'published' && wordsOf(p.body));
+        return { total: rows.length, live: live.length, draft: rows.length - live.length,
+          empty: rows.filter(p => !wordsOf(p.body)).length, words: live.reduce((n, p) => n + wordsOf(p.body), 0) };
+      }
+      const r = db.one(`SELECT COUNT(*) AS total,
+        SUM(CASE WHEN status = 'published' AND words > 0 THEN 1 ELSE 0 END) AS live,
+        SUM(CASE WHEN words = 0 THEN 1 ELSE 0 END) AS empty,
+        SUM(CASE WHEN status = 'published' THEN words ELSE 0 END) AS words FROM posts`) || {};
+      return { total: r.total || 0, live: r.live || 0, draft: (r.total || 0) - (r.live || 0), empty: r.empty || 0, words: r.words || 0 };
+    },
+    /** The office's list: status '' | 'published' | 'draft', a search over title/slug/tag, newest edit first. */
+    postsPage({ q, status, page, per }) {
+      const perN = Math.max(1, Math.min(500, Number(per) || 100));
+      const pageN = Math.max(1, Number(page) || 1);
+      const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+      const hit = p => words.every(w => (p.title + ' ' + p.slug + ' ' + (p.tag || '') + ' ' + (p.author || '')).toLowerCase().includes(w));
+      if (db.kind !== 'sqlite') {
+        const rows = db.all('SELECT * FROM posts WHERE id > ? ORDER BY id desc', 0)
+          .filter(p => (!status || (status === 'published' ? p.status === 'published' : p.status !== 'published')) && hit(p))
+          .map(p => Object.assign({}, p, { words: wordsOf(p.body) }));
+        return { rows: rows.slice((pageN - 1) * perN, pageN * perN), total: rows.length, page: pageN, per: perN };
+      }
+      const w = ['1 = 1']; const a = [];
+      if (status === 'published') w.push("status = 'published'");
+      else if (status) w.push("status <> 'published'");
+      words.forEach(word => { w.push("LOWER(title || ' ' || slug || ' ' || COALESCE(tag, '') || ' ' || COALESCE(author, '')) LIKE ?"); a.push('%' + word + '%'); });
+      const total = (db.one('SELECT COUNT(*) AS n FROM posts WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
+      const rows = db.all('SELECT ' + POST_LITE_P + ' FROM (SELECT id, updated_at FROM posts WHERE ' + w.join(' AND ') + ' ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?) q JOIN posts p ON p.id = q.id ORDER BY q.updated_at DESC, q.id DESC', ...a, perN, (pageN - 1) * perN);
+      return { rows, total, page: pageN, per: perN };
+    },
+    /** What a visitor sees: published posts with words in them, newest first, a page at a time. */
+    livePostsPage(page, per) {
+      const perN = Math.max(1, Math.min(200, Number(per) || 24));
+      const pageN = Math.max(1, Number(page) || 1);
+      if (db.kind !== 'sqlite') {
+        const rows = livePostsAll().map(p => Object.assign({}, p, { words: wordsOf(p.body) }));
+        return { rows: rows.slice((pageN - 1) * perN, pageN * perN), total: rows.length, page: pageN, per: perN };
+      }
+      const total = (db.one("SELECT COUNT(*) AS n FROM posts WHERE status = 'published' AND words > 0") || {}).n || 0;
+      /* The ids are sorted first and the columns fetched after: sorting
+         rows that already carry a body head copies every body once. */
+      /* Publishing always stamps published_at (api readPost), so the
+         (status, published_at) index hands the page over in order — no sort
+         of ten thousand rows per visit. */
+      const rows = db.all('SELECT ' + POST_LITE_P + " FROM (SELECT id, published_at FROM posts WHERE status = 'published' AND words > 0 ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?) q JOIN posts p ON p.id = q.id ORDER BY q.published_at DESC, q.id DESC", perN, (pageN - 1) * perN);
+      return { rows, total, page: pageN, per: perN };
+    },
+    /** Slugs and dates only — the sitemap. published: true for the live ones, false for the drafts. */
+    postSlugs(published) {
+      if (db.kind !== 'sqlite') {
+        return db.all('SELECT * FROM posts WHERE id > ?', 0)
+          .filter(p => published ? (p.status === 'published' && wordsOf(p.body)) : p.status !== 'published')
+          .map(p => ({ slug: p.slug, published_at: p.published_at || '', updated_at: p.updated_at, created_at: p.created_at }));
+      }
+      return published
+        ? db.all("SELECT slug, published_at, updated_at, created_at FROM posts WHERE status = 'published' AND words > 0 ORDER BY id")
+        : db.all("SELECT slug, published_at, updated_at, created_at FROM posts WHERE status <> 'published' ORDER BY id");
+    },
+    /** The live posts with these slugs (lite) — a post's "Read next". */
+    livePostsBySlugs(slugs) {
+      const want = [...new Set((slugs || []).map(String))].slice(0, 20);
+      if (!want.length) return [];
+      if (db.kind !== 'sqlite') return livePostsAll().filter(p => want.includes(p.slug));
+      return db.all('SELECT ' + POST_LITE + " FROM posts WHERE status = 'published' AND words > 0 AND slug IN (" + want.map(() => '?').join(',') + ')', ...want);
+    },
+    /** The posts a picture is printed in — the check before it is deleted. */
+    postsUsingImage(src) {
+      const path_ = String(src);
+      if (db.kind !== 'sqlite') {
+        return db.all('SELECT * FROM posts WHERE id > ?', 0).filter(p =>
+          String(p.body || '').includes(path_) || p.cover === path_ || p.og_image === path_);
+      }
+      return db.all('SELECT id, title FROM posts WHERE cover = ? OR og_image = ? OR instr(body, ?) > 0 LIMIT 50', path_, path_, path_);
+    },
     /* Published only, newest first. The list a visitor sees is decided here
        rather than by a filter in a browser, because a draft that reaches the
        page is published whatever the badge on it says. */
-    livePosts() {
-      return db.all('SELECT * FROM posts WHERE status = ?', 'published')
-        .filter(p => p.body && String(p.body).trim())
-        .sort((a, b) => String(b.published_at || b.created_at)
-          .localeCompare(String(a.published_at || a.created_at)));
-    },
+    livePosts: livePostsAll,
     postById: id => db.one('SELECT * FROM posts WHERE id = ?', Number(id)),
     postBySlug: slug => db.one('SELECT * FROM posts WHERE slug = ?', String(slug)),
     addPost(p) {
       const t = now();
       db.run(`INSERT INTO posts (slug, title, excerpt, body, cover, author, tag, status,
                 meta_title, meta_desc, keywords, og_image, related, read_mins, published_at,
-                created_at, updated_at, updated_by)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                created_at, updated_at, updated_by, words)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         p.slug, p.title, p.excerpt || '', p.body || '', p.cover || '', p.author || '',
         p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
         p.keywords || '', p.ogImage || '', p.related || '', Number(p.readMins || 0),
-        p.publishedAt || '', p.createdAt || t, t, p.updatedBy || '');
+        p.publishedAt || '', p.createdAt || t, t, p.updatedBy || '', wordsOf(p.body));
       return db.one('SELECT * FROM posts WHERE slug = ?', p.slug);
     },
     updatePost(id, p) {
       db.run(`UPDATE posts SET slug = ?, title = ?, excerpt = ?, body = ?, cover = ?,
                 author = ?, tag = ?, status = ?, meta_title = ?, meta_desc = ?,
                 keywords = ?, og_image = ?, related = ?, read_mins = ?, published_at = ?,
-                updated_at = ?, updated_by = ? WHERE id = ?`,
+                updated_at = ?, updated_by = ?, words = ? WHERE id = ?`,
         p.slug, p.title, p.excerpt || '', p.body || '', p.cover || '', p.author || '',
         p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
         p.keywords || '', p.ogImage || '', p.related || '', Number(p.readMins || 0),
-        p.publishedAt || '', now(), p.updatedBy || '', Number(id));
+        p.publishedAt || '', now(), p.updatedBy || '', wordsOf(p.body), Number(id));
       return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
     },
     deletePost: id => db.run('DELETE FROM posts WHERE id = ?', Number(id)),
   };
+
+  /* The whole-catalogue counts, remembered until the catalogue changes.
+     COUNT(DISTINCT uni_slug) over a million rows is seven hundred
+     milliseconds; the sitemap, the /university page, the status line and
+     the office screen all ask for it, and it is the same number until
+     somebody saves a programme (catVersion moves on every write). */
+  const memo = new Map();
+  ['catalogueStats', 'countUniversities', 'countByCountry', 'uniSlugs', 'fieldCounts', 'filterOptions',
+   'rowsForCountryPage', 'filterUniversities', 'programmesPage', 'universitiesPage'].forEach(name => {
+    const fn = store[name];
+    store[name] = (...a) => {
+      const k = catVersion + '|' + name + '|' + JSON.stringify(a);
+      if (memo.has(k)) return memo.get(k);
+      if (memo.size > 200) memo.clear();
+      const v = fn.apply(store, a);
+      memo.set(k, v);
+      return v;
+    };
+  });
+  return store;
 }
 
 module.exports = { open };

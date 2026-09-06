@@ -102,7 +102,7 @@ const homeCounts = async ctx => {
   /* This is the one that decides whether the screen is telling the truth: a
      programme's bucket is worked out from its fee, so moving the ceiling has to
      move the programmes. */
-  const cat = await (await ctx.request.get(BASE + '/api/staff/catalogue')).json();
+  const cat = await (await ctx.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const mid = cat.programmes.find(p => p.totalInr > 1200000 && p.totalInr < 1900000);
   check('there is a programme between ₹12L and ₹19L to move', !!mid,
     mid && mid.totalInr);
@@ -115,7 +115,7 @@ const homeCounts = async ctx => {
     const body = await put.json();
     check('changing a ceiling re-bands the catalogue', (body.moved || 0) > 0, body.moved);
 
-    const again = await (await ctx.request.get(BASE + '/api/staff/catalogue')).json();
+    const again = await (await ctx.request.get(BASE + '/api/staff/catalogue?per=500')).json();
     const moved = again.programmes.find(p => p.id === mid.id);
     check('and that programme actually moved bucket', moved.band === 'u10', moved.band);
 
