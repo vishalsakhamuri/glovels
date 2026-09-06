@@ -1875,6 +1875,100 @@ function withoutScripts(html, query, slug) {
     (all || words.some(w => block.includes(w))) ? '<!-- nojs -->' : block);
 }
 
+/*
+ * The page's scripts, as one deferred file.
+ *
+ * "Our site should be super fast." The home page carries 360 KB of script
+ * inline — the finder, the packages, the chat corner — and a phone parses
+ * and runs all of it before it can show the first paint: PageSpeed's slow-4G
+ * simulation put the first paint at 4.1 s with the real one at 0.7 s. Served
+ * as one external file with `defer`, the HTML is a third of the size, the
+ * first paint no longer waits for the scripts, and a return visitor has the
+ * file cached for a year (the name carries a hash of its content, so a new
+ * build is a new name). Done here, at serve time, so the build and its
+ * patches stay exactly as they are.
+ *
+ * Only classic inline scripts move: JSON-LD stays where Google reads it,
+ * and the office's screens are not touched. Deferred scripts run after the
+ * whole document is parsed and before DOMContentLoaded, which is later than
+ * inline ones ran — every script on these pages already waits for the DOM
+ * or checks readyState, so nothing changes for them. On a miss after a
+ * restart the file is rebuilt from the page it came from.
+ */
+const JS_STORE = new Map();
+const JS_STORE_MAX = 300;
+/* The page's content between the header and the footer is its <main> —
+   the landmark a screen reader jumps to, and the one accessibility check
+   the pages failed. Added here rather than in sixty files. */
+function withMain(html) {
+  if (/<main[\s>]/.test(html)) return html;
+  const footer = html.lastIndexOf('<footer class="site"');
+  if (footer < 0) return html;
+  const body = html.indexOf('<body');
+  const first = html.indexOf('<section', body);
+  if (first < 0 || first > footer) return html;
+  return html.slice(0, first) + '<main>' + html.slice(first, footer) + '</main>\n' + html.slice(footer);
+}
+function externalizeScripts(html, key) {
+  html = withMain(html);
+  const parts = [];
+  const out = html.replace(/<script(?:\s+type="text\/javascript")?>([\s\S]*?)<\/script>/g, (m, body) => {
+    parts.push(body);
+    return '';
+  });
+  if (!parts.length) return html;
+  const js = parts.join('\n;\n');
+  const hash = require('crypto').createHash('sha1').update(js).digest('hex').slice(0, 12);
+  const name = key + '.' + hash + '.js';
+  if (!JS_STORE.has(name)) {
+    if (JS_STORE.size >= JS_STORE_MAX) JS_STORE.delete(JS_STORE.keys().next().value);
+    JS_STORE.set(name, js);
+  }
+  return out.replace('</body>', '<script src="/js/' + name + '" defer></script>\n</body>');
+}
+/* The file behind /js/<key>.<hash>.js — from the store, or rebuilt from the
+   page when the store has forgotten it (a restart, or a full store). */
+function scriptFile(name) {
+  if (JS_STORE.has(name)) return JS_STORE.get(name);
+  const m = /^([a-z0-9-]+(?:__[a-z0-9-]+)?)\.([0-9a-f]{12})\.js$/.exec(name);
+  if (!m) return null;
+  const key = m[1];
+  const rebuild = () => {
+    if (key === 'blog') return externalizeScripts(blogIndexPage(blogList()) || '', key);
+    if (key === 'university') return externalizeScripts(forIndexing(universitiesIndexPage() || '', 'university'), key);
+    if (key.startsWith('post__')) {
+      const post = db.postBySlug(key.slice(6));
+      if (post && post.status === 'published' && post.body && String(post.body).trim()) {
+        return externalizeScripts(postPage(post, false) || '', key);
+      }
+      /* The six original files, served until a written post replaces each. */
+      const orig = path.join(ROOT, 'post', key.slice(6) + '.html');
+      return fs.existsSync(orig) ? externalizeScripts(forIndexing(fs.readFileSync(orig, 'utf8'), key.slice(6)), key) : null;
+    }
+    if (key.startsWith('university__')) {
+      const u = universityOf(key.slice(12));
+      if (!u) return null;
+      const page = universityPage(u) || '';
+      return externalizeScripts(u.extras.hidden ? page : forIndexing(page, 'university-' + u.slug), key);
+    }
+    const rel = key.replace('__', '/') + '.html';
+    const file = path.join(ROOT, rel);
+    if (file.startsWith(ROOT) && fs.existsSync(file)) {
+      const slug = path.basename(file, '.html');
+      let html = fs.readFileSync(file, 'utf8');
+      if (slug.startsWith('study-in-')) html = withDestinationUniversities(html, slug);
+      return externalizeScripts(forIndexing(html, slug), key);
+    }
+    if (key.startsWith('study-in-')) {
+      const c = countryByStudySlug(key.slice(9));
+      return c ? externalizeScripts(forIndexing(studyPage(c) || '', key), key) : null;
+    }
+    return null;
+  };
+  try { rebuild(); } catch (e) { return null; }
+  return JS_STORE.get(name) || null;
+}
+
 function forIndexing(html, slug) {
   /* Every public page goes through here, which makes it the one place to add
      the office's destinations to the menu. */
@@ -2013,7 +2107,7 @@ const server = http.createServer(async (req, res) => {
     if (c && c.active !== false) {
       if (pathname !== '/study-in-' + studyUrl[1]) return send(res, 301, '', 'text/html', { Location: '/study-in-' + studyUrl[1] });
       const page = studyPage(c);
-      if (page) return send(res, 200, forIndexing(page, 'study-in-' + studyUrl[1]), TYPES['.html']);
+      if (page) return send(res, 200, externalizeScripts(forIndexing(page, 'study-in-' + studyUrl[1]), 'study-in-' + studyUrl[1]), TYPES['.html']);
     }
   }
 
@@ -2023,8 +2117,16 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/university' || pathname === '/university/' || pathname === '/university.html') {
     if (pathname !== '/university') return send(res, 301, '', 'text/html', { Location: '/university' });
     const page = universitiesIndexPage();
-    if (page) return send(res, 200, forIndexing(page, 'university'), TYPES['.html']);
+    if (page) return send(res, 200, externalizeScripts(forIndexing(page, 'university'), 'university'), TYPES['.html']);
   }
+  /* The scripts of a public page, as one file (externalizeScripts). */
+  const jsUrl = /^\/js\/([a-z0-9-]+(?:__[a-z0-9-]+)?\.[0-9a-f]{12}\.js)$/.exec(pathname);
+  if (jsUrl) {
+    const js = scriptFile(jsUrl[1]);
+    if (js == null) return notFound(res);
+    return send(res, 200, js, TYPES['.js'], { 'Cache-Control': 'public, max-age=31536000, immutable' });
+  }
+
   const uniUrl = /^\/university\/([a-z0-9-]{1,90})(?:\.html|\/)?$/.exec(pathname);
   if (uniUrl) {
     if (pathname !== '/university/' + uniUrl[1]) {
@@ -2035,7 +2137,7 @@ const server = http.createServer(async (req, res) => {
     const page = universityPage(u);
     /* A page the office took off search keeps its noindex whatever the site
        setting says — forIndexing would put it back. */
-    if (page) return send(res, 200, u.extras.hidden ? page : forIndexing(page, 'university-' + u.slug), TYPES['.html']);
+    if (page) return send(res, 200, externalizeScripts(u.extras.hidden ? page : forIndexing(page, 'university-' + u.slug), 'university__' + u.slug), TYPES['.html']);
   }
 
   if (pathname === '/success-stories') {
@@ -2078,7 +2180,7 @@ const server = http.createServer(async (req, res) => {
    */
   if (pathname === '/blog' || pathname === '/blog.html') {
     const html = blogIndexPage(blogList());
-    if (html) return send(res, 200, html, TYPES['.html']);
+    if (html) return send(res, 200, externalizeScripts(html, 'blog'), TYPES['.html']);
   }
   const postUrl = /^\/post\/([a-z0-9-]{1,90})(?:\.html)?$/.exec(pathname);
   if (postUrl) {
@@ -2089,7 +2191,7 @@ const server = http.createServer(async (req, res) => {
       const who = post.status === 'published' ? null : whoIsIt(req);
       if (post.status === 'published' || (who && who.role !== 'student')) {
         const html = postPage(post, post.status !== 'published');
-        if (html) return send(res, 200, html, TYPES['.html']);
+        if (html) return send(res, 200, post.status === 'published' ? externalizeScripts(html, 'post__' + post.slug) : html, TYPES['.html']);
       }
       if (post.status !== 'published') {
         /* ...unless the page it is going to replace is still on disk.
@@ -2106,7 +2208,7 @@ const server = http.createServer(async (req, res) => {
          * comment on blogList has always said. */
         const orig = path.join(ROOT, 'post', post.slug + '.html');
         if (!fs.existsSync(orig)) return notFound(res);
-        return send(res, 200, forIndexing(fs.readFileSync(orig, 'utf8'), post.slug),
+        return send(res, 200, externalizeScripts(forIndexing(fs.readFileSync(orig, 'utf8'), post.slug), 'post__' + post.slug),
           TYPES['.html']);
       }
     }
@@ -2151,7 +2253,11 @@ const server = http.createServer(async (req, res) => {
     let html = fs.readFileSync(file, 'utf8');
     if (slug.startsWith('study-in-')) html = withDestinationUniversities(html, slug);
     html = withoutScripts(html, query, slug);
-    return send(res, 200, forIndexing(html, slug), TYPES['.html']);
+    html = forIndexing(html, slug);
+    /* Public pages only: the office's screens keep their scripts inline. The
+       key is the page's path with / as __, so the file can be rebuilt. */
+    if (!PORTAL_PAGES.has(slug)) html = externalizeScripts(html, path.relative(ROOT, file).replace(/\.html$/, '').replace(/[\\/]/g, '__'));
+    return send(res, 200, html, TYPES['.html']);
   }
 
   send(res, 200, fs.readFileSync(file),

@@ -289,7 +289,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   html = await (await guest.request.get(BASE + '/university')).text();
   check('and its university is off the /university list', !html.includes('href="university/' + soSlug + '"'));
   check('which says how many more can be searched for', /1 more you can search for/.test(html));
-  check('and has a search box', /id="uSearch"/.test(html) && /api\/universities\/search/.test(html));
+  /* The page's scripts are one deferred file now (serve.js externalizeScripts). */
+  const pageJs = async h => { const m = /src="(\/js\/[^"]+)"/.exec(h); return m ? await (await guest.request.get(BASE + m[1])).text() : ''; };
+  check('and has a search box', /id="uSearch"/.test(html) && /api\/universities\/search/.test(await pageJs(html)));
   r = await guest.request.get(BASE + '/university/' + soSlug);
   html = await r.text();
   check('its page is still there', r.status() === 200 && html.includes('<h1>' + soUni.replace(/&/g, '&amp;') + '</h1>'));
@@ -316,7 +318,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     && dl.includes('href="university/' + soSlug + '"')
     && dl.indexOf('href="university/tu-munich"') < dl.indexOf('href="university/' + soSlug + '"'));
   check('and no "more" line while they all fit', !/And \d+ more in Germany/.test(html));
-  check('and a search box on the country page', /id="uSearch"/.test(html) && /api\/universities\/search/.test(html));
+  check('and a search box on the country page', /id="uSearch"/.test(html) && /api\/universities\/search/.test(await pageJs(html)));
   /* "We can have the home page criteria — filter — on the country screen as
      well." */
   check('the finder\'s criteria are on the country page', ['ufLevel', 'ufField', 'ufCgpa', 'ufGgpa', 'ufIntake', 'ufBudget', 'ufApply', 'ufQ']
