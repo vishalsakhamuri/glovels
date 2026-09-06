@@ -54,7 +54,7 @@ BODY = """
           here is on your file, so your counsellor is never working from memory. For something
           urgent, WhatsApp is faster.</p>
         <a class="btn btn-green btn-sm" style="margin-top:12px;width:100%;justify-content:center"
-           href="https://wa.me/917093314089" target="_blank" rel="noopener">WhatsApp instead</a>
+           href="https://wa.me/917839399999" target="_blank" rel="noopener">WhatsApp instead</a>
       </div>
 
       <div class="p-card" style="display:flex;flex-direction:column;height:min(640px,72vh);padding:0">

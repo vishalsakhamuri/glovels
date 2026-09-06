@@ -160,7 +160,7 @@ const startServer = () => {
   ok(offRes.ok(), 'the offline page is served — ' + offRes.status());
   const offText = await offRes.text();
   ok(/offline/i.test(offText), 'and says what has happened');
-  ok(/\+91 ?70933 ?14089|tel:/.test(offText),
+  ok(/\+91 ?78393 ?99999|tel:/.test(offText),
     'with a way to reach somebody that does not need a connection');
 
   /* Nothing external. Not a font, not a stylesheet, not a script from a CDN —
@@ -253,7 +253,7 @@ const startServer = () => {
   ok(!/study in germany/i.test(body),
     'and does not serve a stale copy of the page that was asked for');
   ok(await page.isVisible('#again').catch(() => false), 'there is a way back');
-  ok(/70933 ?14089/.test(body),
+  ok(/78393 ?99999/.test(body),
     'and a phone number that does not need the connection');
 
   /* And the API, with nothing behind it, fails rather than answering from a

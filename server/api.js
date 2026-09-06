@@ -882,7 +882,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   const slowDown = res => json(res, 429, {
     ok: false,
     error: 'That is a lot of messages in a short time. Wait a few minutes, '
-         + 'or call us on +91 70933 14089 — a person answers faster than this form.',
+         + 'or call us on +91 78393 99999 — a person answers faster than this form.',
   });
   const clientIp = req =>
     String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()

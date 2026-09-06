@@ -598,6 +598,71 @@ function chipsAskWhatItWas({ db, content }) {
   return n;
 }
 
+/*
+ * The placeholders came out before the site went live.
+ *
+ * The home page shipped with a headline strip ("3,200+ students placed") and
+ * three success stories (Ram, Arya, Sakshi) that were never real — each row
+ * carried `dummy: true`, which hid a DUMMY chip beside it on the served page
+ * and showed one on a copy opened from disk. content.json now ships the
+ * figures glovels.com has published for years and the nine testimonials from
+ * that site, but content is seeded once and then belongs to the office, so a
+ * deployment seeded in August keeps the invented rows forever.
+ *
+ * Rule: a row still flagged `dummy` goes, a row somebody has since confirmed
+ * or written stays, and the shipped rows are added where nothing with the same
+ * name or label already exists. The FAQ's flags are simply cleared — the
+ * answers were right; only the flag was left on. And the finder's contact
+ * number, if it is still the one the site was built with, becomes the one
+ * the office publishes.
+ */
+const OLD_WHATSAPP = '917093314089';
+const NEW_WHATSAPP = '917839399999';
+
+function placeholdersOut({ db, content }) {
+  if (db.content('placeholdersOutV1')) return 0;
+  db.setContent('placeholdersOutV1', { done: true }, 'system');
+  const ship = content || {};
+  let n = 0;
+
+  for (const [key, id] of [['stats', 'label'], ['testimonials', 'name']]) {
+    const live = db.content(key);
+    if (!Array.isArray(live)) continue;
+    const kept = live.filter(r => !(r && r.dummy));
+    const norm = v => String(v || '').trim().toLowerCase();
+    /* A figure the office rewrote the label of is still that figure. */
+    const same = (a, b) => norm(a[id]) === norm(b[id])
+      || (key === 'stats' && norm(a.num) && norm(a.num) === norm(b.num));
+    const added = (ship[key] || []).filter(r => !kept.some(k => same(k, r)));
+    const next = key === 'stats' ? added.concat(kept) : kept.concat(added);
+    if (!added.length && kept.length === live.length) continue;
+    db.setContent(key, next, 'system');
+    db.log('system', 'placeholder ' + key + ' replaced before going live',
+      (live.length - kept.length) + ' placeholder row(s) removed, ' + added.length + ' added');
+    n += (live.length - kept.length) + added.length;
+  }
+
+  const faq = db.content('faq');
+  if (Array.isArray(faq) && faq.some(r => r && r.dummy)) {
+    db.setContent('faq', faq.map(r => Object.assign({}, r, { dummy: false })), 'system');
+    n++;
+  }
+
+  const finder = db.content('finder');
+  if (finder && finder.contact) {
+    const c = Object.assign({}, finder.contact);
+    let changed = false;
+    if (c.whatsapp === OLD_WHATSAPP) { c.whatsapp = NEW_WHATSAPP; changed = true; }
+    if (c.phone === '+' + OLD_WHATSAPP) { c.phone = '+' + NEW_WHATSAPP; changed = true; }
+    if (changed) {
+      db.setContent('finder', Object.assign({}, finder, { contact: c }), 'system');
+      db.log('system', 'the contact number is the one the office publishes', '+' + NEW_WHATSAPP);
+      n++;
+    }
+  }
+  return n;
+}
+
 function openOnRequestServices({ db }) {
   if (db.content('servicesOnRequestV1')) return 0;
   db.setContent('servicesOnRequestV1', { done: true }, 'system');
@@ -1058,6 +1123,7 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, add
   packagesDeliverWhatTheyUnlock,
   removeTheCardsThatWereSourceCode,
   chipsAskWhatItWas,
+  placeholdersOut,
   everyRowSaysWhatItCosts,
   feeModelIsFreeToApply,
   packagesBelongToADestination,
