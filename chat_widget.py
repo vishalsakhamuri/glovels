@@ -161,6 +161,9 @@ WIDGET = r"""
   if (MODE === 'site') {
     wa = document.createElement('a');
     wa.className = 'gv-wa';
+    /* Its label is hidden on a phone, and an icon says nothing to a screen
+       reader. */
+    wa.setAttribute('aria-label', 'Message Glovels on WhatsApp');
     wa.target = '_blank';
     wa.rel = 'noopener';
     wa.href = waHref();
@@ -388,6 +391,11 @@ WIDGET = r"""
      */
     if (MODE !== 'site') corner.appendChild(fab);
     document.body.appendChild(corner);
+    /* The home page's older WhatsApp launcher sat underneath this one, so
+       a phone had two overlapping buttons in the corner and a screen reader
+       two "chat" targets. This corner is the one. */
+    var older = document.getElementById('wa');
+    if (older && older.classList.contains('wa-launch')) older.style.display = 'none';
 
     api('/api/chat').then(function (d) {
       state.signedIn = !!d.signedIn;

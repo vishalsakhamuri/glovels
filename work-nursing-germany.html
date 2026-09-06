@@ -16,7 +16,7 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"><noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <style>/* =============================================================================
    Glovels — Block 0: tokens + shared components
    Every block imports this. Nothing here is block-specific, so a button, card,
@@ -614,6 +614,9 @@ if (location.protocol === 'file:') {
   if (MODE === 'site') {
     wa = document.createElement('a');
     wa.className = 'gv-wa';
+    /* Its label is hidden on a phone, and an icon says nothing to a screen
+       reader. */
+    wa.setAttribute('aria-label', 'Message Glovels on WhatsApp');
     wa.target = '_blank';
     wa.rel = 'noopener';
     wa.href = waHref();
@@ -841,6 +844,11 @@ if (location.protocol === 'file:') {
      */
     if (MODE !== 'site') corner.appendChild(fab);
     document.body.appendChild(corner);
+    /* The home page's older WhatsApp launcher sat underneath this one, so
+       a phone had two overlapping buttons in the corner and a screen reader
+       two "chat" targets. This corner is the one. */
+    var older = document.getElementById('wa');
+    if (older && older.classList.contains('wa-launch')) older.style.display = 'none';
 
     api('/api/chat').then(function (d) {
       state.signedIn = !!d.signedIn;

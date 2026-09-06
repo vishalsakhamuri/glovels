@@ -429,7 +429,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     && await shp.locator('#cgrid .ccard:not(.clocked) a.cmore').count() === await shp.locator('#cgrid .ccard:not(.clocked)').count()
     && await shp.locator('#cgrid .ccard.clocked a.cmore').count() === 0, cards + ' cards');
   const cardUni = await shp.locator('#cgrid .ccard:has(a.cmore) .cuni').first().textContent();
-  await shp.locator('#cgrid .ccard:has(a.cmore) h4').first().click();
+  await shp.locator('#cgrid .ccard:has(a.cmore) h3').first().click();
   await shp.waitForLoadState('load');
   check('and a click anywhere on the card opens the university page', /\/university\/[a-z0-9-]+#/.test(shp.url())
     && (await shp.locator('h1').textContent()).trim() === cardUni.trim(), shp.url());

@@ -43,7 +43,7 @@ const showcase = async (ctx, expect) => {
   }
   const out = {
     text: await p.textContent('#catalogue'),
-    cards: await p.$$eval('#catalogue .ccard h4', els => els.map(e => e.textContent.trim())),
+    cards: await p.$$eval('#catalogue .ccard h3', els => els.map(e => e.textContent.trim())),
     rows: await p.$$eval('#catalogue .ccard', els => els.map(e => ({
       uni: e.querySelector('.cuni').textContent.trim(),
       band: e.getAttribute('data-band'),

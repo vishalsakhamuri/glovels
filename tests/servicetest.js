@@ -46,7 +46,7 @@ const home = async (ctx, expect) => {
   }
   const out = {
     text: await p.textContent('#services'),
-    names: await p.$$eval('#services .svc h4', els => els.map(e => e.textContent.trim())),
+    names: await p.$$eval('#services .svc h3', els => els.map(e => e.textContent.trim())),
     prices: await p.$$eval('#services .svc-now', els => els.map(e => e.textContent.trim())),
   };
   await p.close();

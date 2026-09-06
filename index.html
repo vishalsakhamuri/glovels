@@ -14,7 +14,7 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"><noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <style>/* =============================================================================
    Glovels — Block 0: tokens + shared components
    Every block imports this. Nothing here is block-specific, so a button, card,
@@ -92,12 +92,12 @@ h1,h2,h3,h4{font-family:var(--disp);font-weight:600;letter-spacing:-.01em;margin
   cursor:pointer;transition:.16s}
 .tab .ico{font-size:15px;color:var(--tabc)}
 .tab .n{font:800 10.4px/1 var(--sans);padding:4px 7px;border-radius:var(--r-pill);
-  background:color-mix(in srgb,var(--tabc) 12%,transparent);color:var(--tabc)}
+  background:color-mix(in srgb,var(--tabc) 14%,transparent);color:color-mix(in srgb,var(--tabc) 88%,#000)}
 .tab:hover{border-color:var(--tabc)}
 .tab[aria-selected="true"]{background:var(--tabc);border-color:var(--tabc);color:#fff;
   box-shadow:0 8px 18px color-mix(in srgb,var(--tabc) 30%,transparent)}
 .tab[aria-selected="true"] .ico{color:#fff}
-.tab[aria-selected="true"] .n{background:rgba(255,255,255,.2);color:#fff}
+.tab[aria-selected="true"] .n{background:rgba(0,0,0,.24);color:#fff}
 .pane{display:none}
 .pane.active{display:block}
 
@@ -385,13 +385,13 @@ section[id]{scroll-margin-top:92px}
 .rtab[data-rt="priv"]:hover{border-color:#1a4fb4}
 .rtab[data-rt="priv"].on{background:#eaf1fd;border-color:#1a4fb4;
   box-shadow:inset 0 0 0 1px #1a4fb4}
-.rtab small{color:inherit;opacity:.72}
+.rtab small{color:inherit;opacity:.86}
 /* Nothing behind it. Offered as a fact rather than as a button that answers a
    press with an apology. */
 .rtab[disabled]{opacity:.45;cursor:default;background:var(--cream);
   border-color:var(--line);color:var(--muted);box-shadow:none}
 .rtab[disabled]:hover{border-color:var(--line)}
-.rtab small{display:block;margin-top:3px;font:400 11.6px/1.4 var(--sans);color:var(--muted)}
+.rtab small{display:block;margin-top:3px;font:400 11.6px/1.4 var(--sans);color:#4a5868}
 .rtab .rtn{display:inline-block;margin-left:5px;font:700 11.4px/1 var(--sans);
   padding:4px 7px;border-radius:20px;background:var(--cream);color:var(--navy-900)}
 .rtab.on .rtn{background:var(--navy-800);color:#fff}
@@ -635,7 +635,9 @@ html.review-copy .build-strip{display:block !important}
    badge is pushed to the end. min-width:0 because a flex item refuses to be
    narrower than its own longest word without it, and "SOP Development &
    Editing" is wider than the card. */
-.svc-top h4{flex:1;min-width:0;margin:0}
+.svc-top h3,.svc-top h4{flex:1;min-width:0;margin:0;font-size:15px}
+.svc h3{font-size:15px;color:var(--navy-900);line-height:1.3;margin:0}
+.ccard h3{font-size:14.4px;margin:9px 0 3px;color:var(--navy-900);line-height:1.3}
 .svc-ic{width:38px;height:38px;flex:none;border-radius:11px;display:grid;place-items:center;
   color:var(--blue-deep);background:linear-gradient(160deg,#eef4fd,#dfe9fa)}
 .svc-ic .ico{font-size:19px}
@@ -896,10 +898,12 @@ html.review-copy .build-strip{display:block !important}
 .sarrow .ico{font-size:19px}
 .sarrow.prev .ico{transform:rotate(90deg)}
 .sarrow.next .ico{transform:rotate(-90deg)}
+#packages,#catalogue,#services{content-visibility:auto;contain-intrinsic-size:auto 900px}
 .sdots{display:flex;justify-content:center;gap:7px;margin-top:16px}
-.sdots button{width:8px;height:8px;padding:0;border-radius:50%;border:0;cursor:pointer;
+.sdots button{width:24px;height:24px;padding:0;border-radius:50%;border:0;cursor:pointer;background-clip:content-box;
+  border:8px solid transparent;box-sizing:border-box;
   background:#cbd4de;transition:.14s}
-.sdots button[aria-current="true"]{background:var(--navy-700);width:22px;border-radius:99px}
+.sdots button[aria-current="true"]{background:var(--navy-700);width:38px;border-radius:99px}
 .smore{text-align:center;margin:16px 0 0}
 .smore a{font:700 13.4px/1 var(--sans);color:var(--navy-700);
   border-bottom:2px solid var(--gold-soft);padding-bottom:3px}
@@ -931,7 +935,7 @@ html.review-copy .build-strip{display:block !important}
 .who span span{display:block;font-size:11.8px;color:var(--muted)}
 .faq{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
   padding:14px 16px;margin-bottom:9px}
-.faq summary{font-family:var(--disp);font-size:15.5px;color:var(--navy-900);cursor:pointer}
+.faq summary{font-family:var(--disp);font-size:15.5px;color:var(--navy-900);cursor:pointer;padding:6px 0;min-height:24px}
 .faq p{margin:10px 0 0;font-size:13.4px;color:var(--muted);line-height:1.6}
 .counsel{display:grid;grid-template-columns:1.05fr .95fr;border-radius:20px;overflow:hidden;
   border:1px solid var(--line);box-shadow:var(--sh-3)}
@@ -1252,7 +1256,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <div class="wrap">
     <div class="rhead">
       <div>
-        <h3 id="rTitle">Popular programs this intake</h3>
+        <h2 id="rTitle" style="font-size:21px;margin:0">Popular programs this intake</h2>
         <p class="rsub" id="rSub"></p>
         <div class="crit" id="rCrit"></div>
       </div>
@@ -3435,7 +3439,7 @@ function card(s){
   return '<article class="card card-hover card-stack svc'+(added?' added':'')+'" data-c="'+s.id+'">'
     + '<div class="card-body">'
     + '<div class="svc-top"><div class="svc-ic">'+ico(ICONS[s.cats[0]] || 'star')+'</div>'
-    + '<h4>'+esc(s.name)+'</h4>'
+    + '<h3>'+esc(s.name)+'</h3>'
     + (s.badge?'<span class="badge badge-'+s.badge+'" style="margin-left:auto">'+BADGE[s.badge]+'</span>':'')
     + '</div>'
     + (s.ai?'<span class="ai-pill" style="margin-top:8px"><i class="a">'+ico('spark')
@@ -4131,7 +4135,7 @@ function card(p){
   return '<article class="ccard'+(p.locked?' clocked':'')+'" data-band="'+p.band+'">'
     + '<div class="ctop"><div class="crow1"><span class="cflag">'+c.flag+'</span>'
     + '<span class="cband">'+esc(bandLabel(p.band))+'</span></div>'
-    + '<h4>'+esc(p.program)+'</h4>'
+    + '<h3>'+esc(p.program)+'</h3>'
     + '<div class="cuni">'+esc(p.university)+'</div>'
     + '<div class="ccity">'+esc(p.city || c.name)+(p.city?', '+esc(c.name):'')+'</div>'
     + (trend?'<span class="ctrend">'+ico('spark')+'Trending field</span>':'')
@@ -5044,6 +5048,9 @@ if (location.protocol === 'file:') {
   if (MODE === 'site') {
     wa = document.createElement('a');
     wa.className = 'gv-wa';
+    /* Its label is hidden on a phone, and an icon says nothing to a screen
+       reader. */
+    wa.setAttribute('aria-label', 'Message Glovels on WhatsApp');
     wa.target = '_blank';
     wa.rel = 'noopener';
     wa.href = waHref();
@@ -5271,6 +5278,11 @@ if (location.protocol === 'file:') {
      */
     if (MODE !== 'site') corner.appendChild(fab);
     document.body.appendChild(corner);
+    /* The home page's older WhatsApp launcher sat underneath this one, so
+       a phone had two overlapping buttons in the corner and a screen reader
+       two "chat" targets. This corner is the one. */
+    var older = document.getElementById('wa');
+    if (older && older.classList.contains('wa-launch')) older.style.display = 'none';
 
     api('/api/chat').then(function (d) {
       state.signedIn = !!d.signedIn;

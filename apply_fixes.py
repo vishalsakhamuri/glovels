@@ -6755,7 +6755,10 @@ patch(
     # Naming the patch here made the second build fail: the name is not in
     # index.html, so "already applied?" said no, and the anchor it then went
     # looking for had already been replaced.
-    marker="+ '<h4>'+esc(s.name)+'</h4>'",
+    # And a later patch turns that <h4> into an <h3>, so the marker is the
+    # part neither touches: the badge line that follows the name.
+    marker="""    + (s.badge?'<span class="badge badge-'+s.badge+'" style="margin-left:auto">'+BADGE[s.badge]+'</span>':'')
+    + '</div>'""",
 )
 patch(
     "index.html",
@@ -9399,6 +9402,148 @@ for _f in sorted(list(HERE.glob("*.html")) + list(HERE.glob("_*.tpl.html")) + li
             '<link rel="alternate icon" href="' + _pre + 'favicon.png" type="image/png">')
     write(_f, _t.replace(_old, _new, 1))
     applied.append(f"{_f.name}: svg favicon")
+
+# ------------------------------------------------------------- every page
+#
+# "Our site should be super fast."
+#
+# The Google Fonts stylesheet was a render-blocking request to another host:
+# nothing painted until fonts.googleapis.com had answered, which on a phone is
+# the first half-second Lighthouse counts against the page. Loaded as print
+# media it does not block, and it is switched to all media the moment it
+# arrives; the text paints in the fallback face first (display=swap) and
+# takes the real one a beat later. The <noscript> copy is for a browser with
+# scripts off, which otherwise never gets the fonts.
+_FONTS_OLD = re.compile(r'<link href="(https://fonts\.googleapis\.com/css2\?[^"]+)" rel="stylesheet">')
+for _f in sorted(list(HERE.glob("*.html")) + list(HERE.glob("_*.tpl.html")) + list((HERE / "post").glob("*.html"))):
+    _t = _f.read_text(encoding="utf-8")
+    if 'media="print" onload="this.media=\'all\'"' in _t:
+        skipped.append(f"{_f.name}: fonts do not block")
+        continue
+    _m = _FONTS_OLD.search(_t)
+    if not _m:
+        skipped.append(f"{_f.name}: no Google Fonts link")
+        continue
+    _href = _m.group(1)
+    _new = ('<link href="' + _href + '" rel="stylesheet" media="print" onload="this.media=\'all\'">'
+            '<noscript><link href="' + _href + '" rel="stylesheet"></noscript>')
+    write(_f, _t.replace(_m.group(0), _new, 1))
+    applied.append(f"{_f.name}: fonts do not block")
+
+# ---------------------------------------------------------------- index.html
+#
+# The home page is 2,600 elements, and a phone laid every one of them out
+# before it could paint the hero. content-visibility: auto tells the browser
+# to skip the layout and paint of a section until it is scrolled near, which
+# is most of "Style & Layout: 1.3 s" in the profile; contain-intrinsic-size
+# reserves roughly the height it will have so the scrollbar does not jump.
+# Anchors (#packages, #results) still land, because the browser lays a
+# section out the moment it is asked to scroll there. The finder is not on
+# the list: it is the first thing under the hero, and its results are what
+# the visitor came for. Nor are the stories: their script measures the
+# track on load, and measuring a skipped section forces the very layout
+# this is meant to avoid — 135 ms of it, in the profile.
+patch(
+    "index.html",
+    "sections below the fold skip layout until scrolled to",
+    """.sdots{display:flex;justify-content:center;gap:7px;margin-top:16px}""",
+    """#packages,#catalogue,#services{content-visibility:auto;contain-intrinsic-size:auto 900px}
+.sdots{display:flex;justify-content:center;gap:7px;margin-top:16px}""",
+    marker="content-visibility:auto;contain-intrinsic-size",
+)
+
+# The four things Lighthouse's accessibility pass flagged on the home page,
+# each a real one:
+#   - the count bubble on a filter tab, and the small line under a result
+#     tab, were below the contrast ratio a phone in sunlight needs;
+#   - the results section opened with an <h3> straight after the page's <h1>,
+#     which a screen reader announces as a skipped level;
+#   - the story dots were 8-pixel tap targets;
+#   - the WhatsApp button had no accessible name (its text is hidden on a
+#     phone, and the icon says nothing).
+patch(
+    "index.html",
+    "tab counts and tab subtitles pass contrast",
+    """  background:color-mix(in srgb,var(--tabc) 12%,transparent);color:var(--tabc)}""",
+    """  background:color-mix(in srgb,var(--tabc) 14%,transparent);color:color-mix(in srgb,var(--tabc) 88%,#000)}""",
+    marker="color-mix(in srgb,var(--tabc) 88%,#000)",
+)
+patch(
+    "index.html",
+    "the line under a result tab too",
+    """.rtab small{color:inherit;opacity:.72}""",
+    """.rtab small{color:inherit;opacity:.86}""",
+    marker=".rtab small{color:inherit;opacity:.86}",
+)
+patch(
+    "index.html",
+    "and when the tab is not selected",
+    """.rtab small{display:block;margin-top:3px;font:400 11.6px/1.4 var(--sans);color:var(--muted)}""",
+    """.rtab small{display:block;margin-top:3px;font:400 11.6px/1.4 var(--sans);color:#4a5868}""",
+    marker="font:400 11.6px/1.4 var(--sans);color:#4a5868}",
+)
+patch(
+    "index.html",
+    "the results heading follows the page heading",
+    """        <h3 id="rTitle">Popular programs this intake</h3>""",
+    """        <h2 id="rTitle" style="font-size:21px;margin:0">Popular programs this intake</h2>""",
+    marker='<h2 id="rTitle"',
+)
+patch(
+    "index.html",
+    "the count on a selected tab stays readable",
+    """.tab[aria-selected="true"] .n{background:rgba(255,255,255,.2);color:#fff}""",
+    """.tab[aria-selected="true"] .n{background:rgba(0,0,0,.24);color:#fff}""",
+    marker='.tab[aria-selected="true"] .n{background:rgba(0,0,0,.24)',
+)
+# A card's title is a level-3 heading under its section's level-2 one. It
+# was an <h4> — right size, wrong level — so the same rules now dress an
+# <h3> and the markup says <h3>.
+patch(
+    "index.html",
+    "card titles are the level below the section heading",
+    """    + '<h4>'+esc(p.program)+'</h4>'""",
+    """    + '<h3>'+esc(p.program)+'</h3>'""",
+    marker="+ '<h3>'+esc(p.program)+'</h3>'",
+)
+patch(
+    "index.html",
+    "service titles too",
+    """    + '<h4>'+esc(s.name)+'</h4>'""",
+    """    + '<h3>'+esc(s.name)+'</h3>'""",
+    marker="+ '<h3>'+esc(s.name)+'</h3>'",
+)
+patch(
+    "index.html",
+    "and they keep their size",
+    """.svc-top h4{flex:1;min-width:0;margin:0}""",
+    """.svc-top h3,.svc-top h4{flex:1;min-width:0;margin:0;font-size:15px}
+.svc h3{font-size:15px;color:var(--navy-900);line-height:1.3;margin:0}
+.ccard h3{font-size:14.4px;margin:9px 0 3px;color:var(--navy-900);line-height:1.3}""",
+    marker=".svc-top h3,.svc-top h4{",
+)
+patch(
+    "index.html",
+    "a question in the FAQ is a finger tall",
+    """.faq summary{font-family:var(--disp);font-size:15.5px;color:var(--navy-900);cursor:pointer}""",
+    """.faq summary{font-family:var(--disp);font-size:15.5px;color:var(--navy-900);cursor:pointer;padding:6px 0;min-height:24px}""",
+    marker="cursor:pointer;padding:6px 0;min-height:24px}",
+)
+patch(
+    "index.html",
+    "story dots are a finger wide",
+    """.sdots button{width:8px;height:8px;padding:0;border-radius:50%;border:0;cursor:pointer;""",
+    """.sdots button{width:24px;height:24px;padding:0;border-radius:50%;border:0;cursor:pointer;background-clip:content-box;
+  border:8px solid transparent;box-sizing:border-box;""",
+    marker="background-clip:content-box;\n  border:8px solid transparent",
+)
+patch(
+    "index.html",
+    "and the current dot keeps its pill shape inside the wider target",
+    """.sdots button[aria-current="true"]{background:var(--navy-700);width:22px;border-radius:99px}""",
+    """.sdots button[aria-current="true"]{background:var(--navy-700);width:38px;border-radius:99px}""",
+    marker="width:38px;border-radius:99px}",
+)
 
 if __name__ == "__main__":
     for a in applied:
