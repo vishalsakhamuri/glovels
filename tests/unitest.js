@@ -74,7 +74,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('an Apply button per programme', (html.match(/data-apply="/g) || []).length === progs.length);
   check('the other universities in the country', /<h2>Other universities in Germany<\/h2>/.test(html)
     && /href="tu-munich"/.test(html));
-  check('a link back to the list', /href="\.\.\/university">All universities/.test(html));
+  check('a link back to the list', /href="\/university">All universities/.test(html));
 
   /* The DAAD. */
   check('a German university links to its DAAD listing',
@@ -93,6 +93,27 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const nonDe = listAll.find(u => u.country !== 'DE');
   const nonDeHtml = await (await guest.request.get(BASE + nonDe.url)).text();
   check('a university outside Germany has no DAAD box', !/<div class="daadbox">/.test(nonDeHtml) && !/DAAD listing/.test(nonDeHtml), nonDe.slug);
+
+  /* The menu works from one level down, and the packages are on the page. */
+  const relLinks = [...html.matchAll(/href="([^"]+)"/g)].map(m => m[1])
+    .filter(h => /\.html/.test(h) && !/^https?:/.test(h));
+  check('no menu or footer link on the page is relative to /university/ — every one is a root address',
+    relLinks.length === 0, relLinks.slice(0, 3).join(' '));
+  check('Home in the crumbs is the home page', /<a href="\/">Home<\/a>/.test(html));
+  check('a with-a-package university lists the packages that cover it', /<h2 id="packages">Packages that cover/.test(html)
+    && /Choose Offer Letter/.test(html) && /₹49,999/.test(html));
+  check('each one hands over to the home page checkout', /href="\/\?buy=pkg-offer#packages"/.test(html));
+  const freeU = (await (await staff.request.get(BASE + '/api/staff/universities')).json()).universities.find(x => x.feeModel === 'free');
+  const freeHtml = await (await guest.request.get(BASE + freeU.url)).text();
+  check('a free-to-apply university has no packages block — Apply is the button there', !/<h2 id="packages">/.test(freeHtml), freeU.slug);
+  check('every tab the home page shows is on the page, the country\'s own open first',
+    /data-utab="study"[^>]*aria-selected="true"/.test(html) && /data-utab="other"/.test(html) && /data-utab="work"/.test(html));
+  const bp = await guest.newPage();
+  await bp.goto(BASE + '/?buy=pkg-offer#packages');
+  await bp.waitForSelector('#buyModal.on', { timeout: 8000 }).catch(() => {});
+  check('/?buy=pkg-offer opens that package\'s checkout on the home page', await bp.locator('#buyModal.on').count() === 1
+    && /Offer Letter/.test(await bp.textContent('#buyT').catch(() => '')));
+  await bp.close();
 
   /* Not baked into the home page. */
   const home = await (await guest.request.get(BASE + '/')).text();
@@ -189,8 +210,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await sp.waitForTimeout(1500);
   const after = sp.url();
   const btnText = await sp.locator('[data-apply]').first().textContent();
-  check('a signed-in student is put on the list or sent to the packages',
-    /On your list|Added to your list/.test(btnText) || /#packages/.test(after), btnText + ' · ' + after);
+  const needBox = await sp.locator('#apNeed').count();
+  check('a signed-in student is put on the list, or told it needs a package above the packages on this page',
+    /On your list|Added to your list/.test(btnText) || (needBox === 1 && /needs a package/.test(await sp.textContent('#apNeed'))),
+    btnText + ' · ' + after);
+  check('and stays on the page rather than being sent away', after === before);
 
   /* ------------------------------------- what the office writes about it */
   r = await staff.request.get(BASE + '/api/staff/universities');

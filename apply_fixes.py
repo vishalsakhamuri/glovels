@@ -9290,6 +9290,35 @@ function nextOn(deadline){""",
     marker="function nameSearch(){",
 )
 
+# ---------------------------------------------------------------- index.html
+#
+# /?buy=<package id> opens that package's checkout.
+#
+# A university page lists the packages that cover it, with prices, and each
+# button lands here. The checkout is this page's — the consent line, the
+# gateway, the receipt — so the button brings the visitor to it rather than
+# copying it. Read once, on load, after the packages have been drawn.
+patch(
+    "index.html",
+    "a ?buy= address opens the package's checkout",
+    """function showPackages(scroll){""",
+    """/* /?buy=<id>: a university page sent somebody here to buy this package. */
+(function buyFromAddress(){
+  var id = new URLSearchParams(location.search).get('buy');
+  if (!id) return;
+  var tries = 0;
+  var go = function(){
+    var b = document.querySelector('[data-buy="' + id.replace(/"/g, '') + '"]');
+    if (b) { try { showPackages(false); } catch (e) {} b.click(); b.scrollIntoView({block: 'center'}); return; }
+    if (++tries < 40) setTimeout(go, 150);
+  };
+  if (document.readyState === 'complete') setTimeout(go, 300); else addEventListener('load', function(){ setTimeout(go, 300); });
+})();
+
+function showPackages(scroll){""",
+    marker="function buyFromAddress(){",
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

@@ -2397,6 +2397,19 @@ addEventListener('resize', measure);
 /* Packages stay collapsed until a visitor asks. Three ways in: the teaser, the
    "See our packages" link in the results, and "Choose a package" on a locked row.
    Once opened they stay open. */
+/* /?buy=<id>: a university page sent somebody here to buy this package. */
+(function buyFromAddress(){
+  var id = new URLSearchParams(location.search).get('buy');
+  if (!id) return;
+  var tries = 0;
+  var go = function(){
+    var b = document.querySelector('[data-buy="' + id.replace(/"/g, '') + '"]');
+    if (b) { try { showPackages(false); } catch (e) {} b.click(); b.scrollIntoView({block: 'center'}); return; }
+    if (++tries < 40) setTimeout(go, 150);
+  };
+  if (document.readyState === 'complete') setTimeout(go, 300); else addEventListener('load', function(){ setTimeout(go, 300); });
+})();
+
 function showPackages(scroll){
   const sec = $('#packages');
   if(sec.hidden){

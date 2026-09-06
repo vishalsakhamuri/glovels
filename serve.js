@@ -765,6 +765,22 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
 .uni-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0 6px;padding:0;list-style:none}
 .uni-steps li{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font:400 13.4px/1.6 var(--sans);color:var(--navy-800)}
 .uni-steps li b{display:block;font:700 13.6px/1.4 var(--sans);color:var(--navy-900);margin-bottom:4px}
+.utabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px}
+.utab{padding:8px 14px;border:1px solid var(--line);border-radius:99px;background:var(--paper);font:700 12.6px/1.3 var(--sans);color:var(--navy-800);cursor:pointer}
+.utab.on{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+.upkgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:14px 0 8px}
+.upkg{position:relative;display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px}
+.upkg.featured{border-color:var(--navy-700);box-shadow:0 10px 28px rgba(11,30,49,.10)}
+.upkg .ribbon{position:absolute;top:-11px;left:16px;background:var(--navy-700);color:#fff;font:700 10.6px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:99px}
+.upkg h3{margin:0 0 6px;font-size:17px;line-height:1.3;color:var(--navy-900)}
+.upkg p{margin:0 0 10px;font:400 13px/1.55 var(--sans);color:var(--muted)}
+.upkg .quota{font:700 12.4px/1.4 var(--sans);color:var(--navy-700);margin:0 0 10px}
+.upkg ul{margin:0 0 14px;padding-left:18px;font:400 12.8px/1.55 var(--sans);color:var(--navy-800)}
+.upkg ul li{margin:0 0 4px}
+.upkg .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)}
+.upkg .price{font:700 20px/1.2 var(--serif,Georgia,serif);color:var(--navy-900)}
+.upkg .price .from{display:block;font:600 10.6px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.upkg .price .note{display:block;font:400 11.6px/1.4 var(--sans);color:var(--muted)}
 .uni-others{columns:2;column-gap:28px;padding-left:18px;margin:12px 0 0}
 @media (max-width:600px){.uni-others{columns:1}}
 .uni-others li{break-inside:avoid;margin:0 0 7px;font-size:14px}
@@ -843,7 +859,20 @@ const UNI_JS = `<div class="apsheet" id="apSheet" role="dialog" aria-modal="true
       }
     }).catch(function(err){
       b.disabled = false;
-      if (err.needsPackage) { location.href = '../index.html#packages'; return; }
+      if (err.needsPackage) {
+        /* What the home page says in its modal, said here above the packages
+           that are already on the page — then scroll to them. */
+        var why = document.getElementById('pkgWhy');
+        var box = document.getElementById('apNeed') || (function(){
+          var d = document.createElement('div'); d.id = 'apNeed'; d.className = 'daadbox';
+          d.style.borderColor = '#e6d5a8'; d.style.background = '#fdf6e6';
+          (why || document.getElementById('programmes')).parentNode.insertBefore(d, why || document.getElementById('programmes'));
+          return d; })();
+        box.innerHTML = '<b>That one needs a package.</b> ' + String(err.message).replace(/</g, '&lt;');
+        var h = document.getElementById('packages') || box;
+        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       alert(err.message);
     });
   });
@@ -1002,6 +1031,7 @@ function universityPage(u) {
       + 'Fees are the total for the whole course, in rupees at today\'s rate; deadlines are the '
       + 'university\'s and come round every year.</p>'
     + '<div class="progs">' + progs + '</div>'
+    + packagesBlock(u, c)
     + '<h2>How applying works</h2>'
     + '<ol class="uni-steps">'
     + '<li><b>1. Press Apply</b>Three details, and a counsellor calls you within one working day. '
@@ -1048,9 +1078,89 @@ function universityPage(u) {
   }));
   /* The breadcrumb record beside the university's own, the stylesheet, and
      the apply sheet. */
-  return page.replace('</head>', UNI_CSS + '<script type="application/ld+json">'
+  return rootLinks(page.replace('</head>', UNI_CSS + '<script type="application/ld+json">'
       + JSON.stringify(jsonld[1]).replace(/</g, '\\u003c') + '</script>\n</head>')
-    .replace('</body>', UNI_JS + '</body>');
+    .replace('</body>', UNI_JS + '</body>'));
+}
+
+/*
+ * The page template's links are written for a page at the root — `about-us.html`,
+ * `index.html#counsel` — and this page lives one level down at
+ * /university/<slug>, where the browser resolves them to
+ * /university/about-us.html and every menu link is a 404. ("Home is not coming
+ * after going to a university page.") So every relative page link becomes a
+ * root one: `index.html` → `/`, `about-us.html` → `/about-us`, `../x.html` the
+ * same. Links to other universities (`href="tu-munich"`), anchors, mailto and
+ * full addresses are left alone.
+ */
+function rootLinks(html) {
+  return html.replace(/href="(?:\.\.\/)?([a-z0-9][a-z0-9-]*)\.html(#[^"]*)?"/g, (m, name, hash) =>
+    'href="' + (name === 'index' ? '/' : '/' + name) + (hash || '') + '"')
+    .replace(/href="\.\.\/university"/g, 'href="/university"')
+    .replace(/(href|src)="(?:\.\.\/)?(favicon\.png|og\/[^"]+|assets\/[^"]+|app\.webmanifest|icon-\d+\.png)"/g,
+      (m, attr, file) => attr + '="/' + file + '"');
+}
+
+/*
+ * The packages a student at THIS university would buy.
+ *
+ * "Packages or other-country packages are not showing when the university is
+ *  not free to apply." A university we are not partnered with is applied to
+ * through a package, and the page said so and pointed at the home page. Now
+ * the packages themselves are on the page: Germany's own set for a German
+ * university, the Other-countries set for the rest, priced as the office has
+ * them today, each button opening that package's checkout on the home page.
+ * A free-to-apply university gets none — Apply is the button there.
+ */
+function packagesBlock(u, country) {
+  /* A free-to-apply university needs none: Apply is the button there, and it
+     behaves as it does on the home page. */
+  if (u.feeModel === 'free') return '';
+  let pk = null;
+  try { pk = content.get('packages'); } catch (e) { pk = null; }
+  const tabs = (pk && Array.isArray(pk.tabs) && pk.tabs.length ? pk.tabs
+    : [{ key: 'study', label: 'Germany' }, { key: 'other', label: 'Other countries' }]);
+  const all = (pk && Array.isArray(pk.items) ? pk.items : []).filter(p => p && p.active !== false);
+  if (!all.length) return '';
+  const money = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+  const card = p => {
+    const priced = p.sell && Number(p.priceInr) > 0 && !p.priceBroken;
+    return '<article class="upkg' + (p.featured ? ' featured' : '') + '">'
+      + (p.ribbon ? '<span class="ribbon">' + esc(p.ribbon) + '</span>' : '')
+      + '<h3>' + esc(p.title) + '</h3>'
+      + (p.desc ? '<p>' + esc(p.desc) + '</p>' : '')
+      + (p.unlocks ? '<div class="quota">Reveals <b>' + Number(p.unlocks) + '</b> public universit'
+        + (Number(p.unlocks) === 1 ? 'y' : 'ies') + '</div>' : '')
+      + (Array.isArray(p.features) && p.features.length
+        ? '<ul>' + p.features.slice(0, 5).map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>' : '')
+      + '<div class="foot">'
+      + (priced
+        ? '<div class="price">' + (p.priceFrom ? '<span class="from">From</span>' : '') + esc(money(p.priceInr))
+          + (p.priceNote ? '<span class="note">' + esc(p.priceNote) + '</span>' : '') + '</div>'
+          + '<a class="btn ' + (p.featured || p.primary ? 'btn-primary' : 'btn-ghost') + ' btn-sm" href="/?buy='
+          + encodeURIComponent(p.id) + '#packages">Choose ' + esc(p.title) + '</a>'
+        : '<div class="price"><span class="note">' + esc(p.quote || 'Priced after we assess your case') + '</span></div>'
+          + '<a class="btn btn-ghost btn-sm" href="/#counsel">Ask a counsellor</a>')
+      + '</div></article>';
+  };
+  /* Every tab the home page shows, the one for this university's country open
+     first: Germany's set for a German university, Other countries for the rest. */
+  const mine = u.country === 'DE' ? 'study' : 'other';
+  const panes = tabs.map(t => ({ t, items: all.filter(p => p.tab === t.key) })).filter(x => x.items.length);
+  if (!panes.length) return '';
+  const open = panes.some(x => x.t.key === mine) ? mine : panes[0].t.key;
+  return '<h2 id="packages">Packages that cover ' + esc(u.shortName || u.name) + '</h2>'
+    + '<p id="pkgWhy">' + esc(u.name) + ' is applied to through a Glovels package: the shortlist, the SOP, the application itself '
+        + 'and every follow-up until the decision. The same packages as on the home page, at today\'s prices — press one and it opens at the checkout.'
+    + '</p>'
+    + '<div class="utabs" role="tablist">' + panes.map(x =>
+      '<button type="button" class="utab' + (x.t.key === open ? ' on' : '') + '" data-utab="' + esc(x.t.key)
+      + '" role="tab" aria-selected="' + (x.t.key === open) + '">' + esc(x.t.label) + '</button>').join('') + '</div>'
+    + panes.map(x => '<div class="upkgs" data-upane="' + esc(x.t.key) + '"' + (x.t.key === open ? '' : ' hidden') + '>'
+      + x.items.map(card).join('') + '</div>').join('')
+    + '<script>document.querySelectorAll(".utab").forEach(function(b){b.onclick=function(){'
+    + 'document.querySelectorAll(".utab").forEach(function(x){x.classList.toggle("on",x===b);x.setAttribute("aria-selected",x===b);});'
+    + 'document.querySelectorAll("[data-upane]").forEach(function(p){p.hidden=p.dataset.upane!==b.dataset.utab;});};});</script>';
 }
 
 function universitiesIndexPage() {
