@@ -120,8 +120,28 @@ function liveCatalogue() {
     uKey: uKeyOf(r.university),
     /* The office's choice of what leads the showcase on the home page. */
     featured: !!r.featured, featureSort: r.feature_sort || 0,
+    /* On its university's page and in the search box, but NOT in the finder
+       or on any list. See the column's note in store.js. */
+    searchOnly: !!r.search_only,
     intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
   }));
+}
+/* The catalogue as universities, grouped once per change rather than once per
+   request. A page for one university needs the whole list grouped — for its
+   "other universities" and the index — and with a catalogue that is meant to
+   grow to every university there is, grouping a hundred thousand rows on every
+   Googlebot visit is the slow site the office was worried about. Keyed on the
+   table's newest edit and its size, so an edit on the Catalogue screen is
+   live on the next request, as before. */
+let groupedAt = '';
+let groupedList = null;
+function universities() {
+  const stamp = db.catalogueVersion();
+  if (!groupedList || stamp !== groupedAt) {
+    groupedList = UNIS.group(liveCatalogue());
+    groupedAt = stamp;
+  }
+  return groupedList;
 }
 function liveCountries() {
   const out = {};
@@ -421,7 +441,7 @@ function sitemapXml() {
   /* The university pages, from the catalogue — every one the office has not
      taken off search. */
   pages.push('university');
-  UNIS.group(liveCatalogue()).forEach(u => {
+  universities().forEach(u => {
     if (!UNIS.cleanExtras(db.content('university:' + u.slug)).hidden) pages.push('university/' + u.slug);
   });
   pages.sort();
@@ -802,7 +822,78 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
 .apsheet .row{display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap}
 .apsheet .said{font:600 12.6px/1.5 var(--sans);margin-top:10px}
 .apsheet .said.bad{color:#7a2118}.apsheet .said.ok{color:#14603a}
+/* The name search on the /university list — the finder's, with its own home. */
+.usearch{position:relative;margin:0 0 22px}
+.usearch>svg{position:absolute;left:14px;top:15px;width:17px;height:17px;color:var(--muted);pointer-events:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.usearch input{width:100%;height:48px;padding:0 14px 0 40px;border:1.5px solid var(--line);border-radius:12px;
+  background:var(--cream,#faf8f3);font:400 14.4px/1.4 var(--sans);color:var(--navy-900)}
+.usearch input:focus{outline:none;border-color:var(--navy-700);background:#fff}
+.usearch .fsres{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;background:#fff;border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 18px 40px rgba(10,30,60,.14);max-height:420px;overflow-y:auto;padding:6px}
+.usearch .fsres h5{margin:8px 12px 4px;font:700 10.8px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.usearch .fsres a{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 12px;border-radius:9px;text-decoration:none;color:inherit}
+.usearch .fsres a:hover,.usearch .fsres a:focus{background:#f0f5fb;outline:none}
+.usearch .fsres a b{font:700 13.6px/1.35 var(--sans);color:var(--navy-900)}
+.usearch .fsres a small{display:block;font:400 12px/1.4 var(--sans);color:var(--muted)}
+.usearch .fsres a span.n{font:700 11.6px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
+.usearch .fsres .none{padding:12px;font:400 13px/1.5 var(--sans);color:var(--muted)}
 </style>`;
+
+/* The search box on the /university list. The list shows the universities
+   the office put on the site; every other university in the catalogue has a
+   page too, and this is how a student reaches one without Google. The same
+   /api/universities/search the home page asks. */
+const USEARCH_HTML = '<div class="usearch" id="uSearchWrap">'
+  + '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
+  + '<label for="uSearch" class="offscreen" style="position:absolute;left:-9999px">Search every university and programme by name</label>'
+  + '<input id="uSearch" type="search" autocomplete="off" spellcheck="false" '
+  + 'placeholder="Search every university and programme we track — by name, city or subject">'
+  + '<div class="fsres" id="uSearchRes" hidden role="listbox"></div></div>';
+const USEARCH_JS = `<script>(function(){
+  var box = document.getElementById('uSearch'), out = document.getElementById('uSearchRes');
+  if (!box || !out) return;
+  var t = null, last = '';
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  function draw(d) {
+    var U = d.universities || [], P = d.programmes || [];
+    if (!U.length && !P.length) {
+      out.innerHTML = '<div class="none">Nothing by that name yet. <a href="/#counsel" style="display:inline;padding:0">Ask a counsellor</a> — we add universities on request.</div>';
+      out.hidden = false; return;
+    }
+    out.innerHTML = (U.length ? '<h5>Universities</h5>' + U.map(function (u) {
+        return '<a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
+          + esc([u.city, u.countryName].filter(Boolean).join(', ')) + '</small></span>'
+          + '<span class="n">' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's') + ' \u2192</span></a>'; }).join('') : '')
+      + (P.length ? '<h5>Programmes</h5>' + P.map(function (p) {
+        return '<a href="' + esc(p.url) + '"><span><b>' + esc(p.program) + '</b><small>'
+          + esc(p.university) + ' \u00b7 ' + esc(p.countryName) + '</small></span><span class="n">Open \u2192</span></a>'; }).join('') : '');
+    out.hidden = false;
+  }
+  function ask() {
+    var q = box.value.trim();
+    if (q.length < 2) { out.hidden = true; return; }
+    if (q === last) { out.hidden = false; return; }
+    last = q;
+    fetch('/api/universities/search?q=' + encodeURIComponent(q)).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && box.value.trim() === q) draw(d); }).catch(function () {});
+  }
+  box.addEventListener('input', function () { clearTimeout(t); t = setTimeout(ask, 180); });
+  box.addEventListener('focus', function () { if (box.value.trim().length >= 2) ask(); });
+  box.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { out.hidden = true; return; }
+    var a = out.querySelector('a');
+    if (e.key === 'ArrowDown' && !out.hidden && a) { e.preventDefault(); a.focus(); }
+    if (e.key === 'Enter' && !out.hidden && a) { e.preventDefault(); location.href = a.href; }
+  });
+  out.addEventListener('keydown', function (e) {
+    var links = [].slice.call(out.querySelectorAll('a')), i = links.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' && i < links.length - 1) { e.preventDefault(); links[i + 1].focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); (i > 0 ? links[i - 1] : box).focus(); }
+    if (e.key === 'Escape') { out.hidden = true; box.focus(); }
+  });
+  document.addEventListener('click', function (e) { if (!e.target.closest('#uSearchWrap')) out.hidden = true; });
+})();</script>`;
 
 /* Apply, from a university page. Signed-in students go on their own shortlist
    (the server checks the package); everybody else fills three boxes and a
@@ -918,7 +1009,7 @@ const dateShort = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month
 
 /** Everything the page needs about one university, or null. */
 function universityOf(slug) {
-  const u = UNIS.find(liveCatalogue(), slug);
+  const u = universities().find(x => x.slug === String(slug)) || null;
   if (!u) return null;
   u.extras = UNIS.cleanExtras(db.content('university:' + u.slug));
   return u;
@@ -1014,7 +1105,10 @@ function universityPage(u) {
       + '</div></article>';
   }).join('');
 
-  const others = UNIS.group(liveCatalogue()).filter(o => o.country === u.country && o.slug !== u.slug);
+  /* Only the ones the office put on the site. A search-only university is
+     reached from Google and the search box, not from a list — a list of
+     every university in the catalogue is what "search only" exists to avoid. */
+  const others = universities().filter(o => o.listed && o.country === u.country && o.slug !== u.slug);
   const othersBlock = others.length
     ? '<h2>Other universities in ' + esc(c.name) + '</h2><ul class="uni-others">'
       + others.slice(0, 40).map(o => '<li><a href="' + esc(o.slug) + '">' + esc(o.name) + '</a>'
@@ -1183,9 +1277,13 @@ function packagesBlock(u, country) {
 function universitiesIndexPage() {
   const t = templates();
   if (!t) return null;
-  const all = UNIS.group(liveCatalogue());
+  const all = universities();
   const countries = liveCountries();
-  const shown = all.filter(u => !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden);
+  /* The ones on the site. Search-only universities have pages and are in the
+     sitemap, but the list is not where a student meets them: they come up in
+     the search box, and on Google. */
+  const shown = all.filter(u => u.listed && !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden);
+  const unlisted = all.filter(u => !u.listed && !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden).length;
   const byCountry = new Map();
   shown.forEach(u => { if (!byCountry.has(u.country)) byCountry.set(u.country, []); byCountry.get(u.country).push(u); });
   const order = [...byCountry.keys()].sort((a, b) => byCountry.get(b).length - byCountry.get(a).length);
@@ -1198,7 +1296,7 @@ function universitiesIndexPage() {
       + '<ul class="ulist">' + list.map(u =>
         '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.name) + '</b><small>'
         + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
-        + ' · ' + (u.tuitionFree && u.feeMax === 0 ? 'no tuition' : 'from ' + esc(UNIS.money(u.feeMin)))
+        + ' · ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
         + (u.feeModel === 'free' ? ' · free to apply through us' : '')
         + (DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad) ? ' · on the DAAD' : '')
         + '</small></span><span class="n">' + u.programmes.length + ' programme'
@@ -1223,14 +1321,71 @@ function universitiesIndexPage() {
     },
   }), {
     H1: 'Universities we place students at',
-    DATELINE: shown.length + ' universities in ' + byCountry.size + ' countries. Every one has its own page '
+    DATELINE: shown.length + ' universities in ' + byCountry.size + ' countries'
+      + (unlisted ? ', and ' + unlisted + ' more you can search for' : '') + '. Every one has its own page '
       + 'with the programmes we track, what they cost in total, and a way to apply.',
     CRUMBS: '<a href="index.html">Home</a> / Universities',
-    BODY: '<p class="lead">Pick a university to see its programmes, fees, intake deadlines and the CGPA '
+    BODY: USEARCH_HTML
+      + '<p class="lead">Pick a university to see its programmes, fees, intake deadlines and the CGPA '
       + 'it asks for. Not sure which ones you clear? <a href="index.html#results">The finder</a> reads '
       + 'your profile and tells you.</p>' + body,
   }));
-  return page.replace('</head>', UNI_CSS + '</head>');
+  return page.replace('</head>', UNI_CSS + '</head>').replace('</body>', USEARCH_JS + '</body>');
+}
+
+/*
+ * A few universities on a destination page.
+ *
+ * "We show via search or a dropdown on the home page; a few universities on
+ *  the country pages; the other universities are displayed whenever there is
+ *  a specific search from Google or in the search bar."
+ *
+ * The country page is static — written by build_destinations.py — and this
+ * puts the universities the office has put ON THE SITE in that country into
+ * it as it goes out, a dozen at most, in front of the "Universities in X"
+ * button. Search-only universities are counted, not listed: "and 140 more
+ * you can search for". The page is not touched on disk, so a rebuild cannot
+ * lose it and a country with nothing on the site gets no empty heading.
+ */
+const DEST_CSS = `<style>/* GLOVELS-DEST-UNIS */
+.ulist{list-style:none;padding:0;margin:14px 0 8px;display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.ulist li a{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--paper);
+  border:1px solid var(--line);border-radius:12px;padding:13px 16px;text-decoration:none;color:inherit}
+.ulist li a:hover{border-color:var(--navy-700)}
+.ulist b{font:700 14.6px/1.35 var(--sans);color:var(--navy-900)}
+.ulist small{display:block;margin-top:3px;font:400 12.2px/1.5 var(--sans);color:var(--muted)}
+.ulist .n{font:700 12px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
+.umore{font:400 13.6px/1.6 var(--sans);color:var(--muted);margin:0 0 6px}
+</style>`;
+const DEST_MAX = 12;
+function withDestinationUniversities(html, slug) {
+  const want = String(slug || '').replace(/^study-in-/, '');
+  const countries = liveCountries();
+  const code = Object.keys(countries).find(k => UNIS.slugOf(countries[k].name) === want);
+  if (!code) return html;
+  const anchor = html.indexOf('<p style="margin-top:26px"><a class="btn btn-ghost" href="university#');
+  if (anchor < 0) return html;
+  const all = universities().filter(u => u.country === code
+    && !UNIS.cleanExtras(db.content('university:' + u.slug)).hidden);
+  const listed = all.filter(u => u.listed);
+  if (!listed.length) return html;
+  const c = countries[code];
+  /* The ones the office featured lead; then whoever has the most on offer. */
+  const lead = listed.slice().sort((a, b) =>
+    (b.programmes.some(p => p.featured) - a.programmes.some(p => p.featured))
+    || (b.programmes.length - a.programmes.length) || a.name.localeCompare(b.name)).slice(0, DEST_MAX);
+  const more = all.length - lead.length;
+  const block = '<h2 id="universities">Universities in ' + esc(c.name) + ' we place students at</h2>'
+    + '<ul class="ulist">' + lead.map(u =>
+      '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.shortName || u.name) + '</b><small>'
+      + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
+      + ' · ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
+      + (u.feeModel === 'free' ? ' · free to apply through us' : '')
+      + '</small></span><span class="n">' + u.programmes.length + ' programme'
+      + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>').join('') + '</ul>'
+    + (more ? '<p class="umore">And ' + more + ' more in ' + esc(c.name) + ' — every one has its own page. '
+      + '<a href="university">Search by name</a>, or type it in the box on the <a href="index.html#results">home page</a>.</p>' : '');
+  return (html.slice(0, anchor) + block + html.slice(anchor)).replace('</head>', DEST_CSS + '</head>');
 }
 
 /*
@@ -1697,8 +1852,9 @@ const server = http.createServer(async (req, res) => {
   const ext = path.extname(file).toLowerCase();
   if (ext === '.html') {
     const slug = path.basename(file, '.html');
-    return send(res, 200,
-      forIndexing(fs.readFileSync(file, 'utf8'), slug), TYPES['.html']);
+    let html = fs.readFileSync(file, 'utf8');
+    if (slug.startsWith('study-in-')) html = withDestinationUniversities(html, slug);
+    return send(res, 200, forIndexing(html, slug), TYPES['.html']);
   }
 
   send(res, 200, fs.readFileSync(file),

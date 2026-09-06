@@ -11,8 +11,9 @@ BODY = """
       @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
     </style>
 
-    <div class="out tiles" style="--tiles:4;margin:0 0 18px">
+    <div class="out tiles" style="--tiles:5;margin:0 0 18px">
       <div><b id="kLive">—</b><span>On the site</span></div>
+      <div><b id="kSearch">—</b><span>Search only</span></div>
       <div><b id="kHidden">—</b><span>Hidden</span></div>
       <div><b id="kDest">—</b><span>Destinations</span></div>
       <div><b id="kFree">—</b><span>Zero tuition</span></div>
@@ -81,8 +82,9 @@ BODY = """
         </select>
         <select id="fs" style="padding:9px 11px;font:600 12.8px/1.4 var(--sans);
           border:1.5px solid #d8dde4;border-radius:9px">
-          <option value="">On the site and hidden</option>
+          <option value="">Everything</option>
           <option value="1">On the site</option>
+          <option value="2">Search only</option>
           <option value="0">Hidden only</option>
         </select>
         <button type="button" class="btn btn-ghost btn-sm" id="fClear"
@@ -98,6 +100,8 @@ BODY = """
         <b id="bulkCount" style="font:700 13.4px/1.4 var(--sans);color:var(--navy-900)">
           0 selected</b>
         <button type="button" class="btn btn-ghost btn-sm" id="bulkShow">Put on the site</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="bulkSearch"
+          title="A page and a search hit, but not a row on the home page">Search only</button>
         <button type="button" class="btn btn-ghost btn-sm" id="bulkHide">Take off the site</button>
         <button type="button" class="btn btn-ghost btn-sm" id="bulkDelete"
           style="margin-left:auto;color:#a5311f;border-color:#e8c3bc">Remove from the catalogue</button>
@@ -193,7 +197,9 @@ BODY = """
         an unknown country code is rejected with the row, not quietly created. Deadlines must be
         written <code>YYYY-MM-DD</code>; Excel&rsquo;s own date cells come through in that form.
         Nothing is ever deleted by an import: to take a programme off the site, put
-        <code>no</code> in the <b>on the site</b> column.</p>
+        <code>no</code> in the <b>on the site</b> column &mdash; or <code>search</code> to give
+        its university a page that Google and the search box can find without listing it on
+        the home page. That is the right word for most of a very large catalogue.</p>
     </section>
 
     <!-- ------------------------------------------------------------- log -->
@@ -204,7 +210,9 @@ BODY = """
         <p style="margin:0;font-size:12.8px;color:var(--muted);line-height:1.6">Every university in
           the catalogue has its own page on the site at <code>/university/&lt;name&gt;</code>, built
           from its programmes: fees, intakes, the CGPA it asks for and an Apply button. That page
-          exists whether or not anything is written here. What you add here is what a table cannot
+          exists whether or not anything is written here, and whether the university is on the
+          site or <b>search only</b> &mdash; the difference is that a search-only university is
+          reached from Google and the search box, and is not listed on the home page. What you add here is what a table cannot
           carry &mdash; a paragraph about the place, a picture, and the title Google prints &mdash;
           and it is what makes the page rank for the university's name.</p>
       </div>
@@ -342,7 +350,7 @@ function paintProgs() {
        whose bar is above the student's is not shown to them. Checking that
        from the office used to mean making an account. */
     (!cg || barOf(p).n == null || cg >= barOf(p).n) &&
-    (st === '' || String(p.active ? 1 : 0) === st) &&
+    (st === '' || String(!p.active ? 0 : p.searchOnly ? 2 : 1) === st) &&
     (!q || (p.university + ' ' + p.program + ' ' + (p.field || '')).toLowerCase().includes(q)));
 
   /* A filtered screen has to look filtered, or somebody reads a short list as
@@ -386,7 +394,9 @@ function paintProgs() {
             + esc(d.name || p.country) + ' rule</span>';
       })() + '</td>' +
       '<td style="font-size:12.4px">' + nextIntake(p) + '</td>' +
-      '<td>' + (p.active ? '<span class="st ok">On the site</span>' : '<span class="st wait">Hidden</span>') +
+      '<td>' + (!p.active ? '<span class="st wait">Hidden</span>'
+          : p.searchOnly ? '<span class="st" style="background:#eef2f7;color:var(--navy-800)">Search only</span>'
+          : '<span class="st ok">On the site</span>') +
         (p.featured ? '<br><span class="st ok" style="margin-top:4px;display:inline-block">' +
           '\u2605 Showcase' + (p.featureSort ? ' #' + p.featureSort : '') + '</span>' : '') + '</td>' +
       '<td><button type="button" class="btn btn-ghost btn-sm" data-edit="' + esc(p.id) + '">Edit</button></td>' +
@@ -394,7 +404,8 @@ function paintProgs() {
   }).join('') || '<tr><td colspan="9" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
 
   paintBulk();
-  $('#kLive').textContent = PROGS.filter(p => p.active).length;
+  $('#kLive').textContent = PROGS.filter(p => p.active && !p.searchOnly).length;
+  $('#kSearch').textContent = PROGS.filter(p => p.active && p.searchOnly).length;
   $('#kHidden').textContent = PROGS.filter(p => !p.active).length;
   $('#kFree').textContent = PROGS.filter(p => p.active && p.totalInr === 0).length;
 }
@@ -552,10 +563,19 @@ function openEditor(p) {
         [['winter', 'Winter'], ['summer', 'Summer'], ['autumn', 'Autumn'], ['spring', 'Spring']]) +
       field('Closes', 'fDeadline' + n, i.deadline, 'type="date"') + '</div>').join('') +
     '</div>' +
-    '<label style="display:flex;gap:9px;align-items:center;font:600 13px/1.4 var(--sans);' +
-      'color:var(--navy-800);margin-top:8px">' +
-      '<input type="checkbox" id="fActive"' + (v.active === false ? '' : ' checked') + '> ' +
-      'Show this on the website</label>' +
+    /* Three places a programme can be, not two. "Search only" is what a
+       catalogue of a hundred thousand rows is mostly made of: a page for
+       Google and the search box, and nothing on the home page. */
+    '<label style="display:block;font:600 13px/1.4 var(--sans);color:var(--navy-800);margin-top:8px">' +
+      'Where it shows' +
+      '<select id="fWhere" style="display:block;width:100%;margin-top:5px;padding:9px 11px;' +
+        'font:600 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">' +
+        '<option value="site"' + (v.active !== false && !v.searchOnly ? ' selected' : '') +
+          '>On the site — finder, lists and its own page</option>' +
+        '<option value="search"' + (v.active !== false && v.searchOnly ? ' selected' : '') +
+          '>Search only — its page and the search box, not the home page</option>' +
+        '<option value="hidden"' + (v.active === false ? ' selected' : '') + '>Hidden</option>' +
+      '</select></label>' +
     /* Where it sits in the grid on the home page. Separate from "show this on
        the website", because everything on the site is in the finder and only a
        handful lead the showcase. */
@@ -606,7 +626,8 @@ function readEditor() {
     germanGpa: $('#fGgpa').value.trim() === '' ? null : Number($('#fGgpa').value),
     fit: Number($('#fFit').value || 0),
     url: $('#fUrl').value.trim(),
-    active: $('#fActive').checked,
+    active: $('#fWhere').value !== 'hidden',
+    searchOnly: $('#fWhere').value === 'search',
     intakes,
   };
 }
@@ -783,6 +804,7 @@ async function bulkDo(action, verb) {
     if (r.deleted) bits.push(r.deleted + ' removed');
     if (r.hidden) bits.push(r.hidden + ' taken off the site');
     if (r.shown) bits.push(r.shown + ' put back on the site');
+    if (r.searchOnly) bits.push(r.searchOnly + ' made search only');
     if (r.missing) bits.push(r.missing + ' already gone');
     toast(bits.join(', ') || 'Nothing to do.');
     if (action === 'delete' && r.keptNames && r.keptNames.length) {
@@ -821,6 +843,7 @@ function paintUnis() {
     + '<b>' + esc(u.name) + '</b><span>' + esc(dest(u.country)) + (u.city ? ' · ' + esc(u.city) : '')
     + ' · ' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's')
     + (u.daadUrl ? ' · DAAD' : '')
+    + (u.listed ? '' : ' · search only')
     + (u.hidden ? ' · <span style="color:#7a2118;font-weight:700">off search</span>'
       : u.written ? ' · <span class="w">written</span>' : '') + '</span></li>').join('')
     || '<li><span>Nothing matches.</span></li>';
@@ -1070,6 +1093,7 @@ document.addEventListener('click', async e => {
   if (e.target.closest('#bulkClear')) { PICKED.clear(); paintProgs(); return; }
   if (e.target.closest('#bulkHide')) return bulkDo('hide');
   if (e.target.closest('#bulkShow')) return bulkDo('show');
+  if (e.target.closest('#bulkSearch')) return bulkDo('search');
   if (e.target.closest('#bulkDelete')) return bulkDo('delete');
 
   const ul = e.target.closest('[data-uni]');

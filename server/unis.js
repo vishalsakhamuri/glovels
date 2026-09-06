@@ -78,6 +78,10 @@ function group(catalogue) {
   }
   const out = [...by.values()];
   for (const u of out) {
+    /* On the site — in the finder and on the lists — if ANY of its programmes
+       is. A university whose every programme is search-only is reached from
+       Google and the search box, and from nowhere else. */
+    u.listed = u.programmes.some(p => !p.searchOnly);
     const fees = u.programmes.map(p => Number(p.totalInr) || 0);
     u.feeMin = Math.min(...fees);
     u.feeMax = Math.max(...fees);

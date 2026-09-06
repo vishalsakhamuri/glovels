@@ -13,6 +13,7 @@
  *   ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
  */
 const { chromium } = require('playwright');
+const SHEET = require('/home/claude/glovels/build/server/sheet.js');
 
 const BASE = 'http://localhost:8099';
 const ok = [], bad = [];
@@ -266,6 +267,85 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   r = await guest.request.put(BASE + '/api/staff/university/' + slug, { data: { about: 'x' } });
   check('a visitor cannot write it', r.status() === 401 || r.status() === 403);
 
+  /* ------------------------------------------------------- search only */
+  /* "We do not want to display everything on the site — we show them when
+      someone searches on Google, or on our site. Otherwise the list will be
+      very big, with 100k universities." A search-only programme: its
+      university keeps its page, its sitemap line and its search hit, and
+      comes off the finder and every list. */
+  const so = staffCat.programmes.filter(p => p.active && p.country === 'DE'
+    && !['University of Stuttgart', 'TU Munich'].includes(p.university));
+  const soUni = so[0].university;
+  const soIds = so.filter(p => p.university === soUni).map(p => p.id);
+  const soSlug = soUni.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  r = await staff.request.post(BASE + '/api/staff/programmes/bulk', { data: { ids: soIds, action: 'search' } });
+  let bulk = await r.json();
+  check('the bulk action "search" is accepted', r.status() === 200 && bulk.searchOnly === soIds.length, JSON.stringify(bulk));
+  const cat2 = await (await guest.request.get(BASE + '/api/catalogue')).json();
+  check('a search-only programme is not in the finder', !cat2.programmes.some(p => soIds.includes(p.id))
+    && soIds.every(id => cat2.inactive.includes(id)), soUni);
+  check('the finder lost only those rows', cat.programmes.length - cat2.programmes.length === soIds.length);
+  html = await (await guest.request.get(BASE + '/university')).text();
+  check('and its university is off the /university list', !html.includes('href="university/' + soSlug + '"'));
+  check('which says how many more can be searched for', /1 more you can search for/.test(html));
+  check('and has a search box', /id="uSearch"/.test(html) && /api\/universities\/search/.test(html));
+  r = await guest.request.get(BASE + '/university/' + soSlug);
+  html = await r.text();
+  check('its page is still there', r.status() === 200 && html.includes('<h1>' + soUni.replace(/&/g, '&amp;') + '</h1>'));
+  check('and still indexable', /content="index,follow/.test(html));
+  const mapSo = await (await guest.request.get(BASE + '/sitemap.xml')).text();
+  check('and still in the sitemap', mapSo.includes('/university/' + soSlug + '</loc>'));
+  const hit = await (await guest.request.get(BASE + '/api/universities/search?q=' + encodeURIComponent(soUni.split(' ').slice(0, 2).join(' ')))).json();
+  check('and the search box finds it', hit.universities.some(u => u.slug === soSlug), soUni);
+  html = await (await guest.request.get(BASE + '/university/' + slug)).text();
+  check('but "other universities" on a page does not list it', !html.includes('href="' + soSlug + '"'));
+  const sc2 = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  check('the office sees it as search only', sc2.programmes.filter(p => soIds.includes(p.id)).every(p => p.active && p.searchOnly));
+  const su = await (await staff.request.get(BASE + '/api/staff/universities')).json();
+  check('and the university as not listed', su.universities.some(u => u.slug === soSlug && u.listed === false)
+    && su.universities.some(u => u.slug === slug && u.listed === true));
+  const csv = await (await staff.request.get(BASE + '/api/staff/catalogue.csv')).text();
+  check('the sheet says "search" in the on-the-site column', csv.split('\n').some(l => l.startsWith(soIds[0] + ',') && /,search,/.test(l)));
+  /* "A few universities on the country pages." */
+  html = await (await guest.request.get(BASE + '/study-in-germany')).text();
+  const dl = (html.match(/<h2 id="universities">Universities in Germany we place students at<\/h2><ul class="ulist">([\s\S]*?)<\/ul>/) || [])[1] || '';
+  const dn = (dl.match(/<li>/g) || []).length;
+  check('the Germany page lists a few universities, at most twelve', dn > 0 && dn <= 12, dn + ' listed');
+  check('linked to their pages, not the search-only one', /href="university\/tu-munich"/.test(dl)
+    && !dl.includes('href="university/' + soSlug + '"'));
+  check('and counts the rest as searchable', /And \d+ more in Germany/.test(html) && /href="university">Search by name/.test(html));
+  check('a country with nothing on the site gets no heading',
+    !/id="universities"/.test(await (await guest.request.get(BASE + '/study-in-japan')).text()));
+  r = await staff.request.post(BASE + '/api/staff/programmes/bulk', { data: { ids: soIds, action: 'show' } });
+  bulk = await r.json();
+  const cat3 = await (await guest.request.get(BASE + '/api/catalogue')).json();
+  check('"Put on the site" brings it back to the finder', bulk.shown === soIds.length
+    && cat3.programmes.length === cat.programmes.length && !soIds.some(id => cat3.inactive.includes(id)));
+
+  /* And from the sheet: "search" in the on-the-site column is how a large
+     upload lands as pages-and-search rather than as a home page of ten
+     thousand rows. */
+  const xbuf = Buffer.from(await (await staff.request.get(BASE + '/api/staff/catalogue.xlsx')).body());
+  const sheet = SHEET.readXlsx(xbuf);
+  const hdr = sheet[0].map(x => String(x).trim());
+  const rows = sheet.slice(1);
+  const target = rows.find(rw => String(rw[hdr.indexOf('id')]) === String(soIds[0]));
+  target[hdr.indexOf('on the site')] = 'search';
+  const xfile = { name: 'c.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from(SHEET.writeXlsx(sheet[0], rows, 'Catalogue')) };
+  const plan = await (await staff.request.post(BASE + '/api/staff/catalogue/import', { multipart: { file: xfile } })).json();
+  check('a sheet with "search" in on-the-site is an update, not "already right"', plan.counts && plan.counts.update === 1
+    && plan.counts.rejected === 0, JSON.stringify(plan.counts));
+  await staff.request.post(BASE + '/api/staff/catalogue/import', { multipart: { file: xfile, confirm: 'yes' } });
+  const sc3 = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  check('and lands as search only', sc3.programmes.some(p => p.id === soIds[0] && p.active && p.searchOnly));
+  target[hdr.indexOf('on the site')] = 'yes';
+  xfile.buffer = Buffer.from(SHEET.writeXlsx(sheet[0], rows, 'Catalogue'));
+  await staff.request.post(BASE + '/api/staff/catalogue/import', { multipart: { file: xfile, confirm: 'yes' } });
+  const sc4 = await (await staff.request.get(BASE + '/api/staff/catalogue')).json();
+  check('and "yes" puts it back', sc4.programmes.some(p => p.id === soIds[0] && p.active && !p.searchOnly));
+
   /* The Catalogue screen's tab. */
   const ap = await staff.newPage();
   ap.on('pageerror', e => errors.push(String(e)));
@@ -283,6 +363,15 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await ap.waitForSelector('#uSaid:has-text("Saved")', { timeout: 5000 }).catch(() => {});
   html = await (await guest.request.get(BASE + '/university/' + slug)).text();
   check('Save from the screen reaches the page', /Written from the screen\./.test(html));
+
+  /* The Catalogue screen knows the third state. */
+  await ap.click('.tab[data-t="prog"]');
+  await ap.waitForSelector('#kSearch', { timeout: 5000 }).catch(() => {});
+  check('the Catalogue screen counts search-only rows', await ap.locator('#kSearch').count() === 1
+    && await ap.locator('#fs option[value="2"]').count() === 1 && await ap.locator('#bulkSearch').count() === 1);
+  await ap.click('#addProg');
+  await ap.waitForSelector('#fWhere', { timeout: 5000 }).catch(() => {});
+  check('and the programme form asks where it shows', await ap.locator('#fWhere option[value="search"]').count() === 1);
 
   check('no script errors', !errors.length, errors.join(' | '));
 

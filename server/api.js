@@ -2594,7 +2594,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       return true;
     };
 
-    const programmes = cat().map(p => {
+    /* Search-only rows are on their university's page and in the search
+       box, not here. Their ids go in `inactive` below, so a row the home
+       page was BUILT with and later made search-only comes off the finder
+       the way a hidden one does. */
+    const programmes = cat().filter(p => !p.searchOnly).map(p => {
       if (!p.isPublic) return p;                       // never gated
       if (gate === 'open') return p;
       if (gate === 'names') {
@@ -2648,7 +2652,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       /* Explicitly listed, so the page removes exactly what was switched off and
          nothing else. Filtering by "not in this list" would delete every row the
          database has never heard of. */
-      inactive: db.programmes(true).filter(r => !r.active).map(r => r.id),
+      inactive: db.programmes(true).filter(r => !r.active || r.search_only).map(r => r.id),
       unlockedCount: spent,
     });
   }, { open: true });
@@ -5554,7 +5558,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
         shortName: r.short_name || '',
         totalInr: r.total_inr, url: r.url,
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
-        active: !!r.active, featured: !!r.featured, featureSort: r.feature_sort || 0,
+        active: !!r.active, searchOnly: !!r.search_only,
+        featured: !!r.featured, featureSort: r.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
       }, who);
       moved++;
@@ -5656,6 +5661,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       totalInr: Math.max(0, Math.round(Number(b.totalInr) || 0)),
       url: /^https?:\/\//i.test(b.url || '') ? String(b.url).slice(0, FIELD_LIMITS.url) : '',
       active: b.active !== false,
+      /* Search only: a page and a search hit, but not a row in the finder.
+         Like featured, not a property of the programme, so an edit that says
+         nothing about it leaves it as it was. */
+      searchOnly: b.searchOnly === undefined ? !!(existing && existing.search_only) : !!b.searchOnly,
       /* Featured is the office saying "lead with this one". It is not a
          property of the programme, so it survives an edit that says nothing
          about it rather than being reset to false by omission. */
@@ -5691,7 +5700,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
         shortName: r.short_name || '',
         totalInr: r.total_inr, url: r.url || '',
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
-      active: !!r.active, updatedAt: r.updated_at, updatedBy: r.updated_by || '',
+      active: !!r.active, searchOnly: !!r.search_only,
+      updatedAt: r.updated_at, updatedBy: r.updated_by || '',
       featured: !!r.featured, featureSort: r.feature_sort || 0,
       intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
     })),
@@ -5766,6 +5776,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       return {
         slug: u.slug, name: u.name, shortName: u.shortName, city: u.city, country: u.country,
         isPublic: u.isPublic, feeModel: u.feeModel, programmes: u.programmes.length,
+        listed: !!u.listed,
         url: '/university/' + u.slug,
         daadUrl: DAAD.daadUrl(u.slug, x.daad),
         written: !!(x.about || x.cover || x.metaTitle || x.metaDesc), hidden: x.hidden,
@@ -5893,12 +5904,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
     const ids = Array.isArray(b.ids) ? b.ids.map(String).slice(0, 2000) : [];
     const action = String(b.action || '');
     if (!ids.length) return json(res, 422, { error: 'Nothing was selected.' });
-    if (!['delete', 'hide', 'show'].includes(action)) {
+    /* show   on the site: finder, lists, page, search
+       search search only: page and search, no finder, no lists
+       hide   off the site altogether */
+    if (!['delete', 'hide', 'show', 'search'].includes(action)) {
       return json(res, 422, { error: 'That is not something this can do.' });
     }
 
     const inUse = action === 'delete' ? db.programmesInUse() : null;
-    const out = { deleted: 0, hidden: 0, shown: 0, missing: 0, keptNames: [] };
+    const out = { deleted: 0, hidden: 0, shown: 0, searchOnly: 0, missing: 0, keptNames: [] };
 
     ids.forEach(id => {
       const p = db.programme(id);
@@ -5914,7 +5928,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         featured: !!p.featured, featureSort: p.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(p.intakes) || []; } catch (e) { return []; } })(),
-        active: !!p.active,
+        active: !!p.active, searchOnly: !!p.search_only,
       }, extra);
 
       if (action === 'delete') {
@@ -5928,13 +5942,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
         out.deleted++;
         return;
       }
-      db.saveProgramme(asDraft({ active: action === 'show' }), s.name);
-      action === 'show' ? out.shown++ : out.hidden++;
+      db.saveProgramme(asDraft({ active: action !== 'hide', searchOnly: action === 'search' }), s.name);
+      action === 'show' ? out.shown++ : action === 'search' ? out.searchOnly++ : out.hidden++;
     });
 
     db.log(s.name, 'catalogue — ' + ids.length + ' selected',
       [out.deleted && out.deleted + ' removed', out.hidden && out.hidden + ' hidden',
         out.shown && out.shown + ' put back on the site',
+        out.searchOnly && out.searchOnly + ' made search only',
         out.missing && out.missing + ' already gone'].filter(Boolean).join(', '));
 
     return json(res, 200, out);
@@ -6069,7 +6084,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       Number(r.fit || 0),
       (ins[0] && ins[0].season) || '', (ins[0] && ins[0].deadline) || '',
       (ins[1] && ins[1].season) || '', (ins[1] && ins[1].deadline) || '',
-      r.active ? 'yes' : 'no',
+      /* yes, no, or search — the third is "a page and a search hit, but not
+         a row on the finder", which is what most of a very large catalogue
+         is going to be. */
+      !r.active ? 'no' : r.search_only ? 'search' : 'yes',
       r.featured ? 'yes' : 'no', r.feature_sort || '',
     ];
   });
@@ -6098,6 +6116,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
 
   const YES = v => /^(y|yes|true|1|public|on|on the site|shown)$/i.test(String(v || '').trim());
   const NO_ = v => /^(n|no|false|0|private|off|hidden)$/i.test(String(v || '').trim());
+  /* "search" (or "search only", "google") in the on-the-site column. */
+  const SEARCH_ = v => /^(search|search[ -]?only|google|page[ -]?only)$/i.test(String(v || '').trim());
 
   route('POST', '/api/staff/catalogue/import', needs('catalogue', async (req, res, s) => {
     const ct = req.headers['content-type'] || '';
@@ -6307,6 +6327,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
         })(),
         fit: fitCell.blank ? 0 : (fitCell.n || 0),
         active: NO_(g('active')) ? false : true,
+        searchOnly: SEARCH_(g('active')),
         featured: YES(g('featured')),
         featureSort: sortCell.blank ? 0 : (sortCell.n || 0),
         intakes: [[g('i1s'), g('i1d')], [g('i2s'), g('i2d')]]
@@ -6476,7 +6497,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       const before = {
         program: existing.program, university: existing.university, city: existing.city || '',
         country: existing.country, totalInr: existing.total_inr, isPublic: !!existing.is_public,
-        active: !!existing.active, url: existing.url || '',
+        active: !!existing.active, searchOnly: !!existing.search_only, url: existing.url || '',
         level: existing.level || '', field: existing.field || '', band: existing.band || '',
         featured: !!existing.featured, featureSort: existing.feature_sort || 0,
         /* The CGPA bar and the fit score, added the moment they became columns.
@@ -6507,7 +6528,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
       const after = {
         program: clean.program, university: clean.university, city: clean.city,
         country: clean.country, totalInr: clean.totalInr, isPublic: clean.isPublic,
-        active: clean.active, url: clean.url,
+        active: clean.active, searchOnly: clean.searchOnly, url: clean.url,
         level: clean.level, field: clean.field, band: clean.band,
         featured: clean.featured, featureSort: clean.featureSort,
         minCgpa: bar(clean.minCgpa), fit: Number(clean.fit || 0),
@@ -6622,6 +6643,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
         fit: String(g('fit') || '').trim() === '' ? 0
           : Math.max(0, Math.min(100, Number(String(g('fit')).replace(/[^0-9.]/g, '')) || 0)),
         active: NO_(g('active')) ? false : true,
+        searchOnly: SEARCH_(g('active')),
         featured: YES(g('featured')),
         featureSort: Number(String(g('featureSort') || '0').replace(/[^0-9]/g, '')) || 0,
         intakes: [[g('i1s'), g('i1d')], [g('i2s'), g('i2d')]]

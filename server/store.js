@@ -467,6 +467,21 @@ function sqliteDriver(file) {
       be read as "needs 2.5 out of 10" and let every applicant through.
       NULL means the programme has not stated one. */
    'ALTER TABLE programmes ADD COLUMN german_gpa REAL',
+   /* Where an active programme is allowed to show.
+      "We do not want to display everything on the site — we show them when
+       someone searches on Google, or on our site. Otherwise the list will be
+       very big, with 100k universities, as in future all universities will be
+       added to the catalogue. For display in different countries we can show
+       some."
+      0  on the site: in the home-page finder, on the /university list, and
+         on its own page.
+      1  search only: its university has a page, the page is in the sitemap
+         and comes up when a student types the name in the search box — but
+         it is not in the finder and not on any list. This is how a catalogue
+         of a hundred thousand rows stays a home page of a hundred.
+      Separate from `active` on purpose: hidden is hidden, and an office that
+      has learned "on the site / hidden" keeps both words. */
+   'ALTER TABLE programmes ADD COLUMN search_only INTEGER NOT NULL DEFAULT 0',
    /* What the university is CALLED — TU Dortmund, HAW Kiel, BHT Berlin.
       Typed by the office in the catalogue sheet, blank for every row outside
       Germany, and blank means "use the full name" rather than "abbreviate it
@@ -633,6 +648,7 @@ function open(dir) {
   } catch (e) {
     db = jsonDriver(path.join(dir, 'glovels-data.json'));
   }
+  let catVersion = 1;
 
   return {
     kind: db.kind,
@@ -1032,6 +1048,11 @@ function open(dir) {
       const rows = db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '');
       return all ? rows : rows.filter(r => r.active);
     },
+    /* Goes up on every write to the table, so a page that groups the whole
+       catalogue can keep the grouping until something changes rather than
+       redo it per request. Per process: a second server on the same file
+       reads the table fresh on start, which is the same answer. */
+    catalogueVersion: () => catVersion,
     programme: id => db.one('SELECT * FROM programmes WHERE id = ?', String(id)),
     saveProgramme(p, who) {
       /* Blank is not zero. A programme with no stated CGPA follows its
@@ -1055,18 +1076,20 @@ function open(dir) {
       const gg = (p.germanGpa === '' || p.germanGpa == null
                   || !Number.isFinite(Number(p.germanGpa)))
         ? null : Math.max(1, Math.min(4, Number(p.germanGpa)));
+      catVersion++;
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, short_name, city, country, level, field, band,
          is_public, fit, min_cgpa, total_inr, url, intakes, active, featured,
-         feature_sort, fee_model, german_gpa, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         feature_sort, fee_model, german_gpa, search_only, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university,
         String(p.shortName == null ? '' : p.shortName).trim().slice(0, 40),
         p.city || '', p.country,
         p.level || '', p.field || '', p.band || '', p.isPublic ? 1 : 0,
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
-        p.featured ? 1 : 0, Number(p.featureSort || 0), fee, gg, now(), who || '');
+        p.featured ? 1 : 0, Number(p.featureSort || 0), fee, gg,
+        p.searchOnly ? 1 : 0, now(), who || '');
       return this.programme(p.id);
     },
 
@@ -1075,10 +1098,11 @@ function open(dir) {
        corrected, and a field forgotten on the way past is how an edit silently
        drops an intake list. */
     setFeeModel(id, fee) {
+      catVersion++;
       db.run('UPDATE programmes SET fee_model = ? WHERE id = ?',
         /^(free|package)$/.test(String(fee)) ? String(fee) : '', String(id));
     },
-    deleteProgramme: id => db.run('DELETE FROM programmes WHERE id = ?', String(id)),
+    deleteProgramme: id => { catVersion++; db.run('DELETE FROM programmes WHERE id = ?', String(id)); },
 
     countries(all) {
       const rows = db.all('SELECT * FROM countries WHERE code > ? ORDER BY sort asc', '');
