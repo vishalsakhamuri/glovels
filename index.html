@@ -881,8 +881,8 @@ html.review-copy .build-strip{display:block !important}
 /* A track, not a grid. Six cards in a three-column grid is two rows, and
    the second row of a testimonial section is a row nobody scrolls to. */
 .stories{position:relative}
-.tgrid{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;
-  scroll-behavior:smooth;scrollbar-width:none;padding:2px 2px 6px}
+.tgrid{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:2px;
+  scrollbar-width:none;padding:2px 2px 6px}
 .tgrid::-webkit-scrollbar{display:none}
 .tgrid>.tcard{flex:0 0 calc((100% - 40px)/3);scroll-snap-align:start}
 /* The arrows sit outside the track on a wide screen and are hidden
@@ -1734,11 +1734,9 @@ window.__glovelsSetGate = function (f) {
        everybody, and this setting arrives after that check has already run. */
     if (window.__glovelsPublishedNames) window.__glovelsPublishedNames();
   }
-  if (f.badges) {
-    Object.keys(f.badges).forEach(function (k) {
-      if (BADGE[k] !== undefined && f.badges[k]) BADGE[k] = f.badges[k];
-    });
-  }
+  /* The badge words are NOT set here. BADGE is declared in the services
+     block, which this one cannot see — reaching for it threw a
+     ReferenceError on every load. They have their own setter. */
   if (f.contact) {
     if (f.contact.phone) window.__glovelsPhone = f.contact.phone;
     if (f.contact.email) window.__glovelsEmail = f.contact.email;

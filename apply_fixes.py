@@ -9545,6 +9545,50 @@ patch(
     marker="width:38px;border-radius:99px}",
 )
 
+# ---------------------------------------------------------------- index.html
+#
+# PageSpeed Insights could not score the home page at all — "!" instead of
+# a number, with NO_LCP underneath — while every other page scored in the
+# nineties. Found by bisecting the page in Vishal's Chrome 152 at phone
+# width: the stories track is a mandatory scroll-snap container whose first
+# snap position was 2px in (its own padding), so on load Chrome snapped the
+# track by 2px — and Chrome stops measuring the largest paint at the first
+# scroll, snap included, before the hero had been credited. On a desktop the
+# three cards fit and nothing snapped, which is why it only failed on mobile.
+# scroll-padding makes 0 the snap position, so nothing moves on load; the
+# CSS scroll-behavior goes because the arrows already ask for smooth
+# scrolling themselves, and a smooth 2px snap is still a scroll.
+patch(
+    "index.html",
+    "the stories track does not snap on load, so the hero is the largest paint",
+    """.tgrid{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;
+  scroll-behavior:smooth;scrollbar-width:none;padding:2px 2px 6px}""",
+    """.tgrid{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:2px;
+  scrollbar-width:none;padding:2px 2px 6px}""",
+    marker="scroll-snap-type:x mandatory;scroll-padding-inline:2px;",
+)
+
+# The built page still carried the first version of __glovelsSetGate, which
+# reached for BADGE — a const in the services block it cannot see — and threw
+# "BADGE is not defined" on every load (the corrected version below it in
+# this file never applied, because its marker was already present). The
+# badge words have their own setter; this one stops touching them.
+patch(
+    "index.html",
+    "the gate setter leaves the badge words to their own setter",
+    """  if (f.badges) {
+    Object.keys(f.badges).forEach(function (k) {
+      if (BADGE[k] !== undefined && f.badges[k]) BADGE[k] = f.badges[k];
+    });
+  }
+  if (f.contact) {""",
+    """  /* The badge words are NOT set here. BADGE is declared in the services
+     block, which this one cannot see — reaching for it threw a
+     ReferenceError on every load. They have their own setter. */
+  if (f.contact) {""",
+    marker="They have their own setter. */\n  if (f.contact) {",
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)
