@@ -9174,6 +9174,122 @@ for _f in sorted(list(HERE.glob("*.html")) + list((HERE / "post").glob("*.html")
     else:
         skipped.append(f"{_f.name}: the footer points at the universities")
 
+# ---------------------------------------------------------------- index.html
+#
+# A search box on the finder: a university or a programme by name.
+#
+# "We should have a search universities and programme option on the home page
+#  along with the current design." The finder filters; this looks up. It sits
+# under the finder's fields, inside the same card, and every result is a link
+# to the university's page — which is where Apply is.
+patch(
+    "index.html",
+    "a name search under the finder's fields",
+    """      <button class="btn btn-gold fgo" id="fGo">Find Programs <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+    </div>""",
+    """      <button class="btn btn-gold fgo" id="fGo">Find Programs <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+    </div>
+    <div class="fsearch" id="fSearchWrap">
+      <label for="fSearch" class="offscreen">Search a university or programme by name</label>
+      <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="fSearch" type="search" autocomplete="off" spellcheck="false"
+        placeholder="Or search by name — a university, a city, a programme: Heidelberg, Munich, Data Science…">
+      <div class="fsres" id="fSearchRes" hidden role="listbox"></div>
+    </div>""",
+    marker='id="fSearchWrap"',
+)
+
+patch(
+    "index.html",
+    "and its stylesheet",
+    """.fgo{height:54px;padding:0 24px;white-space:nowrap}""",
+    """.fgo{height:54px;padding:0 24px;white-space:nowrap}
+.fsearch{position:relative;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.fsearch>.ico{position:absolute;left:14px;top:29px;width:17px;height:17px;color:var(--muted);pointer-events:none}
+.fsearch input{width:100%;height:46px;padding:0 14px 0 40px;border:1.5px solid var(--line);border-radius:12px;
+  background:var(--cream,#faf8f3);font:400 14px/1.4 var(--sans);color:var(--navy-900)}
+.fsearch input:focus{outline:none;border-color:var(--navy-700);background:#fff}
+.fsres{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;background:#fff;border:1px solid var(--line);
+  border-radius:14px;box-shadow:var(--sh-3);max-height:420px;overflow-y:auto;padding:6px}
+.fsres h5{margin:8px 12px 4px;font:700 10.8px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fsres a{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 12px;border-radius:9px;
+  text-decoration:none;color:inherit}
+.fsres a:hover,.fsres a:focus{background:#f0f5fb;outline:none}
+.fsres a b{font:700 13.6px/1.35 var(--sans);color:var(--navy-900)}
+.fsres a small{display:block;font:400 12px/1.4 var(--sans);color:var(--muted)}
+.fsres a span.n{font:700 11.6px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
+.fsres .none{padding:12px;font:400 13px/1.5 var(--sans);color:var(--muted)}
+@media (max-width:640px){.fsearch input{font-size:13.2px;padding-left:38px}}""",
+    marker=".fsearch{position:relative",
+)
+
+patch(
+    "index.html",
+    "a search icon for it",
+    """<symbol id="i-globe" """,
+    """<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol><symbol id="i-globe" """,
+    marker='id="i-search"',
+)
+
+patch(
+    "index.html",
+    "and the script that asks the server and draws the answers",
+    """function nextOn(deadline){""",
+    """/* The name search. Asks the server after a pause, draws what comes back, and
+   every row is a link to the university's page. Escape or a click outside
+   closes it; the arrow keys walk it. */
+(function nameSearch(){
+  const box = document.getElementById('fSearch'), out = document.getElementById('fSearchRes');
+  if (!box || !out) return;
+  let t = null, last = '';
+  const draw = d => {
+    const U = d.universities || [], P = d.programmes || [];
+    if (!U.length && !P.length) {
+      out.innerHTML = '<div class="none">Nothing by that name yet. Try the filters above, or '
+        + '<a href="index.html#counsel" style="display:inline;padding:0">ask a counsellor</a>.</div>';
+      out.hidden = false; return;
+    }
+    out.innerHTML = (U.length ? '<h5>Universities</h5>' + U.map(u =>
+        '<a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
+        + esc([u.city, u.countryName].filter(Boolean).join(', ')) + '</small></span>'
+        + '<span class="n">' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's') + ' →</span></a>').join('') : '')
+      + (P.length ? '<h5>Programmes</h5>' + P.map(p =>
+        '<a href="' + esc(p.url) + '"><span><b>' + esc(p.program) + '</b><small>'
+        + esc(p.university) + ' · ' + esc(p.countryName) + '</small></span><span class="n">Open →</span></a>').join('') : '');
+    out.hidden = false;
+  };
+  const ask = async () => {
+    const q = box.value.trim();
+    if (q.length < 2) { out.hidden = true; return; }
+    if (q === last) { out.hidden = false; return; }
+    last = q;
+    try {
+      const r = await fetch('/api/universities/search?q=' + encodeURIComponent(q));
+      if (!r.ok) return;
+      const d = await r.json();
+      if (box.value.trim() === q) draw(d);
+    } catch (e) { /* offline: the filters still work */ }
+  };
+  box.addEventListener('input', () => { clearTimeout(t); t = setTimeout(ask, 180); });
+  box.addEventListener('focus', () => { if (box.value.trim().length >= 2) ask(); });
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { out.hidden = true; return; }
+    if (e.key === 'ArrowDown' && !out.hidden) { const a = out.querySelector('a'); if (a) { e.preventDefault(); a.focus(); } }
+    if (e.key === 'Enter' && !out.hidden) { const a = out.querySelector('a'); if (a) { e.preventDefault(); location.href = a.href; } }
+  });
+  out.addEventListener('keydown', e => {
+    const links = [...out.querySelectorAll('a')], i = links.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' && i < links.length - 1) { e.preventDefault(); links[i + 1].focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); (i > 0 ? links[i - 1] : box).focus(); }
+    if (e.key === 'Escape') { out.hidden = true; box.focus(); }
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('#fSearchWrap')) out.hidden = true; });
+})();
+
+function nextOn(deadline){""",
+    marker="function nameSearch(){",
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

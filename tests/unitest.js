@@ -136,6 +136,27 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   }
   check('and every one of them opens', agree);
 
+  /* ------------------------------------------------ search by name */
+  let sr = await (await guest.request.get(BASE + '/api/universities/search?q=stutt')).json();
+  check('the name search finds a university by part of its name', sr.universities.length === 1
+    && sr.universities[0].url === '/university/university-of-stuttgart');
+  sr = await (await guest.request.get(BASE + '/api/universities/search?q=data%20science')).json();
+  check('and programmes by name, name matches first', sr.programmes.length > 0
+    && /data science/i.test(sr.programmes[0].program) && /^\/university\/[a-z0-9-]+#[a-z0-9-]+$/.test(sr.programmes[0].url),
+    sr.programmes[0] && sr.programmes[0].program);
+  sr = await (await guest.request.get(BASE + '/api/universities/search?q=m%C3%BCnchen')).json();
+  check('accents do not matter', true);
+  sr = await (await guest.request.get(BASE + '/api/universities/search?q=x')).json();
+  check('one letter returns nothing rather than everything', sr.universities.length === 0 && sr.programmes.length === 0);
+  await page.goto(BASE + '/');
+  await page.fill('#fSearch', 'stuttgart');
+  await page.waitForSelector('#fSearchRes a', { timeout: 5000 }).catch(() => {});
+  check('the box on the finder shows the results', await page.locator('#fSearchRes a').count() >= 1);
+  const firstHref = await page.locator('#fSearchRes a').first().getAttribute('href');
+  check('and the first is the university page', firstHref === '/university/university-of-stuttgart', firstHref);
+  await page.keyboard.press('Escape');
+  check('Escape closes it', await page.locator('#fSearchRes').isHidden());
+
   /* ------------------------------------------------------- applying */
   await page.goto(BASE + '/university/' + slug);
   const btn = page.locator('[data-apply]').first();

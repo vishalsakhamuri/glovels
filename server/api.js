@@ -5707,6 +5707,50 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, mail, notify, 
     audit: db.auditTrail(25).map(a => ({ who: a.who, what: a.what, detail: a.detail, at: a.created_at })),
   })));
 
+  /* ------------------------------------------------- search by name */
+  /*
+   * "We should have a search universities and programme option on the home
+   *  page along with the current design."
+   *
+   * The finder filters by country, level, field and budget; this is the other
+   * way people look — they type a name. Universities and programmes whose
+   * name, short name or city contains what was typed, each pointing at the
+   * university's page. Names are public here as they are on the pages.
+   */
+  route('GET', '/api/universities/search', async (req, res) => {
+    const q = String(url.parse(req.url, true).query.q || '').trim().toLowerCase()
+      .normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    if (q.length < 2) return json(res, 200, { universities: [], programmes: [] });
+    const norm = v => String(v || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    const words = q.split(/\s+/).filter(Boolean);
+    const hits = hay => words.every(w => hay.includes(w));
+    const cm = countryMap();
+    const unis = UNIS.group(cat());
+    const universities = unis
+      .filter(u => hits(norm(u.name + ' ' + u.shortName + ' ' + u.city + ' ' + ((cm[u.country] || {}).name || ''))))
+      .slice(0, 8)
+      .map(u => ({ name: u.name, shortName: u.shortName, slug: u.slug, city: u.city,
+        country: u.country, countryName: (cm[u.country] || {}).name || u.country,
+        programmes: u.programmes.length, url: '/university/' + u.slug }));
+    /* A programme whose NAME matches comes before one whose field does:
+       "data" should find "Data Science" before a diploma filed under it. */
+    const programmes = [];
+    for (const u of unis) {
+      for (const p of u.programmes) {
+        const inName = hits(norm(p.program));
+        if (inName || hits(norm(p.program + ' ' + p.field))) {
+          programmes.push({ program: p.program, university: u.name, slug: u.slug,
+            country: u.country, countryName: (cm[u.country] || {}).name || u.country,
+            url: '/university/' + u.slug + '#' + UNIS.slugOf(p.program), _rank: inName ? 0 : 1 });
+        }
+      }
+    }
+    programmes.sort((a, b) => a._rank - b._rank);
+    programmes.length = Math.min(programmes.length, 10);
+    programmes.forEach(p => { delete p._rank; });
+    return json(res, 200, { universities, programmes }, { 'Cache-Control': 'public, max-age=60' });
+  }, { open: true });
+
   /* ---------------------------------------------------- university pages */
   /*
    * What the office writes ABOUT a university, for its page at
