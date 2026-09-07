@@ -232,7 +232,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup }) {
+function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -4271,6 +4271,40 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!res.headersSent) return json(res, 500, { error: 'The backup could not be written: ' + (e && e.message) });
       res.destroy();
     }
+  }));
+
+  /*
+   * How the site is found — the last N days, counted by the server
+   * (server/traffic.js): visitors, where they came from, which assistants
+   * and engines sent them, which crawlers have read which pages, and the
+   * enquiries and orders over the same days. Admins only; it is the
+   * business's numbers.
+   */
+  route('GET', '/api/staff/traffic', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (!traffic) return json(res, 503, { error: 'Traffic counting is not set up on this server.' });
+    const q = new URL(req.url, 'http://x').searchParams;
+    return json(res, 200, Object.assign({ ok: true }, traffic.summary(q.get('days') || 30)));
+  }));
+
+  /* The Google Analytics measurement ID (G-XXXXXXX), typed on the same
+     screen. The tag goes onto the public pages within a minute of saving;
+     an empty box takes it off again. */
+  route('GET', '/api/staff/analytics', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const a = db.content('analytics') || {};
+    return json(res, 200, { ok: true, gaId: a.gaId || '', updatedAt: a.updatedAt || '', by: a.by || '' });
+  }));
+  route('PUT', '/api/staff/analytics', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const gaId = String(b.gaId || '').trim().toUpperCase();
+    if (gaId && !/^G-[A-Z0-9]{4,20}$/.test(gaId)) {
+      return json(res, 422, { error: 'A Google Analytics measurement ID looks like G-XXXXXXXXXX — it is under Admin → Data streams in Google Analytics.' });
+    }
+    db.setContent('analytics', { gaId, updatedAt: new Date().toISOString(), by: s.name || s.email }, s.name || s.email);
+    db.log(s.name || s.email, gaId ? 'Google Analytics tag set' : 'Google Analytics tag removed', gaId);
+    return json(res, 200, { ok: true, gaId });
   }));
 
   /* The copies on the disk, and a button to take one now. */

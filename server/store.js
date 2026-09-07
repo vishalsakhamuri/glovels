@@ -139,6 +139,26 @@ CREATE TABLE IF NOT EXISTS staff_notes (
   seen        INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL
 );
+/* One row per page served to the public. Who is reading the site and how
+   they found it — the referrer, the campaign, the device — and, kept apart,
+   which crawlers came by: Google, Bing, and the AI assistants' readers, whose
+   visits are the only evidence that ChatGPT or Claude has read a page. No
+   address is stored; the visitor column is a hash that changes every day. */
+CREATE TABLE IF NOT EXISTS hits (
+  id          INTEGER PRIMARY KEY,
+  day         TEXT NOT NULL,
+  ts          TEXT NOT NULL,
+  path        TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  source      TEXT NOT NULL DEFAULT '',
+  site        TEXT NOT NULL DEFAULT '',
+  campaign    TEXT NOT NULL DEFAULT '',
+  medium      TEXT NOT NULL DEFAULT '',
+  device      TEXT NOT NULL DEFAULT '',
+  bot         TEXT NOT NULL DEFAULT '',
+  visitor     TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_hits_day ON hits(day, kind);
 CREATE TABLE IF NOT EXISTS lead_notes (
   id          INTEGER PRIMARY KEY,
   lead_id     INTEGER NOT NULL,
@@ -588,7 +608,7 @@ function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
     'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
-    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes'];
+    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes', 'hits'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -2140,6 +2160,22 @@ function open(dir) {
       return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
     },
     deletePost: id => db.run('DELETE FROM posts WHERE id = ?', Number(id)),
+
+    /* ---- traffic ---- */
+    hit(h) {
+      db.run(`INSERT INTO hits (day, ts, path, kind, source, site, campaign, medium, device, bot, visitor)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        h.day, h.ts, h.path, h.kind, h.source || '', h.site || '', h.campaign || '',
+        h.medium || '', h.device || '', h.bot || '', h.visitor || '');
+    },
+    hitsSince: day => db.kind === 'sqlite'
+      ? db.all('SELECT * FROM hits WHERE day >= ? ORDER BY id', day)
+      : db.all('SELECT * FROM hits WHERE id > ?', 0).filter(h => h.day >= day),
+    pruneHits: day => {
+      if (db.kind === 'sqlite') return db.run('DELETE FROM hits WHERE day < ?', day);
+      db.all('SELECT * FROM hits WHERE id > ?', 0).filter(h => h.day < day)
+        .forEach(h => db.run('DELETE FROM hits WHERE id = ?', h.id));
+    },
   };
 
   /* The whole-catalogue counts, remembered until the catalogue changes.

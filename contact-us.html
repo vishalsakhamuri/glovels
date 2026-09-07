@@ -1066,6 +1066,7 @@ if (location.protocol === 'file:') {
     })
       .then(function (r) {
         if (!r.ok) throw new Error('the server answered ' + r.status);
+        if (window.glvTrack) glvTrack('generate_lead', { form: 'contact' });
         done();
       })
       .catch(function () {

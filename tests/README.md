@@ -80,6 +80,7 @@ A full run is seventy-odd suites and takes about half an hour.
 | `partstest.js` | Paying in parts, rather than ₹74,999 in one press. |
 | `paytest.js` | Razorpay: what is trusted and what is refused, including a replayed signature. |
 | `hardentest.js` | The front door, kicked: honeypots, per-address budgets on every public form, a forged `X-Forwarded-For`, a POST from another site, an oversized body, an unsigned WhatsApp callback, the security headers, and the administrator's backup — taken, listed, downloaded and untarred. No browser. |
+| `traffictest.js` | How the site is found: visits from Google, ChatGPT, Claude, Perplexity and an Instagram campaign link, and the Googlebot/GPTBot/ClaudeBot crawlers, each sorted correctly on the administrator's Traffic tab; the Google Analytics tag on public pages only once an ID is saved. No browser. |
 | `contracttest.js` | What the student accepted when they paid, recorded and shown back to them. |
 | `moneytest.js` | Expected, received, pending, dropped off — the four numbers that track the business. |
 | `legaltest.js` | The legal pages, the particulars behind them, and the contact page. |

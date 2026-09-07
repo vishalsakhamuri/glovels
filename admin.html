@@ -1082,6 +1082,8 @@ select.assign.none:hover{border-color:#a5342b}
         Conversations <span class="n">0</span></button>
       <button class="otab" role="tab" data-o="app" aria-selected="false">
         Mobile app</button>
+      <button class="otab" role="tab" data-o="traffic" aria-selected="false">
+        Traffic</button>
     </div>
 
     <div class="opane active" id="o-students">
@@ -1335,6 +1337,114 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
     </div>
     </div><!-- /o-app -->
+
+    <!-- How the site is found. Counted by the server from the pages it
+         serves — not by a tag a blocker can strip — so the answer to "is
+         ChatGPT sending us anyone, and has Claude read our pages?" is here,
+         alongside Google. -->
+    <div class="opane" id="o-traffic">
+    <div class="p-sec">
+      <div class="p-sec-head"><h2 id="trafficCard">How the site is found</h2>
+        <span style="flex:1"></span>
+        <div class="tr-range" role="group" aria-label="Range">
+          <button type="button" class="btn btn-ghost btn-sm" data-days="7">7 days</button>
+          <button type="button" class="btn btn-primary btn-sm" data-days="30">30 days</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-days="90">90 days</button>
+        </div>
+      </div>
+      <style>
+        .tr-range{display:flex;gap:6px}
+        .tr-tiles{--tiles:6;margin:0 0 16px}
+        .tr-chart{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:end;
+          gap:2px;height:150px;padding:6px 0 0;border-bottom:1px solid #e3e8ee}
+        .tr-chart b{display:block;position:relative;background:var(--navy-600,#1f4b7a);
+          border-radius:3px 3px 0 0;min-height:2px;transition:height .2s}
+        .tr-chart b i{position:absolute;left:0;right:0;bottom:0;background:#6ecf8f;border-radius:3px 3px 0 0}
+        .tr-chart b:hover{filter:brightness(1.15)}
+        .tr-axis{display:flex;justify-content:space-between;font:600 10.5px/1 var(--sans);color:var(--muted);margin-top:6px}
+        .tr-key{display:flex;gap:16px;font:600 11.5px/1 var(--sans);color:var(--muted);margin:10px 0 0}
+        .tr-key i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:5px}
+        .tr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:14px}
+        .tr-list{list-style:none;margin:8px 0 0;padding:0}
+        .tr-list li{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #eef1f5;font-size:13px}
+        .tr-list li:first-child{border-top:0}
+        .tr-list li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .tr-list li b{font-variant-numeric:tabular-nums}
+        .tr-list li em{font-style:normal;font:600 10.5px/1 var(--sans);color:var(--muted);white-space:nowrap}
+        .tr-list .bar{height:4px;border-radius:2px;background:var(--navy-600,#1f4b7a);opacity:.7;flex:0 0 auto}
+        .tr-empty{margin:8px 0 0;font-size:12.6px;color:var(--muted);line-height:1.6}
+        .tr-ai{background:#e8f5ee;color:#1d6b3a}.tr-search{background:#e9f0fb;color:#1a4fb4}.tr-other{background:#f1f3f6;color:#5b6675}
+        .tr-tag{font:800 9.4px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 6px;border-radius:5px}
+        #trBots li span{white-space:normal;line-height:1.3}
+        #trBots li .bar{display:none}
+      </style>
+
+      <div class="out tiles tr-tiles">
+        <div><b id="trVisitors">&mdash;</b><span>Visitors</span></div>
+        <div><b id="trViews">&mdash;</b><span>Page views</span></div>
+        <div><b id="trAi">&mdash;</b><span>From AI assistants</span></div>
+        <div><b id="trSearch">&mdash;</b><span>From search</span></div>
+        <div><b id="trEnq">&mdash;</b><span>Enquiries</span></div>
+        <div><b id="trCrawls">&mdash;</b><span>AI crawler reads</span></div>
+      </div>
+
+      <div class="p-card" style="margin-bottom:0">
+        <h3 style="margin:0 0 4px;font-size:15px">Visitors a day</h3>
+        <p style="margin:0 0 10px;font-size:12.2px;color:var(--muted)">People, not page views &mdash; one person on one day counts once.
+          The green part is those who came from ChatGPT, Claude, Perplexity, Gemini or Copilot.</p>
+        <div class="tr-chart" id="trChart"></div>
+        <div class="tr-axis"><span id="trFrom"></span><span id="trTo"></span></div>
+        <div class="tr-key"><span><i style="background:var(--navy-600,#1f4b7a)"></i>Visitors</span><span><i style="background:#6ecf8f"></i>From an AI assistant</span></div>
+      </div>
+
+      <div class="tr-grid">
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Where visitors come from</h3>
+          <ul class="tr-list" id="trSources"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">AI assistants</h3>
+          <p class="tr-empty" style="margin-top:2px">People who arrived from a ChatGPT, Claude, Perplexity, Gemini or Copilot answer.</p>
+          <ul class="tr-list" id="trAiList"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Search engines</h3>
+          <ul class="tr-list" id="trSearchList"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">AI &amp; search crawlers</h3>
+          <p class="tr-empty" style="margin-top:2px">Who has read the site, and when they were last here. An assistant that has never crawled a page cannot recommend it.</p>
+          <ul class="tr-list" id="trBots"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Pages the AI crawlers read most</h3>
+          <ul class="tr-list" id="trAiPages"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Most-read pages</h3>
+          <ul class="tr-list" id="trPages"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Social &amp; other sites</h3>
+          <ul class="tr-list" id="trRefs"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Campaigns</h3>
+          <p class="tr-empty" style="margin-top:2px">Links carrying <code>?utm_campaign=</code> &mdash; an Instagram post, a WhatsApp broadcast, an ad.</p>
+          <ul class="tr-list" id="trCampaigns"></ul></div>
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Enquiries, by where they came from</h3>
+          <ul class="tr-list" id="trEnqBy"></ul>
+          <ul class="tr-list" id="trDevices" style="margin-top:14px"></ul></div>
+      </div>
+
+      <div class="p-card" id="gaCard" style="margin-top:14px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:15px">Google Analytics</h3>
+          <span class="st" id="gaMode">checking&hellip;</span>
+          <span style="flex:1"></span>
+          <a class="btn btn-ghost btn-sm" href="https://analytics.google.com/" target="_blank" rel="noopener">Open Google Analytics</a>
+        </div>
+        <p style="margin:10px 0 0;font-size:12.6px;line-height:1.65;color:var(--navy-800)">
+          The numbers above are counted by this server and need nothing from Google. Google
+          Analytics is worth having as well &mdash; it is what Google Ads and Search Console
+          talk to, and its reports go deeper on what people do once they are here. Paste the
+          <b>measurement ID</b> (Google Analytics &rarr; Admin &rarr; Data streams &rarr; your
+          site; it looks like <code>G-XXXXXXXXXX</code>) and the tag is on every public page
+          from the next page served. The portal and these office screens are never tagged.</p>
+        <div class="two" style="margin-top:14px">
+          <div class="field"><label for="gaId">Measurement ID</label>
+            <input id="gaId" placeholder="G-XXXXXXXXXX" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <p class="ferr" id="gaErr" hidden></p>
+        <button type="button" class="btn btn-primary btn-sm" id="gaSave">Save</button>
+      </div>
+    </div>
+    </div><!-- /o-traffic -->
 
 
   </main>
@@ -2001,6 +2111,7 @@ document.addEventListener('click', e => {
 function showTab(which) {
   $$('.otab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.o === which)));
   $$('.opane').forEach(pn => pn.classList.toggle('active', pn.id === 'o-' + which));
+  if (which === 'traffic' && typeof trOpen === 'function') trOpen();
   /* Where the tab bar is, not where the page happens to be scrolled. Switching
      tab and landing half way down the new one reads as a broken click. */
   const bar = $('.otabs');
@@ -2017,7 +2128,8 @@ document.addEventListener('click', e => {
    `admin.html#theMoney` used to scroll; a section inside a closed pane cannot
    be scrolled to, so it would have done nothing at all. */
 const TAB_OF = { everyStudent: 'students', everyOrder: 'orders',
-  theMoney: 'money', mailCard: 'email', everyChat: 'chats', appCard: 'app' };
+  theMoney: 'money', mailCard: 'email', everyChat: 'chats', appCard: 'app',
+  trafficCard: 'traffic', gaCard: 'traffic' };
 function tabForHash() {
   const h = (location.hash || '').replace(/^#/, '');
   if (!h) return '';
@@ -3154,6 +3266,108 @@ $('#appSave').addEventListener('click', async () => {
 paintApp();
 
 paintMail();
+
+/* --------------------------------------------------- how the site is found */
+
+let TR_DAYS = 30;
+const trN = n => Number(n || 0).toLocaleString('en-IN');
+const trSourceName = { ai: 'AI assistants', search: 'Search engines', ads: 'Paid search',
+  social: 'Social', campaign: 'Campaign links', referral: 'Other websites', direct: 'Direct / typed in' };
+function trList(id, rows, opts) {
+  const ul = $('#' + id);
+  opts = opts || {};
+  if (!rows || !rows.length) {
+    ul.innerHTML = opts.empty === '' ? '' : '<li class="tr-empty" style="border:0;display:block">' + esc(opts.empty || 'Nothing yet.') + '</li>';
+    return;
+  }
+  const max = Math.max(...rows.map(r => r.count || r.hits || 0), 1);
+  ul.innerHTML = rows.map(r => {
+    const n = r.count != null ? r.count : r.hits;
+    const label = opts.label ? opts.label(r) : r.name;
+    const extra = opts.extra ? opts.extra(r) : '';
+    return '<li><span title="' + esc(label) + '">' + esc(label) + '</span>' + extra
+      + '<i class="bar" style="width:' + Math.max(4, Math.round(60 * n / max)) + 'px"></i><b>' + trN(n) + '</b></li>';
+  }).join('');
+}
+const trAgo = iso => {
+  if (!iso) return '';
+  const h = Math.round((Date.now() - new Date(iso).getTime()) / 3600000);
+  if (h < 1) return 'just now';
+  if (h < 48) return h + ' h ago';
+  return Math.round(h / 24) + ' days ago';
+};
+const trDay = day => new Date(day + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+async function paintTraffic() {
+  let t;
+  try { t = await api('GET', '/api/staff/traffic?days=' + TR_DAYS); }
+  catch (e) { $('#trSources').innerHTML = '<li class="tr-empty">' + esc(e.message) + '</li>'; return; }
+  $('#trVisitors').textContent = trN(t.totals.visitors);
+  $('#trViews').textContent = trN(t.totals.views);
+  $('#trAi').textContent = trN(t.totals.ai);
+  $('#trSearch').textContent = trN(t.totals.search);
+  $('#trEnq').textContent = trN(t.totals.enquiries);
+  $('#trCrawls').textContent = trN(t.totals.aiCrawls);
+
+  const max = Math.max(...t.byDay.map(d => d.visitors), 1);
+  $('#trChart').innerHTML = t.byDay.map(d => {
+    const h = Math.round(100 * d.visitors / max);
+    const ai = d.views ? Math.round(100 * d.ai / d.views) : 0;
+    return '<b style="height:' + h + '%" title="' + esc(trDay(d.day) + ': ' + trN(d.visitors) + ' visitors, ' + trN(d.views)
+      + ' page views' + (d.ai ? ', ' + trN(d.ai) + ' from AI assistants' : '') + (d.enquiries ? ', ' + trN(d.enquiries) + ' enquiries' : '')
+      + (d.bots ? ', ' + trN(d.bots) + ' crawler visits' : '')) + '">'
+      + (ai ? '<i style="height:' + Math.min(100, ai) + '%"></i>' : '') + '</b>';
+  }).join('');
+  $('#trFrom').textContent = trDay(t.byDay[0].day);
+  $('#trTo').textContent = 'today';
+
+  trList('trSources', t.sources, { label: r => trSourceName[r.name] || r.name, empty: 'No visits counted yet — this starts the moment the site is live.' });
+  trList('trAiList', t.ai, { empty: 'Nobody from an AI assistant yet. The crawler list says whether they have read the site at all.' });
+  trList('trSearchList', t.search, { empty: 'Nobody from a search engine yet.' });
+  trList('trBots', t.bots, {
+    empty: 'No crawler has been here yet. Googlebot usually arrives within a day of the domain going live; the AI readers within a week or two.',
+    extra: r => '<em class="tr-tag tr-' + (r.group === 'ai' ? 'ai' : r.group === 'search' ? 'search' : 'other') + '">'
+      + (r.group === 'ai' ? 'AI' : r.group === 'search' ? 'search' : 'other') + '</em><em>' + esc(r.pages + ' pages · ' + trAgo(r.last)) + '</em>',
+  });
+  trList('trAiPages', t.aiPages, { empty: 'Nothing read by an AI crawler yet.' });
+  trList('trPages', t.pages, { empty: 'No page views yet.' });
+  trList('trRefs', (t.social || []).concat(t.referrals || []), { empty: 'No links from other sites yet.' });
+  trList('trCampaigns', t.campaigns, { empty: 'No campaign links yet. Add ?utm_campaign=name&utm_source=instagram to a link and it shows here.' });
+  trList('trEnqBy', t.enquiriesBy, { empty: 'No enquiries in this period.' });
+  trList('trDevices', t.devices, { label: r => ({ phone: 'On a phone', desktop: 'On a computer', tablet: 'On a tablet' })[r.name] || r.name, empty: '' });
+}
+$$('.tr-range button').forEach(b => b.addEventListener('click', () => {
+  TR_DAYS = Number(b.dataset.days) || 30;
+  $$('.tr-range button').forEach(x => { x.className = 'btn btn-sm ' + (x === b ? 'btn-primary' : 'btn-ghost'); });
+  paintTraffic();
+}));
+
+async function paintGa() {
+  try {
+    const a = await api('GET', '/api/staff/analytics');
+    $('#gaId').value = a.gaId || '';
+    const m = $('#gaMode');
+    m.textContent = a.gaId ? 'tag on every public page' : 'not connected';
+    m.className = 'st ' + (a.gaId ? 'ok' : 'wait');
+  } catch (e) { $('#gaMode').textContent = 'could not read'; }
+}
+$('#gaSave').addEventListener('click', async () => {
+  const btn = $('#gaSave'), err = $('#gaErr');
+  err.hidden = true; btn.disabled = true;
+  const was = btn.textContent; btn.textContent = 'Saving…';
+  try {
+    const r = await api('PUT', '/api/staff/analytics', { gaId: $('#gaId').value });
+    await paintGa();
+    toast(r.gaId ? 'Saved — the Google tag is on every public page from now.' : 'Saved — the Google tag is off.');
+  } catch (e) {
+    err.textContent = e.message || 'That did not save.'; err.hidden = false;
+  } finally { btn.disabled = false; btn.textContent = was; }
+});
+
+/* Painted when the tab is opened rather than on every visit to this screen —
+   it reads every visit of the period. */
+let trPainted = false;
+function trOpen() { if (!trPainted) { trPainted = true; paintTraffic(); paintGa(); } }
+if ($('#o-traffic') && $('#o-traffic').classList.contains('active')) trOpen();
 
 
 /* Opened by double-clicking rather than through start.command. The portal has

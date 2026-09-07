@@ -116,6 +116,32 @@ What this does NOT do, and is on you: two-factor authentication on the
 Render, one.com, GitHub and Brevo accounts — the domain and the deploy are
 worth more than anything on the disk — and the weekly download above.
 
+## Knowing how the site is found — Google, ChatGPT, Claude
+
+**Organisation → Traffic** in the office. Counted by the server from the
+pages it serves, so it needs nothing from Google and is not stripped by an
+ad-blocker. It answers, for the last 7/30/90 days:
+
+- visitors and page views a day; enquiries over the same days;
+- where visitors came from — **AI assistants (ChatGPT, Claude, Perplexity,
+  Gemini, Copilot…)**, search engines, social, campaign links, other sites;
+- **which crawlers have read the site and when** — Googlebot, Bingbot, and
+  the AI readers (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot,
+  Google-Extended…). An assistant that has never crawled a page cannot
+  recommend it, so this list is the first thing to watch after go-live;
+- the pages the AI crawlers read most, the most-read pages, campaigns
+  (`?utm_source=instagram&utm_campaign=…` on any link), devices.
+
+No personal data is kept: the visitor count is a daily hash, never an
+address. Rows are kept 180 days.
+
+**Google Analytics** is on the same tab: paste the GA4 measurement ID
+(`G-XXXXXXXXXX`, from Google Analytics → Admin → Data streams) and the tag is
+on every public page — never the portal or the office. The site sends
+`generate_lead` when an enquiry form succeeds and `purchase` when a payment
+is confirmed, so conversions can be set up in GA and Google Ads. Mention
+Google Analytics in the privacy policy before switching it on.
+
 ## Turning payments on
 
 The checkout is wired to Razorpay and switched off. With no keys set, an order
@@ -189,6 +215,7 @@ lists them under `NOTE`.
     node mobiletest.js                 # nothing scrolls sideways on a phone
     node paytest.js                    # what a forged payment cannot do
     node hardentest.js                 # what a script, a flood and another site cannot do
+    node traffictest.js                # visits from Google, ChatGPT, Claude and the crawlers, sorted
     node legaltest.js                  # the legal pages, and the contact form
     node e2e.js                        # one person's walk through the whole business
 

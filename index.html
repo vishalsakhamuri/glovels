@@ -4266,6 +4266,7 @@ $('#cForm').addEventListener('submit', async e => {
       body: JSON.stringify(payload)
     });
     if(!r.ok) throw new Error('endpoint returned ' + r.status);
+    if(window.glvTrack) glvTrack('generate_lead', { form: 'counselling' });
     $('#cForm').innerHTML =
       '<div class="sent">' + ico('check') + '<div><b>Request received</b>'
       + '<span>A counsellor calls you back within one working day, Mon–Sat '
@@ -5428,6 +5429,8 @@ if (location.protocol === 'file:') {
                 return { ok: res.ok, j: j }; }); })
               .then(function (out) {
                 if (!out.ok) throw new Error(out.j.error || 'That payment could not be confirmed.');
+                if (window.glvTrack) glvTrack('purchase', { transaction_id: d.reference, currency: 'INR',
+                  value: Math.round(Number(d.grossPaise || d.amountPaise || d.gross_paise || 0) / 100) || undefined });
                 resolve(d);
               })
               .catch(function (e) {

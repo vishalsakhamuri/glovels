@@ -206,9 +206,10 @@ function bakedIds() {
 }
 
 const backup = require('./server/backup.js').open({ db, dataDir: DATA, log: console });
+const traffic = require('./server/traffic.js').open({ db, log: console });
 const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
-  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup });
+  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic });
 
 /* First run only: a demo account with a shortlist, documents, applications and
    an order, so there is something to look at before anyone signs up. */
@@ -312,11 +313,11 @@ const TYPES = {
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://*.razorpay.com",
+  "script-src 'self' 'unsafe-inline' https://*.razorpay.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://*.razorpay.com",
+  "connect-src 'self' https://*.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
   "frame-src https://*.razorpay.com",
   "media-src 'self' blob:",
   "object-src 'none'",
@@ -330,7 +331,22 @@ const CSP = [
    some other route should not be able to either. */
 const PERMISSIONS = 'camera=(), microphone=(), geolocation=(), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com")';
 
+/* A public page served is a visit, counted (server/traffic.js). The portal,
+   the API and the page scripts are not visits. */
+const PUBLIC_VISIT = req => {
+  if (!req || req.method !== 'GET') return false;
+  const p = String(req.url || '').split('?')[0];
+  if (p.startsWith('/js/') || p.startsWith('/api/')) return false;
+  const first = p.split('/')[1] || '';
+  return !PORTAL_PAGES.has(first) && first !== 'acceptance' && first !== 'app';
+};
+
 function send(res, code, body, type, extra) {
+  if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
+    const u = url.parse(res.req.url, true);
+    traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
+    if (typeof body === 'string') body = withAnalytics(body);
+  }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
@@ -2012,6 +2028,36 @@ function scriptFile(name) {
   };
   try { rebuild(); } catch (e) { return null; }
   return JS_STORE.get(name) || null;
+}
+
+/*
+ * The Google Analytics tag, on the public pages only, when the office has
+ * typed a measurement ID on Organisation → Traffic. Read on every page, so a
+ * change lands on the next one without a redeploy. The office's visitors are never
+ * tagged: the portal and the admin screens go without.
+ *
+ * The inline part carries an attribute so externalizeScripts() leaves it in
+ * the head — gtag wants to be there before the page paints, and the deferred
+ * bundle runs last. window.glvTrack is the one hook the forms call; it does
+ * nothing when there is no tag, so the forms never need to know.
+ */
+function gaId() {
+  /* One indexed read per page. Cheaper than getting a cache wrong, and it
+     means the tag lands on the very next page after the office saves. */
+  let id = '';
+  try { id = String((db.content('analytics') || {}).gaId || '').trim(); } catch (e) {}
+  return /^G-[A-Z0-9]{4,20}$/i.test(id) ? id.toUpperCase() : '';
+}
+function withAnalytics(html) {
+  if (html.includes('<script data-track>')) return html;
+  const id = gaId();
+  const hook = '<script data-track>window.glvTrack=function(n,p){try{if(window.gtag)gtag("event",n,p||{})}catch(e){}};</script>';
+  const tag = id
+    ? '<script async src="https://www.googletagmanager.com/gtag/js?id=' + id + '"></script>'
+      + '<script data-ga>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}'
+      + 'gtag("js",new Date());gtag("config","' + id + '",{anonymize_ip:true});</script>'
+    : '';
+  return html.replace('</head>', hook + tag + '</head>');
 }
 
 function forIndexing(html, slug) {
