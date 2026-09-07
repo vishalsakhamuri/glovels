@@ -211,12 +211,13 @@ function docRow(d) {
   const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/'
     + encodeURIComponent(d.key) + '/file';
   return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
-    '<span style="flex:1;min-width:0">' +
+    '<span style="flex:1 1 160px;min-width:0">' +
       (d.file
         ? '<a href="' + href + '" download style="color:var(--blue-deep);font-weight:600;' +
-          'word-break:break-word">' + esc(d.file) + '</a>'
+          'overflow-wrap:anywhere">' + esc(d.file) + '</a>'
         : esc(d.file || '')) + '</span>' +
-    '<span class="st ' + d.status + '">' + L[d.status] + '</span>' +
+    '<span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto">' +
+    '<span class="st ' + d.status + '" style="margin-left:0">' + L[d.status] + '</span>' +
     /* THREE ANSWERS. Accept it, send it back for a proper scan, or put it back
        in the queue. "Query" alone meant a counsellor who could not READ a file
        had to choose between accepting it and rejecting it, and then explain the
@@ -229,7 +230,7 @@ function docRow(d) {
     (d.status === 'rescan' ? ''
       : '<button type="button" class="btn btn-ghost btn-sm" data-rescan="' + esc(d.key) +
         '" style="margin-left:6px" title="Ask for a proper scan">Ask for a scan</button>') +
-    '</li>';
+    '</span></li>';
 }
 
 
@@ -243,8 +244,8 @@ function uniRow(p) {
     '<option value="' + i + '"' + (i === Number(a.stage || 0) ? ' selected' : '') + '>' +
     esc(s.n) + '</option>').join('');
 
-  return '<li style="align-items:flex-start;gap:10px">' +
-    '<div style="flex:1;min-width:0">' +
+  return '<li style="align-items:flex-start;gap:10px;flex-wrap:wrap">' +
+    '<div style="flex:1 1 200px;min-width:0">' +
       '<b style="display:block" title="' + esc(uniFull(p)) + '">' + esc(uniName(p)) + '</b>' +
       '<span style="display:block;font-size:12px;color:var(--muted)">' +
         esc(p.program || '') + ' \u00b7 ' + money(p) + '</span>' +
@@ -619,11 +620,15 @@ async function searchUnis(q) {
       'Type two letters or more.</p>';
     return;
   }
-  const all = await catalogue();
+  await catalogue();
   const on = new Set(((CASE && CASE.shortlist) || []).map(x => String(x.id)));
-  const hits = all.filter(p =>
-    ((p.university || '') + ' ' + (p.program || '') + ' ' + (p.country || ''))
-      .toLowerCase().includes(term)).slice(0, 24);
+  let hits = [];
+  try {
+    const d = await api('GET', '/api/staff/catalogue?q=' + encodeURIComponent(term)
+      + '&per=24&status=');
+    hits = (d.programmes || []).filter(p => p.active !== false);
+  } catch (e) { hits = []; }
+  if ($('#uniQ') && $('#uniQ').value.trim().toLowerCase() !== term) return;
 
   /* The counsellor is not blocked from adding a university the student misses
      the bar for — they may know about a bridging course, a foundation year, or

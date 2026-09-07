@@ -1436,16 +1436,24 @@ $('#planBadge').innerHTML = paid
 /* Four steps, ticked only where the thing has actually happened. The prototype
    showed "Profile filled" ticked; that screen does not exist yet, so ticking it
    would be telling the student they had done something they had not. */
+/* "Payment" is ticked only when money has actually arrived. With the gateway
+   off, every order sits at "to collect" and the step was ticked anyway — a
+   tick beside "Payment" on an order the box two inches below says is TO PAY. */
 const STEPS = [
   ['Enrolled', paid],
-  ['Payment', paid],
+  ['Payment', paid && order.status === 'paid'],
   ['Profile filled', false],
   ['Shortlist ready', paid && shown.length > 0],
 ];
-$('#steps4').innerHTML = STEPS.map(([t, ok], i) =>
-  '<div class="step4' + (ok ? ' done' : '') + '">'
-  + '<span class="s-n">Step ' + (i + 1) + '</span>'
-  + '<b>' + t + (ok ? ' ' + ico('check') : '') + '</b></div>').join('');
+function paintSteps(){
+  $('#steps4').innerHTML = STEPS.map(([t, ok], i) =>
+    '<div class="step4' + (ok ? ' done' : '') + '">'
+    + '<span class="s-n">Step ' + (i + 1) + '</span>'
+    + '<b>' + t + (ok ? ' ' + ico('check') : '') + '</b></div>').join('');
+}
+paintSteps();
+/* The server's order list is painted from another script block. */
+window.__markPaid = () => { STEPS[1][1] = true; paintSteps(); };
 
 /* The dashboard should not only report status; it should say what to do next.
    One prompt, chosen by what is actually outstanding. */
@@ -1551,6 +1559,10 @@ __dashBoot(function () { __dashMain();
       { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
+  /* The server knows whether any order is paid; the local copy rarely does. */
+  if (st.orders.some(function (o) { return o.status === 'paid'; }) && window.__markPaid) {
+    window.__markPaid();
+  }
   wrap.innerHTML = st.orders.map(function (o) {
     var items = o.items || [];
     return '<div class="p-card" style="margin-bottom:10px">' +

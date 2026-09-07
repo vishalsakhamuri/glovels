@@ -1384,8 +1384,8 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div id="buyBody"></div>
     <button class="btn btn-primary" id="buyPay" style="width:100%;margin-top:16px">Pay</button>
     <p class="co-legal" style="font-size:11.6px;color:var(--muted);margin:11px 0 0;text-align:center">
-      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Paid securely. We never see your card.<br>
-      By paying you accept our <a href="terms.html">Terms</a> and
+      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.<br>
+      By continuing you accept our <a href="terms.html">Terms</a> and
       <a href="refunds.html#guarantee-terms">Refund &amp; Cancellation policy</a>.</p>
   </div>
 </div>
@@ -1431,8 +1431,8 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div id="scBody"></div>
     <button class="btn btn-primary" id="scPay" style="width:100%;margin-top:16px">Pay</button>
     <p class="co-legal" id="scLegal" style="font-size:11.6px;color:var(--muted);
-      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Paid securely. We never see your card.<br>
-      By paying you accept our <a href="terms.html">Terms</a> and
+      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.<br>
+      By continuing you accept our <a href="terms.html">Terms</a> and
       <a href="refunds.html">Refund &amp; Cancellation policy</a>.</p>
   </div>
 </div>
@@ -2127,9 +2127,21 @@ function nextOn(deadline){
 /* season-YYYY, with the year computed rather than read. The dropdown, the
    filter and the row all build the key this way — three copies of a rule is
    how a filter starts disagreeing with the list under it. */
-function intakeKey(i){
+/* The year an intake STARTS, which is not the year its deadline falls in: a
+   summer semester begins in April and its applications close the previous
+   autumn, so a deadline of 30 November 2026 belongs to Summer 2027. Read the
+   deadline year alone and the dropdown offered "Summer 2026" in September
+   2026 — an intake already under way, on a filter nobody could use. */
+function intakeYear(i){
   const d = i && i.deadline ? nextOn(i.deadline) : null;
-  return d ? (i.season || 'intake') + '-' + d.getFullYear() : '';
+  if(!d) return null;
+  const season = String(i.season || '').toLowerCase();
+  const starts = season === 'summer' || season === 'spring' ? 3 : 9;   /* April / October */
+  return d.getFullYear() + (d.getMonth() > starts ? 1 : 0);
+}
+function intakeKey(i){
+  const y = intakeYear(i);
+  return y ? (i.season || 'intake') + '-' + y : '';
 }
 
 const SEASON = s => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
@@ -2149,13 +2161,13 @@ function rebuildIntakes(){
   D.programs.forEach(p => (p.intakes || []).forEach(i => {
     const k = intakeKey(i);
     if(!k || seen.has(k)) return;
-    seen.set(k, { key: k, when: nextOn(i.deadline), season: i.season });
+    seen.set(k, { key: k, when: nextOn(i.deadline), year: intakeYear(i), season: i.season });
   }));
   const list = [...seen.values()].sort((a, b) => a.when - b.when);
   if(!list.length) return;
   sel.innerHTML = '<option value="">Any intake</option>'
     + list.map(x => '<option value="' + esc(x.key) + '">'
-        + esc(SEASON(x.season)) + ' ' + x.when.getFullYear() + '</option>').join('');
+        + esc(SEASON(x.season)) + ' ' + x.year + '</option>').join('');
   /* A student who had picked an intake keeps it if it is still offered. If it
      is not — because it has gone — they are back on "any", which is the honest
      place to put them rather than on a filter matching nothing. */

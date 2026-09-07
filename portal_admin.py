@@ -1074,6 +1074,7 @@ staffBoot(async me => {
   STUDENTS = st.students;
   COUNSELLORS = ov.counsellors;
   ORDERS = od.orders || [];
+  try { connectLive({}); } catch (e) {}
 
   $('#kStudents').textContent = ov.students;
   $('#kUnassigned').textContent = ov.unassigned;
@@ -1100,7 +1101,7 @@ staffBoot(async me => {
   $('#channels').innerHTML =
     '<li>' + ico('mail') + '<span style="flex:1">Email</span><span class="st ' +
       (ov.channels.mail === 'smtp' ? 'ok' : 'wait') + '">' +
-      (ov.channels.mail === 'smtp' ? 'Sending' : 'Outbox only') + '</span></li>' +
+      (ov.channels.mail === 'smtp' || ov.channels.mail === 'api' ? 'Sending' : 'Outbox only') + '</span></li>' +
     '<li>' + ico('chat') + '<span style="flex:1">WhatsApp</span><span class="st ' +
       (/^configured/.test(ov.channels.whatsapp) ? 'ok' : 'none') + '">' +
       (/^configured/.test(ov.channels.whatsapp) ? 'Configured' : 'Off') + '</span></li>' +

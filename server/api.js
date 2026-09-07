@@ -734,11 +734,25 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        ignored a requirement the free finder enforced. */
     const made = MATCHES.plan(rowsFor(profile), profile, owed.count, owed.kind, countryMap());
     const picks = made.items;
-    const have = new Set(db.getShortlist(student.id).map(r => String(r.prog_id)));
+    const before = db.getShortlist(student.id);
+    const have = new Set(before.map(r => String(r.prog_id)));
+    const picked = new Set(picks.map(p => String(p.id)));
     picks.forEach(p => {
       if (!have.has(String(p.id))) out.added++;
       db.addShortlist(student.id, p, 'matched');
     });
+    /* A re-pick REPLACES the machine's earlier picks, it does not pile on
+       them. Four profile saves used to leave ten universities on a package
+       that sells five — each run added its five and nobody took the old ones
+       away. Rows a counsellor or the student put there are theirs and stay. */
+    let dropped = 0;
+    before.forEach(r => {
+      if (r.added_by === 'matched' && !picked.has(String(r.prog_id))) {
+        db.removeShortlist(student.id, r.prog_id);
+        dropped++;
+      }
+    });
+    out.dropped = dropped;
     out.delivered = picks.length;
     out.relaxed = made.relaxed;
     out.note = made.note;
@@ -748,13 +762,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     out.short = made.short;
     out.cgpaHeld = made.cgpaHeld;
 
-    if (out.added) {
+    if (out.added || dropped) {
       db.log('system', 'matches delivered',
         student.email + ' — ' + out.added + ' of ' + owed.count
+        + (dropped ? ', ' + dropped + ' earlier pick(s) replaced' : '')
         + ' (' + (owed.package || 'package') + ')');
       /* And say so, in the thread they will look in. A shortlist that appears
-         silently is a shortlist somebody has to be told about on the phone. */
-      if (!(opts && opts.quiet)) {
+         silently is a shortlist somebody has to be told about on the phone.
+         Once per sitting, though: a student filling in six profile sections
+         one after another got the same message six times. If the thread's
+         last message is this one and it is under an hour old, it is replaced
+         rather than repeated. */
+      const SAME = 'on your shortlist now';
+      const thread = db.getMessages(student.id);
+      const last = thread[thread.length - 1];
+      const recent = last && last.sender === 'them' && String(last.body).includes(SAME)
+        && (Date.now() - Date.parse(last.created_at)) < 60 * 60 * 1000;
+      if (recent && typeof db.deleteMessage === 'function') db.deleteMessage(last.id);
+      if (!(opts && opts.quiet) && (!recent || typeof db.deleteMessage === 'function')) {
         db.addMessage(student.id, 'them',
           'Your ' + out.delivered + ' matched '
           + (owed.kind === 'public' ? 'public ' : '')
@@ -828,9 +853,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       return;
     }
 
+    /* No name here. The message used to open "Hi! I am Kavya" — the demo
+       counsellor — and went out over the signature of whoever was actually
+       assigned. The person's name is on the card beside the thread. */
     db.addMessage(s.id, 'them',
-      'Hi! I am Kavya, your counsellor for the Germany desk. I have your profile open. '
-      + 'Once your documents are verified I will confirm the shortlist with you on a call.', '');
+      'Welcome — your counsellor has your profile open. Once your documents are '
+      + 'verified they will confirm the shortlist with you on a call.', '');
     db.addMessage(s.id, 'them',
       'Two things worth starting now, because they are the slowest: the APS certificate '
       + '(6–8 weeks) and your blocked account. Everything else can follow.', '');
@@ -4820,12 +4848,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       }))).catch(e => ({ ok: false, mode: 'error', error: e.message }));
 
       db.log(s.name, 'Sign-in link sent', student.email
-        + (out && out.mode === 'smtp' ? ' — by email' : ' — written to the outbox'));
+        + (out && out.ok && out.mode !== 'outbox' ? ' — by email' : ' — written to the outbox'));
 
       return json(res, 200, {
         email: student.email,
         link,
-        sent: !!(out && out.ok && out.mode === 'smtp'),
+        sent: !!(out && out.ok && out.mode !== 'outbox'),
         mode: (out && out.mode) || 'unknown',
         days: 7,
       });
@@ -5159,12 +5187,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       role: person.role || 'student', madeBy: s.name,
     }))).catch(e => ({ ok: false, mode: 'error' }));
     db.log(s.name, 'password reset', person.name
-      + (out && out.mode === 'smtp' ? ' — emailed' : ' — written to the outbox'));
+      + (out && out.ok && out.mode !== 'outbox' ? ' — emailed' : ' — written to the outbox'));
     return json(res, 200, {
       password, name: person.name, email: person.email,
       /* So the screen can say "read it to them" rather than "we sent it", when
          nothing was sent. */
-      sent: !!(out && out.ok && out.mode === 'smtp'),
+      sent: !!(out && out.ok && out.mode !== 'outbox'),
     });
   }));
 

@@ -1084,6 +1084,7 @@ function open(dir) {
 
     /* ---- messages ---- */
     getMessages: id => db.all('SELECT * FROM messages WHERE student_id = ? ORDER BY id asc', Number(id)),
+    deleteMessage: id => db.run('DELETE FROM messages WHERE id = ?', Number(id)),
     addMessage(studentId, sender, body, file) {
       db.run('INSERT INTO messages (student_id, sender, body, file, created_at) VALUES (?, ?, ?, ?, ?)',
         Number(studentId), sender, body || '', file || '', now());

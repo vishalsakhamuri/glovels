@@ -280,6 +280,30 @@ const PROFILE = {
     pubList.every(p => named.has(p.university)),
     [...named].join(' | '));
 
+  /* ------------------------- the profile changes, the list is picked AGAIN
+     Four profile saves left a Roadmap buyer with ten universities on a
+     package that sells five: each run added its picks and never took the
+     earlier ones away. And each run posted "your universities are on your
+     shortlist now" into the thread — the same sentence, four times. */
+  for (const cg of ['8.4', '9.1', '7.6']) {
+    await pub.request.put(BASE + '/api/profile',
+      { data: { profile: Object.assign({}, PROFILE, { d_cgpa: cg, g_field: 'Computer Science' }) } });
+  }
+  const repick = await (await pub.request.get(BASE + "/api/state")).json();
+  const againList = repick.shortlist || [];
+  check('after three more profile saves the shortlist is still three, not twelve',
+    againList.length <= 3, againList.length);
+  check('and every row on it is a public one the machine picked',
+    againList.every(p => p.isPublic), againList.map(p => p.university).join(' | '));
+  const thread = await (await pub.request.get(BASE + '/api/chat')).json();
+  const saidSo = (thread.messages || thread || []).filter(m =>
+    /on your shortlist now/.test(m.body || m.t || ''));
+  check('the thread carries ONE "on your shortlist now" message, not one per save',
+    saidSo.length === 1, saidSo.length);
+  check('and the welcome does not introduce a counsellor by an invented name',
+    !(thread.messages || thread || []).some(m => /I am Kavya/.test(m.body || m.t || '')));
+
+
   /* ------------------------------------------- a counsellor still outranks it */
   const staff = await browser.newContext();
   await staff.request.post(BASE + '/api/auth/login',
@@ -287,6 +311,15 @@ const PROFILE = {
   const roster = await (await staff.request.get(BASE + '/api/staff/students')).json();
   const them = (roster.students || []).find(s => s.email === 'entry' + stamp + '@example.com');
   check('the ₹99 buyer is on the roster like anybody else', !!them);
+
+  /* The counsellor's "Add a university" box asks the server now — the
+     catalogue is paginated and the first page is alphabetical from "Aalen",
+     so filtering it in the browser found nothing for any real name. */
+  const found = await (await staff.request.get(BASE
+    + '/api/staff/catalogue?q=munich&per=24&status=')).json();
+  check('a counsellor searching "munich" is answered by the server',
+    (found.programmes || []).some(p => /munich/i.test(p.university)),
+    (found.programmes || []).slice(0, 3).map(p => p.university).join(' | '));
 
   if (them) {
     const one = got[0];

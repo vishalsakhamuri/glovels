@@ -320,6 +320,9 @@ They are expecting a call back within one working day.`,
   },
 
   enquiryToStudent({ name, destination }) {
+    /* The home-page form sends the option's label, flag and all — "🇩🇪 Germany"
+       — and an emoji in a sentence reads as a glitch in most mail clients. */
+    destination = String(destination || '').replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
     const first = String(name || '').split(' ')[0] || 'there';
     return {
       subject: 'We have your counselling request',

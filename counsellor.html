@@ -404,6 +404,13 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
 </style>
+<style>/* GLOVELS-FILE-WRAP */
+/* Their file: a document row carries a name, a status and two buttons, and a
+   university row carries two selects, a button and a full-width note. Neither
+   fits one line in a half-width column, and without wrapping the flex layout
+   took the space from the name — one letter per line. */
+#t-file .doclist li{flex-wrap:wrap}
+</style>
 <style>/* GLOVELS-GRID-FIT */
 .p-cols{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)}
 .p-cols>*{min-width:0}
@@ -1853,13 +1860,18 @@ function docRow(d) {
              none: 'Not uploaded'};
   const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/'
     + encodeURIComponent(d.key) + '/file';
+  /* The file name gets a real column (a flex basis, not just flex:1) and the
+     status and the two buttons sit as one group that wraps under it when the
+     column is narrow. Without that, three buttons beside a long name left the
+     name a few pixels wide and it rendered one letter per line. */
   return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
-    '<span style="flex:1;min-width:0">' +
+    '<span style="flex:1 1 160px;min-width:0">' +
       (d.file
         ? '<a href="' + href + '" download style="color:var(--blue-deep);font-weight:600;' +
-          'word-break:break-word">' + esc(d.file) + '</a>'
+          'overflow-wrap:anywhere">' + esc(d.file) + '</a>'
         : esc(d.file || '')) + '</span>' +
-    '<span class="st ' + d.status + '">' + L[d.status] + '</span>' +
+    '<span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto">' +
+    '<span class="st ' + d.status + '" style="margin-left:0">' + L[d.status] + '</span>' +
     /* THREE ANSWERS. Accept it, send it back for a proper scan, or put it back
        in the queue. "Query" alone meant a counsellor who could not READ a file
        had to choose between accepting it and rejecting it, and then explain the
@@ -1872,7 +1884,7 @@ function docRow(d) {
     (d.status === 'rescan' ? ''
       : '<button type="button" class="btn btn-ghost btn-sm" data-rescan="' + esc(d.key) +
         '" style="margin-left:6px" title="Ask for a proper scan">Ask for a scan</button>') +
-    '</li>';
+    '</span></li>';
 }
 
 
@@ -1886,8 +1898,12 @@ function uniRow(p) {
     '<option value="' + i + '"' + (i === Number(a.stage || 0) ? ' selected' : '') + '>' +
     esc(s.n) + '</option>').join('');
 
-  return '<li style="align-items:flex-start;gap:10px">' +
-    '<div style="flex:1;min-width:0">' +
+  /* flex-wrap, because the note row below asks for the full width
+     (flex-basis:100%) and without wrapping it took that width FROM the name
+     column, which ended up sixty pixels wide with the university's name
+     stacked a word per line. */
+  return '<li style="align-items:flex-start;gap:10px;flex-wrap:wrap">' +
+    '<div style="flex:1 1 200px;min-width:0">' +
       '<b style="display:block" title="' + esc(uniFull(p)) + '">' + esc(uniName(p)) + '</b>' +
       '<span style="display:block;font-size:12px;color:var(--muted)">' +
         esc(p.program || '') + ' \u00b7 ' + money(p) + '</span>' +
@@ -2262,11 +2278,21 @@ async function searchUnis(q) {
       'Type two letters or more.</p>';
     return;
   }
-  const all = await catalogue();
+  /* The catalogue is two hundred thousand rows now, and /api/staff/catalogue
+     answers a PAGE of it — a hundred rows, alphabetical from "Aalen". Filtering
+     that page on the browser found nothing for "Munich", "Aachen" or "Berlin",
+     which is to say it found nothing for any university a counsellor would
+     actually type. The words go to the server, where the full-text index is. */
+  await catalogue();                       /* the destinations' entry rules */
   const on = new Set(((CASE && CASE.shortlist) || []).map(x => String(x.id)));
-  const hits = all.filter(p =>
-    ((p.university || '') + ' ' + (p.program || '') + ' ' + (p.country || ''))
-      .toLowerCase().includes(term)).slice(0, 24);
+  let hits = [];
+  try {
+    const d = await api('GET', '/api/staff/catalogue?q=' + encodeURIComponent(term)
+      + '&per=24&status=');
+    hits = (d.programmes || []).filter(p => p.active !== false);
+  } catch (e) { hits = []; }
+  /* Typing continued while that was in flight: the newer request paints. */
+  if ($('#uniQ') && $('#uniQ').value.trim().toLowerCase() !== term) return;
 
   /* The counsellor is not blocked from adding a university the student misses
      the bar for — they may know about a bridging course, a foundation year, or
