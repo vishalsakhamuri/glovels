@@ -345,7 +345,7 @@ function send(res, code, body, type, extra) {
   if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
     const u = url.parse(res.req.url, true);
     traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
-    if (typeof body === 'string') body = withAnalytics(body);
+    if (typeof body === 'string') body = withAnalytics(withSocials(body, u.pathname));
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -2048,6 +2048,52 @@ function gaId() {
   try { id = String((db.content('analytics') || {}).gaId || '').trim(); } catch (e) {}
   return /^G-[A-Z0-9]{4,20}$/i.test(id) ? id.toUpperCase() : '';
 }
+/*
+ * The office's accounts, in the footer of every public page.
+ *
+ * Home page → Finder & contact → Social links: a URL and a show/hide switch
+ * per network. Rendered here at request time so a change lands on the next
+ * page served, and drawn as named chips rather than logos — a word is read
+ * by everybody, a glyph by those who know it. Where a page already carries
+ * a .socials block (the home page) it is replaced; elsewhere the row goes in
+ * above the copyright line. The home page also gets the accounts into its
+ * structured data (sameAs), which is how Google ties them to the business.
+ */
+function socialLinks() {
+  let f = null;
+  try { f = content.get('finder'); } catch (e) { f = null; }
+  return ((f && f.social) || []).filter(x => x && x.show && x.url);
+}
+function socialsHtml(links) {
+  if (!links.length) return '';
+  const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return '<div class="socials" data-socials style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'
+    + links.map(l => '<a href="' + esc(l.url) + '" target="_blank" rel="noopener" aria-label="Glovels on ' + esc(l.label) + '"'
+      + ' style="display:inline-flex;align-items:center;height:32px;padding:0 12px;border-radius:9px;background:rgba(255,255,255,.08);'
+      + 'color:#c8d6e4;font:700 12.4px/1 inherit;text-decoration:none;letter-spacing:.01em">' + esc(l.label) + '</a>').join('')
+    + '</div>';
+}
+function withSocials(html, pathname) {
+  const links = socialLinks();
+  const row = socialsHtml(links);
+  const had = /<div class="socials">[\s\S]*?<\/div>/;
+  if (had.test(html)) {
+    html = html.replace(had, row);
+  } else if (row) {
+    /* Only the first footer; a page has one. */
+    const i = html.indexOf('<div class="fbot">');
+    if (i > 0) html = html.slice(0, i) + row + '\n  ' + html.slice(i);
+  }
+  if (links.length && (pathname === '/' || pathname === '/index')) {
+    const org = {
+      '@context': 'https://schema.org', '@type': 'Organization', name: 'Glovels',
+      url: SITE_URL + '/', sameAs: links.map(l => l.url),
+    };
+    html = html.replace('</head>', '<script type="application/ld+json">' + JSON.stringify(org).replace(/</g, '\\u003c') + '</script></head>');
+  }
+  return html;
+}
+
 function withAnalytics(html) {
   if (html.includes('<script data-track>')) return html;
   const id = gaId();

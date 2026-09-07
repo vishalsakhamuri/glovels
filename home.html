@@ -1183,6 +1183,19 @@ select.assign.none:hover{border-color:#a5342b}
           <div class="field" style="margin-bottom:10px">
             <label for="fEmail">Email</label><input id="fEmail" placeholder="info@glovels.com"></div>
         </div>
+
+        <!-- The office's accounts. A link and a switch per network: the row
+             in the footer of every page follows this, and the home page's
+             structured data names the same accounts so Google ties them to
+             the business. Hidden is hidden, not deleted. -->
+        <h4 style="margin:16px 0 4px;font-size:13.5px">Social links</h4>
+        <p style="margin:0 0 10px;font-size:12.4px;color:var(--muted);line-height:1.6">
+          Paste the full address of each account (starting <code>https://</code>) and tick
+          <b>Show</b> to put it in the footer of every page. Untick to hide it without losing
+          the link. Only a link on that network's own site is accepted.</p>
+        <div id="fSocial" style="display:grid;gap:8px">
+          <!-- rows painted by paintSocial() -->
+        </div>
       </div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -2288,6 +2301,7 @@ function paintFinder() {
   set('fWa', (f.contact || {}).whatsapp);
   set('fPhone', (f.contact || {}).phone);
   set('fEmail', (f.contact || {}).email);
+  paintSocial(f.social || []);
 
   $('#bandRows').innerHTML = (f.bands || []).map((b, n) =>
     '<div style="display:grid;grid-template-columns:1fr 200px;gap:0 14px;align-items:end">' +
@@ -2331,7 +2345,26 @@ function finderFromScreen() {
       best: v('fbBest'), value: v('fbValue'), fast: v('fbFast'), start: v('fbStart'),
     },
     contact: { whatsapp: v('fWa'), phone: v('fPhone'), email: v('fEmail') },
+    social: $$('#fSocial [data-social]').map(row => ({
+      id: row.dataset.social,
+      url: row.querySelector('input[type="url"]').value.trim(),
+      show: row.querySelector('input[type="checkbox"]').checked,
+    })),
   };
+}
+
+/* One row per network the server knows. The list comes from the server so a
+   network added there appears here without a second edit. */
+function paintSocial(rows) {
+  const box = $('#fSocial');
+  if (!box) return;
+  box.innerHTML = rows.map(r => '<div data-social="' + esc(r.id) + '" style="display:grid;'
+    + 'grid-template-columns:130px 1fr auto;gap:10px;align-items:center">'
+    + '<b style="font:700 12.6px/1.3 var(--sans)">' + esc(r.label || r.id) + '</b>'
+    + '<input type="url" value="' + esc(r.url || '') + '" placeholder="https://www.' + esc(r.id) + '.com/glovels" '
+    + 'style="padding:8px 10px;font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:8px">'
+    + '<label style="display:flex;align-items:center;gap:6px;font:700 12px/1 var(--sans);white-space:nowrap">'
+    + '<input type="checkbox"' + (r.show ? ' checked' : '') + '> Show</label></div>').join('');
 }
 
 document.addEventListener('click', async e => {

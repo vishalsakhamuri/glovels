@@ -380,6 +380,25 @@ function cleanWriting(v) {
  *                                 address every page links to. It was written
  *                                 into the markup of forty pages.
  */
+const SOCIAL = [
+  ['instagram', 'Instagram', /^https:\/\/(www\.)?instagram\.com\//i],
+  ['facebook', 'Facebook', /^https:\/\/(www\.|m\.)?(facebook|fb)\.com\//i],
+  ['linkedin', 'LinkedIn', /^https:\/\/(www\.)?linkedin\.com\//i],
+  ['youtube', 'YouTube', /^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i],
+  ['x', 'X (Twitter)', /^https:\/\/(www\.)?(x|twitter)\.com\//i],
+  ['threads', 'Threads', /^https:\/\/(www\.)?threads\.(net|com)\//i],
+  ['telegram', 'Telegram', /^https:\/\/(www\.)?t\.me\//i],
+  ['whatsapp', 'WhatsApp channel', /^https:\/\/(www\.)?whatsapp\.com\/channel\//i],
+];
+const cleanSocial = v => {
+  const rows = Array.isArray(v) ? v : [];
+  return SOCIAL.map(([id, label, ok]) => {
+    const r = rows.find(x => x && x.id === id) || {};
+    const url = str(r.url, 200).trim();
+    return { id, label, url: ok.test(url) ? url : '', show: !!r.show && ok.test(url) };
+  });
+};
+
 const cleanFinder = v => {
   const f = v && typeof v === 'object' ? v : {};
   const int = (x, lo, hi, dflt) => {
@@ -429,6 +448,12 @@ const cleanFinder = v => {
       phone: str((f.contact || {}).phone, 30),
       email: str((f.contact || {}).email, 120).toLowerCase(),
     },
+    /* The office's accounts, in the footer of every page and in the
+       structured data Google reads. Each one is a link and a switch: an
+       account that exists but is not ready to be seen is hidden, not
+       deleted. Only the networks the site knows how to draw an icon for,
+       and only a link on that network's own site. */
+    social: cleanSocial(f.social),
     /* The words on the four service badges. The office already picks WHICH
        badge a service carries; these are what those badges say. */
     badges: {
@@ -966,4 +991,4 @@ function makeContent({ db, file }) {
   };
 }
 
-module.exports = { makeContent, KEYS, SHEETS, cleanWriting };
+module.exports = { SOCIAL, makeContent, KEYS, SHEETS, cleanWriting };

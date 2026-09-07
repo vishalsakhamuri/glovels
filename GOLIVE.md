@@ -116,6 +116,17 @@ What this does NOT do, and is on you: two-factor authentication on the
 Render, one.com, GitHub and Brevo accounts — the domain and the deploy are
 worth more than anything on the disk — and the weekly download above.
 
+## Social accounts
+
+**Home page → Finder & contact → Social links.** One row per network
+(Instagram, Facebook, LinkedIn, YouTube, X, Threads, Telegram, WhatsApp
+channel): paste the account's address, tick **Show**. Ticked accounts appear
+as named chips in the footer of every public page, and the home page names
+them in its structured data (`sameAs`) so Google ties them to the business
+listing. Untick to hide without losing the link. A link that is not on that
+network's own site is refused. Nothing is shown until something is ticked —
+the guessed handles the build shipped with are gone.
+
 ## Knowing how the site is found — Google, ChatGPT, Claude
 
 **Organisation → Traffic** in the office. Counted by the server from the
