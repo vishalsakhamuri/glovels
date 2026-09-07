@@ -1,12 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Glovels: the logo's blue and lime, the graduate's cap over a G. -->
-  <rect width="64" height="64" rx="14" fill="#153d7e"/>
-  <text x="32" y="50" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="40" fill="#ffffff">G</text>
-  <!-- mortarboard -->
-  <g transform="translate(32 13)">
-    <polygon points="-15,0 0,-7 15,0 0,7" fill="#adc908"/>
-    <path d="M-8 3v5c0 2.5 3.6 4.5 8 4.5s8-2 8-4.5V3L0 7z" fill="#8fae00"/>
-    <path d="M15 0v9" stroke="#adc908" stroke-width="2" stroke-linecap="round"/>
-    <circle cx="15" cy="10.5" r="1.8" fill="#adc908"/>
-  </g>
+  <title>Glovels</title>
+  <rect width="64" height="64" rx="13" fill="#153d7e"/>
+  <!-- the graduate: raised arms as a V, head above, mortarboard on top -->
+  <path fill="#adc908" d="M4 31C14 35 25 45 32 62C39 45 50 35 60 31C62.5 28 61.5 22 56.5 21C48 25 39 35 32 49C25 35 16 25 7.5 21C2.5 22 1.5 28 4 31Z"/>
+  <path fill="#adc908" d="M26 26h12v6a6 6 0 0 1-12 0z"/>
+  <path fill="#f4f7fb" d="M32 14 46 20.5 32 27 18 20.5Z"/>
+  <path fill="none" stroke="#f4f7fb" stroke-width="1.5" stroke-linecap="round" d="M45.5 21v7"/>
+  <circle cx="45.5" cy="29.5" r="1.5" fill="#f4f7fb"/>
 </svg>
