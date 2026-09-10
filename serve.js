@@ -1970,8 +1970,39 @@ function withMain(html) {
   if (first < 0 || first > footer) return html;
   return html.slice(0, first) + '<main>' + html.slice(first, footer) + '</main>\n' + html.slice(footer);
 }
+/* The header knows who is looking at it.
+ *
+ * "The frontend site shows 'Sign in' to a student who is signed in." Every
+ * public page carries the same header, written into the file, and the file
+ * cannot know. This asks /api/auth/me — open, answers 200 either way — and
+ * turns the Sign in link into the way back to their own screen: "My
+ * dashboard" for a student, "My office" for staff, "My students" for a
+ * partner. Nothing moves for a visitor who is signed out, which is nearly
+ * everybody. Added here rather than in forty files. */
+const SIGNED_IN_NAV = `<script>
+(function(){
+  if(location.protocol==='file:')return;
+  var links=[].slice.call(document.querySelectorAll('a.signin,.mobile-menu>a[href="login.html"]'));
+  if(!links.length)return;
+  fetch('/api/auth/me',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(m){
+    var u=m&&m.user; if(!u)return;
+    var role=u.role, perms=u.perms||[];
+    var home=role==='admin'?'admin.html':role==='editor'?(perms.indexOf('content')>=0?'home.html':'catalogue.html')
+      :role==='counsellor'?'counsellor.html':role==='partner'?'partner.html':'dashboard.html';
+    var label=role==='student'?'My dashboard':role==='partner'?'My students':'My office';
+    var first=String(u.name||'').trim().split(/\s+/)[0];
+    links.forEach(function(a){a.href=home;a.textContent=label;a.title=first?('Signed in as '+first):'';a.classList.add('signed');});
+  }).catch(function(){});
+})();
+</script>
+`;
+function withSignedInNav(html) {
+  if (html.indexOf('class="signin"') < 0 || html.indexOf('SIGNED-IN-NAV') >= 0) return html;
+  const at = html.lastIndexOf('</body>');
+  return at < 0 ? html : html.slice(0, at) + '<!-- SIGNED-IN-NAV -->' + SIGNED_IN_NAV + html.slice(at);
+}
 function externalizeScripts(html, key) {
-  html = withMain(html);
+  html = withSignedInNav(withMain(html));
   const parts = [];
   const out = html.replace(/<script(?:\s+type="text\/javascript")?>([\s\S]*?)<\/script>/g, (m, body) => {
     parts.push(body);

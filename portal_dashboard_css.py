@@ -421,7 +421,7 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 .tbl .st{white-space:nowrap}
 /* And a row is read across, so its cells line up at the top rather than
    floating in the middle of whatever the tallest one turned out to be. */
-.tbl td{vertical-align:top}
+.tbl td{vertical-align:top;overflow-wrap:anywhere}
 
 /* A wide table scrolls sideways INSIDE its card rather than squeezing every
    column until the words break. Without a floor the browser keeps shrinking

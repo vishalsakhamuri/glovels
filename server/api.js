@@ -6103,6 +6103,23 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     num('germanGpa', 'German grade', 1, 4, '1.0 is the best grade and 4.0 the pass.');
     num('totalInr', 'Total tuition', 0, 100000000, 'Whole course, in rupees.');
     num('featureSort', 'Feature order', 0, 999);
+    /* Length, said rather than trimmed. cleanProgramme() cuts a name at the
+       column's limit, so a 300-character university name was saved as its
+       first 140 characters under "Saved" — and the longest real names (a
+       German Hochschule with its English name beside it) are under 100. A
+       single "word" longer than 40 characters is not a name in any language
+       the site serves; it is a key held down. */
+    const text = (k, label, max) => {
+      const v = String(b[k] == null ? '' : b[k]).trim();
+      if (!v) return;
+      if (v.length > max) out.push({ field: k, why: label + ' is ' + v.length + ' characters; the most the site shows is ' + max + '.' });
+      else if (/\S{41,}/.test(v)) out.push({ field: k, why: label + ' has a run of ' + /\S{41,}/.exec(v)[0].length + ' characters without a space — that is not a name.' });
+    };
+    text('program', 'The programme name', FIELD_LIMITS.program);
+    text('university', 'The university name', FIELD_LIMITS.university);
+    text('city', 'The city', FIELD_LIMITS.city);
+    text('shortName', 'The short name', FIELD_LIMITS.shortName);
+    text('field', 'The field', FIELD_LIMITS.field);
     return out;
   }
 
@@ -6201,7 +6218,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* Only when the caller sent them. saveCountry keeps whatever is stored
        otherwise, so the Destinations form cannot wipe the requirements and the
        requirements editor cannot wipe the flag. */
-    if (b.facts !== undefined) draft.facts = cleanFacts(b.facts);
+    if (b.facts !== undefined) {
+      const wrong = factsProblems(b.facts);
+      if (wrong.length) {
+        return json(res, 422, { error: wrong.map(w => w.why).join(' '),
+          fields: wrong.map(w => ({ field: w.field, why: w.why })) });
+      }
+      draft.facts = cleanFacts(b.facts);
+    }
     db.saveCountry(draft);
     db.log(s.name, existed ? 'destination updated' : 'destination added',
       name + ' (' + code + ')' + (b.facts !== undefined ? ' — entry requirements' : ''));
@@ -6297,6 +6321,29 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * rather than trusted from a form. A CGPA of 47 or a funds figure with an
    * extra zero is not a typo anyone catches on the way past.
    */
+  /* REFUSED before cleanFacts() gets to tidy it. cleanFacts() drops the
+     sign and clamps, which is the right thing to do to what is already
+     stored and the wrong thing to do to what was just typed: "-5" came back
+     as 5 and 99 came back as 10, both under a green "Saved". A minus sign in
+     a CGPA or a sum of money is a typo, and a typo is answered, not fixed. */
+  function factsProblems(f) {
+    const o = f && typeof f === 'object' ? f : {};
+    const out = [];
+    const num = (k, label, lo, hi, note) => {
+      const raw = String(o[k] == null ? '' : o[k]).trim();
+      if (!raw) return;
+      const n = Number(raw.replace(/[,\s₹]/g, ''));
+      if (!Number.isFinite(n)) out.push({ field: k, why: label + ' has to be a number — "' + raw.slice(0, 20) + '" is not one.' });
+      else if (n < lo || n > hi) out.push({ field: k, why: label + ' has to be between ' + lo.toLocaleString('en-IN')
+        + ' and ' + hi.toLocaleString('en-IN') + '. You entered ' + raw.slice(0, 20) + '.' + (note ? ' ' + note : '') });
+    };
+    num('minCgpaPublic', 'Minimum CGPA — public', 0, 10, 'It is on the 10-point scale.');
+    num('minCgpaPrivate', 'Minimum CGPA — private', 0, 10, 'It is on the 10-point scale.');
+    num('fundsInr', 'Funds to show', 0, 99999999, 'In rupees; the ceiling is ₹9.99 crore.');
+    num('livingInr', 'Living costs', 0, 99999999, 'In rupees, for the year.');
+    return out;
+  }
+
   const cleanFacts = f => {
     const o = f && typeof f === 'object' ? f : {};
     const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);

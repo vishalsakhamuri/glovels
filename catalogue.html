@@ -828,7 +828,7 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 .tbl .st{white-space:nowrap}
 /* And a row is read across, so its cells line up at the top rather than
    floating in the middle of whatever the tallest one turned out to be. */
-.tbl td{vertical-align:top}
+.tbl td{vertical-align:top;overflow-wrap:anywhere}
 
 /* A wide table scrolls sideways INSIDE its card rather than squeezing every
    column until the words break. Without a floor the browser keeps shrinking
@@ -1981,11 +1981,11 @@ function openEditor(p) {
 
   $('#pmBody').innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">' +
-      field('Programme name', 'fProgram', v.program, 'placeholder="MSc Data Science"') +
-      field('University', 'fUni', v.university, 'placeholder="University of Melbourne"') +
+      field('Programme name', 'fProgram', v.program, 'placeholder="MSc Data Science" maxlength="140"') +
+      field('University', 'fUni', v.university, 'placeholder="University of Melbourne" maxlength="140"') +
       select('Destination', 'fCountry', v.country,
         [['', 'Choose…']].concat(DESTS.filter(d => d.active).map(d => [d.code, (d.flag || '') + ' ' + d.name]))) +
-      field('City', 'fCity', v.city, 'placeholder="Melbourne"') +
+      field('City', 'fCity', v.city, 'placeholder="Melbourne" maxlength="80"') +
       select('Level', 'fLevel', v.level, LEVELS) +
       field('Field', 'fField', v.field, 'placeholder="Data Science &amp; AI"',
         'Groups it in the finder&rsquo;s field chips.') +
@@ -2663,6 +2663,30 @@ document.addEventListener('click', async e => {
     if (editing && editing.reqFor) {
       const d = DESTS.find(x => x.code === editing.reqFor);
       $('#pmErr').style.display = 'none';
+      /* The same bounds the server holds, said first and beside the box. A
+         minus sign or a 99 is not tidied into a number nobody typed. */
+      const rbad = [];
+      const rbound = (id, label, lo, hi) => {
+        const el = $('#' + id); if (!el) return;
+        el.removeAttribute('aria-invalid'); el.style.borderColor = '';
+        const raw = el.value.trim(); if (!raw) return;
+        const n = Number(raw.replace(/[,\s₹]/g, ''));
+        if (!Number.isFinite(n) || n < lo || n > hi) {
+          rbad.push(label + ' has to be between ' + lo.toLocaleString('en-IN') + ' and ' + hi.toLocaleString('en-IN') + ' — you entered ' + raw + '.');
+          el.setAttribute('aria-invalid', 'true'); el.style.borderColor = '#c0392b';
+          if (rbad.length === 1) el.focus();
+        }
+      };
+      rbound('rCgP', 'Minimum CGPA — public', 0, 10);
+      rbound('rCgV', 'Minimum CGPA — private', 0, 10);
+      rbound('rFunds', 'Funds to show', 0, 99999999);
+      rbound('rLiving', 'Living costs', 0, 99999999);
+      if (rbad.length) {
+        $('#pmErr').textContent = 'Not saved. ' + rbad.join(' ');
+        $('#pmErr').style.display = 'block';
+        $('#pmErr').scrollIntoView({ block: 'nearest' });
+        return;
+      }
       try {
         await api('PUT', '/api/staff/country', {
           code: d.code, name: d.name, flag: d.flag, region: d.region,
@@ -2697,6 +2721,20 @@ document.addEventListener('click', async e => {
     bound('fCgpa', 'Minimum CGPA', 0, 10);
     bound('fFit', 'Fit score', 0, 100);
     bound('fGgpa', 'German grade', 1, 4);
+    const text = (id, label, max) => {
+      const el = $('#' + id); if (!el) return;
+      el.removeAttribute('aria-invalid'); el.style.borderColor = '';
+      const v = el.value.trim(); if (!v) return;
+      const run = /\S{41,}/.exec(v);
+      const why = v.length > max ? label + ' is ' + v.length + ' characters; the most the site shows is ' + max + '.'
+        : run ? label + ' has a run of ' + run[0].length + ' characters without a space — that is not a name.' : '';
+      if (!why) return;
+      bad.push(why); el.setAttribute('aria-invalid', 'true'); el.style.borderColor = '#c0392b';
+      if (bad.length === 1) el.focus();
+    };
+    text('fProgram', 'The programme name', 140);
+    text('fUni', 'The university name', 140);
+    text('fCity', 'The city', 80);
     if (bad.length) {
       $('#pmErr').textContent = 'Not saved. ' + bad.join(' ');
       $('#pmErr').style.display = 'block';
