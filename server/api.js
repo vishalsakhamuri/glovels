@@ -28,6 +28,7 @@ const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
 const GRADES = require('./grades.js');
+const ISO_COUNTRIES = require('./countries.js');
 const APPS = require('./apps.js');
 const PLANS = require('./plans.js');
 const MONEY = require('./money.js');
@@ -1104,6 +1105,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('PUT', '/api/profile', async (req, res, s) => {
     const b = await readJson(req);
     const prof = withFullName(b.profile || {});
+    if (prof.p_num != null) prof.p_num = GRADES.passportOf(prof.p_num);
     /* REFUSED, not clamped, and not stored.
      *
      * A CGPA of 47.9 was accepted and then compared against every programme's
@@ -3201,6 +3203,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          differently the two screens would disagree about what somebody is
          called, which is the whole reason this field list is shared. */
       const prof = withFullName((b && typeof b.profile === 'object' && b.profile) || {});
+      if (prof.p_num != null) prof.p_num = GRADES.passportOf(prof.p_num);
       /* Same bounds as the student's own save. An agency typing a CGPA of 47.9
          into a student's record corrupts that student's matching exactly as
          thoroughly, and it is harder to notice because the student never saw
@@ -6081,8 +6084,35 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, { extras: x, html: PROSE.render(x.about) });
   }));
 
+  /* REFUSED, not clamped. cleanProgramme() clamps a CGPA of 99 to 10 and a
+     fit of 500 to 100, which is the right thing to do to a value that is
+     already in the database and the wrong thing to do to one being typed: the
+     office pressed Save, saw "Saved", and the row held a number they never
+     entered. The sheet upload has its own per-column bounds; this is the form. */
+  function programmeProblems(b) {
+    const out = [];
+    const num = (k, label, lo, hi, note) => {
+      if (b[k] === '' || b[k] == null) return;
+      const n = Number(String(b[k]).replace(',', '.'));
+      if (!Number.isFinite(n)) out.push({ field: k, why: label + ' has to be a number.' });
+      else if (n < lo || n > hi) out.push({ field: k, why: label + ' has to be between ' + lo
+        + ' and ' + hi + '. You entered ' + b[k] + '.' + (note ? ' ' + note : '') });
+    };
+    num('minCgpa', 'Minimum CGPA', 0, 10, 'It is on the 10-point scale.');
+    num('fit', 'Fit score', 0, 100, 'It is a percentage.');
+    num('germanGpa', 'German grade', 1, 4, '1.0 is the best grade and 4.0 the pass.');
+    num('totalInr', 'Total tuition', 0, 100000000, 'Whole course, in rupees.');
+    num('featureSort', 'Feature order', 0, 999);
+    return out;
+  }
+
   route('PUT', '/api/staff/programme', needs('catalogue', async (req, res, s) => {
     const b = await readJson(req);
+    const wrong = programmeProblems(b);
+    if (wrong.length) {
+      return json(res, 422, { error: wrong.map(w => w.why).join(' '),
+        fields: wrong.map(w => ({ field: w.field, why: w.why })) });
+    }
     const existing = b.id ? db.programme(b.id) : null;
     const p = cleanProgramme(b, existing);
 
@@ -6127,14 +6157,46 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, { deleted: true });
   }));
 
+  /* The list an admin can pick from: every ISO country, with its flag. */
+  route('GET', '/api/staff/iso-countries', needs('catalogue', async (req, res) =>
+    json(res, 200, { countries: ISO_COUNTRIES.all() })));
+
   route('PUT', '/api/staff/country', needs('catalogue', async (req, res, s) => {
     const b = await readJson(req);
     const code = String(b.code || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
-    const name = String(b.name || '').trim().slice(0, 60);
+    let name = String(b.name || '').trim().slice(0, 60);
     if (code.length !== 2) return json(res, 422, { error: 'A destination needs a two-letter code, like AU' });
-    if (!name) return json(res, 422, { error: 'A destination needs a name' });
+    /* A REAL country, and only one row of it.
+     *
+     * "In admin we can add any country with any code" — a code that is not a
+     * country's went in, and a code that was already a destination's, with a
+     * different name beside it, renamed the destination that was there. The
+     * code has to be on the ISO list; the name has to be that country's, and
+     * is filled in from the code when left blank; and the Add form cannot
+     * land on a code that is already a destination. */
+    const iso = ISO_COUNTRIES.byCode(code);
+    if (!iso) {
+      const guess = ISO_COUNTRIES.byName(name);
+      return json(res, 422, { error: code + ' is not a country code.'
+        + (guess ? ' ' + guess.name + ' is ' + guess.code + '.' : ' Codes are the two ISO letters — DE, GB, AU.') });
+    }
     const existed = db.country(code);
-    const draft = { code, name, flag: String(b.flag || '').slice(0, 8),
+    /* A row already there keeps the name it has when the form sends it back
+       unchanged — the Hide switch and the requirements editor round-trip the
+       name, and they must not be refused over a row added before this rule. */
+    const unchanged = existed && name && name === String(existed.name || '');
+    if (!name) name = iso.name;
+    else if (!unchanged && !iso.names.some(n => n.toLowerCase() === name.toLowerCase())) {
+      const other = ISO_COUNTRIES.byName(name);
+      return json(res, 422, { error: code + ' is ' + iso.name + ', not "' + name + '".'
+        + (other ? ' ' + other.name + ' is ' + other.code + '.' : '') });
+    }
+    if (!unchanged) name = iso.name;
+    if (existed && b.create) {
+      return json(res, 409, { error: iso.name + ' (' + code + ') is already a destination'
+        + (existed.active ? '' : ', hidden at the moment') + ' — edit that row instead of adding it again.' });
+    }
+    const draft = { code, name, flag: String(b.flag || '').slice(0, 8) || ISO_COUNTRIES.flagOf(code),
       region: String(b.region || '').slice(0, 80), active: b.active !== false, sort: b.sort };
     /* Only when the caller sent them. saveCountry keeps whatever is stored
        otherwise, so the Destinations form cannot wipe the requirements and the

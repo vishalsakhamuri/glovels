@@ -140,6 +140,19 @@ function rulesFor(p) {
  * act on. Empty means nothing was out of range — NOT that the profile is
  * complete, which is a different question with a different answer.
  */
+/* What a passport number looks like: six to nine letters and digits, at least
+   one of each in most countries and all digits in a few, no spaces and no
+   punctuation. An Indian passport is one letter and seven digits — M1234567 —
+   which is what nearly everybody here has; the wider rule is for the student
+   who does not, and it still refuses anything with a symbol in it. Case and
+   spaces are normalised on the way in rather than refused: a passport typed
+   as "m 1234567" is a real passport typed in a hurry. */
+const PASSPORT = /^(?=.*\d)[A-Z0-9]{6,9}$/;
+const PASSPORT_WHY = 'A passport number is 6 to 9 letters and digits with no spaces '
+  + 'or symbols — an Indian passport looks like M1234567. Copy it exactly as '
+  + 'printed on the photo page.';
+const passportOf = v => String(v == null ? '' : v).toUpperCase().replace(/[\s-]/g, '');
+
 function problems(profile) {
   const p = profile || {};
   const out = [];
@@ -159,6 +172,13 @@ function problems(profile) {
            + 'entered ' + n + '.' + (r.note ? ' ' + r.note : '') });
     }
   }
+  /* A passport number, if there is one, has to look like a passport number.
+     "!!!not-a-passport!!!" was saved and read as a passport by the visa
+     checklist, the counsellor's file and the university form in turn. */
+  if (String(p.p_num || '').trim() && !PASSPORT.test(passportOf(p.p_num))) {
+    out.push({ field: 'p_num', label: 'Passport number', said: String(p.p_num).slice(0, 40),
+      why: PASSPORT_WHY });
+  }
   /* A pass mark at or above the maximum is not a range, and every grade
      conversion on the site divides by the gap between them. */
   const mx = num(p.d_max), ps = num(p.d_pass);
@@ -170,4 +190,4 @@ function problems(profile) {
   return out;
 }
 
-module.exports = { problems, cgpaTen, scaleOf, num, TESTS, APTITUDE, rulesFor };
+module.exports = { problems, cgpaTen, scaleOf, num, TESTS, APTITUDE, rulesFor, PASSPORT, passportOf };

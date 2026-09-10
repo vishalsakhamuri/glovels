@@ -135,15 +135,16 @@ BODY = """
           country called "Austrlia" that nobody notices for a month.</p>
         <div style="display:grid;grid-template-columns:90px 1fr 90px 1fr auto;gap:11px;align-items:end">
           <div class="field"><label for="cCode">Code</label>
-            <input id="cCode" maxlength="2" placeholder="AU" style="text-transform:uppercase"></div>
+            <input id="cCode" maxlength="2" placeholder="AU" style="text-transform:uppercase" list="isoCodes" autocomplete="off"><datalist id="isoCodes"></datalist></div>
           <div class="field"><label for="cName">Name</label>
-            <input id="cName" placeholder="Australia"></div>
+            <input id="cName" placeholder="Australia" list="isoNames" autocomplete="off"><datalist id="isoNames"></datalist></div>
           <div class="field"><label for="cFlag">Flag</label>
             <input id="cFlag" placeholder="🇦🇺"></div>
           <div class="field"><label for="cRegion">Note</label>
             <input id="cRegion" placeholder="Post-study work rights"></div>
           <button type="button" class="btn btn-primary" id="addDest">Add</button>
         </div>
+        <p id="cSaid" role="status" style="margin:10px 0 0;font:600 12.8px/1.5 var(--sans);color:var(--muted);min-height:1.5em">Only a real country: the code is its two ISO letters, and the name and flag fill in from it.</p>
       </div>
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
@@ -850,6 +851,39 @@ async function reload() {
   loadUnis().catch(() => {});
 }
 
+/* The countries there are, for the Add form: typing a code fills in the name
+   and the flag, typing a name fills in the code, and either box offers the
+   list. Loaded once; 249 rows. */
+let ISO = [];
+(async () => {
+  try { ISO = (await api('GET', '/api/staff/iso-countries')).countries || []; } catch (e) { ISO = []; }
+  const codes = $('#isoCodes'), names = $('#isoNames');
+  if (!codes || !names) return;
+  codes.innerHTML = ISO.map(c => '<option value="' + c.code + '">' + esc(c.flag + ' ' + c.name) + '</option>').join('');
+  names.innerHTML = ISO.map(c => '<option value="' + esc(c.name) + '">' + c.code + '</option>').join('');
+  const said = $('#cSaid');
+  const fill = c => {
+    $('#cName').value = c.name; $('#cFlag').value = c.flag;
+    if ($('#cCode').value.toUpperCase() !== c.code) $('#cCode').value = c.code;
+    const dup = DESTS.find(d => d.code === c.code);
+    said.style.color = dup ? '#7a2118' : '#1d6b3a';
+    said.textContent = dup ? c.name + ' is already a destination — see the list below.'
+      : c.flag + ' ' + c.name + ' (' + c.code + ')';
+  };
+  $('#cCode').addEventListener('input', () => {
+    const code = $('#cCode').value.trim().toUpperCase();
+    const c = code.length === 2 && ISO.find(x => x.code === code);
+    if (c) fill(c);
+    else if (code.length === 2) { said.style.color = '#7a2118'; said.textContent = code + ' is not a country code.'; }
+    else { said.style.color = ''; said.textContent = 'Only a real country: the code is its two ISO letters, and the name and flag fill in from it.'; }
+  });
+  $('#cName').addEventListener('change', () => {
+    const n = $('#cName').value.trim().toLowerCase();
+    const c = ISO.find(x => x.name.toLowerCase() === n);
+    if (c) fill(c);
+  });
+})();
+
 /* ------------------------------------------------------ university pages */
 
 let UNIS = [], UNI_TOTAL = 0, uniOpen = null, uniDirty = false;
@@ -1192,6 +1226,29 @@ document.addEventListener('click', async e => {
     }
     const body = readEditor();
     $('#pmErr').style.display = 'none';
+    ['fCgpa', 'fFit', 'fGgpa', 'fTuition'].forEach(id => { const el = $('#' + id); if (el) el.removeAttribute('aria-invalid'); el && (el.style.borderColor = ''); });
+    /* The same bounds the server holds, said here first and beside the box:
+       a CGPA of 99 or a fit of 500 is not saved as 10 and 100 with a green
+       "Saved" over it. The server refuses it too. */
+    const bad = [];
+    const bound = (id, label, lo, hi) => {
+      const el = $('#' + id); if (!el || el.value.trim() === '') return;
+      const n = Number(el.value.replace(',', '.'));
+      if (!Number.isFinite(n) || n < lo || n > hi) {
+        bad.push(label + ' has to be between ' + lo + ' and ' + hi + ' — you entered ' + el.value + '.');
+        el.setAttribute('aria-invalid', 'true'); el.style.borderColor = '#c0392b';
+        if (bad.length === 1) el.focus();
+      }
+    };
+    bound('fCgpa', 'Minimum CGPA', 0, 10);
+    bound('fFit', 'Fit score', 0, 100);
+    bound('fGgpa', 'German grade', 1, 4);
+    if (bad.length) {
+      $('#pmErr').textContent = 'Not saved. ' + bad.join(' ');
+      $('#pmErr').style.display = 'block';
+      $('#pmErr').scrollIntoView({ block: 'nearest' });
+      return;
+    }
     try {
       await api('PUT', '/api/staff/programme', body);
       $('#progModal').classList.remove('on');
@@ -1217,15 +1274,35 @@ document.addEventListener('click', async e => {
   }
 
   if (e.target.closest('#addDest')) {
+    const said = $('#cSaid');
+    const code = $('#cCode').value.trim().toUpperCase();
+    const iso = ISO.find(c => c.code === code);
+    /* The same refusals the server gives, given here first so the row that
+       is wrong is the one under the cursor. The server is still the gate. */
+    if (!iso) {
+      const byName = ISO.find(c => c.name.toLowerCase() === $('#cName').value.trim().toLowerCase());
+      said.textContent = (code || 'That') + ' is not a country code.'
+        + (byName ? ' ' + byName.name + ' is ' + byName.code + ' — put that in the code box.' : ' Codes are the two ISO letters — DE, GB, AU.');
+      said.style.color = '#7a2118'; $('#cCode').focus();
+      return;
+    }
+    const dup = DESTS.find(d => d.code === code);
+    if (dup) {
+      said.textContent = iso.name + ' (' + code + ') is already a destination'
+        + (dup.active ? '' : ', hidden at the moment') + ' — it is in the list below; edit that row instead of adding it again.';
+      said.style.color = '#7a2118'; $('#cCode').focus();
+      return;
+    }
     try {
       await api('PUT', '/api/staff/country', {
-        code: $('#cCode').value, name: $('#cName').value,
-        flag: $('#cFlag').value, region: $('#cRegion').value,
+        code, name: $('#cName').value || iso.name, create: true,
+        flag: $('#cFlag').value || iso.flag, region: $('#cRegion').value,
       });
       ['cCode', 'cName', 'cFlag', 'cRegion'].forEach(id => { $('#' + id).value = ''; });
+      said.textContent = ''; said.style.color = '';
       await reload();
-      toast('Destination added — you can put programmes in it now.');
-    } catch (err) { toast(err.message); }
+      toast(iso.name + ' added — you can put programmes in it now.');
+    } catch (err) { said.textContent = err.message; said.style.color = '#7a2118'; }
     return;
   }
 

@@ -1329,6 +1329,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         regulations, and it is printed on many transcripts.</small></div>
     <div class="field"><label for="ggNow">Your current overall grade</label>
       <input id="ggNow" inputmode="decimal" placeholder="6.84"></div>
+    <p id="ggNote" hidden role="status" style="margin:8px 0 0;font:600 13px/1.5 var(--sans);color:#7a2118"></p>
     <div id="ggOut" hidden>
       <div class="out"><div><b id="ggGerman">&mdash;</b><span>German scale</span></div>
         <div><b id="ggC10">&mdash;</b><span>CGPA / 10</span></div>
@@ -1349,11 +1350,12 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <p class="lead">Percentage, CGPA-10 and GPA-4 at once — then drop the answer into the finder.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="field"><label for="cvVal">Your score</label>
-        <input id="cvVal" inputmode="decimal" placeholder="e.g. 78" style="cursor:text"></div>
+        <input id="cvVal" inputmode="decimal" placeholder="e.g. 78" style="cursor:text" aria-describedby="cvNote"></div>
       <div class="field"><label for="cvScale">On this scale</label>
         <select id="cvScale"><option value="pct">Percentage</option>
         <option value="c10">CGPA out of 10</option><option value="g4">GPA out of 4</option></select></div>
     </div>
+    <p id="cvNote" hidden role="status" style="margin:8px 0 0;font:600 13px/1.5 var(--sans);color:#7a2118"></p>
     <div class="field" style="margin-top:12px"><label for="cvMul">Conversion formula</label>
       <select id="cvMul"><option value="9.5">× 9.5</option><option value="10.0">× 10.0</option></select></div>
     <div id="cvOut" hidden>
@@ -2215,17 +2217,19 @@ function rowHtml(r){
         title="Open ${uniLong}'s own website">${uni} \u2197</a>`
     : uni;
   const dlNow = deadlineOf(r);
+  /* Always with the year, and always the NEXT one. "31 Aug" on the 10th of
+     September read as a deadline that had passed — it was the next August's,
+     but nothing on the row said so. A date a student may act on carries its
+     year. */
   const dl = dlNow.at ? new Date(dlNow.at).toLocaleDateString('en-GB',
-      new Date(dlNow.at).getFullYear() === new Date().getFullYear()
-        ? {day:'numeric',month:'short'}
-        : {day:'numeric',month:'short',year:'numeric'}) : '';
+      {day:'numeric',month:'short',year:'numeric'}) : '';
   return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
     <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div></div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice">${short(r.totalInr)}<small>${r.totalInr===0?'tuition':'total'}</small></div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
-      ${dl?`<span style="font-size:11.4px;color:var(--muted)">${dl}</span>`
+      ${dl?`<span style="font-size:11.4px;color:var(--muted)" title="Applications for the next intake close on ${dl}">Closes ${dl}</span>`
         :dlNow.closed?`<span style="font-size:11.4px;color:#8a6a1f;font-weight:700"
           >intake closed</span>`:''}
       <button class="btn btn-sm ${feeOfRow === 'free' ? 'btn-primary' : 'btn-gold'}"
@@ -2482,6 +2486,21 @@ $$('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.
 $$('.modal').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.remove('on'); }));
 addEventListener('keydown', e => { if(e.key === 'Escape') $$('.modal.on').forEach(m => m.classList.remove('on')); });
 
+/* Both converters filter letters out as they are typed. Filtering alone is a
+   field that swallows keystrokes with no explanation; this says why, beside
+   the box, for a moment, then gets out of the way. */
+function numbersOnly(el, note, before, out){
+  if(out === before || !note) return;
+  const removed = before.replace(/[0-9.]/g, '');
+  note.textContent = /[a-z]/i.test(removed)
+    ? 'Numbers only here — letters are not a score.'
+    : 'Numbers only here, with at most one decimal point.';
+  note.hidden = false;
+  el.setAttribute('aria-invalid', 'true');
+  clearTimeout(numbersOnly.t);
+  numbersOnly.t = setTimeout(() => { note.hidden = true; el.removeAttribute('aria-invalid'); }, 2600);
+}
+
 /* --------------------------------------------- the German grade calculator */
 (function(){
   const box = $('#ggModal');
@@ -2506,6 +2525,7 @@ addEventListener('keydown', e => { if(e.key === 'Escape') $$('.modal.on').forEac
         const at = e.target.selectionStart - (before.length - out.length);
         e.target.value = out;
         try { e.target.setSelectionRange(Math.max(0,at), Math.max(0,at)); } catch(err){}
+        numbersOnly(e.target, $('#ggNote'), before, out);
       }
       draw();
     });
@@ -2684,6 +2704,7 @@ $('#cvVal').addEventListener('input', e => {
     const at = el.selectionStart - (before.length - out.length);
     el.value = out;
     try { el.setSelectionRange(Math.max(0, at), Math.max(0, at)); } catch (err) {}
+    numbersOnly(el, $('#cvNote'), before, out);
   }
 });
 ['#cvVal','#cvScale','#cvMul'].forEach(s => $(s).addEventListener('input', convert));

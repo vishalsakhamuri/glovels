@@ -45,6 +45,7 @@ BODY = """
           <button type="button" class="btn btn-ghost" id="prevBtn">← Previous section</button>
           <button type="button" class="btn btn-primary" id="saveBtn">Save this section</button>
           <button type="button" class="btn btn-ghost" id="nextBtn">Next section →</button>
+          <span id="saveState" role="status" aria-live="polite" style="align-self:center;font:600 13px/1.4 var(--sans);color:var(--muted);min-height:1.4em"></span>
         </div>
         <!-- "Fill with demo answers" was here. It filled a real student's real
              record with somebody else's answers, one press, on the live site —
@@ -424,6 +425,8 @@ function drawForm() {
      group has to be marked before the next redraw, not after it. */
   $$('#pForm input[name], #pForm textarea[name]').forEach(el =>
     el.addEventListener('input', () => keepOpen(el), { once: true }));
+  $$('#pForm input[name]:not([type="checkbox"]), #pForm textarea[name]').forEach(el =>
+    el.addEventListener('change', () => { readForm(); save(); paint(); }));
   $$('#pForm .d3 select, #pForm .multi input').forEach(el =>
     el.addEventListener('change', () => {
       readForm(); save(); paint();
@@ -462,6 +465,11 @@ const MUST = [
   {k:'email', l:'Email',
    ok:v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v),
    why:'Something like you@email.com.'},
+  /* Only when there is one. The server has the same rule, so a number that
+     gets past this box is refused there too; this one names the box first. */
+  {k:'p_num', l:'Passport number', ifBlank:'ok',
+   ok:v => /^(?=.*\d)[A-Z0-9]{6,9}$/.test(v.toUpperCase().replace(/[\s-]/g, '')),
+   why:'6 to 9 letters and digits, no spaces or symbols — an Indian passport looks like M1234567.'},
 ];
 
 /* Returns the first problem, or null. Only checks fields that are ON the
@@ -472,7 +480,7 @@ function firstProblem() {
   for (const m of MUST) {
     if (here.indexOf(m.k) < 0) continue;
     const v = String(DB.profile[m.k] || '').trim();
-    if (!v) return { k:m.k, say: m.l + ' is required.' };
+    if (!v) { if (m.ifBlank === 'ok') continue; return { k:m.k, say: m.l + ' is required.' }; }
     if (!m.ok(v)) return { k:m.k, say: m.l + ' does not look right. ' + m.why };
   }
   return null;
@@ -503,14 +511,21 @@ function showProblem(p) {
  * them are marked, and the first is the one scrolled to. */
 addEventListener('glovels:profile-invalid', ev => {
   const list = (ev.detail && ev.detail.fields) || [];
-  $$('#pForm .ferr').forEach(e => { e.hidden = true; e.textContent = ''; });
-  $$('#pForm .field').forEach(e => e.classList.remove('bad'));
+  /* Only the marks the SERVER put there come off on a good save. The page's
+     own marks — a mobile number missing on the section being saved — are not
+     the server's to clear: a box left blank saves fine as far as the server
+     is concerned, and a save that follows the box being left must not wipe
+     the message that says why the section is not done. */
+  $$('#pForm .field.srv').forEach(e => {
+    e.classList.remove('bad', 'srv');
+    const m = e.querySelector('.ferr'); if (m) { m.hidden = true; m.textContent = ''; }
+  });
   if (!list.length) return;
   let first = null;
   list.forEach(f => {
     const box = $('#pForm .field[data-k="' + f.field + '"]');
     if (!box) return;
-    box.classList.add('bad');
+    box.classList.add('bad', 'srv');
     const e = box.querySelector('.ferr');
     if (e) { e.textContent = f.why; e.hidden = false; }
     if (!first) first = box;
@@ -629,7 +644,8 @@ $('#saveBtn').addEventListener('click', async () => {
       + 'device — try again in a moment.' : out.error, 'bad');
     return;
   }
-  toast('Saved. ' + overall() + '% of your profile is complete.');
+  toast((out && out.nothing ? 'Already saved — nothing changed. ' : 'Saved. ')
+    + overall() + '% of your profile is complete.');
 });
 $('#prevBtn').addEventListener('click', () => goTo(cur - 1));
 $('#nextBtn').addEventListener('click', () => goTo(cur + 1));
