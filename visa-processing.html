@@ -243,6 +243,12 @@ nav.menu>a,.ndt{font:600 13.6px/1 var(--sans);color:var(--navy-800);white-space:
 .page-hero p{color:#c8d6e4;font-size:15.5px;max-width:62ch;margin:12px 0 0}
 .crumbs{font-size:12.4px;color:#9fb1c4;margin-bottom:14px}
 .crumbs a{color:#c8d6e4}
+/* The title sits over the column it introduces. The hero's text was set at
+   the page's full width while the copy under it is a centred 70ch column,
+   so on a wide screen "Contact us" stood at the left edge with its own
+   page's first paragraph three hundred pixels to the right of it. */
+.page-hero .wrap{display:grid;grid-template-columns:minmax(0,70ch);justify-content:center}
+.page-hero .wrap>*{min-width:0;padding:0 var(--wrap)}
 .prose{max-width:70ch;margin:0 auto}
 .prose h2{font-size:24px;margin:30px 0 10px}
 .prose h3{font-size:18px;margin:22px 0 8px}

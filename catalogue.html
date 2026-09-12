@@ -1084,7 +1084,7 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
-          <thead><tr><th>Destination</th><th>Code</th><th>Programmes</th><th>Status</th>
+          <thead><tr><th>Destination</th><th>Code</th><th style="text-align:right;padding-right:22px">Programmes</th><th>Status</th>
             <th>Entry requirements</th><th></th></tr></thead>
           <tbody id="destRows"></tbody>
         </table>
@@ -1745,6 +1745,8 @@ async function bell(me) {
    nobody finishes, so the search, the filters and the paging all happen in the
    database and the screen only ever holds a hundred rows. */
 let PROGS = [], DESTS = [], LOG = [], STATS = {}, FIELDS = [], TOTAL = 0, editing = null;
+/* "Yes, save it" for a deadline that has passed — one press, one save. */
+let PAST_OK = false;
 /* See the change handler at the foot of this file. */
 let feeTouched = false;
 
@@ -1896,11 +1898,17 @@ function paintProgs() {
 function paintDests() {
   $('#nDest').textContent = DESTS.length;
   $('#kDest').textContent = DESTS.filter(d => d.active).length;
-  $('#destRows').innerHTML = DESTS.map(d =>
+  /* In order: the destinations with the most programmes first, then by name,
+     so the Programmes column reads down and the ones with nothing in them
+     sit together at the foot. This was the order they were added in, which
+     put 3320, 11142, 2, 4, 2, 1, 2191 down one column. The finder's own
+     order (the office's sort) is untouched. */
+  const inOrder = DESTS.slice().sort((a, b) => (b.programmes - a.programmes) || a.name.localeCompare(b.name));
+  $('#destRows').innerHTML = inOrder.map(d =>
     '<tr><td style="font-size:15px">' + (d.flag || '🌍') + ' <b style="font-size:13.6px">' + esc(d.name) + '</b>' +
       (d.region ? '<br><span style="font-size:11.6px;color:var(--muted)">' + esc(d.region) + '</span>' : '') + '</td>' +
     '<td><code>' + esc(d.code) + '</code></td>' +
-    '<td>' + d.programmes + '</td>' +
+    '<td style="text-align:right;font-variant-numeric:tabular-nums;padding-right:22px">' + d.programmes.toLocaleString('en-IN') + '</td>' +
     '<td>' + (d.active ? '<span class="st ok">Shown</span>' : '<span class="st wait">Hidden</span>') + '</td>' +
     /* How complete the requirements are, as a count. A destination showing 0 of
        8 is one where the finder's Requirements panel is nearly empty, and that
@@ -1910,7 +1918,7 @@ function paintDests() {
       const filled = [f.minCgpaPublic, f.minCgpaPrivate, f.degreeRule, f.fundsInr,
         f.livingInr, f.workRights, (f.tests || []).length, (f.documents || []).length]
         .filter(Boolean).length;
-      return '<button type="button" class="btn btn-ghost btn-sm" data-dreq="' + esc(d.code) + '">' +
+      return '<button type="button" class="btn btn-ghost btn-sm" style="min-width:132px" data-dreq="' + esc(d.code) + '">' +
         (filled === 8 ? 'All 8 filled in' : filled + ' of 8 filled in') + '</button>';
     })() + '</td>' +
     '<td><button type="button" class="btn btn-ghost btn-sm" data-dtoggle="' + esc(d.code) + '">' +
@@ -1964,6 +1972,7 @@ function select(label, id, value, opts, help) {
 }
 
 function openEditor(p) {
+  PAST_OK = false;
   editing = p || null;
   const v = p || {isPublic: true, active: true, intakes: [{season: 'winter', deadline: ''}]};
   /* Whether the person editing has made their own choice about how a student
@@ -2657,6 +2666,12 @@ document.addEventListener('click', async e => {
   const req = e.target.closest('[data-dreq]');
   if (req) return openReqEditor(req.dataset.dreq);
 
+  if (e.target.closest('#pmPastOk')) { PAST_OK = true; $('#pmSave').click(); return; }
+  if (e.target.closest('#pmPastNo')) {
+    $('#pmErr').style.display = 'none';
+    const d = $('#fDeadline0'); if (d) d.focus();
+    return;
+  }
   if (e.target.closest('#pmSave')) {
     /* The same sheet is used for a programme and for a destination's entry
        requirements, so the save has to know which one it is looking at. */
@@ -2741,6 +2756,25 @@ document.addEventListener('click', async e => {
       $('#pmErr').scrollIntoView({ block: 'nearest' });
       return;
     }
+    /* A deadline that has already gone by is asked about, once. The year is
+       not used — the site shows the next 31 August — but "31 Aug 2026" typed
+       on the 12th of September 2026 is as likely a slip as a date from last
+       cycle, and it went in silently and came out on the finder as 2027. */
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const gone = (body.intakes || []).map((i, n) => ({ i, n: n + 1 }))
+      .filter(x => x.i.deadline && new Date(x.i.deadline) < today);
+    if (gone.length && !PAST_OK) {
+      const say = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const next = d => { const t = new Date(d); t.setFullYear(today.getFullYear() + (new Date(today.getFullYear(), t.getMonth(), t.getDate()) < today ? 1 : 0)); return say(t); };
+      $('#pmErr').innerHTML = 'Not saved yet. ' + gone.map(x => 'Intake ' + x.n + ' closes <b>' + say(x.i.deadline)
+        + '</b>, which has passed — the site would show it as <b>' + next(x.i.deadline) + '</b>.').join(' ')
+        + ' Is that right? <button type="button" class="btn btn-sm btn-primary" id="pmPastOk" style="margin-left:8px">Yes, save it</button>'
+        + ' <button type="button" class="btn btn-sm btn-ghost" id="pmPastNo">No, let me fix the date</button>';
+      $('#pmErr').style.display = 'block';
+      $('#pmErr').scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    PAST_OK = false;
     try {
       await api('PUT', '/api/staff/programme', body);
       $('#progModal').classList.remove('on');

@@ -1271,7 +1271,15 @@ const first = (user.name || order.name || '').trim().split(' ')[0];
 $('#hello').textContent = first ? 'Welcome back, ' + first : 'Welcome back';
 
 const signedIn = !!(window.__GLOVELS && window.__GLOVELS.user);
-const shown = list.length ? list : (signedIn ? [] : FALLBACK);
+/* ONE number for the shortlist, the same one My programs shows.
+
+   The dashboard said 16, My programs said 15 and the card above said 3.
+   16 was every row on the server, one of which was a university the
+   student had marked interest in themselves — a mark My programs does not
+   show while that feature is off. 3 was the machine's picks alone. So the
+   count here is the rows the shortlist screen draws, and the card says
+   the same total with the machine's share as a detail. */
+const shown = (list.length ? list : (signedIn ? [] : FALLBACK)).filter(r => r.addedBy !== 'student');
 const usingSample = !list.length && !signedIn;
 const quota = order.publicUnis || 0;
 
@@ -1428,8 +1436,11 @@ $('#avatar').textContent = (first || 'G').slice(0, 1).toUpperCase()
   + ((user.name || order.name || '').split(' ')[1] || '').slice(0, 1).toUpperCase();
 
 $('#planBadge').innerHTML = paid
-  ? '<b>' + esc(order.package) + '</b><span>' + (order.publicUnis || 0)
-    + ' universities · ' + (shown[0] && shown[0].intakes && shown[0].intakes[0]
+  /* The same shortlist number as the rest of the screen. This read the
+     latest order's own allowance — "0 universities" under Travel & Health
+     Insurance, on a dashboard saying 15 two inches away. */
+  ? '<b>' + esc(order.package) + '</b><span>' + shown.length
+    + ' universit' + (shown.length === 1 ? 'y' : 'ies') + ' shortlisted · ' + (shown[0] && shown[0].intakes && shown[0].intakes[0]
         ? shown[0].intakes[0].season + ' intake' : 'this intake') + '</span>'
   : '<b>No package yet</b><span>Choose one to unlock your matches</span>';
 
@@ -1463,9 +1474,12 @@ window.__markPaid = () => { STEPS[1][1] = true; paintSteps(); };
    those three things. */
 const __m = (window.__GLOVELS && window.__GLOVELS.matched) || null;
 const next = (__m && __m.delivered > 0)
-  ? ['Your ' + __m.delivered + ' universit' + (__m.delivered === 1 ? 'y is' : 'ies are')
-       + ' ready',
-     'Named, with the fee, the intake and the deadline on each one. They are yours '
+  ? ['Your shortlist is ready — ' + shown.length + ' universit' + (shown.length === 1 ? 'y' : 'ies'),
+     (shown.length > __m.delivered
+        ? __m.delivered + ' picked for your ' + (__m.package || 'package') + ' and '
+          + (shown.length - __m.delivered) + ' added by your counsellor. '
+        : __m.delivered + ' picked for your ' + (__m.package || 'package') + '. ')
+     + 'Named, with the fee, the intake and the deadline on each one. They are yours '
      + 'to keep — and your counsellor can add or drop any of them with you.',
      'See my universities', 'universities.html', 'cap']
   : (__m && __m.owed && __m.needsProfile)

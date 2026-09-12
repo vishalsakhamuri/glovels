@@ -235,6 +235,12 @@ nav.menu>a,.ndt{font:600 13.6px/1 var(--sans);color:var(--navy-800);white-space:
 .page-hero p{color:#c8d6e4;font-size:15.5px;max-width:62ch;margin:12px 0 0}
 .crumbs{font-size:12.4px;color:#9fb1c4;margin-bottom:14px}
 .crumbs a{color:#c8d6e4}
+/* The title sits over the column it introduces. The hero's text was set at
+   the page's full width while the copy under it is a centred 70ch column,
+   so on a wide screen "Contact us" stood at the left edge with its own
+   page's first paragraph three hundred pixels to the right of it. */
+.page-hero .wrap{display:grid;grid-template-columns:minmax(0,70ch);justify-content:center}
+.page-hero .wrap>*{min-width:0;padding:0 var(--wrap)}
 .prose{max-width:70ch;margin:0 auto}
 .prose h2{font-size:24px;margin:30px 0 10px}
 .prose h3{font-size:18px;margin:22px 0 8px}
@@ -394,34 +400,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 </div></section>
 
 <section class="block"><div class="wrap prose">
-  <!-- GLOVELS-PAGE-COPY -->
-  <h2>The fastest way to reach us</h2>
-  <p>If you already have an account, sign in and message your counsellor there. It goes onto your file, the whole team can see it, and you have a record of what was said.</p>
-  <p>If you do not, the chat on this site reaches the same people, and anything you write there is waiting for you when you sign up.</p>
-  <ul><li>WhatsApp or phone: <a href="tel:+917839399999">+91 78393 99999</a></li><li>Email: <a href="mailto:info@glovels.com">info@glovels.com</a></li><li>Germany: <a href="tel:+498920194090">+49 89 2019 4090</a></li></ul>
-  <h2>What to expect when you write</h2>
-  <ul><li>A reply within one working day, from a person rather than a queue</li><li>A straight answer about price and scope — both are on the site already, so there is nothing to extract from us</li><li>No obligation, and nobody ringing you for a fortnight afterwards</li></ul>
-  <div class="pagenote">You do not have to speak to anybody to start. Services are priced on the site from ₹99, and a counsellor is assigned when you buy something that needs one.</div>
-  <h2>Who you are dealing with</h2>
-  <p>Glovels Consultants Private Limited, registered in India, with people in Hyderabad and in Germany. The full company details — registered entity, address, GSTIN and jurisdiction — are set out in the <a href="terms.html">Terms and Conditions</a>.</p>
-  <h2>For admissions and partnerships</h2>
-  <ul><li>General enquiries — <a href="mailto:info@glovels.com">info@glovels.com</a></li><li>Careers — <a href="mailto:careers@glovels.com">careers@glovels.com</a></li></ul>
-  <h2>Questions we are actually asked</h2>
-  <div class="pfaq">
-  <details><summary>Do I need to book a call before I can do anything?</summary><p>No. You can answer the profile questions, see your matches and buy a service without speaking to anybody.</p></details>
-  <details><summary>How quickly do you reply?</summary><p>Within one working day to email, and usually the same day to a message in the portal or on WhatsApp.</p></details>
-  <details><summary>Is the first consultation free?</summary><p>Yes. A profile evaluation costs nothing, whether or not you ever buy anything.</p></details>
-  <details><summary>Do you work with students outside India?</summary><p>Yes. Nothing about the service depends on where you are — it runs in your account, in whatever timezone you are in.</p></details>
-  </div>
-  <!-- /GLOVELS-PAGE-COPY -->
-  <div class="factbox"><div><span><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Hyderabad</span><b>Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</b></div>
-    <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span><b><a href="mailto:info@glovels.com">info@glovels.com</a></b></div>
-    <div><span><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg> Hours</span><b>Mon–Sat, 9:30–19:30 IST</b></div>
-  </div>
-  <p>The fastest route is the counselling form — a counsellor calls you back within one
-    working day with your profile already in front of them.</p>
-  <p><a class="btn btn-primary" href="index.html#counsel">Book free counselling <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
-  <h2 id="write">Write to us</h2>
+  <h2 id="write" style="margin-top:0">Write to us</h2>
   <p>Tell us where you are headed and we will call you back within one working day,
     Mon&ndash;Sat 9:30&ndash;19:30 IST. Nothing is charged and there is no obligation.</p>
   <form id="ctForm" class="ct-form" novalidate>
@@ -448,6 +427,33 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <button class="btn btn-green" id="ctGo" type="submit">Send</button>
   </form>
 
+
+  <!-- GLOVELS-PAGE-COPY -->
+  <h2>The fastest way to reach us</h2>
+  <p>If you already have an account, sign in and message your counsellor there. It goes onto your file, the whole team can see it, and you have a record of what was said.</p>
+  <ul><li>WhatsApp or phone: <a href="tel:+917839399999">+91 78393 99999</a></li><li>Email: <a href="mailto:info@glovels.com">info@glovels.com</a></li><li>Germany: <a href="tel:+498920194090">+49 89 2019 4090</a></li></ul>
+  <h2>What to expect when you write</h2>
+  <ul><li>A reply within one working day, from a person rather than a queue</li><li>A straight answer about price and scope — both are on the site already, so there is nothing to extract from us</li><li>No obligation, and nobody ringing you for a fortnight afterwards</li></ul>
+  <div class="pagenote">You do not have to speak to anybody to start. Services are priced on the site from ₹99, and a counsellor is assigned when you buy something that needs one.</div>
+  <h2>Who you are dealing with</h2>
+  <p>Glovels Consultants Private Limited, registered in India, with people in Hyderabad and in Germany. The full company details — registered entity, address, GSTIN and jurisdiction — are set out in the <a href="terms.html">Terms and Conditions</a>.</p>
+  <h2>For admissions and partnerships</h2>
+  <ul><li>General enquiries — <a href="mailto:info@glovels.com">info@glovels.com</a></li><li>Careers — <a href="mailto:careers@glovels.com">careers@glovels.com</a></li></ul>
+  <h2>Questions we are actually asked</h2>
+  <div class="pfaq">
+  <details><summary>Do I need to book a call before I can do anything?</summary><p>No. You can answer the profile questions, see your matches and buy a service without speaking to anybody.</p></details>
+  <details><summary>How quickly do you reply?</summary><p>Within one working day to email, and usually the same day to a message in the portal or on WhatsApp.</p></details>
+  <details><summary>Is the first consultation free?</summary><p>Yes. A profile evaluation costs nothing, whether or not you ever buy anything.</p></details>
+  <details><summary>Do you work with students outside India?</summary><p>Yes. Nothing about the service depends on where you are — it runs in your account, in whatever timezone you are in.</p></details>
+  </div>
+  <!-- /GLOVELS-PAGE-COPY -->
+  <div class="factbox"><div><span><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Hyderabad</span><b>Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span><b><a href="mailto:info@glovels.com">info@glovels.com</a></b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg> Hours</span><b>Mon–Sat, 9:30–19:30 IST</b></div>
+  </div>
+  <p>The fastest route is the counselling form — a counsellor calls you back within one
+    working day with your profile already in front of them.</p>
+  <p><a class="btn btn-primary" href="index.html#counsel">Book free counselling <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
   <h2 id="reach-us">Or reach us directly</h2>
   <div class="factbox" id="reachBox">
     <div><span><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Phone</span>

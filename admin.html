@@ -1010,7 +1010,7 @@ select.assign.none:hover{border-color:#a5342b}
           <div class="field" style="margin-bottom:10px"><label for="pEmail">Work email</label>
             <input id="pEmail" placeholder="kavya@glovels.com" inputmode="email"></div>
           <div class="field" style="margin-bottom:10px"><label for="pPhone">Mobile (optional)</label>
-            <input id="pPhone" inputmode="tel" placeholder="98765 43210"></div>
+            <input id="pPhone" inputmode="tel" placeholder="98765 43210" pattern="[+\d\s().-]*" maxlength="20"></div>
           <div class="field" style="margin-bottom:10px"><label for="pRole">What kind of account</label>
             <select id="pRole">
               <option value="counsellor">Counsellor — their own students, and the chat</option>
@@ -2867,6 +2867,13 @@ document.addEventListener('click', async e => {
 
   if (e.target.closest('#pSave')) {
     const btn = e.target.closest('#pSave');
+    const ph = $('#pPhone').value.trim();
+    if (ph && !(/^\+?[\d\s().-]+$/.test(ph) && ph.replace(/\D/g, '').length >= 8 && ph.replace(/\D/g, '').length <= 15)) {
+      $('#pErr').textContent = 'That is not a phone number — digits only, with the country code if it is not Indian (+49 89 2019 4090).';
+      $('#pErr').style.display = 'block';
+      $('#pPhone').focus();
+      return;
+    }
     const body = {
       name: $('#pName').value, email: $('#pEmail').value,
       phone: $('#pPhone').value, role: $('#pRole').value,

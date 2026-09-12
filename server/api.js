@@ -204,6 +204,16 @@ const tenDigits = p => {
   return d;
 };
 const validPhone = p => /^[6-9]\d{9}$/.test(tenDigits(p));
+/* A phone number from anywhere — the team has people in Germany. Digits,
+   with a leading +, spaces, hyphens and brackets allowed; 8 to 15 digits
+   once those are stripped; and not a single letter, because
+   "$%qwere13123123456" was accepted as a mobile number and stored. */
+const anyPhone = p => {
+  const v = String(p == null ? '' : p).trim();
+  if (!/^\+?[\d\s().-]+$/.test(v)) return false;
+  const d = v.replace(/\D/g, '');
+  return d.length >= 8 && d.length <= 15;
+};
 
 /* Very small multipart parser — one file field plus text fields, which is all
    the upload form sends. A general parser is a dependency; this is 30 lines. */
@@ -4947,6 +4957,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     if (!name) return json(res, 422, { error: 'They need a name' });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
+    if (phone && !anyPhone(phone)) {
+      return json(res, 422, { error: 'That is not a phone number — digits only, with the country code if it is not Indian (+49 89 2019 4090).' });
+    }
     if (db.studentByEmail(email)) {
       return json(res, 409, { error: 'Somebody already has that email address on this site' });
     }
@@ -5026,6 +5039,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const b = await readJson(req);
     if (b.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(b.email).trim())) {
       return json(res, 400, { error: 'That is not an email address' });
+    }
+    if (b.phone && String(b.phone).trim() && !anyPhone(b.phone)) {
+      return json(res, 422, { error: 'That is not a phone number — digits only, with the country code if it is not Indian (+49 89 2019 4090).' });
     }
     const out = db.updatePerson(id, b);
     if (out.error) return json(res, 409, { error: out.error });
