@@ -1879,7 +1879,7 @@ function paintLead(lead, notes) {
       + '</select></div>'
     + '<div class="two">'
       + '<div class="field"><label for="dNext">Next follow-up</label>'
-        + '<input id="dNext" type="date" value="' + esc((lead.nextAt || '').slice(0, 10))
+        + '<input id="dNext" type="date" min="' + new Date().toISOString().slice(0, 10) + '" value="' + esc((lead.nextAt || '').slice(0, 10))
         + '"></div>'
       + '<div class="field"><label for="dSource">Where they came from</label>'
         + '<select id="dSource">'
@@ -1940,6 +1940,13 @@ async function note(lead) {
 
 async function saveLead(lead) {
   say('');
+  /* The same rule the server holds: a next follow-up is today or later. */
+  const nx = $('#dNext').value;
+  if (nx) {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const d = new Date(nx + 'T00:00:00');
+    if (Number.isNaN(d.getTime()) || d < t) { say('The next follow-up cannot be in the past — today or later.'); $('#dNext').focus(); return; }
+  }
   try {
     const r = await api('PUT', '/api/staff/lead/' + lead.id, {
       status: $('#dStatus').value,

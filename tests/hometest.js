@@ -147,9 +147,29 @@ const homeText = async ctx => {
   await page.fill('#a' + faqBefore, 'Yes — a mock interview and a document check before you go.');
   await page.click('[data-save="faq"]');
   await page.waitForTimeout(700);
-  home = await homeText(ctx);
-  check('a new FAQ entry reaches the home page',
-    home.includes('Do you help with the visa interview?'));
+  /* The FAQ list is folded to four with a "More questions" button (testing
+     round 1.12), so a fifth entry is in the list and behind the fold rather
+     than in the page's innerText. Both halves are worth asserting: that it
+     reached the page at all, and that pressing More reveals it. */
+  {
+    const fp = await ctx.newPage();
+    await fp.goto(BASE + '/#faq', { waitUntil: 'domcontentloaded' });
+    await fp.waitForTimeout(1300);
+    const inList = await fp.$eval('#faqList', e => e.textContent);
+    check('a new FAQ entry reaches the home page',
+      inList.includes('Do you help with the visa interview?'));
+    const btn = await fp.$('#faqList + .showmore');
+    check('  · and the fifth one is behind the More button', !!btn,
+      'no More button with ' + (await fp.$$eval('#faqList details.faq', d => d.length)) + ' questions');
+    if (btn) {
+      await btn.click();
+      await fp.waitForTimeout(250);
+      const shown = await fp.$$eval('#faqList details.faq',
+        d => d.filter(e => e.style.display !== 'none').map(e => e.textContent).join(' '));
+      check('  · which reveals it', shown.includes('Do you help with the visa interview?'));
+    }
+    await fp.close();
+  }
 
   /* ------------------------------------------------------- page text */
   await page.click('.tab[data-t="txt"]');

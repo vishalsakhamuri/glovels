@@ -179,6 +179,48 @@ function problems(profile) {
     out.push({ field: 'p_num', label: 'Passport number', said: String(p.p_num).slice(0, 40),
       why: PASSPORT_WHY });
   }
+  /* Old enough to apply, and not born tomorrow. "The date of birth accepts
+     today's date as well" — a student is at least fifteen, and nobody on the
+     books is over ninety. */
+  const dob = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(p.dob || '').trim());
+  if (dob) {
+    const born = new Date(Number(dob[1]), Number(dob[2]) - 1, Number(dob[3]));
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const fifteen = new Date(today.getFullYear() - 15, today.getMonth(), today.getDate());
+    const ninety = new Date(today.getFullYear() - 90, today.getMonth(), today.getDate());
+    if (Number.isNaN(born.getTime()) || born > today) {
+      out.push({ field: 'dob', label: 'Date of birth', said: p.dob, why: 'The date of birth cannot be in the future.' });
+    } else if (born > fifteen) {
+      out.push({ field: 'dob', label: 'Date of birth', said: p.dob,
+        why: 'You have to be at least 15 to apply — check the year of birth.' });
+    } else if (born < ninety) {
+      out.push({ field: 'dob', label: 'Date of birth', said: p.dob, why: 'Check the year of birth.' });
+    }
+  }
+  /* The two optional numbers on the profile: a phone or nothing, never
+     letters. The main mobile has its own stricter Indian rule on the way in. */
+  for (const [k, label] of [['alt_phone', 'Alternate contact number'], ['fam_phone', "Parent or guardian's mobile"]]) {
+    const v = String(p[k] || '').trim();
+    if (v && !(/^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, '').length >= 8 && v.replace(/\D/g, '').length <= 15)) {
+      out.push({ field: k, label, said: v.slice(0, 40), why: label + ' has to be a phone number — digits only.' });
+    }
+  }
+  /* A course ends after it starts. Year of completion 1986 with year of
+     joining 2026 went in without a word. */
+  const after = (fromK, toK, what) => {
+    const a = num(p[fromK]), b = num(p[toK]);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 1900 && b > 1900 && b < a) {
+      out.push({ field: toK, label: what + ' — year of completion', said: String(p[toK]),
+        why: 'The year of completion (' + b + ') cannot be before the year of joining (' + a + ') for the ' + what + '.' });
+    }
+  };
+  after('d_start', 'd_year', 'bachelor degree');
+  after('m_start', 'm_year', "master's degree");
+  const x = num(p.x_year), xii = num(p.xii_year);
+  if (Number.isFinite(x) && Number.isFinite(xii) && x > 1900 && xii > 1900 && xii < x) {
+    out.push({ field: 'xii_year', label: 'Class 12 — year of passing', said: String(p.xii_year),
+      why: 'Class 12 (' + xii + ') cannot be passed before Class 10 (' + x + ').' });
+  }
   /* A pass mark at or above the maximum is not a range, and every grade
      conversion on the site divides by the gap between them. */
   const mx = num(p.d_max), ps = num(p.d_pass);

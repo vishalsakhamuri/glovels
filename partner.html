@@ -1836,7 +1836,8 @@ const SECTIONS = [
     {k:'firstName', l:'First name / Given name', t:'text', ph:'Vishal',
      help:'Exactly as it is printed on your passport.'},
     {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Sakhamuri'},
-    {k:'dob',      l:'Date of birth', t:'date3', back:70},
+    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,
+     help:'You have to be at least 15 to apply.'},
     {k:'gender',   l:'Gender', t:'select', o:['','Female','Male','Other','Prefer not to say']},
     /* Asked because the forms ask. A German application and a UK visa both
        want the town on the passport, and a student who has to go and find

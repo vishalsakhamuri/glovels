@@ -3399,6 +3399,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (password.length < 10) {
       return json(res, 422, { error: 'A password needs at least 10 characters' });
     }
+    if (String(b.phone || '').trim() && !anyPhone(b.phone)) {
+      return json(res, 422, { error: 'That is not a phone number — digits only, with the country code if it is not Indian.' });
+    }
     const salt = newSalt();
     const person = db.createStudent(email, name, String(b.phone || '').trim(),
       hashPassword(password, salt), salt, 'partner');
@@ -5434,6 +5437,23 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, { lead: row ? leadShape(row, db.leadNoteCounts(), peopleMap()) : null });
   }));
 
+  /* A next follow-up is in the future, or it is not a next follow-up. A
+     date of 2020 was accepted — and 1999 — and the lead then sat on the
+     "overdue" list forever with nobody quite sure why. Blank clears it. */
+  function nextFollowUpProblem(v) {
+    const raw = String(v == null ? '' : v).trim().slice(0, 10);
+    if (!raw) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (!m) return 'The next follow-up has to be a date.';
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (Number.isNaN(d.getTime())) return 'The next follow-up has to be a date.';
+    if (d < today) return 'The next follow-up cannot be in the past — today or later.';
+    const far = new Date(today.getFullYear() + 2, today.getMonth(), today.getDate());
+    if (d > far) return 'The next follow-up is more than two years away — check the year.';
+    return null;
+  }
+
   route('PUT', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const e = db.enquiryById(Number(m[1]));
     if (!e) return json(res, 404, { error: 'No such enquiry' });
@@ -5465,6 +5485,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       }
     }
 
+    if (b.nextAt !== undefined) {
+      const bad = nextFollowUpProblem(b.nextAt);
+      if (bad) return json(res, 422, { error: bad, fields: [{ field: 'nextAt', why: bad }] });
+    }
     const row = db.updateEnquiry(e.id, {
       source: b.source && SOURCES.has(String(b.source).toLowerCase())
         ? String(b.source).toLowerCase() : (e.source || 'website'),
@@ -5539,6 +5563,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       }, next));
     }
     if (b.nextAt !== undefined) {
+      const bad = nextFollowUpProblem(b.nextAt);
+      if (bad) return json(res, 422, { error: bad, fields: [{ field: 'nextAt', why: bad }] });
       const row0 = db.enquiryById(e.id);
       db.updateEnquiry(e.id, {
         source: row0.source, campaign: row0.campaign, ownerId: row0.owner_id,

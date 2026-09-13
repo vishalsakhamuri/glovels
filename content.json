@@ -3608,38 +3608,38 @@
    "sectionLabel": ""
   },
   {
-   "key": "results|button|6569b4e3|0",
+   "key": "results|button|13c506e8|0",
    "section": "results",
    "kind": "text",
    "element": "button",
-   "original": "Apply free, right away",
+   "original": "Private Universities",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|small|bde734a8|0",
+   "key": "results|small|166f70eb|0",
    "section": "results",
    "kind": "text",
    "element": "small",
-   "original": "no package needed, start today",
+   "original": "free to apply, we file it for you",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|button|c4edb83c|0",
+   "key": "results|button|f5425574|0",
    "section": "results",
    "kind": "text",
    "element": "button",
-   "original": "Universities with a package",
+   "original": "Public Universities",
    "note": "",
    "sectionLabel": ""
   },
   {
-   "key": "results|small|a9c8cf25|0",
+   "key": "results|small|4da8e99e|0",
    "section": "results",
    "kind": "text",
    "element": "small",
-   "original": "we write and file the whole application",
+   "original": "comes with a package, we file it for you",
    "note": "",
    "sectionLabel": ""
   },

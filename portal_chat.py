@@ -269,6 +269,10 @@ if (location.hash === '#enquiries') {
   }
 }
 
-loadList();
-loadEnquiries();
+/* Through staffBoot, like every other office screen: it is what writes the
+   name and the role into the sidebar and takes the screens this account
+   cannot open OFF the menu. This page called its own loaders straight and
+   skipped it, so a counsellor on Website chat saw "— / —" and the
+   administrator's seven-item menu. */
+staffBoot(async () => { await Promise.all([loadList(), loadEnquiries()]); });
 """

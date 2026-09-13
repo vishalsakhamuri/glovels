@@ -1534,7 +1534,8 @@ const SECTIONS = [
     {k:'firstName', l:'First name / Given name', t:'text', ph:'Vishal',
      help:'Exactly as it is printed on your passport.'},
     {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Sakhamuri'},
-    {k:'dob',      l:'Date of birth', t:'date3', back:70},
+    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,
+     help:'You have to be at least 15 to apply.'},
     {k:'gender',   l:'Gender', t:'select', o:['','Female','Male','Other','Prefer not to say']},
     /* Asked because the forms ask. A German application and a UK visa both
        want the town on the passport, and a student who has to go and find
@@ -2262,6 +2263,12 @@ const MUST = [
    why:'Something like you@email.com.'},
   /* Only when there is one. The server has the same rule, so a number that
      gets past this box is refused there too; this one names the box first. */
+  {k:'alt_phone', l:'Alternate contact number', ifBlank:'ok',
+   ok:v => /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, '').length >= 8 && v.replace(/\D/g, '').length <= 15,
+   why:'Digits only, with the country code if it is not Indian.'},
+  {k:'fam_phone', l:"Parent or guardian's mobile", ifBlank:'ok',
+   ok:v => /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, '').length >= 8 && v.replace(/\D/g, '').length <= 15,
+   why:'Digits only, with the country code if it is not Indian.'},
   {k:'p_num', l:'Passport number', ifBlank:'ok',
    ok:v => /^(?=.*\d)[A-Z0-9]{6,9}$/.test(v.toUpperCase().replace(/[\s-]/g, '')),
    why:'6 to 9 letters and digits, no spaces or symbols — an Indian passport looks like M1234567.'},
@@ -2270,6 +2277,22 @@ const MUST = [
 /* Returns the first problem, or null. Only checks fields that are ON the
    section being saved — being stopped from saving Class 10 because of a
    mobile number four sections away is a form arguing with itself. */
+/* Checks that read two boxes at once — a year that has to follow another,
+   an age. Same answers as the server, said first and beside the box. */
+const CROSS = [
+  { k:'dob', say:p => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(p.dob || '')); if (!m) return '';
+      const born = new Date(+m[1], +m[2] - 1, +m[3]), t = new Date(); t.setHours(0,0,0,0);
+      if (born > t) return 'The date of birth cannot be in the future.';
+      if (born > new Date(t.getFullYear() - 15, t.getMonth(), t.getDate())) return 'You have to be at least 15 to apply — check the year of birth.';
+      return ''; } },
+  { k:'d_year', say:p => (+p.d_start > 1900 && +p.d_year > 1900 && +p.d_year < +p.d_start)
+      ? 'The year of completion (' + p.d_year + ') cannot be before the year of joining (' + p.d_start + ').' : '' },
+  { k:'m_year', say:p => (+p.m_start > 1900 && +p.m_year > 1900 && +p.m_year < +p.m_start)
+      ? 'The year of completion (' + p.m_year + ') cannot be before the year of joining (' + p.m_start + ').' : '' },
+  { k:'xii_year', say:p => (+p.x_year > 1900 && +p.xii_year > 1900 && +p.xii_year < +p.x_year)
+      ? 'Class 12 (' + p.xii_year + ') cannot be passed before Class 10 (' + p.x_year + ').' : '' },
+];
 function firstProblem() {
   const here = SECTIONS[cur].fields.map(f => f.k);
   for (const m of MUST) {
@@ -2277,6 +2300,11 @@ function firstProblem() {
     const v = String(DB.profile[m.k] || '').trim();
     if (!v) { if (m.ifBlank === 'ok') continue; return { k:m.k, say: m.l + ' is required.' }; }
     if (!m.ok(v)) return { k:m.k, say: m.l + ' does not look right. ' + m.why };
+  }
+  for (const c of CROSS) {
+    if (here.indexOf(c.k) < 0) continue;
+    const say = c.say(DB.profile);
+    if (say) return { k:c.k, say };
   }
   return null;
 }

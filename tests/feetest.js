@@ -351,16 +351,20 @@ const stamp = Date.now();
   await fp.waitForTimeout(2000);
 
   const labels = await fp.$$eval('.rtab', t => t.map(x => x.innerText.replace(/\s+/g, ' ')));
-  check('the finder tabs no longer say Private and Public',
-    !labels.join(' ').match(/\bPrivate\b|\bPublic\b/), labels.join(' | '));
+  /* Testing round 1.12 asked for the words back — "Private Universities ·
+     free to apply, we file it for you" and "Public Universities · comes with
+     a package, we file it for you" — so the type is the title and the cost
+     is the line under it. The check below is the one that now matters. */
+  check('the finder tabs name the university type',
+    /\bPrivate Universities\b/.test(labels.join(' ')) && /\bPublic Universities\b/.test(labels.join(' ')), labels.join(' | '));
   /* The names took three goes. What I had wrong was WHY "free" and
      "immediately" belong together — I read immediate as decision speed, and by
      that reading it sat on the wrong tab, because a German public application
      is the slowest route we sell. It is not about speed: free means there is
      no package to buy first, so a student can apply today. */
-  check('they say what applying costs instead',
-    /Apply free, right away/.test(labels.join(' '))
-    && /Universities with a package/.test(labels.join(' ')),
+  check('and say what applying costs under it',
+    /free to apply, we file it for you/.test(labels.join(' '))
+    && /comes with a package, we file it for you/.test(labels.join(' ')),
     labels.join(' | '));
   /* Vishal: "free to apply should be by default open." Worth knowing that this
      is the GATED tab — German public names a package buys — so a visitor's

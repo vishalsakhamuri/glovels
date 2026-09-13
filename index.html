@@ -315,10 +315,10 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .banner p{margin:0;font-size:13.3px;opacity:.9}
 
 section[id]{scroll-margin-top:92px}
-.showmore{display:none}
-@media (max-width:600px){
-  .showmore{display:flex;width:100%;justify-content:center;margin-top:14px}
-}
+/* The fold's button, on every screen now. Testing round 1.12: "display two
+   rows for Catalogue and a More button; three rows for Services; the FAQ
+   has to have a more button." It was a phone-only fold. */
+.showmore{display:flex;width:100%;justify-content:center;margin-top:16px}
 .rows-wrap{position:relative}
 .rows{max-height:min(62vh,560px);overflow-y:auto;scrollbar-gutter:stable;padding-right:4px}
 @media (max-width:700px){ .rows{max-height:min(70vh,520px)} }
@@ -1273,11 +1273,11 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div class="banner gold" id="rBanner"></div>
     <div class="rtabs" role="tablist">
       <button type="button" class="rtab on" data-rt="pub" role="tab" aria-selected="true">
-        Apply free, right away <span class="rtn" id="rtnPub">0</span>
-        <small>no package needed, start today</small></button>
+        Private Universities <span class="rtn" id="rtnPub">0</span>
+        <small>free to apply, we file it for you</small></button>
       <button type="button" class="rtab" data-rt="priv" role="tab" aria-selected="false">
-        Universities with a package <span class="rtn" id="rtnPriv">0</span>
-        <small>we write and file the whole application</small></button>
+        Public Universities <span class="rtn" id="rtnPriv">0</span>
+        <small>comes with a package, we file it for you</small></button>
     </div>
     <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>
     <div class="rmore">
@@ -1537,7 +1537,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <div class="wrap" style="max-width:860px">
     <div class="sec-head"><span class="eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> Common questions</span>
       <h2>The four things everyone asks first</h2></div>
-    <details class="faq"><summary>Can I study abroad for free?</summary><p>In Germany, public universities charge no tuition — you pay only a semester contribution of roughly €150–350. You still need living costs and a blocked account, so &quot;free&quot; means free tuition, not a free degree.</p></details><details class="faq"><summary>What CGPA do I need for a public university in Germany?</summary><p>Most public universities look for 7.5 or above on 10. Between 7.0 and 7.5 a smaller set stays open, and below 7.0 a pathway or a private university is usually the realistic route.</p></details><details class="faq"><summary>How much does a study abroad consultant cost in India?</summary><p>Individual services start at a few hundred rupees; packages run from ₹4,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.</p></details><details class="faq"><summary>How long does a German student visa take?</summary><p>Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.</p></details>
+    <div id="faqList"><details class="faq"><summary>Can I study abroad for free?</summary><p>In Germany, public universities charge no tuition — you pay only a semester contribution of roughly €150–350. You still need living costs and a blocked account, so &quot;free&quot; means free tuition, not a free degree.</p></details><details class="faq"><summary>What CGPA do I need for a public university in Germany?</summary><p>Most public universities look for 7.5 or above on 10. Between 7.0 and 7.5 a smaller set stays open, and below 7.0 a pathway or a private university is usually the realistic route.</p></details><details class="faq"><summary>How much does a study abroad consultant cost in India?</summary><p>Individual services start at a few hundred rupees; packages run from ₹4,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.</p></details><details class="faq"><summary>How long does a German student visa take?</summary><p>Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.</p></details></div>
   </div>
 </section>
 
@@ -4378,6 +4378,10 @@ $('#wa').onclick = () => open('https://wa.me/917839399999?text='
   + encodeURIComponent('Hi Glovels, I would like to speak to a counsellor.'), '_blank', 'noopener');
 
 /* ------------------------------------------------- long grids, short on phones */
+/* `keep` is a number of cards on a phone, or {rows:N} on anything wider:
+   the first N rows of the grid as it is actually laid out, however many
+   columns that is at this width. Measured with every card showing, then
+   the rest are folded. */
 function shortOnPhones(id, keep, label, only){
   const box = document.getElementById(id);
   if(!box) return;
@@ -4388,14 +4392,23 @@ function shortOnPhones(id, keep, label, only){
        universities a package unlocks — counting it as a card meant the offer
        could be the thing that got hidden. */
     const kids = [...box.children].filter(el => el.matches(only));
-    if(!phone || kids.length <= keep){
+    let limit = typeof keep === 'number' ? keep : (phone ? (keep.phone || keep.rows * 2) : null);
+    if(limit == null){
+      kids.forEach(el => el.style.removeProperty('display'));
+      const tops = [];
+      kids.forEach(el => { const t = Math.round(el.offsetTop); if(!tops.includes(t)) tops.push(t); });
+      const cut = tops.sort((a, b) => a - b)[keep.rows];
+      limit = cut == null ? kids.length : kids.filter(el => Math.round(el.offsetTop) < cut).length;
+    }
+    if(kids.length <= limit){
       kids.forEach(el => el.style.removeProperty('display'));
       if(btn){ btn.remove(); btn = null; }
       return;
     }
+    const keepN = limit;
     const open = box.dataset.showAll === '1';
     kids.forEach((el, i) => {
-      if(open || i < keep) el.style.removeProperty('display');
+      if(open || i < keepN) el.style.removeProperty('display');
       else el.style.display = 'none';
     });
     if(!btn){
@@ -4411,16 +4424,23 @@ function shortOnPhones(id, keep, label, only){
     }
     btn.textContent = open
       ? 'Show fewer'
-      : 'Show all ' + kids.length + ' ' + label;
+      : 'More ' + label + ' (' + (kids.length - keepN) + ' more)';
   };
   /* Both grids are repainted from several places. Watching the box is the only
      version of this that cannot be forgotten by the next patch. */
   new MutationObserver(() => paint()).observe(box, {childList:true});
   addEventListener('resize', paint);
+  /* #catalogue and #services are content-visibility:auto — off screen, their
+     cards have no layout and every offsetTop reads 0, which is one row. So
+     the rows are measured again the moment the grid scrolls into view. */
+  if('IntersectionObserver' in window){
+    new IntersectionObserver(es => { if(es.some(e => e.isIntersecting)) paint(); }, {rootMargin: '200px'}).observe(box);
+  }
   paint();
 }
-shortOnPhones('svcGrid', 4, 'services', '.card');
-shortOnPhones('cgrid', 5, 'universities', '.ccard');
+shortOnPhones('svcGrid', { rows: 3, phone: 4 }, 'services', '.card');
+shortOnPhones('cgrid', { rows: 2, phone: 5 }, 'universities', '.ccard');
+shortOnPhones('faqList', 4, 'questions', 'details.faq');
 })();
 
 </script>
