@@ -125,6 +125,13 @@ function rulesFor(p) {
       eng2.min, eng2.max));
     out.push(RULE('e2_low', String(p.e2_test).trim() + ' lowest band',
       (eng2.band || [eng2.min, eng2.max])[0], (eng2.band || [eng2.min, eng2.max])[1]));
+    /* The four skills of the second sitting are bounded like the first one's.
+       They were not asked for at all until the form gained them. */
+    if (eng2.band) {
+      [['e2_listen', 'Listening'], ['e2_read', 'Reading'],
+       ['e2_write', 'Writing'], ['e2_speak', 'Speaking']].forEach(([k, l]) =>
+        out.push(RULE(k, String(p.e2_test).trim() + ' ' + l, eng2.band[0], eng2.band[1])));
+    }
   }
 
   const apt = APTITUDE[testKey(p.a_test)];

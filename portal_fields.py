@@ -33,6 +33,10 @@ function YEARS(back, ahead) {
    letter has no bands, and asking for four of them makes a profile that can
    never reach 100%. */
 const BANDED = p => /ielts|toefl|pte/i.test(String(p.e_test || ''));
+/* The same question of the SECOND test. A student who sat IELTS twice was
+   asked for four band scores on the first one and none on the second, and a
+   university reads the bands off whichever sitting is being sent. */
+const BANDED2 = p => /ielts|toefl|pte/i.test(String(p.e2_test || ''));
 
 /* Answers that mean "there is no scorecard", so nothing about a score should
    be asked. "Not taken yet" was missing from this list entirely — a student who
@@ -373,7 +377,14 @@ const SECTIONS = [
      o:['','IELTS','TOEFL','PTE','Duolingo','Cambridge English','Other']},
     {k:'e2_score', l:'Overall score', t:'text', ph:'65', grp:'e2', opt:()=>true},
     {k:'e2_date',  l:'Test date', t:'date3', back:6, ahead:2, grp:'e2', opt:()=>true},
-    {k:'e2_low',   l:'Lowest band', t:'text', ph:'58', grp:'e2', opt:()=>true}
+    {k:'e2_low',   l:'Lowest band', t:'text', ph:'58', grp:'e2', opt:()=>true,
+     show:p=>BANDED2(p)},
+    /* Per skill, as on the first test, and hidden for a test that has no
+       bands so the block stays short when it is not IELTS, TOEFL or PTE. */
+    {k:'e2_listen', l:'Listening', t:'text', ph:'7.0', grp:'e2', opt:()=>true, show:p=>BANDED2(p)},
+    {k:'e2_read',   l:'Reading',   t:'text', ph:'7.5', grp:'e2', opt:()=>true, show:p=>BANDED2(p)},
+    {k:'e2_write',  l:'Writing',   t:'text', ph:'6.5', grp:'e2', opt:()=>true, show:p=>BANDED2(p)},
+    {k:'e2_speak',  l:'Speaking',  t:'text', ph:'7.0', grp:'e2', opt:()=>true, show:p=>BANDED2(p)}
   ]},
   /* GATE belongs on this list. It is the entrance test a German university
      asks an Indian engineering applicant about most often, and it was not

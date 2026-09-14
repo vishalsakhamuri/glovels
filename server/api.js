@@ -7661,6 +7661,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw + 'T09:00:00Z' : raw);
       return isNaN(d) ? '' : d.toISOString();
     })();
+    /* A date this box takes is a date in the PAST. It is there to back-date a
+       guide finished in March and published in April; the site does not hold a
+       post back until a date, so 14-10-2030 went live the moment it was saved
+       and then told every reader and Google that it was written four years
+       from now. Refused rather than quietly corrected — the writer meant
+       something by that date and only they know what. */
+    if (stated) {
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      if (new Date(stated) > end) {
+        return { error: 'Published on is ' + new Date(stated).toLocaleDateString('en-GB',
+          { day: 'numeric', month: 'short', year: 'numeric' }) + ', which is in the future. '
+          + 'The site does not hold a post back until a date — leave the box empty to use '
+          + 'the day you press Publish, or put the day it was actually written.' };
+      }
+    }
 
     let slug = PROSE.slugify(b.slug || title);
     const clash = db.postBySlug(slug);

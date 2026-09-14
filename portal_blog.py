@@ -309,7 +309,8 @@ function editor(p) {
         + 'placeholder="The counsellor who wrote it"></div>'
       + '<div class="field"><label for="pPublished">Published on'
         + '<small> — leave it and we use the day you press Publish</small></label>'
-        + '<input id="pPublished" type="date" value="' + esc(dateOnly(p.publishedAt)) + '">'
+        + '<input id="pPublished" type="date" max="' + new Date().toISOString().slice(0, 10)
+        + '" value="' + esc(dateOnly(p.publishedAt)) + '">'
         + '<small style="display:block;margin-top:5px;font:400 11.6px/1.55 var(--sans);'
         + 'color:var(--muted)">Last updated ' + (p.updatedAt ? esc(fmtWhen(p.updatedAt))
           : 'never') + '. That date goes on the post and into the page, so a guide '
@@ -700,6 +701,20 @@ function body() {
 async function save(status, p) {
   const err = $('#pErr');
   err.style.display = 'none';
+  /* The same rule the server holds: this box back-dates a post, it does not
+     schedule one. Said here first so the writer is not told after the save. */
+  const when = $('#pPublished').value;
+  if (when) {
+    const end = new Date(); end.setHours(23, 59, 59, 999);
+    if (new Date(when + 'T09:00:00') > end) {
+      err.textContent = 'Published on is in the future. The site does not hold a post back '
+        + 'until a date — leave the box empty to use the day you press Publish, or put the '
+        + 'day it was actually written.';
+      err.style.display = 'block';
+      $('#pPublished').focus();
+      return;
+    }
+  }
   const data = Object.assign(body(), { status });
   const btn = status === 'published' ? $('#pPub') : $('#pSave');
   const was = btn.textContent;

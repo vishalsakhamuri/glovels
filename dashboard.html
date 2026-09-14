@@ -482,6 +482,53 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   .rows-list .sl>.uni::before{content:none}
 }
 
+/* The shortlist, as a table.
+ *
+ * "The shortlisting of the university is not properly displayed" — it was a
+ * stack of cards whose facts ran together as a sentence, so a student could
+ * not read down the deadlines or the fees. Nine columns, and the whole thing
+ * scrolls sideways rather than squeezing, because a fee that has wrapped onto
+ * two lines is a fee nobody trusts. */
+.sl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);
+  border-radius:14px;background:var(--paper)}
+.sl-tbl{width:100%;border-collapse:collapse;margin:0;font-size:13px}
+.sl-tbl thead th{position:sticky;top:0;background:var(--cream);text-align:left;
+  font:700 11.2px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sl-tbl td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle;
+  color:var(--navy-800)}
+.sl-tbl tbody tr:last-child td{border-bottom:0}
+.sl-tbl tbody tr:hover{background:#fbfaf6}
+.sl-num{color:var(--muted);font-variant-numeric:tabular-nums;width:1%}
+.sl-ctry{white-space:nowrap}
+.sl-ctry .sl-flag{font-size:17px;margin-right:7px;vertical-align:-1px}
+.sl-ctry .sl-cc{font:700 12px/1 var(--sans);letter-spacing:.05em;color:var(--navy-900)}
+.sl-prog b{color:var(--navy-900);font-weight:700}
+.sl-where{color:var(--muted)}
+.sl-none{color:var(--muted)}
+.sl-fee,.sl-when{white-space:nowrap}
+.sl-act{white-space:nowrap;text-align:right}
+.sl-tbl .sl-go{font-weight:700;color:var(--blue)}
+/* The pill keeps its own line: "Matched · Public" broken across two lines
+   mid-word is the thing this table exists to stop. */
+.sl-tbl .sl-tag{margin:0;white-space:nowrap}
+.sl-tbl td:nth-child(6){white-space:nowrap}
+/* On a phone every row becomes its own little card and each cell carries the
+   column name it lost. */
+@media(max-width:860px){
+  .sl-scroll{border:0;background:none;overflow-x:visible}
+  .sl-tbl,.sl-tbl tbody,.sl-tbl tr,.sl-tbl td{display:block;width:auto}
+  .sl-tbl thead{display:none}
+  .sl-tbl tbody tr{border:1px solid var(--line);border-radius:14px;background:var(--paper);
+    padding:6px 4px;margin-bottom:12px}
+  .sl-tbl tbody tr:hover{background:var(--paper)}
+  .sl-tbl td{border-bottom:0;padding:5px 14px;display:flex;gap:14px;align-items:baseline}
+  .sl-tbl td::before{content:attr(data-l);flex:0 0 9.5em;font:700 11px/1.5 var(--sans);
+    letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .sl-tbl td.sl-num{display:none}
+  .sl-act{text-align:left}
+}
+
 /* Order summary rows: label left, figure right, on one baseline. */
 .rc{display:flex;align-items:baseline;gap:12px;font-size:13px;color:var(--navy-800);
   padding:8px 0;border-bottom:1px solid var(--line)}
@@ -1302,20 +1349,34 @@ const dateOf = p => {
     {day:'numeric', month:'short', year:'numeric'}) : '';
 };
 
-function card(p){
+/* A table, because this is a list of the same nine facts about each row and
+   the student reads DOWN one of them — the deadlines, or the fees. As free
+   text on a card the eye had to find each figure again on every line.
+   `data-l` carries the column name so the same markup stacks into labelled
+   rows on a phone, where nine columns do not fit. */
+function card(p, i){
   const c = C[p.country] || {name:'', flag:''};
-  return '<article class="sl"><span class="sl-flag">' + c.flag + '</span>'
-    + '<h3>' + esc(p.program) + '</h3>'
-    + '<div class="uni">' + esc(p.university) + '</div>'
-    + (p.city ? '<div class="city">' + esc(p.city) + ', ' + esc(c.name) + '</div>'
-              : '<div class="city">' + esc(c.name) + '</div>')
-    + '<span class="sl-tag">' + ico('check') + 'Matched \u00b7 '
-      + (p.isPublic ? 'Public' : 'Private') + '</span>'
-    + '<div class="sl-meta">Tuition: <b>' + money(p) + '</b></div>'
-    + (dateOf(p) ? '<div class="sl-meta">Deadline: <b>' + dateOf(p) + '</b></div>' : '')
-    + '<a class="sl-go" href="applications.html">Continue application ' + ico('arrow')
-    + '</a></article>';
+  const where = [p.city, c.name].filter(Boolean).join(', ');
+  const cell = (label, html, cls) =>
+    '<td data-l="' + label + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + html + '</td>';
+  return '<tr>'
+    + cell('#', '<span class="sl-n">' + (i + 1) + '</span>', 'sl-num')
+    + cell('Country', '<span class="sl-flag">' + c.flag + '</span>'
+        + '<span class="sl-cc">' + esc(p.country || '') + '</span>', 'sl-ctry')
+    + cell('Program', '<b>' + esc(p.program) + '</b>', 'sl-prog')
+    + cell('University', esc(p.university))
+    + cell('Location', where ? esc(where) : '<span class="sl-none">\u2014</span>', 'sl-where')
+    + cell('Match', '<span class="sl-tag">' + ico('check') + 'Matched \u00b7 '
+        + (p.isPublic ? 'Public' : 'Private') + '</span>')
+    + cell('Tuition', '<b>' + money(p) + '</b>', 'sl-fee')
+    + cell('Application deadline', dateOf(p)
+        ? esc(dateOf(p)) : '<span class="sl-none">\u2014</span>', 'sl-when')
+    + cell('Action', '<a class="sl-go" href="applications.html">Continue application '
+        + ico('arrow') + '</a>', 'sl-act')
+    + '</tr>';
 }
+const SL_HEAD = ['#', 'Country', 'Program', 'University', 'Location', 'Match',
+  'Tuition', 'Application deadline', 'Action'];
 
 /* The 24-hour promise, from the student's side. Only shown when a package is
    active and the quota is not yet filled — otherwise it would be a countdown to
@@ -1366,7 +1427,11 @@ if(paid && order.grossPaise){
 }
 
 $('#slWrap').innerHTML = shown.length
-  ? '<div class="rows-list">' + shown.map(card).join('') + '</div>' + pending
+  ? '<div class="sl-scroll"><table class="tbl sl-tbl"><thead><tr>'
+      + SL_HEAD.map(h => '<th>' + h + '</th>').join('')
+      + '</tr></thead><tbody>'
+      + shown.map((p, i) => card(p, i)).join('')
+      + '</tbody></table></div>' + pending
     + (order.demo
         ? '<p style="font-size:12.4px;color:var(--muted);margin:12px 0 0">'
           + 'The demo student\'s worked example. Pay with <b>' + DEMO_EMAIL + '</b> on the '
@@ -1432,6 +1497,12 @@ $('#slWrap').innerHTML = shown.length
     + '<a class="btn btn-green btn-sm" href="messages.html">Message</a>';
 })();
 
+/* Their own name beside the way out, as on every other portal screen. The
+   element was here and nothing ever filled it, so the Dashboard — the screen
+   a student lands on — was the one place that showed a dash where their name
+   belongs. */
+const whoEl = $('#whoName');
+if (whoEl) whoEl.textContent = user.name || order.name || user.email || 'Signed in';
 $('#avatar').textContent = (first || 'G').slice(0, 1).toUpperCase()
   + ((user.name || order.name || '').split(' ')[1] || '').slice(0, 1).toUpperCase();
 
