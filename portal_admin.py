@@ -2012,7 +2012,10 @@ let TK = { tasks: [], people: [], counts: {} };
 let tkPainted = false;
 
 function tkWhen(t) {
-  if (!t.due) return '<span style="color:var(--muted)">no date</span>';
+  /* A step that works backwards from a university deadline, on a file where
+     no shortlisted university has an intake still open. It is not late and it
+     is not ignored — it is waiting for the thing it is measured against. */
+  if (!t.due) return '<span style="color:var(--muted)">waiting on a<br>university deadline</span>';
   const late = t.over != null && t.over >= 0;
   const soon = t.over != null && t.over >= -3 && t.over < 0;
   /* The date, and then the plain-English distance from it, because "2026-11-04"

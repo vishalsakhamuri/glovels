@@ -115,6 +115,55 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
     }
   }
 
+  /* ---- 3b. a shortlist whose intakes have all closed ----
+     Found on the live board the day this shipped: a student whose universities
+     had all shut months ago was given a Statement of Purpose due on the last
+     day of 2021 and permanently 1,723 days late, because the date engine fell
+     back to the most recent deadline instead of treating a passed one as no
+     deadline at all. A step measured against a university deadline has no date
+     until there is a deadline still ahead. */
+  let id2 = null;
+  {
+    const closed = ((cat.body && cat.body.programmes) || []).find(p => {
+      let ins = p.intakes; if (typeof ins === 'string') { try { ins = JSON.parse(ins); } catch (e) { ins = []; } }
+      const ds = (ins || []).map(i => i && i.deadline).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')));
+      return ds.length && ds.every(d => d < day(0));
+    });
+    const e2 = 'tp' + stamp + '@ex.example', p2 = 'tp-' + stamp;
+    r = await req('admin', 'POST', '/api/staff/people',
+      { name: 'Past Deadline Student', email: e2, password: p2, role: 'student' });
+    id2 = (r.body && (r.body.person || {}).id) || null;
+    await req('admin', 'PUT', '/api/staff/student/' + id2 + '/counsellor', { counsellorId: cId });
+    await login('s2', e2, p2);
+    await req('s2', 'POST', '/api/auth/change', { password: p2 + 'X' });
+    await login('s2', e2, p2 + 'X');
+    await req('s2', 'POST', '/api/orders', {
+      packageId: 'pkg-offer', name: 'Past Deadline Student', email: e2,
+      phone: '9876543210', acceptedTerms: true,
+    });
+    if (closed) await req('admin', 'POST', '/api/staff/student/' + id2 + '/shortlist', { id: closed.id });
+    r = await req('admin', 'GET', '/api/staff/student/' + id2 + '/tasks');
+    const t2 = (r.body && r.body.tasks) || [];
+    ok('no task is ever dated from a deadline that has already gone',
+      !t2.some(t => t.due && t.due < day(0) && t.basis === 'deadline'),
+      t2.filter(t => t.basis === 'deadline').map(t => t.title + '=' + t.due).join(' | ') || 'none');
+    const waiting = t2.filter(t => t.basis === 'pending');
+    ok('  · those steps wait for a live deadline instead', waiting.length > 0,
+      t2.map(t => t.key + ':' + t.basis).join(','));
+    ok('  · and nothing that is waiting counts as late',
+      waiting.every(t => !t.due && (t.over == null)),
+      waiting.map(t => t.key + ' due=' + t.due + ' over=' + t.over).join(' | '));
+    /* And the moment a university with an open intake arrives, they get a date. */
+    if (withDeadline) {
+      await req('admin', 'POST', '/api/staff/student/' + id2 + '/shortlist', { id: withDeadline.id });
+      r = await req('admin', 'GET', '/api/staff/student/' + id2 + '/tasks');
+      const sop2 = ((r.body && r.body.tasks) || []).find(t => t.key === 'sop');
+      ok('  · a live deadline appearing gives them one',
+        sop2 && sop2.basis === 'deadline' && sop2.due > day(0),
+        sop2 ? sop2.basis + ' ' + sop2.due : 'no sop');
+    }
+  }
+
   /* ---- 4. the office's board, and who is behind ---- */
   r = await req('admin', 'GET', '/api/staff/tasks?state=all');
   ok('the office can see the whole board', r.ok && Array.isArray(r.body.tasks),
@@ -163,8 +212,12 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   r = await req('c', 'GET', '/api/staff/tasks?state=all');
   ok('the counsellor sees their own board', r.ok && r.body.tasks.length > 0,
     r.status + ' ' + ((r.body || {}).tasks || []).length);
-  ok('  · and only their own students', r.ok && r.body.tasks.every(t => Number(t.studentId) === Number(sId)),
-    [...new Set((r.body.tasks || []).map(t => t.studentId))].join(','));
+  /* Both of the students made above are theirs, and nobody else's are. */
+  const mineOnly = new Set([Number(sId), Number(id2)].filter(Boolean));
+  ok('  · and only their own students',
+    r.ok && r.body.tasks.every(t => mineOnly.has(Number(t.studentId))),
+    'saw ' + [...new Set((r.body.tasks || []).map(t => t.studentId))].join(',') +
+    ' — theirs are ' + [...mineOnly].join(','));
   r = await req('c', 'PUT', '/api/staff/task/' + mine.id, { status: 'doing' });
   ok('  · they can move their own work along', r.ok && r.body.task.status === 'doing', r.status);
   r = await req('c', 'PUT', '/api/staff/task/' + mine.id, { ownerId: null });

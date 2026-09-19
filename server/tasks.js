@@ -154,11 +154,19 @@ function deadlinesOf(row, T) {
     .sort();
 }
 
-/** The next deadline on this row that has not already passed, else the last one. */
+/**
+ * The next deadline on this row that has not already passed.
+ *
+ * Null when every one of them has gone, and that is the whole point of this
+ * function. It used to fall back to the last one, which on a shortlist of
+ * closed intakes produced a Statement of Purpose due on the last day of 2021
+ * and permanently seventeen hundred days late. A deadline in the past is not
+ * a thing to plan backwards from; it is the absence of one.
+ */
 function nextDeadline(row, T) {
   const ds = deadlinesOf(row, T);
   if (!ds.length) return null;
-  return ds.find(d => new Date(d).getTime() >= T - DAY) || ds[ds.length - 1];
+  return ds.find(d => new Date(d).getTime() >= T - DAY) || null;
 }
 
 /**
@@ -187,7 +195,13 @@ function dueFor(tpl, opts) {
     return { dueAt: plus(start, tpl.due.sla), basis: 'sla' };
   }
   if (deadline) return { dueAt: plus(deadline, -tpl.due.before), basis: 'deadline' };
-  return { dueAt: plus(start, Math.max(14, Math.abs(tpl.due.before))), basis: 'sla' };
+  /* A step that is defined as "so many days before the university closes" has
+     no date at all until there is a university with an intake still open. It
+     waits, visibly, rather than being given an invented one: a made-up date
+     is either nagging about work that cannot start or, worse, quietly late
+     the day it is created. It picks up a real date the moment a live deadline
+     appears on the shortlist, on the next sweep. */
+  return { dueAt: null, basis: 'pending' };
 }
 
 /**
@@ -259,7 +273,7 @@ function syncTasks(db, student, now) {
     /* A date a person typed is theirs. 'set' is the row saying so, and the
        generator does not argue with it when a deadline shifts underneath. */
     if (String(row.due_basis) === 'set') return;
-    if (String(row.due_at || '') !== w.due.dueAt || String(row.due_basis) !== w.due.basis) {
+    if ((row.due_at || null) !== w.due.dueAt || String(row.due_basis) !== w.due.basis) {
       db.updateTask(row.id, { dueAt: w.due.dueAt, basis: w.due.basis });
     }
   });
