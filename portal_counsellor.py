@@ -575,10 +575,11 @@ function paintRecord(r) {
             '<table class="tbl" style="margin:0"><thead><tr><th>What</th><th>By when</th>' +
             '<th>State</th><th></th></tr></thead><tbody>' +
             (r.tasks || []).map(t => {
-              const late = t.over != null && t.over >= 0;
-              const said = t.over == null ? '' : late
-                ? (t.over === 0 ? 'today' : t.over + ' day' + (t.over === 1 ? '' : 's') + ' ago')
-                : (t.over === -1 ? 'tomorrow' : 'in ' + (-t.over) + ' days');
+              const late = t.over != null && t.over > 0;
+              const said = t.over == null ? ''
+                : late ? t.over + ' day' + (t.over === 1 ? '' : 's') + ' ago'
+                : t.over === 0 ? 'today'
+                : t.over === -1 ? 'tomorrow' : 'in ' + (-t.over) + ' days';
               const st = TASK_STATE[t.status] || ['wait', t.status];
               return '<tr' + (late ? ' class="late"' : '') + '>' +
                 '<td>' + esc(t.title) +
@@ -1093,7 +1094,7 @@ const TASK_STATE = { open: ['wait', 'Not started'], doing: ['wait', 'In hand'],
 
 /* How many of this file's steps are past their date — the number on the tab,
    so it is visible from the other two. */
-const tkLate = r => (r.tasks || []).filter(t => t.over != null && t.over >= 0).length;
+const tkLate = r => (r.tasks || []).filter(t => t.over != null && t.over > 0).length;
 
 async function open(id) {
   openId = id;

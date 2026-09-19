@@ -1638,8 +1638,12 @@ $('#nextUp').innerHTML =
       '<span>' + w[1] +
         (x.state === 'done'
           ? (x.on ? ' \u00b7 ' + esc(x.on) : '')
-          : (x.by ? ' \u00b7 aiming for ' + esc(x.by)
-              : ' \u00b7 date set once your universities are confirmed')) +
+          : !x.by ? ' \u00b7 date set once your universities are confirmed'
+          /* A target that has gone is not something to still be "aiming for".
+             Said plainly, without naming anybody: running behind is the
+             student's business, whose fault it is is not. */
+          : x.behind ? ' \u00b7 was due ' + esc(x.by) + ' — running behind'
+          : ' \u00b7 aiming for ' + esc(x.by)) +
       '</span></div></li>';
   }).join('');
 })();

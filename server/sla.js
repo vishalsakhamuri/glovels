@@ -34,14 +34,17 @@
  */
 
 const TASKS = require('./tasks.js');
+const DAYS = require('./days.js');
 
 const KEY = 'slaSweptOn';
 const CHECK_EVERY = 10 * 60 * 1000;      // ten minutes
-const IST_OFFSET = 5.5 * 3600 * 1000;
 
-const istHour = t => new Date(t + IST_OFFSET).getUTCHours();
-const istDay = t => new Date(t + IST_OFFSET).toISOString().slice(0, 10);
-const DAY = 864e5;
+/* Calendar days in India, shared with alerts.js and tasks.js — see
+   server/days.js. These were three separate calculations once, and the
+   digest and this sweep reported the same task as one day late and zero
+   days late within an hour of each other. */
+const istHour = DAYS.istHour;
+const istDay = DAYS.istDay;
 
 /**
  * Who has to hear about what.
@@ -62,8 +65,9 @@ function plan(db, now) {
     if (TASKS.CLOSED.has(String(row.status))) return;
     if (row.breached_at) return;                      // already said once
     if (!row.due_at) return;
-    const over = Math.round((T - new Date(row.due_at + 'T23:59:59Z').getTime()) / DAY);
-    if (over < 0) return;
+    const over = DAYS.daysPast(String(row.due_at).slice(0, 10), T);
+    /* Due TODAY is not late, and nobody is chased for it. */
+    if (over == null || over <= 0) return;
     const st = students.get(Number(row.student_id));
     if (!st) return;
     late.push({
@@ -74,7 +78,11 @@ function plan(db, now) {
       due: String(row.due_at).slice(0, 10),
     });
   });
-  if (!late.length) return { jobs: [], ids: [] };
+  /* The same shape on a quiet day as on a busy one. Returning `{jobs, ids}`
+     here and `{jobs, ids, unreachable}` below meant the commonest case of
+     all — nothing is late — was the one that broke a caller reading
+     `.unreachable.length`. */
+  if (!late.length) return { jobs: [], ids: [], unreachable: [] };
 
   const byOwner = new Map();
   late.forEach(t => {
@@ -88,7 +96,12 @@ function plan(db, now) {
 
   byOwner.forEach((items, k) => {
     const person = k === 'none' ? null : db.studentById(Number(k));
-    const forName = person ? person.name : 'Nobody (unassigned files)';
+    /* An owner id that no longer resolves is a deleted account, not an
+       unassigned file — telling the office the file is unassigned when it is
+       assigned to somebody who has left sends them looking for the wrong
+       problem. */
+    const forName = person ? person.name
+      : (k === 'none' ? 'Nobody (unassigned files)' : 'A deleted account');
     /* The counsellor. Not sent when the work has no owner — there is nobody to
        send it to, which is itself what the office needs to see. */
     if (person && person.email) {
@@ -103,7 +116,21 @@ function plan(db, now) {
     });
   });
 
-  return { jobs, ids: late.map(t => t.id) };
+  /*
+   * ONLY the tasks somebody was actually told about.
+   *
+   * This used to return every late id, and the caller stamped all of them as
+   * notified. So a task with no owner, in an office with no administrator —
+   * or one whose only recipient had no email address — was marked "told" on a
+   * sweep that told nobody, and was then never chased again. Ever. The one
+   * category of work most likely to be forgotten was the one the system
+   * guaranteed to forget.
+   *
+   * A task that reached no inbox stays unstamped and comes back tomorrow.
+   */
+  const told = new Set();
+  jobs.forEach(j => j.items.forEach(i => told.add(i.id)));
+  return { jobs, ids: [...told], unreachable: late.filter(t => !told.has(t.id)).map(t => t.id) };
 }
 
 /**
@@ -130,7 +157,15 @@ function start({ db, mail, notify, live, push, emails, siteUrl, hour }) {
     if (sent && sent.on === today) return;
     db.setContent(KEY, { on: today }, 'system');
 
-    const { jobs, ids } = plan(db, t);
+    const { jobs, ids, unreachable } = plan(db, t);
+    if (unreachable && unreachable.length) {
+      /* Left unstamped on purpose, so tomorrow's sweep tries again once
+         somebody has an inbox to send to. */
+      try {
+        db.log('system', 'sla notices had nowhere to go',
+          unreachable.length + ' late task(s) have no reachable owner or office');
+      } catch (e) {}
+    }
     if (!jobs.length) return;
 
     /* Stamped before sending, same reasoning as the day marker. */

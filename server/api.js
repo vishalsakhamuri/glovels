@@ -127,11 +127,26 @@ const readBody = (req, max = MAX_UPLOAD_BODY) => new Promise((resolve, reject) =
   req.on('error', reject);
 });
 
+/**
+ * The request body as an object, or an empty one.
+ *
+ * Every caller writes `b.something` immediately, so this has to return
+ * something with properties — always. It used to hand back whatever
+ * JSON.parse produced, which for the perfectly legal body `null` is `null`,
+ * and for `[1,2]` or `"hi"` is a value with no properties. A POST of the
+ * four characters `null` therefore crashed the handler, including on
+ * /api/auth/login, where nobody has signed in yet.
+ *
+ * An array or a string is not an object either, and every route here expects
+ * named fields, so those become {} too rather than a surprise further down.
+ */
 const readJson = async req => {
   let raw = '';
   try { raw = (await readBody(req, MAX_JSON_BODY)).toString('utf8'); } catch (e) { return {}; }
   if (!raw) return {};
-  try { return JSON.parse(raw); } catch (e) { return {}; }
+  let v;
+  try { v = JSON.parse(raw); } catch (e) { return {}; }
+  return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
 };
 
 /* The bytes exactly as they arrived. A webhook signature is computed over those
@@ -4806,7 +4821,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const st = db.studentById(id);
       if (!st) return json(res, 404, { error: 'No such student' });
       const b = await readJson(req);
-      const body = String(b.body || '').trim().slice(0, 2000);
+      const body = typeof b.body === 'string' ? b.body.trim().slice(0, 2000) : '';
       if (!body) return json(res, 422, { error: 'Nothing to say' });
       /* A question is a note that stays open until somebody answers it. The
          office picks which it is sending; the default is the old one-way
@@ -4906,6 +4921,45 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * one move that makes the board stop meaning anything.
    */
 
+  /*
+   * A real string, not whatever String() makes of the thing that arrived.
+   *
+   * `String({})` is "[object Object]" and `String(['done'])` is "done" — so
+   * an object became a task titled "[object Object]", and a one-element
+   * array walked straight through the status whitelist. Every one of these
+   * fields is a string or it is not acceptable.
+   */
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : null);
+
+  /*
+   * A real calendar day, not merely ten characters shaped like one.
+   *
+   * `^\d{4}-\d{2}-\d{2}$` accepts 2026-13-45, and a task dated that can
+   * never be late: every comparison against it is meaningless, so it is
+   * never chased, never breaches, and never appears on the late list. A task
+   * that silently cannot be tracked is the precise failure this whole
+   * feature exists to prevent, so the date is parsed and checked to be the
+   * day it claims to be.
+   */
+  const day = v => {
+    const t = str(v, 10);
+    if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
+    const d = new Date(t + 'T00:00:00Z');
+    return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === t ? t : null;
+  };
+
+  /* A staff member who exists, or null. An unchecked ownerId put phantom
+     people on the scoreboard — `true` became id 1, which is somebody. */
+  const ownerOrNull = v => {
+    if (v == null || v === '') return { ok: true, id: null };
+    if (typeof v !== 'number' && typeof v !== 'string') return { ok: false };
+    const n = Number(v);
+    if (!Number.isInteger(n) || n <= 0) return { ok: false };
+    const who = db.studentById(n);
+    if (!who || !STAFF_ROLES.includes(String(who.role))) return { ok: false };
+    return { ok: true, id: n };
+  };
+
   /** The row as every screen wants it: the numbers resolved into names. */
   const taskShape = (t, now) => {
     const st = db.studentById(t.student_id) || {};
@@ -4979,7 +5033,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const student = q.get('student');
     if (student) rows = rows.filter(t => String(t.student_id) === String(student));
     const state = q.get('state') || 'live';
-    if (state === 'late') rows = rows.filter(t => (TASKS.lateness(t, now) || -1) >= 0);
+    if (state === 'late') rows = rows.filter(t => TASKS.isLate(t, now));
     else if (state === 'live') rows = rows.filter(t => !TASKS.CLOSED.has(String(t.status)));
     else if (state !== 'all') rows = rows.filter(t => String(t.status) === state);
     const shaped = rows.map(t => taskShape(t, now));
@@ -4992,7 +5046,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       people: scoreboard(s.role === 'admin' ? db.allTasks()
         : db.allTasks().filter(t => db.canSee(s, Number(t.student_id))), now),
       counts: {
-        late: shaped.filter(t => (t.over || -1) >= 0).length,
+        /* Late means PAST the day, not on it. */
+        late: shaped.filter(t => t.over != null && t.over > 0).length,
         open: shaped.filter(t => t.status === 'open' || t.status === 'doing').length,
       },
     });
@@ -5018,11 +5073,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!st) return json(res, 404, { error: 'No such student' });
       if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
       const b = await readJson(req);
-      const title = String(b.title || '').trim().slice(0, 140);
+      const title = str(b.title, 140);
       if (!title) return json(res, 422, { error: 'A task needs a name' });
-      const due = String(b.due || '').slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) {
-        return json(res, 422, { error: 'A task needs a date it has to be finished by' });
+      const due = day(b.due);
+      if (!due) {
+        return json(res, 422, { error: 'A task needs a real date it has to be finished by' });
       }
       /* The whole feature is about dates being met. A date already gone is
          either a typo or a record of something that should be marked done,
@@ -5030,12 +5085,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (due < new Date().toISOString().slice(0, 10)) {
         return json(res, 422, { error: 'That date has already passed. Pick today or later.' });
       }
-      const ownerId = s.role === 'admin' && b.ownerId != null && b.ownerId !== ''
-        ? Number(b.ownerId) : (st.counsellor_id || s.id);
+      let ownerId = st.counsellor_id || s.id;
+      if (s.role === 'admin' && b.ownerId != null && b.ownerId !== '') {
+        const o = ownerOrNull(b.ownerId);
+        if (!o.ok) return json(res, 422, { error: 'That is not somebody on the team' });
+        ownerId = o.id;
+      }
       const t = db.addTask({
         studentId: id, ownerId, key: 'custom', title, progId: '',
         dueAt: due, basis: 'sla', status: 'open', source: 'manual',
-        note: String(b.note || '').slice(0, 2000),
+        note: str(b.note, 2000) || '',
       });
       db.log(s.name, 'added a task', st.name + ' — ' + title + ' (by ' + due + ')');
       if (ownerId && Number(ownerId) !== Number(s.id)) {
@@ -5054,36 +5113,47 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const b = await readJson(req);
     const patch = {};
     if (b.status != null) {
-      if (!TASKS.STATUSES.includes(String(b.status))) {
+      const want = str(b.status, 20);
+      if (!want || !TASKS.STATUSES.includes(want)) {
         return json(res, 422, { error: 'That is not a state a task can be in' });
       }
-      patch.status = String(b.status);
+      patch.status = want;
       patch.by = s.id;
       /* A task being reopened is owed again, so it is allowed to raise its
          voice again. */
       if (String(b.status) !== 'done' && String(b.status) !== 'dropped') patch.breachedAt = null;
     }
     if (b.title != null) {
-      const title = String(b.title).trim().slice(0, 140);
+      const title = str(b.title, 140);
       if (!title) return json(res, 422, { error: 'A task needs a name' });
       patch.title = title;
     }
     if (b.due != null) {
-      const due = String(b.due).slice(0, 10);
-      if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) {
-        return json(res, 422, { error: 'That is not a date' });
-      }
+      const asked = str(b.due, 10);
+      /* Clearing the date is allowed: it puts the task back to waiting. */
+      const due = asked ? day(asked) : '';
+      if (asked && !due) return json(res, 422, { error: 'That is not a real date' });
+      /* A date in the past IS allowed here, unlike on creation. Creating a
+         task already overdue is a typo; re-dating one to record what was
+         actually agreed last week is the office correcting its own record,
+         and refusing that would only push people to lie about the date. */
       patch.dueAt = due || null;
       /* A date somebody typed is no longer a date the generator owns, so it
          stops being moved when a deadline shifts — and the row says so. */
       patch.basis = 'set';
     }
-    if (b.note != null) patch.note = String(b.note).slice(0, 2000);
+    if (b.note != null) {
+      const note = str(b.note, 2000);
+      if (note == null) return json(res, 422, { error: 'A note has to be text' });
+      patch.note = note;
+    }
     if (b.ownerId !== undefined) {
       if (s.role !== 'admin') {
         return json(res, 403, { error: 'Only an administrator can move a task to somebody else' });
       }
-      patch.ownerId = b.ownerId === '' || b.ownerId == null ? null : Number(b.ownerId);
+      const o = ownerOrNull(b.ownerId);
+      if (!o.ok) return json(res, 422, { error: 'That is not somebody on the team' });
+      patch.ownerId = o.id;
     }
     const out = db.updateTask(t.id, patch);
     if (b.status != null) {
@@ -5130,7 +5200,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const sid = Number(q.student_id);
       if (!db.canSee(s, sid)) return json(res, 403, { error: 'That student is not assigned to you' });
       const b = await readJson(req);
-      const body = String(b.body || '').trim().slice(0, 2000);
+      const body = typeof b.body === 'string' ? b.body.trim().slice(0, 2000) : '';
       if (!body) return json(res, 422, { error: 'Write an answer first' });
       /* A second answer to a question already answered is allowed, on
          purpose. "Filing Thursday" followed by "it went out this morning" is
@@ -5236,7 +5306,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('PUT', '/api/staff/task-rules', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const b = await readJson(req);
-    const rules = TASKS.saveRules(db, b.rules || b, s.name);
+    /* saveRules rebuilds the whole block from what it is handed, so anything
+       that is not a map of rules resets every SLA in the office to its
+       default and re-dates every open task — silently, with a 200. A body
+       that does not carry rules is a mistake, not an instruction to wipe. */
+    const asked = Object.prototype.hasOwnProperty.call(b, 'rules') ? b.rules : b;
+    if (!asked || typeof asked !== 'object' || Array.isArray(asked)) {
+      return json(res, 422, { error: 'Send the standard list as a set of rules.' });
+    }
+    if (!Object.keys(asked).length) {
+      return json(res, 422, {
+        error: 'That would clear every rule in the standard list. Switch the steps you do not '
+             + 'want off individually instead.',
+      });
+    }
+    const rules = TASKS.saveRules(db, asked, s.name);
     /* The new days apply to work not yet done, at once rather than tomorrow:
        an administrator who shortens an SLA and sees nothing change assumes it
        did not save. */

@@ -40,6 +40,7 @@
 
 const DAY = 864e5;
 const PLANS = require('./plans.js');
+const DAYS = require('./days.js');
 
 const iso = d => new Date(d).toISOString();
 const inr = paise => '₹' + Number(Math.round((paise || 0) / 100)).toLocaleString('en-IN');
@@ -315,25 +316,44 @@ function all(db, now) {
     try {
       late = (db.tasksFor(st.id) || [])
         .filter(t => !TASK_CLOSED.has(String(t.status)) && t.due_at)
-        .map(t => ({ t, over: daysBetween(T, t.due_at) }))
-        .filter(x => x.over >= 0)
+        /* Whole calendar days in India, the same arithmetic the sweep uses.
+           These were two different calculations and they disagreed: the 9am
+           digest and the 10am sweep described the same task, in the same
+           database, as one day late and zero days late. */
+        .map(t => ({ t, over: DAYS.daysPast(String(t.due_at).slice(0, 10), T) }))
+        /* Due TODAY is not late. */
+        .filter(x => x.over != null && x.over > 0)
         .sort((a, b) => b.over - a.over);
     } catch (e) { late = []; }
     if (late.length) {
-      const worst = late[0];
-      add({
-        kind: 'task',
-        /* A day past is a nudge. A fortnight past is the thing the owner
-           asked to be told about. */
-        urgency: worst.over >= 14 ? 'now' : worst.over >= 3 ? 'soon' : 'watch',
-        who: owner,
-        title: st.name + ' — ' + late.length + ' task'
-          + (late.length === 1 ? '' : 's') + ' past the agreed date',
-        detail: '“' + String(worst.t.title || '').slice(0, 80) + '” was due '
-          + String(worst.t.due_at).slice(0, 10) + ', ' + worst.over + ' day'
-          + (worst.over === 1 ? '' : 's') + ' ago'
-          + (late.length > 1 ? ' — and ' + (late.length - 1) + ' more.' : '.'),
-        subject: { studentId: st.id, taskId: worst.t.id }, at: worst.t.due_at,
+      /* Grouped by whoever OWES each task, not by whoever holds the student.
+         A file handed over last week still carries the previous counsellor on
+         its older tasks, and lumping them under the new one both blames the
+         wrong person and lets the real owner off — the digest would email
+         somebody who cannot act and never email the person who can. */
+      const byOwner = new Map();
+      late.forEach(x => {
+        const who = x.t.owner_id ? Number(x.t.owner_id) : owner;
+        const k = who == null ? 'none' : String(who);
+        if (!byOwner.has(k)) byOwner.set(k, { who, items: [] });
+        byOwner.get(k).items.push(x);
+      });
+      byOwner.forEach(({ who, items }) => {
+        const worst = items[0];
+        add({
+          kind: 'task',
+          /* A day past is a nudge. A fortnight past is the thing the owner
+             asked to be told about. */
+          urgency: worst.over >= 14 ? 'now' : worst.over >= 3 ? 'soon' : 'watch',
+          who,
+          title: st.name + ' — ' + items.length + ' task'
+            + (items.length === 1 ? '' : 's') + ' past the agreed date',
+          detail: '“' + String(worst.t.title || '').slice(0, 80) + '” was due '
+            + String(worst.t.due_at).slice(0, 10) + ', ' + worst.over + ' day'
+            + (worst.over === 1 ? '' : 's') + ' ago'
+            + (items.length > 1 ? ' — and ' + (items.length - 1) + ' more.' : '.'),
+          subject: { studentId: st.id, taskId: worst.t.id }, at: worst.t.due_at,
+        });
       });
     }
   }

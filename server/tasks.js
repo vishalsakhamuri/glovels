@@ -43,10 +43,12 @@
  */
 
 const ALERTS = require('./alerts.js');
+const DAYS = require('./days.js');
 
-const DAY = 864e5;
-const day = d => new Date(d).toISOString().slice(0, 10);
-const plus = (from, days) => day(new Date(from).getTime() + days * DAY);
+const DAY = DAYS.DAY;
+/* Calendar days in India, from one place — see server/days.js for why all
+   three of these used to be computed differently in different files. */
+const plus = (from, days) => DAYS.addDays(from, days);
 
 /**
  * The default list. An administrator can change the days and the titles on the
@@ -166,7 +168,8 @@ function deadlinesOf(row, T) {
 function nextDeadline(row, T) {
   const ds = deadlinesOf(row, T);
   if (!ds.length) return null;
-  return ds.find(d => new Date(d).getTime() >= T - DAY) || null;
+  const today = DAYS.istDay(T);
+  return ds.find(d => d >= today) || null;
 }
 
 /**
@@ -296,8 +299,13 @@ function syncAll(db, now) {
  */
 function lateness(row, now) {
   if (!row || !row.due_at || CLOSED.has(String(row.status))) return null;
-  const T = now ? new Date(now).getTime() : Date.now();
-  return Math.round((T - new Date(row.due_at + 'T23:59:59Z').getTime()) / DAY);
+  return DAYS.daysPast(String(row.due_at).slice(0, 10), now);
+}
+
+/** Owed, and the day it was owed by has gone. Due today is not late. */
+function isLate(row, now) {
+  const n = lateness(row, now);
+  return n != null && n > 0;
 }
 
 /**
@@ -328,6 +336,10 @@ function progressOf(db, studentId, now) {
     percent: rows.length ? Math.round((done / rows.length) * 100) : 0,
     steps: rows.map(r => ({
       title: r.title,
+      /* Whether the target day has gone. NOT how late it is and NOT whose
+         fault — the student is told the work is running behind, which is
+         theirs to know, and nothing about who owes it, which is not. */
+      behind: String(r.status) !== 'done' && DAYS.isPast(String(r.due_at || '').slice(0, 10), now),
       /* The student sees three states, not five. 'blocked' reads as in hand,
          because "blocked" to a student means "something is wrong with me". */
       state: String(r.status) === 'done' ? 'done'
@@ -355,7 +367,13 @@ function progressOf(db, studentId, now) {
  */
 function activityOf(db, staffId, days, now) {
   const T = now ? new Date(now).getTime() : Date.now();
-  const since = T - Math.max(1, Number(days) || 7) * DAY;
+  /* `days` is honoured as given, including 0 — which means today. It used to
+     go through `Number(days) || 7`, so somebody asking for today's work was
+     handed the week's and had no way to tell. */
+  const asked = Number(days);
+  const window = Number.isFinite(asked) ? Math.min(3650, Math.max(0, Math.round(asked))) : 7;
+  const since = new Date(DAYS.addDays(DAYS.istDay(T), -window) + 'T00:00:00Z').getTime()
+    - DAYS.IST_OFFSET;
   const id = Number(staffId);
   const mine = (db.allTasks() || []).filter(t => {
     const owner = ownerOf(db, t);
@@ -364,13 +382,21 @@ function activityOf(db, staffId, days, now) {
 
   const inWindow = at => at && new Date(at).getTime() >= since;
   const done = mine.filter(t => String(t.status) === 'done' && inWindow(t.done_at));
-  const onTime = done.filter(t => t.due_at && t.done_at
-    ? String(t.done_at).slice(0, 10) <= String(t.due_at).slice(0, 10) : true);
+  /* Finished on or before the agreed day, IN INDIA. Comparing the raw
+     timestamps' first ten characters compares UTC days, so work finished at
+     00:30 in the office — 19:00 UTC the previous day — scored as on time
+     when it was in fact a day late. It only ever erred in the flattering
+     direction, which is the worst way for a scoreboard to be wrong. */
+  const onDay = t => (t ? DAYS.istDay(t) : '');
+  const finishedOnTime = t => !t.due_at || !t.done_at
+    || onDay(t.done_at) <= String(t.due_at).slice(0, 10);
+  const onTime = done.filter(finishedOnTime);
   const open = mine.filter(t => !CLOSED.has(String(t.status)));
-  const late = open.filter(t => (lateness(t, T) || -1) >= 0);
+  const late = open.filter(t => isLate(t, T));
   /* Went past its date DURING the window — the ones that slipped on their
      watch this week, as distinct from the backlog they inherited. */
-  const slipped = late.filter(t => t.due_at && new Date(t.due_at).getTime() >= since);
+  const slipped = late.filter(t => t.due_at
+    && Date.parse(String(t.due_at).slice(0, 10) + 'T00:00:00Z') >= since);
   const started = mine.filter(t => String(t.status) === 'doing');
   const stuck = mine.filter(t => String(t.status) === 'blocked');
 
@@ -379,16 +405,15 @@ function activityOf(db, staffId, days, now) {
     return (st ? st.name : 'Unknown') + ' — ' + String(t.title || '');
   };
   return {
-    days: Math.max(1, Number(days) || 7),
+    days: window,
     students: new Set(mine.map(t => Number(t.student_id))).size,
     finished: done.length,
     finishedOnTime: onTime.length,
     finishedList: done
       .sort((a, b) => String(b.done_at).localeCompare(String(a.done_at)))
       .slice(0, 40)
-      .map(t => ({ title: name(t), on: String(t.done_at || '').slice(0, 10),
-        due: t.due_at || '', late: (t.due_at && t.done_at)
-          ? String(t.done_at).slice(0, 10) > String(t.due_at).slice(0, 10) : false })),
+      .map(t => ({ title: name(t), on: onDay(t.done_at),
+        due: t.due_at || '', late: !finishedOnTime(t) })),
     stillOwed: open.length,
     late: late.length,
     slipped: slipped.length,
@@ -406,6 +431,6 @@ function activityOf(db, staffId, days, now) {
 
 module.exports = {
   TEMPLATES, STATUSES, CLOSED,
-  rules, saveRules, syncTasks, syncAll, lateness, ownerOf, progressOf, activityOf,
+  rules, saveRules, syncTasks, syncAll, lateness, isLate, ownerOf, progressOf, activityOf,
   nextDeadline, fileDeadline, dueFor,
 };

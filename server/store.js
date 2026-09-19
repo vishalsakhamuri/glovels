@@ -23,6 +23,11 @@
  */
 
 const UNIS = require('./unis.js');
+
+/* The two task states that owe nobody anything. Kept in step with
+   tasks.CLOSED, and duplicated rather than imported because tasks.js is a
+   layer above this one. */
+const CLOSED_TASK = new Set(['done', 'dropped']);
 const fs = require('fs');
 const path = require('path');
 
@@ -1774,7 +1779,14 @@ function open(dir) {
         try { db.run('DELETE FROM ' + table + ' WHERE student_id = ?', n); }
         catch (e) { /* a table this database has never had */ }
       });
-      try { db.run('DELETE FROM staff_notes WHERE student_id = ? OR staff_id = ?', n, n); }
+      /* from_id / to_id, which is what the columns are actually called. This
+         said `staff_id` — a column staff_notes has never had — so the
+         statement threw on every delete and the catch below swallowed it,
+         and no staff note has ever been removed for anybody. The visible
+         symptom was a deleted student's questions still sitting on the
+         office's board, addressed to "Unknown", answerable, forever. */
+      try { db.run('DELETE FROM staff_notes WHERE student_id = ?', n); } catch (e) {}
+      try { db.run('DELETE FROM staff_notes WHERE from_id = ? OR to_id = ?', n, n); }
       catch (e) {}
       /* Their students become unassigned rather than disappearing with them. */
       try { db.run('UPDATE students SET counsellor_id = NULL WHERE counsellor_id = ?', n); }
@@ -2193,6 +2205,17 @@ function open(dir) {
         if (v.status === 'done' && row.status !== 'done') {
           doneAt = now(); doneBy = p.by == null ? null : Number(p.by);
         } else if (v.status !== 'done') { doneAt = null; doneBy = null; }
+        /* Reopening a closed task makes it owed again, so it is allowed to
+           raise its voice again. Done HERE rather than only in the route
+           that happens to reopen things today: a task reopened by an import,
+           a script or a future screen would otherwise be silenced for good,
+           and a silently-never-chased task is the exact failure this whole
+           feature exists to prevent. An explicit breachedAt in the patch
+           still wins. */
+        if (!has('breachedAt') && CLOSED_TASK.has(String(row.status))
+            && !CLOSED_TASK.has(String(v.status))) {
+          v.breached_at = null;
+        }
       }
       db.run(`UPDATE tasks SET owner_id = ?, title = ?, due_at = ?, due_basis = ?, status = ?,
                 note = ?, breached_at = ?, done_at = ?, done_by = ?, updated_at = ?

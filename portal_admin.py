@@ -2072,13 +2072,16 @@ function tkWhen(t) {
      no shortlisted university has an intake still open. It is not late and it
      is not ignored — it is waiting for the thing it is measured against. */
   if (!t.due) return '<span style="color:var(--muted)">waiting on a<br>university deadline</span>';
-  const late = t.over != null && t.over >= 0;
-  const soon = t.over != null && t.over >= -3 && t.over < 0;
+  /* Past the day, not on it. A task due today is due today. */
+  const late = t.over != null && t.over > 0;
+  const soon = t.over != null && t.over >= -3 && t.over <= 0;
   /* The date, and then the plain-English distance from it, because "2026-11-04"
      does not tell anybody whether to worry. */
   const said = late
-    ? (t.over === 0 ? 'today' : t.over + ' day' + (t.over === 1 ? '' : 's') + ' ago')
-    : t.over == null ? '' : (t.over === -1 ? 'tomorrow' : 'in ' + (-t.over) + ' days');
+    ? t.over + ' day' + (t.over === 1 ? '' : 's') + ' ago'
+    : t.over == null ? ''
+    : t.over === 0 ? 'today'
+    : t.over === -1 ? 'tomorrow' : 'in ' + (-t.over) + ' days';
   return '<b style="' + (late ? 'color:#a8343a' : '') + '">' + esc(t.due) + '</b>' +
     (said ? '<span style="display:block;font-size:11.4px;color:' +
       (late ? '#a8343a' : soon ? '#8a6d1f' : 'var(--muted)') + '">' + esc(said) + '</span>' : '') +
@@ -2123,7 +2126,7 @@ function paintTasks() {
   const rows = TK.tasks || [];
   $('#tkRows').innerHTML = rows.map(t => {
     const st = TK_STATE[t.status] || ['wait', t.status];
-    return '<tr' + (t.over != null && t.over >= 0 ? ' class="late"' : '') + '>' +
+    return '<tr' + (t.over != null && t.over > 0 ? ' class="late"' : '') + '>' +
       '<td><a class="lnk" href="counsellor.html?student=' + t.studentId + '"><b>' +
         esc(t.student) + '</b></a></td>' +
       '<td>' + esc(t.title) +

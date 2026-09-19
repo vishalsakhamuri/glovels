@@ -401,11 +401,11 @@ Read it and reply here: ${siteUrl}/messages`,
     return {
       subject: admin
         ? `${forName}: ${n} task${n === 1 ? '' : 's'} past the agreed date`
-        : `${n === 1 ? 'A task of yours is' : n + ' tasks of yours are'} past their date`,
+        : `${n === 1 ? 'A task of yours is past its date' : n + ' tasks of yours are past their date'}`,
       text: `Hi ${first},
 
 ${admin
-  ? forName + ' has ' + n + ' piece(s) of work past the date agreed with the student:'
+  ? forName + ' has ' + n + (n === 1 ? ' piece' : ' pieces') + ' of work past the date agreed with the student:'
   : 'These were due and are not marked done:'}
 
 ${items.map(t => '  · ' + line(t)).join('\n')}
@@ -416,10 +416,12 @@ ${admin
 
 ${siteUrl}${where}`,
       html: shell(admin ? forName + ' is behind on ' + n + ' task' + (n === 1 ? '' : 's')
-        : (n === 1 ? 'A task of yours is' : n + ' tasks of yours are') + ' past their date',
+        : (n === 1 ? 'A task of yours is past its date'
+          : n + ' tasks of yours are past their date'),
         p('Hi ' + esc(first) + ',') +
         p(admin
-          ? '<b>' + esc(forName) + '</b> has ' + n + ' piece(s) of work past the date agreed with the student.'
+          ? '<b>' + esc(forName) + '</b> has ' + n + (n === 1 ? ' piece' : ' pieces')
+            + ' of work past the date agreed with the student.'
           : 'These were due and are not marked done:') +
         '<ul style="margin:0 0 16px;padding-left:20px;font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#0e1a24">'
         + items.map(t => '<li><b>' + esc(t.student) + '</b> — ' + esc(t.title)
