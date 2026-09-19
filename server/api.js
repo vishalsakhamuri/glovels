@@ -4808,14 +4808,28 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const b = await readJson(req);
       const body = String(b.body || '').trim().slice(0, 2000);
       if (!body) return json(res, 422, { error: 'Nothing to say' });
+      /* A question is a note that stays open until somebody answers it. The
+         office picks which it is sending; the default is the old one-way
+         note, so nothing that already called this route changed behaviour. */
+      const kind = String(b.kind) === 'question' ? 'question' : 'note';
+      let taskId = null;
+      if (b.taskId != null && b.taskId !== '') {
+        const t = db.getTask(Number(b.taskId));
+        /* A question tied to somebody else's task would put the answer on the
+           wrong file. */
+        if (!t || Number(t.student_id) !== id) {
+          return json(res, 422, { error: 'That task is not on this student’s file' });
+        }
+        taskId = t.id;
+      }
       if (!st.counsellor_id) {
         return json(res, 409, {
           error: 'Nobody is looking after ' + st.name + ' yet, so there is nobody to tell. '
                + 'Assign a counsellor first.',
         });
       }
-      db.addStaffNote(id, s.id, st.counsellor_id, body);
-      db.log(s.name, 'guided a counsellor',
+      db.addStaffNote(id, s.id, st.counsellor_id, body, { kind, taskId });
+      db.log(s.name, kind === 'question' ? 'asked a counsellor' : 'guided a counsellor',
         (db.studentById(st.counsellor_id) || {}).name + ' — about ' + st.name);
       /* Straight to their screen if they are on it. A note about a
          conversation that arrives after the conversation is over is a note
@@ -4849,6 +4863,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   const guideShape = n => ({
     id: n.id, body: n.body, at: n.created_at, seen: !!n.seen,
     from: (db.studentById(n.from_id) || {}).name || 'An administrator',
+    /* 'note' is the old one-way word. 'question' expects a reply and stays
+       visibly open until it gets one; 'answer' is that reply. */
+    kind: String(n.kind || 'note'),
+    parentId: n.parent_id || null,
+    taskId: n.task_id || null,
+    /* What the question was about, resolved, so neither screen has to look
+       it up — and so a question survives the task being renamed. */
+    about: (() => {
+      if (!n.task_id) return '';
+      try { const t = db.getTask(n.task_id); return t ? t.title : ''; } catch (e) { return ''; }
+    })(),
+    answered: n.answered_at || '',
   });
 
   /* What has been said to me, and marking it read. A counsellor opening the
@@ -5084,6 +5110,122 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     db.log(s.name, 'removed a task', (db.studentById(t.student_id) || {}).name + ' — ' + t.title);
     return json(res, 200, { ok: true });
   }));
+
+  /*
+   * ============================== asking, and being answered ==============
+   *
+   * The office can already see what is late. What it could not do was ask
+   * about it and have the answer land somewhere other than a phone call
+   * nobody wrote down.
+   */
+
+  /** The counsellor's answer to something the office asked. */
+  route('POST', /^\/api\/staff\/note\/(\d+)\/reply$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const q = db.getStaffNote(Number(m[1]));
+      if (!q) return json(res, 404, { error: 'No such question' });
+      if (String(q.kind) !== 'question') {
+        return json(res, 409, { error: 'That was a note, not a question — there is nothing to answer.' });
+      }
+      const sid = Number(q.student_id);
+      if (!db.canSee(s, sid)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const b = await readJson(req);
+      const body = String(b.body || '').trim().slice(0, 2000);
+      if (!body) return json(res, 422, { error: 'Write an answer first' });
+      /* A second answer to a question already answered is allowed, on
+         purpose. "Filing Thursday" followed by "it went out this morning" is
+         two useful facts, and refusing the second would send the counsellor
+         to the phone — which is the thing this whole screen exists to stop.
+         Only the first stamps answered_at, so the question does not reopen
+         and the office's list does not flicker.
+         The answer goes back to whoever asked, not to whoever happens to be
+         an administrator today. */
+      db.addStaffNote(sid, s.id, q.from_id, body, { kind: 'answer', parentId: q.id, taskId: q.task_id });
+      const st = db.studentById(sid) || {};
+      db.log(s.name, 'answered the office', st.name + ' — ' + body.slice(0, 60));
+      live.toStaff(q.from_id, 'guidance', { studentId: sid, studentName: st.name, answer: true });
+      const asker = db.studentById(q.from_id);
+      if (asker && asker.email && !live.isOnline('staff', asker.id)) {
+        if (push) {
+          push.toStaff(asker.id, {
+            title: s.name + ' answered you about ' + st.name,
+            body: body.slice(0, 120),
+            url: (siteUrl || '') + '/admin#tasks',
+            tag: 'answer-' + sid,
+          }).catch(() => {});
+        }
+        notify.notify({
+          to: asker.email, phone: asker.phone,
+          email: EMAILS.staffChase({
+            toName: asker.name, fromName: s.name, studentName: st.name, body, siteUrl,
+          }),
+        }).catch(() => {});
+      }
+      return json(res, 200, { notes: db.staffNotes(sid).map(guideShape) });
+    }));
+
+  /**
+   * Every question the office has asked, across every file.
+   *
+   * Open ones first and oldest first, because a question asked nine days ago
+   * that nobody has answered is a bigger problem than the task it was about.
+   */
+  route('GET', '/api/staff/questions', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const now = Date.now();
+    const shape = q => {
+      const st = db.studentById(q.student_id) || {};
+      const answers = db.staffNotes(q.student_id)
+        .filter(n => String(n.kind) === 'answer' && Number(n.parent_id) === Number(q.id));
+      return {
+        id: q.id, studentId: q.student_id, student: st.name || 'Unknown',
+        to: (db.studentById(q.to_id) || {}).name || '',
+        toId: q.to_id || null,
+        body: q.body, at: q.created_at,
+        /* The task itself, so asking again is the same question about the
+           same thing and lands linked and correctly dated. */
+        taskId: q.task_id || null,
+        about: q.task_id ? ((db.getTask(q.task_id) || {}).title || '') : '',
+        over: q.task_id ? TASKS.lateness(db.getTask(q.task_id), now) : null,
+        waitingDays: Math.floor((now - new Date(q.created_at).getTime()) / 864e5),
+        answered: q.answered_at || '',
+        answers: answers.map(a => ({
+          body: a.body, at: a.created_at,
+          from: (db.studentById(a.from_id) || {}).name || '',
+        })),
+      };
+    };
+    const all = db.allQuestions().map(shape);
+    return json(res, 200, {
+      open: all.filter(q => !q.answered).sort((a, b) => b.waitingDays - a.waitingDays),
+      answered: all.filter(q => q.answered).slice(0, 40),
+    });
+  }));
+
+  /**
+   * What one counsellor did over the last N days.
+   *
+   * "What have you done since one week, what tasks have you completed" —
+   * answered off the record rather than asked of the person, so the office
+   * walks into the conversation already knowing.
+   */
+  route('GET', /^\/api\/staff\/counsellor\/(\d+)\/activity$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      /* An administrator may read anyone's; anybody else may read only their
+         own, which is the difference between a management tool and
+         surveillance between colleagues. */
+      if (s.role !== 'admin' && Number(s.id) !== id) {
+        return json(res, 403, { error: 'That is not your record' });
+      }
+      const who = db.studentById(id);
+      if (!who) return json(res, 404, { error: 'No such person' });
+      const days = Number(new URL(req.url, 'http://x').searchParams.get('days')) || 7;
+      return json(res, 200, {
+        person: { id: who.id, name: who.name },
+        activity: TASKS.activityOf(db, id, days),
+      });
+    }));
 
   /** The standard list and its days, as the office has them. */
   route('GET', '/api/staff/task-rules', caseworkOnly(async (req, res, s) => {

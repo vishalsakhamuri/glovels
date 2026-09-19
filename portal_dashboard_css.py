@@ -373,8 +373,26 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
   padding:13px 15px;margin:0 0 13px}
 .guide b{display:block;font:700 11.6px/1.5 var(--sans);letter-spacing:.05em;
   text-transform:uppercase;color:#8a5a0b;margin-bottom:4px}
-.guide p{margin:0;font-size:13.2px;line-height:1.65;color:#5b4409}
+.guide p{margin:0;font-size:13.2px;line-height:1.65;color:#5b4409;
+  /* A pasted application URL is one unbroken token, and without this it runs
+     straight out of the card and takes the page with it. */
+  overflow-wrap:anywhere;word-break:break-word}
 .guide small{display:block;margin-top:7px;font-size:11.2px;color:#8a5a0b}
+/* A question that has not been answered is a different thing from a note,
+   and has to look like one or it gets read and forgotten. */
+.guide.asking{background:#fdf0ef;border-color:#f0cbc7}
+.guide.asking b,.guide.asking p{color:#7d2b26}
+.guide.asking small{color:#a8514a}
+.guide .answerbox{display:flex;gap:8px;align-items:flex-end;margin-top:11px}
+.guide .answerbox textarea{flex:1;resize:vertical;min-height:40px;max-height:160px;
+  padding:9px 11px;font:400 13px/1.55 var(--sans);color:var(--navy-900);
+  border:1.5px solid #e3c4c0;border-radius:10px;background:#fff}
+.guide .answered{margin-top:11px;padding:10px 12px;background:#f2f7f3;
+  border-left:3px solid #1a7f4b;border-radius:0 9px 9px 0}
+.guide .answered b{color:#1a7f4b}
+.guide .answered p{color:#234a33}
+.guide .answered small{color:#4a7a5c}
+@media (max-width:520px){ .guide .answerbox{flex-direction:column;align-items:stretch} }
 
 /* ---- long lists, one page at a time ---- */
 .pgr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;

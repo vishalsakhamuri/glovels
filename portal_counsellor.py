@@ -368,9 +368,31 @@ function paintRecord(r) {
         /* What an administrator has said about this conversation, above the
            conversation. The student never sees it — it is not on their record
            and not in their messages. */
-        (r.guidance || []).map(g =>
-          '<div class="guide"><b>' + esc(g.from) + ' &middot; about this student</b>' +
-          '<p>' + esc(g.body) + '</p><small>' + timeAgo(g.at) + '</small></div>').join('') +
+        /* What the office has said, and — where it asked something — the
+           box to answer in. A question with nowhere to reply is how a
+           manager ends up believing nobody read it. Answers are threaded
+           under the question they belong to, so a file read six weeks later
+           still shows what was asked and what came back. */
+        (r.guidance || []).filter(g => g.kind !== 'answer').map(g => {
+          const answers = (r.guidance || []).filter(a => a.kind === 'answer'
+            && Number(a.parentId) === Number(g.id));
+          const asking = g.kind === 'question';
+          return '<div class="guide' + (asking && !answers.length ? ' asking' : '') + '">' +
+            '<b>' + esc(g.from) + ' &middot; ' +
+              (asking ? (answers.length ? 'asked' : 'is asking you') : 'about this student') +
+              (g.about ? ' &middot; ' + esc(g.about) : '') + '</b>' +
+            '<p>' + esc(g.body) + '</p><small>' + timeAgo(g.at) + '</small>' +
+            answers.map(a => '<div class="answered"><b>You replied</b><p>' + esc(a.body) +
+              '</p><small>' + timeAgo(a.at) + '</small></div>').join('') +
+            (asking && !answers.length
+              ? '<div class="answerbox">' +
+                '<textarea data-ansbox="' + g.id + '" rows="2" placeholder="Your answer — ' +
+                  'this goes back to ' + esc(g.from.split(" ")[0]) + '"></textarea>' +
+                '<button type="button" class="btn btn-sm" data-answer="' + g.id + '">Answer</button>' +
+                '</div>'
+              : '') +
+          '</div>';
+        }).join('') +
         '<div id="thread" style="height:min(400px,46vh);overflow-y:auto;display:flex;' +
           'flex-direction:column;gap:12px;padding:4px 2px 12px"></div>' +
         '<div id="typing" style="font:400 11.6px/1.6 var(--sans);color:var(--muted);height:18px"></div>' +
@@ -1116,6 +1138,23 @@ document.addEventListener('click', async e => {
         }
         if (openId) open(openId);
       } catch (err) { toast(err.message || 'That did not save.'); }
+    })();
+    return;
+  }
+
+  /* Answering the office. */
+  const an = e.target.closest('[data-answer]');
+  if (an) {
+    const id = an.dataset.answer;
+    const box = document.querySelector('[data-ansbox="' + id + '"]');
+    const body = box ? box.value.trim() : '';
+    if (!body) { if (box) box.focus(); return; }
+    an.disabled = true;
+    (async () => {
+      try {
+        await api('POST', '/api/staff/note/' + id + '/reply', { body });
+        if (openId) open(openId);
+      } catch (err) { toast(err.message || 'That did not send.'); an.disabled = false; }
     })();
     return;
   }

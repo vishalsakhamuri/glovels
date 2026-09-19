@@ -942,6 +942,11 @@ select.assign.none:hover{border-color:#a5342b}
          these, which beats any media query — so a row of four or five tiles
          pushed the page sideways on a phone. The count is a custom property
          now, and the row folds to two, then one, as the screen narrows. */
+      /* A heading with controls beside it has to be allowed to fold, or the
+         controls push the whole page sideways on a phone — which is exactly
+         what the two Tasks filters did at 390px. */
+      .p-sec-head{flex-wrap:wrap}
+      .p-sec-head select,.p-sec-head input{min-width:0}
       .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
       @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
       @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
@@ -1004,6 +1009,50 @@ select.assign.none:hover{border-color:#a5342b}
          days from the day the file opened, or a number of days BEFORE the
          university closes. Mixing them up is the one mistake that produces a
          board full of dates nobody understands. -->
+    <!-- Asking a counsellor about a file.
+         Three ready-made questions because the office asks the same three,
+         and a question typed from scratch every time is a question that
+         often does not get asked at all. "Expect an answer" is the whole
+         difference between this and the old one-way note: it keeps the line
+         on the board until somebody replies. -->
+    <div class="modal" id="askModal" role="dialog" aria-modal="true">
+      <div class="sheet" style="width:min(560px,100%)">
+        <button class="sheet-close" data-aclose aria-label="Close">✕</button>
+        <h3 id="askTitle">Ask the counsellor</h3>
+        <p class="lead" id="askAbout"></p>
+        <div id="askCanned" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px"></div>
+        <textarea id="askBody" rows="4" placeholder="What do you want to ask?"
+          style="width:100%;padding:11px 12px;font:400 13.4px/1.55 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:11px;resize:vertical"></textarea>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:11px;
+          font:600 12.6px/1.5 var(--sans);color:var(--navy-800)">
+          <input type="checkbox" id="askExpect" checked>
+          Expect an answer &mdash; keep it on my list until they reply</label>
+        <p id="askErr" style="display:none;margin:12px 0 0;padding:11px 13px;border-radius:10px;
+          background:#fdeceb;border:1px solid #f3c9c6;font:600 12.6px/1.55 var(--sans);
+          color:#8d2f2a"></p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn ghost" data-aclose>Cancel</button>
+          <button type="button" class="btn" id="askSend">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- What one counsellor actually did. Opened from their row, so the
+         office reads the record before asking about it. -->
+    <div class="modal" id="weekModal" role="dialog" aria-modal="true">
+      <div class="sheet" style="width:min(640px,100%)">
+        <button class="sheet-close" data-wclose aria-label="Close">✕</button>
+        <h3 id="weekWho">Their week</h3>
+        <div style="display:flex;gap:7px;margin-bottom:14px">
+          <button type="button" class="btn ghost small" data-week="7">Last 7 days</button>
+          <button type="button" class="btn ghost small" data-week="30">Last 30 days</button>
+          <button type="button" class="btn ghost small" data-week="90">Last 90 days</button>
+        </div>
+        <div id="weekBody"></div>
+      </div>
+    </div>
+
     <div class="modal" id="ruleModal" role="dialog" aria-modal="true">
       <div class="sheet" style="width:min(680px,100%)">
         <button class="sheet-close" data-rclose aria-label="Close">✕</button>
@@ -1323,11 +1372,11 @@ select.assign.none:hover{border-color:#a5342b}
 
     <div class="p-sec">
       <div class="p-sec-head"><h2>The work itself</h2>
-        <select id="tkWho" style="margin-left:auto;padding:8px 11px;
+        <select id="tkWho" style="margin-left:auto;padding:8px 11px;min-width:0;max-width:100%;
           font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">
           <option value="">Everybody</option></select>
-        <select id="tkState" style="padding:8px 11px;font:400 12.8px/1.4 var(--sans);
-          border:1.5px solid #d8dde4;border-radius:9px">
+        <select id="tkState" style="padding:8px 11px;min-width:0;max-width:100%;
+          font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">
           <option value="late">Past its date</option>
           <option value="live" selected>Still to do</option>
           <option value="done">Finished</option>
@@ -1342,6 +1391,13 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
       <p id="tkNone" hidden style="margin:12px 0 0;font-size:13px;color:var(--muted)"></p>
     </div>
+    <div class="p-sec">
+      <div class="p-sec-head"><h2 id="qCard">Questions you have asked</h2>
+        <span id="qOpen" hidden class="st bad" style="text-transform:none;letter-spacing:0"></span></div>
+      <div id="qList"></div>
+      <p id="qNone" hidden style="margin:0;font-size:13px;color:var(--muted)"></p>
+    </div>
+
     </div><!-- /o-tasks -->
 
     <div class="opane" id="o-chats">
@@ -3504,8 +3560,12 @@ function paintTasks() {
         + p.late + '</td>' +
       '<td style="text-align:right">' + p.done + '</td>' +
       '<td style="text-align:right">' + (p.percent == null ? '—' : p.percent + '%') + '</td>' +
-      '<td style="text-align:right"><button type="button" class="lnk" data-tkwho="' +
-        (p.id == null ? 'none' : p.id) + '">see their work</button></td>' +
+      '<td style="text-align:right;white-space:nowrap"><button type="button" class="lnk" data-tkwho="' +
+        (p.id == null ? 'none' : p.id) + '">their work</button>' +
+        /* The record, before the conversation. "What have you done since one
+           week" is a question the screen can answer without asking anybody. */
+        (p.id ? ' · <button type="button" class="lnk" data-tkweek="' + p.id +
+          '">their week</button>' : '') + '</td>' +
     '</tr>').join('')
     : '<tr><td colspan="6" style="color:var(--muted)">Nothing on the books yet.</td></tr>';
 
@@ -3536,8 +3596,9 @@ function paintTasks() {
         (t.status === 'done' ? ''
           : '<button type="button" class="lnk" data-tkdone="' + t.id + '">mark done</button> · ') +
         '<button type="button" class="lnk" data-tkchase="' + t.studentId +
+          '" data-tkid="' + t.id + '" data-tkstudent="' + esc(t.student) +
           '" data-tktitle="' + esc(t.title) + '" data-tkover="' + (t.over == null ? '' : t.over) +
-          '">chase</button></td>' +
+          '">ask</button></td>' +
     '</tr>';
   }).join('');
   const none = $('#tkNone');
@@ -3563,6 +3624,7 @@ async function loadTasks() {
         esc(p.name || 'Nobody') + '</option>').join('');
   }
   paintTasks();
+  loadQuestions();
 }
 
 $('#tkWho').addEventListener('change', loadTasks);
@@ -3580,27 +3642,250 @@ document.addEventListener('click', async e => {
     return;
   }
 
-  /* "Admin should be able to send message to the counsellors who is working
-     on file saying there is this much delay or task has to be completed by so
-     and so time." The note is drafted for them with the delay already in it,
-     because a chase that takes four sentences to write is a chase nobody
-     sends. It goes to the counsellor's screen and, if they are not on it,
-     to their phone and their inbox. */
+  /* "Admin should be able to monitor the student process and ask questions to
+     counsellor — why this has not happened, why this much delay, what you
+     have done since one week, what tasks you have completed."
+     The last of those the screen answers itself, from the record, on the
+     counsellor's own row. The rest open this, which drafts the question with
+     the delay already in it — a chase that takes four sentences to write is
+     a chase nobody sends. */
   const c = e.target.closest('[data-tkchase]');
   if (c) {
-    const over = c.dataset.tkover === '' ? null : Number(c.dataset.tkover);
-    const draft = over != null && over >= 0
-      ? '"' + c.dataset.tktitle + '" is ' + over + ' day' + (over === 1 ? '' : 's')
-        + ' past the date we agreed. Please finish it or tell me what is holding it up.'
-      : '"' + c.dataset.tktitle + '" is coming up. Where are we with it?';
-    const said = prompt('What do you want to say to the counsellor?', draft);
-    if (said == null || !said.trim()) return;
-    try {
-      await api('POST', '/api/staff/student/' + c.dataset.tkchase + '/guide', { body: said.trim() });
-      toast('Sent. It is on their screen, and in their inbox if they are not looking.');
-    } catch (err) { toast(err.message || 'That did not send.'); }
+    askOpen({
+      studentId: c.dataset.tkchase,
+      taskId: c.dataset.tkid || '',
+      title: c.dataset.tktitle || '',
+      student: c.dataset.tkstudent || '',
+      over: c.dataset.tkover === '' ? null : Number(c.dataset.tkover),
+    });
   }
 });
+
+/* ---- asking, and reading the answers ---- */
+let ASK = null;
+function askOpen(ctx) {
+  ASK = ctx;
+  const over = ctx.over;
+  /* Past the date means PAST it. A task due today is due today, and telling
+     a counsellor it is "0 days past the agreed date" is the screen picking a
+     fight over work that is not yet late. */
+  const late = over != null && over > 0;
+  const dueToday = over === 0;
+  $('#askTitle').textContent = 'Ask about ' + (ctx.student || 'this file');
+  $('#askAbout').textContent = ctx.title
+    ? (late ? '“' + ctx.title + '” — ' + over + ' day' + (over === 1 ? '' : 's')
+        + ' past the agreed date.'
+      : dueToday ? '“' + ctx.title + '” — due today.'
+      : '“' + ctx.title + '” — due ' + (over == null ? 'soon' : 'in ' + (-over) + ' days') + '.')
+    : 'A question about this file.';
+  /* The three the office actually asks. Written out in full so the
+     counsellor reads a question, not a prompt someone did not finish. */
+  const canned = [
+    ['Why has this not happened?',
+     'Why has this not happened yet?' + (ctx.title ? ' (' + ctx.title + ')' : '')],
+    ['Why the delay?',
+     late ? 'This is ' + over + ' day' + (over === 1 ? '' : 's') + ' past the date we agreed with the '
+       + 'student. What is causing the delay, and when will it be done?'
+       : dueToday ? 'This is due today. Is it going out, or is something holding it up?'
+       : 'What is holding this up, and when will it be done?'],
+    ['When will it be done?',
+     'Give me a date you can commit to for this, and tell me what you need from me to hit it.'],
+    ['What have you completed this week?',
+     'Tell me what you finished this week across your files, and what is slipping.'],
+  ];
+  $('#askCanned').innerHTML = canned.map((q, i) =>
+    '<button type="button" class="btn ghost small" data-canq="' + i + '">' + esc(q[0]) + '</button>').join('');
+  $('#askCanned').__q = canned;
+  $('#askBody').value = late && ctx.title ? canned[1][1] : '';
+  $('#askExpect').checked = true;
+  $('#askErr').style.display = 'none';
+  $('#askModal').classList.add('on');
+  $('#askBody').focus();
+}
+document.addEventListener('click', e => {
+  const q = e.target.closest('[data-canq]');
+  if (q) {
+    const list = $('#askCanned').__q || [];
+    $('#askBody').value = (list[Number(q.dataset.canq)] || [])[1] || '';
+    $('#askBody').focus();
+    return;
+  }
+  if (e.target.closest('[data-aclose]') || e.target === $('#askModal')) {
+    $('#askModal').classList.remove('on');
+  }
+  if (e.target.closest('[data-wclose]') || e.target === $('#weekModal')) {
+    $('#weekModal').classList.remove('on');
+  }
+});
+$('#askSend').addEventListener('click', async () => {
+  const body = $('#askBody').value.trim();
+  if (!body) { $('#askErr').textContent = 'Write the question first.'; $('#askErr').style.display = ''; return; }
+  const btn = $('#askSend'), was = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await api('POST', '/api/staff/student/' + ASK.studentId + '/guide', {
+      body,
+      kind: $('#askExpect').checked ? 'question' : 'note',
+      taskId: ASK.taskId || undefined,
+    });
+    $('#askModal').classList.remove('on');
+    toast($('#askExpect').checked
+      ? 'Asked. It stays on your list until they answer.'
+      : 'Sent. It is on their screen, and in their inbox if they are not looking.');
+    loadQuestions();
+  } catch (err) {
+    $('#askErr').textContent = err.message || 'That did not send.';
+    $('#askErr').style.display = '';
+  } finally { btn.disabled = false; btn.textContent = was; }
+});
+
+async function loadQuestions() {
+  let q;
+  try { q = await api('GET', '/api/staff/questions'); } catch (e) { return; }
+  const chip = $('#qOpen');
+  if (chip) { chip.hidden = !q.open.length; chip.textContent = q.open.length + ' waiting for an answer'; }
+  const card = (x, open) =>
+    '<div class="p-card" style="margin-bottom:10px;padding:14px 16px' +
+      (open && x.waitingDays >= 2 ? ';border-left:3px solid #a8343a' : '') + '">' +
+      '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' +
+        '<a class="lnk" href="counsellor.html?student=' + x.studentId + '"><b>' +
+          esc(x.student) + '</b></a>' +
+        '<span style="font-size:12px;color:var(--muted)">asked ' + esc(x.to || 'the counsellor') +
+          (x.about ? ' · about “' + esc(x.about) + '”' : '') + '</span>' +
+        '<span style="margin-left:auto;font:700 11.6px/1.4 var(--sans);color:' +
+          (open ? (x.waitingDays >= 2 ? '#a8343a' : 'var(--muted)') : '#1a7f4b') + '">' +
+          (open
+            ? (x.waitingDays === 0 ? 'asked today' : 'waiting ' + x.waitingDays + ' day' +
+               (x.waitingDays === 1 ? '' : 's'))
+            : 'answered') + '</span>' +
+      '</div>' +
+      '<p style="margin:9px 0 0;font-size:13.2px;line-height:1.6">' + esc(x.body) + '</p>' +
+      (x.answers || []).map(a =>
+        '<div style="margin:11px 0 0;padding:11px 13px;background:#f2f7f3;' +
+          'border-left:3px solid #1a7f4b;border-radius:0 9px 9px 0">' +
+          '<b style="font:700 11.6px/1.4 var(--sans);color:#1a7f4b">' + esc(a.from) + ' replied</b>' +
+          '<p style="margin:5px 0 0;font-size:13px;line-height:1.6">' + esc(a.body) + '</p></div>').join('') +
+      /* Carrying the task and its lateness, so asking again is the same
+         question about the same thing rather than a fresh one with no
+         context — which is how a follow-up ends up unlinked and undated. */
+      (open ? '<p style="margin:10px 0 0"><button type="button" class="lnk" data-tkchase="' +
+        x.studentId + '" data-tkid="' + (x.taskId || '') + '" data-tkstudent="' +
+        esc(x.student) + '" data-tktitle="' + esc(x.about || '') +
+        '" data-tkover="' + (x.over == null ? '' : x.over) + '">ask again</button></p>' : '') +
+    '</div>';
+  $('#qList').innerHTML = q.open.map(x => card(x, true)).join('')
+    + q.answered.slice(0, 8).map(x => card(x, false)).join('');
+  const none = $('#qNone');
+  if (none) {
+    none.hidden = !!(q.open.length || q.answered.length);
+    none.textContent = 'You have not asked anybody anything yet. Use “ask” on a late task above.';
+  }
+}
+
+/* ---- what one counsellor actually did ---- */
+let WEEK_ID = null;
+/* Two clicks on 90 then 7 are two requests, and whichever answers last wins
+   rather than whichever was asked last. The token makes the stale one drop
+   its own reply. */
+let WEEK_SEQ = 0;
+async function weekOpen(id, days) {
+  WEEK_ID = id;
+  const mine = ++WEEK_SEQ;
+  $('#weekBody').innerHTML = '<p style="color:var(--muted)">Reading…</p>';
+  $('#weekModal').classList.add('on');
+  let r;
+  try { r = await api('GET', '/api/staff/counsellor/' + id + '/activity?days=' + (days || 7)); }
+  catch (e) {
+    if (mine !== WEEK_SEQ) return;
+    $('#weekBody').innerHTML = '<p style="color:#a8343a">' + esc(e.message) + '</p>'; return;
+  }
+  if (mine !== WEEK_SEQ) return;
+  const a = r.activity;
+  $('#weekWho').textContent = r.person.name + ' — the last ' + a.days + ' days';
+  const tile = (n, label, colour) =>
+    '<div style="flex:1;min-width:104px;padding:12px 13px;border-radius:11px;background:var(--paper);' +
+      'border:1px solid var(--line,#e6e9ee)"><b style="display:block;font:800 21px/1 var(--sans);color:' +
+      (colour || 'var(--navy-900,#0b1e31)') + '">' + n + '</b>' +
+      '<span style="font:600 11.4px/1.4 var(--sans);color:var(--muted)">' + label + '</span></div>';
+  $('#weekBody').innerHTML =
+    '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px">' +
+      tile(a.finished, 'finished') +
+      tile(a.finishedOnTime, 'on time', a.finished && a.finishedOnTime < a.finished ? '#8a6d1f' : '#1a7f4b') +
+      tile(a.stillOwed, 'still owed') +
+      tile(a.late, 'past its date', a.late ? '#a8343a' : undefined) +
+      tile(a.students, 'files') +
+    '</div>' +
+    (a.finishedList.length
+      ? '<h4 style="margin:0 0 8px;font:700 13px/1.4 var(--sans)">What they finished</h4><ul style="margin:0 0 16px;' +
+        'padding-left:18px;font:400 13px/1.7 var(--sans)">' +
+        a.finishedList.map(x => '<li>' + esc(x.title) + ' <span style="color:' +
+          (x.late ? '#8a6d1f' : 'var(--muted)') + '">(' + esc(x.on) +
+          (x.late ? ', late' : '') + ')</span></li>').join('') + '</ul>'
+      : '<p style="margin:0 0 16px;font-size:13px;color:var(--muted)">Nothing was finished in this period.</p>') +
+    (a.stuckList.length
+      ? '<h4 style="margin:0 0 8px;font:700 13px/1.4 var(--sans)">What they say is stuck</h4><ul style="margin:0 0 16px;' +
+        'padding-left:18px;font:400 13px/1.7 var(--sans)">' +
+        a.stuckList.map(x => '<li>' + esc(x.title) +
+          (x.why ? ' <span style="color:var(--muted)">— ' + esc(x.why) + '</span>' : '') + '</li>').join('') + '</ul>'
+      : '') +
+    (a.worst.length
+      ? '<h4 style="margin:0 0 8px;font:700 13px/1.4 var(--sans)">Worth asking about</h4>' +
+        a.worst.map(x => '<div style="display:flex;gap:10px;align-items:baseline;padding:8px 0;' +
+          'border-top:1px solid var(--line,#e6e9ee)"><span style="flex:1;font-size:13px">' +
+          esc(x.title) + '</span><span style="font:700 12px/1.4 var(--sans);color:#a8343a">' +
+          x.over + 'd late</span><button type="button" class="lnk" data-tkchase="' + x.studentId +
+          '" data-tkid="' + x.id + '" data-tktitle="' + esc(x.title) + '" data-tkover="' + x.over +
+          '">ask</button></div>').join('')
+      : '<p style="margin:0;font-size:13px;color:var(--muted)">Nothing of theirs is past its date.</p>');
+}
+document.addEventListener('click', e => {
+  const w = e.target.closest('[data-week]');
+  if (w && WEEK_ID) weekOpen(WEEK_ID, Number(w.dataset.week));
+  const s = e.target.closest('[data-tkweek]');
+  if (s) weekOpen(Number(s.dataset.tkweek), 7);
+});
+
+/* Escape closes the sheet you are looking at, and the page underneath holds
+   still while one is open. Both of these are written over EVERY .modal on
+   this screen rather than the three added with the task board: a rule that
+   covers half the sheets on a page is worse than no rule, because the half
+   it misses now reads as broken rather than as ordinary.
+ *
+ * Escape closes the TOPMOST sheet, not all of them. Nothing here opens two
+ * at once today, but "closes everything" is the behaviour that quietly
+ * destroys a nested sheet the first time somebody adds one.
+ *
+ * The lock remembers what it replaced instead of assuming the page had no
+ * opinion, so a future drawer that locks scrolling for its own reasons does
+ * not have its lock wiped the next time a sheet closes here. */
+(function () {
+  const sheets = () => $$('.modal');
+  const open = () => sheets().filter(m => m.classList.contains('on'));
+  let held = null;                      // what body.style.overflow was before we took it
+
+  function sync() {
+    const any = open().length > 0;
+    if (any && held === null) {
+      held = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    } else if (!any && held !== null) {
+      document.body.style.overflow = held;
+      held = null;
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    /* Last one in document order that is open — which is the one on top,
+       since they are all siblings painted in order. */
+    const stack = open();
+    if (stack.length) stack[stack.length - 1].classList.remove('on');
+  });
+
+  const obs = new MutationObserver(sync);
+  sheets().forEach(m => obs.observe(m, { attributes: true, attributeFilter: ['class'] }));
+  sync();
+})();
 
 /* ---- the standard list ---- */
 let RK = [];

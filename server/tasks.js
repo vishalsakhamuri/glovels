@@ -340,8 +340,72 @@ function progressOf(db, studentId, now) {
   };
 }
 
+/**
+ * What one counsellor actually did, over a window of days.
+ *
+ * "What have you done since one week, what tasks have you completed." That is
+ * a question about a record, not about a person, and asking a person to
+ * assemble their own week from memory produces the answer they can most
+ * easily defend rather than the one that is true. The office reads it here
+ * and then asks the question worth asking.
+ *
+ * Counted on the work, not on effort: finished, finished late, started,
+ * still owed, newly gone past its date, and the files that had anything
+ * happen on them at all.
+ */
+function activityOf(db, staffId, days, now) {
+  const T = now ? new Date(now).getTime() : Date.now();
+  const since = T - Math.max(1, Number(days) || 7) * DAY;
+  const id = Number(staffId);
+  const mine = (db.allTasks() || []).filter(t => {
+    const owner = ownerOf(db, t);
+    return owner != null && Number(owner) === id;
+  });
+
+  const inWindow = at => at && new Date(at).getTime() >= since;
+  const done = mine.filter(t => String(t.status) === 'done' && inWindow(t.done_at));
+  const onTime = done.filter(t => t.due_at && t.done_at
+    ? String(t.done_at).slice(0, 10) <= String(t.due_at).slice(0, 10) : true);
+  const open = mine.filter(t => !CLOSED.has(String(t.status)));
+  const late = open.filter(t => (lateness(t, T) || -1) >= 0);
+  /* Went past its date DURING the window — the ones that slipped on their
+     watch this week, as distinct from the backlog they inherited. */
+  const slipped = late.filter(t => t.due_at && new Date(t.due_at).getTime() >= since);
+  const started = mine.filter(t => String(t.status) === 'doing');
+  const stuck = mine.filter(t => String(t.status) === 'blocked');
+
+  const name = t => {
+    const st = db.studentById(Number(t.student_id));
+    return (st ? st.name : 'Unknown') + ' — ' + String(t.title || '');
+  };
+  return {
+    days: Math.max(1, Number(days) || 7),
+    students: new Set(mine.map(t => Number(t.student_id))).size,
+    finished: done.length,
+    finishedOnTime: onTime.length,
+    finishedList: done
+      .sort((a, b) => String(b.done_at).localeCompare(String(a.done_at)))
+      .slice(0, 40)
+      .map(t => ({ title: name(t), on: String(t.done_at || '').slice(0, 10),
+        due: t.due_at || '', late: (t.due_at && t.done_at)
+          ? String(t.done_at).slice(0, 10) > String(t.due_at).slice(0, 10) : false })),
+    stillOwed: open.length,
+    late: late.length,
+    slipped: slipped.length,
+    inHand: started.length,
+    stuck: stuck.length,
+    stuckList: stuck.slice(0, 20).map(t => ({ title: name(t), why: t.note || '' })),
+    /* The ones to ask about: longest past their date first. */
+    worst: late
+      .map(t => ({ id: t.id, studentId: t.student_id, title: name(t),
+        due: t.due_at, over: lateness(t, T) }))
+      .sort((a, b) => b.over - a.over)
+      .slice(0, 12),
+  };
+}
+
 module.exports = {
   TEMPLATES, STATUSES, CLOSED,
-  rules, saveRules, syncTasks, syncAll, lateness, ownerOf, progressOf,
+  rules, saveRules, syncTasks, syncAll, lateness, ownerOf, progressOf, activityOf,
   nextDeadline, fileDeadline, dueFor,
 };

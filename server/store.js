@@ -619,6 +619,31 @@ function sqliteDriver(file) {
       enforced in syncTasks, because the json driver has no indexes at all and
       a rule only one of the two drivers keeps is not a rule. */
    'CREATE INDEX IF NOT EXISTS idx_tasks_key ON tasks(student_id, task_key, prog_id)',
+   /* ---- a word to a counsellor becomes a question with an answer ----
+    *
+    * "Admin should be able to monitor the student process and ask questions
+    *  to counsellor — why this has not happened, why this much delay, what
+    *  you have done since one week, what tasks you have completed."
+    *
+    * The first half of that the system answers itself, off the tasks table.
+    * The second half needs a person, and a question nobody can reply to is
+    * not a question — it is a complaint with no record of the answer. These
+    * four columns turn the existing one-way note into a thread:
+    *
+    *   kind        'note' as before, 'question' when an answer is expected,
+    *               'answer' for the reply to one.
+    *   parent_id   which question this answers.
+    *   task_id     which piece of work it is about, when it is about one, so
+    *               "why has this not happened" carries what "this" was.
+    *   answered_at stamped on the QUESTION when its first answer arrives, so
+    *               "asked four days ago, still nothing back" is one read
+    *               rather than a join nobody remembers to write.
+    */
+   "ALTER TABLE staff_notes ADD COLUMN kind TEXT NOT NULL DEFAULT 'note'",
+   'ALTER TABLE staff_notes ADD COLUMN parent_id INTEGER',
+   'ALTER TABLE staff_notes ADD COLUMN task_id INTEGER',
+   'ALTER TABLE staff_notes ADD COLUMN answered_at TEXT',
+   'CREATE INDEX IF NOT EXISTS idx_notes_open ON staff_notes(kind, answered_at)',
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -2089,14 +2114,35 @@ function open(dir) {
       Number(id)),
     staffNotesFor: toId => db.all('SELECT * FROM staff_notes WHERE to_id = ? ORDER BY id desc',
       Number(toId)),
-    addStaffNote(studentId, fromId, toId, body) {
-      db.run(`INSERT INTO staff_notes (student_id, from_id, to_id, body, seen, created_at)
-              VALUES (?, ?, ?, ?, ?, ?)`,
+    addStaffNote(studentId, fromId, toId, body, opts) {
+      const o = opts || {};
+      db.run(`INSERT INTO staff_notes (student_id, from_id, to_id, body, seen, created_at,
+                kind, parent_id, task_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(studentId), Number(fromId), toId == null ? null : Number(toId),
-        String(body), 0, now());
+        String(body), 0, now(),
+        String(o.kind || 'note'),
+        o.parentId == null ? null : Number(o.parentId),
+        o.taskId == null ? null : Number(o.taskId));
+      /* An answer closes its question. Stamped here rather than by the caller,
+         because a question left open by a route that forgot is a counsellor
+         wrongly shown as ignoring the office. */
+      if (o.kind === 'answer' && o.parentId != null) {
+        const q = db.one('SELECT * FROM staff_notes WHERE id = ?', Number(o.parentId));
+        if (q && !q.answered_at) {
+          db.run('UPDATE staff_notes SET answered_at = ? WHERE id = ?', now(), Number(o.parentId));
+        }
+      }
       return db.all('SELECT * FROM staff_notes WHERE student_id = ? ORDER BY id asc',
         Number(studentId));
     },
+    getStaffNote: id => db.one('SELECT * FROM staff_notes WHERE id = ?', Number(id)),
+    /* Every question the office has asked that nobody has answered. The
+       office's own list, across all files, oldest first — because the one
+       that has been sitting longest is the one worth ringing about. */
+    openQuestions: () => db.all("SELECT * FROM staff_notes WHERE kind = ? ORDER BY id asc", 'question')
+      .filter(n => !n.answered_at),
+    allQuestions: () => db.all("SELECT * FROM staff_notes WHERE kind = ? ORDER BY id desc", 'question'),
     markStaffNotesSeen(studentId, toId) {
       db.all('SELECT * FROM staff_notes WHERE student_id = ?', Number(studentId))
         .filter(n => Number(n.to_id) === Number(toId) && !n.seen)
