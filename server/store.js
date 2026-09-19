@@ -569,6 +569,56 @@ function sqliteDriver(file) {
    'DROP INDEX IF EXISTS idx_posts_status',
    'CREATE INDEX IF NOT EXISTS idx_posts_live ON posts(status, published_at, id, words)',
    'CREATE INDEX IF NOT EXISTS idx_posts_updated ON posts(updated_at, id)',
+   /* ---- one row per piece of work owed to a student ----
+    *
+    * The alerts engine next door is deliberately not stored: an alert is a
+    * fact about the data and recomputing it is how it stays true. A task is
+    * the other thing. It has a state somebody set — started, done, blocked —
+    * and a date somebody agreed to. There is nothing to recompute it FROM, so
+    * it is a table.
+    *
+    *   owner_id    who owes it. Copied from the student's counsellor when the
+    *               task is made, and kept, so reassigning a student does not
+    *               quietly rewrite who was late last month. NULL means it
+    *               follows whoever holds the file today.
+    *   prog_id     set on the tasks there is one of per university — the
+    *               submission. That university's own deadline is then the
+    *               date this task works backwards from.
+    *   due_at      a day, not a moment. Worked out once at creation and then
+    *               left alone unless the deadline it came from moves.
+    *   due_basis   'sla' if it is N days from the start, 'deadline' if it is
+    *               N days before a university's closing date. The screen says
+    *               which, because "why is this due Tuesday" is the first
+    *               question anybody asks.
+    *   breached_at stamped when the late notice went out, so it goes out once
+    *               and not every ten minutes for the rest of the month.
+    */
+   `CREATE TABLE IF NOT EXISTS tasks (
+      id          INTEGER PRIMARY KEY,
+      student_id  INTEGER NOT NULL,
+      owner_id    INTEGER,
+      task_key    TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      prog_id     TEXT NOT NULL DEFAULT '',
+      due_at      TEXT,
+      due_basis   TEXT NOT NULL DEFAULT 'sla',
+      status      TEXT NOT NULL DEFAULT 'open',
+      note        TEXT NOT NULL DEFAULT '',
+      source      TEXT NOT NULL DEFAULT 'auto',
+      done_at     TEXT,
+      done_by     INTEGER,
+      breached_at TEXT,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_tasks_student ON tasks(student_id, due_at)',
+   'CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_id, status, due_at)',
+   'CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at)',
+   /* A task made twice is a task somebody does twice. The generator reads this
+      index to ask whether it has already been here; uniqueness itself is
+      enforced in syncTasks, because the json driver has no indexes at all and
+      a rule only one of the two drivers keeps is not a rule. */
+   'CREATE INDEX IF NOT EXISTS idx_tasks_key ON tasks(student_id, task_key, prog_id)',
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -608,7 +658,7 @@ function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
     'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
-    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes', 'hits'];
+    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes', 'hits', 'tasks'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1694,7 +1744,7 @@ function open(dir) {
 
       [
         'sessions', 'profiles', 'shortlist', 'applications', 'documents',
-        'messages', 'saved_scholarships', 'drafts', 'push_subs',
+        'messages', 'saved_scholarships', 'drafts', 'push_subs', 'tasks',
       ].forEach(table => {
         try { db.run('DELETE FROM ' + table + ' WHERE student_id = ?', n); }
         catch (e) { /* a table this database has never had */ }
@@ -1707,6 +1757,9 @@ function open(dir) {
       /* A lead they owned goes back in the pool, and a lead that became them
          loses the link rather than pointing at nothing. */
       try { db.run('UPDATE enquiries SET owner_id = NULL WHERE owner_id = ?', n); } catch (e) {}
+      /* Work they owed goes back to whoever takes the file on, not out of the
+         record: a task that vanishes with the person is a task nobody does. */
+      try { db.run('UPDATE tasks SET owner_id = NULL WHERE owner_id = ?', n); } catch (e) {}
       try { db.run('UPDATE enquiries SET student_id = NULL WHERE student_id = ?', n); } catch (e) {}
 
       db.run('DELETE FROM students WHERE id = ?', n);
@@ -1912,7 +1965,7 @@ function open(dir) {
 
       ['documents', 'profiles', 'shortlist', 'applications', 'messages',
        'saved_scholarships', 'drafts', 'sessions', 'password_resets',
-       'staff_notes', 'chats']
+       'staff_notes', 'chats', 'tasks']
         .forEach(t => {
           try { db.run('DELETE FROM ' + t + ' WHERE student_id = ?', sid); }
           catch (e) { /* table without that column, or nothing to remove */ }
@@ -2049,6 +2102,60 @@ function open(dir) {
         .filter(n => Number(n.to_id) === Number(toId) && !n.seen)
         .forEach(n => db.run('UPDATE staff_notes SET seen = ? WHERE id = ?', 1, Number(n.id)));
     },
+
+    /* ---- the work owed on a file ---- */
+
+    tasksFor: id => db.all('SELECT * FROM tasks WHERE student_id = ? ORDER BY due_at asc, id asc',
+      Number(id)),
+    tasksOwnedBy: ownerId => db.all('SELECT * FROM tasks WHERE owner_id = ? ORDER BY due_at asc, id asc',
+      Number(ownerId)),
+    allTasks: () => db.all('SELECT * FROM tasks WHERE id > ? ORDER BY due_at asc, id asc', 0),
+    getTask: id => db.one('SELECT * FROM tasks WHERE id = ?', Number(id)),
+    addTask(t) {
+      db.run(`INSERT INTO tasks (student_id, owner_id, task_key, title, prog_id, due_at,
+                due_basis, status, note, source, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        Number(t.studentId), t.ownerId == null ? null : Number(t.ownerId),
+        String(t.key || 'custom'), String(t.title || ''), String(t.progId || ''),
+        t.dueAt ? String(t.dueAt).slice(0, 10) : null, String(t.basis || 'sla'),
+        String(t.status || 'open'), String(t.note || ''), String(t.source || 'manual'),
+        now(), now());
+      const rows = db.all('SELECT * FROM tasks WHERE student_id = ? ORDER BY id desc',
+        Number(t.studentId));
+      return rows[0] || null;
+    },
+    /* Only the columns a caller passed. Everything else is left where it was,
+       so a screen that knows about status does not blank a note it never saw. */
+    updateTask(id, patch) {
+      const row = db.one('SELECT * FROM tasks WHERE id = ?', Number(id));
+      if (!row) return null;
+      const p = patch || {};
+      const has = k => Object.prototype.hasOwnProperty.call(p, k);
+      const v = {
+        owner_id: has('ownerId') ? (p.ownerId == null ? null : Number(p.ownerId)) : row.owner_id,
+        title: has('title') ? String(p.title) : row.title,
+        due_at: has('dueAt') ? (p.dueAt ? String(p.dueAt).slice(0, 10) : null) : row.due_at,
+        due_basis: has('basis') ? String(p.basis) : row.due_basis,
+        status: has('status') ? String(p.status) : row.status,
+        note: has('note') ? String(p.note) : row.note,
+        breached_at: has('breachedAt') ? (p.breachedAt || null) : row.breached_at,
+      };
+      /* Finishing stamps the day and the person; un-finishing takes both back
+         off, because a done_at on an open task is a lie a report will believe. */
+      let doneAt = row.done_at, doneBy = row.done_by;
+      if (has('status')) {
+        if (v.status === 'done' && row.status !== 'done') {
+          doneAt = now(); doneBy = p.by == null ? null : Number(p.by);
+        } else if (v.status !== 'done') { doneAt = null; doneBy = null; }
+      }
+      db.run(`UPDATE tasks SET owner_id = ?, title = ?, due_at = ?, due_basis = ?, status = ?,
+                note = ?, breached_at = ?, done_at = ?, done_by = ?, updated_at = ?
+              WHERE id = ?`,
+        v.owner_id, v.title, v.due_at, v.due_basis, v.status, v.note, v.breached_at,
+        doneAt, doneBy, now(), Number(id));
+      return db.one('SELECT * FROM tasks WHERE id = ?', Number(id));
+    },
+    deleteTask: id => { db.run('DELETE FROM tasks WHERE id = ?', Number(id)); },
 
     allPosts: () => db.all('SELECT * FROM posts WHERE id > ? ORDER BY id desc', 0),
     /* ---- posts, a page at a time (ten thousand of them do not fit a response) ---- */

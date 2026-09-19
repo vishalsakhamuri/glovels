@@ -999,6 +999,28 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
     </div>
 
+    <!-- The standard list, and how long each step is allowed to take.
+         Two kinds of rule and the screen says which is which: a number of
+         days from the day the file opened, or a number of days BEFORE the
+         university closes. Mixing them up is the one mistake that produces a
+         board full of dates nobody understands. -->
+    <div class="modal" id="ruleModal" role="dialog" aria-modal="true">
+      <div class="sheet" style="width:min(680px,100%)">
+        <button class="sheet-close" data-rclose aria-label="Close">✕</button>
+        <h3>The standard list</h3>
+        <p class="lead">Every student gets the steps they have paid for, each with a date.
+          Change how long a step is allowed to take, or switch one off entirely.</p>
+        <div id="rkRows"></div>
+        <p id="rkErr" style="display:none;margin:12px 0 0;padding:11px 13px;border-radius:10px;
+          background:#fdeceb;border:1px solid #f3c9c6;font:600 12.6px/1.55 var(--sans);
+          color:#8d2f2a"></p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn ghost" data-rclose>Cancel</button>
+          <button type="button" class="btn" id="rkSave">Save the list</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" id="personModal" role="dialog" aria-modal="true">
       <div class="sheet" style="width:min(520px,100%)">
         <button class="sheet-close" data-close aria-label="Close">✕</button>
@@ -1078,6 +1100,8 @@ select.assign.none:hover{border-color:#a5342b}
         Money</button>
       <button class="otab" role="tab" data-o="email" aria-selected="false">
         Email</button>
+      <button class="otab" role="tab" data-o="tasks" aria-selected="false">
+        Tasks <span class="n">0</span></button>
       <button class="otab" role="tab" data-o="chats" aria-selected="false">
         Conversations <span class="n">0</span></button>
       <button class="otab" role="tab" data-o="app" aria-selected="false">
@@ -1262,6 +1286,63 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
       </div>
     </div><!-- /o-email -->
+
+    <!-- ======================================================= tasks ===
+         "We need to help admin to identify, track and make sure counsellor
+          completes the tasks."
+
+         Two halves, and the order of them is the point. The scoreboard is
+         first, because the question an owner opens this screen with is "who
+         is behind", not "what is task 447". The list is second, and it opens
+         filtered to what is late, because a board that opens showing four
+         hundred rows in good order is a board nobody reads twice. -->
+    <div class="opane" id="o-tasks">
+    <div class="p-sec">
+      <div class="p-sec-head"><h2 id="tasksCard">Who is on top of their files</h2>
+        <span id="tkLate" hidden class="st bad" style="text-transform:none;
+          letter-spacing:0"></span>
+        <button type="button" id="tkRules" class="btn ghost small"
+          style="margin-left:auto">Change the standard list</button></div>
+      <div class="p-card" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="margin:0">
+          <thead><tr><th>Counsellor</th>
+            <th style="text-align:right">Still to do</th>
+            <th style="text-align:right">Past its date</th>
+            <th style="text-align:right">Finished</th>
+            <th style="text-align:right">On time</th>
+            <th></th></tr></thead>
+          <tbody id="tkPeople"></tbody>
+        </table>
+      </div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        <b>On time</b> is the share of finished work that was finished on or before the date
+        agreed with the student. It is blank until somebody has finished something &mdash; a
+        counsellor three weeks into their first file has no record yet, and a percentage
+        invented out of nothing is worse than no percentage.</p>
+    </div>
+
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>The work itself</h2>
+        <select id="tkWho" style="margin-left:auto;padding:8px 11px;
+          font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">
+          <option value="">Everybody</option></select>
+        <select id="tkState" style="padding:8px 11px;font:400 12.8px/1.4 var(--sans);
+          border:1.5px solid #d8dde4;border-radius:9px">
+          <option value="late">Past its date</option>
+          <option value="live" selected>Still to do</option>
+          <option value="done">Finished</option>
+          <option value="all">Everything</option>
+        </select></div>
+      <div class="p-card" style="padding:0;overflow-x:auto">
+        <table class="tbl" style="margin:0">
+          <thead><tr><th>Student</th><th>What</th><th>Counsellor</th>
+            <th>By when</th><th>State</th><th></th></tr></thead>
+          <tbody id="tkRows"></tbody>
+        </table>
+      </div>
+      <p id="tkNone" hidden style="margin:12px 0 0;font-size:13px;color:var(--muted)"></p>
+    </div>
+    </div><!-- /o-tasks -->
 
     <div class="opane" id="o-chats">
     <div class="p-sec" id="everyChat">
@@ -2112,6 +2193,7 @@ function showTab(which) {
   $$('.otab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.o === which)));
   $$('.opane').forEach(pn => pn.classList.toggle('active', pn.id === 'o-' + which));
   if (which === 'traffic' && typeof trOpen === 'function') trOpen();
+  if (which === 'tasks' && typeof tkOpen === 'function') tkOpen();
   /* Where the tab bar is, not where the page happens to be scrolled. Switching
      tab and landing half way down the new one reads as a broken click. */
   const bar = $('.otabs');
@@ -3375,6 +3457,213 @@ $('#gaSave').addEventListener('click', async () => {
 let trPainted = false;
 function trOpen() { if (!trPainted) { trPainted = true; paintTraffic(); paintGa(); } }
 if ($('#o-traffic') && $('#o-traffic').classList.contains('active')) trOpen();
+
+/* ==================================================================== tasks
+ *
+ * "How can the admin make sure all the tasks are completed and we are good."
+ *
+ * The scoreboard answers that in one screen; the table underneath is how you
+ * act on it. Read on opening the tab rather than on every visit to the
+ * screen, like Traffic: it walks every task on the books.
+ */
+let TK = { tasks: [], people: [], counts: {} };
+let tkPainted = false;
+
+function tkWhen(t) {
+  if (!t.due) return '<span style="color:var(--muted)">no date</span>';
+  const late = t.over != null && t.over >= 0;
+  const soon = t.over != null && t.over >= -3 && t.over < 0;
+  /* The date, and then the plain-English distance from it, because "2026-11-04"
+     does not tell anybody whether to worry. */
+  const said = late
+    ? (t.over === 0 ? 'today' : t.over + ' day' + (t.over === 1 ? '' : 's') + ' ago')
+    : t.over == null ? '' : (t.over === -1 ? 'tomorrow' : 'in ' + (-t.over) + ' days');
+  return '<b style="' + (late ? 'color:#a8343a' : '') + '">' + esc(t.due) + '</b>' +
+    (said ? '<span style="display:block;font-size:11.4px;color:' +
+      (late ? '#a8343a' : soon ? '#8a6d1f' : 'var(--muted)') + '">' + esc(said) + '</span>' : '') +
+    /* Where the date came from. An unexplained date is a date people argue
+       with instead of meeting. */
+    '<span style="display:block;font-size:11px;color:var(--muted)">' +
+      (t.basis === 'deadline' ? 'before the university closes'
+        : t.basis === 'set' ? 'set by hand' : 'from the standard list') + '</span>';
+}
+
+const TK_STATE = { open: ['wait', 'Not started'], doing: ['wait', 'In hand'],
+  done: ['ok', 'Finished'], blocked: ['bad', 'Stuck'], dropped: ['wait', 'Does not apply'] };
+
+function paintTasks() {
+  const people = TK.people || [];
+  $('#tkPeople').innerHTML = people.length ? people.map(p =>
+    '<tr' + (p.late ? ' class="late"' : '') + '>' +
+      '<td><b>' + esc(p.name || 'Nobody') + '</b></td>' +
+      '<td style="text-align:right">' + p.open + '</td>' +
+      '<td style="text-align:right' + (p.late ? ';color:#a8343a;font-weight:800' : '') + '">'
+        + p.late + '</td>' +
+      '<td style="text-align:right">' + p.done + '</td>' +
+      '<td style="text-align:right">' + (p.percent == null ? '—' : p.percent + '%') + '</td>' +
+      '<td style="text-align:right"><button type="button" class="lnk" data-tkwho="' +
+        (p.id == null ? 'none' : p.id) + '">see their work</button></td>' +
+    '</tr>').join('')
+    : '<tr><td colspan="6" style="color:var(--muted)">Nothing on the books yet.</td></tr>';
+
+  const chip = $('#tkLate');
+  const lateN = (TK.counts || {}).late || 0;
+  if (chip) {
+    chip.hidden = !lateN;
+    chip.textContent = lateN + ' past the agreed date';
+  }
+  const tab = $('.otab[data-o="tasks"] .n');
+  if (tab) tab.textContent = lateN || ((TK.counts || {}).open || 0);
+
+  const rows = TK.tasks || [];
+  $('#tkRows').innerHTML = rows.map(t => {
+    const st = TK_STATE[t.status] || ['wait', t.status];
+    return '<tr' + (t.over != null && t.over >= 0 ? ' class="late"' : '') + '>' +
+      '<td><a class="lnk" href="counsellor.html?student=' + t.studentId + '"><b>' +
+        esc(t.student) + '</b></a></td>' +
+      '<td>' + esc(t.title) +
+        (t.note ? '<span style="display:block;font-size:11.4px;color:var(--muted)">' +
+          esc(t.note) + '</span>' : '') + '</td>' +
+      '<td>' + (t.owner ? esc(t.owner) :
+        '<span style="color:#a8343a;font-weight:700">nobody</span>') + '</td>' +
+      '<td>' + tkWhen(t) + '</td>' +
+      '<td><span class="st ' + st[0] + '" style="text-transform:none;letter-spacing:0">' +
+        esc(st[1]) + '</span></td>' +
+      '<td style="text-align:right;white-space:nowrap">' +
+        (t.status === 'done' ? ''
+          : '<button type="button" class="lnk" data-tkdone="' + t.id + '">mark done</button> · ') +
+        '<button type="button" class="lnk" data-tkchase="' + t.studentId +
+          '" data-tktitle="' + esc(t.title) + '" data-tkover="' + (t.over == null ? '' : t.over) +
+          '">chase</button></td>' +
+    '</tr>';
+  }).join('');
+  const none = $('#tkNone');
+  if (none) {
+    none.hidden = rows.length > 0;
+    none.textContent = $('#tkState').value === 'late'
+      ? 'Nothing is past its date. That is the screen working.'
+      : 'Nothing here.';
+  }
+}
+
+async function loadTasks() {
+  const who = $('#tkWho').value, state = $('#tkState').value;
+  const q = '?state=' + encodeURIComponent(state) + (who ? '&who=' + encodeURIComponent(who) : '');
+  try { TK = await api('GET', '/api/staff/tasks' + q); }
+  catch (e) { TK = { tasks: [], people: [], counts: {} }; }
+  /* The people list is filled from the scoreboard, so it names exactly the
+     people who have work — not every account that has ever existed. */
+  const sel = $('#tkWho');
+  if (sel && sel.options.length <= 1 && (TK.people || []).length) {
+    sel.innerHTML = '<option value="">Everybody</option>' +
+      TK.people.map(p => '<option value="' + (p.id == null ? 'none' : p.id) + '">' +
+        esc(p.name || 'Nobody') + '</option>').join('');
+  }
+  paintTasks();
+}
+
+$('#tkWho').addEventListener('change', loadTasks);
+$('#tkState').addEventListener('change', loadTasks);
+
+document.addEventListener('click', async e => {
+  const w = e.target.closest('[data-tkwho]');
+  if (w) { $('#tkWho').value = w.dataset.tkwho; $('#tkState').value = 'live'; loadTasks(); return; }
+
+  const d = e.target.closest('[data-tkdone]');
+  if (d) {
+    d.disabled = true;
+    try { await api('PUT', '/api/staff/task/' + d.dataset.tkdone, { status: 'done' }); await loadTasks(); }
+    catch (err) { toast(err.message || 'That did not save.'); d.disabled = false; }
+    return;
+  }
+
+  /* "Admin should be able to send message to the counsellors who is working
+     on file saying there is this much delay or task has to be completed by so
+     and so time." The note is drafted for them with the delay already in it,
+     because a chase that takes four sentences to write is a chase nobody
+     sends. It goes to the counsellor's screen and, if they are not on it,
+     to their phone and their inbox. */
+  const c = e.target.closest('[data-tkchase]');
+  if (c) {
+    const over = c.dataset.tkover === '' ? null : Number(c.dataset.tkover);
+    const draft = over != null && over >= 0
+      ? '"' + c.dataset.tktitle + '" is ' + over + ' day' + (over === 1 ? '' : 's')
+        + ' past the date we agreed. Please finish it or tell me what is holding it up.'
+      : '"' + c.dataset.tktitle + '" is coming up. Where are we with it?';
+    const said = prompt('What do you want to say to the counsellor?', draft);
+    if (said == null || !said.trim()) return;
+    try {
+      await api('POST', '/api/staff/student/' + c.dataset.tkchase + '/guide', { body: said.trim() });
+      toast('Sent. It is on their screen, and in their inbox if they are not looking.');
+    } catch (err) { toast(err.message || 'That did not send.'); }
+  }
+});
+
+/* ---- the standard list ---- */
+let RK = [];
+function rkSaid(r) {
+  return r.due.sla != null
+    ? 'days after the file opens'
+    : r.due.before >= 0 ? 'days before the university closes'
+      : 'days after the university closes';
+}
+function paintRules() {
+  $('#rkRows').innerHTML = RK.map(r =>
+    '<div style="display:flex;gap:12px;align-items:center;padding:11px 0;' +
+      'border-top:1px solid var(--line,#e6e9ee)">' +
+      '<label style="display:flex;align-items:center;gap:7px;min-width:20px">' +
+        '<input type="checkbox" data-rk-on="' + r.key + '"' + (r.off ? '' : ' checked') +
+        ' aria-label="Include this step"></label>' +
+      '<input data-rk-title="' + r.key + '" value="' + esc(r.title) + '" maxlength="140" ' +
+        'style="flex:1;padding:8px 11px;font:400 12.8px/1.4 var(--sans);' +
+        'border:1.5px solid #d8dde4;border-radius:9px">' +
+      '<input type="number" data-rk-days="' + r.key + '" value="' +
+        (r.due.sla != null ? r.due.sla : Math.abs(r.due.before)) + '" min="0" max="365" ' +
+        'style="width:74px;padding:8px 9px;font:600 12.8px/1.4 var(--sans);' +
+        'border:1.5px solid #d8dde4;border-radius:9px;text-align:right">' +
+      '<span style="min-width:190px;font:400 11.8px/1.4 var(--sans);color:var(--muted)">' +
+        esc(rkSaid(r)) + '</span>' +
+    '</div>').join('');
+}
+$('#tkRules').addEventListener('click', async () => {
+  try { RK = (await api('GET', '/api/staff/task-rules')).rules || []; }
+  catch (e) { toast(e.message || 'Could not read the list.'); return; }
+  paintRules();
+  $('#rkErr').style.display = 'none';
+  $('#ruleModal').classList.add('on');
+});
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-rclose]') || e.target === $('#ruleModal')) {
+    $('#ruleModal').classList.remove('on');
+  }
+});
+$('#rkSave').addEventListener('click', async () => {
+  const out = {};
+  RK.forEach(r => {
+    const days = Number($('[data-rk-days="' + r.key + '"]').value);
+    const one = { title: $('[data-rk-title="' + r.key + '"]').value.trim() };
+    if (!$('[data-rk-on="' + r.key + '"]').checked) one.off = true;
+    /* The sign is the screen's business, not the reader's: the box says a
+       number of days and the sentence beside it says which direction. */
+    if (r.due.sla != null) one.sla = days;
+    else one.before = r.due.before >= 0 ? days : -days;
+    out[r.key] = one;
+  });
+  const btn = $('#rkSave'), was = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await api('PUT', '/api/staff/task-rules', { rules: out });
+    $('#ruleModal').classList.remove('on');
+    toast('Saved. Every file not yet finished has been re-dated.');
+    await loadTasks();
+  } catch (e) {
+    $('#rkErr').textContent = e.message || 'That did not save.';
+    $('#rkErr').style.display = '';
+  } finally { btn.disabled = false; btn.textContent = was; }
+});
+
+function tkOpen() { if (!tkPainted) { tkPainted = true; loadTasks(); } }
+if ($('#o-tasks') && $('#o-tasks').classList.contains('active')) tkOpen();
 
 
 /* Opened by double-clicking rather than through start.command. The portal has

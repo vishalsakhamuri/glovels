@@ -379,6 +379,84 @@ Read it and reply here: ${siteUrl}/messages`,
         button(siteUrl + '/messages', 'Read and reply')),
     };
   },
+
+  /*
+   * Work that has gone past the date it was promised by.
+   *
+   * Goes to the counsellor who owes it AND to the office, which is what was
+   * asked for: "we need to automatically send them email or via chat that you
+   * missed the SLA". One email per person per sweep, listing everything of
+   * theirs that is late, rather than one per task — a counsellor with nine
+   * late items has a problem to sit down with, not nine notifications.
+   *
+   * `toName` is the reader. `forName` is whose work it is, which is the same
+   * person when the counsellor gets it and is not when the office does.
+   */
+  taskOverdue({ toName, forName, items, siteUrl, admin }) {
+    const first = String(toName || '').split(' ')[0] || 'there';
+    const n = items.length;
+    const line = t => t.student + ' — ' + t.title + ' (due ' + t.due + ', '
+      + t.over + ' day' + (t.over === 1 ? '' : 's') + ' ago)';
+    const where = admin ? '/admin#tasks' : '/counsellor';
+    return {
+      subject: admin
+        ? `${forName}: ${n} task${n === 1 ? '' : 's'} past the agreed date`
+        : `${n === 1 ? 'A task of yours is' : n + ' tasks of yours are'} past their date`,
+      text: `Hi ${first},
+
+${admin
+  ? forName + ' has ' + n + ' piece(s) of work past the date agreed with the student:'
+  : 'These were due and are not marked done:'}
+
+${items.map(t => '  · ' + line(t)).join('\n')}
+
+${admin
+  ? 'Open the Tasks board to see the whole list and chase it.'
+  : 'If one of these is finished, mark it done. If it cannot be, mark it blocked and say why — an unanswered date is the thing the office has to chase.'}
+
+${siteUrl}${where}`,
+      html: shell(admin ? forName + ' is behind on ' + n + ' task' + (n === 1 ? '' : 's')
+        : (n === 1 ? 'A task of yours is' : n + ' tasks of yours are') + ' past their date',
+        p('Hi ' + esc(first) + ',') +
+        p(admin
+          ? '<b>' + esc(forName) + '</b> has ' + n + ' piece(s) of work past the date agreed with the student.'
+          : 'These were due and are not marked done:') +
+        '<ul style="margin:0 0 16px;padding-left:20px;font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#0e1a24">'
+        + items.map(t => '<li><b>' + esc(t.student) + '</b> — ' + esc(t.title)
+          + ' <span style="color:#a8343a">(due ' + esc(t.due) + ', ' + t.over + ' day'
+          + (t.over === 1 ? '' : 's') + ' ago)</span></li>').join('')
+        + '</ul>' +
+        p(admin
+          ? 'Open the Tasks board to see the whole list and chase it.'
+          : 'If one of these is finished, mark it done. If it cannot be, mark it blocked and say why — an unanswered date is the thing the office has to chase.') +
+        button(siteUrl + where, admin ? 'Open the Tasks board' : 'Open my workspace')),
+    };
+  },
+
+  /*
+   * The office's own word to a counsellor about a file: "admin should be able
+   * to send message to the counsellors who is working on file saying there is
+   * this much delay or task has to be completed by so and so time."
+   */
+  staffChase({ toName, fromName, studentName, body, siteUrl }) {
+    const first = String(toName || '').split(' ')[0] || 'there';
+    return {
+      subject: `${fromName} about ${studentName}`,
+      text: `Hi ${first},
+
+${fromName} left you a note on ${studentName}'s file:
+
+"${body}"
+
+Open the file: ${siteUrl}/counsellor`,
+      html: shell(fromName + ' about ' + studentName,
+        p('Hi ' + esc(first) + ',') +
+        p('<b>' + esc(fromName) + '</b> left you a note on <b>' + esc(studentName) + '</b>’s file:') +
+        `<blockquote style="margin:0 0 16px;padding:13px 15px;background:#f7f5ef;border-left:3px solid #1a4fb4;
+          border-radius:0 8px 8px 0;font:400 14px/1.6 Helvetica,Arial,sans-serif;color:#0e1a24">${esc(body)}</blockquote>` +
+        button(siteUrl + '/counsellor', 'Open the file')),
+    };
+  },
 };
 
 /* The wrapper, exported on its own. The daily digest builds its own body — a

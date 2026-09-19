@@ -38,7 +38,7 @@ const esc = s => String(s == null ? '' : s)
 const LABEL = {
   deadline: 'Deadlines', silent: 'Waiting for a reply', profile: 'Files not finished',
   followup: 'Follow-ups due', cold: 'Nobody has called', unassigned: 'No counsellor',
-  payment: 'Money overdue',
+  payment: 'Money overdue', task: 'Work past its date',
 };
 
 function group(list) {
@@ -49,8 +49,8 @@ function group(list) {
 
 function body(name, list, byPerson) {
   const g = group(list);
-  const order = ['deadline', 'payment', 'silent', 'followup', 'cold', 'unassigned',
-    'profile'];
+  const order = ['deadline', 'task', 'payment', 'silent', 'followup', 'cold',
+    'unassigned', 'profile'];
   const late = list.filter(a => a.urgency === 'now').length;
 
   const text = [

@@ -158,6 +158,11 @@ function stagesFor(db, student) {
    in api.js, which is the other reader of this rule. */
 const EARNED_STATES = new Set(['paid', 'owing', 'part']);
 
+/* Kept here rather than imported from tasks.js, which imports this file: the
+   two would form a cycle and one of them would get a half-built module. Same
+   two words, in step with tasks.CLOSED. */
+const TASK_CLOSED = new Set(['done', 'dropped']);
+
 const wanted = (list, stages) => list.filter(([, , need]) => {
   const on = Array.isArray(need) ? need : [need || 'always'];
   return on.some(x => x === 'always' || stages.has(x));
@@ -300,6 +305,36 @@ function all(db, now) {
           subject: { studentId: st.id }, at: st.created_at,
         });
       }
+    }
+
+    /* ---- work that was promised by a date that has gone ---- */
+    /* The one alert here whose subject is stored rather than derived. A task
+       is a thing somebody agreed to do by a day; the lateness is still worked
+       out afresh, which is why it belongs in this file and not in the row. */
+    let late = [];
+    try {
+      late = (db.tasksFor(st.id) || [])
+        .filter(t => !TASK_CLOSED.has(String(t.status)) && t.due_at)
+        .map(t => ({ t, over: daysBetween(T, t.due_at) }))
+        .filter(x => x.over >= 0)
+        .sort((a, b) => b.over - a.over);
+    } catch (e) { late = []; }
+    if (late.length) {
+      const worst = late[0];
+      add({
+        kind: 'task',
+        /* A day past is a nudge. A fortnight past is the thing the owner
+           asked to be told about. */
+        urgency: worst.over >= 14 ? 'now' : worst.over >= 3 ? 'soon' : 'watch',
+        who: owner,
+        title: st.name + ' — ' + late.length + ' task'
+          + (late.length === 1 ? '' : 's') + ' past the agreed date',
+        detail: '“' + String(worst.t.title || '').slice(0, 80) + '” was due '
+          + String(worst.t.due_at).slice(0, 10) + ', ' + worst.over + ' day'
+          + (worst.over === 1 ? '' : 's') + ' ago'
+          + (late.length > 1 ? ' — and ' + (late.length - 1) + ' more.' : '.'),
+        subject: { studentId: st.id, taskId: worst.t.id }, at: worst.t.due_at,
+      });
     }
   }
 

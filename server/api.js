@@ -27,6 +27,7 @@ const SHEET = require('./sheet.js');
 const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
+const TASKS = require('./tasks.js');
 const GRADES = require('./grades.js');
 const ISO_COUNTRIES = require('./countries.js');
 const APPS = require('./apps.js');
@@ -587,6 +588,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       apps,
       docs,
       appFiles,
+      /* WHERE THEIR APPLICATION HAS GOT TO, as a list of steps.
+       *
+       * "Student can also see progress of the tasks." What they get is the
+       * work and its target dates and nothing else: no counsellor's name, no
+       * overdue flag, no note the office wrote to itself. A student who can
+       * see that their counsellor is nine days late is a student making a
+       * phone call about a thing the office already knows, and the internal
+       * accounting of who is behind is not theirs to police.
+       *
+       * Brought up to date on read, so a step appears the moment the order
+       * or the shortlist that creates it does. */
+      progress: (() => {
+        try { TASKS.syncTasks(db, s); } catch (e) { /* never block the dashboard */ }
+        try { return TASKS.progressOf(db, s.id); } catch (e) { return null; }
+      })(),
       /* What was bought that the machine delivers, and whether it has been.
          The dashboard needs to say one of three things — it is on your
          shortlist, it is waiting on six questions, or you have not bought one
@@ -3596,6 +3612,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         bytes: d.bytes,
       })),
       orders: stateFor(st).orders,
+      /* What is owed on this file and by when, brought up to date on open.
+         The counsellor's own copy of the office's board, for one student —
+         the same rows, with the same dates and the same lateness, so the two
+         screens can never disagree about who is behind. */
+      tasks: (() => {
+        const now = Date.now();
+        let rows = [];
+        try { rows = TASKS.syncTasks(db, st, now); } catch (e) { rows = db.tasksFor(id); }
+        return rows.filter(t => String(t.status) !== 'dropped').map(t => ({
+          id: t.id, title: t.title, due: t.due_at || '', basis: t.due_basis,
+          status: t.status, note: t.note || '',
+          over: TASKS.lateness(t, now),
+          done: t.done_at ? String(t.done_at).slice(0, 10) : '',
+        }));
+      })(),
       /* The drafts the student wrote in the studio. The counsellor is the one
          being paid to rewrite them, so making them ask for a copy by email is
          a step that exists for no reason. */
@@ -3641,6 +3672,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       db.addShortlist(id, p, 'office');
       if (!already) {
         db.log(s.name, 'added a university', st.name + ' — ' + (p.university || p.id));
+        /* "University application submission, every uni has a date" — so the
+           submission task for this one, dated back from its own deadline,
+           exists from the moment the university does rather than from
+           whenever the sweep next comes round. */
+        try { TASKS.syncTasks(db, st); } catch (e) {}
         /* The student is told, on their own thread, because a university
            appearing on their list without explanation is unsettling — and
            because this is the counsellor doing visible work. */
@@ -4785,6 +4821,28 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          conversation that arrives after the conversation is over is a note
          about nothing. */
       live.toStaff(st.counsellor_id, 'guidance', { studentId: id, studentName: st.name });
+      /* And out of the building if they are not looking at it. "Admin should
+         be able to send message to the counsellors who is working on file
+         saying there is this much delay or task has to be completed by so and
+         so time" — a note that waits for the next login is not that. */
+      const c = db.studentById(st.counsellor_id);
+      if (c && c.email && !live.isOnline('staff', c.id)) {
+        if (push) {
+          push.toStaff(c.id, {
+            title: s.name + ' about ' + st.name,
+            body: body.slice(0, 120),
+            url: (siteUrl || '') + '/counsellor?student=' + id,
+            tag: 'guide-' + id,
+          }).catch(() => {});
+        }
+        notify.notify({
+          to: c.email, phone: c.phone,
+          email: EMAILS.staffChase({
+            toName: c.name, fromName: s.name, studentName: st.name, body, siteUrl,
+          }),
+          whatsapp: { text: 'Glovels — ' + s.name + ' about ' + st.name + ': "' + body.slice(0, 120) + '"' },
+        }).catch(() => {});
+      }
       return json(res, 200, { notes: db.staffNotes(id).map(guideShape) });
     }));
 
@@ -4803,6 +4861,247 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (s.role !== 'admin') db.markStaffNotesSeen(id, s.id);
       return json(res, 200, { notes: notes.map(guideShape) });
     }));
+
+  /*
+   * ============================================================== tasks ===
+   *
+   * "We assign a student to a counsellor. There are a list of tasks —
+   *  confirming the shortlisted university, application processing, LOR, SOP,
+   *  visa filing. Everything has a date and by when it has to be completed.
+   *  We need to track all the tasks and make sure these are completed on
+   *  time."
+   *
+   * The rules — which tasks exist and how their dates are worked out — are in
+   * server/tasks.js. This is only the doors onto them.
+   *
+   * Who may touch what: an administrator sees and changes everything; a
+   * counsellor sees and changes the files assigned to them, and may not
+   * reassign a task to somebody else, because "this was never mine" is the
+   * one move that makes the board stop meaning anything.
+   */
+
+  /** The row as every screen wants it: the numbers resolved into names. */
+  const taskShape = (t, now) => {
+    const st = db.studentById(t.student_id) || {};
+    const owner = TASKS.ownerOf(db, t);
+    const late = TASKS.lateness(t, now);
+    return {
+      id: t.id,
+      studentId: t.student_id, student: st.name || 'Unknown',
+      key: t.task_key, title: t.title, progId: t.prog_id || '',
+      due: t.due_at || '', basis: t.due_basis,
+      status: t.status, note: t.note || '', source: t.source,
+      ownerId: owner, owner: owner ? ((db.studentById(owner) || {}).name || '') : '',
+      /* Days past the date. Negative is still to come, null is nothing owed. */
+      over: late,
+      done: t.done_at ? String(t.done_at).slice(0, 10) : '',
+      doneBy: t.done_by ? ((db.studentById(t.done_by) || {}).name || '') : '',
+      told: !!t.breached_at,
+    };
+  };
+
+  /* How each counsellor is doing, which is the number the owner actually
+     asked for: "we need to help admin to identify, track and make sure
+     counsellor completes the tasks". On-time is finished on or before the
+     date; a task still open and past its date counts against them, because
+     the alternative is a scoreboard you improve by never closing anything. */
+  function scoreboard(rows, now) {
+    const by = new Map();
+    rows.forEach(t => {
+      const id = TASKS.ownerOf(db, t);
+      const k = id == null ? 'none' : String(id);
+      if (!by.has(k)) {
+        by.set(k, {
+          id: id, name: id ? ((db.studentById(id) || {}).name || '') : 'Nobody',
+          total: 0, done: 0, onTime: 0, late: 0, open: 0,
+        });
+      }
+      const r = by.get(k);
+      r.total += 1;
+      if (String(t.status) === 'done') {
+        r.done += 1;
+        const on = t.due_at && t.done_at
+          ? String(t.done_at).slice(0, 10) <= String(t.due_at).slice(0, 10) : true;
+        if (on) r.onTime += 1;
+      } else if (String(t.status) !== 'dropped') {
+        r.open += 1;
+        if ((TASKS.lateness(t, now) || -1) >= 0) r.late += 1;
+      }
+    });
+    return [...by.values()].map(r => Object.assign(r, {
+      /* Out of the work that has actually been closed. A counsellor three
+         weeks into a file has no percentage yet, and inventing one from
+         nothing is how a board loses its readers. */
+      percent: r.done ? Math.round((r.onTime / r.done) * 100) : null,
+    })).sort((a, b) => b.late - a.late || b.open - a.open);
+  }
+
+  /** The board. Everything the reader is allowed to see, filtered. */
+  route('GET', '/api/staff/tasks', caseworkOnly(async (req, res, s) => {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const now = Date.now();
+    let rows = db.allTasks();
+    if (s.role !== 'admin') {
+      /* Theirs by assignment of the student, not only by the owner column: a
+         file handed to them last week still carries last month's owner on its
+         older tasks, and hiding those would hide the backlog they inherited. */
+      rows = rows.filter(t => db.canSee(s, Number(t.student_id)));
+    }
+    const who = q.get('who');
+    if (who === 'none') rows = rows.filter(t => TASKS.ownerOf(db, t) == null);
+    else if (who) rows = rows.filter(t => String(TASKS.ownerOf(db, t)) === String(who));
+    const student = q.get('student');
+    if (student) rows = rows.filter(t => String(t.student_id) === String(student));
+    const state = q.get('state') || 'live';
+    if (state === 'late') rows = rows.filter(t => (TASKS.lateness(t, now) || -1) >= 0);
+    else if (state === 'live') rows = rows.filter(t => !TASKS.CLOSED.has(String(t.status)));
+    else if (state !== 'all') rows = rows.filter(t => String(t.status) === state);
+    const shaped = rows.map(t => taskShape(t, now));
+    return json(res, 200, {
+      tasks: shaped.slice(0, 600),
+      total: shaped.length,
+      /* The scoreboard is over everything the reader may see, not over the
+         filtered page — a percentage that changes when you click a filter is
+         a percentage nobody trusts. */
+      people: scoreboard(s.role === 'admin' ? db.allTasks()
+        : db.allTasks().filter(t => db.canSee(s, Number(t.student_id))), now),
+      counts: {
+        late: shaped.filter(t => (t.over || -1) >= 0).length,
+        open: shaped.filter(t => t.status === 'open' || t.status === 'doing').length,
+      },
+    });
+  }));
+
+  /** One file's list, brought up to date first. */
+  route('GET', /^\/api\/staff\/student\/(\d+)\/tasks$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const now = Date.now();
+      let rows = [];
+      try { rows = TASKS.syncTasks(db, db.studentById(id), now); }
+      catch (e) { rows = db.tasksFor(id); }
+      return json(res, 200, { tasks: rows.map(t => taskShape(t, now)) });
+    }));
+
+  /** A task somebody thought of that no template covers. */
+  route('POST', /^\/api\/staff\/student\/(\d+)\/tasks$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      const st = db.studentById(id);
+      if (!st) return json(res, 404, { error: 'No such student' });
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const b = await readJson(req);
+      const title = String(b.title || '').trim().slice(0, 140);
+      if (!title) return json(res, 422, { error: 'A task needs a name' });
+      const due = String(b.due || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+        return json(res, 422, { error: 'A task needs a date it has to be finished by' });
+      }
+      /* The whole feature is about dates being met. A date already gone is
+         either a typo or a record of something that should be marked done,
+         and both are better caught here than argued about later. */
+      if (due < new Date().toISOString().slice(0, 10)) {
+        return json(res, 422, { error: 'That date has already passed. Pick today or later.' });
+      }
+      const ownerId = s.role === 'admin' && b.ownerId != null && b.ownerId !== ''
+        ? Number(b.ownerId) : (st.counsellor_id || s.id);
+      const t = db.addTask({
+        studentId: id, ownerId, key: 'custom', title, progId: '',
+        dueAt: due, basis: 'sla', status: 'open', source: 'manual',
+        note: String(b.note || '').slice(0, 2000),
+      });
+      db.log(s.name, 'added a task', st.name + ' — ' + title + ' (by ' + due + ')');
+      if (ownerId && Number(ownerId) !== Number(s.id)) {
+        live.toStaff(ownerId, 'task', { studentId: id, studentName: st.name, title });
+      }
+      return json(res, 200, { task: taskShape(t, Date.now()) });
+    }));
+
+  /** Marking it done, moving the date, handing it on. */
+  route('PUT', /^\/api\/staff\/task\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    const t = db.getTask(Number(m[1]));
+    if (!t) return json(res, 404, { error: 'No such task' });
+    if (!db.canSee(s, Number(t.student_id))) {
+      return json(res, 403, { error: 'That student is not assigned to you' });
+    }
+    const b = await readJson(req);
+    const patch = {};
+    if (b.status != null) {
+      if (!TASKS.STATUSES.includes(String(b.status))) {
+        return json(res, 422, { error: 'That is not a state a task can be in' });
+      }
+      patch.status = String(b.status);
+      patch.by = s.id;
+      /* A task being reopened is owed again, so it is allowed to raise its
+         voice again. */
+      if (String(b.status) !== 'done' && String(b.status) !== 'dropped') patch.breachedAt = null;
+    }
+    if (b.title != null) {
+      const title = String(b.title).trim().slice(0, 140);
+      if (!title) return json(res, 422, { error: 'A task needs a name' });
+      patch.title = title;
+    }
+    if (b.due != null) {
+      const due = String(b.due).slice(0, 10);
+      if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+        return json(res, 422, { error: 'That is not a date' });
+      }
+      patch.dueAt = due || null;
+      /* A date somebody typed is no longer a date the generator owns, so it
+         stops being moved when a deadline shifts — and the row says so. */
+      patch.basis = 'set';
+    }
+    if (b.note != null) patch.note = String(b.note).slice(0, 2000);
+    if (b.ownerId !== undefined) {
+      if (s.role !== 'admin') {
+        return json(res, 403, { error: 'Only an administrator can move a task to somebody else' });
+      }
+      patch.ownerId = b.ownerId === '' || b.ownerId == null ? null : Number(b.ownerId);
+    }
+    const out = db.updateTask(t.id, patch);
+    if (b.status != null) {
+      db.log(s.name, 'task ' + String(b.status),
+        (db.studentById(t.student_id) || {}).name + ' — ' + t.title);
+    }
+    return json(res, 200, { task: taskShape(out, Date.now()) });
+  }));
+
+  /* Only the hand-made ones, and only by an administrator. A generated task
+     deleted here comes straight back on the next sweep, which looks like a
+     bug; the honest way to retire one is to mark it dropped. */
+  route('DELETE', /^\/api\/staff\/task\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const t = db.getTask(Number(m[1]));
+    if (!t) return json(res, 404, { error: 'No such task' });
+    if (String(t.source) !== 'manual') {
+      return json(res, 409, {
+        error: 'That task comes from the standard list, so removing it would only bring it '
+             + 'back tomorrow. Mark it “does not apply” instead.',
+      });
+    }
+    db.deleteTask(t.id);
+    db.log(s.name, 'removed a task', (db.studentById(t.student_id) || {}).name + ' — ' + t.title);
+    return json(res, 200, { ok: true });
+  }));
+
+  /** The standard list and its days, as the office has them. */
+  route('GET', '/api/staff/task-rules', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    return json(res, 200, { rules: TASKS.rules(db) });
+  }));
+
+  route('PUT', '/api/staff/task-rules', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const rules = TASKS.saveRules(db, b.rules || b, s.name);
+    /* The new days apply to work not yet done, at once rather than tomorrow:
+       an administrator who shortens an SLA and sees nothing change assumes it
+       did not save. */
+    try { TASKS.syncAll(db); } catch (e) {}
+    db.log(s.name, 'changed the task rules', '');
+    return json(res, 200, { rules });
+  }));
 
   route('GET', '/api/staff/orders', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });

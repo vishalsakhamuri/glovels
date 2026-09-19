@@ -448,6 +448,27 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 
 /* The four-step strip. A step that has not happened must not look like one that
    has, so the difference is fill and colour, not a tick alone. */
+/* ---- where the application has got to ----
+   A bar, then a line per step. The dot carries the state, so the list reads
+   down the left edge without anybody having to read the words. */
+.prog-bar{height:8px;border-radius:99px;background:#e9edf3;overflow:hidden;margin-bottom:18px}
+.prog-bar i{display:block;height:100%;border-radius:99px;background:#1a4fb4;
+  transition:width .45s ease}
+ol.prog{list-style:none;margin:0;padding:0}
+ol.prog li{display:flex;gap:13px;align-items:flex-start;padding:11px 0;
+  border-top:1px solid var(--line,#e6e9ee)}
+ol.prog li:first-child{border-top:0;padding-top:0}
+ol.prog .dot{flex:none;width:13px;height:13px;margin-top:3px;border-radius:50%;
+  border:2px solid #c6cedb;background:#fff}
+ol.prog li.done .dot{background:#1a7f4b;border-color:#1a7f4b}
+ol.prog li.doing .dot{background:#c98a12;border-color:#c98a12;
+  box-shadow:0 0 0 4px rgba(201,138,18,.16)}
+ol.prog li b{display:block;font:700 13.6px/1.45 var(--sans);color:var(--navy-900,#0b1e31)}
+ol.prog li.done b{color:var(--muted,#5b6b7e);font-weight:600}
+ol.prog li span{display:block;font:400 12px/1.5 var(--sans);color:var(--muted,#5b6b7e);
+  margin-top:2px}
+@media (max-width:430px){ ol.prog li{gap:10px} }
+
 .steps4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
 .step4{background:var(--paper);border:1px solid var(--line);border-radius:13px;
   padding:12px 14px;box-shadow:var(--sh-1,0 2px 10px rgba(11,30,49,.06))}
@@ -992,6 +1013,25 @@ select.assign.none:hover{border-color:#a5342b}
     <div class="steps4" id="steps4"></div>
 
     <div id="receipt" class="p-sec"></div>
+
+    <!-- WHERE THEIR APPLICATION HAS GOT TO.
+         What is finished, what is in hand, what is coming, and the date each
+         one is aimed at. Deliberately nothing about who owes it or whether
+         anybody is behind: that is the office's accounting, and a student
+         reading it would be chasing a thing the office already knows. -->
+    <section class="p-sec" id="progSec" hidden>
+      <div class="p-sec-head">
+        <h2>Where your application has got to</h2>
+        <span id="progCount" class="st ok" style="text-transform:none;letter-spacing:0"></span>
+      </div>
+      <div class="p-card">
+        <div class="prog-bar"><i id="progFill"></i></div>
+        <ol class="prog" id="progList"></ol>
+        <p style="margin:14px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+          Each date is what we are working to, not a promise from the university. Your
+          counsellor will tell you if one of them has to move.</p>
+      </div>
+    </section>
 
     <section class="p-sec">
       <div class="p-sec-head">
@@ -1572,6 +1612,36 @@ $('#nextUp').innerHTML =
   + '<div><b>Next: ' + next[0] + '</b><span>' + next[1] + '</span></div>'
   + '<a class="btn btn-primary" href="' + next[3] + '"'
   + '>' + next[2] + '</a></div>';
+
+/* ---- where their application has got to ----
+ *
+ * "Student can also see progress of the tasks." The same list the office
+ * works from, with everything internal taken off it: no counsellor's name, no
+ * overdue flag, no note the office wrote to itself. What is left is the
+ * question a student actually has — what is done, what is being done now,
+ * what is next, and when each one is aimed at.
+ */
+(function () {
+  const P = (window.__GLOVELS || {}).progress;
+  const sec = document.getElementById('progSec');
+  if (!sec || !P || !P.total) return;
+  sec.hidden = false;
+  document.getElementById('progFill').style.width = P.percent + '%';
+  document.getElementById('progCount').textContent =
+    P.done + ' of ' + P.total + ' done';
+  const WORD = { done: ['done', 'Done'], doing: ['doing', 'In hand now'],
+    next: ['next', 'To come'] };
+  document.getElementById('progList').innerHTML = P.steps.map(function (x) {
+    const w = WORD[x.state] || WORD.next;
+    return '<li class="' + w[0] + '"><span class="dot" aria-hidden="true"></span>' +
+      '<div><b>' + esc(x.title) + '</b>' +
+      '<span>' + w[1] +
+        (x.state === 'done'
+          ? (x.on ? ' \u00b7 ' + esc(x.on) : '')
+          : (x.by ? ' \u00b7 aiming for ' + esc(x.by) : '')) +
+      '</span></div></li>';
+  }).join('');
+})();
 
 /* Tracker and journey reflect what has actually happened, so the screen cannot
    claim progress the student has not made. */

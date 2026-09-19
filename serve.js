@@ -289,6 +289,23 @@ digest.start({
   shell: require('./server/emails.js').shell,
 });
 
+/*
+ * And the one that watches the dates the office agreed to.
+ *
+ * Every ten minutes it brings each student's task list into step with what
+ * they bought and where they have applied; once a morning it tells the
+ * counsellor who is behind, and the office, in the same message. Separate from
+ * the digest above because the digest is "here is your day" and this is "this
+ * one is late" — and because an office that mutes one should not lose the
+ * other.
+ */
+const sla = require('./server/sla.js');
+sla.start({
+  db, mail, notify, live, push, emails: require('./server/emails.js'),
+  siteUrl: SITE_URL,
+  hour: process.env.SLA_HOUR_IST ? Number(process.env.SLA_HOUR_IST) : 10,
+});
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
