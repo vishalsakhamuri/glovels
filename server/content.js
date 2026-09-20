@@ -44,7 +44,21 @@ const KEYS = ['packages', 'stats', 'faq', 'testimonials', 'services', 'finder',
  */
 const TEXT_KEY = 'textOverrides';
 
-const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 400);
+/*
+ * Text, and only text.
+ *
+ * This used to be String(v) on anything, so an object arriving in a field
+ * that wants a name stored the five words "[object Object]" and an array
+ * stored its members joined by commas. Both then travelled: a service named
+ * that way produced a task called "[object Object] — delivered" on the
+ * office's board. A number is legitimately text (a year, a price shown as a
+ * label); a structure is not, and the honest answer for one is nothing.
+ */
+const str = (v, n) => {
+  if (v == null) return '';
+  if (typeof v === 'object') return '';
+  return String(v).replace(/\s+/g, ' ').trim().slice(0, n || 400);
+};
 const num = v => {
   const n = Number(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
   return Number.isFinite(n) ? n : 0;

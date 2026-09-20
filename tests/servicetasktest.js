@@ -168,6 +168,91 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
     });
   }
 
+  /* ---- what a second test agent found, all of it real ---- */
+
+  /* F1: switching a step off in the standard list left a PAID service
+     tracked by nothing at all — the template gone and the generic fallback
+     suppressed by a static exclusion list. The exact invisibility this
+     feature removed, reachable from a checkbox. */
+  {
+    await req('a', 'PUT', '/api/staff/task-rules',
+      { rules: { sop: { off: true, title: 'Statement of Purpose written and approved' } } });
+    const off = await buyer('sopoff', ['sop']);
+    const tracked = off.tasks.filter(t => t.key === 'sop' || t.key === 'svc:sop');
+    ok('a paid SOP is tracked even when the SOP step is switched off',
+      tracked.length === 1, keys(off).join(','));
+    ok('  · by the generic service task, named properly',
+      tracked.length === 1 && /Statement of Purpose|SOP/i.test(tracked[0].title),
+      tracked[0] && tracked[0].title);
+    await req('a', 'PUT', '/api/staff/task-rules',
+      { rules: { sop: { title: 'Statement of Purpose written and approved' } } });
+  }
+
+  /* F2: a service was dated from the day the FILE opened, not the day it
+     was bought. An existing customer of six months buying a loan today was
+     handed a task dated six months ago — overdue the instant it existed. */
+  {
+    const t = basket.tasks.find(x => x.key === 'svc:insure');
+    const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    ok('a service bought today is not already overdue', t && t.due >= today,
+      t && (t.due + ' vs today ' + today));
+    ok('  · and is not reported late', t && (t.over == null || t.over <= 0), t && t.over);
+  }
+
+  /* F3: the service SLA had no writer at all, and the only writer of the
+     block it lives in wiped it on every save from the Tasks screen. */
+  {
+    r = await req('a', 'PUT', '/api/staff/task-rules', { rules: { welcome: { sla: 2 } }, serviceSla: 30 });
+    ok('the office can set how long a service has', r.ok && r.body.serviceSla === 30,
+      JSON.stringify(r.body && r.body.serviceSla));
+    r = await req('a', 'PUT', '/api/staff/task-rules', { rules: { welcome: { sla: 3 } } });
+    ok('  · and saving the steps does not wipe it', r.body.serviceSla === 30, r.body.serviceSla);
+    r = await req('a', 'GET', '/api/staff/task-rules');
+    ok('  · it survives a reload', r.body.serviceSla === 30, r.body.serviceSla);
+    /* F4: null, [] and {} are not numbers. `Number([])` is 0, so an empty
+       array used to mean "every service is due the day it is bought". */
+    for (const bad of [[], {}, 'abc', -5, 999, true]) {
+      const x = await req('a', 'PUT', '/api/staff/task-rules',
+        { rules: { welcome: { sla: 2 } }, serviceSla: bad });
+      ok('  · ' + JSON.stringify(bad) + ' is not a number of days', x.status === 422,
+        x.status + ' -> ' + JSON.stringify(x.body && x.body.serviceSla));
+    }
+    r = await req('a', 'GET', '/api/staff/task-rules');
+    ok('  · and none of them turned into "due today"', r.body.serviceSla === 30,
+      'serviceSla=' + r.body.serviceSla);
+    await req('a', 'PUT', '/api/staff/task-rules',
+      { rules: { welcome: { sla: 2 } }, serviceSla: 14 });
+  }
+
+  /* ---- and what fixing the above broke, which an agent caught ---- */
+
+  /* N1: coverage is worked out from the templates that name a service, and
+     the two visa templates named none — so buying the visa service, in the
+     DEFAULT configuration, produced its two journey tasks AND a generic
+     twin on top. */
+  {
+    const v = await buyer('visabuy', ['visa']);
+    const visaRows = v.tasks.filter(t => /visa/i.test(t.key));
+    ok('buying the visa service gives its two steps and no twin',
+      visaRows.length === 2 && !v.tasks.some(t => t.key === 'svc:visa'),
+      visaRows.map(t => t.key).join(','));
+  }
+
+  /* N2: an out-of-range service SLA returned 200, stored nothing, and reset
+     the office's own figure to the default — while the screen said Saved. */
+  {
+    await req('a', 'PUT', '/api/staff/task-rules', { rules: { welcome: { sla: 2 } }, serviceSla: 21 });
+    for (const bad of [999, -5, 'abc']) {
+      r = await req('a', 'PUT', '/api/staff/task-rules',
+        { rules: { welcome: { sla: 2 } }, serviceSla: bad });
+      ok('a service length of ' + JSON.stringify(bad) + ' is refused, not silently reset',
+        r.status === 422, r.status + ' ' + ((r.body || {}).error || ''));
+    }
+    r = await req('a', 'GET', '/api/staff/task-rules');
+    ok('  · and the office’s own figure is still there', r.body.serviceSla === 21, r.body.serviceSla);
+    await req('a', 'PUT', '/api/staff/task-rules', { rules: { welcome: { sla: 2 } }, serviceSla: 14 });
+  }
+
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

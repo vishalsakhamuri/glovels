@@ -9,7 +9,7 @@
 cd "$(dirname "$0")/.."
 PORT=${PORT:-8099}
 FAILED=0
-for t in tasktest phasetest servicetasktest asktest slatest taskhardtest taskuitest phaseuitest; do
+for t in tasktest phasetest servicetasktest servicecatalogtest asktest slatest taskhardtest taskuitest phaseuitest; do
   rm -rf "/tmp/db-$PORT"
   bash tests/srv.sh "$PORT" > /dev/null 2>&1
   sleep 2

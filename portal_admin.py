@@ -139,6 +139,18 @@ BODY = """
         <p class="lead">Every student gets the steps they have paid for, each with a date.
           Change how long a step is allowed to take, or switch one off entirely.</p>
         <div id="rkRows"></div>
+        <!-- Everything else somebody buys — a loan, IELTS coaching,
+             accommodation — gets a task named after the service itself.
+             This is how long it has. -->
+        <div style="display:flex;gap:12px;align-items:center;margin-top:16px;padding-top:14px;
+          border-top:2px solid var(--line,#e6e9ee)">
+          <b style="flex:1;font:700 13px/1.4 var(--sans)">Any other service somebody buys</b>
+          <input type="number" id="rkSvc" min="0" max="365"
+            style="width:74px;padding:8px 9px;font:600 12.8px/1.4 var(--sans);
+            border:1.5px solid #d8dde4;border-radius:9px;text-align:right">
+          <span style="min-width:190px;font:400 11.8px/1.4 var(--sans);color:var(--muted)">
+            days after it is bought</span>
+        </div>
         <p id="rkErr" style="display:none;margin:12px 0 0;padding:11px 13px;border-radius:10px;
           background:#fdeceb;border:1px solid #f3c9c6;font:600 12.6px/1.55 var(--sans);
           color:#8d2f2a"></p>
@@ -2521,8 +2533,11 @@ function paintRules() {
     '</div>').join('');
 }
 $('#tkRules').addEventListener('click', async () => {
-  try { RK = (await api('GET', '/api/staff/task-rules')).rules || []; }
+  let got;
+  try { got = await api('GET', '/api/staff/task-rules'); }
   catch (e) { toast(e.message || 'Could not read the list.'); return; }
+  RK = got.rules || [];
+  $('#rkSvc').value = got.serviceSla == null ? 14 : got.serviceSla;
   paintRules();
   $('#rkErr').style.display = 'none';
   $('#ruleModal').classList.add('on');
@@ -2533,6 +2548,17 @@ document.addEventListener('click', e => {
   }
 });
 $('#rkSave').addEventListener('click', async () => {
+  /* Caught here as well as on the server. The number box has min and max,
+     but nothing enforces them on a typed value, and a rejected save that
+     looks like a successful one is how an office loses a setting without
+     noticing. */
+  const svc = Number($('#rkSvc').value);
+  if (!Number.isFinite(svc) || svc < 0 || svc > 365) {
+    $('#rkErr').textContent = 'Give a service between 0 and 365 days.';
+    $('#rkErr').style.display = '';
+    $('#rkSvc').focus();
+    return;
+  }
   const out = {};
   RK.forEach(r => {
     const days = Number($('[data-rk-days="' + r.key + '"]').value);
@@ -2547,7 +2573,7 @@ $('#rkSave').addEventListener('click', async () => {
   const btn = $('#rkSave'), was = btn.textContent;
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    await api('PUT', '/api/staff/task-rules', { rules: out });
+    await api('PUT', '/api/staff/task-rules', { rules: out, serviceSla: $('#rkSvc').value });
     $('#ruleModal').classList.remove('on');
     toast('Saved. Every file not yet finished has been re-dated.');
     await loadTasks();

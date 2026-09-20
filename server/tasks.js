@@ -65,6 +65,14 @@ const plus = (from, days) => DAYS.addDays(from, days);
  *   due     {sla: N}      N days after the file opened
  *           {before: N}   N days before the deadline it is working back from
  *   order   the order the list reads in, which is the order the work happens.
+ *
+ * NEVER DELETE A KEY FROM THIS ARRAY. Switch a step off through the office's
+ * own screen instead, which keeps the key and leaves the tasks already
+ * carrying it where they are. A key removed here still exists on every file
+ * that has one, matches no template, and is therefore classified as
+ * 'service' — second to last — so every student holding one would read as
+ * FURTHER ALONG than they are, which is the one direction a progress figure
+ * must never be wrong in.
  */
 /**
  * WHERE A STUDENT HAS GOT TO, as a single word.
@@ -98,12 +106,13 @@ const PHASES = [
   { key: 'offers',    label: 'Waiting on offers', short: 'Offers' },
   { key: 'visa',      label: 'Visa',              short: 'Visa' },
   /* Work that is not on the university journey at all: a loan, a blocked
-     account, IELTS coaching, accommodation. Somebody may buy one of these
-     and nothing else, and they have no application to be a phase of. It
-     sits last because a package customer reaches it only once everything
-     else is done — but it still blocks Departed, because a student with an
-     open loan application has not finished. */
-  { key: 'service',   label: 'Services in progress', short: 'Services' },
+     account, IELTS coaching, accommodation — and anything an administrator
+     typed by hand on one file. Somebody may buy one of these and nothing
+     else, and they have no application to be a phase of. It sits last
+     because a package customer reaches it only once everything else is
+     done — but it still blocks Departed, because a student with an open
+     loan application has not finished. */
+  { key: 'service',   label: 'Services and extra work', short: 'Services' },
   { key: 'departed',  label: 'Departed',          short: 'Departed' },
 ];
 const PHASE_AT = new Map(PHASES.map((p, i) => [p.key, i]));
@@ -132,9 +141,15 @@ const TEMPLATES = [
     title: 'Application submitted' },
   { key: 'offer', order: 80, stage: 'apply', phase: 'offers', per: 'student', due: { before: -45 },
     title: 'Offer letter received and recorded' },
-  { key: 'visadocs', order: 90, stage: 'visa', phase: 'visa', per: 'student', due: { before: -60 },
+  /* Both carry the service they track, so buying it is covered while EITHER
+     is live. Neither did, so the visa service — a real, expensive purchase
+     in the default configuration — got its two journey tasks AND a generic
+     twin on top. */
+  { key: 'visadocs', order: 90, stage: 'visa', service: 'visa', phase: 'visa',
+    per: 'student', due: { before: -60 },
     title: 'Visa documents ready' },
-  { key: 'visa', order: 100, stage: 'visa', phase: 'visa', per: 'student', due: { before: -75 },
+  { key: 'visa', order: 100, stage: 'visa', service: 'visa', phase: 'visa',
+    per: 'student', due: { before: -75 },
     title: 'Visa application filed' },
 ];
 
@@ -149,14 +164,30 @@ const CLOSED = new Set(['done', 'dropped']);
    answers the coarse question — may we ask for their passport — and this
    answers the precise one: what did they buy, item by item. */
 function servicesBought(db, student) {
-  const out = new Set();
+  /* id -> the day the EARLIEST paid order containing it was placed.
+   *
+   * The day matters. A service promise runs from the day it was bought, not
+   * from the day the file opened: an existing customer of six months who
+   * buys a loan today was being handed a task dated six months ago and was
+   * overdue the instant it existed. */
+  const out = new Map();
   let orders = [];
   try { orders = db.ordersFor(student.id) || []; } catch (e) { orders = []; }
   orders.forEach(o => {
     if (!EARNED.has(String(o.status))) return;
     let items = [];
     try { items = JSON.parse(o.items || '[]') || []; } catch (e) { items = []; }
-    items.forEach(x => { const id = String((x && x.id) || '').trim(); if (id) out.add(id); });
+    /* When the promise actually starts. An order placed in March and paid
+       in September is a September promise: dating it from March hands the
+       counsellor a task six months overdue the moment the payment clears.
+       Falls back to the order date for anything with no payment stamp. */
+    const when = o.paid_at || o.created_at || null;
+    items.forEach(x => {
+      const id = String((x && x.id) || '').trim();
+      if (!id) return;
+      const had = out.get(id);
+      if (!had || (when && String(when) < String(had))) out.set(id, when);
+    });
   });
   return out;
 }
@@ -175,12 +206,37 @@ const EARNED = new Set(['paid', 'owing', 'part']);
  * not be chased and never appeared on the board — which for a single-service
  * customer meant nothing about their order was tracked.
  */
-const SERVICE_HAS_ITS_OWN = new Set([
-  'sop', 'lor', 'visa',
-  /* These buy universities rather than a deliverable of their own; the
-     shortlist task is the thing they produce. */
-  'first-three', 'shortlist-ten', 'scholar',
-]);
+/*
+ * Which services are already covered is decided PER STUDENT, in syncTasks,
+ * from the templates actually live for them — not from a list here.
+ *
+ * A static list was a real bug. The office switching the SOP step off in
+ * the standard list removed its template AND kept the exclusion, so a paid
+ * SOP was tracked by nothing at all: exactly the invisibility described
+ * above, reachable from a checkbox.
+ *
+ * These three are the exception, because they buy UNIVERSITIES rather than
+ * a deliverable of their own — the shortlist task is the thing they
+ * produce, and they are covered only while it exists.
+ */
+const MATCH_SERVICES = ['first-three', 'shortlist-ten', 'scholar'];
+
+/**
+ * How long a service has, in days.
+ *
+ * Fourteen unless the office says otherwise. The guard is strict about what
+ * counts as a number: `Number(null)` is 0 and `Number([])` is 0, so a
+ * cleared field used to mean "due today" rather than "use the default", and
+ * a task born due today is a task born almost late.
+ */
+function serviceSlaOf(db) {
+  let v;
+  try { v = (db.content('taskRules') || {}).serviceSla; } catch (e) { v = undefined; }
+  if (typeof v !== 'number' && typeof v !== 'string') return 14;
+  if (typeof v === 'string' && !v.trim()) return 14;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 365 ? Math.round(n) : 14;
+}
 
 /**
  * The office's own name for a service, for the task that tracks it.
@@ -254,8 +310,26 @@ function saveRules(db, body, who) {
     }
     if (Object.keys(one).length) keep[t.key] = one;
   });
+  /* How long a bought service has. It lives in the same block, and this is
+     the block's only writer — so leaving it out meant every save from the
+     Tasks screen silently wiped it and every service task went back to
+     fourteen days. Carried through when the caller does not send one. */
+  const askedSla = body && body.serviceSla;
+  if (askedSla != null && askedSla !== '') {
+    const n = Number(askedSla);
+    if (Number.isFinite(n) && n >= 0 && n <= 365) keep.serviceSla = Math.round(n);
+  } else {
+    let had;
+    try { had = (db.content('taskRules') || {}).serviceSla; } catch (e) { had = undefined; }
+    if (had != null) keep.serviceSla = had;
+  }
   db.setContent('taskRules', keep, who || '');
   return rules(db);
+}
+
+/** The whole standard list as a screen needs it: the steps and the service SLA. */
+function ruleSettings(db) {
+  return { rules: rules(db), serviceSla: serviceSlaOf(db) };
 }
 
 /**
@@ -396,23 +470,46 @@ function syncTasks(db, student, now) {
    * deliverable with no date is a deliverable nobody is accountable for —
    * which is precisely the state all of these were in.
    */
-  const svcDays = (() => {
-    let n = null;
-    try { n = Number((db.content('taskRules') || {}).serviceSla); } catch (e) { n = null; }
-    return Number.isFinite(n) && n >= 0 && n <= 365 ? Math.round(n) : 14;
-  })();
+  const svcDays = serviceSlaOf(db);
   const names = serviceNames(db);
-  bought.forEach(id => {
-    if (SERVICE_HAS_ITS_OWN.has(id)) return;
+  /* A service is only "already covered" if a LIVE template covers it. The
+     exclusion used to be unconditional, so an office that switched the SOP
+     step off in the standard list left a paid SOP tracked by nothing at
+     all — the template gone and the fallback suppressed. That is precisely
+     the invisibility this was built to remove, reachable from a checkbox. */
+  const covered = new Set();
+  live.forEach(t => { if (t.service) covered.add(t.service); });
+  MATCH_SERVICES.forEach(id => { if (live.some(t => t.key === 'shortlist')) covered.add(id); });
+
+  /* A template switched off and then back on leaves the generic task it
+     created behind, so one purchase shows as two open rows. The untouched
+     ones retire themselves — an office trying the checkbox should not have
+     to tidy up after it. Anything somebody has actually worked on is left
+     alone, because that is a record. */
+  bought.forEach((boughtOn, id) => {
+    if (!covered.has(id)) return;
+    const twin = have.get('svc:' + id + '\u0000');
+    if (twin && String(twin.status) === 'open' && !String(twin.note || '').trim()
+        && String(twin.source) === 'auto') {
+      db.updateTask(twin.id, { status: 'dropped' });
+    }
+  });
+
+  bought.forEach((boughtOn, id) => {
+    if (covered.has(id)) return;
     const name = names.get(id);
-    /* A service that has since been retired from the catalogue keeps its
-       task — somebody paid for it — but is named by its id rather than
-       invented. */
     want.push({
       tpl: { key: 'svc:' + id, phase: 'service', per: 'student', source: 'service' },
       progId: '',
-      title: (name || id) + ' — delivered',
-      due: { dueAt: plus(start, svcDays), basis: 'sla' },
+      /* A service the office has since DELETED from the catalogue keeps the
+         title it was given. Falling back to the bare id here was not merely
+         ugly: syncTasks re-titles open tasks, so a good stored title was
+         overwritten with the id on the next sweep. */
+      /* Capped on the NAME, so the words that say what the row is survive.
+         Slicing the whole string cut " — delivered" off the end of any long
+         one, leaving a truncated name and no verb. */
+      title: name ? (name.slice(0, 126) + ' — delivered') : null,
+      due: { dueAt: plus(boughtOn || start, svcDays), basis: 'sla' },
     });
   });
 
@@ -421,7 +518,10 @@ function syncTasks(db, student, now) {
     const row = have.get(key);
     if (!row) {
       db.addTask({
-        studentId: sid, ownerId: owner, key: w.tpl.key, title: w.title,
+        studentId: sid, ownerId: owner, key: w.tpl.key,
+        /* A service the catalogue has never heard of is named by its id —
+           better than blank, and it is what somebody paid for. */
+        title: w.title || (String(w.tpl.key).replace(/^svc:/, '') + ' — delivered'),
         progId: w.progId, dueAt: w.due.dueAt, basis: w.due.basis,
         status: 'open', source: 'auto',
       });
@@ -437,8 +537,14 @@ function syncTasks(db, student, now) {
     /* The office renaming a step in the standard list, or a university being
        renamed in the catalogue, reaches the open tasks that carry that name.
        A board where half the rows say the old thing is a board people stop
-       reading carefully. */
-    if (String(row.title || '') !== w.title) db.updateTask(row.id, { title: w.title });
+       reading carefully.
+       But only when there IS a new name. A service the office deleted from
+       the catalogue has none, and re-titling then rewrote a perfectly good
+       stored title down to the bare id — losing, on a task somebody paid
+       for, the only record of what they bought. */
+    if (w.title && String(row.title || '') !== w.title) {
+      db.updateTask(row.id, { title: w.title });
+    }
     if ((row.due_at || null) !== w.due.dueAt || String(row.due_basis) !== w.due.basis) {
       db.updateTask(row.id, { dueAt: w.due.dueAt, basis: w.due.basis });
     }
@@ -518,15 +624,22 @@ function phaseOf(db, student, now) {
   if (!st) return null;
   const rows = (db.tasksFor(st.id) || []).filter(t => String(t.status) !== 'dropped');
   const phaseKey = t => {
-    /* A service bought on its own — a loan, a language course — is not a
-       step on the university journey, but it is still owed, so it sits in
-       its own phase rather than being invisible. */
-    if (String(t.task_key || '').startsWith('svc:')) return 'service';
     const tpl = TEMPLATES.find(x => x.key === t.task_key);
-    /* A task somebody typed by hand belongs to wherever the student is now,
-       not to a phase of its own — it is extra work on this file, not a new
-       step in everybody's journey. */
-    return tpl ? tpl.phase : null;
+    if (tpl) return tpl.phase;
+    /*
+     * EVERYTHING ELSE LANDS HERE, and it must land somewhere.
+     *
+     * A service bought on its own — a loan, a language course — is not a
+     * step on the university journey. Neither is a task an administrator
+     * typed by hand, nor one whose template has since been removed. None of
+     * them belong to a journey phase, and the first version returned null
+     * for them, which was worse than wrong: a row in no phase could never be
+     * the phase a student was IN, so "no phase has open work" read as
+     * "everything is finished". A student with one open, overdue,
+     * hand-written task was reported as Departed, with that very task
+     * counted among the finished ones.
+     */
+    return 'service';
   };
 
   /* The phases this student actually has, in order. Somebody who bought a
@@ -535,17 +648,23 @@ function phaseOf(db, student, now) {
   const present = PHASES.filter(p => rows.some(t => phaseKey(t) === p.key));
   if (!present.length) {
     return { key: 'enrolled', label: 'Enrolled', index: 0, of: PHASES.length,
-      done: 0, total: 0, since: st.created_at, days: 0, late: 0, waiting: false,
-      blocking: [], finished: false };
+      done: 0, total: 0, since: st.created_at,
+      /* How long they have been sitting here, like every other phase. Both
+         shortcut returns used to answer 0 whatever the date, so a file open
+         since January read as arriving today. */
+      days: DAYS.daysBetweenDays(DAYS.istDay(st.created_at), DAYS.istDay(T)) || 0,
+      late: 0, waiting: false, blocking: [], finished: false };
   }
 
   const at = present.find(p => rows.some(t => phaseKey(t) === p.key && !CLOSED.has(String(t.status))));
   /* Everything they owe is finished. */
   if (!at) {
     const last = rows.map(t => t.done_at).filter(Boolean).sort();
+    const since = last[last.length - 1] || st.created_at;
     return { key: 'departed', label: 'Departed', index: PHASES.length - 1, of: PHASES.length,
-      done: rows.length, total: rows.length, since: last[last.length - 1] || st.created_at,
-      days: 0, late: 0, waiting: false, blocking: [], finished: true };
+      done: rows.length, total: rows.length, since,
+      days: DAYS.daysBetweenDays(DAYS.istDay(since), DAYS.istDay(T)) || 0,
+      late: 0, waiting: false, blocking: [], finished: true };
   }
 
   const mine = rows.filter(t => phaseKey(t) === at.key);
@@ -589,6 +708,13 @@ function funnel(db, now, only) {
   const counts = new Map(PHASES.map(p => [p.key, { ...p, students: 0, late: 0, waiting: 0 }]));
   (db.allStudents() || []).forEach(st => {
     if (only && !only.has(Number(st.id))) return;
+    /* Somebody who signed up and bought nothing has no journey to be at a
+       point in. Counting them inflated Enrolled with people the office has
+       no work for, which is the column most likely to be acted on. */
+    let mineRows = [];
+    try { mineRows = (db.tasksFor(st.id) || []).filter(t => String(t.status) !== 'dropped'); }
+    catch (e) { mineRows = []; }
+    if (!mineRows.length) return;
     let ph = null;
     try { ph = phaseOf(db, st, now); } catch (e) { ph = null; }
     if (!ph) return;
@@ -709,7 +835,8 @@ function activityOf(db, staffId, days, now) {
 
 module.exports = {
   TEMPLATES, STATUSES, CLOSED,
-  PHASES, rules, saveRules, syncTasks, syncAll, lateness, isLate, ownerOf,
+  PHASES, rules, saveRules, ruleSettings, serviceSlaOf, syncTasks, syncAll,
+  lateness, isLate, ownerOf,
   progressOf, activityOf, phaseOf, funnel,
   nextDeadline, fileDeadline, dueFor,
 };

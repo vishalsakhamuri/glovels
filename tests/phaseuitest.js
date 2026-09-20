@@ -26,7 +26,7 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   ok('the office sees a tile for every phase', tiles.length===9, tiles.length);
   /* Nine: 'Services in progress' sits between Visa and Departed, for work
      that is not on the university journey — a loan, a language course. */
-  ok('  · named in order', tiles.map(t=>t.l).join(' → ')==='Enrolled → Profile and documents → Shortlisting → Writing (SOP/LOR) → Applying → Waiting on offers → Visa → Services in progress → Departed', tiles.map(t=>t.l).join(' → '));
+  ok('  · named in order', tiles.map(t=>t.l).join(' → ')==='Enrolled → Profile and documents → Shortlisting → Writing (SOP/LOR) → Applying → Waiting on offers → Visa → Services and extra work → Departed', tiles.map(t=>t.l).join(' → '));
   ok('  · with a count on each', tiles.some(t=>Number(t.n)>0), JSON.stringify(tiles.map(t=>t.l+'='+t.n)));
   // click a phase that has somebody in it
   const busy=tiles.find(t=>Number(t.n)>0);

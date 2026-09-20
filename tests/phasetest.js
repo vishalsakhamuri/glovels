@@ -118,6 +118,40 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   ok('submitting before agreeing a shortlist still reads as the earlier phase',
     jp.key === 'enrolled', jp.key + ' — a submitted application must not hide an unstarted file');
 
+  /* ---- 4b. a task that belongs to no template ----
+     The worst bug the phase engine had. A hand-made task — which the Tasks
+     board lets anybody create — matched no template, so it fell out of every
+     phase; and "no phase has open work" was then read as "everything is
+     finished". A student with one open, overdue, hand-written task was
+     reported as Departed, with that task counted among the finished ones,
+     while their own dashboard showed it as still to do. Two screens
+     contradicting each other about the same row. */
+  {
+    const custom = await makeStudent('cust', null);
+    await finish(custom, /Welcome call|Profile completed/);
+    let p = await phase(custom);
+    ok('with everything finished, a student is Departed', p.key === 'departed', p.key);
+    r = await req('a', 'POST', '/api/staff/student/' + custom + '/tasks',
+      { title: 'Send the bank letter', due: new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10) });
+    const hand = r.body.task;
+    p = await phase(custom);
+    ok('  · adding one task by hand takes them OUT of Departed',
+      p.key !== 'departed' && !p.finished, p.key + ' finished=' + p.finished);
+    ok('  · and the open task is counted, not swallowed',
+      p.total >= 1 && p.done < p.total, p.done + '/' + p.total);
+    ok('  · and named as what is blocking them',
+      (p.blocking || []).some(b => /bank letter/.test(b.title)),
+      JSON.stringify(p.blocking || []));
+    /* The student's own screen and the office's must agree about it. */
+    const st2 = await req('a', 'GET', '/api/staff/student/' + custom);
+    ok('  · the two screens agree on how much is left',
+      (st2.body.tasks || []).filter(t => t.status !== 'done').length ===
+        (p.total - p.done), p.done + '/' + p.total);
+    await req('a', 'PUT', '/api/staff/task/' + hand.id, { status: 'done' });
+    p = await phase(custom);
+    ok('  · finishing it puts them back to Departed', p.key === 'departed' && p.finished, p.key);
+  }
+
   /* ---- 5. the office's funnel ---- */
   r = await req('a', 'GET', '/api/staff/tasks?state=all');
   const fn = r.body.funnel || [];
@@ -129,6 +163,29 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
     fn.map(f => f.key).join(','));
   ok('  · counting students, not tasks',
     fn.reduce((n, f) => n + f.students, 0) >= 3, JSON.stringify(fn.map(f => f.short + '=' + f.students)));
+  /* Somebody who signed up and bought nothing has no journey to be at a
+     point in, and counting them inflated Enrolled — the column an office is
+     most likely to act on. */
+  {
+    r = await req('a', 'POST', '/api/staff/people',
+      { name: 'Never Bought', email: 'nb' + stamp + '@ex.example', password: 'nb-' + stamp, role: 'student' });
+    const idle = r.body.person.id;
+    /* Their standard tasks are created on first read, so read first — a
+       baseline taken before they exist measures nothing. */
+    const theirs = await tasksOf(idle);
+    ok('  · a new student starts with the tasks everybody owes', theirs.length > 0, theirs.length);
+    const before = ((await req('a', 'GET', '/api/staff/tasks?state=all')).body.funnel || [])
+      .reduce((n, f) => n + f.students, 0);
+    /* Drop everything they were given, so they genuinely have no work. */
+    for (const t of theirs) {
+      await req('a', 'PUT', '/api/staff/task/' + t.id, { status: 'dropped' });
+    }
+    const after = ((await req('a', 'GET', '/api/staff/tasks?state=all')).body.funnel || [])
+      .reduce((n, f) => n + f.students, 0);
+    ok('  · and counts nobody who has no work at all', after === before - 1,
+      before + ' → ' + after);
+  }
+
   r = await req('a', 'GET', '/api/staff/tasks?state=all&phase=enrolled');
   const onlyEnrolled = new Set((r.body.tasks || []).map(t => t.studentId));
   ok('  · and a phase can be asked for on its own', r.ok && onlyEnrolled.size > 0, onlyEnrolled.size);

@@ -5337,7 +5337,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /** The standard list and its days, as the office has them. */
   route('GET', '/api/staff/task-rules', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
-    return json(res, 200, { rules: TASKS.rules(db) });
+    return json(res, 200, TASKS.ruleSettings(db));
   }));
 
   route('PUT', '/api/staff/task-rules', caseworkOnly(async (req, res, s) => {
@@ -5357,13 +5357,32 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
              + 'want off individually instead.',
       });
     }
+    /* The service SLA travels with the rules, in the same block — and is
+       checked here rather than silently ignored. Out of range used to
+       return 200, store nothing, and reset the office's own figure to the
+       default: the worst combination, because the screen said Saved. */
+    if (b.serviceSla != null && b.serviceSla !== '') {
+      /* A number or a numeric string, and nothing else. `Number([])` is 0,
+         so an empty array arriving here meant "every service is due the day
+         it is bought" — the same trap the reader in tasks.js already guards
+         against, one layer up. */
+      const ok = typeof b.serviceSla === 'number'
+        || (typeof b.serviceSla === 'string' && b.serviceSla.trim() !== '');
+      const n = ok ? Number(b.serviceSla) : NaN;
+      if (!Number.isFinite(n) || n < 0 || n > 365) {
+        return json(res, 422, {
+          error: 'Give a service between 0 and 365 days.',
+        });
+      }
+      asked.serviceSla = Math.round(n);
+    }
     const rules = TASKS.saveRules(db, asked, s.name);
     /* The new days apply to work not yet done, at once rather than tomorrow:
        an administrator who shortens an SLA and sees nothing change assumes it
        did not save. */
     try { TASKS.syncAll(db); } catch (e) {}
     db.log(s.name, 'changed the task rules', '');
-    return json(res, 200, { rules });
+    return json(res, 200, TASKS.ruleSettings(db));
   }));
 
   route('GET', '/api/staff/orders', caseworkOnly(async (req, res, s) => {
