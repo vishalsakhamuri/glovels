@@ -43,8 +43,13 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
       await login(tag, e, p);
       await req(tag, 'POST', '/api/auth/change', { password: p + 'X' });
       await login(tag, e, p + 'X');
-      await req(tag, 'POST', '/api/orders',
+      const o = await req(tag, 'POST', '/api/orders',
         { packageId: pkg, name: 'Phase ' + tag, email: e, phone: '9876543210', acceptedTerms: true });
+      if (o.status === 429) {
+        console.error('\n  STOPPED: the order endpoint is rate-limited (10/hour per address).');
+        console.error('  Restart the server to clear it:  bash tests/srv.sh 8099\n');
+        process.exit(2);
+      }
     }
     return id;
   };
@@ -116,8 +121,11 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   /* ---- 5. the office's funnel ---- */
   r = await req('a', 'GET', '/api/staff/tasks?state=all');
   const fn = r.body.funnel || [];
+  /* Nine, not eight: 'service' sits between Visa and Departed for work that
+     is not on the university journey at all — a loan, a language course. */
   ok('the funnel has a row per phase, in order',
-    fn.length === 8 && fn[0].key === 'enrolled' && fn[7].key === 'departed',
+    fn.length === 9 && fn[0].key === 'enrolled'
+    && fn[7].key === 'service' && fn[8].key === 'departed',
     fn.map(f => f.key).join(','));
   ok('  · counting students, not tasks',
     fn.reduce((n, f) => n + f.students, 0) >= 3, JSON.stringify(fn.map(f => f.short + '=' + f.students)));

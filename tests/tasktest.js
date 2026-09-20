@@ -88,6 +88,15 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
       packageId: 'pkg-offer', name: 'Task Student', email: sEmail, phone: '9876543210',
       acceptedTerms: true,
     });
+    /* Ten orders an hour from one address. A run where the orders were
+       silently refused proves nothing, so say so and stop rather than
+       reporting failures that are really a rate limit. Restart the server
+       to clear it — the counter is in memory. */
+    if (r.status === 429) {
+      console.error('\n  STOPPED: the order endpoint is rate-limited (10/hour per address).');
+      console.error('  Restart the server to clear it:  bash tests/srv.sh 8099\n');
+      process.exit(2);
+    }
     const boughtApply = r.ok;
     ok('an application package can be bought against the file', boughtApply,
       r.status + ' ' + JSON.stringify(r.body).slice(0, 200));

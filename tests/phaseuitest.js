@@ -23,8 +23,10 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   const ap=await a.newPage(); ap.on('pageerror',e=>errs.push('admin: '+e));
   await ap.goto(BASE+'/admin#tasks',{waitUntil:'domcontentloaded'}); await ap.waitForTimeout(3200);
   const tiles=await ap.$$eval('#fnStrip button',bs=>bs.map(x=>({k:x.dataset.fn,n:x.querySelector('b').textContent,l:x.querySelector('span').textContent})));
-  ok('the office sees a tile for every phase', tiles.length===8, tiles.length);
-  ok('  · named in order', tiles.map(t=>t.l).join(' → ')==='Enrolled → Profile and documents → Shortlisting → Writing (SOP/LOR) → Applying → Waiting on offers → Visa → Departed', tiles.map(t=>t.l).join(' → '));
+  ok('the office sees a tile for every phase', tiles.length===9, tiles.length);
+  /* Nine: 'Services in progress' sits between Visa and Departed, for work
+     that is not on the university journey — a loan, a language course. */
+  ok('  · named in order', tiles.map(t=>t.l).join(' → ')==='Enrolled → Profile and documents → Shortlisting → Writing (SOP/LOR) → Applying → Waiting on offers → Visa → Services in progress → Departed', tiles.map(t=>t.l).join(' → '));
   ok('  · with a count on each', tiles.some(t=>Number(t.n)>0), JSON.stringify(tiles.map(t=>t.l+'='+t.n)));
   // click a phase that has somebody in it
   const busy=tiles.find(t=>Number(t.n)>0);
@@ -58,7 +60,7 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   await sp.goto(BASE+'/dashboard',{waitUntil:'domcontentloaded'}); await sp.waitForTimeout(2500);
   ok('the student is told where they are', await sp.$eval('#progPhase',e=>!e.hidden));
   const stxt=await sp.$eval('#progPhase',e=>e.textContent.replace(/\s+/g,' ').trim());
-  ok('  · as a phase and a step number', /Applying/.test(stxt) && /Step \d+ of 8/.test(stxt), stxt);
+  ok('  · as a phase and a step number', /Applying/.test(stxt) && /Step \d+ of 9/.test(stxt), stxt);
   ok('  · with nothing about lateness or counsellors', !/late|behind|overdue|Ph Counsellor/i.test(stxt), stxt);
   await sp.setViewportSize({width:390,height:900}); await sp.waitForTimeout(500);
   ok('  · no sideways scroll on a phone', await sp.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1));

@@ -97,6 +97,13 @@ const PHASES = [
   { key: 'applying',  label: 'Applying',          short: 'Applying' },
   { key: 'offers',    label: 'Waiting on offers', short: 'Offers' },
   { key: 'visa',      label: 'Visa',              short: 'Visa' },
+  /* Work that is not on the university journey at all: a loan, a blocked
+     account, IELTS coaching, accommodation. Somebody may buy one of these
+     and nothing else, and they have no application to be a phase of. It
+     sits last because a package customer reaches it only once everything
+     else is done — but it still blocks Departed, because a student with an
+     open loan application has not finished. */
+  { key: 'service',   label: 'Services in progress', short: 'Services' },
   { key: 'departed',  label: 'Departed',          short: 'Departed' },
 ];
 const PHASE_AT = new Map(PHASES.map((p, i) => [p.key, i]));
@@ -108,9 +115,15 @@ const TEMPLATES = [
     title: 'Profile completed and documents collected' },
   { key: 'shortlist', order: 30, stage: 'match', phase: 'shortlist', per: 'student', due: { sla: 14 },
     title: 'Shortlist confirmed with the student' },
-  { key: 'sop', order: 40, stage: ['write', 'apply'], phase: 'writing', per: 'student', due: { before: 30 },
+  /* `service` names the exact thing that was bought. The two used to share a
+     'write' stage, so buying an SOP put an LOR on the file and buying a CV
+     put both on it and no CV — the counsellor owed work nobody had paid for
+     and owed nothing for the work somebody had. */
+  { key: 'sop', order: 40, stage: 'apply', service: 'sop', phase: 'writing',
+    per: 'student', due: { before: 30 },
     title: 'Statement of Purpose written and approved' },
-  { key: 'lor', order: 50, stage: ['write', 'apply'], phase: 'writing', per: 'student', due: { before: 30 },
+  { key: 'lor', order: 50, stage: 'apply', service: 'lor', phase: 'writing',
+    per: 'student', due: { before: 30 },
     title: 'Letters of Recommendation collected' },
   { key: 'appdocs', order: 60, stage: 'apply', phase: 'applying', per: 'student', due: { before: 21 },
     title: 'Application documents assembled' },
@@ -131,6 +144,76 @@ const TEMPLATES = [
 const STATUSES = ['open', 'doing', 'done', 'blocked', 'dropped'];
 /* Neither owed nor late. */
 const CLOSED = new Set(['done', 'dropped']);
+
+/* The services a paid order actually contains. `stagesFor` next door
+   answers the coarse question — may we ask for their passport — and this
+   answers the precise one: what did they buy, item by item. */
+function servicesBought(db, student) {
+  const out = new Set();
+  let orders = [];
+  try { orders = db.ordersFor(student.id) || []; } catch (e) { orders = []; }
+  orders.forEach(o => {
+    if (!EARNED.has(String(o.status))) return;
+    let items = [];
+    try { items = JSON.parse(o.items || '[]') || []; } catch (e) { items = []; }
+    items.forEach(x => { const id = String((x && x.id) || '').trim(); if (id) out.add(id); });
+  });
+  return out;
+}
+/* Kept in step with EARNED_STATES in alerts.js and EARNED in api.js: money
+   in, or money agreed. A gateway mid-collection has confirmed nothing. */
+const EARNED = new Set(['paid', 'owing', 'part']);
+
+/*
+ * Services that already have a task of their own, or that drive one.
+ *
+ * Everything else a student buys gets a generic task named after the service
+ * itself. That matters more than it sounds: there are thirty-eight sellable
+ * services and only a handful had any task at all, so somebody who bought an
+ * education loan, a blocked account, IELTS coaching or accommodation had
+ * their entire purchase invisible to this system. It could not be late, could
+ * not be chased and never appeared on the board — which for a single-service
+ * customer meant nothing about their order was tracked.
+ */
+const SERVICE_HAS_ITS_OWN = new Set([
+  'sop', 'lor', 'visa',
+  /* These buy universities rather than a deliverable of their own; the
+     shortlist task is the thing they produce. */
+  'first-three', 'shortlist-ten', 'scholar',
+]);
+
+/**
+ * The office's own name for a service, for the task that tracks it.
+ *
+ * The catalogue lives in two places and both have to be read: content.json
+ * is what shipped, and the content table holds whatever the office has since
+ * changed. Reading only the table names every task after its id — "loan —
+ * delivered" instead of "Education Loan Assistance — delivered" — because on
+ * a site nobody has edited the table is empty.
+ *
+ * The shipped file is parsed once and kept; it changes only on deploy.
+ */
+let SHIPPED_SERVICES = null;
+function shippedServices() {
+  if (SHIPPED_SERVICES) return SHIPPED_SERVICES;
+  SHIPPED_SERVICES = [];
+  try {
+    const fs = require('fs'), path = require('path');
+    const j = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'content.json'), 'utf8'));
+    SHIPPED_SERVICES = ((j.services || {}).items) || [];
+  } catch (e) { SHIPPED_SERVICES = []; }
+  return SHIPPED_SERVICES;
+}
+function serviceNames(db) {
+  const out = new Map();
+  const add = items => (items || []).forEach(x => {
+    if (x && x.id && x.name) out.set(String(x.id), String(x.name));
+  });
+  add(shippedServices());
+  /* The office's own edits win over what shipped. */
+  try { add(((db.content('services') || {}).items) || []); } catch (e) {}
+  return out;
+}
 
 /**
  * The templates as they are actually in force: the defaults above, with the
@@ -262,9 +345,11 @@ function syncTasks(db, student, now) {
   const sid = Number(st.id);
 
   const stages = ALERTS.stagesFor(db, st);
+  const bought = servicesBought(db, st);
   const live = rules(db).filter(t => !t.off
-    && (Array.isArray(t.stage) ? t.stage : [t.stage]).some(x => stages.has(x)));
-  if (!live.length) return db.tasksFor(sid);
+    && ((Array.isArray(t.stage) ? t.stage : [t.stage]).some(x => stages.has(x))
+        /* …or they bought precisely this thing. */
+        || (t.service && bought.has(t.service))));
 
   const shortlist = db.getShortlist(sid) || [];
   const owner = st.counsellor_id ? Number(st.counsellor_id) : null;
@@ -298,6 +383,37 @@ function syncTasks(db, student, now) {
     } else {
       want.push({ tpl, progId: '', title: tpl.title, due: dueFor(tpl, { start, deadline }) });
     }
+  });
+
+  /*
+   * ONE TASK PER SERVICE BOUGHT, for everything the standard list does not
+   * already cover — the loan, the blocked account, the IELTS coaching, the
+   * accommodation search. Named from the office's own catalogue rather than
+   * from a list written here, so a service the office adds tomorrow is
+   * tracked tomorrow without anybody touching this file.
+   *
+   * Two weeks by default. It is a service promise like the others, and a
+   * deliverable with no date is a deliverable nobody is accountable for —
+   * which is precisely the state all of these were in.
+   */
+  const svcDays = (() => {
+    let n = null;
+    try { n = Number((db.content('taskRules') || {}).serviceSla); } catch (e) { n = null; }
+    return Number.isFinite(n) && n >= 0 && n <= 365 ? Math.round(n) : 14;
+  })();
+  const names = serviceNames(db);
+  bought.forEach(id => {
+    if (SERVICE_HAS_ITS_OWN.has(id)) return;
+    const name = names.get(id);
+    /* A service that has since been retired from the catalogue keeps its
+       task — somebody paid for it — but is named by its id rather than
+       invented. */
+    want.push({
+      tpl: { key: 'svc:' + id, phase: 'service', per: 'student', source: 'service' },
+      progId: '',
+      title: (name || id) + ' — delivered',
+      due: { dueAt: plus(start, svcDays), basis: 'sla' },
+    });
   });
 
   want.forEach(w => {
@@ -402,6 +518,10 @@ function phaseOf(db, student, now) {
   if (!st) return null;
   const rows = (db.tasksFor(st.id) || []).filter(t => String(t.status) !== 'dropped');
   const phaseKey = t => {
+    /* A service bought on its own — a loan, a language course — is not a
+       step on the university journey, but it is still owed, so it sits in
+       its own phase rather than being invisible. */
+    if (String(t.task_key || '').startsWith('svc:')) return 'service';
     const tpl = TEMPLATES.find(x => x.key === t.task_key);
     /* A task somebody typed by hand belongs to wherever the student is now,
        not to a phase of its own — it is extra work on this file, not a new
