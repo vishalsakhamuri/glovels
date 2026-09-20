@@ -616,7 +616,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        * or the shortlist that creates it does. */
       progress: (() => {
         try { TASKS.syncTasks(db, s); } catch (e) { /* never block the dashboard */ }
-        try { return TASKS.progressOf(db, s.id); } catch (e) { return null; }
+        try {
+          const p = TASKS.progressOf(db, s.id);
+          if (!p) return null;
+          /* Where they are, in one word, above the steps. The phase only —
+             not how long they have been in it, and not whether anything is
+             late, which are the office's business. */
+          const ph = TASKS.phaseOf(db, s);
+          if (ph) p.phase = { label: ph.label, index: ph.index, of: ph.of,
+            done: ph.done, total: ph.total, finished: !!ph.finished };
+          return p;
+        } catch (e) { return null; }
       })(),
       /* What was bought that the machine delivers, and whether it has been.
          The dashboard needs to say one of three things — it is on your
@@ -3627,6 +3637,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         bytes: d.bytes,
       })),
       orders: stateFor(st).orders,
+      /* WHERE THIS FILE HAS GOT TO — derived from the tasks, never set.
+         The header shows it, and when it stops moving it is what the office
+         asks about. */
+      phase: (() => {
+        try { return TASKS.phaseOf(db, st); } catch (e) { return null; }
+      })(),
       /* What is owed on this file and by when, brought up to date on open.
          The counsellor's own copy of the office's board, for one student —
          the same rows, with the same dates and the same lateness, so the two
@@ -5036,10 +5052,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (state === 'late') rows = rows.filter(t => TASKS.isLate(t, now));
     else if (state === 'live') rows = rows.filter(t => !TASKS.CLOSED.has(String(t.status)));
     else if (state !== 'all') rows = rows.filter(t => String(t.status) === state);
+    /* The funnel is over everybody the reader may see, before the filters —
+       a count that changes when you click a filter is a count nobody
+       trusts. */
+    let funnel = [];
+    try {
+      const mine = s.role === 'admin' ? null
+        : new Set((db.allStudents() || []).filter(st => db.canSee(s, Number(st.id)))
+            .map(st => Number(st.id)));
+      funnel = TASKS.funnel(db, now, mine);
+    } catch (e) { funnel = []; }
+    /* A phase filter, so clicking a funnel step shows exactly those files. */
+    const phase = q.get('phase');
+    if (phase) {
+      const inPhase = new Set();
+      (db.allStudents() || []).forEach(st => {
+        try { if ((TASKS.phaseOf(db, st, now) || {}).key === phase) inPhase.add(Number(st.id)); }
+        catch (e) {}
+      });
+      rows = rows.filter(t => inPhase.has(Number(t.student_id)));
+    }
     const shaped = rows.map(t => taskShape(t, now));
     return json(res, 200, {
       tasks: shaped.slice(0, 600),
       total: shaped.length,
+      funnel,
       /* The scoreboard is over everything the reader may see, not over the
          filtered page — a percentage that changes when you click a filter is
          a percentage nobody trusts. */

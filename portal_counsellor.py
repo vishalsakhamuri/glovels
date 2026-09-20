@@ -346,6 +346,21 @@ function paintRecord(r) {
       '<p id="pwOut" style="display:none;margin:0 0 14px;padding:12px 14px;border-radius:10px;'
         + 'background:#f1f8f3;border:1px solid #c8e3d0;color:#14603a;'
         + 'font:600 13px/1.6 var(--sans)"></p>' +
+      /* WHERE THIS FILE HAS GOT TO, above the numbers.
+         Derived from the tasks, so it is never something to remember to
+         update. Applying carries its own count because it holds one
+         submission per shortlisted university — "Applying" reads the same on
+         day one and day fifty otherwise. */
+      (r.phase ? '<div class="phase' + (r.phase.late ? ' behind' : r.phase.waiting ? ' waiting' : '') + '">' +
+        '<b>' + esc(r.phase.label) +
+          (r.phase.total > 1 ? ' <span>' + r.phase.done + ' of ' + r.phase.total + ' done</span>' : '') +
+        '</b>' +
+        '<small>' + (r.phase.finished ? 'Everything on this file is finished.'
+          : (r.phase.days ? 'Here ' + r.phase.days + ' day' + (r.phase.days === 1 ? '' : 's') + '.'
+             : 'Just arrived here.') +
+            (r.phase.late ? ' ' + r.phase.late + ' past its date.'
+              : r.phase.waiting ? ' Nothing late, but nothing has moved.' : '')) +
+        '</small></div>' : '') +
       '<div class="out tiles" style="--tiles:4;margin:0 0 16px">' +
         '<div><b>' + r.shortlist.length + '</b><span>Shortlisted</span></div>' +
         '<div><b>' + Object.keys(r.apps).length + '</b><span>Applications</span></div>' +

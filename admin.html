@@ -946,6 +946,21 @@ select.assign.none:hover{border-color:#a5342b}
          controls push the whole page sideways on a phone — which is exactly
          what the two Tasks filters did at 390px. */
       .p-sec-head{flex-wrap:wrap}
+      /* The funnel. One tile per phase, wrapping rather than scrolling, with
+         the count large enough to read across a desk. */
+      .fn{display:flex;gap:8px;flex-wrap:wrap}
+      .fn button{flex:1 1 118px;min-width:0;text-align:left;cursor:pointer;
+        padding:11px 12px;border-radius:11px;background:var(--paper);
+        border:1px solid var(--line,#e6e9ee);font:inherit}
+      .fn button:hover{border-color:#c3ccd8}
+      .fn button[aria-pressed="true"]{border-color:#1a4fb4;box-shadow:0 0 0 2px rgba(26,79,180,.14)}
+      .fn b{display:block;font:800 20px/1 var(--sans);color:var(--navy-900,#0b1e31)}
+      .fn span{display:block;font:600 11.2px/1.35 var(--sans);color:var(--muted);margin-top:4px}
+      .fn i{display:block;font-style:normal;font:700 10.8px/1.4 var(--sans);margin-top:5px}
+      .fn .bad{color:#a8343a}
+      .fn .wait{color:#8a6d1f}
+      .fn button.none b,.fn button.none span{opacity:.42}
+      @media (max-width:430px){ .fn button{flex:1 1 calc(50% - 4px)} }
       .p-sec-head select,.p-sec-head input{min-width:0}
       .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
       @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
@@ -1346,6 +1361,19 @@ select.assign.none:hover{border-color:#a5342b}
          filtered to what is late, because a board that opens showing four
          hundred rows in good order is a board nobody reads twice. -->
     <div class="opane" id="o-tasks">
+    <div class="p-sec">
+      <div class="p-sec-head"><h2 id="funnelCard">Where everybody has got to</h2>
+        <span id="fnChip" hidden class="st wait" style="text-transform:none;
+          letter-spacing:0;cursor:pointer" title="Show every phase again"></span></div>
+      <div id="fnStrip" class="fn"></div>
+      <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+        A student&rsquo;s phase is worked out from their tasks &mdash; nobody sets it, so it cannot
+        go stale. They move on when everything in a phase is finished; <b>Applying</b> holds one
+        submission per shortlisted university, so a ten-university shortlist is ten of them.
+        <b>Waiting</b> counts files where nothing is late but nothing has moved for a fortnight
+        either &mdash; the ones that stop quietly.</p>
+    </div>
+
     <div class="p-sec">
       <div class="p-sec-head"><h2 id="tasksCard">Who is on top of their files</h2>
         <span id="tkLate" hidden class="st bad" style="text-transform:none;
@@ -3554,6 +3582,26 @@ const TK_STATE = { open: ['wait', 'Not started'], doing: ['wait', 'In hand'],
   done: ['ok', 'Finished'], blocked: ['bad', 'Stuck'], dropped: ['wait', 'Does not apply'] };
 
 function paintTasks() {
+  /* ---- the funnel ----
+     One tile per phase the office actually has somebody in. A phase with
+     nobody in it is drawn faded rather than hidden, because a gap in the
+     middle of a journey is itself worth seeing — nobody at Writing while
+     twelve sit at Shortlisting says something. */
+  const fn = TK.funnel || [];
+  $('#fnStrip').innerHTML = fn.map(f =>
+    '<button type="button" class="' + (f.students ? '' : 'none') + '" data-fn="' + f.key + '"' +
+      ' aria-pressed="' + (TK_PHASE === f.key) + '">' +
+      '<b>' + f.students + '</b><span>' + esc(f.label) + '</span>' +
+      (f.late ? '<i class="bad">' + f.late + ' behind</i>'
+        : f.waiting ? '<i class="wait">' + f.waiting + ' waiting</i>' : '<i>&nbsp;</i>') +
+    '</button>').join('');
+  const fnChip = $('#fnChip');
+  if (fnChip) {
+    const picked = fn.find(f => f.key === TK_PHASE);
+    fnChip.hidden = !picked;
+    fnChip.textContent = picked ? 'Showing ' + picked.label + ' — show everybody' : '';
+  }
+
   const people = TK.people || [];
   $('#tkPeople').innerHTML = people.length ? people.map(p =>
     '<tr' + (p.late ? ' class="late"' : '') + '>' +
@@ -3613,9 +3661,11 @@ function paintTasks() {
   }
 }
 
+let TK_PHASE = '';
 async function loadTasks() {
   const who = $('#tkWho').value, state = $('#tkState').value;
-  const q = '?state=' + encodeURIComponent(state) + (who ? '&who=' + encodeURIComponent(who) : '');
+  const q = '?state=' + encodeURIComponent(state) + (who ? '&who=' + encodeURIComponent(who) : '')
+    + (TK_PHASE ? '&phase=' + encodeURIComponent(TK_PHASE) : '');
   try { TK = await api('GET', '/api/staff/tasks' + q); }
   catch (e) { TK = { tasks: [], people: [], counts: {} }; }
   /* The people list is filled from the scoreboard, so it names exactly the
@@ -3634,6 +3684,18 @@ $('#tkWho').addEventListener('change', loadTasks);
 $('#tkState').addEventListener('change', loadTasks);
 
 document.addEventListener('click', async e => {
+  /* Clicking a phase shows the work on those files, and clicking it again —
+     or the chip — puts everybody back. A filter with no way out reads as a
+     screen that has broken. */
+  const f = e.target.closest('[data-fn]');
+  if (f) {
+    TK_PHASE = (TK_PHASE === f.dataset.fn) ? '' : f.dataset.fn;
+    $('#tkState').value = 'all';
+    loadTasks();
+    return;
+  }
+  if (e.target.closest('#fnChip')) { TK_PHASE = ''; loadTasks(); return; }
+
   const w = e.target.closest('[data-tkwho]');
   if (w) { $('#tkWho').value = w.dataset.tkwho; $('#tkState').value = 'live'; loadTasks(); return; }
 

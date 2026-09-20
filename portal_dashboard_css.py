@@ -369,6 +369,20 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 
 /* An administrator's word to the counsellor. It sits above the thread on the
    student's file, where the conversation it is about is. */
+/* Where a file has got to. Quiet by default; it only takes a colour when
+   something is actually wrong, so the colour still means something. */
+.phase{display:flex;flex-direction:column;gap:3px;margin:0 0 14px;padding:11px 14px;
+  border-radius:12px;background:#eef3fa;border:1px solid #d3e0ef}
+.phase b{font:700 14.5px/1.4 var(--sans);color:var(--navy-900,#0b1e31)}
+.phase b span{font:600 12.4px/1.4 var(--sans);color:var(--muted);margin-left:5px}
+.phase small{font:400 12.2px/1.5 var(--sans);color:#3f5d80}
+.phase.behind{background:#fdf0ef;border-color:#f0cbc7}
+.phase.behind b{color:#7d2b26}
+.phase.behind small{color:#a8514a}
+.phase.waiting{background:#fdf6e6;border-color:#e6d5a8}
+.phase.waiting b{color:#6b4f09}
+.phase.waiting small{color:#8a6d1f}
+
 .guide{background:#fdf6e6;border:1px solid #e6d5a8;border-radius:12px;
   padding:13px 15px;margin:0 0 13px}
 .guide b{display:block;font:700 11.6px/1.5 var(--sans);letter-spacing:.05em;

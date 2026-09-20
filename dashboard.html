@@ -451,6 +451,12 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 /* ---- where the application has got to ----
    A bar, then a line per step. The dot carries the state, so the list reads
    down the left edge without anybody having to read the words. */
+/* Where they are, named, above the bar. */
+.phase-line{margin:0 0 14px}
+.phase-line b{display:block;font:700 17px/1.3 Georgia,serif;color:var(--navy-900,#0b1e31)}
+.phase-line span{display:block;font:400 12.4px/1.5 var(--sans);color:var(--muted,#5b6b7e);
+  margin-top:3px}
+
 .prog-bar{height:8px;border-radius:99px;background:#e9edf3;overflow:hidden;margin-bottom:18px}
 .prog-bar i{display:block;height:100%;border-radius:99px;background:#1a4fb4;
   transition:width .45s ease}
@@ -1025,6 +1031,7 @@ select.assign.none:hover{border-color:#a5342b}
         <span id="progCount" class="st ok" style="text-transform:none;letter-spacing:0"></span>
       </div>
       <div class="p-card">
+        <div id="progPhase" class="phase-line" hidden></div>
         <div class="prog-bar"><i id="progFill"></i></div>
         <ol class="prog" id="progList"></ol>
         <p style="margin:14px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
@@ -1626,6 +1633,21 @@ $('#nextUp').innerHTML =
   const sec = document.getElementById('progSec');
   if (!sec || !P || !P.total) return;
   sec.hidden = false;
+  /* Where they are, in one word, above the steps. The phase and nothing
+     else: not how long they have been in it, not whether anybody is behind.
+     A student who can see their counsellor is late is a student ringing
+     about something the office already knows. */
+  const ph = P.phase;
+  const head = document.getElementById('progPhase');
+  if (head && ph) {
+    head.hidden = false;
+    head.innerHTML = '<b>' + esc(ph.finished ? 'All done' : ph.label) + '</b>' +
+      '<span>' + (ph.finished
+        ? 'Everything we agreed to do is finished.'
+        : 'Step ' + (ph.index + 1) + ' of ' + ph.of +
+          (ph.total > 1 ? ' \u00b7 ' + ph.done + ' of ' + ph.total + ' done in this step' : '')) +
+      '</span>';
+  }
   document.getElementById('progFill').style.width = P.percent + '%';
   document.getElementById('progCount').textContent =
     P.done + ' of ' + P.total + ' done';
