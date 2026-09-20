@@ -26,10 +26,13 @@ const CHECK_EVERY = 10 * 60 * 1000;      // ten minutes
 /* India, where everybody reading this works. A digest that lands at 9am UTC
    arrives in the middle of the afternoon, by which time the person has either
    already found the problem or has not looked all day. */
-const IST_OFFSET = 5.5 * 3600 * 1000;
-
-const istHour = t => new Date(t + IST_OFFSET).getUTCHours();
-const istDay = t => new Date(t + IST_OFFSET).toISOString().slice(0, 10);
+/* Borrowed rather than written out again. These were a private copy of
+   days.js's own two functions — identical today, which is exactly how the
+   three different readings of "what day is it" got into the application in
+   the first place. */
+const DAYS = require('./days.js');
+const istHour = DAYS.istHour;
+const istDay = DAYS.istDay;
 
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;')

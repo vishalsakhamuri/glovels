@@ -475,10 +475,21 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   /* "The favicon is missing — have the image in SVG so that it looks good." */
   rz = await guest.request.get(BASE + '/favicon.svg');
   check('an SVG favicon', rz.status() === 200 && /image\/svg\+xml/.test(rz.headers()['content-type']) && /<svg/.test(await rz.text()));
-  for (const [u, pre] of [['/', ''], ['/university/' + slug, '/'], ['/post/expatrio-vs-fintiba-blocked-account', '../'], ['/study-in-germany', '']]) {
+  /* Root-absolute on every page, not relative to the one it is on. A page at
+     /university/<slug> asking for "favicon.svg" asks for it one directory
+     down, where there is nothing — which is how the tab lost its mark on
+     every university and every post. */
+  /* Written differently on different pages — root-absolute on the ones
+     served from the top, one level up on a post — so what is checked is
+     where the link ACTUALLY POINTS from the page it is on, which is the only
+     thing a browser cares about and the only thing that was ever wrong. */
+  for (const u of ['/', '/university/' + slug, '/post/expatrio-vs-fintiba-blocked-account', '/study-in-germany']) {
     const h = await (await guest.request.get(BASE + u)).text();
-    check('linked from ' + u, h.includes('<link rel="icon" href="' + pre + 'favicon.svg" type="image/svg+xml">')
-      && h.includes('<link rel="alternate icon" href="' + pre + 'favicon.png" type="image/png">'));
+    const points = [...h.matchAll(/<link rel="(?:alternate )?icon" href="([^"]+)"/g)]
+      .map(m => new URL(m[1], BASE + u).pathname);
+    check('linked from ' + u,
+      points.includes('/favicon.svg') && points.includes('/favicon.png'),
+      points.join(' '));
   }
 
   /* The Catalogue screen's tab. */

@@ -142,7 +142,12 @@ const PROFILE = { fullName: 'Stage', phone: '+919000006060', d_cgpa: '8.2',
   await dp.waitForTimeout(3200);
   const prompt = (await dp.textContent('#nextUp')) || '';
   check('the dashboard leads with the universities, not with a form',
-    /15 universities are ready/i.test(prompt), prompt.replace(/\s+/g, ' ').slice(0, 90));
+    /* The wording moved when the dashboard stopped showing the shortlist
+       number twice: "Your shortlist is ready — 15 universities". What
+       matters is that the first thing on the screen is the count and not a
+       form, which is what this asserts. */
+    /ready/i.test(prompt) && /\b15 universit/i.test(prompt),
+    prompt.replace(/\s+/g, ' ').slice(0, 90));
   check('and points at the screen they are on',
     (await dp.$$eval('#nextUp a', a => a.map(x => x.getAttribute('href'))))
       .some(h => /universities/.test(h || '')));

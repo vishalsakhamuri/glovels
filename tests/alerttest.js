@@ -178,7 +178,20 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
   })).json();
   const yesterday = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
   await staff.request.put(BASE + '/api/staff/lead/' + lead.lead.id,
-    { data: { status: 'following', nextAt: yesterday } });
+    { data: { status: 'following' } });
+  /* Written straight to the record rather than through the screen. The API
+     refuses a follow-up date in the past, and rightly — a date of 2020 typed
+     into the box put a lead on the overdue list forever. But a date that has
+     since GONE past is the whole point of the alert, and that is what this
+     sets up: promised for a day that has now been and gone. */
+  {
+    const row0 = db.enquiryById(lead.lead.id);
+    db.updateEnquiry(row0.id, {
+      source: row0.source, campaign: row0.campaign, ownerId: row0.owner_id,
+      status: 'following', lostReason: row0.lost_reason, nextAt: yesterday,
+      studentId: row0.student_id, note: row0.note, destination: row0.destination,
+    });
+  }
 
   const due = ALERTS.all(db).alerts.filter(a => a.kind === 'followup');
   check('a follow-up somebody promised and missed is an alert',

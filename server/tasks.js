@@ -546,7 +546,16 @@ function syncTasks(db, student, now) {
       db.updateTask(row.id, { title: w.title });
     }
     if ((row.due_at || null) !== w.due.dueAt || String(row.due_basis) !== w.due.basis) {
-      db.updateTask(row.id, { dueAt: w.due.dueAt, basis: w.due.basis });
+      /* A new date is a new promise, so it can be missed again.
+         breached_at means "the late notice for this date has gone out". It
+         was left standing when the date moved, so a submission that missed
+         the January intake and rolled on to the September one was never
+         chased again: the sweep saw a stamp, and skipped it forever. The
+         stamp is cleared with the date it belonged to — and only when the
+         task is still open, so a finished one is not made to speak again. */
+      const patch = { dueAt: w.due.dueAt, basis: w.due.basis };
+      if (row.breached_at && !CLOSED.has(String(row.status))) patch.breachedAt = null;
+      db.updateTask(row.id, patch);
     }
   });
 

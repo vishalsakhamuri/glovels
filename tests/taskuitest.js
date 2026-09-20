@@ -1,5 +1,9 @@
 const { chromium } = require('playwright');
-const BASE='http://localhost:8099';
+/* Honour BASE like every other suite. Hardcoded, this drove whichever server
+   happened to hold 8099 — including, during a full run, the one another suite
+   was in the middle of — so its result said nothing about the build under
+   test and it failed at random. */
+const BASE = process.env.BASE || 'http://localhost:8099';
 const ok=(t,c,e)=>console.log((c?'  ✓ ':'  ✗ ')+t+(c?'':' — '+(e??'')));
 const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
 (async()=>{

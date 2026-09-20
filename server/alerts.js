@@ -44,7 +44,13 @@ const DAYS = require('./days.js');
 
 const iso = d => new Date(d).toISOString();
 const inr = paise => '₹' + Number(Math.round((paise || 0) / 100)).toLocaleString('en-IN');
-const daysBetween = (a, b) => Math.round((new Date(a) - new Date(b)) / DAY);
+/* Calendar days in Hyderabad, not a rounded difference in milliseconds.
+   Five things on the watchlist are counted with this — how long somebody has
+   been waiting for a counsellor, how late an installment is, how old an
+   untouched lead is — and every one of them could be a day out either side
+   of IST midnight, which is the middle of the evening in UTC. days.js is
+   where this application decides what day it is; this file now asks it. */
+const daysBetween = (a, b) => DAYS.daysBetweenDays(DAYS.istDay(b), DAYS.istDay(a));
 
 /* What a student has to have. Kept in step with the profile screen's own
    section list and the documents screen's — both are authored as data there,
@@ -237,8 +243,17 @@ function all(db, now) {
       const next = intakes
         .map(i => i && i.deadline)
         .filter(Boolean)
-        .map(d => ({ d, in: daysBetween(d, T) }))
-        .filter(x => x.in >= -1)
+        /* Calendar days in the office's own timezone, not a rounded
+           difference in milliseconds. A deadline of today read as "closed
+           yesterday" every evening from half past six, because the raw gap
+           between a date at midnight UTC and the moment now is more than
+           half a day. Everything else in the application settled on
+           days.js for exactly this; this reader had been missed. */
+        .map(d => {
+          const past = DAYS.daysPast(String(d).slice(0, 10), T);
+          return { d, in: past == null ? null : -past };
+        })
+        .filter(x => x.in != null && x.in >= -1)
         .sort((a, b) => a.in - b.in)[0];
       if (!next || next.in > 45) continue;
 

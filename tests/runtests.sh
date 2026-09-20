@@ -144,6 +144,10 @@ run pwresettest.js   8099
 run legaltest.js    8099
 run paytest.js      8099
 run hardentest.js   8099 WHATSAPP_APP_SECRET=testsecret
+# The sweep of the whole tool that followed the task board: a filename, a
+# partner's logo, a lead note, a footer link, and what day it is in Hyderabad.
+run round133test.js 8099
+run deep133test.js  8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

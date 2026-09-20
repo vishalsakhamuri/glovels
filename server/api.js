@@ -28,6 +28,7 @@ const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
 const TASKS = require('./tasks.js');
+const DAYS = require('./days.js');
 const GRADES = require('./grades.js');
 const ISO_COUNTRIES = require('./countries.js');
 const APPS = require('./apps.js');
@@ -112,6 +113,12 @@ const json = (res, code, obj, headers) => {
 const MAX_UPLOAD_BODY = 25 * 1024 * 1024;
 const MAX_JSON_BODY = 64 * 1024;
 const MAX_WEBHOOK_BODY = 1024 * 1024;
+/* The one route that is meant to carry something big in JSON: a partner's
+   logo arrives as a data URL, and the route itself allows 300KB of it. The
+   general 64KB limit was quietly refusing every logo above about 48KB of
+   picture — the upload died with no status and no message, and the route's
+   own polite "300KB or under, please" was unreachable. */
+const BIG_JSON = new Map([['/api/partner/logo', 640 * 1024]]);
 
 const readBody = (req, max = MAX_UPLOAD_BODY) => new Promise((resolve, reject) => {
   const chunks = [];
@@ -140,9 +147,9 @@ const readBody = (req, max = MAX_UPLOAD_BODY) => new Promise((resolve, reject) =
  * An array or a string is not an object either, and every route here expects
  * named fields, so those become {} too rather than a surprise further down.
  */
-const readJson = async req => {
+const readJson = async (req, max) => {
   let raw = '';
-  try { raw = (await readBody(req, MAX_JSON_BODY)).toString('utf8'); } catch (e) { return {}; }
+  try { raw = (await readBody(req, max || MAX_JSON_BODY)).toString('utf8'); } catch (e) { return {}; }
   if (!raw) return {};
   let v;
   try { v = JSON.parse(raw); } catch (e) { return {}; }
@@ -233,6 +240,39 @@ const anyPhone = p => {
 
 /* Very small multipart parser — one file field plus text fields, which is all
    the upload form sends. A general parser is a dependency; this is 30 lines. */
+/*
+ * A filename that can be stored and handed back.
+ *
+ * Carriage returns were the obvious half: Node will not write a header
+ * containing one, so a document uploaded with a line break in its name could
+ * never be downloaded again, by the student or anybody else. But the same is
+ * true of every other character Node's header serialiser refuses — the C1
+ * block, and the bidirectional and invisible formatting marks, which is how
+ * "gnp.exe.pdf" is written to look like a PDF in the first place. So the test
+ * here is not a list of bad characters; it is whether the character is one
+ * this application is willing to put in a header at all.
+ */
+function cleanFilename(f) {
+  const out = String(f == null ? '' : f)
+    .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb]/g, '')
+    .slice(0, 200).trim();
+  return out || 'upload';
+}
+
+/*
+ * The header itself, built once rather than at each of the five places a file
+ * leaves the application. Anything outside plain printable ASCII is put in
+ * the RFC 5987 form instead of the quoted one, so an Indian or Chinese
+ * filename reaches the browser intact and no byte of it reaches the header
+ * unescaped.
+ */
+function disposition(name) {
+  const clean = cleanFilename(name);
+  const ascii = clean.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '') || 'download';
+  const plain = 'attachment; filename="' + ascii + '"';
+  return clean === ascii ? plain : plain + "; filename*=UTF-8''" + encodeURIComponent(clean);
+}
+
 function parseMultipart(buf, boundary) {
   const out = { fields: {}, file: null };
   const sep = Buffer.from('--' + boundary);
@@ -248,7 +288,15 @@ function parseMultipart(buf, boundary) {
       const name = /name="([^"]*)"/.exec(head);
       const file = /filename="([^"]*)"/.exec(head);
       if (name) {
-        if (file && file[1]) out.file = { field: name[1], filename: file[1], data: body };
+        /* A filename is echoed back in a Content-Disposition header on every
+           download. A carriage return inside it is not a header Node will
+           write, so it threw — and the upload had already been accepted, so
+           the document was stored in a state where nobody, student or
+           counsellor, could ever open it again. Control characters are taken
+           out here, at the one place a filename enters the application,
+           rather than at each of the five places one leaves it. */
+        const clean = f => cleanFilename(f);
+        if (file && file[1]) out.file = { field: name[1], filename: clean(file[1]), data: body };
         else out.fields[name[1]] = body.toString('utf8');
       }
     }
@@ -1155,6 +1203,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('PUT', '/api/profile', async (req, res, s) => {
     const b = await readJson(req);
+    /* A profile of the four characters `"x"` replaced the whole record with a
+       string, with a 200 and an ok:true. Nothing crashed — a property read on
+       a string is undefined, not an error — so every grade check found no
+       fields to object to and the dashboard was then served a profile that is
+       not a profile. This file refuses bad data rather than storing it; that
+       has to include a body that is the wrong shape entirely. */
+    if (b.profile != null
+        && (typeof b.profile !== 'object' || Array.isArray(b.profile))) {
+      return json(res, 422, { error: 'That is not a profile.' });
+    }
     const prof = withFullName(b.profile || {});
     if (prof.p_num != null) prof.p_num = GRADES.passportOf(prof.p_num);
     /* REFUSED, not clamped, and not stored.
@@ -1525,7 +1583,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': 'attachment; filename="' + rec.filename.replace(/"/g, '') + '"',
+      'Content-Disposition': disposition(rec.filename),
       'Cache-Control': 'no-store',
     });
     return fs.createReadStream(file).pipe(res);
@@ -1538,7 +1596,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': 'attachment; filename="' + rec.filename.replace(/"/g, '') + '"',
+      'Content-Disposition': disposition(rec.filename),
       'Cache-Control': 'no-store',
     });
     fs.createReadStream(file).pipe(res);
@@ -3350,8 +3408,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': 'attachment; filename="'
-          + rec.filename.replace(/"/g, '') + '"',
+        'Content-Disposition': disposition(rec.filename),
         'Cache-Control': 'no-store',
       });
       fs.createReadStream(file).pipe(res);
@@ -3559,7 +3616,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* Their own mark, in their own portal. Data URL, capped: a logo, not an
      asset library, and nothing new to authorise on the way in. */
   route('PUT', '/api/partner/logo', partnerOnly(async (req, res, s) => {
-    const b = await readJson(req);
+    const b = await readJson(req, BIG_JSON.get('/api/partner/logo'));
     const url_ = String(b.logo || '');
     if (url_ && !/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/.test(url_)) {
       return json(res, 422, { error: 'That does not look like an image.' });
@@ -4067,7 +4124,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': 'attachment; filename="' + rec.filename.replace(/"/g, '') + '"',
+        'Content-Disposition': disposition(rec.filename),
         'Cache-Control': 'no-store',
       });
       return fs.createReadStream(file).pipe(res);
@@ -4083,7 +4140,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': 'attachment; filename="' + rec.filename.replace(/"/g, '') + '"',
+        'Content-Disposition': disposition(rec.filename),
         'Cache-Control': 'no-store',
       });
       fs.createReadStream(file).pipe(res);
@@ -4699,6 +4756,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     caseworkOnly(async (req, res, s, m) => {
       const order = db.orderByReference(m[1]);
       if (!order) return json(res, 404, { error: 'No such order' });
+      /* Whose money this is.
+       *
+       * Every other student-scoped route asks this and this one did not, so
+       * any counsellor could mark a part paid on any order in the book — and
+       * the student was then told on their own thread that money had arrived.
+       * References are four digits, so the whole book could be walked. */
+      if (order.student_id && !db.canSee(s, order.student_id)) {
+        return json(res, 403, { error: 'That student is not assigned to you' });
+      }
+      if (!order.student_id && s.role !== 'admin') {
+        return json(res, 403, { error: 'Only an administrator can record against an order with no student on it' });
+      }
       const plan = planOf(order);
       if (!plan) return json(res, 409, { error: 'That order is not being paid in parts.' });
       const b = await readJson(req);
@@ -5119,7 +5188,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* The whole feature is about dates being met. A date already gone is
          either a typo or a record of something that should be marked done,
          and both are better caught here than argued about later. */
-      if (due < new Date().toISOString().slice(0, 10)) {
+      /* Today in Hyderabad, which is where the office is and what every
+         other date in this feature means. Against the UTC day, a task
+         created between midnight and half past five in the morning could be
+         given a date that was already yesterday, and went straight onto the
+         late list. */
+      if (DAYS.isPast(due, Date.now())) {
         return json(res, 422, { error: 'That date has already passed. Pick today or later.' });
       }
       let ownerId = st.counsellor_id || s.id;
@@ -6112,6 +6186,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const id = Number(m[1]);
     const lead = db.enquiryById(id);
     if (!lead) return json(res, 404, { error: 'No such enquiry' });
+    /* The same question the other four lead routes ask, and this one did not:
+       reading, editing, noting and converting somebody else's lead were all
+       refused, while deleting it — and its whole history of calls with it —
+       was allowed. Ids are small and sequential. */
+    if (s.role !== 'admin' && lead.owner_id && Number(lead.owner_id) !== Number(s.id)) {
+      return json(res, 403, { error: 'That lead belongs to somebody else' });
+    }
     db.deleteLead(id);
     db.log(s.name, 'lead deleted', (lead && (lead.name || lead.email)) || ('#' + id));
     return json(res, 200, { ok: true });
@@ -6128,6 +6209,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!body) return json(res, 422, { error: 'Nothing to record.' });
     const kind = ['call', 'whatsapp', 'email', 'meeting', 'note'].includes(b.kind)
       ? b.kind : 'note';
+    /* Checked BEFORE anything is written. The date was validated at the end,
+       by which point the note was already on the record and the lead had
+       already been moved to "contacted" — so a 422 that reads as "nothing
+       happened" had in fact happened, and the counsellor who did the sensible
+       thing and tried again logged the same call twice. */
+    if (b.nextAt !== undefined) {
+      const bad0 = nextFollowUpProblem(b.nextAt);
+      if (bad0) return json(res, 422, { error: bad0, fields: [{ field: 'nextAt', why: bad0 }] });
+    }
     db.addLeadNote(e.id, s.name, kind, body);
 
     /* Writing down what you said to somebody IS contacting them — a lead that
@@ -8497,6 +8587,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   return async function handle(req, res, pathname) {
     if (crossSite(req)) {
       json(res, 403, { error: 'That request came from another site.' });
+      return true;
+    }
+    /*
+     * Too big to read, answered rather than hung up on.
+     *
+     * A body over the limit had its socket destroyed before any route ran, so
+     * the caller got ECONNRESET — no status, no sentence, nothing a screen can
+     * show. A partner picking a logo straight off their camera saw the upload
+     * simply die. Said here, once, before dispatch: only for JSON, because an
+     * upload is multipart and has its own much larger allowance, and not for
+     * a payment webhook, which is allowed a megabyte of its own.
+     */
+    if (/json/i.test(String(req.headers['content-type'] || ''))
+        && Number(req.headers['content-length'] || 0)
+           > (BIG_JSON.get(pathname) || MAX_JSON_BODY)
+        && !/webhook/.test(pathname)) {
+      json(res, 413, { error: 'That is too big to send in one go.' });
+      req.resume();
       return true;
     }
     for (const r of ROUTES) {

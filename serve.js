@@ -1360,7 +1360,7 @@ function universityPage(u) {
 function rootLinks(html) {
   return html.replace(/href="(?:\.\.\/)?([a-z0-9][a-z0-9-]*)\.html(#[^"]*)?"/g, (m, name, hash) =>
     'href="' + (name === 'index' ? '/' : '/' + name) + (hash || '') + '"')
-    .replace(/href="\.\.\/university"/g, 'href="/university"')
+    .replace(/href="(?:\.\.\/)?university"/g, 'href="/university"')
     .replace(/(href|src)="(?:\.\.\/)?(favicon\.(?:png|svg)|og\/[^"]+|assets\/[^"]+|app\.webmanifest|icon-\d+\.png)"/g,
       (m, attr, file) => attr + '="/' + file + '"');
 }

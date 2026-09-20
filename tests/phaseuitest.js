@@ -1,5 +1,7 @@
 const { chromium } = require('playwright');
-const BASE='http://localhost:8099';
+/* See the note in taskuitest.js: BASE comes from the environment, so the
+   suite tests the server it was pointed at. */
+const BASE = process.env.BASE || 'http://localhost:8099';
 const ok=(t,c,e)=>console.log((c?'  ✓ ':'  ✗ ')+t+(c?'':' — '+(e??'')));
 const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
 (async()=>{

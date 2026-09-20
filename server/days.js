@@ -43,9 +43,16 @@ function moment(t) {
   if (t == null) return Date.now();
   if (t instanceof Date) return t.getTime();
   if (typeof t === 'number') return Number.isFinite(t) ? t : Date.now();
-  const parsed = Date.parse(String(t));
+  /* A blank is nothing, not a number. Number('') is 0, so an empty date
+     went through the last line below as the first of January 1970 and came
+     back as fifty-six years ago — a row with a blank date read as the most
+     urgent thing in the office. Every other unusable value falls back to
+     now; this one has to as well. */
+  const raw = String(t).trim();
+  if (!raw) return Date.now();
+  const parsed = Date.parse(raw);
   if (Number.isFinite(parsed)) return parsed;
-  const n = Number(t);
+  const n = Number(raw);
   return Number.isFinite(n) ? n : Date.now();
 }
 

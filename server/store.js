@@ -688,7 +688,11 @@ function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
     'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
-    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes', 'hits', 'tasks'];
+    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes', 'hits', 'tasks',
+    /* Missing from this list, so on the fallback driver the table was not
+       there at all and subscribing a device threw rather than registering
+       one. Every table the code touches has to be named here. */
+    'push_subs'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -726,7 +730,21 @@ function jsonDriver(file) {
 
   function all(sql, ...args) {
     const { table, cols, order } = parse(sql);
-    return sorted(data[table].filter(r => match(r, cols, args)), order);
+    const rows = sorted((data[table] || []).filter(r => match(r, cols, args)), order);
+    /* COUNT(*) AS n — a dozen callers ask for one and every one of them
+       reads `[0].n` straight off the answer. This driver handed back the
+       rows themselves, so the count came out undefined where there were
+       matches and threw where there were none. The visible damage was in
+       the two places it is used as a guard: deleting a person went 500
+       whenever they had no orders, and `countAdmins() <= 1` — the check
+       that stops the last administrator deleting themselves — was
+       `undefined <= 1`, which is false, so it never stopped anybody. */
+    if (/^\s*select\s+count\s*\(/i.test(sql)) {
+      const as = (/\)\s+as\s+([a-z_]+)/i.exec(sql) || [, 'n'])[1];
+      const out = {}; out[as] = rows.length;
+      return [out];
+    }
+    return rows;
   }
   const one = (sql, ...args) => all(sql, ...args)[0] || null;
 
@@ -1774,7 +1792,7 @@ function open(dir) {
 
       [
         'sessions', 'profiles', 'shortlist', 'applications', 'documents',
-        'messages', 'saved_scholarships', 'drafts', 'push_subs', 'tasks',
+        'messages', 'saved_scholarships', 'drafts', 'tasks',
       ].forEach(table => {
         try { db.run('DELETE FROM ' + table + ' WHERE student_id = ?', n); }
         catch (e) { /* a table this database has never had */ }
@@ -1785,6 +1803,12 @@ function open(dir) {
          and no staff note has ever been removed for anybody. The visible
          symptom was a deleted student's questions still sitting on the
          office's board, addressed to "Unknown", answerable, forever. */
+      /* The same mistake as the one below, in the same shape: push_subs is
+         keyed by staff_id — for a student too — so deleting by student_id
+         threw and the catch ate it, and a phone went on receiving
+         notifications for an account that no longer exists. closeAccount got
+         this right; the administrator's delete never did. */
+      try { db.run('DELETE FROM push_subs WHERE staff_id = ?', n); } catch (e) {}
       try { db.run('DELETE FROM staff_notes WHERE student_id = ?', n); } catch (e) {}
       try { db.run('DELETE FROM staff_notes WHERE from_id = ? OR to_id = ?', n, n); }
       catch (e) {}
@@ -1807,8 +1831,12 @@ function open(dir) {
       'SELECT COUNT(*) AS n FROM orders WHERE student_id = ?', Number(id))[0].n,
     countStudentsOf: id => db.all(
       'SELECT COUNT(*) AS n FROM students WHERE counsellor_id = ?', Number(id))[0].n,
-    countAdmins: () => db.all(
-      "SELECT COUNT(*) AS n FROM students WHERE role = 'admin'")[0].n,
+    /* countAdmins is declared once, further up, where it counts by a bound
+       parameter. A second copy stood here and, being later in the same
+       object, was the one every caller got — and it wrote 'admin' into the
+       SQL as a literal, which the fallback driver's WHERE parser does not
+       see at all, so it counted every person in the building as an
+       administrator. Two definitions of one thing is how that happens. */
 
     /* The enquiry and the follow-ups written against it. Leaving the notes
        behind would mean somebody's account of a phone call sitting in a table
@@ -1852,12 +1880,16 @@ function open(dir) {
      * does quietly make them somebody's first point of contact.
      */
     lightestCounsellor() {
-      const staff = db.all("SELECT * FROM students WHERE role = 'counsellor' ORDER BY id asc")
+      /* Bound parameters, not literals written into the SQL. The fallback
+         driver's WHERE reader only sees `column = ?`, so a literal is a
+         condition it silently drops — and "every counsellor" quietly became
+         "everybody", including students. */
+      const staff = db.all('SELECT * FROM students WHERE role = ? ORDER BY id asc', 'counsellor')
         .filter(c => (c.status || 'active') === 'active');
       if (!staff.length) return null;
       const load = c => db.all(
-        "SELECT COUNT(*) AS n FROM students WHERE counsellor_id = ? AND role = 'student' "
-        + "AND (status IS NULL OR status = 'active')", Number(c.id))[0].n;
+        'SELECT * FROM students WHERE counsellor_id = ? AND role = ?', Number(c.id), 'student')
+        .filter(r => r.status == null || r.status === 'active').length;
       let best = null, least = Infinity;
       staff.forEach(c => {
         const n = load(c);
