@@ -49,7 +49,7 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
 
   const stu = await browser.newContext(vp);
   await stu.request.post(BASE + '/api/auth/signup',
-    { data: { name: 'Portal Student', email, phone: '9876500055', password: PW } });
+    { data: { name: 'Portal Student', email, phone: '9876500055', password: PW, terms: true } });
 
   const page = await stu.newPage();
   const errs = [];

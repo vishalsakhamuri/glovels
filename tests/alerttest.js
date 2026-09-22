@@ -135,7 +135,7 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
   const fresh = await browser.newContext();
   const made = await fresh.request.post(BASE + '/api/auth/signup', {
     data: { name: 'New Person ' + stamp, email: 'new' + stamp + '@example.com',
-      phone: '9876500009', password: 'a-password-here' },
+      phone: '9876500009', password: 'a-password-here', terms: true },
   });
   check('a new account can be made', made.ok(), made.status());
   const newId = (await made.json()).user.id;

@@ -206,11 +206,13 @@
             <label style="margin:0">Password</label>
             <a href="#" class="signin-only" onclick="forgotPassword();return false">Forgot password?</a>
           </div>
-          <input type="password" id="lPass" autocomplete="current-password" placeholder="••••••••" />
+          <!-- minlength so the browser says it while they are still typing.
+               The server refuses anything shorter regardless. -->
+          <input type="password" id="lPass" autocomplete="current-password" minlength="8" placeholder="••••••••" />
           <span class="err">At least 8 characters</span>
         </div>
         <div class="checkrow signup-only">
-          <input type="checkbox" id="terms" />
+          <input type="checkbox" id="terms" required />
           <label for="terms" style="font-weight:500;color:var(--muted)">I agree to Glovels' Terms of Service and Privacy Policy.</label>
         </div>
         <span class="err" id="termsErr">Please accept the terms to create an account.</span>
@@ -503,7 +505,10 @@ $('#authForm').addEventListener('submit', async e => {
 
   const payload = signup
     ? { name: $('#lName').value.trim(), email: $('#lEmail').value.trim(),
-        phone: $('#lPhone') ? $('#lPhone').value.trim() : '', password: $('#lPass').value }
+        phone: $('#lPhone') ? $('#lPhone').value.trim() : '', password: $('#lPass').value,
+        /* Sent, not merely checked here. The box was a gate in this page and
+           nowhere else, so nothing on the account recorded the agreement. */
+        terms: !!($('#terms') && $('#terms').checked) }
     : { email: $('#lEmail').value.trim(), password: $('#lPass').value };
 
   try {

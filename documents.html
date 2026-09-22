@@ -976,6 +976,23 @@ select.assign.none:hover{border-color:#a5342b}
         document, up to <b>10 MB</b> each.</p>
       <div class="sl-grid" id="docGrid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))"></div>
 
+      <!-- THE VISA FILE, ON THE PAGE THAT CLAIMS TO HOLD EVERYTHING.
+           These documents have their own screen and their own upload cards,
+           and this page excluded them completely — so a visa document sent
+           back for a new copy appeared nowhere the student would look. Listed
+           here with their status and a way through; the uploading stays on the
+           visa screen, which is what stops two screens disagreeing about what
+           has arrived. -->
+      <section id="visaWrap" hidden style="margin-top:26px">
+        <h2 style="font:700 16.4px/1.3 var(--disp,inherit);color:var(--navy-900);margin:0 0 4px">
+          Your visa file</h2>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The documents your visa application needs. They are uploaded and tracked on
+          <a href="visa.html" style="color:var(--blue-deep);font-weight:600">your visa screen</a>,
+          and listed here so this page shows everything on your file.</p>
+        <ul class="doclist" id="visaList" style="gap:8px"></ul>
+      </section>
+
       <!-- Anything sent in the conversation. It is a document like any other —
            same folder, same download — but it does not belong to one of the
            twelve cards above, so it would otherwise be uploaded and then
@@ -1538,6 +1555,66 @@ const KNOWN = new Set(DOCS.map(d => d.id));
    have uploaded the same thing twice. */
 const isVisaDoc = k => /^visa-/.test(k);
 
+const VISA_DOCS = [
+  {id:'visa-offer',      name:'Offer / admission letter',   need:1,
+   blocks:'Everything after it — the visa file starts here'},
+  {id:'visa-funds',      name:'Blocked account or proof of funds', need:1,
+   blocks:'Visa appointment. Germany needs the blocked account confirmation itself'},
+  {id:'visa-insurance',  name:'Travel and health insurance', need:1,
+   blocks:'Visa appointment — cover must satisfy the consulate'},
+  {id:'visa-form',       name:'Completed visa application form', need:1,
+   blocks:'The appointment. We check it line by line before you sign'},
+  /* Written by the counsellor, not collected from the student. It is the
+     letter that explains the application to the consulate, and it goes out
+     with the file rather than being asked for. */
+  {id:'visa-cover',      name:'Visa cover letter',          need:1, ours:1,
+   blocks:'Nothing — it goes with the file. We write it once the offer is in'},
+  {id:'visa-appointment',name:'Appointment confirmation',   need:1,
+   blocks:'Nothing, but it fixes every date after it'},
+  {id:'visa-police',     name:'Police clearance certificate', need:0,
+   blocks:'Some destinations only — your counsellor will say'},
+  {id:'visa-decision',   name:'Visa decision letter',       need:0,
+   blocks:'Tickets and accommodation. Upload it the day it arrives'},
+  {id:'visa-travel',     name:'Ticket and accommodation',   need:0,
+   blocks:'Pre-departure briefing and city registration'},
+  /* THE LAST TWO DOCUMENTS IN THE WHOLE JOURNEY, and there was nowhere to put
+     either. "Enrolment docs are missing in this succession. Tuition fee or
+     semester fee invoice. Document option for enrolment certificate."
+     They come after the visa, which is why they belong on this screen rather
+     than with the application papers: a student who has landed still has two
+     things to send us, and the file was ending at the plane ticket. */
+  {id:'fee-invoice',     name:'Tuition or semester fee invoice', need:0,
+   blocks:'Enrolment. Some universities want it paid before they register you',
+   note:'The invoice the university sends for the semester contribution or '
+      + 'tuition. Send the invoice itself, not the bank receipt.'},
+  {id:'enrolment',       name:'Enrolment certificate',       need:0,
+   blocks:'City registration, a bank account, a student travel pass',
+   note:'The Immatrikulationsbescheinigung, or whatever your university calls '
+      + 'it. It is the proof you are a student and half of Germany asks for it.'}
+];
+
+/* The visa documents that are actually on this file, in the order the visa
+   screen shows them. Only the ones that exist: a list of empty slots on a page
+   about what has arrived is noise, and the empty ones are asked for there. */
+function paintVisa() {
+  const wrap = $('#visaWrap');
+  if (!wrap) return;
+  const rows = VISA_DOCS.filter(d => (DB.docs || {})[d.id]);
+  wrap.hidden = !rows.length;
+  if (!rows.length) return;
+  $('#visaList').innerHTML = rows.map(d => {
+    const rec = DB.docs[d.id];
+    const needsThem = rec.status === 'rescan' || rec.status === 'none';
+    return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
+      '<span style="flex:1"><a href="/api/documents/' + encodeURIComponent(d.id) +
+        '/file" style="color:var(--blue-deep);font-weight:600">' + esc(d.name) + '</a>' +
+        '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
+        (needsThem ? 'Open your visa screen to send a new copy' : esc(rec.file || '')) +
+        '</span></span>' +
+      '<span class="st ' + rec.status + '">' + LABEL[rec.status] + '</span></li>';
+  }).join('');
+}
+
 function paintShared() {
   const extra = Object.keys(DB.docs || {})
     .filter(k => !KNOWN.has(k) && !isVisaDoc(k));
@@ -1644,6 +1721,7 @@ function required() { return DOCS.filter(d => d.need); }
 function paint() {
   $('#docGrid').innerHTML = DOCS.map(card).join('');
   paintShared();
+  paintVisa();
   const req = required();
   const ok = req.filter(d => stOf(d.id) === S.OK).length;
   const up = req.filter(d => stOf(d.id) !== S.NONE).length;
@@ -1652,8 +1730,16 @@ function paint() {
   $('#ringFg').setAttribute('stroke-dasharray', C);
   $('#ringFg').setAttribute('stroke-dashoffset', C * (1 - pct / 100));
   $('#ringTxt').textContent = pct + '%';
+  /* "8 of 10" was read as "we hold 8 of your 10 documents", and the file may
+     have fourteen on it — the ring counts the ones we ASKED FOR and nothing
+     said so. A document sent back is counted apart from the rest, because
+     "waiting on your counsellor" is the opposite of what it means: that one
+     is waiting on the student. */
+  const back = req.filter(d => stOf(d.id) === S.RESCAN).length;
   $('#ringHead').textContent = pct === 100 ? 'Every required document is verified'
-    : ok + ' of ' + req.length + ' verified · ' + (up - ok) + ' waiting on your counsellor';
+    : ok + ' of ' + req.length + ' required documents verified'
+      + (up - ok - back > 0 ? ' \u00b7 ' + (up - ok - back) + ' waiting on your counsellor' : '')
+      + (back ? ' \u00b7 ' + back + ' need a new copy from you' : '');
   $('#blockList').innerHTML = DOCS.filter(d => stOf(d.id) !== S.OK).map(d =>
     '<li>' + ico('clock') + ' <span>' + esc(d.blocks) + '</span>' +
     '<span class="st ' + stOf(d.id) + '">' + esc(d.name) + '</span></li>').join('')

@@ -98,7 +98,7 @@ const toCsv = rows => rows.map(r => r.map(c => {
   const stu = await browser.newContext(vp);
   const email = 'rnd' + S + '@example.com';
   await stu.request.post(BASE + '/api/auth/signup',
-    { data: { name: 'Round Six', email, phone: '9876500061', password: 'a-real-password-' + S } });
+    { data: { name: 'Round Six', email, phone: '9876500061', password: 'a-real-password-' + S, terms: true } });
 
   const send = (name, type, buf, key) => stu.request.post(BASE + '/api/documents',
     /* `xii`, not the name this used. There is no slot by that name — the

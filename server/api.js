@@ -76,6 +76,10 @@ const SLOT_SAID = {
   'visa-cover': 'visa cover letter',
 };
 
+/* A checkbox, as it arrives from a browser: true, "true", "on", "yes", 1.
+   Anything else is not an agreement. */
+const YES_TERMS = v => v === true || /^(true|on|yes|y|1|accepted)$/i.test(String(v == null ? '' : v).trim());
+
 const GST_RATE = 0.18;
 
 /*
@@ -444,8 +448,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   const sizeSaid = b => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB'
                                      : Math.max(1, Math.round(b / 1024)) + ' KB');
 
+  /*
+   * WHO IT IS FROM, not merely which side it came from.
+   *
+   * `sender` says 'me' or 'them', and 'them' covered a counsellor typing a
+   * sentence, the welcome template, a shortlist notice and a payment
+   * confirmation alike — so on the student's screen a question from the person
+   * handling their file looked exactly like an automatic notice, and read as
+   * one. `author` carries the name from now on.
+   *
+   * Old rows have none and cannot honestly be given one: the person who typed
+   * them was not recorded, and guessing from today's assignment would put a
+   * name on a sentence somebody else wrote. They fall back to the office's own
+   * name, which is true of every message the building sends.
+   */
+  const FROM_OFFICE = 'Glovels';
   const msgShape = studentId => m => ({
     who: m.sender, t: m.body, file: m.file, at: m.created_at,
+    from: m.sender === 'me' ? '' : (String(m.author || '').trim() || FROM_OFFICE),
     attachment: attachmentOf(studentId, m.file),
   });
 
@@ -1090,10 +1110,26 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
     if (phone && !validPhone(phone)) return json(res, 422, { error: 'A 10-digit Indian mobile, please' });
     if (pw.length < 8) return json(res, 422, { error: 'Use at least 8 characters' });
+    /*
+     * THE TERMS BOX WAS A GATE IN THE BROWSER AND NOWHERE ELSE.
+     *
+     * The screen refused to submit without it and the server neither read it
+     * nor wrote it down, so nothing on the account said anybody had agreed to
+     * anything — while an order, which is the same act with money attached,
+     * has recorded its consent line all along. Asked for and stored, with the
+     * date, because a consent nobody can produce is not one.
+     */
+    if (!YES_TERMS(b.terms !== undefined ? b.terms : b.acceptedTerms)) {
+      return json(res, 422, {
+        error: 'Please accept the Terms of Service and Privacy Policy to create an account.',
+        fields: [{ field: 'terms', why: 'not accepted' }],
+      });
+    }
     if (db.studentByEmail(email)) return json(res, 409, { error: 'That email already has an account. Sign in instead.' });
 
     const salt = newSalt();
-    const s = db.createStudent(email, name, tenDigits(phone) ? '+91' + tenDigits(phone) : '', hashPassword(pw, salt), salt);
+    const s = db.createStudent(email, name, tenDigits(phone) ? '+91' + tenDigits(phone) : '',
+      hashPassword(pw, salt), salt, 'student', new Date().toISOString());
     const claimed = db.claimOrders(s.id, email);
     seedMessages(s);
 
@@ -1258,6 +1294,27 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        catalogue — so a fabricated price or university name cannot be stored. */
     const p = lookup(b.id);
     if (!p) return json(res, 404, { error: 'No such programme' });
+    /*
+     * A PUBLIC UNIVERSITY IS NOT A STUDENT'S TO ADD.
+     *
+     * "Only private unis student can add, public can only be added by
+     *  counsellors… these public unis are assigned based on the student's
+     *  marks etc."
+     *
+     * The public list is the deliverable a package buys: the office picks it
+     * against the grades, and how many of them depends on what was paid for.
+     * A student adding one themselves put a row on their file that nobody had
+     * matched, nobody had counted against their entitlement, and — because the
+     * name of a public university is blurred until it is bought — one they
+     * were not meant to be able to name at all. The screen never offered it;
+     * this is the half that matters, because a screen is not a permission.
+     */
+    if (p.isPublic) {
+      return json(res, 403, {
+        error: 'Public universities are chosen for you by your counsellor, against your '
+             + 'grades and the package you bought. Message them and they will add it with you.',
+      });
+    }
     db.addShortlist(s.id, p, 'student');
     return json(res, 200, { shortlist: stateFor(s).shortlist });
   });
@@ -1284,8 +1341,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     let n = 0;
     /* What the package matched. The office's list, not idle interest — it
        is the deliverable the student paid for. */
-    ids.forEach(id => { const p = lookup(id); if (p) { db.addShortlist(s.id, p, 'office'); n++; } });
-    return json(res, 200, { added: n, shortlist: stateFor(s).shortlist });
+    /* Public universities are not taken from the browser here either. The
+       server matches those itself against the profile and the package — see
+       deliverMatches — so a list posted from a page could only ever be a way
+       of choosing them, and they are not the student's to choose. */
+    let skipped = 0;
+    ids.forEach(id => {
+      const p = lookup(id);
+      if (!p) return;
+      if (p.isPublic) { skipped++; return; }
+      db.addShortlist(s.id, p, 'office'); n++;
+    });
+    return json(res, 200, { added: n, skipped, shortlist: stateFor(s).shortlist });
   });
 
   /*
@@ -3875,12 +3942,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const body = String(b.body || '').trim().slice(0, 4000);
     if (!body) return json(res, 422, { error: 'Nothing to send' });
 
-    db.addMessage(id, 'them', body, '');
+    /* The one message on the whole thread that a person actually typed, and
+       the one place the person's name was in scope and thrown away. */
+    db.addMessage(id, 'them', body, '', s.name);
     const st = db.studentById(id);
     const msgs = db.getMessages(id);
     const last = msgs[msgs.length - 1];
     const payload = { who: 'them', t: last.body, file: '', attachment: null,
-      at: last.created_at };
+      from: s.name, at: last.created_at };
 
     /* toThread already reaches the student — pushing to both delivered the same
        reply twice and it appeared as two bubbles. */
@@ -3931,7 +4000,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
       const key = storeAttachment(id, parsed.file, 'them');
       const note = String(parsed.fields.body || '').slice(0, 400);
-      db.addMessage(id, 'them', note || 'Sent you ' + parsed.file.filename, key);
+      db.addMessage(id, 'them', note || 'Sent you ' + parsed.file.filename, key, s.name);
       db.log(s.name, 'shared a document', st.name + ' — ' + parsed.file.filename);
 
       const msgs = db.getMessages(id).map(msgShape(id));
@@ -4179,8 +4248,40 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          say the rest in a message the student may not read. */
       const status = ['ok', 'wait', 'rescan', 'none'].includes(b.status)
         ? b.status : 'wait';
+      const was = (db.getDocuments(id) || []).find(d => String(d.doc_key) === String(m[2]));
       db.setDocStatus(id, m[2], status);
       live.toStudent(id, 'documents', { key: m[2], status });
+      /*
+       * SENDING A DOCUMENT BACK IS SOMETHING THE STUDENT HAS TO BE TOLD.
+       *
+       * Until now it wrote a status and stopped. No message, no email, and the
+       * dashboard's "what is missing" list is built from which documents are
+       * PRESENT — so a rejected one counted as arrived and never appeared
+       * there either. The single document being chased was the only one the
+       * student had no way of learning about.
+       *
+       * Only on the way IN to rescan, so re-saving the same status does not
+       * send it twice, and never for a document we wrote ourselves.
+       */
+      if (status === 'rescan' && String((was || {}).status) !== 'rescan'
+          && !DOCSLOTS.ours(m[2])) {
+        const st = db.studentById(id);
+        const what = DOCSLOTS.nameOf(m[2]);
+        const why = str(b.note, 400);
+        try {
+          db.addMessage(id, 'them',
+            'Your ' + what + ' needs another copy.'
+            + (why ? ' ' + why : ' The one on file is not clear enough to send on.')
+            + ' You can upload a new one on your Documents screen — the old one stays '
+            + 'until the new one arrives.', '', s.name);
+          live.toStudent(id, 'message', {});
+        } catch (e) { /* the status is set either way */ }
+        if (st && st.email) {
+          mail.send(Object.assign({ to: st.email },
+            EMAILS.documentRescan({ name: st.name, docName: what, note: why, siteUrl })))
+            .catch(() => {});
+        }
+      }
       return json(res, 200, { ok: true });
     }));
 
@@ -5935,14 +6036,30 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * the leads were being collected and nobody could read one. A number on a
    * dashboard is not a lead.
    */
-  route('GET', '/api/staff/enquiries', caseworkOnly(async (req, res) => json(res, 200, {
-    enquiries: db.allEnquiries().slice(0, 200).map(e => ({
-      id: e.id, name: e.name, phone: e.phone, email: e.email,
-      destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
-      note: e.note || '', source: e.source || 'website', status: e.status || 'new',
-      page: e.source_page || '', at: e.created_at,
-    })),
-  })));
+  /*
+   * THE WHOLE ENQUIRY FEED, ON PURPOSE — but now it says whose each one is.
+   *
+   * The leads book beside this one is scoped to the counsellor: their own
+   * leads and the unowned ones. This is not, and that is the office's
+   * decision — the website chat is answered by whoever is at the desk. What
+   * it did NOT do was say who owned a row, so somebody could call a lead
+   * another counsellor had spoken to yesterday and neither of them would know.
+   * The scoping stays off; the name goes on.
+   */
+  route('GET', '/api/staff/enquiries', caseworkOnly(async (req, res, s) => {
+    const who = peopleMap();
+    return json(res, 200, {
+      enquiries: db.allEnquiries().slice(0, 200).map(e => ({
+        id: e.id, name: e.name, phone: e.phone, email: e.email,
+        destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
+        note: e.note || '', source: e.source || 'website', status: e.status || 'new',
+        page: e.source_page || '', at: e.created_at,
+        ownerId: e.owner_id || null,
+        owner: e.owner_id ? ((who.get(Number(e.owner_id)) || {}).name || 'Somebody who has left') : '',
+        mine: e.owner_id ? Number(e.owner_id) === Number(s.id) : true,
+      })),
+    });
+  }));
 
   /* ------------------------------------------------------------- the leads */
   /*
@@ -7186,7 +7303,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     ];
   });
 
-  route('GET', /^\/api\/staff\/catalogue\.(xlsx|csv)$/, staffOnly(async (req, res, s, m) => {
+  /*
+   * Reading the catalogue on the screen is one thing; walking out with it is
+   * another.
+   *
+   * Every counsellor is meant to see the universities — that is the job, and
+   * only the public ones are blurred, and only for students. Taking the whole
+   * catalogue away as a file is not the same act, so the download asks for the
+   * catalogue permission the way editing does.
+   */
+  route('GET', /^\/api\/staff\/catalogue\.(xlsx|csv)$/, needs('catalogue', async (req, res, s, m) => {
     const headers = SHEET_COLUMNS.map(c => c[0]);
     /* ?country=DE — one destination's rows. The whole catalogue as one Excel
        file stops at 60,000 rows (a workbook of a million rows is built in
@@ -7982,6 +8108,55 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
               + 'indistinguishable on the page and to whoever has to edit one of '
               + 'them later — rename this one, or edit the one that exists.',
             fields: twice.map(n => ({ name: n, why: 'that name is already in use' })),
+          });
+        }
+      }
+
+      /*
+       * A GRADE OUTSIDE THE SCALE, AND A RATE THAT IS NOT A NUMBER.
+       *
+       * Refused here for the same reason the price above is: a cleaner returns
+       * a value, so all it can do with a bad one is mangle it or drop it, and
+       * both happen without anybody being told. The CGPA field carried
+       * min=0 max=10 and saved 88 anyway, which then drove the public finder's
+       * grade gate. Worse, a rate typed as letters became NaN and the cleaner's
+       * `if (r)` never wrote the key back — so the euro disappeared from the
+       * conversion table altogether and euro-priced programmes stopped
+       * converting, with a "saved" message on the screen.
+       *
+       * The standard already exists on the catalogue's own form: "Minimum CGPA
+       * has to be between 0 and 10. You entered 99."
+       */
+      if (key === 'finder') {
+        const bad = [];
+        for (const [f, label] of [['cgpaFull', 'The full-access CGPA'],
+          ['cgpaPartial', 'The partial-access CGPA']]) {
+          if (value[f] === undefined || value[f] === null || value[f] === '') continue;
+          const raw = String(value[f]).trim();
+          const n = Number(raw);
+          if (!/^\s*-?\d+(\.\d+)?\s*$/.test(raw) || !Number.isFinite(n)) {
+            bad.push([label, '“' + raw.slice(0, 20) + '” is not a number.']);
+          } else if (n < 0 || n > 10) {
+            bad.push([label, 'has to be between 0 and 10. You entered ' + n
+              + '. It is on the 10-point scale.']);
+          }
+        }
+        const fxIn = (value && value.fx) || {};
+        for (const code of Object.keys(fxIn)) {
+          const raw = String(fxIn[code] == null ? '' : fxIn[code]).trim();
+          if (!raw) continue;
+          const n = Number(raw);
+          if (!/^\s*\d+(\.\d+)?\s*$/.test(raw) || !Number.isFinite(n) || n <= 0) {
+            bad.push(['The ' + code + ' rate',
+              '“' + raw.slice(0, 20) + '” is not a rate. It is how many rupees one '
+              + code + ' is worth, so it has to be a number above zero.']);
+          }
+        }
+        if (bad.length) {
+          return json(res, 422, {
+            error: bad[0][0] + ' ' + bad[0][1]
+              + (bad.length > 1 ? ' (and ' + (bad.length - 1) + ' more)' : ''),
+            fields: bad.map(([n, why]) => ({ name: n, why })),
           });
         }
       }

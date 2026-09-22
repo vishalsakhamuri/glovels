@@ -68,4 +68,43 @@ const known = key => ALL.includes(String(key)) || APP_FILE.test(String(key));
 /** Did WE write it — replace-and-verify — or did the student provide it? */
 const ours = key => OURS.includes(String(key));
 
-module.exports = { OURS, THEIRS, VISA, ALL, APP_FILE, known, ours };
+/*
+ * What to CALL a slot, in a sentence.
+ *
+ * Deliberately below APP_FILE, where the build-time check against
+ * portal_fields.py stops reading — that check matches quoted lowercase strings
+ * and would read a name here as a slot nobody draws.
+ *
+ * Short, because these end up mid-sentence in a message and an email: "your
+ * Class 10 marksheet needs another look". A key with no entry is turned into
+ * words rather than shown raw, so a new slot reads badly before it reads
+ * wrongly.
+ */
+const NAMES = {
+  passport: 'passport', x: 'Class 10 marksheet', xii: 'Class 12 marksheet',
+  degree: 'semester-wise marksheets', consol: 'consolidated grade card',
+  degcert: 'degree certificate', provis: 'provisional certificate',
+  english: 'English test scorecard', cv: 'academic CV',
+  sop: 'Statement of Purpose', lor: 'letters of recommendation',
+  work: 'work experience letters', certs: 'certificates and achievements',
+  finance: 'financial documents', photo: 'passport photograph',
+  aps: 'APS certificate', other: 'other documents',
+  'fee-invoice': 'tuition or semester fee invoice', enrolment: 'enrolment certificate',
+  'visa-offer': 'offer letter', 'visa-funds': 'proof of funds',
+  'visa-insurance': 'travel and health insurance',
+  'visa-form': 'visa application form', 'visa-cover': 'visa cover letter',
+  'visa-appointment': 'appointment confirmation',
+  'visa-police': 'police clearance certificate',
+  'visa-decision': 'visa decision letter', 'visa-travel': 'ticket and accommodation',
+};
+
+/** The words for a slot. Never the raw key, and never empty. */
+function nameOf(key) {
+  const k = String(key || '');
+  if (NAMES[k]) return NAMES[k];
+  const m = /^app:.+:(proof|decision)$/.exec(k);
+  if (m) return m[1] === 'proof' ? 'application submission proof' : 'application decision letter';
+  return k.replace(/^visa-/, '').replace(/[-_]+/g, ' ').trim() || 'document';
+}
+
+module.exports = { OURS, THEIRS, VISA, ALL, APP_FILE, known, ours, NAMES, nameOf };

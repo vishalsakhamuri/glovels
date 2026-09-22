@@ -1547,6 +1547,92 @@ function addedDestinations() {
 }
 const countryByStudySlug = want => Object.values(liveCountries()).find(c => studySlugOf(c) === want) || null;
 
+/*
+ * What a destination page says when we have nothing listed for it.
+ *
+ * Deliberately short on reasons. These are placements arranged one at a time,
+ * and which ones are open depends on the student's marks and intake — so the
+ * honest thing and the useful thing are the same sentence: it is not published,
+ * tell us what you are after. The form is the site's own enquiry form and
+ * lands in the same leads book as every other one.
+ */
+function noListingBlock(c) {
+  const name = esc((c && c.name) || 'this destination');
+  return '<h2 id="universities">Universities in ' + name + '</h2>'
+    + '<div class="nolist">'
+    + '<p class="nl-lead">We do not list universities for ' + name + ' publicly. These '
+    + 'placements are arranged directly, and which of them are open depends on your '
+    + 'marks, your subject and the intake you are aiming for \u2014 a counsellor holds '
+    + 'that list.</p>'
+    + '<p class="nl-lead">Leave your number and a counsellor will come back to you with '
+    + 'what is actually available for ' + name + '.</p>'
+    + '<form class="nl-form" id="nlForm" novalidate>'
+    +   '<input id="nlName" placeholder="Your name" autocomplete="name">'
+    +   '<input id="nlPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel">'
+    +   '<input id="nlEmail" placeholder="Email" inputmode="email" autocomplete="email">'
+    +   '<input class="nl-hp" id="nlWeb" tabindex="-1" autocomplete="off" aria-hidden="true">'
+    +   '<button type="submit" class="btn btn-primary" id="nlGo">Send to a counsellor</button>'
+    + '</form>'
+    + '<p class="nl-err" id="nlErr" role="alert" hidden></p>'
+    + '<input type="hidden" id="nlDest" value="' + esc((c && c.code) || '') + '">'
+    + '</div>';
+}
+
+const NOLIST_CSS = `<style>
+.nolist{background:var(--paper,#faf8f3);border:1px solid var(--line,#e6e9ee);border-radius:14px;
+  padding:26px;margin:18px 0 26px}
+.nl-lead{margin:0 0 12px;font:400 14.6px/1.7 var(--sans,inherit);color:var(--navy-800,#1d2b3a)}
+.nl-form{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+.nl-form input{flex:1 1 170px;min-width:0;padding:11px 13px;border:1px solid var(--line,#e6e9ee);
+  border-radius:10px;font:400 14px/1.4 var(--sans,inherit);background:#fff}
+.nl-form input:focus{outline:2px solid var(--blue,#1a4fb4);outline-offset:1px}
+.nl-form .btn{flex:0 0 auto}
+.nl-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.nl-err{margin:11px 0 0;font:600 13px/1.5 var(--sans,inherit);color:#c0392b}
+@media (max-width:560px){.nl-form input,.nl-form .btn{flex:1 1 100%}}
+</style>`;
+
+const NOLIST_JS = `<script>(function(){
+  var f = document.getElementById('nlForm');
+  if (!f) return;
+  var err = document.getElementById('nlErr');
+  function show(t){ err.textContent = t || ''; err.hidden = !t; }
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    var name = (document.getElementById('nlName').value || '').trim();
+    var phone = (document.getElementById('nlPhone').value || '').trim();
+    var email = (document.getElementById('nlEmail').value || '').trim();
+    if (!name) return show('Your name, so we know who we are calling.');
+    if (!/^[6-9]\\d{9}$/.test(phone.replace(/\\D/g, '').slice(-10))) {
+      return show('A 10-digit Indian mobile, please.');
+    }
+    if (!/^[^@\\s]+@[^@\\s.]+\\.[^@\\s]+$/.test(email)) return show('That email does not look right.');
+    show('');
+    var btn = document.getElementById('nlGo');
+    btn.disabled = true; btn.textContent = 'Sending\\u2026';
+    fetch('/api/enquiries', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name, phone: phone, email: email,
+        website: document.getElementById('nlWeb').value,
+        destination: (document.getElementById('nlDest') || {}).value || '',
+        note: 'Destination page with nothing listed',
+        sourcePage: location.pathname, referrer: document.referrer
+      })
+    }).then(function(r){
+      btn.disabled = false; btn.textContent = 'Send to a counsellor';
+      if (!r.ok) return show('That did not send. Try again, or call the office.');
+      var box = document.querySelector('.nolist');
+      if (box) box.innerHTML = '<p class="nl-lead"><b>Thank you \\u2014 a counsellor has this.</b> '
+        + 'They will come back to you with what is open for your profile, usually the same '
+        + 'day and always within one working day.</p>';
+    }).catch(function(){
+      btn.disabled = false; btn.textContent = 'Send to a counsellor';
+      show('That did not send. Try again, or call the office.');
+    });
+  });
+})();</script>`;
+
 function withDestinationUniversities(html, slug) {
   const want = String(slug || '').replace(/^study-in-/, '');
   const countries = liveCountries();
@@ -1557,7 +1643,26 @@ function withDestinationUniversities(html, slug) {
   if (anchor < 0) return html;
   const hidden = hiddenUniversitySlugs();
   const total = db.countUniversities({ country: code });
-  if (!total) return html;
+  /*
+   * A DESTINATION WITH NOTHING ON IT IS THE PLACE TO ASK, NOT A GAP.
+   *
+   * "For any selection criteria we do not have any unis matching, or any
+   *  country we do not have relevant universities, we need to display a
+   *  contact form so that the student can contact us and a counsellor will
+   *  get in touch. We should have a cryptic message that these are special,
+   *  only counsellors can give the info and public listing is not available."
+   *
+   * Seven of these pages carry a full set of requirements and no universities
+   * at all — a student could read the whole thing and find nothing to do. The
+   * section is not omitted any more; it says the listing is not public and
+   * takes their number.
+   */
+  if (!total) {
+    return (html.slice(0, anchor) + noListingBlock(countries[code])
+      + html.slice(anchor))
+      .replace('</head>', UNI_CSS + DEST_CSS + NOLIST_CSS + '</head>')
+      .replace('</body>', NOLIST_JS + '</body>');
+  }
   const c = countries[code];
   /* Every university in the country with a page, search-only ones included —
      "the home page search for universities looks fine, no changes to it; on

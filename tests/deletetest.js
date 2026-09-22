@@ -99,7 +99,7 @@ const whoami = async ctx => {
   const password = 'a-real-password-' + S;
   const stu = await browser.newContext();
   const signup = await stu.request.post(BASE + '/api/auth/signup',
-    { data: { name: 'Del Student', email, phone: '9876543210', password } });
+    { data: { name: 'Del Student', email, phone: '9876543210', password, terms: true } });
   ok(signup.ok(), 'the student signs up — ' + signup.status());
   const me0 = await whoami(stu);
   const sid = me0 && me0.id;
@@ -312,7 +312,7 @@ const whoami = async ctx => {
   const tSign = await browser.newContext();
   await tSign.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Temp Student', email: tEmail, phone: '9876543210',
-      password: 'first-password-' + S } });
+      password: 'first-password-' + S, terms: true } });
   const tMe = await whoami(tSign);
   const tId = tMe && tMe.id;
   const reset = await (await admin.request.post(
@@ -338,7 +338,7 @@ const whoami = async ctx => {
   const U = await browser.newContext();
   await U.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Other Student', email: uEmail, phone: '9876543210',
-      password: 'other-password-' + S } });
+      password: 'other-password-' + S, terms: true } });
   const uBad = await U.request.fetch(BASE + '/api/account', {
     method: 'DELETE', data: { email: 'wrong@student.example', password: 'other-password-' + S },
   });

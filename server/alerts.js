@@ -183,7 +183,13 @@ function missingFrom(profile, stages) {
 }
 
 function missingDocs(docs, stages) {
-  const have = new Set((docs || []).map(d => String(d.doc_key || d.key)));
+  /* A document sent back for a new copy is not a document we have.
+     This was presence alone, so the one file being chased was counted as
+     arrived and dropped off the "what is still needed" list — the only list
+     where the student would have looked for it. */
+  const have = new Set((docs || [])
+    .filter(d => String(d.status || '') !== 'rescan')
+    .map(d => String(d.doc_key || d.key)));
   const want = stages ? wanted(DOCS_MUST, stages) : DOCS_MUST;
   return want.filter(([k]) => !have.has(k)).map(([, label]) => label);
 }

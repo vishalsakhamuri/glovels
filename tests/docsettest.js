@@ -55,7 +55,7 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
   const email = 'set' + S + '@example.com';
   await stu.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Doc Set', email, phone: '9876500096',
-      password: 'a-real-password-' + S } });
+      password: 'a-real-password-' + S, terms: true } });
   const send = (key, name, extra) => stu.request.post(BASE + '/api/documents',
     { multipart: Object.assign({ key,
       file: { name, mimeType: 'application/pdf', buffer: pdf(600) } }, extra || {}) });
@@ -90,7 +90,7 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
   const other = await browser.newContext(vp);
   await other.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Not Them', email: 'no' + S + '@example.com', phone: '9876500097',
-      password: 'a-real-password-x' + S } });
+      password: 'a-real-password-x' + S, terms: true } });
   const nope = await other.request.get(BASE + '/api/documents/file/' + one.id);
   ok(!nope.ok(),
     'a file id from another student finds nothing — ' + nope.status());

@@ -74,7 +74,7 @@ async function walk(page) {
   const password = 'a-real-password-' + S;
   const stu = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   await stu.request.post(BASE + '/api/auth/signup',
-    { data: { name: 'Form Student', email, phone: '9876543210', password } });
+    { data: { name: 'Form Student', email, phone: '9876543210', password, terms: true } });
 
   const page = await stu.newPage();
   const errs = [];
@@ -231,7 +231,7 @@ async function walk(page) {
   const old = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   await old.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Old Record', email: oldEmail, phone: '9876543210',
-      password: 'a-real-password-' + S } });
+      password: 'a-real-password-' + S, terms: true } });
   await old.request.put(BASE + '/api/profile',
     { data: { profile: { fullName: 'Sai Kiran Reddy' } } });
   const op = await old.newPage();
@@ -255,7 +255,7 @@ async function walk(page) {
     const c = await browser.newContext();
     const e = tag + S + '@student.example';
     await c.request.post(BASE + '/api/auth/signup',
-      { data: { name: 'T', email: e, phone: '9876543210', password: 'a-real-password-' + S } });
+      { data: { name: 'T', email: e, phone: '9876543210', password: 'a-real-password-' + S, terms: true } });
     await c.request.put(BASE + '/api/profile', { data: { profile } });
     await c.request.post(BASE + '/api/orders', { data: { packageId: 'pkg-roadmap',
       name: 'T', email: e, phone: '9876543210', acceptedTerms: true } });

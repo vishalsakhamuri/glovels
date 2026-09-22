@@ -148,6 +148,9 @@ run hardentest.js   8099 WHATSAPP_APP_SECRET=testsecret
 # partner's logo, a lead note, a footer link, and what day it is in Hyderabad.
 run round133test.js 8099
 run deep133test.js  8099
+# The form-fill sweep: who may add a public university, what a blank search is
+# for, what an account records about the terms, and whose voice a message is in.
+run round134test.js 8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

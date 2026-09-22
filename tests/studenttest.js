@@ -43,7 +43,7 @@ const seen = (p, s) => p.isVisible(s).catch(() => false);
   const password = 'a-real-password-' + S;
   const stu = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   await stu.request.post(BASE + '/api/auth/signup',
-    { data: { name: 'View Student', email, phone: '9876543210', password } });
+    { data: { name: 'View Student', email, phone: '9876543210', password, terms: true } });
   const me = await (await stu.request.get(BASE + '/api/auth/me')).json();
   const sid = me.user && me.user.id;
   ok(!!sid, 'a student exists');

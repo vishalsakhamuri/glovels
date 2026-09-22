@@ -43,7 +43,7 @@ const ip = n => ({ 'X-Forwarded-For': '203.0.113.' + n });
   for (let i = 0; i < 5; i++) codes.push((await post('/api/auth/forgot', { email: 'target@example.com' }, ip(20 + i))).status);
   check('and after three aimed at one inbox from anywhere', codes.filter(c => c === 429).length >= 2, codes.join(','));
 
-  codes = await flood('/api/auth/signup', { name: 'S', email: 'x@example.com', password: 'pw' }, 12, 30);
+  codes = await flood('/api/auth/signup', { name: 'S', email: 'x@example.com', password: 'pw', terms: true }, 12, 30);
   check('sign-up stops after ten from one address', codes.slice(-1)[0] === 429, codes.join(','));
 
   codes = await flood('/api/auth/reset', { token: 'nope', password: 'longenough1' }, 12, 40);

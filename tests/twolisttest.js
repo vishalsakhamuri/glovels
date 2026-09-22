@@ -51,13 +51,22 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
      the same answer whether a person clicked it or not — the day this is
      switched back on, that is what the screen will be reading. */
   const cat = await (await stu.request.get(BASE + '/api/catalogue')).json();
-  const spare = (cat.programmes || []).find(p =>
+  const free = (cat.programmes || []).filter(p =>
     !(state.shortlist || []).some(r => String(r.id) === String(p.id)));
-  check('there is a university not already on the list', !!spare, spare && spare.id);
+  /* PRIVATE. A public place is matched to the student's marks and put on the
+     list by the office — the endpoint refuses one from a student now, which
+     the next check proves rather than assumes. */
+  const spare = free.find(p => !p.isPublic);
+  check('there is a private university not already on the list', !!spare, spare && spare.id);
   const id = spare && spare.id;
   const marked = await stu.request.post(BASE + '/api/shortlist', { data: { id } });
-  check('a student can still mark one through the endpoint', marked.ok(),
+  check('a student can mark a private one through the endpoint', marked.ok(),
     marked.status() + '');
+  const pub = free.find(p => p.isPublic);
+  if (pub) {
+    const refused = await stu.request.post(BASE + '/api/shortlist', { data: { id: pub.id } });
+    check('and cannot mark a public one', refused.status() === 403, refused.status() + '');
+  }
 
   const after = await (await stu.request.get(BASE + '/api/state')).json();
   const row = (after.shortlist || []).find(r => String(r.id) === String(id));
@@ -73,20 +82,38 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   const wrap = flat(await page.textContent('#mineWrap'));
   check('the student sees their counsellor’s shortlist', /counsellor.{0,3}s shortlist/i.test(wrap));
 
-  /* ------------------------------------------------- switched off, both halves
+  /* ------------------------------------------------- back on, and narrowed
    *
-   * The list AND the way in go together. Hiding the list while leaving "I am
-   * interested" on the cards would let a student press it and watch nothing
-   * happen — a screen doing something and showing nothing reads as broken,
-   * not as switched off. */
-  check('the interest list is not on the student’s screen',
-    !/interested in/i.test(wrap), wrap.slice(0, 90));
-  check('nor the empty panel that went with it', !/nothing marked yet/i.test(wrap));
-  check('and there is no way to mark one on this tab',
-    (await page.$$('[data-add]')).length === 0);
+   * It was switched off because a student could mark ANY university, public
+   * ones included — and a public place is matched to their marks and put on
+   * the list by the office, not chosen off a page. The server refuses one
+   * added any other way now, so the section can only ever hold private
+   * universities and is back: leaving it off had its own cost, which was this
+   * screen saying 17 while their applications screen and their counsellor both
+   * said 18.
+   *
+   * "Only private unis student can add, public can only be added by
+   *  counsellors… these public unis are assigned based on the student's marks." */
+  check('the student’s own list is on their screen',
+    /you added/i.test(wrap), wrap.slice(0, 120));
   await page.click('.tab[data-pane="browse"]');
   await page.waitForTimeout(1100);
-  check('nor on the programmes tab', (await page.$$('[data-add]')).length === 0);
+  const marks = await page.evaluate(() => {
+    const out = { onPrivate: 0, onPublic: 0 };
+    document.querySelectorAll('article').forEach(card => {
+      const add = card.querySelector('[data-add]');
+      if (!add) return;
+      /* A public row is the one the page marks as needing a package; a private
+         one is free to apply to. Read from the card rather than from the data
+         so this asserts what a student can actually press. */
+      const t = (card.textContent || '').toLowerCase();
+      if (/public/.test(t)) out.onPublic++; else out.onPrivate++;
+    });
+    return out;
+  });
+  check('a student can mark a private university', marks.onPrivate > 0,
+    JSON.stringify(marks));
+  check('and cannot mark a public one', marks.onPublic === 0, JSON.stringify(marks));
 
   /* The count above the tab has to agree with the page under it. This student
      HAS a marked university — put there a moment ago — and a tab reading one

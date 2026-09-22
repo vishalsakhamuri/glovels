@@ -373,7 +373,7 @@ const toCsv = rows => '﻿' + rows.map(r =>
   const stu = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   await stu.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Grade Student', email, phone: '9876543210',
-      password: 'a-real-password-' + S } });
+      password: 'a-real-password-' + S, terms: true } });
   const sp = await stu.newPage();
   await sp.goto(BASE + '/profile.html', { waitUntil: 'domcontentloaded' });
   await sp.waitForTimeout(2400);

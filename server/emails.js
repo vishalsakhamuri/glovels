@@ -381,6 +381,43 @@ Read it and reply here: ${siteUrl}/messages`,
   },
 
   /*
+   * A document that has to come again.
+   *
+   * A counsellor sending one back used to write a status into a database and
+   * nothing else: no message, no email, and the dashboard's own "what is
+   * missing" list counted the rejected file as present. The one document being
+   * chased was the one the student could not see. This is the half that leaves
+   * the building.
+   *
+   * It says what is wrong where we know, and it says what to do — which is
+   * always the same thing, and is one tap from the link.
+   */
+  documentRescan({ name, docName, note, siteUrl }) {
+    const first = String(name || '').split(' ')[0] || 'there';
+    const why = String(note || '').trim();
+    return {
+      subject: `Your ${docName} needs another copy`,
+      text: `Hi ${first},
+
+Your counsellor has looked at your ${docName} and it needs to come again.
+${why ? '\n' + why + '\n' : '\nThe copy we have is not clear enough to send on.\n'}
+Upload a new one here — it takes a minute: ${siteUrl}/documents
+
+Nothing else on your file is held up by this, but applications that need this
+document cannot go out until it is replaced.`,
+      html: shell('One document needs another copy',
+        p(`Hi ${esc(first)},`) +
+        p(`Your counsellor has looked at your <b>${esc(docName)}</b> and it needs to come again.`) +
+        (why
+          ? `<blockquote style="margin:0 0 16px;padding:13px 15px;background:#f7f5ef;border-left:3px solid #c0392b;
+              border-radius:0 8px 8px 0;font:400 14px/1.6 Helvetica,Arial,sans-serif;color:#0e1a24">${esc(why)}</blockquote>`
+          : p('The copy we have is not clear enough to send on.')) +
+        button(siteUrl + '/documents', 'Upload a new copy') +
+        p('Applications that need this document cannot go out until it is replaced.')),
+    };
+  },
+
+  /*
    * Work that has gone past the date it was promised by.
    *
    * Goes to the counsellor who owes it AND to the office, which is what was

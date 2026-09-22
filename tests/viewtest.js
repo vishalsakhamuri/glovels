@@ -84,7 +84,7 @@ const toCsv = rows => rows.map(r => r.map(c => {
   const email = 'cv' + S + '@example.com';
   await stu.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Counsellor View', email, phone: '9876500071',
-      password: 'a-real-password-' + S } });
+      password: 'a-real-password-' + S, terms: true } });
   const up = await stu.request.post(BASE + '/api/documents', {
     multipart: { key: 'passport',
       file: { name: 'Passport_' + S + '.pdf', mimeType: 'application/pdf',
@@ -149,7 +149,7 @@ const toCsv = rows => rows.map(r => r.map(c => {
   const other = await browser.newContext(vp);
   await other.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Nosy', email: 'nosy' + S + '@example.com', phone: '9876500072',
-      password: 'a-real-password-x' + S } });
+      password: 'a-real-password-x' + S, terms: true } });
   const denied = await other.request.get(
     BASE + '/api/staff/student/' + SID + '/document/passport/file');
   ok(!denied.ok(), 'a student cannot fetch another student\'s file — ' + denied.status());

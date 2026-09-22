@@ -649,6 +649,23 @@ function sqliteDriver(file) {
    'ALTER TABLE staff_notes ADD COLUMN task_id INTEGER',
    'ALTER TABLE staff_notes ADD COLUMN answered_at TEXT',
    'CREATE INDEX IF NOT EXISTS idx_notes_open ON staff_notes(kind, answered_at)',
+   /* WHEN THEY AGREED TO THE TERMS.
+    *
+    * The box on the create-account screen was a gate in the browser and
+    * nowhere else: the server never read it and never wrote it down, so an
+    * account carried no evidence that anybody had agreed to anything. An
+    * order records its consent line; an account did not. The date is the
+    * whole record — empty means no agreement was captured, which is the
+    * honest state for every account made before this. */
+   "ALTER TABLE students ADD COLUMN terms_at TEXT NOT NULL DEFAULT ''",
+   /* Who actually sent a message.
+    *
+    * `sender` only ever says 'me' or 'them', so a sentence a counsellor typed
+    * and an automatic notice were the same thing on the student's screen.
+    * lead_notes has carried the author's name since it was written; this is
+    * the same column, arriving late. Empty on every old row, because it
+    * cannot be worked out after the fact without inventing it. */
+   "ALTER TABLE messages ADD COLUMN author TEXT NOT NULL DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -899,12 +916,22 @@ function open(dir) {
     snapshot: toFile => db.snapshot(toFile),
 
     /* ---- students ---- */
-    createStudent(email, name, phone, hash, salt, role) {
+    createStudent(email, name, phone, hash, salt, role, termsAt) {
       const r = db.run(
-        `INSERT INTO students (email, name, phone, pass_hash, pass_salt, role, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        email.toLowerCase(), name, phone || '', hash, salt, role || 'student', now());
+        `INSERT INTO students (email, name, phone, pass_hash, pass_salt, role, terms_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        email.toLowerCase(), name, phone || '', hash, salt, role || 'student',
+        termsAt ? String(termsAt) : '', now());
       return this.studentById(Number(r.lastInsertRowid));
+    },
+    /* Somebody accepting the terms later — on an account the office made for
+       them, or one created at checkout. Never overwritten: the first
+       agreement is the one that counts, and a second visit is not a second
+       consent. */
+    acceptTerms(id) {
+      db.run("UPDATE students SET terms_at = ? WHERE id = ? AND (terms_at IS NULL OR terms_at = '')",
+        now(), Number(id));
+      return this.studentById(Number(id));
     },
     studentByEmail: e => db.one('SELECT * FROM students WHERE email = ?', String(e).toLowerCase()),
     studentById:    id => db.one('SELECT * FROM students WHERE id = ?', Number(id)),
@@ -1203,9 +1230,16 @@ function open(dir) {
     /* ---- messages ---- */
     getMessages: id => db.all('SELECT * FROM messages WHERE student_id = ? ORDER BY id asc', Number(id)),
     deleteMessage: id => db.run('DELETE FROM messages WHERE id = ?', Number(id)),
-    addMessage(studentId, sender, body, file) {
-      db.run('INSERT INTO messages (student_id, sender, body, file, created_at) VALUES (?, ?, ?, ?, ?)',
-        Number(studentId), sender, body || '', file || '', now());
+    /* `author` is who it is FROM, in words the student can read: a
+       counsellor's own name, or the office's name for everything it sends
+       itself. Optional, because the ninety-odd automatic messages elsewhere
+       in this application pass nothing and are labelled where they are
+       rendered — an empty author is "we do not know", not "nobody". */
+    addMessage(studentId, sender, body, file, author) {
+      db.run(`INSERT INTO messages (student_id, sender, body, file, author, created_at)
+              VALUES (?, ?, ?, ?, ?, ?)`,
+        Number(studentId), sender, body || '', file || '',
+        String(author == null ? '' : author).slice(0, 80), now());
     },
 
     /* ---- saved scholarships ---- */

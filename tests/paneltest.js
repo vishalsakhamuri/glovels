@@ -81,7 +81,7 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
   const stu = await browser.newContext(vp);
   const email = 'adm' + S + '@example.com';
   await stu.request.post(BASE + '/api/auth/signup',
-    { data: { name: 'Admin Test', email, phone: '9876500077', password: 'a-real-password-' + S } });
+    { data: { name: 'Admin Test', email, phone: '9876500077', password: 'a-real-password-' + S, terms: true } });
   const prof = await stu.newPage();
   await prof.goto(BASE + '/profile.html', { waitUntil: 'domcontentloaded' });
   await prof.waitForTimeout(2600);

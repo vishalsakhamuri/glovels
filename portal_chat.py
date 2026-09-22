@@ -244,7 +244,15 @@ async function loadEnquiries() {
         (e.email ? '<a href="mailto:' + esc(e.email) + '">' + esc(e.email) + '</a>' : '') +
         (!e.phone && !e.email ? '<span style="color:var(--muted)">nothing given</span>' : '') +
       '</td>' +
-      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') + '</td>' +
+      '<td style="font-size:12.4px;color:var(--muted)">' + esc(e.page || '—') +
+        /* WHOSE LEAD THIS IS. This table shows every enquiry in the building,
+           which is the office's decision — the desk answers whoever writes in.
+           But it said nothing about ownership, so two counsellors could ring
+           the same person on the same afternoon and neither would know. */
+        (e.owner && !e.mine
+          ? '<br><span style="font-size:11.4px;font-weight:700;color:#8a5a1a">' +
+            esc(e.owner) + '\u2019s lead</span>'
+          : '') + '</td>' +
       '<td>' + (e.how === 'chat' ? '<span class="st ok">Chat</span>'
                                  : '<span class="st none">Form</span>') + '</td>' +
       '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(e.at) + '</td>' +

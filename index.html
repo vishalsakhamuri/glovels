@@ -497,6 +497,20 @@ section[id]{scroll-margin-top:92px}
 .rmore .hint{font-size:12.4px;color:var(--muted)}
 .rfoot{margin-top:14px;padding-top:13px;border-top:1px dashed var(--line);font-size:12.8px;
   color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+/* A search that found nothing, turned into an enquiry. Wider padding than the
+   ordinary empty state because it holds a form, and a solid border rather than
+   a dashed one — this is something to do, not an absence. */
+.nomatch{border-style:solid;border-color:var(--line);text-align:left}
+.nomatch b{display:block;margin-bottom:6px}
+.nm-said{margin:12px 0 0;font-size:12.4px;color:var(--muted)}
+.nm-form{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.nm-form input{flex:1 1 150px;min-width:0;padding:10px 12px;border:1px solid var(--line,#e6e9ee);
+  border-radius:10px;font:400 13.4px/1.4 var(--sans);background:#fff;color:var(--navy-900)}
+.nm-form input:focus{outline:2px solid var(--blue);outline-offset:1px}
+.nm-form .btn{flex:0 0 auto}
+.nm-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.nm-err{margin:10px 0 0;font:600 12.4px/1.5 var(--sans);color:#c0392b}
+@media (max-width:520px){.nm-form input,.nm-form .btn{flex:1 1 100%}}
 .empty{background:var(--paper);border:1px dashed #cfd6de;border-radius:14px;padding:28px;
   text-align:center;color:var(--muted)}
 .empty b{display:block;font-family:var(--disp);font-size:17px;color:var(--navy-900);margin-bottom:6px}
@@ -2406,6 +2420,22 @@ function render(){
   const shownRows = resTab === 'pub' ? pubAll : privAll;
   const anyOpen = shownRows.some(r => !r.locked);
   let markup = shownRows.length ? shownRows.map(rowHtml).join('')
+    /* NOTHING AT ALL, ON EITHER TAB.
+     *
+     * "For any selection criteria we do not have any unis matching, or any
+     *  country we do not have relevant universities, we need to display a
+     *  contact form so that the student can contact us and a counsellor will
+     *  get in touch."
+     *
+     * A search that returns nothing is the end of the road on a page whose
+     * whole job is to start a conversation — and the places we place students
+     * by hand are exactly the ones the finder cannot show. So the dead end
+     * becomes the enquiry: what we have here is not published, tell us what
+     * you are looking for. It reaches the leads book like every other form,
+     * carrying what they had searched for, so the counsellor opens it already
+     * knowing the answer to their first question. */
+    : bothEmpty
+      ? noMatchForm()
     : resTab === 'priv'
       ? '<div class="empty"><b>Nothing here matches those filters</b>'
         + 'There are ' + pubAll.length + ' free to apply to — the other tab. Or widen the '
@@ -2422,10 +2452,81 @@ function render(){
   $$('[data-rt-go]').forEach(b => b.onclick = () => {
     resTab = b.dataset.rtGo; render();
   });
+  if ($('#nmForm')) $('#nmForm').onsubmit = nmSend;
   $$('[data-goto-pkg]').forEach(b => b.onclick = () => showPackages());
   $$('[data-req]').forEach(b => b.onclick = () => openReq(b.dataset.req));
   $$('[data-apply]').forEach(b => b.onclick = () => applyNow(b));
   requestAnimationFrame(measure);
+}
+
+/* The form a dead-end search turns into. Deliberately says little about WHY
+   there is nothing: these placements are arranged one at a time and the list
+   is not something the site publishes. */
+function noMatchForm() {
+  const said = [
+    $('#fCountry') && $('#fCountry').selectedOptions[0] && $('#fCountry').value
+      ? $('#fCountry').selectedOptions[0].textContent.trim() : '',
+    $('#fField') && $('#fField').value ? $('#fField').value : '',
+    $('#fLevel') && $('#fLevel').value ? $('#fLevel').value : '',
+  ].filter(Boolean).join(' · ');
+  return '<div class="empty nomatch"><b>We do not list universities for this search publicly</b>'
+    + 'These placements are arranged directly, and which of them are open depends on your '
+    + 'marks and your intake \u2014 a counsellor holds that list.'
+    /* THEY HAVE ALREADY TOLD US WHAT THEY WANT.
+       It is on the screen in the filters they just set, so the form does not ask
+       again: it shows what is being sent and takes the two things we do not
+       have. A form that re-asks what somebody has already typed is the reason
+       nobody fills it in. */
+    + (said ? '<p class="nm-said">Sending your search: <b>' + esc(said) + '</b></p>'
+            : '<p class="nm-said">Sending what you were looking for.</p>')
+    + '<form class="nm-form" id="nmForm" novalidate>'
+    +   '<input id="nmName" placeholder="Your name" autocomplete="name">'
+    +   '<input id="nmPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel">'
+    +   '<input id="nmEmail" placeholder="Email" inputmode="email" autocomplete="email">'
+    +   '<input class="nm-hp" id="nmWeb" tabindex="-1" autocomplete="off" aria-hidden="true">'
+    +   '<button type="submit" class="btn btn-primary btn-sm" id="nmGo">Send to a counsellor</button>'
+    + '</form>'
+    + '<p class="nm-err" id="nmErr" role="alert" hidden></p></div>';
+}
+
+/* Sending it. Same endpoint, same leads book, same acknowledgement email as
+   every other form on the site — a second mechanism for the same job is how
+   one of them stops working without anybody noticing. */
+async function nmSend(e) {
+  e.preventDefault();
+  const err = $('#nmErr');
+  const show = t => { err.textContent = t; err.hidden = !t; };
+  const name = ($('#nmName').value || '').trim();
+  const phone = ($('#nmPhone').value || '').trim();
+  const email = ($('#nmEmail').value || '').trim();
+  if (!name) return show('Your name, so we know who we are calling.');
+  if (!/^[6-9]\d{9}$/.test(phone.replace(/\D/g, '').slice(-10))) {
+    return show('A 10-digit Indian mobile, please.');
+  }
+  if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) return show('That email does not look right.');
+  show('');
+  const btn = $('#nmGo');
+  btn.disabled = true; btn.textContent = 'Sending\u2026';
+  const what = [
+    $('#fCountry') && $('#fCountry').value ? 'country ' + $('#fCountry').value : '',
+    $('#fField') && $('#fField').value ? 'field ' + $('#fField').value : '',
+    $('#fLevel') && $('#fLevel').value ? 'level ' + $('#fLevel').value : '',
+    $('#fCgpa') && $('#fCgpa').value ? 'CGPA ' + $('#fCgpa').value : '',
+  ].filter(Boolean).join(', ');
+  const r = await sendForm({
+    name, phone, email, website: $('#nmWeb').value,
+    destination: ($('#fCountry') && $('#fCountry').value) || '',
+    note: 'Finder returned nothing' + (what ? ' \u2014 ' + what : ''),
+    sourcePage: location.pathname, referrer: document.referrer,
+  }, { subject: 'Nothing matched on the finder' });
+  btn.disabled = false; btn.textContent = 'Send to a counsellor';
+  if (!r.ok) return show('That did not send. Try again, or call the office.');
+  const box = $('.nomatch');
+  if (box) {
+    box.innerHTML = '<b>Thank you \u2014 a counsellor has this</b>'
+      + 'They will come back to you on ' + esc(phone) + ' with what is open for your '
+      + 'profile. Usually the same day, and always within one working day.';
+  }
 }
 
 function measure(){

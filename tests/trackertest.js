@@ -48,7 +48,7 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
   const email = 'track' + S + '@example.com';
   await stu.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Track Me', email, phone: '9876500098',
-      password: 'a-real-password-' + S } });
+      password: 'a-real-password-' + S, terms: true } });
   const state = async () => (await (await stu.request.get(BASE + '/api/state')).json());
 
   const admin = await browser.newContext(vp);

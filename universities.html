@@ -1588,8 +1588,17 @@ function card(p, inList) {
         /* Not "Add to shortlist". Pressing it does not put a university on the
            list the office works from — it tells the counsellor you like it,
            and saying otherwise sets up a disappointment. */
-        : SHOW_INTEREST
+        /* Only on a PRIVATE university. A public place is matched to the
+           student's marks and put on the list by the office — the server
+           refuses one added any other way, so offering the button here would
+           be a button that fails. The card says who does add it instead of
+           saying nothing. */
+        : SHOW_INTEREST && !p.isPublic
         ? '<button type="button" class="btn btn-navy btn-sm" data-add="' + p.id + '">I am interested</button>'
+        : SHOW_INTEREST
+        ? '<a class="btn btn-ghost btn-sm" href="messages.html?about='
+          + encodeURIComponent(p.university || p.program || p.id)
+          + '">Ask my counsellor to add this</a>'
         : '') +
       (p.url ? '<a class="btn btn-ghost btn-sm" href="' + esc(p.url) + '" target="_blank" rel="noopener">Course page</a>' : '') +
     '</div></article>';
@@ -1623,7 +1632,16 @@ function card(p, inList) {
  * nothing happen — the screen doing something and showing nothing, which reads
  * as broken rather than as switched off.
  */
-const SHOW_INTEREST = false;
+/* BACK ON, and the rule underneath it changed.
+   A student may add PRIVATE universities and only private ones — a public
+   place is matched to their marks and put there by the office, and the
+   server now refuses one added any other way. So this section can no longer
+   contain a university they were not entitled to name, which is what it was
+   switched off over. Leaving it off had its own cost: the entries still
+   existed, so this screen said 17 while their applications screen and their
+   counsellor both said 18 — one student, two of their own screens, two
+   answers. */
+const SHOW_INTEREST = true;
 
 const ownerOf = id => {
   const row = (typeof SHORT_ROWS !== 'undefined' ? SHORT_ROWS : [])
@@ -1716,16 +1734,18 @@ function paintMine() {
 
   /* -------------------------------------------------------- what the student likes */
   if (SHOW_INTEREST) {
-    html += '<div style="margin-top:30px">' + head('Universities you are interested in',
+    html += '<div style="margin-top:30px">' + head('Universities you added',
       mine.length
-        ? 'Yours, not agreed yet. Your counsellor can see these and will tell you '
-          + 'honestly which are realistic for your profile.'
+        ? 'Private universities you picked yourself, not agreed yet. Your counsellor '
+          + 'can see these and will tell you honestly which are realistic for your '
+          + 'profile. Public universities are matched to your marks and added by them.'
         : 'Nothing here yet.');
     html += mine.length
       ? grid(mine, 'want')
       : '<div class="sl-empty"><b>Nothing marked yet</b>'
-        + '<p>Browse the programmes tab and mark the ones you like. Your counsellor sees '
-        + 'them and can move any of them onto your real shortlist.</p>'
+        + '<p>Browse the programmes tab and mark the private universities you like. Your '
+        + 'counsellor sees them and can move any onto your real shortlist. The public '
+        + 'ones are matched to your marks and added for you.</p>'
         + '<button type="button" class="btn btn-ghost" data-goto="browse">Browse programmes</button></div>';
     html += '</div>';
   }

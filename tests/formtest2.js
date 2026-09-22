@@ -51,7 +51,7 @@ const W = 850;
   const email = 'frm' + S + '@example.com';
   await ctx.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Form Two', email, phone: '9876500091',
-      password: 'a-real-password-' + S } });
+      password: 'a-real-password-' + S, terms: true } });
 
   const page = await ctx.newPage();
   const errs = [];

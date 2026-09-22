@@ -63,7 +63,7 @@ const fakeSub = (tag) => ({
   const password = 'a-real-password-' + S;
   const stu = await browser.newContext();
   await stu.request.post(BASE + '/api/auth/signup',
-    { data: { name: 'Push Student', email, phone: '9876543210', password } });
+    { data: { name: 'Push Student', email, phone: '9876543210', password, terms: true } });
   const me = await (await stu.request.get(BASE + '/api/auth/me')).json();
   const sid = me.user && me.user.id;
   ok(!!sid, 'a student exists');
@@ -94,7 +94,7 @@ const fakeSub = (tag) => ({
   const O = await browser.newContext();
   await O.request.post(BASE + '/api/auth/signup',
     { data: { name: 'Other Student', email: other, phone: '9876543210',
-      password: 'other-password-' + S } });
+      password: 'other-password-' + S, terms: true } });
   await O.request.post(BASE + '/api/push/subscribe',
     { data: { subscription: fakeSub('oth') } });
   const mine = await (await stu.request.post(BASE + '/api/push/subscribe',

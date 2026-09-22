@@ -3003,7 +3003,36 @@ function showPassword(title, name, email, password) {
       '<button type="button" class="btn btn-ghost" data-close>Done</button></div>';
 }
 
+/* Which person this modal is editing, or null when it is creating one. The
+   form, its inline errors and its phone check are the same either way — the
+   only thing that changes is the verb. */
+let EDITING = null;
+
+function openPersonEdit(p) {
+  EDITING = p;
+  $('#pTitle').textContent = 'Edit ' + p.name;
+  $('#pForm').style.display = '';
+  $('#pButtons').style.display = 'flex';
+  $('#pDone').style.display = 'none';
+  $('#pErr').style.display = 'none';
+  $('#pName').value = p.name || '';
+  $('#pEmail').value = p.email || '';
+  $('#pPhone').value = p.phone || '';
+  /* The role, the permissions and the generated password are not this form's
+     business when editing — they have their own controls beside the person's
+     name, and offering them here would mean a save could quietly change one. */
+  $('#pRole').closest('.field').style.display = 'none';
+  const box = $('#pPermBox'); if (box) box.style.display = 'none';
+  $('#pSave').textContent = 'Save';
+  $('#personModal').classList.add('on');
+  setTimeout(() => $('#pName').focus(), 50);
+}
+
 function openPersonForm() {
+  EDITING = null;
+  $('#pRole').closest('.field').style.display = '';
+  const box0 = $('#pPermBox'); if (box0) box0.style.display = '';
+  $('#pSave').textContent = 'Create the account';
   $('#pTitle').textContent = 'Add someone to the team';
   $('#pForm').style.display = '';
   $('#pButtons').style.display = 'flex';
@@ -3060,18 +3089,29 @@ document.addEventListener('click', async e => {
     };
     $('#pErr').style.display = 'none';
     btn.disabled = true;
-    btn.textContent = 'Creating…';
+    const editing = EDITING;
+    btn.textContent = editing ? 'Saving…' : 'Creating…';
     try {
-      const r = await api('POST', '/api/staff/people', body);
-      await paintPeople();
-      showPassword('Account created', r.person.name, r.person.email, r.password);
-      toast(r.person.name + ' can sign in now.');
+      if (editing) {
+        await api('PUT', '/api/staff/people/' + editing.id,
+          { name: body.name, email: body.email, phone: body.phone });
+        await paintPeople();
+        $('#personModal').classList.remove('on');
+        toast('Saved.');
+      } else {
+        const r = await api('POST', '/api/staff/people', body);
+        await paintPeople();
+        showPassword('Account created', r.person.name, r.person.email, r.password);
+        toast(r.person.name + ' can sign in now.');
+      }
     } catch (err) {
+      /* Left open, with what they typed still in it. That is the whole reason
+         this is a form and not a chain of prompts. */
       $('#pErr').textContent = err.message;
       $('#pErr').style.display = 'block';
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Create the account';
+      btn.textContent = editing ? 'Save' : 'Create the account';
     }
     return;
   }
@@ -3083,17 +3123,11 @@ document.addEventListener('click', async e => {
   if (ed) {
     const p = PEOPLE.find(x => String(x.id) === ed.dataset.edit);
     if (!p) return;
-    const name = prompt('Name', p.name);
-    if (name === null) return;
-    const email = prompt('Email \u2014 this is what they sign in with', p.email);
-    if (email === null) return;
-    const phone = prompt('Phone', p.phone || '');
-    if (phone === null) return;
-    try {
-      await api('PUT', '/api/staff/people/' + p.id, { name, email, phone });
-      await paintPeople();
-      toast('Saved.');
-    } catch (err) { toast(err.message); }
+    /* Three native prompts, one after another, and a server rejection threw
+       all three answers away — the email was refused and the name and phone
+       they had just retyped went with it. The Add form on this same screen is
+       a modal with inline errors and has been all along; this uses it. */
+    openPersonEdit(p);
     return;
   }
 

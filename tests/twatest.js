@@ -85,7 +85,7 @@ const printOf = seed => {
   const St = await browser.newContext();
   await St.request.post(BASE + '/api/auth/signup',
     { data: { name: 'TWA Student', email: sEmail, phone: '9876543210',
-      password: 'student-password-' + S } });
+      password: 'student-password-' + S, terms: true } });
   const sTry = await St.request.put(BASE + '/api/staff/android',
     { data: { package: 'com.evil.app', fingerprints: printOf('evil') } });
   ok(sTry.status() === 403 || sTry.status() === 401,

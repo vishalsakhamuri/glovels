@@ -107,7 +107,7 @@ const settleIn = async (ctx, email, given, chosen) => {
   const studentCtx = await browser.newContext();
   await studentCtx.request.post(BASE + '/api/auth/signup', {
     data: { name: 'Test Student', email: 'stu@example.com', phone: '9876500000',
-      password: 'student-password-1' },
+      password: 'student-password-1', terms: true },
   });
   const students = await (await ctx.request.get(BASE + '/api/staff/students')).json();
   const stu = students.students.find(s => s.email === 'stu@example.com');

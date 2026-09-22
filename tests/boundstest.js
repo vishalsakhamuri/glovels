@@ -40,7 +40,7 @@ const student = async (browser, n) => {
   const email = 'bnd' + S + n + '@example.com';
   await ctx.request.post(BASE + '/api/auth/signup', {
     data: { name: 'Bounds ' + n, email, phone: '98765001' + (10 + n),
-      password: 'a-real-password-' + S },
+      password: 'a-real-password-' + S, terms: true },
   });
   return { ctx, email };
 };

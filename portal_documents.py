@@ -1,6 +1,6 @@
 """Documents — upload cards with drag-and-drop, per-file status and a readiness ring."""
 
-from portal_fields import DOCS_JS
+from portal_fields import DOCS_JS, VISA_JS
 
 BODY = """
     <div class="p-cols" style="margin-bottom:20px;align-items:start">
@@ -41,6 +41,23 @@ BODY = """
       <p class="doclimit" id="docLimit">PDF, a photo or Word. One file per
         document, up to <b>10 MB</b> each.</p>
       <div class="sl-grid" id="docGrid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))"></div>
+
+      <!-- THE VISA FILE, ON THE PAGE THAT SAYS IT HOLDS EVERYTHING.
+           These documents have their own screen and their own upload cards,
+           and this page hid them completely — so a visa document sent back for
+           a new copy appeared nowhere a student would look. They are listed
+           here with their status and a way through to the screen that handles
+           them; the uploading stays in one place, which is what stops the two
+           screens disagreeing about what has arrived. -->
+      <section id="visaWrap" hidden style="margin-top:26px">
+        <h2 style="font:700 16.4px/1.3 var(--disp,inherit);color:var(--navy-900);margin:0 0 4px">
+          Your visa file</h2>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The documents your visa application needs. They are uploaded and tracked on
+          <a href="visa.html" style="color:var(--blue-deep);font-weight:600">your visa screen</a>,
+          and listed here so this page shows everything on your file.</p>
+        <ul class="doclist" id="visaList" style="gap:8px"></ul>
+      </section>
 
       <!-- Anything sent in the conversation. It is a document like any other —
            same folder, same download — but it does not belong to one of the
@@ -96,7 +113,7 @@ SCRIPT = r"""
 /* Each document says what it BLOCKS, not just what it is. A student who knows
    the APS certificate holds up the whole German application chases it; a
    student looking at a list of nouns does not. */
-""" + DOCS_JS + r"""
+""" + DOCS_JS + VISA_JS + r"""
 /* Documents are real uploads. The file itself is written to disk on the server
    under this student's own folder and is never served as a static asset — it
    comes back only through an endpoint that resolves the student from the
@@ -139,6 +156,29 @@ const KNOWN = new Set(DOCS.map(d => d.id));
    both wrong and the sort of duplicate that makes a student ask whether they
    have uploaded the same thing twice. */
 const isVisaDoc = k => /^visa-/.test(k);
+
+/* The visa documents that exist on this student's file, in the order the visa
+   screen shows them. Only the ones that are actually there: a list of empty
+   slots on a page about what has arrived is noise, and the visa screen is
+   where the empty ones are asked for. */
+function paintVisa() {
+  const wrap = $('#visaWrap');
+  if (!wrap) return;
+  const rows = VISA_DOCS.filter(d => (DB.docs || {})[d.id]);
+  wrap.hidden = !rows.length;
+  if (!rows.length) return;
+  $('#visaList').innerHTML = rows.map(d => {
+    const rec = DB.docs[d.id];
+    const needsThem = rec.status === 'rescan' || rec.status === 'none';
+    return '<li><span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
+      '<span style="flex:1"><a href="/api/documents/' + encodeURIComponent(d.id) +
+        '/file" style="color:var(--blue-deep);font-weight:600">' + esc(d.name) + '</a>' +
+        '<span style="display:block;font-size:11.6px;color:var(--muted)">' +
+        (needsThem ? 'Open your visa screen to send a new copy' : esc(rec.file || '')) +
+        '</span></span>' +
+      '<span class="st ' + rec.status + '">' + LABEL[rec.status] + '</span></li>';
+  }).join('');
+}
 
 function paintShared() {
   const extra = Object.keys(DB.docs || {})
@@ -246,6 +286,7 @@ function required() { return DOCS.filter(d => d.need); }
 function paint() {
   $('#docGrid').innerHTML = DOCS.map(card).join('');
   paintShared();
+  paintVisa();
   const req = required();
   const ok = req.filter(d => stOf(d.id) === S.OK).length;
   const up = req.filter(d => stOf(d.id) !== S.NONE).length;
@@ -254,8 +295,16 @@ function paint() {
   $('#ringFg').setAttribute('stroke-dasharray', C);
   $('#ringFg').setAttribute('stroke-dashoffset', C * (1 - pct / 100));
   $('#ringTxt').textContent = pct + '%';
+  /* "8 of 10" was read as "we hold 8 of your 10 documents", and the file
+     might have fourteen on it — the ring counts the ones we ASKED FOR, and
+     nothing on the screen said so. Anything sent back for a new copy is
+     counted separately, because "waiting on your counsellor" is the opposite
+     of what it means: that one is waiting on the student. */
+  const back = req.filter(d => stOf(d.id) === S.RESCAN).length;
   $('#ringHead').textContent = pct === 100 ? 'Every required document is verified'
-    : ok + ' of ' + req.length + ' verified · ' + (up - ok) + ' waiting on your counsellor';
+    : ok + ' of ' + req.length + ' required documents verified'
+      + (up - ok - back > 0 ? ' \u00b7 ' + (up - ok - back) + ' waiting on your counsellor' : '')
+      + (back ? ' \u00b7 ' + back + ' need a new copy from you' : '');
   $('#blockList').innerHTML = DOCS.filter(d => stOf(d.id) !== S.OK).map(d =>
     '<li>' + ico('clock') + ' <span>' + esc(d.blocks) + '</span>' +
     '<span class="st ' + stOf(d.id) + '">' + esc(d.name) + '</span></li>').join('')
