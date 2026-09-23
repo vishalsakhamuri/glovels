@@ -1633,13 +1633,90 @@ const NOLIST_JS = `<script>(function(){
   });
 })();</script>`;
 
+/*
+ * THE NUMBERS ON A DESTINATION PAGE, READ AT THE MOMENT IT IS ASKED FOR.
+ *
+ * Seven of these pages are hand-written files that nothing regenerates, so
+ * every figure in them was typed once and then left. Germany's said 158
+ * programmes and 41 universities while the catalogue held 2,179 and 223 — out
+ * by a factor of fourteen — and the finder further down the SAME PAGE counted
+ * live, so one screen showed two different answers to one question. Its CGPA
+ * bar said 7.5 because somebody typed 7.5, which is why setting the office's
+ * own field to something else changed nothing.
+ *
+ * Rather than regenerate seven files and wait for the next drift, the values
+ * are replaced here, on the way out, from the same database the finder reads.
+ * The baked number stays in the file as the fallback: if the office has not
+ * set a bar for a destination, the page goes on saying what it has always
+ * said rather than replacing a real figure with a dash.
+ *
+ * Matched on the LABEL beside each value, which is the part that describes
+ * what the number means and is the same on all seventeen pages.
+ */
+function withLiveDestinationFacts(html, slug) {
+  const want = String(slug || '').replace(/^study-in-/, '');
+  const cc = countryByStudySlug(want);
+  if (!cc || !cc.code) return html;
+  const code = cc.code;
+
+  let progs = 0, unis = 0;
+  try { progs = Number(db.countByCountry()[code] || 0); } catch (e) { progs = 0; }
+  try { unis = Number(db.countUniversities({ country: code }) || 0); } catch (e) { unis = 0; }
+
+  const cell = (label, value) => {
+    if (value == null || value === '') return;
+    const re = new RegExp('(<span>' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      + '</span><b>)[^<]*(</b>)', 'g');
+    html = html.replace(re, (m, a, b) => a + value + b);
+  };
+  /* A bar the office has not set is not a bar of zero. Left alone, so a page
+     that has always said 7.5 goes on saying it until somebody decides
+     otherwise on the Destinations screen — where it will now actually take. */
+  const bar = v => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n.toFixed(1) + '+ on 10' : null;
+  };
+  if (progs) cell('Programmes we track', progs.toLocaleString('en-IN'));
+  if (unis) cell('Universities', unis.toLocaleString('en-IN'));
+  cell('Public university CGPA', bar(cc.minCgpaPublic));
+  cell('Private university CGPA', bar(cc.minCgpaPrivate));
+
+  /* The same two numbers again, in the sentence above the box and in the line
+     under the title. A page that argues with itself is worse than one that is
+     merely out of date. */
+  if (progs) {
+    html = html.replace(/<b>[\d,]+ programmes<\/b>/g,
+      '<b>' + progs.toLocaleString('en-IN') + ' programmes</b>');
+    html = html.replace(/(<h1>Study in [^<]*<\/h1><p>)[\d,]+ programmes/,
+      (m, a) => a + progs.toLocaleString('en-IN') + ' programmes');
+  }
+  if (unis) {
+    html = html.replace(/<b>[\d,]+ universit(y|ies)<\/b>/g,
+      '<b>' + unis.toLocaleString('en-IN') + ' universit' + (unis === 1 ? 'y' : 'ies') + '</b>');
+  }
+  return html;
+}
+
 function withDestinationUniversities(html, slug) {
   const want = String(slug || '').replace(/^study-in-/, '');
   const countries = liveCountries();
   const cc = countryByStudySlug(want);
   const code = cc && cc.code;
   if (!code) return html;
-  const anchor = html.indexOf('<p style="margin-top:26px"><a class="btn btn-ghost" href="university#');
+  /*
+   * WHERE THE BLOCK GOES, on two kinds of page.
+   *
+   * The older hand-written destinations carry a "see the universities" button
+   * and the list is spliced in front of it. The eight generated ones do not —
+   * they end with "Talk to a counsellor about Japan" — so this returned early
+   * on every one of them, which is how the empty-destination form shipped and
+   * appeared nowhere: the pages it was written for were exactly the pages this
+   * line refused to touch. Either button will do as a mark; failing both, the
+   * end of the last section, which every one of them has.
+   */
+  let anchor = html.indexOf('<p style="margin-top:26px"><a class="btn btn-ghost" href="university#');
+  if (anchor < 0) anchor = html.indexOf('<p style="margin-top:26px"><a class="btn btn-primary" href="index.html#counsel">');
+  if (anchor < 0) anchor = html.indexOf('</div></section>\n\n<div class="cta-band">');
   if (anchor < 0) return html;
   const hidden = hiddenUniversitySlugs();
   const total = db.countUniversities({ country: code });
@@ -1814,7 +1891,9 @@ function studyPage(c) {
     CRUMBS: '<a href="index.html">Home</a> / Study Abroad / ' + esc(c.name),
     BODY: body,
   }));
-  return withDestinationUniversities(page.replace('</head>', UNI_CSS + '</head>'), 'study-in-' + slug);
+  return withDestinationUniversities(
+    withLiveDestinationFacts(page.replace('</head>', UNI_CSS + '</head>'), 'study-in-' + slug),
+    'study-in-' + slug);
 }
 
 /* The Study Abroad menu on every page lists the fifteen written pages. A
@@ -2170,7 +2249,9 @@ function scriptFile(name) {
     if (file.startsWith(ROOT) && fs.existsSync(file)) {
       const slug = path.basename(file, '.html');
       let html = fs.readFileSync(file, 'utf8');
-      if (slug.startsWith('study-in-')) html = withDestinationUniversities(html, slug);
+      if (slug.startsWith('study-in-')) {
+        html = withDestinationUniversities(withLiveDestinationFacts(html, slug), slug);
+      }
       return externalizeScripts(forIndexing(html, slug), key);
     }
     if (key.startsWith('study-in-')) {
@@ -2548,7 +2629,9 @@ const server = http.createServer(async (req, res) => {
   if (ext === '.html') {
     const slug = path.basename(file, '.html');
     let html = fs.readFileSync(file, 'utf8');
-    if (slug.startsWith('study-in-')) html = withDestinationUniversities(html, slug);
+    if (slug.startsWith('study-in-')) {
+      html = withDestinationUniversities(withLiveDestinationFacts(html, slug), slug);
+    }
     html = withoutScripts(html, query, slug);
     html = forIndexing(html, slug);
     /* Public pages only: the office's screens keep their scripts inline. The

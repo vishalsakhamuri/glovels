@@ -151,6 +151,9 @@ run deep133test.js  8099
 # The form-fill sweep: who may add a public university, what a blank search is
 # for, what an account records about the terms, and whose voice a message is in.
 run round134test.js 8099
+# The destination pages reading from the catalogue rather than from what
+# somebody typed into an HTML file, and what an empty one offers instead.
+run desttest135.js  8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

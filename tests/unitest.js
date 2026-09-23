@@ -350,8 +350,24 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('Clear filters puts the first list back', await dp.locator('#uList li').count() === nBefore && await dp.locator('#ufClear').isHidden());
   check('no script errors on the country page', !derr.length, derr.join(' | '));
   await dp.close();
-  check('a country with nothing on the site gets no heading',
-    !/id="universities"/.test(await (await guest.request.get(BASE + '/study-in-japan')).text()));
+  /* It used to get nothing at all, which left a student reading a full page of
+     requirements with no way to act on it. The office's instruction: "for any
+     country we do not have relevant universities we need to display a contact
+     form so that the student can contact us and a counsellor will get in
+     touch… a cryptic message that these are special, only counsellors can give
+     the info and public listing is not available." So: a heading, the reason,
+     and somewhere to leave a number — but no list and no filter bar, because
+     there is nothing to filter. */
+  {
+    const empty = await (await guest.request.get(BASE + '/study-in-japan')).text();
+    check('a country with nothing on the site says so and offers to help',
+      /id="universities"/.test(empty) && /class="nolist"/.test(empty)
+      && /do not list universities/i.test(empty),
+      'heading=' + /id="universities"/.test(empty) + ' block=' + /class="nolist"/.test(empty));
+    check('  · and takes a number rather than showing an empty list',
+      /id="nlPhone"/.test(empty) && !/id="uList"/.test(empty),
+      'phone=' + /id="nlPhone"/.test(empty) + ' list=' + /id="uList"/.test(empty));
+  }
   r = await staff.request.post(BASE + '/api/staff/programmes/bulk', { data: { ids: soIds, action: 'show' } });
   bulk = await r.json();
   const cat3 = await (await guest.request.get(BASE + '/api/catalogue')).json();
