@@ -57,6 +57,15 @@ const cell = (html, label) =>
       Number(inProse.replace(/,/g, '')) === after, inProse + ' vs ' + after);
   }
 
+  /* The tile counts what the site OFFERS, not every row in the table. It
+     counted all of them, so Germany's tile claimed four more programmes than
+     the finder underneath it could find — the same disagreement between two
+     numbers on one screen that this whole change exists to end. */
+  const cat = await (await fetch(BASE + '/api/catalogue')).json();
+  const inCatalogue = (cat.programmes || []).filter(p => p.country === 'CA').length;
+  ok('the tile counts what the finder can actually show', after === inCatalogue,
+    'tile ' + after + ', catalogue ' + inCatalogue);
+
   /* ---- 2. the CGPA bar is the office's, not the author's ---- */
   r = await req('a', 'PUT', '/api/staff/country',
     { code: 'CA', name: 'Canada', facts: { minCgpaPublic: 6.8, minCgpaPrivate: 5.4 } });

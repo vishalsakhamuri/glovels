@@ -1660,7 +1660,12 @@ function withLiveDestinationFacts(html, slug) {
   const code = cc.code;
 
   let progs = 0, unis = 0;
-  try { progs = Number(db.countByCountry()[code] || 0); } catch (e) { progs = 0; }
+  /* What the site actually offers in this country — active rows only, the
+     same test the university count beside it applies. Counting every row in
+     the table made the tile claim more programmes than the finder below it
+     could find, which is the same class of disagreement this whole change
+     exists to end. */
+  try { progs = Number(db.countProgrammes({ country: code }) || 0); } catch (e) { progs = 0; }
   try { unis = Number(db.countUniversities({ country: code }) || 0); } catch (e) { unis = 0; }
 
   const cell = (label, value) => {

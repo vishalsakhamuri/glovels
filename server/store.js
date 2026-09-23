@@ -1368,6 +1368,22 @@ function open(dir) {
       return db.all('SELECT * FROM programmes WHERE active = 1 AND country IN (' + cs.map(() => '?').join(',') + ')', ...cs);
     },
     /** Live universities, counted. listed: on the site only. */
+    /* Programmes, counted the way the site counts universities: only what is
+       actually on it. countByCountry() counts every row in the table,
+       search-only ones included, which is the right answer for the Catalogue
+       screen and the wrong one for a destination page — it made the tile
+       claim four more programmes than the finder underneath it could show. */
+    countProgrammes({ country, listed } = {}) {
+      if (db.kind !== 'sqlite') {
+        return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r =>
+          r.active && (!listed || !r.search_only) && (!country || r.country === country)).length;
+      }
+      const w = ['active = 1']; const a = [];
+      if (listed) w.push('search_only = 0');
+      if (country) { w.push('country = ?'); a.push(country); }
+      return (db.one('SELECT COUNT(*) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
+    },
+
     countUniversities({ country, listed } = {}) {
       if (db.kind !== 'sqlite') {
         const s = new Set();
