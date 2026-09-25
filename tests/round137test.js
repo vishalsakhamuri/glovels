@@ -111,6 +111,38 @@ async function req(who, method, path, body) {
   ok('  · and the screen says the same thing the server does',
     true, 'wording checked in profiletest');
 
+  /* ---- 3b. the enquiry feed is scoped like the book beside it ----
+     "Responsible person and admin should monitor it." The Website chat screen
+     read the same table as the leads book without the same rule, so one tab
+     across from a book that correctly hid another counsellor's leads, every
+     one of them was listed with a working phone number. */
+  r = await req('x', 'POST', '/api/enquiries',
+    { name: 'Theirs ' + stamp, phone: '9876500191', email: 'th' + stamp + '@ex.example' });
+  r = await req('x', 'POST', '/api/enquiries',
+    { name: 'Nobody ' + stamp, phone: '9876500192', email: 'nb' + stamp + '@ex.example' });
+  r = await req('a', 'GET', '/api/staff/leads');
+  const other = (r.body.leads || []).find(l => l.name.includes('Theirs ' + stamp));
+  r = await req('a', 'POST', '/api/staff/people',
+    { name: 'Someone Else', email: 'se' + stamp + '@glovels.com', password: 'se-' + stamp, role: 'counsellor' });
+  await req('a', 'PUT', '/api/staff/lead/' + other.id, { ownerId: r.body.person.id });
+
+  r = await req('c', 'GET', '/api/staff/enquiries');
+  const seen = (r.body.enquiries || []).map(e => e.name);
+  ok('a counsellor is not shown another counsellor\u2019s enquiry',
+    !seen.some(n => n.includes('Theirs ' + stamp)),
+    JSON.stringify(seen).slice(0, 160));
+  ok('  · but is shown one nobody has picked up',
+    seen.some(n => n.includes('Nobody ' + stamp)), JSON.stringify(seen).slice(0, 160));
+  r = await req('c', 'GET', '/api/staff/leads');
+  ok('  · and the two lists agree, which is the point',
+    (r.body.leads || []).length === seen.length,
+    (r.body.leads || []).length + ' in the book, ' + seen.length + ' in the feed');
+  r = await req('a', 'GET', '/api/staff/enquiries');
+  const all = (r.body.enquiries || []).map(e => e.name);
+  ok('  · the office sees every one of them',
+    all.some(n => n.includes('Theirs ' + stamp)) && all.some(n => n.includes('Nobody ' + stamp)),
+    JSON.stringify(all).slice(0, 160));
+
   /* ---- 4. the catalogue: shown, not editable ---- */
   r = await req('c', 'GET', '/api/staff/catalogue');
   ok('a counsellor with no permissions can read the catalogue', r.ok, r.status);

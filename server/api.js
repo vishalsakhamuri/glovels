@@ -6042,19 +6042,26 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * dashboard is not a lead.
    */
   /*
-   * THE WHOLE ENQUIRY FEED, ON PURPOSE — but now it says whose each one is.
+   * THE SAME SCOPE THE LEADS BOOK USES, AND FOR THE SAME REASON.
    *
-   * The leads book beside this one is scoped to the counsellor: their own
-   * leads and the unowned ones. This is not, and that is the office's
-   * decision — the website chat is answered by whoever is at the desk. What
-   * it did NOT do was say who owned a row, so somebody could call a lead
-   * another counsellor had spoken to yesterday and neither of them would know.
-   * The scoping stays off; the name goes on.
+   * "Responsible person and admin should monitor it." So: whoever owns the
+   * enquiry, plus everything nobody has picked up yet, plus an administrator
+   * who sees all of it. That is exactly the rule /api/staff/leads has always
+   * applied — and this endpoint reads the SAME TABLE and did not apply it, so
+   * one tab across from the book that hides another counsellor's leads, the
+   * Website chat screen listed every one of them with a working phone number
+   * and email address.
+   *
+   * Left unscoped for a while on a reading of "they can also reply and close"
+   * as "everybody sees everything". It meant the responsible person can act
+   * on their own, which is a different sentence.
    */
   route('GET', '/api/staff/enquiries', caseworkOnly(async (req, res, s) => {
     const who = peopleMap();
+    const mine = e => s.role === 'admin' || !e.owner_id
+      || Number(e.owner_id) === Number(s.id);
     return json(res, 200, {
-      enquiries: db.allEnquiries().slice(0, 200).map(e => ({
+      enquiries: db.allEnquiries().filter(mine).slice(0, 200).map(e => ({
         id: e.id, name: e.name, phone: e.phone, email: e.email,
         destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
         note: e.note || '', source: e.source || 'website', status: e.status || 'new',

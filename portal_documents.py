@@ -16,6 +16,12 @@ BODY = """
           <div>
             <p style="margin:0 0 6px;font-size:13.4px;color:var(--navy-900);font-weight:600"
                id="ringHead">Nothing uploaded yet</p>
+            <!-- THE ONE PART THAT IS A JOB, above the explanation of the rest.
+                 A document sent back for a new copy was findable only by
+                 noticing a changed chip on a card halfway down the page — and
+                 if it was a visa document, on a different page entirely. The
+                 thing being chased has to be the thing the screen leads with. -->
+            <div id="needsYou" hidden></div>
             <p style="margin:0;font-size:12.4px;color:var(--muted);line-height:1.55">A file is
               <b>verified</b> once your counsellor has opened it and confirmed it is readable, current
               and matches your profile. Uploading is not the same as being ready.</p>
@@ -300,11 +306,53 @@ function paint() {
      nothing on the screen said so. Anything sent back for a new copy is
      counted separately, because "waiting on your counsellor" is the opposite
      of what it means: that one is waiting on the student. */
-  const back = req.filter(d => stOf(d.id) === S.RESCAN).length;
-  $('#ringHead').textContent = pct === 100 ? 'Every required document is verified'
-    : ok + ' of ' + req.length + ' required documents verified'
-      + (up - ok - back > 0 ? ' \u00b7 ' + (up - ok - back) + ' waiting on your counsellor' : '')
-      + (back ? ' \u00b7 ' + back + ' need a new copy from you' : '');
+  /*
+   * WHAT IS ON THE FILE, not only what was asked for.
+   *
+   * The ring measures readiness against the ten documents every student is
+   * asked for, which is the right thing to measure. It is the wrong thing to
+   * say on its own: a student with twelve documents read "8 of 10" as "you
+   * hold ten of mine, and eight are done" — and the two it did not mention
+   * were on the same screen further down. Worse, a document sent back for a
+   * new copy could be one of those two, so the one thing needing their
+   * attention was the one number that never moved.
+   *
+   * So the headline now states the whole file as well: what is verified out
+   * of what we asked for, how much else is on the record, and — first,
+   * because it is the only part that is a job — anything waiting on them.
+   */
+  const all = Object.keys(DB.docs || {});
+  const extra = all.length - req.filter(d => stOf(d.id) !== S.NONE).length;
+  const backAll = all.filter(k => (DB.docs[k] || {}).status === S.RESCAN).length;
+  const waiting = all.filter(k => (DB.docs[k] || {}).status === S.REVIEW).length;
+  $('#ringHead').textContent = (pct === 100 && !backAll
+    ? 'Every required document is verified'
+    : ok + ' of ' + req.length + ' required documents verified')
+      + (extra > 0 ? ' \u00b7 ' + extra + ' more on your file' : '')
+      + (waiting ? ' \u00b7 ' + waiting + ' waiting on your counsellor' : '')
+      + (backAll ? ' \u00b7 ' + backAll + ' need a new copy from you' : '');
+  /* Named, and linked to wherever that document actually lives. A visa
+     document is uploaded on the visa screen, so pointing at it here and
+     leaving them to find it would be half the job. */
+  const NAMES = {};
+  DOCS.forEach(d => { NAMES[d.id] = d.name; });
+  (typeof VISA_DOCS !== 'undefined' ? VISA_DOCS : []).forEach(d => { NAMES[d.id] = d.name; });
+  const chase = all.filter(k => (DB.docs[k] || {}).status === S.RESCAN);
+  const box = $('#needsYou');
+  if (box) {
+    box.hidden = !chase.length;
+    box.innerHTML = !chase.length ? '' :
+      '<p style="margin:0 0 6px;padding:9px 11px;border-radius:9px;background:#fdf3f2;' +
+        'border:1px solid #f0c8c4;font:600 12.6px/1.55 var(--sans);color:#7a2118">' +
+        'Your counsellor has asked for a new copy of ' +
+        chase.map(k => '<b>' + esc(NAMES[k] || k) + '</b>').join(', ') + '. ' +
+        chase.map(k => /^visa-/.test(k)
+          ? '<a href="visa.html" style="color:#7a2118;text-decoration:underline">' +
+            'Open your visa screen</a>'
+          : '<a href="#docGrid" style="color:#7a2118;text-decoration:underline">' +
+            'Send it below</a>').filter((v, i, a) => a.indexOf(v) === i).join(' \u00b7 ') +
+      '</p>';
+  }
   $('#blockList').innerHTML = DOCS.filter(d => stOf(d.id) !== S.OK).map(d =>
     '<li>' + ico('clock') + ' <span>' + esc(d.blocks) + '</span>' +
     '<span class="st ' + stOf(d.id) + '">' + esc(d.name) + '</span></li>').join('')
