@@ -9,7 +9,21 @@ BODY = """
       .out.tiles{grid-template-columns:repeat(var(--tiles,4),1fr)}
       @media (max-width:820px){ .out.tiles{grid-template-columns:repeat(2,1fr)} }
       @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
-    </style>
+    
+      /* A counsellor without the catalogue permission: the list, and none of
+         the levers. Hidden rather than disabled, because a greyed-out row of
+         buttons on every line is a screen mostly made of things you cannot
+         do. The server refuses each of these as well — this is so the refusal
+         is not how somebody finds out. */
+      body.read-only #addProg,
+      body.read-only #addDest,
+      body.read-only #bulkBar,
+      body.read-only [data-edit],
+      body.read-only #t-sheet { display: none !important; }
+      body.read-only .ro-note{margin:0 0 18px;padding:12px 14px;border-radius:11px;
+        background:#f1f6fb;border:1px solid #cfe0f2;font:500 12.9px/1.6 var(--sans);
+        color:var(--navy-800)}
+</style>
 
     <div class="out tiles" style="--tiles:5;margin:0 0 18px">
       <div><b id="kLive">—</b><span>On the site</span></div>
@@ -1479,13 +1493,36 @@ $('#sFile').addEventListener('change', () => { $('#sOut').innerHTML = ''; sheetP
 staffBoot(async me => {
   /* The API refuses the change anyway. This is so the refusal is not the first
      thing they learn about it, after typing in fifty universities. */
-  if ((me.user.perms || []).indexOf('catalogue') < 0) {
-    document.querySelector('.p-main').innerHTML =
-      '<div class="sl-empty" style="margin-top:40px"><b>You do not have access to the ' +
-      'universities</b><p>An administrator can give it to you on the Organisation screen ' +
-      '&mdash; it is a tick box beside your name.</p>' +
-      '<a class="btn btn-primary" href="counsellor.html">Go to Conversations</a></div>';
-    return;
+  /*
+   * READING IS THE JOB. CHANGING IT IS A PERMISSION.
+   *
+   * This screen used to refuse outright — "You do not have access to the
+   * universities" — while the API happily served the whole catalogue to the
+   * same account. A wall a counsellor can see straight through is worse than
+   * no wall: it tells them they cannot do something they can, and it told the
+   * office a boundary existed where none did.
+   *
+   * "Counsellors can see it, only for students its blurred" — so the list
+   * loads, and every control that would CHANGE it goes, including the
+   * spreadsheet tab. The downloads on that tab are refused by the server now
+   * as well: "make sure counsellor cannot do bulk copy."
+   */
+  const mayEdit = (me.user.perms || []).indexOf('catalogue') >= 0
+    || me.user.role === 'admin';
+  if (!mayEdit) {
+    document.body.classList.add('read-only');
+    const tab = document.querySelector('.tab[data-t="sheet"]');
+    if (tab) { tab.hidden = true; tab.disabled = true; }
+    const head = document.querySelector('.p-main');
+    if (head) {
+      const note = document.createElement('p');
+      note.className = 'ro-note';
+      note.innerHTML = 'You can look anything up here. <b>Changing the catalogue</b> \u2014 '
+        + 'adding a programme, editing one, or working from the spreadsheet \u2014 needs '
+        + 'permission from an administrator, which is a tick box beside your name on the '
+        + 'Organisation screen.';
+      head.insertBefore(note, head.firstChild);
+    }
   }
   await reload();
   /* Nothing here needs pushing yet, but the chip in the header claims to be

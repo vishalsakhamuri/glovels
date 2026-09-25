@@ -3847,7 +3847,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          *
          * A university offers many courses; the course is the thing being
          * added. It leads. */
-        db.addMessage(id, 'them', 'I have added ' + progSaid(p) + ' to your list.');
+        /* "I have added" is a person speaking, so it carries that person's
+           name. Left unstamped, the student read a counsellor's own decision
+           as a notice from the building — which is exactly the complaint
+           this whole column was added to answer, still true on the messages
+           a counsellor actually causes. */
+        db.addMessage(id, 'them', 'I have added ' + progSaid(p) + ' to your list.', '', s.name);
         live.toStudent(id, 'shortlist', {});
       }
       return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
@@ -3869,7 +3874,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (row) {
         db.log(s.name, 'removed a university', st.name + ' — ' + (row.university || progId));
         db.addMessage(id, 'them', 'I have taken ' + progSaid(row)
-          + ' off your list.');
+          + ' off your list.', '', s.name);
         live.toStudent(id, 'shortlist', {});
       }
       return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
@@ -3920,7 +3925,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const moved = !before || before.stage !== stage || before.outcome !== outcome;
       if (moved) {
         db.log(s.name, 'moved an application', st.name + ' — ' + said);
-        db.addMessage(id, 'them', 'Update on your applications — ' + said + '.');
+        db.addMessage(id, 'them', 'Update on your applications — ' + said + '.', '', s.name);
       }
       /* The note is its own event, with its own sentence. Folding it into the
          one above would send "Update on your applications — Filed" to somebody
@@ -3929,7 +3934,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const noted = note !== undefined && note !== String((before || {}).note || '');
       if (noted && note) {
         db.log(s.name, 'wrote an application note', st.name + ' — ' + progSaid(row));
-        db.addMessage(id, 'them', progSaid(row) + ' — ' + note);
+        db.addMessage(id, 'them', progSaid(row) + ' — ' + note, '', s.name);
       }
       if (moved || noted) live.toStudent(id, 'apps', {});
       return json(res, 200, { apps: stateFor(st).apps, moved, noted });
@@ -8141,15 +8146,32 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
               + '. It is on the 10-point scale.']);
           }
         }
+        /*
+         * A KEY THAT IS THERE WITH NOTHING IN IT IS NOT A KEY THAT IS ABSENT.
+         *
+         * This skipped an empty value, and the browser is exactly what sends
+         * one: the editor does `Number(whatever was typed)`, which for "abc"
+         * is NaN, and JSON.stringify writes NaN as null. So the bad rate
+         * arrived as null, was skipped here as "nothing to check", and the
+         * cleaner then dropped the currency from the map — the very thing
+         * this check was added to prevent, still happening, because the check
+         * was written against a string the screen never sends.
+         *
+         * The first version of this was tested by posting the letters
+         * directly, which the server does refuse. What nobody tested was the
+         * path a person actually takes.
+         */
         const fxIn = (value && value.fx) || {};
         for (const code of Object.keys(fxIn)) {
-          const raw = String(fxIn[code] == null ? '' : fxIn[code]).trim();
-          if (!raw) continue;
+          const v = fxIn[code];
+          const raw = String(v == null ? '' : v).trim();
           const n = Number(raw);
-          if (!/^\s*\d+(\.\d+)?\s*$/.test(raw) || !Number.isFinite(n) || n <= 0) {
+          if (!raw || !/^\s*\d+(\.\d+)?\s*$/.test(raw) || !Number.isFinite(n) || n <= 0) {
             bad.push(['The ' + code + ' rate',
-              '“' + raw.slice(0, 20) + '” is not a rate. It is how many rupees one '
-              + code + ' is worth, so it has to be a number above zero.']);
+              (raw ? '“' + raw.slice(0, 20) + '” is not a rate. ' : 'is empty. ')
+              + 'It is how many rupees one ' + code
+              + ' is worth, so it has to be a number above zero.'
+              + ' To stop offering ' + code + ' at all, remove the row.']);
           }
         }
         if (bad.length) {

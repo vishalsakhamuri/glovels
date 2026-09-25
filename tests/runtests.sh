@@ -154,6 +154,10 @@ run round134test.js 8099
 # The destination pages reading from the catalogue rather than from what
 # somebody typed into an HTML file, and what an empty one offers instead.
 run desttest135.js  8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
+# The 25 September round: a rate as the browser sends it, a counsellor's own
+# name on their own messages, the three things the office reaches somebody by,
+# and a catalogue that is readable without being editable.
+run round137test.js 8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

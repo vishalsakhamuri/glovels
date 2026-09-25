@@ -459,8 +459,17 @@ function readForm() {
 /* The two the office cannot work without. Everything else on this form can be
    filled in later; a record with no way to reach the person cannot. */
 const MUST = [
+  /* +91, or a trunk zero, is the same number. The server normalises both
+     (api.js tenDigits) and its account column has always accepted them, so a
+     box that refused what the column next to it stored was this form
+     disagreeing with itself. */
   {k:'phone', l:'Mobile number',
-   ok:v => /^[6-9]\d{9}$/.test(v.replace(/\D/g, '')),
+   ok:v => {
+     const d = String(v).replace(/\D/g, '');
+     const ten = d.length === 12 && d.startsWith('91') ? d.slice(2)
+       : d.length === 11 && d.startsWith('0') ? d.slice(1) : d;
+     return /^[6-9]\d{9}$/.test(ten);
+   },
    why:'Ten digits, starting 6 to 9.'},
   {k:'email', l:'Email',
    ok:v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v),

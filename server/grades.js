@@ -186,6 +186,68 @@ function problems(profile) {
     out.push({ field: 'p_num', label: 'Passport number', said: String(p.p_num).slice(0, 40),
       why: PASSPORT_WHY });
   }
+  /*
+   * THE THREE THINGS THE OFFICE REACHES SOMEBODY BY.
+   *
+   * A mobile of "ft25aaa", an email with no @ and a PIN of "PIN-25X" were all
+   * stored, on a form whose own hints say "Indian mobile, 10 digits" and "Six
+   * digits". The account's phone column was protected — a bad one there is
+   * quietly ignored — so the damage was invisible: the PROFILE kept the
+   * rubbish, and the profile is what the counsellor reads, what the
+   * university form is filled from, and what the visa file quotes.
+   *
+   * Here rather than on the route, because two different screens save this
+   * same record — the student's own and the agency's on their behalf — and
+   * only one of them was ever checked. That is how it got in.
+   *
+   * WORDED AS THE SCREEN WORDS IT, and scoped as the screen scopes it. The
+   * first version of this said the same thing in different words and applied
+   * the Indian-mobile rule to the alternate number as well — which the screen
+   * deliberately does not, because a parent living abroad has a number that is
+   * not an Indian mobile and is still their number. One rule stated twice in
+   * two voices is two rules.
+   */
+  /* The same normalisation the rest of the application uses (api.js
+     tenDigits): a number written with its country code, or with the trunk
+     zero, is the same number. Without this the account column accepted
+     "+91 98765 43210" and the profile beside it refused the identical value,
+     inside one save. */
+  const tenOf = v => {
+    const d = String(v == null ? '' : v).replace(/\D+/g, '');
+    if (d.length === 12 && d.startsWith('91')) return d.slice(2);
+    if (d.length === 11 && d.startsWith('0')) return d.slice(1);
+    return d;
+  };
+  const indianMobile = v => /^[6-9]\d{9}$/.test(tenOf(v));
+  const anyNumber = v => {
+    const raw = String(v);
+    const d = raw.replace(/\D/g, '');
+    return /^\+?[\d\s().-]+$/.test(raw) && d.length >= 8 && d.length <= 15;
+  };
+  const say = (field, label, said, why) =>
+    out.push({ field, label, said: String(said).slice(0, 40), why: label + ' does not look right. ' + why });
+
+  const phone = String(p.phone == null ? '' : p.phone).trim();
+  if (phone && !indianMobile(phone)) {
+    say('phone', 'Mobile number', phone, 'Ten digits, starting 6 to 9.');
+  }
+  /* The two that may be anybody's, anywhere. */
+  for (const [key, label] of [['alt_phone', 'Alternate contact number'],
+    ['fam_phone', "Parent or guardian's mobile"]]) {
+    const raw = String(p[key] == null ? '' : p[key]).trim();
+    if (raw && !anyNumber(raw)) {
+      say(key, label, raw, 'Digits only, with the country code if it is not Indian.');
+    }
+  }
+  const mail = String(p.email == null ? '' : p.email).trim();
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) {
+    say('email', 'Email', mail, 'Something like you@email.com.');
+  }
+  const pin = String(p.pin == null ? '' : p.pin).trim();
+  if (pin && !/^\d{6}$/.test(pin.replace(/\s/g, ''))) {
+    say('pin', 'PIN code', pin, 'Six digits.');
+  }
+
   /* Old enough to apply, and not born tomorrow. "The date of birth accepts
      today's date as well" — a student is at least fifteen, and nobody on the
      books is over ninety. */
