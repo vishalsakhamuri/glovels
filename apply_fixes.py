@@ -9589,6 +9589,595 @@ patch(
     marker="They have their own setter. */\n  if (f.contact) {",
 )
 
+
+# ------------------------------------------------------------ patch 139
+#
+# WHAT A PROGRAMME ASKS FOR, ON THE FINDER.
+#
+# "What filters should we keep upfront: Preferred Course/Specialisation,
+#  German Grade, Target Intake, IELTS/TOEFL Score, Work Exp. Advanced filters
+#  (hidden, user can click to reveal them): GRE, German Language Level,
+#  Bachelors Degree, Bachelors Duration — 3 years or 4 years or 5 years,
+#  Tuition Preference — No Tuition fee, up to 500 Euro/Sem, up to 1500, up to
+#  4000, up to 6000, Paper Publication. All these to be considered."
+#
+# and, on the same day: "we need to make sure student gives all details for
+# better showing the unis".
+#
+# The filters come in two kinds and the screen treats them differently.
+#
+#   The ones that decide WHICH programmes appear — destination, level, field,
+#   specialisation, intake, grade, tuition — are filters in the ordinary
+#   sense: a row that does not fit is not shown.
+#
+#   The ones that decide whether THIS STUDENT clears a programme — English
+#   score, work experience, GRE, German level, bachelor's length, a paper —
+#   are answers, not filters. A programme that states a requirement the
+#   student has not met is set aside and counted ("6 would turn you down, on
+#   what you told us"); one that states a requirement the student has not
+#   ANSWERED is shown, with "chances unknown" on it, and the questions still
+#   open are listed above the results with a button that opens the box to
+#   answer them in. That is how "make sure the student gives all details" is
+#   done: not by making the form longer, but by withholding the verdict until
+#   they answer. Wanting to know is stronger than being made to fill a box.
+#
+#   And a requirement a programme has NOT stated is never held against it.
+#   Blank means not stated; it never means zero.
+#
+# Signed in, every answer is read from the profile first — the English test,
+# the GRE, the bachelor's length, the months of work — so a student who has
+# filled it in is never asked twice. The box on the page wins over the
+# profile when both say something, because the box is what they just typed.
+#
+# A control only appears when a row in view actually states that
+# requirement. Pick the United Kingdom and the German-level box is gone,
+# because no row there asks for German; it is not a dead control offering a
+# question nobody will read the answer to.
+
+# -- 1. the form: two more upfront, a specialisation box that waits for its
+#       data, and the "More filters" panel.
+patch(
+    "index.html",
+    "finder: English and work experience upfront, more filters behind a button",
+    """<div class="field"><label for="fIntake"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Intake</label><select id="fIntake">""",
+    """<div class="field" id="fSpecWrap" hidden><label for="fSpec"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Specialisation</label><select id="fSpec"><option value="">Any specialisation</option></select></div><div class="field" id="fIntakeWrap"><label for="fIntake"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Intake</label><select id="fIntake">""",
+    marker='id="fSpecWrap"',
+)
+patch(
+    "index.html",
+    "finder: the English and work boxes, and the panel",
+    """      <button class="btn btn-gold fgo" id="fGo">Find Programs <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+    </div>""",
+    """      <div class="field" id="fEnglishWrap"><label for="fEnglish"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> IELTS / TOEFL</label><select id="fEnglish"><option value="">Not told us yet</option><optgroup label="IELTS overall"><option value="ielts:5.5">IELTS 5.5</option><option value="ielts:6">IELTS 6.0</option><option value="ielts:6.5">IELTS 6.5</option><option value="ielts:7">IELTS 7.0</option><option value="ielts:7.5">IELTS 7.5 or more</option></optgroup><optgroup label="TOEFL iBT"><option value="toefl:72">TOEFL 72</option><option value="toefl:80">TOEFL 80</option><option value="toefl:88">TOEFL 88</option><option value="toefl:95">TOEFL 95</option><option value="toefl:100">TOEFL 100 or more</option></optgroup><option value="none">Not taken yet</option></select></div><div class="field" id="fWorkWrap"><label for="fWork"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Work experience</label><select id="fWork"><option value="">Not told us yet</option><option value="0">None</option><option value="6">Under a year</option><option value="12">1 &ndash; 2 years</option><option value="24">2 &ndash; 3 years</option><option value="36">3 years or more</option></select></div>
+      <button class="btn btn-gold fgo" id="fGo">Find Programs <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+    </div>
+    <div class="fmore-bar"><button type="button" class="fmore-btn" id="fMoreBtn" aria-expanded="false" aria-controls="fMore"><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg> More filters <span class="fmore-n" id="fMoreN" hidden></span></button><span class="fmore-hint" id="fMoreHint">GRE, German level, your bachelor&rsquo;s, tuition, publications</span></div>
+    <div class="fgrid fmore" id="fMore" hidden>
+      <div class="field" id="fGreWrap"><label for="fGre"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE</label><select id="fGre"><option value="">Not told us yet</option><option value="none">Not taken</option><option value="290">Under 300</option><option value="300">300 &ndash; 309</option><option value="310">310 &ndash; 319</option><option value="320">320 or more</option></select></div>
+      <div class="field" id="fGermanWrap"><label for="fGerman"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> German language</label><select id="fGerman"><option value="">Not told us yet</option><option value="none">None yet</option><option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option></select></div>
+      <div class="field" id="fBachWrap"><label for="fBach"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Your bachelor&rsquo;s</label><input id="fBach" type="text" maxlength="80" placeholder="B.Tech Computer Science" autocomplete="off"></div>
+      <div class="field" id="fBachYearsWrap"><label for="fBachYears"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Bachelor&rsquo;s length</label><select id="fBachYears"><option value="">Not told us yet</option><option value="3">3 years</option><option value="4">4 years</option><option value="5">5 years</option></select></div>
+      <div class="field" id="fTuitionWrap"><label for="fTuition"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Tuition per semester</label><select id="fTuition"><option value="">Any tuition</option><option value="0">No tuition fee</option><option value="500">Up to &euro;500</option><option value="1500">Up to &euro;1,500</option><option value="4000">Up to &euro;4,000</option><option value="6000">Up to &euro;6,000</option></select></div>
+      <div class="field" id="fPapersWrap"><label for="fPapers"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Published a paper</label><select id="fPapers"><option value="">Not told us yet</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+    </div>""",
+    marker='id="fMoreBtn"',
+)
+
+# -- 2. the CSS. Four columns and two rows, since seven boxes and a button
+#       do not fit on one line and a second line is where the eye goes next.
+patch(
+    "index.html",
+    "finder: the grid takes eight cells",
+    """.fgrid{display:grid;grid-template-columns:1.12fr .9fr 1.1fr 1.08fr .8fr auto;gap:14px;
+  align-items:end}
+.fgo{height:54px;padding:0 24px;white-space:nowrap}""",
+    """.fgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;
+  align-items:end}
+.fgo{height:54px;padding:0 24px;white-space:nowrap;grid-column:-2/-1}
+.fmore-bar{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.fmore-btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 14px;border:1.5px solid var(--line);
+  border-radius:10px;background:#fff;font:700 12.6px/1 var(--sans);color:var(--blue-deep);cursor:pointer}
+.fmore-btn:hover{border-color:var(--blue)}
+.fmore-btn .ico{width:13px;height:13px;transform:rotate(90deg);transition:transform .18s}
+.fmore-btn[aria-expanded="true"] .ico{transform:rotate(-90deg)}
+.fmore-n{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--blue);color:#fff;
+  font:800 11px/20px var(--sans);text-align:center}
+.fmore-hint{font:400 12.2px/1.4 var(--sans);color:var(--muted)}
+.fgrid.fmore{margin-top:12px;padding-top:14px;border-top:1px dashed var(--line)}
+.mverdict{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:3px 9px;border-radius:999px;
+  font:700 11px/1.35 var(--sans);max-width:100%}
+.mverdict.ok{background:#eaf4ee;color:#186139}
+.mverdict.unknown{background:var(--cream);color:var(--muted);border:1px dashed #cfd6de}
+.masks{font-size:11.6px;color:var(--muted);margin-top:3px;white-space:normal;line-height:1.45}
+.need{display:flex;align-items:center;gap:18px;background:#fff;border:1.5px solid #c9a24b;border-radius:14px;
+  padding:16px 18px;margin:0 0 14px}
+.need-ring{flex:none;width:64px;height:64px;position:relative}
+.need-ring b{position:absolute;inset:0;display:grid;place-items:center;font:800 15px/1 var(--serif);color:var(--navy-900)}
+.need-body{flex:1;min-width:0}
+.need-body h4{margin:0 0 4px;font:600 16px/1.3 var(--serif);color:var(--navy-900)}
+.need-body p{margin:0 0 9px;font:400 13px/1.55 var(--sans);color:var(--muted)}
+.need-chips{display:flex;gap:7px;flex-wrap:wrap}
+.need-chips button{padding:5px 11px;border-radius:999px;border:1px solid #e7d3a1;background:#f6f2ea;
+  font:700 12px/1.3 var(--sans);color:#7a5a12;cursor:pointer}
+.need-chips button:hover{background:#f0e6cf}
+.need-chips span{padding:5px 11px;border-radius:999px;border:1px solid #cfe5d9;background:#eaf4ee;font:700 12px/1.3 var(--sans);color:#186139}
+.need>.btn{flex:none}
+.turned{margin:14px 0 0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+.turned summary{cursor:pointer;font:700 13.4px/1.4 var(--sans);color:var(--navy-900)}
+.turned ul{margin:10px 0 0;padding:0;list-style:none}
+.turned li{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);font:400 13px/1.45 var(--sans)}
+.turned li b{color:var(--navy-900)}
+.turned li span{color:#8a3b2a}
+.turned li small{color:var(--muted);margin-left:auto;white-space:nowrap}
+@media (max-width:820px){.need{flex-wrap:wrap}.need>.btn{width:100%}}""",
+    marker=".fmore-btn{",
+)
+
+# -- 3. the code. Answers, the verdict, the relevance rule, the two boxes
+#       around the results.
+patch(
+    "index.html",
+    "finder: what a programme asks for, and whether this student clears it",
+    """function filtered(ignoreBands){
+  const co = $('#fCountry').value, lv = $('#fLevel').value, fd = $('#fField').value,
+        ik = $('#fIntake').value, cg = cgpaOf();
+  return D.programs.filter(p => {
+    if(co && p.country !== co) return false;
+    if(lv && p.level !== lv) return false;
+    if(fd && p.field !== fd) return false;
+    if(ik && !p.intakes.some(i => intakeKey(i) === ik)) return false;""",
+    """/* ------------------------------------------- what a programme asks for */
+/* The student's profile, when they are signed in. Read once, below, beside
+   the grade. The finder reads its answers from here when the box on the
+   page is empty, so nobody is asked twice. */
+let PROFILE = {};
+const CEFR = ['none','A1','A2','B1','B2','C1','C2'];
+const REQ_LABEL = {
+  english: 'IELTS or TOEFL score', gre: 'GRE', germanLevel: 'German language level',
+  bachelorYears: 'bachelor\\u2019s length', workExpMonths: 'work experience', papers: 'a published paper'
+};
+/* Which box answers which question, for the chip that opens it. */
+const REQ_SHORT = { english: 'English score', gre: 'GRE', germanLevel: 'German level',
+  bachelorYears: 'bachelor\u2019s length', workExpMonths: 'work experience', papers: 'a paper' };
+const REQ_BOX = { english: '#fEnglish', gre: '#fGre', germanLevel: '#fGerman',
+  bachelorYears: '#fBachYears', workExpMonths: '#fWork', papers: '#fPapers' };
+const reqsOf = p => (p && p.reqs && typeof p.reqs === 'object') ? p.reqs : {};
+const boxOn = el => { const w = el.closest('.field') || el; return !w.hidden; };
+const has = v => v !== undefined && v !== null && v !== '';
+const num = v => (has(v) && Number.isFinite(Number(v)) ? Number(v) : null);
+
+/* What THEY have said, from the boxes first and the profile second. A key
+   that is absent means "not answered"; false on gre / papers, or englishNone,
+   means "answered: none". */
+function myAnswers(){
+  const a = {};
+  /* A box whose own field is hidden does not count — the destination does
+     not ask. A box inside the COLLAPSED panel does: closing the panel is not
+     withdrawing the answer. */
+  const v = s => { const el = $(s); return el && boxOn(el) ? String(el.value || '').trim() : ''; };
+  const en = v('#fEnglish');
+  if(en === 'none') a.englishNone = true;
+  else if(en){ const [t, s] = en.split(':'); a[t] = Number(s); }
+  else {
+    [['e_test','e_score'],['e2_test','e2_score']].forEach(([tk, sk]) => {
+      const t = String(PROFILE[tk] || '').toLowerCase(), s = parseFloat(PROFILE[sk]);
+      if(/ielts/.test(t) && Number.isFinite(s) && a.ielts == null) a.ielts = s;
+      if(/toefl/.test(t) && Number.isFinite(s) && a.toefl == null) a.toefl = s;
+      if(/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(s)) a.englishNone = true;
+    });
+    if(a.ielts != null || a.toefl != null) a.englishNone = false;
+  }
+  const gr = v('#fGre');
+  if(gr === 'none') a.gre = false;
+  else if(gr) a.gre = Number(gr);
+  else {
+    [['a_test','a_score'],['a2_test','a2_score']].forEach(([tk, sk]) => {
+      const t = String(PROFILE[tk] || ''), s = parseFloat(PROFILE[sk]);
+      if(/^gre$/i.test(t) && Number.isFinite(s) && a.gre == null) a.gre = s;
+    });
+  }
+  const gl = v('#fGerman');
+  if(gl) a.germanLevel = gl;
+  else if(PROFILE.g_german){ const t = String(PROFILE.g_german); a.germanLevel = /^none/i.test(t) ? 'none' : (CEFR.includes(t) ? t : undefined); }
+  const by = v('#fBachYears');
+  if(by) a.bachelorYears = Number(by);
+  else { const m = /^(\\d)/.exec(String(PROFILE.d_dur || '')); if(m) a.bachelorYears = Number(m[1]); }
+  const wk = v('#fWork');
+  if(wk !== '') a.workExpMonths = Number(wk);
+  else if(/^no$/i.test(String(PROFILE.w_has || ''))) a.workExpMonths = 0;
+  else { const m = parseFloat(PROFILE.w_months); if(Number.isFinite(m)) a.workExpMonths = m; else if(/^yes/i.test(String(PROFILE.w_has || ''))) a.workExpMonths = 1; }
+  const pp = v('#fPapers');
+  if(pp) a.papers = pp === 'yes';
+  else if(PROFILE.g_papers) a.papers = /^yes/i.test(String(PROFILE.g_papers));
+  const bs = v('#fBach') || String(PROFILE.d_course || '').trim();
+  if(bs) a.bachelorSubjects = bs;
+  return a;
+}
+
+/* The same rule as server/reqs.js check(): a requirement the programme has
+   not stated cannot be failed; a question the student has not answered
+   cannot be checked. `fails` are stated, answered and short; `unknown` are
+   stated and unanswered. */
+function verdict(reqs, s){
+  const r = reqs || {}; const fails = [], unknown = [];
+  const wantI = num(r.ieltsMin), wantT = num(r.toeflMin);
+  if(wantI != null || wantT != null){
+    const haveI = num(s.ielts), haveT = num(s.toefl);
+    const okI = wantI != null && haveI != null && haveI >= wantI;
+    const okT = wantT != null && haveT != null && haveT >= wantT;
+    const want = [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ');
+    if(okI || okT){}
+    else if(s.englishNone) fails.push({ key:'english', want, have:'not taken yet' });
+    else if(haveI == null && haveT == null) unknown.push('english');
+    else fails.push({ key:'english', want, have:[haveI != null ? 'IELTS ' + haveI : null, haveT != null ? 'TOEFL ' + haveT : null].filter(Boolean).join(', ') });
+  }
+  if(r.greRequired === true || num(r.greMin) != null){
+    const want = num(r.greMin) != null ? 'GRE ' + r.greMin : 'a GRE score';
+    if(s.gre === false) fails.push({ key:'gre', want, have:'not taken' });
+    else if(num(s.gre) == null) unknown.push('gre');
+    else if(num(r.greMin) != null && num(s.gre) < num(r.greMin)) fails.push({ key:'gre', want, have:'GRE ' + s.gre });
+  }
+  if(has(r.germanLevel) && r.germanLevel !== 'none'){
+    const want = CEFR.indexOf(r.germanLevel), have = has(s.germanLevel) ? CEFR.indexOf(String(s.germanLevel)) : -1;
+    if(have < 0) unknown.push('germanLevel');
+    else if(have < want) fails.push({ key:'germanLevel', want:'German ' + r.germanLevel, have: have === 0 ? 'no German yet' : 'German ' + CEFR[have] });
+  }
+  if(num(r.bachelorYears) != null){
+    const have = num(s.bachelorYears);
+    if(have == null) unknown.push('bachelorYears');
+    else if(have < num(r.bachelorYears)) fails.push({ key:'bachelorYears', want: r.bachelorYears + '-year bachelor\\u2019s', have: have + '-year' });
+  }
+  const wantM = num(r.workExpMonths);
+  if((wantM != null && wantM > 0) || (r.workExpRequired === true && wantM !== 0)){
+    const have = num(s.workExpMonths), floor = wantM != null && wantM > 0 ? wantM : 1;
+    if(have == null) unknown.push('workExpMonths');
+    else if(have < floor) fails.push({ key:'workExpMonths', want: wantM > 0 ? wantM + ' months\\u2019 work experience' : 'work experience', have: have > 0 ? have + ' months' : 'none' });
+  }
+  if(r.papersRequired === true){
+    if(s.papers === undefined || s.papers === null) unknown.push('papers');
+    else if(!s.papers) fails.push({ key:'papers', want:'a published paper', have:'none' });
+  }
+  return { fails, unknown };
+}
+
+/* Does this row state anything at all? Decides whether "you clear what it
+   asks" is a claim worth making. */
+const statesAny = r => ['ieltsMin','toeflMin','greRequired','greMin','germanLevel','bachelorYears','workExpRequired','workExpMonths','papersRequired']
+  .some(k => has(r[k]) && !(k === 'germanLevel' && r[k] === 'none') && !(k === 'greRequired' && r[k] === false) && !(k === 'workExpRequired' && r[k] === false) && !(k === 'papersRequired' && r[k] === false));
+
+/* The one line under a name: what it asks for, in the student's words. */
+function asksLine(r){
+  const q = reqsOf(r), bits = [];
+  if(num(q.ieltsMin) != null) bits.push('IELTS ' + q.ieltsMin);
+  if(num(q.toeflMin) != null) bits.push('TOEFL ' + q.toeflMin);
+  if(q.greRequired === true || num(q.greMin) != null) bits.push(num(q.greMin) != null ? 'GRE ' + q.greMin : 'GRE');
+  if(has(q.germanLevel) && q.germanLevel !== 'none') bits.push('German ' + q.germanLevel);
+  if(num(q.bachelorYears) != null) bits.push(q.bachelorYears + '-year bachelor\\u2019s');
+  if(num(q.workExpMonths) > 0) bits.push(q.workExpMonths + ' months\\u2019 work');
+  else if(q.workExpRequired === true) bits.push('work experience');
+  if(q.papersRequired === true) bits.push('a published paper');
+  if(has(q.bachelorSubjects)) bits.push('bachelor\\u2019s in ' + String(q.bachelorSubjects).replace(/\\s*\\u2014\\s*India:.*$/, ''));
+  return bits.length ? 'Asks for ' + bits.join(' \\u00b7 ') : '';
+}
+
+/* Tuition per semester, when the row can say. The requirement column if it
+   is stated; otherwise "no tuition" is known from the rupee total being
+   zero, which this site has always treated as load-bearing. Anything else
+   is not stated, and a tuition filter does not exclude what it cannot read. */
+const tuitionOf = r => { const t = num(reqsOf(r).tuitionEurSem); return t != null ? t : (r.totalInr === 0 ? 0 : null); };
+
+/* The rows a requirement was checked against on the last render, and the
+   ones set aside. Read by the two boxes around the results. */
+let TURNED = [], NEEDED = new Map(), ASKED = 0;
+
+/* A control is shown only when a row in view states what it asks about —
+   the rows under the destination, level and field, before the answers are
+   applied. Otherwise it is a question nobody will read the answer to. */
+function showRelevant(){
+  const co = $('#fCountry').value, lv = $('#fLevel').value, fd = $('#fField').value;
+  const view = D.programs.filter(p => (!co || p.country === co) && (!lv || p.level === lv) && (!fd || p.field === fd));
+  const any = f => view.some(p => f(reqsOf(p)));
+  const show = (id, on) => { const el = $(id); if(el) el.hidden = !on; };
+  show('#fEnglishWrap', any(q => num(q.ieltsMin) != null || num(q.toeflMin) != null));
+  show('#fWorkWrap', any(q => q.workExpRequired === true || num(q.workExpMonths) > 0));
+  show('#fGreWrap', any(q => q.greRequired === true || num(q.greMin) != null));
+  show('#fGermanWrap', any(q => has(q.germanLevel) && q.germanLevel !== 'none'));
+  show('#fBachYearsWrap', any(q => num(q.bachelorYears) != null));
+  show('#fBachWrap', any(q => has(q.bachelorSubjects)));
+  show('#fPapersWrap', any(q => q.papersRequired === true));
+  show('#fTuitionWrap', view.some(p => tuitionOf(p) != null));
+  /* Specialisations, from the rows in view. The box waits for its data: a
+     select with one option is not a filter. */
+  const specs = [...new Set(view.map(p => String(reqsOf(p).specialisation || '').trim()).filter(Boolean))].sort();
+  const sp = $('#fSpec');
+  if(sp){
+    const cur = sp.value;
+    sp.innerHTML = '<option value="">Any specialisation</option>' + specs.map(s => '<option value="' + esc(s) + '">' + esc(s) + '</option>').join('');
+    if(specs.includes(cur)) sp.value = cur;
+  }
+  show('#fSpecWrap', specs.length > 1);
+  /* The whole panel, when nothing in it applies — the Netherlands with no
+     requirements filled in yet has nothing to open. */
+  const more = ['#fGreWrap','#fGermanWrap','#fBachWrap','#fBachYearsWrap','#fTuitionWrap','#fPapersWrap'].filter(id => $(id) && !$(id).hidden).length;
+  const bar = $('.fmore-bar'); if(bar) bar.hidden = !more;
+  if(!more && $('#fMore')) $('#fMore').hidden = true;
+  const set = ['#fGre','#fGerman','#fBach','#fBachYears','#fTuition','#fPapers'].filter(id => $(id) && boxOn($(id)) && String($(id).value || '').trim()).length;
+  const n = $('#fMoreN'); if(n){ n.textContent = set; n.hidden = !set; }
+}
+
+function filtered(ignoreBands, collect){
+  const co = $('#fCountry').value, lv = $('#fLevel').value, fd = $('#fField').value,
+        ik = $('#fIntake').value, cg = cgpaOf();
+  const sp = $('#fSpec') && !$('#fSpecWrap').hidden ? $('#fSpec').value : '';
+  const cap = $('#fTuition') && !$('#fTuitionWrap').hidden && $('#fTuition').value !== '' ? Number($('#fTuition').value) : null;
+  const me = myAnswers();
+  if(collect){ TURNED = []; NEEDED = new Map(); ASKED = 0; }
+  return D.programs.filter(p => {
+    if(co && p.country !== co) return false;
+    if(lv && p.level !== lv) return false;
+    if(fd && p.field !== fd) return false;
+    if(ik && !p.intakes.some(i => intakeKey(i) === ik)) return false;
+    if(sp && String(reqsOf(p).specialisation || '').trim() !== sp) return false;
+    /* A stated tuition above what they will pay. Not stated is not excluded. */
+    if(cap !== null){ const t = tuitionOf(p); if(t != null && t > cap) return false; }
+    /* What it asks for, against what they told us. A stated requirement they
+       fall short of sets the row aside — counted, and named where the name
+       is theirs to see — rather than shown as if it were open to them. A
+       stated requirement they have not answered leaves the row in, marked. */
+    const vd = verdict(reqsOf(p), me);
+    p._need = vd.unknown.length ? vd.unknown : null;
+    if(vd.fails.length){ if(collect) TURNED.push({ p, fails: vd.fails }); return false; }
+    /* Counted only for rows that stay: a question on a row already set
+       aside is not one worth answering. */
+    if(collect){
+      if(statesAny(reqsOf(p))) ASKED++;
+      vd.unknown.forEach(k => NEEDED.set(k, (NEEDED.get(k) || 0) + 1));
+    }""",
+    marker="function verdict(reqs, s){",
+)
+
+# The reduced (locked) row keeps its open questions — a list of keys says
+# nothing about which university it is — so the chip shows on a blurred row.
+patch(
+    "index.html",
+    "finder: a locked row keeps its open questions",
+    """    nLen:p.nLen, uLen:p.uLen, fLen:(p.freeTuition?11:8)
+  };""",
+    """    nLen:p.nLen, uLen:p.uLen, fLen:(p.freeTuition?11:8), _need:p._need, _asks:statesAny(reqsOf(p))
+  };""",
+    marker="_need:p._need, _asks:",
+)
+
+# The chip on a row, and the "asks for" line under an open one.
+patch(
+    "index.html",
+    "finder: the verdict chip on a locked row",
+    """    <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
+      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>""",
+    """    <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
+      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>${verdictChip(r)}""",
+    marker="${filler(r.uLen)}</div>${verdictChip(r)}",
+)
+patch(
+    "index.html",
+    "finder: the verdict chip and the asks line on an open row",
+    """    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div></div>""",
+    """    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}</div>""",
+    marker="${verdictChip(r)}</div>\n    <div class=\"mctry\">",
+)
+patch(
+    "index.html",
+    "finder: verdictChip()",
+    """function banner(list, shown){""",
+    """/* "Chances unknown" until they have answered; "clears what it asks" once
+   they have and it does; nothing on a row that states nothing, because a
+   green chip on a programme we know nothing about would be a lie. */
+function verdictChip(r){
+  const need = r._need;
+  if(need && need.length){
+    const first = REQ_LABEL[need[0]] || need[0];
+    return `<span class="mverdict unknown" title="This programme asks for something you have not told us yet">Chances unknown \\u00b7 ${esc(need.length === 1 ? 'your ' + first : need.length + ' answers short')}</span>`;
+  }
+  const asks = r.locked ? r._asks : statesAny(reqsOf(r));
+  return asks ? `<span class="mverdict ok">${ico('check')}You clear what it asks</span>` : '';
+}
+
+/* The box above the results: what they have not told us, and why it costs
+   them. Not a form — a list of the questions still open, each a button that
+   opens the box to answer it. Signed in, the profile is the better place to
+   answer once. */
+function needBox(list){
+  const el = $('#rNeed'); if(!el) return;
+  if(!touched || !NEEDED.size || !list.length){ el.hidden = true; el.innerHTML = ''; return; }
+  const keys = [...NEEDED.keys()];
+  const known = Object.keys(REQ_BOX).filter(k => !NEEDED.has(k));
+  const me = myAnswers();
+  const done = known.filter(k => k === 'english' ? (me.ielts != null || me.toefl != null || me.englishNone) : k === 'gre' ? me.gre !== undefined : k === 'papers' ? me.papers !== undefined : me[k] !== undefined);
+  const total = keys.length + done.length;
+  const pct = total ? Math.round(done.length / total * 100) : 0;
+  const dash = Math.round(264 * (1 - pct / 100));
+  const withNames = list.filter(p => p._need && p._need.length).length;
+  el.innerHTML = `<div class="need-ring"><svg width="64" height="64" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="#efece3" stroke-width="12"></circle><circle cx="50" cy="50" r="42" fill="none" stroke="#c9a24b" stroke-width="12" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="${dash}" transform="rotate(-90 50 50)"></circle></svg><b>${pct}%</b></div>`
+    + `<div class="need-body"><h4>${keys.length === 1 ? 'One answer short' : keys.length + ' answers short'}</h4>`
+    + `<p>${withNames} of these ${list.length} ask for something you have not told us. We can show you the list, not which of them would take you \\u2014 and a counsellor will ask the same ${keys.length === 1 ? 'question' : 'questions'} by phone.</p>`
+    + `<div class="need-chips">${keys.map(k => `<button type="button" data-need="${k}">${esc(REQ_LABEL[k] || k)} \\u2192</button>`).join('')}${done.map(k => `<span>${esc(REQ_LABEL[k] || k)} \\u2014 done</span>`).join('')}</div></div>`
+    + (PROFILE && PROFILE.__signedIn
+        ? `<a class="btn btn-navy btn-sm" href="profile.html">Finish my profile ${ico('arrow')}</a>`
+        : `<button type="button" class="btn btn-navy btn-sm" data-need="${keys[0]}">Answer ${keys.length === 1 ? 'it' : 'them'} ${ico('arrow')}</button>`);
+  el.hidden = false;
+  $$('[data-need]', el).forEach(b => b.onclick = () => {
+    const box = $(REQ_BOX[b.dataset.need]); if(!box) return;
+    if(box.closest('#fMore')){ $('#fMore').hidden = false; $('#fMoreBtn').setAttribute('aria-expanded', 'true'); }
+    box.scrollIntoView({ behavior:'smooth', block:'center' });
+    setTimeout(() => box.focus(), 350);
+  });
+}
+
+/* Under the results: the ones set aside, and on what. The counsellor's
+   opening line — "these six would turn you down, here is why". A public
+   row a package has not opened is counted, not named. */
+function turnedBox(){
+  const el = $('#rTurned'); if(!el) return;
+  if(!touched || !TURNED.length){ el.hidden = true; el.innerHTML = ''; return; }
+  const n = TURNED.length;
+  const say = f => f.want + ' \\u2014 you said ' + f.have;
+  el.innerHTML = `<details class="turned"><summary>${n} ${n === 1 ? 'programme' : 'programmes'} would turn you down on what you told us</summary><ul>`
+    + TURNED.slice(0, 40).map(({ p, fails }) => {
+        const open = !p.isPublic || revealed[p.id];
+        const name = open ? `<b>${esc(unent(p.program))}</b> \\u00b7 ${esc(unent(p.shortName || p.university))}` : `<b>A public university</b> \\u00b7 ${esc(C[p.country] ? C[p.country].name : p.country)}`;
+        return `<li>${name}<span>${esc(fails.map(say).join('; '))}</span></li>`;
+      }).join('')
+    + (n > 40 ? `<li><small>\\u2026 and ${n - 40} more</small></li>` : '')
+    + `</ul><p style="margin:10px 0 0;font:400 12.6px/1.5 var(--sans);color:var(--muted)">A score can be retaken and an intake can wait. Ask a counsellor before crossing any of these off.</p></details>`;
+  el.hidden = false;
+}
+
+function banner(list, shown){""",
+    marker="function verdictChip(r){",
+)
+
+# render() collects, shows the relevant controls, paints the two boxes.
+patch(
+    "index.html",
+    "finder: render collects the verdicts and paints the boxes",
+    """  rebuildIntakes();
+  unnumber();
+  const list = filtered(), rows = visibleRows(list);""",
+    """  rebuildIntakes();
+  unnumber();
+  showRelevant();
+  const list = filtered(false, true), rows = visibleRows(list);
+  needBox(list);
+  turnedBox();""",
+    marker="const list = filtered(false, true), rows = visibleRows(list);",
+)
+
+# The two boxes in the markup.
+patch(
+    "index.html",
+    "finder: the need box and the turned-down box",
+    """    <div class="banner gold" id="rBanner"></div>
+    <div class="rtabs" role="tablist">""",
+    """    <div class="banner gold" id="rBanner"></div>
+    <div class="need" id="rNeed" hidden></div>
+    <div class="rtabs" role="tablist">""",
+    marker='id="rNeed"',
+)
+patch(
+    "index.html",
+    "finder: the turned-down box under the rows",
+    """    <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>""",
+    """    <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>
+    <div id="rTurned" hidden></div>""",
+    marker='id="rTurned"',
+)
+
+# The new boxes re-render like the old ones; the panel opens and closes.
+patch(
+    "index.html",
+    "finder: the new boxes re-render, the panel toggles",
+    """['#fCountry','#fLevel','#fField','#fCgpa','#fIntake'].forEach(s =>
+  $(s).addEventListener('change', () => { if(touched) render(); }));""",
+    """['#fCountry','#fLevel','#fField','#fCgpa','#fIntake','#fSpec','#fEnglish','#fWork','#fGre','#fGerman','#fBachYears','#fTuition','#fPapers'].forEach(s =>
+  $(s) && $(s).addEventListener('change', () => { showRelevant(); if(touched) render(); }));
+$('#fBach') && $('#fBach').addEventListener('change', () => { if(touched) render(); });
+/* The destination changes which questions apply, before anybody presses Find. */
+['#fCountry','#fLevel','#fField'].forEach(s => $(s) && $(s).addEventListener('change', showRelevant));
+$('#fMoreBtn') && ($('#fMoreBtn').onclick = () => {
+  const open = $('#fMore').hidden;
+  $('#fMore').hidden = !open;
+  $('#fMoreBtn').setAttribute('aria-expanded', String(open));
+});
+showRelevant();""",
+    marker="$('#fMoreBtn') && ($('#fMoreBtn').onclick",
+)
+
+# The criteria chips say what was answered.
+patch(
+    "index.html",
+    "finder: the criteria chips carry the answers",
+    """  [['Destination','#fCountry'],['Level','#fLevel'],['Field','#fField'],
+   ['CGPA','#fCgpa'],['Intake','#fIntake']].forEach(([lbl,s])=>{
+    const el = $(s);
+    if(el.value) bits.push(""",
+    """  [['Destination','#fCountry'],['Level','#fLevel'],['Field','#fField'],['Specialisation','#fSpec'],
+   ['CGPA','#fCgpa'],['Intake','#fIntake'],['English','#fEnglish'],['Work','#fWork'],['GRE','#fGre'],
+   ['German','#fGerman'],['Bachelor\\u2019s','#fBachYears'],['Tuition','#fTuition'],['Paper','#fPapers']].forEach(([lbl,s])=>{
+    const el = $(s);
+    if(el && el.value && boxOn(el)) bits.push(""",
+    marker="['Specialisation','#fSpec'],",
+)
+
+# The profile, kept, so the answers can be read from it.
+patch(
+    "index.html",
+    "finder: the profile is kept for the answers",
+    """    .then(s => {
+      const pr = (s && s.profile) || {};
+      const max = parseFloat(pr.d_max), pass = parseFloat(pr.d_pass),""",
+    """    .then(s => {
+      const pr = (s && s.profile) || {};
+      PROFILE = Object.assign({ __signedIn: !!s }, pr);
+      if(touched) render();
+      const max = parseFloat(pr.d_max), pass = parseFloat(pr.d_pass),""",
+    marker="PROFILE = Object.assign({ __signedIn:",
+)
+
+# The requirements reach rows this page shipped with, and new rows carry
+# them. Compared as JSON for the same reason the intakes are.
+patch(
+    "index.html",
+    "finder: the requirements reach the shipped rows",
+    """    if (Array.isArray(live.intakes)
+        && JSON.stringify(live.intakes) !== JSON.stringify(row.intakes)) {
+      row.intakes = live.intakes; bars++;
+    }
+  });""",
+    """    if (Array.isArray(live.intakes)
+        && JSON.stringify(live.intakes) !== JSON.stringify(row.intakes)) {
+      row.intakes = live.intakes; bars++;
+    }
+    /* What it asks for — the object the finder's verdict reads. */
+    if (live.reqs && typeof live.reqs === 'object'
+        && JSON.stringify(live.reqs) !== JSON.stringify(row.reqs || null)) {
+      row.reqs = live.reqs; bars++;
+    }
+  });
+  /* The questions that apply depend on the rows in view, and the rows just
+     changed. Whether or not anything else did. */
+  if (typeof showRelevant === 'function') showRelevant();""",
+    marker="row.reqs = live.reqs; bars++;",
+)
+patch(
+    "index.html",
+    "finder: a new live row carries its requirements",
+    """      freeTuition: (p.totalInr || 0) === 0, dummy: false,
+    };""",
+    """      freeTuition: (p.totalInr || 0) === 0, dummy: false,
+      reqs: p.reqs && typeof p.reqs === 'object' ? p.reqs : null,
+    };""",
+    marker="reqs: p.reqs && typeof p.reqs === 'object' ? p.reqs : null,\n    };",
+)
+
+# "You qualify for 13" over a list whose every row says "chances unknown" is
+# a contradiction. While a question is open the banner counts, it does not
+# promise.
+patch(
+    "index.html",
+    "finder: the banner does not say 'you qualify' while a question is open",
+    """  return ['gold','star','You qualify for '+pubUnis+' universit'+(pubUnis===1?'y':'ies')
+    + ' with no fee to apply',
+    free ? 'And no tuition to pay either. A package reveals them.'
+         : 'A package reveals them.'];""",
+    """  const open = NEEDED && NEEDED.size;
+  return ['gold','star',(open ? '' : 'You qualify for ')+pubUnis+' universit'+(pubUnis===1?'y':'ies')
+    + ' with no fee to apply' + (open ? ' match so far' : ''),
+    (free ? 'And no tuition to pay either. ' : '')
+    + (open ? 'Answer the ' + (NEEDED.size === 1 ? 'question' : 'questions') + ' above and we can say which of them would take you. '
+            : '') + 'A package reveals them.'];""",
+    marker="const open = NEEDED && NEEDED.size;",
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

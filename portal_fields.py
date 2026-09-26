@@ -468,6 +468,15 @@ const SECTIONS = [
      o:['Germany','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],
      help:'Choose as many as you are considering. Your matches cover all of them.'},
     {k:'g_intake', l:'Target intake', t:'select', o:['','Winter 2026','Summer 2027','Winter 2027','Summer 2028']},
+    /* Two the finder reads. A German programme that asks for A2 and a
+       student who has none is a fact worth knowing before the shortlist, not
+       after; and a handful ask for a published paper. Both optional — the
+       finder says "chances unknown" until they are answered, which is the
+       nudge. */
+    {k:'g_german', l:'German language level', t:'select', opt:()=>true,
+     o:['','None yet','A1','A2','B1','B2','C1','C2'],
+     help:'Most English-taught programmes need none. Some ask for A1 or A2 by the time you arrive.'},
+    {k:'g_papers', l:'Have you published a paper?', t:'select', opt:()=>true, o:['','Yes','No']},
     {k:'g_why',    l:'Why this course, in your words', t:'textarea',
      ph:'A few honest sentences. Your SOP is drafted from this, so specifics beat adjectives.'}
   ]},

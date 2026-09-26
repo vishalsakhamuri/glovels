@@ -23,6 +23,7 @@
  */
 
 const UNIS = require('./unis.js');
+const REQS = require('./reqs.js');
 
 /* The two task states that owe nobody anything. Kept in step with
    tasks.CLOSED, and duplicated rather than imported because tasks.js is a
@@ -666,6 +667,11 @@ function sqliteDriver(file) {
     * the same column, arriving late. Empty on every old row, because it
     * cannot be worked out after the fact without inventing it. */
    "ALTER TABLE messages ADD COLUMN author TEXT NOT NULL DEFAULT ''",
+   /* What a programme asks for beyond a grade — IELTS, German level, the
+      bachelor's it wants, tuition per semester and the rest — as ONE JSON
+      record, the way `intakes` is. server/reqs.js is the only file that knows
+      what is inside it. Blank means not stated, never zero. */
+   "ALTER TABLE programmes ADD COLUMN reqs TEXT NOT NULL DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -1700,13 +1706,21 @@ function open(dir) {
       const gg = (p.germanGpa === '' || p.germanGpa == null
                   || !Number.isFinite(Number(p.germanGpa)))
         ? null : Math.max(1, Math.min(4, Number(p.germanGpa)));
+      /* The requirements travel as one record. A caller that does not
+         mention them keeps what the row already has — an edit of the title
+         must not blank the IELTS bar, which is the exact fault a
+         column-by-column save invites. */
+      const prior = db.one('SELECT reqs FROM programmes WHERE id = ?', String(p.id));
+      const reqsText = p.reqs === undefined
+        ? ((prior && prior.reqs) || '')
+        : JSON.stringify(REQS.clean(p.reqs).reqs);
       catVersion++;
       ftsDrop(p.id);
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, short_name, city, country, level, field, band,
          is_public, fit, min_cgpa, total_inr, url, intakes, active, featured,
-         feature_sort, fee_model, german_gpa, search_only, uni_slug, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         feature_sort, fee_model, german_gpa, search_only, uni_slug, reqs, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university,
         String(p.shortName == null ? '' : p.shortName).trim().slice(0, 40),
         p.city || '', p.country,
@@ -1714,7 +1728,7 @@ function open(dir) {
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
         p.featured ? 1 : 0, Number(p.featureSort || 0), fee, gg,
-        p.searchOnly ? 1 : 0, UNIS.slugOf(p.university), now(), who || '');
+        p.searchOnly ? 1 : 0, UNIS.slugOf(p.university), reqsText, now(), who || '');
       ftsPut(p);
       return this.programme(p.id);
     },

@@ -41,6 +41,7 @@ const WIX = require('./wix.js');
 const SQUEEZE = require('./squeeze.js');
 const UNIS = require('./unis.js');
 const DAAD = require('./daad.js');
+const REQS = require('./reqs.js');
 
 const DAY = 864e5;
 
@@ -2893,6 +2894,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            the same student would see two different answers depending on
            whether they had paid. */
         germanGpa: p.germanGpa == null ? null : p.germanGpa,
+        /* What it asks for. Not a secret — it is what the university
+           publishes — and it is what the finder's own filters read. */
+        reqs: p.reqs,
         /* uKey groups programmes by university so the page can say "12 public
            universities" without naming one. featured/featureSort say where the
            row sits, not what it is. None of the three is the name. */
@@ -6561,6 +6565,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         country: r.country, level: r.level, field: r.field, band: want,
         isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
         germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+        reqs: REQS.parse(r.reqs),
         shortName: r.short_name || '',
         totalInr: r.total_inr, url: r.url,
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
@@ -6666,6 +6671,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       })(),
       totalInr: Math.max(0, Math.round(Number(b.totalInr) || 0)),
       url: /^https?:\/\//i.test(b.url || '') ? String(b.url).slice(0, FIELD_LIMITS.url) : '',
+      /* What it asks for. Sent as one object by the form; a caller that
+         leaves it out leaves the stored record alone (the store does that),
+         so a screen that never heard of it cannot blank it. */
+      reqs: b.reqs && typeof b.reqs === 'object' ? b.reqs : undefined,
       active: b.active !== false,
       /* Search only: a page and a search hit, but not a row in the finder.
          Like featured, not a property of the programme, so an edit that says
@@ -6723,6 +6732,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
         isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
         germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
+        reqs: REQS.parse(r.reqs),
         shortName: r.short_name || '',
         totalInr: r.total_inr, url: r.url || '',
         feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
@@ -6945,6 +6955,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     num('germanGpa', 'German grade', 1, 4, '1.0 is the best grade and 4.0 the pass.');
     num('totalInr', 'Total tuition', 0, 100000000, 'Whole course, in rupees.');
     num('featureSort', 'Feature order', 0, 999);
+    /* The requirements, refused rather than clamped, in the same voice. */
+    if (b.reqs && typeof b.reqs === 'object') {
+      REQS.problems(b.reqs).forEach(x => out.push({ field: 'reqs.' + x.field, why: x.why }));
+    }
     /* Length, said rather than trimmed. cleanProgramme() cuts a name at the
        column's limit, so a 300-character university name was saved as its
        first 140 characters under "Saved" — and the longest real names (a
@@ -7002,6 +7016,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
         germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
+        reqs: REQS.parse(p.reqs),
         shortName: p.short_name || '',
         totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
@@ -7123,6 +7138,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         country: p.country, level: p.level, field: p.field, band: p.band,
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
         germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
+        reqs: REQS.parse(p.reqs),
         shortName: p.short_name || '',
         totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
@@ -7277,6 +7293,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     ['intake 2 season', 'i2s'], ['intake 2 deadline', 'i2d'],
     ['on the site', 'active'],
     ['showcase', 'featured'], ['showcase position', 'featureSort'],
+    /* What the programme asks for — nine columns, one owner. server/reqs.js
+       names them, reads them back, and refuses what it cannot read. */
+    ...REQS.SHEET_HEADERS.map(h => [h, 'reqs.' + h]),
   ];
 
   const sheetRows = country => (country && typeof db.rowsAll === 'function' ? db.rowsAll(country) : db.programmes(true)).map(r => {
@@ -7312,6 +7331,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          is going to be. */
       !r.active ? 'no' : r.search_only ? 'search' : 'yes',
       r.featured ? 'yes' : 'no', r.feature_sort || '',
+      ...REQS.toSheet(REQS.parse(r.reqs)),
     ];
   });
 
@@ -7411,6 +7431,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       'short name': 'shortName', 'shortname': 'shortName',
       'short': 'shortName', 'abbreviation': 'shortName', 'abbr': 'shortName',
     });
+    /* Every heading a requirement may arrive under. Mapped to one key per
+       field so an unrecognised-column check does not complain about
+       "IELTS" while accepting "ielts min". */
+    REQS.FIELDS.forEach(f => REQS.headingsFor(f).forEach(h => { alias[h] = 'reqs.' + f.key; }));
+    /* The requirements on one row, whatever the columns were called.
+       A sheet that carries NONE of these columns — last month's export, or
+       one destination's short list — leaves every stored requirement exactly
+       as it is: `undefined` here tells the store to keep the record. A sheet
+       that carries the columns is the record, blanks included, because on
+       this sheet blank means "not stated" and that is a thing to be able to
+       say. */
+    const anyReqColumn = Object.keys(objects[0] || {}).some(h =>
+      String(alias[String(h).toLowerCase().replace(/\s+/g, ' ').trim()] || '').startsWith('reqs.'));
+    const reqsOf = o => {
+      if (!anyReqColumn) return undefined;
+      const src = {};
+      for (const h of Object.keys(o)) {
+        const k = alias[String(h).toLowerCase().replace(/\s+/g, ' ').trim()];
+        if (k && k.startsWith('reqs.')) {
+          const v = o[h];
+          if (v !== undefined && v !== null && String(v).trim() !== '') src[k.slice(5)] = v;
+        }
+      }
+      return src;
+    };
 
     const seen = Object.keys(objects[0] || {});
     const unknown = seen.filter(h => !alias[h]);
@@ -7546,6 +7591,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          editable column is `minimum cgpa`, and only that one is stored. */
       const draft = {
         id: String(g('id') || '').trim(),
+        reqs: reqsOf(o),
         program: g('program'), university: g('university'),
         /* The name a counsellor says out loud. Blank is a real answer and
            means "use the full name" — every row outside Germany has one —
@@ -7719,6 +7765,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           why.push(`the deadline "${i.deadline}" is not YYYY-MM-DD`);
         }
       });
+      /* A requirement the sheet states but this file cannot read — an IELTS
+         of 12, a German level of "fluent" — refuses the row, in the same
+         sentence the programme form would use. Storing null instead would
+         quietly turn "asks for B1" into "not stated", which the finder then
+         reads as "no German needed". */
+      if (draft.reqs) REQS.problems(draft.reqs).forEach(x => why.push(x.why));
       if (why.length) {
         plan.rejected.push({ line, what: draft.university + ' — ' + draft.program, why });
         return;
@@ -7781,6 +7833,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            and the whole upload is thrown away without a word. */
         shortName: String(existing.short_name || ''),
         intakes: asIntakes(oldIntakes),
+        /* And the requirements, for the fifth time, for the same reason —
+           and this one is the biggest: the first upload of these nine
+           columns is a sheet where they are the ONLY edit on every row.
+           Compared as one normalised record, and only when the sheet
+           carries the columns at all; a sheet without them is not saying
+           anything about them and must not read as a change. */
+        reqs: clean.reqs === undefined ? '' : JSON.stringify(REQS.parse(existing.reqs)),
       };
       const after = {
         program: clean.program, university: clean.university, city: clean.city,
@@ -7793,6 +7852,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         germanGpa: bar(clean.germanGpa),
         shortName: String(clean.shortName || ''),
         intakes: asIntakes(clean.intakes),
+        reqs: clean.reqs === undefined ? '' : JSON.stringify(REQS.clean(clean.reqs).reqs),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
       /* An unchanged row can still carry a warning, and used to swallow it.
@@ -7858,6 +7918,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const existing = db.programme(id);
       const clean = cleanProgramme({
         id,
+        reqs: reqsOf(o),
         program: g('program'), university: g('university'),
         /* Read here as well as in the plan above. The comment twenty lines
            down says why: a field the preview understands and the apply drops

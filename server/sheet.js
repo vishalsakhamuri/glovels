@@ -261,9 +261,12 @@ function readXlsx(buf) {
   const rows = [];
   for (const rm of xml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
     const cells = [];
-    for (const cm of rm[1].matchAll(/<c([^>]*)>([\s\S]*?)<\/c>|<c([^>]*)\/>/g)) {
-      const attrs = cm[1] || cm[3] || '';
-      const inner = cm[2] || '';
+    /* The self-closing form has to be tried first: an empty styled cell
+       (<c r="C2" s="2"/>) otherwise matches the open form and swallows the
+       next cell, so every value after it lands one column early. */
+    for (const cm of rm[1].matchAll(/<c\b([^>]*?)\/>|<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+      const attrs = cm[1] != null ? cm[1] : (cm[2] || '');
+      const inner = cm[3] || '';
       const ref = (/r="([A-Z]+\d+)"/.exec(attrs) || [])[1] || '';
       const type = (/t="([^"]+)"/.exec(attrs) || [])[1] || 'n';
       const idx = ref ? colIndex(ref) : cells.length;

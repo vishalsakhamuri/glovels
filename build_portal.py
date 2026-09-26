@@ -345,6 +345,7 @@ const api = async (method, path, body) => {{
        else chose, and the boot turns it into the one screen that account can
        use. */
     if (data.mustChange) err.mustChange = true;
+    if (Array.isArray(data.fields)) err.fields = data.fields;
     throw err;
   }}
   return data;

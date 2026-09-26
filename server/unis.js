@@ -137,6 +137,7 @@ const money = n => {
  * consumer or none — the shape of bug that column-by-column mapping breeds.
  */
 const crypto = require('crypto');
+const REQS = require('./reqs.js');
 const uKeyOf = name => 'u' + crypto.createHash('sha1').update(String(name || '').trim().toLowerCase()).digest('hex').slice(0, 8);
 function fromRow(r) {
   return {
@@ -152,6 +153,9 @@ function fromRow(r) {
     featured: !!r.featured, featureSort: r.feature_sort || 0,
     searchOnly: !!r.search_only,
     intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
+    /* What it asks for beyond a grade. One record, every field present,
+       null where nobody has stated it — server/reqs.js owns the list. */
+    reqs: REQS.parse(r.reqs),
   };
 }
 

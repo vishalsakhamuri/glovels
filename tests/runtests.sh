@@ -158,6 +158,10 @@ run desttest135.js  8099 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
 # name on their own messages, the three things the office reaches somebody by,
 # and a catalogue that is readable without being editable.
 run round137test.js 8099
+# Patch 139: what a programme asks for. The record's own rules without a
+# server, then every door it goes through with one.
+node reqsunit.js | tail -1 | tee -a "$REPORT"
+run reqstest.js     8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097
