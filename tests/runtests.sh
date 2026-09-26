@@ -162,6 +162,8 @@ run round137test.js 8099
 # server, then every door it goes through with one.
 node reqsunit.js | tail -1 | tee -a "$REPORT"
 run reqstest.js     8099
+# The 26 September round: eleven screenshots — rows, cards, a map, a tracker.
+run round140test.js 8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

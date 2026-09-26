@@ -152,7 +152,11 @@ BODY = """
       .prm{color:#b03a2e}
       .prow:hover .pact, .pact:focus-visible{opacity:1}
       @media (hover:none){ .pact{opacity:1} }
-      .pacts{display:flex;gap:6px;justify-content:flex-end}
+      /* A table cell, kept a table cell. display:flex on a <td> takes it out
+         of the table's layout, and the buttons then sat on top of the column
+         beside them. */
+      .pacts{text-align:right;white-space:nowrap}
+      .pacts .pact + .pact{margin-left:6px}
       /* A closed file is still readable, just visibly done with. */
       .prow.shut > td:not(.pacts){opacity:.55}
     </style>

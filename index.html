@@ -207,13 +207,14 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .hero-in{position:relative;z-index:2;text-align:center}
 .hero h1{font-size:clamp(28px,4vw,46px);line-height:1.06;color:#fff}
 .hero h1 em{font-style:italic;color:var(--gold-soft)}
-.hero-sub{max-width:760px;margin:12px auto 0;color:#c8d6e4;font-size:15.5px}
+.hero-sub{display:inline-block;max-width:760px;margin:12px 0 0;color:#c8d6e4;font-size:15.5px;vertical-align:middle}
 .avatars{display:flex}
 .avatars span{width:28px;height:28px;border-radius:50%;border:2px solid var(--navy-800);
   margin-left:-9px;display:grid;place-items:center;font:700 10.5px/1 var(--sans);color:#fff}
 .avatars span:first-child{margin-left:0}
-.hero-rate{display:flex;align-items:center;justify-content:center;gap:11px;margin-top:14px;
-  flex-wrap:wrap;color:#dbe5ef;font-size:13px}
+.hero-rate{display:inline-flex;align-items:center;justify-content:center;gap:11px;margin:12px 0 0 14px;
+  flex-wrap:wrap;color:#dbe5ef;font-size:13px;vertical-align:middle}
+@media (max-width:820px){.hero-rate{display:flex;margin:14px 0 0}.hero-sub{display:block;margin:12px auto 0}}
 .stars{color:var(--gold);letter-spacing:1px}
 .journey{max-width:1000px;margin:22px auto 0;padding:0 var(--wrap);position:relative;z-index:2}
 .jhead{font:800 10.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;
@@ -361,7 +362,7 @@ section[id]{scroll-margin-top:92px}
 .rows-wrap::after{content:"";position:absolute;left:0;right:10px;bottom:0;height:44px;
   background:linear-gradient(transparent,var(--cream));pointer-events:none;transition:opacity .2s}
 .rows-wrap.at-end::after,.rows-wrap.no-scroll::after{opacity:0}
-.mrow{display:grid;grid-template-columns:52px minmax(0,19em) 120px 116px 150px 1fr;gap:20px;
+.mrow{display:grid;grid-template-columns:52px minmax(9em,19em) 120px 116px 150px minmax(0,1fr);gap:20px;
   align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;
   padding:13px 16px;margin-bottom:10px;transition:box-shadow .18s}
 .mrow:hover{box-shadow:var(--sh-2)}
@@ -395,8 +396,8 @@ section[id]{scroll-margin-top:92px}
    started wherever that row's deadline text ended — "Closes 1 Jul 2027" and
    "Closes 31 Aug 2027" are different widths, and the column came out ragged.
    Three fixed tracks, left-aligned, and the whole block sits right. */
-.mact{justify-self:end;display:grid;grid-template-columns:max-content 122px max-content;
-  align-items:center;gap:9px;white-space:nowrap}
+.mact{justify-self:end;display:flex;flex-wrap:wrap;justify-content:flex-end;
+  align-items:center;gap:9px 12px;white-space:nowrap;min-width:0}
 .mact .mreq{justify-self:start}
 .mact>span{justify-self:start}
 .mreq{font-size:11.6px;color:var(--blue);border:0;border-bottom:1px dotted var(--blue);
@@ -896,7 +897,8 @@ html.review-copy .build-strip{display:block !important}
 .ccard:hover .cmore{color:var(--navy-900);text-decoration:underline}
 .ctrend{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);
   background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8;padding:5px 8px;
-  border-radius:var(--r-pill);margin-top:9px}
+  border-radius:var(--r-pill);margin-top:9px;margin-right:12px;vertical-align:middle}
+.ctrend + .cmore{vertical-align:middle}
 .ctrend .ico{font-size:11px}
 .cfoot{padding:12px 16px;border-top:1px solid var(--line);background:linear-gradient(#f7f9fd,#eef3fc);
   display:flex;align-items:baseline;justify-content:space-between;gap:8px}
@@ -1012,6 +1014,7 @@ html.review-copy .build-strip{display:block !important}
 .cform h3{font-size:18px;margin-bottom:4px}
 .cform p.small{font-size:12.6px;color:var(--muted);margin:0 0 16px}
 .fld{margin-bottom:12px}
+.fld label .req{color:#c0392b;font-size:12px;margin-left:2px}
 .fld label{display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
   color:var(--muted);margin-bottom:6px}
 .fld input,.fld select{width:100%;height:46px;padding:0 12px;font:500 14px/1 var(--sans);
@@ -1110,6 +1113,10 @@ footer.site .fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;g
 .office{max-width:330px;line-height:1.55;margin-top:16px;color:#9fb1c4}
 .office b{display:block;color:#fff;font-size:12.4px;letter-spacing:.04em;text-transform:uppercase;
   margin-bottom:3px}
+.fmap{margin-top:16px;width:100%;max-width:320px;aspect-ratio:16/10;border-radius:12px;overflow:hidden;
+  background:#0d2338;border:1px solid rgba(255,255,255,.12);display:grid;place-items:center}
+.fmap iframe{width:100%;height:100%;border:0;display:block;filter:saturate(.9)}
+.fmap-note{font:500 12px/1.4 var(--sans);color:#8fa3b8;padding:12px;text-align:center}
 .mapbox{margin-top:14px;max-width:360px;border-radius:12px;overflow:hidden;
   border:1px solid rgba(255,255,255,.24);background:#12283c}
 .mapbox button{width:100%;border:0;background:none;cursor:pointer;padding:26px 18px;color:#9fb1c4;
@@ -1583,8 +1590,8 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div class="tabs" role="tablist" style="justify-content:center"><button class="tab" data-bandtab="all" role="tab" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg>Everything we offer</button><button class="tab" data-bandtab="u10" data-band="u10" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>Under ₹10L</button><button class="tab" data-bandtab="u20" data-band="u20" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg>Under ₹20L</button><button class="tab" data-bandtab="above20" data-band="above20" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg>₹20L+</button><button class="tab" data-bandtab="elite" data-band="elite" role="tab" aria-selected="false" style="--tabc:var(--band-solid)"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg>Top-ranked</button></div>
     <div class="chips" id="chips"><button class="chip" data-field="Data Science, AI &amp; Machine Learning"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Data Science, AI &amp; Machine Learning</button><button class="chip" data-field="Computer Science &amp; IT"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Computer Science &amp; IT</button><button class="chip" data-field="Cybersecurity &amp; Cloud"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Cybersecurity &amp; Cloud</button><button class="chip" data-field="Aerospace &amp; Robotics"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Aerospace &amp; Robotics</button><button class="chip" data-field="Renewable Energy"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Renewable Energy</button><button class="chip" data-field="Biotechnology &amp; Bioinformatics"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Biotechnology &amp; Bioinformatics</button></div>
     <div class="cgrid" id="cgrid"></div>
-    <div class="ccount" id="ccount"></div>
-    <div style="text-align:center;margin-top:22px">
+    <div class="ccount" id="ccount" hidden></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:22px">
       <a class="btn btn-primary" href="#counsel">Talk to a counsellor about your options <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
     </div>
   </div>
@@ -1636,12 +1643,12 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         <p class="small">Mon–Sat, 9:30am–7:30pm IST. A counsellor calls you back within one
           working day.</p>
         <form id="cForm" novalidate>
-          <div class="fld"><label for="cName">Full name</label>
+          <div class="fld"><label for="cName">Full name <span class="req" aria-hidden="true">*</span></label>
             <input id="cName" autocomplete="name" placeholder="Your name"><span class="err"></span></div>
-          <div class="fld"><label for="cPhone">Mobile number</label>
+          <div class="fld"><label for="cPhone">Mobile number <span class="req" aria-hidden="true">*</span></label>
             <input id="cPhone" inputmode="tel" autocomplete="tel" placeholder="10-digit mobile">
             <span class="err"></span></div>
-          <div class="fld"><label for="cMail">Email</label>
+          <div class="fld"><label for="cMail">Email <span class="req" aria-hidden="true">*</span></label>
             <input id="cMail" inputmode="email" autocomplete="email"><span class="err"></span></div>
           <div class="fld"><label for="cDest">Where are you thinking of going?</label>
             <select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>
@@ -1671,6 +1678,9 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         <div class="flogo"><a class="logo" href="#top" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a></div>
         <p class="ftag">Study &amp; Work Abroad Consultancy helping students and professionals
           build a global future.</p>
+        <div class="fmap" id="fMap" data-src="https://www.google.com/maps?q=Metro+Pillar+C1734,+Madhapur,+Hyderabad,+Telangana+500081&amp;z=16&amp;output=embed">
+          <span class="fmap-note">Our Hyderabad office &mdash; loading the map&hellip;</span>
+        </div>
         <div class="socials"><a href="https://www.instagram.com/glovelsofficial/" target="_blank" rel="noopener" aria-label="Glovels on Instagram"><svg class="ico" aria-hidden="true"><use href="#i-ig"/></svg></a><a href="https://www.facebook.com/GlovelsOfficial/" target="_blank" rel="noopener" aria-label="Glovels on Facebook"><svg class="ico" aria-hidden="true"><use href="#i-fb"/></svg></a><a href="https://www.linkedin.com/company/glovels/" target="_blank" rel="noopener" aria-label="Glovels on LinkedIn"><svg class="ico" aria-hidden="true"><use href="#i-li"/></svg></a><a href="https://x.com/GlovelsOfficial" target="_blank" rel="noopener" aria-label="Glovels on X"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></a></div>
       </div>
       <div class="fcol"><h4>Study abroad</h4><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="university">All universities</a></div><div class="fcol"><h4>Work &amp; migrate</h4><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a><a href="visa-processing.html">Visa processing</a></div><div class="fcol"><h4>Company</h4><a href="about-us.html">About Us</a><a href="success-stories.html">Success stories</a><a href="careers.html">Careers</a><a href="blog.html">Blog</a><a href="refer.html">Refer a friend</a><a href="glossary.html">Glossary</a><a href="contact-us.html">Contact Us</a></div><div class="fcol"><h4>Legal</h4><a href="terms.html">Terms of Use</a><a href="privacy.html">Privacy Policy</a><a href="refunds.html">Refund &amp; Cancellation</a><a href="grievance.html">Grievance Redressal</a><a href="disclaimers.html">Disclaimers</a></div>
@@ -4645,23 +4655,17 @@ function render(){
   const {rows: shaped, hiddenUnis: unis} = pick();
   const hiddenPublic = unis;
   let html = shaped.map(card).join('');
-  if(hiddenPublic){
-    html += '<div class="gatepanel">'+ico('lock')
-      + '<div><h4>'+unis+' public universit'+(unis===1?'y':'ies')
-      + (cat === 'all' ? '' : ' ' + bandLabel(cat).replace('₹','₹'))+'</h4>'
-      + '<p>Tuition-free or close to it. Public matches are the part a package unlocks — '
-      + 'a counsellor can tell you which of them your CGPA opens before you pay.</p></div>'
-      + '<a class="btn btn-navy" href="#packages">See packages '+ico('arrow')+'</a></div>';
-  }
+  /* The gold "N public universities — See packages" band used to sit here.
+     Removed on 26 Sep: the packages have their own section and the finder's
+     banner already says it. */
   if(!shaped.length && !hiddenPublic){
     html = '<div class="cempty"><b>Nothing loaded for this filter yet</b>'
       + 'Clear the field chip, or pick another band.</div>';
   }
   $('#cgrid').innerHTML = html;
-  const total = P.filter(p => !field || p.field === field).length;
-  $('#ccount').textContent = shaped.length
-    ? 'Showing '+shaped.length+' of '+total+' programmes'+(field?' in '+field:'')
-    : '';
+  /* "Showing 24 of 2750 programmes" is gone — 26 Sep. */
+  $('#ccount').textContent = '';
+  $('#ccount').hidden = true;
 }
 
 /* The address a name becomes — the same arithmetic as the finder's uniSlug
@@ -4800,6 +4804,10 @@ $$('.nav-drop').forEach(d => {
 document.addEventListener('click', e => {
   if(!e.target.closest('.nav-drop')) $$('.nav-drop.open').forEach(o => o.classList.remove('open'));
 });
+/* A menu left open by a hover stayed open while the page scrolled away
+   under it, and turned up over the counselling form. */
+addEventListener('scroll', () => $$('.nav-drop.open').forEach(o => o.classList.remove('open')), { passive: true });
+addEventListener('keydown', e => { if(e.key === 'Escape') $$('.nav-drop.open').forEach(o => o.classList.remove('open')); });
 const mm = $('#mm'), scrim = $('#scrim');
 $('#burger').onclick = () => { mm.classList.add('open'); scrim.classList.add('on'); };
 const shut = () => { mm.classList.remove('open'); scrim.classList.remove('on'); };
@@ -4814,6 +4822,20 @@ addEventListener('keydown', e => { if(e.key === 'Escape') shut(); });
    it loads. Click-to-activate keeps that out of the page load. */
 $('#mapBtn').onclick = () =>
   open('https://maps.app.goo.gl/FupmGzddk48TJkPR9', '_blank', 'noopener');
+/* The embedded map, when the footer comes into view. Not on page load: it
+   is a third-party frame and the home page's speed score is measured there. */
+(function(){
+  const box = $('#fMap'); if(!box || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(es => {
+    if(!es.some(e => e.isIntersecting)) return;
+    io.disconnect();
+    const f = document.createElement('iframe');
+    f.src = box.dataset.src; f.loading = 'lazy'; f.referrerPolicy = 'no-referrer-when-downgrade';
+    f.title = 'Glovels office, Madhapur, Hyderabad, on Google Maps'; f.allowFullscreen = true;
+    box.replaceChildren(f);
+  }, { rootMargin: '200px' });
+  io.observe(box);
+})();
 /* Somebody who has just deleted their account arrives here. */
 (function(){
   const q = new URLSearchParams(location.search);
@@ -4888,9 +4910,7 @@ function shortOnPhones(id, keep, label, only){
       });
       box.after(btn);
     }
-    btn.textContent = open
-      ? 'Show fewer'
-      : 'More ' + label + ' (' + (kids.length - keepN) + ' more)';
+    btn.textContent = open ? 'Show fewer' : 'More ' + label;
   };
   /* Both grids are repainted from several places. Watching the box is the only
      version of this that cannot be forgotten by the next patch. */

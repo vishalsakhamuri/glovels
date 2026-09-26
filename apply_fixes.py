@@ -10178,6 +10178,231 @@ patch(
     marker="const open = NEEDED && NEEDED.size;",
 )
 
+
+# ------------------------------------------------------------ patch 140
+#
+# The 26 September round from the functional testers — eleven screenshots,
+# all of them things a person sees and a test does not measure.
+
+# A result row is its own grid, so a track sized by its content — the 1fr at
+# the end, holding "Requirements · Closes 31 Aug 2027 · Apply" — came out a
+# different width on every row, and the "Free to apply" pills stepped left and
+# right down the list. The name track no longer shrinks below nine ems either;
+# at 1000px it had been squeezed to thirty pixels. The action cell wraps
+# instead.
+patch(
+    "index.html",
+    "finder rows: tracks that do not depend on the row's content",
+    """.mrow{display:grid;grid-template-columns:52px minmax(0,19em) 120px 116px 150px 1fr;gap:20px;""",
+    """.mrow{display:grid;grid-template-columns:52px minmax(9em,19em) 120px 116px 150px minmax(0,1fr);gap:20px;""",
+    marker="grid-template-columns:52px minmax(9em,19em) 120px 116px 150px minmax(0,1fr)",
+)
+patch(
+    "index.html",
+    "finder rows: the action cell wraps rather than widening the row",
+    """.mact{justify-self:end;display:grid;grid-template-columns:max-content 122px max-content;
+  align-items:center;gap:9px;white-space:nowrap}""",
+    """.mact{justify-self:end;display:flex;flex-wrap:wrap;justify-content:flex-end;
+  align-items:center;gap:9px 12px;white-space:nowrap;min-width:0}""",
+    marker=".mact{justify-self:end;display:flex;flex-wrap:wrap;",
+)
+
+# "Trending field" ran straight into "More details".
+patch(
+    "index.html",
+    "showcase: a gap between the trending badge and the link",
+    """.ctrend{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);
+  background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8;padding:5px 8px;
+  border-radius:var(--r-pill);margin-top:9px}""",
+    """.ctrend{display:inline-flex;align-items:center;gap:5px;font:700 10.4px/1 var(--sans);
+  background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8;padding:5px 8px;
+  border-radius:var(--r-pill);margin-top:9px;margin-right:12px;vertical-align:middle}
+.ctrend + .cmore{vertical-align:middle}""",
+    marker=".ctrend + .cmore{vertical-align:middle}",
+)
+
+# "Remove this": the gold "N public universities — See packages" band in the
+# showcase grid. The packages have their own section and the finder's own
+# banner says the same thing.
+patch(
+    "index.html",
+    "showcase: no gold packages band in the grid",
+    """  if(hiddenPublic){
+    html += '<div class="gatepanel">'+ico('lock')
+      + '<div><h4>'+unis+' public universit'+(unis===1?'y':'ies')
+      + (cat === 'all' ? '' : ' ' + bandLabel(cat).replace('₹','₹'))+'</h4>'
+      + '<p>Tuition-free or close to it. Public matches are the part a package unlocks — '
+      + 'a counsellor can tell you which of them your CGPA opens before you pay.</p></div>'
+      + '<a class="btn btn-navy" href="#packages">See packages '+ico('arrow')+'</a></div>';
+  }
+  if(!shaped.length && !hiddenPublic){""",
+    """  /* The gold "N public universities — See packages" band used to sit here.
+     Removed on 26 Sep: the packages have their own section and the finder's
+     banner already says it. */
+  if(!shaped.length && !hiddenPublic){""",
+    marker="Removed on 26 Sep: the packages have their own section",
+)
+
+# "Just say more universities" — and "don't show this 24 of 2750".
+patch(
+    "index.html",
+    "showcase: the more button says only that",
+    """    btn.textContent = open
+      ? 'Show fewer'
+      : 'More ' + label + ' (' + (kids.length - keepN) + ' more)';""",
+    """    btn.textContent = open ? 'Show fewer' : 'More ' + label;""",
+    marker="btn.textContent = open ? 'Show fewer' : 'More ' + label;",
+)
+patch(
+    "index.html",
+    "showcase: no 'showing 24 of 2750' line",
+    """  const total = P.filter(p => !field || p.field === field).length;
+  $('#ccount').textContent = shaped.length
+    ? 'Showing '+shaped.length+' of '+total+' programmes'+(field?' in '+field:'')
+    : '';""",
+    """  /* "Showing 24 of 2750 programmes" is gone — 26 Sep. */
+  $('#ccount').textContent = '';
+  $('#ccount').hidden = true;""",
+    marker="$('#ccount').hidden = true;",
+)
+
+# The counsellor button, right-aligned on its own row.
+patch(
+    "index.html",
+    "showcase: the counsellor button sits to the right",
+    """    <div class="ccount" id="ccount"></div>
+    <div style="text-align:center;margin-top:22px">
+      <a class="btn btn-primary" href="#counsel">Talk to a counsellor about your options <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    </div>""",
+    """    <div class="ccount" id="ccount" hidden></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:22px">
+      <a class="btn btn-primary" href="#counsel">Talk to a counsellor about your options <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    </div>""",
+    marker="""<div class="ccount" id="ccount" hidden></div>""",
+)
+
+# Asterisks on the three fields the form refuses without.
+patch(
+    "index.html",
+    "counselling form: the mandatory fields say so",
+    """          <div class="fld"><label for="cName">Full name</label>""",
+    """          <div class="fld"><label for="cName">Full name <span class="req" aria-hidden="true">*</span></label>""",
+    marker="""<label for="cName">Full name <span class="req" """,
+)
+patch(
+    "index.html",
+    "counselling form: the mobile is mandatory",
+    """          <div class="fld"><label for="cPhone">Mobile number</label>""",
+    """          <div class="fld"><label for="cPhone">Mobile number <span class="req" aria-hidden="true">*</span></label>""",
+    marker="""<label for="cPhone">Mobile number <span class="req" """,
+)
+patch(
+    "index.html",
+    "counselling form: the email is mandatory",
+    """          <div class="fld"><label for="cMail">Email</label>""",
+    """          <div class="fld"><label for="cMail">Email <span class="req" aria-hidden="true">*</span></label>""",
+    marker="""<label for="cMail">Email <span class="req" """,
+)
+patch(
+    "index.html",
+    "counselling form: the asterisk's colour, and a line saying what it means",
+    """.fld label{display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;""",
+    """.fld label .req{color:#c0392b;font-size:12px;margin-left:2px}
+.fld label{display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;""",
+    marker=".fld label .req{",
+)
+
+# The "Study in…" menu was still open, over the counselling form, three
+# screens down the page: hover opened it and nothing but a click closed it.
+# Scrolling closes it now, and so does Escape.
+patch(
+    "index.html",
+    "nav: an open menu closes on scroll",
+    """document.addEventListener('click', e => {
+  if(!e.target.closest('.nav-drop')) $$('.nav-drop.open').forEach(o => o.classList.remove('open'));
+});""",
+    """document.addEventListener('click', e => {
+  if(!e.target.closest('.nav-drop')) $$('.nav-drop.open').forEach(o => o.classList.remove('open'));
+});
+/* A menu left open by a hover stayed open while the page scrolled away
+   under it, and turned up over the counselling form. */
+addEventListener('scroll', () => $$('.nav-drop.open').forEach(o => o.classList.remove('open')), { passive: true });
+addEventListener('keydown', e => { if(e.key === 'Escape') $$('.nav-drop.open').forEach(o => o.classList.remove('open')); });""",
+    marker="A menu left open by a hover stayed open while the page scrolled",
+)
+
+# The proof line — avatars and "2,000+ institutions · 160,000+ programmes" —
+# on the same line as the sentence above it, where the tester's arrow put it.
+# Inline, so on a narrow screen it wraps underneath as before.
+patch(
+    "index.html",
+    "hero: the proof line sits beside the subtitle",
+    """.hero-sub{max-width:760px;margin:12px auto 0;color:#c8d6e4;font-size:15.5px}""",
+    """.hero-sub{display:inline-block;max-width:760px;margin:12px 0 0;color:#c8d6e4;font-size:15.5px;vertical-align:middle}""",
+    marker=".hero-sub{display:inline-block;",
+)
+patch(
+    "index.html",
+    "hero: the proof line is inline",
+    """.hero-rate{display:flex;align-items:center;justify-content:center;gap:11px;margin-top:14px;
+  flex-wrap:wrap;color:#dbe5ef;font-size:13px}""",
+    """.hero-rate{display:inline-flex;align-items:center;justify-content:center;gap:11px;margin:12px 0 0 14px;
+  flex-wrap:wrap;color:#dbe5ef;font-size:13px;vertical-align:middle}
+@media (max-width:820px){.hero-rate{display:flex;margin:14px 0 0}.hero-sub{display:block;margin:12px auto 0}}""",
+    marker=".hero-rate{display:inline-flex;",
+)
+
+# The map, in the footer, where the tester's arrow pointed — under the logo
+# and the line about the company. It is a Google frame, so it loads only
+# once the footer is scrolled into view rather than with the page, and the
+# old click-to-open card stays as the link to the full map.
+patch(
+    "index.html",
+    "footer: the office on a map",
+    """        <p class="ftag">Study &amp; Work Abroad Consultancy helping students and professionals
+          build a global future.</p>""",
+    """        <p class="ftag">Study &amp; Work Abroad Consultancy helping students and professionals
+          build a global future.</p>
+        <div class="fmap" id="fMap" data-src="https://www.google.com/maps?q=Metro+Pillar+C1734,+Madhapur,+Hyderabad,+Telangana+500081&amp;z=16&amp;output=embed">
+          <span class="fmap-note">Our Hyderabad office &mdash; loading the map&hellip;</span>
+        </div>""",
+    marker='id="fMap"',
+)
+patch(
+    "index.html",
+    "footer: the map's frame and lazy load",
+    """$('#mapBtn').onclick = () =>
+  open('https://maps.app.goo.gl/FupmGzddk48TJkPR9', '_blank', 'noopener');""",
+    """$('#mapBtn').onclick = () =>
+  open('https://maps.app.goo.gl/FupmGzddk48TJkPR9', '_blank', 'noopener');
+/* The embedded map, when the footer comes into view. Not on page load: it
+   is a third-party frame and the home page's speed score is measured there. */
+(function(){
+  const box = $('#fMap'); if(!box || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(es => {
+    if(!es.some(e => e.isIntersecting)) return;
+    io.disconnect();
+    const f = document.createElement('iframe');
+    f.src = box.dataset.src; f.loading = 'lazy'; f.referrerPolicy = 'no-referrer-when-downgrade';
+    f.title = 'Glovels office, Madhapur, Hyderabad, on Google Maps'; f.allowFullscreen = true;
+    box.replaceChildren(f);
+  }, { rootMargin: '200px' });
+  io.observe(box);
+})();""",
+    marker="The embedded map, when the footer comes into view.",
+)
+patch(
+    "index.html",
+    "footer: the map's box",
+    """.mapbox{margin-top:14px;max-width:360px;border-radius:12px;overflow:hidden;""",
+    """.fmap{margin-top:16px;width:100%;max-width:320px;aspect-ratio:16/10;border-radius:12px;overflow:hidden;
+  background:#0d2338;border:1px solid rgba(255,255,255,.12);display:grid;place-items:center}
+.fmap iframe{width:100%;height:100%;border:0;display:block;filter:saturate(.9)}
+.fmap-note{font:500 12px/1.4 var(--sans);color:#8fa3b8;padding:12px;text-align:center}
+.mapbox{margin-top:14px;max-width:360px;border-radius:12px;overflow:hidden;""",
+    marker=".fmap{margin-top:16px;",
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

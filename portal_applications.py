@@ -186,8 +186,11 @@ function block(id) {
     '<ul class="track" style="margin-bottom:16px">' + STAGES.map((st, i) => {
       const cls = (i < s.stage || (done && i === s.stage)) ? 'done'
                 : i === s.stage ? 'now' : '';
-      return '<li class="' + cls + '"><span class="dot">' + (i < s.stage ? ico('check') : '') +
-        '</span><span><b>' + esc(st.n) + '</b>' + esc(st.d) + '</span></li>';
+      const word = cls === 'done' ? 'Done' : cls === 'now' ? 'In progress' : 'Awaiting';
+      return '<li class="' + cls + '" title="' + esc(st.d) + '"><span class="dot">'
+        + (cls === 'done' ? ico('check') : String(i + 1)) + '</span>'
+        + '<span class="tk"><b>' + esc(st.n) + '</b><span class="tkst">' + word + '</span>'
+        + '<span class="tkd">' + esc(st.d) + '</span></span></li>';
     }).join('') + '</ul>' +
 
     /* THIS TRACKER IS THE OFFICE'S RECORD, NOT THE STUDENT'S.

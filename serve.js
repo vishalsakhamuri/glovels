@@ -335,7 +335,8 @@ const CSP = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https://*.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
-  "frame-src https://*.razorpay.com",
+  /* Razorpay's checkout, and the office on Google Maps in the footer. */
+  "frame-src https://*.razorpay.com https://www.google.com https://maps.google.com",
   "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

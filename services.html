@@ -1347,7 +1347,9 @@ function svcCard(s) {
         + ico('clock') + ' ' + esc(s.meta) + '</div>' : '')
     + levels
     + '<div class="sl-meta" style="margin-top:10px"><b>' + svcMoney(s) + '</b></div>'
-    + '<div class="sl-go" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
+    /* Pinned to the foot of the card: a longer description above must not
+       push this button lower than its neighbour's. */
+    + '<div class="sl-go" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px">'
       + (bought
           ? '<a class="btn btn-ghost btn-sm" href="messages.html">Ask about it</a>'
           : '<a class="btn btn-primary btn-sm" href="index.html#service-' + esc(s.id) + '">'
