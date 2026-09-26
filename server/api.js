@@ -24,6 +24,7 @@ const path = require('path');
 const url = require('url');
 const EMAILS = require('./emails.js');
 const SHEET = require('./sheet.js');
+const LINKS = require('./linkcheck.js');
 const WRITING = require('./writing.js');
 const PROSE = require('./prose.js');
 const ALERTS = require('./alerts.js');
@@ -7344,6 +7345,46 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * catalogue away as a file is not the same act, so the download asks for the
    * catalogue permission the way editing does.
    */
+  /*
+   * THE COURSE LINKS, CHECKED BY THE SERVER (server/linkcheck.js).
+   *
+   * POST starts a run over every programme on the site that has a link — one
+   * destination with ?country=DE — and returns at once; it takes a few
+   * minutes and runs in the background. GET says how far it has got. The
+   * .csv / .xlsx is the answer, one line per link, with the verdict first so
+   * it sorts. Only what is already in the catalogue is ever fetched.
+   */
+  route('POST', '/api/staff/linkcheck', needs('catalogue', async (req, res) => {
+    const qs = url.parse(req.url, true).query;
+    const country = String(qs.country || '').toUpperCase().slice(0, 3);
+    const rows = (country && typeof db.rowsAll === 'function' ? db.rowsAll(country) : db.programmes(true))
+      .filter(r => r.active !== 0 && r.active !== false)
+      .filter(r => !country || r.country === country)
+      .map(r => ({ id: r.id, program: r.program, university: r.university, url: r.url }));
+    LINKS.start(rows, { scope: country || 'all', allowLocal: process.env.LINKCHECK_ALLOW_LOCAL === 'true' });
+    return json(res, 202, LINKS.status());
+  }));
+  route('GET', '/api/staff/linkcheck', needs('catalogue', async (req, res) => json(res, 200, LINKS.status())));
+  route('GET', /^\/api\/staff\/linkcheck\.(csv|xlsx)$/, needs('catalogue', async (req, res, s, m) => {
+    const ORDER = { dead: 0, home: 1, bad: 2, error: 3, blocked: 4, ok: 5 };
+    const list = LINKS.results().sort((a, b) => (ORDER[a.verdict] ?? 9) - (ORDER[b.verdict] ?? 9)
+      || String(a.university).localeCompare(String(b.university)));
+    const headers = ['verdict', 'note', 'id', 'university', 'programme', 'status', 'course url', 'ended up at'];
+    const rows = list.map(r => [r.verdict, r.note, r.id, r.university, r.program, r.status || '', r.url, r.finalUrl]);
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (m[1] === 'csv') {
+      const body = Buffer.from(SHEET.writeCsv(headers, rows), 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Length': body.length,
+        'Content-Disposition': `attachment; filename="glovels-link-check-${stamp}.csv"`, 'Cache-Control': 'no-store' });
+      return res.end(body);
+    }
+    const body = SHEET.writeXlsx(headers, rows, 'Links');
+    res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Length': body.length, 'Content-Disposition': `attachment; filename="glovels-link-check-${stamp}.xlsx"`,
+      'Cache-Control': 'no-store' });
+    return res.end(body);
+  }));
+
   route('GET', /^\/api\/staff\/catalogue\.(xlsx|csv)$/, needs('catalogue', async (req, res, s, m) => {
     const headers = SHEET_COLUMNS.map(c => c[0]);
     /* ?country=DE — one destination's rows. The whole catalogue as one Excel

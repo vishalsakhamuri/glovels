@@ -214,6 +214,24 @@ BODY = """
         <div id="sOut" style="margin-top:18px"></div>
       </div>
 
+      <div class="p-card" style="margin-top:14px">
+        <h3>Check the course links</h3>
+        <p style="margin:0 0 14px;font-size:12.8px;color:var(--muted);line-height:1.6">
+          The server opens every programme&rsquo;s course page and reports the ones that no longer
+          work &mdash; gone, or quietly sending students to the university&rsquo;s home page. It runs
+          in the background and takes a few minutes for a whole destination; you can leave this
+          screen and come back. Nothing in the catalogue is changed.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select id="lcCountry" aria-label="Which destination to check" style="padding:9px 11px;
+            font:600 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;background:#fff">
+            <option value="">Every destination</option>
+          </select>
+          <button type="button" class="btn btn-primary btn-sm" id="lcGo">Check the links</button>
+          <a class="btn btn-ghost btn-sm" id="lcXlsx" href="/api/staff/linkcheck.xlsx" hidden>Download the results</a>
+        </div>
+        <p id="lcSaid" style="margin:12px 0 0;font:600 12.6px/1.55 var(--sans);color:var(--navy-800)"></p>
+      </div>
+
       <p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
         A row can only use a destination that already exists on the Destinations tab &mdash;
         an unknown country code is rejected with the row, not quietly created. Deadlines must be
@@ -752,6 +770,41 @@ function readEditor() {
  */
 
 let sheetPlan = null;
+
+/* ------------------------------------------------------------ link check */
+(function linkCheck() {
+  const said = () => document.getElementById('lcSaid');
+  const words = { ok: 'working', home: 'send you to the home page', dead: 'gone', blocked: 'refuse robots (look by hand)',
+    error: 'did not answer', bad: 'are not addresses' };
+  let timer = null;
+  const paint = st => {
+    const el = said(); if (!el) return;
+    const c = st.counts || {};
+    const parts = ['dead', 'home', 'error', 'blocked', 'bad', 'ok'].filter(k => c[k])
+      .map(k => '<b>' + c[k] + '</b> ' + words[k]);
+    if (st.running) el.innerHTML = 'Checking&hellip; ' + st.done + ' of ' + st.total + (parts.length ? ' &mdash; ' + parts.join(', ') : '');
+    else if (st.total) el.innerHTML = 'Checked ' + st.done + ' links' + (st.scope && st.scope !== 'all' ? ' (' + esc(st.scope) + ')' : '')
+      + ': ' + parts.join(', ') + '.';
+    else el.textContent = '';
+    const dl = document.getElementById('lcXlsx'); if (dl) dl.hidden = !st.done;
+    const go = document.getElementById('lcGo'); if (go) go.disabled = !!st.running;
+    clearTimeout(timer);
+    if (st.running) timer = setTimeout(poll, 3000);
+  };
+  const poll = () => api('GET', '/api/staff/linkcheck').then(paint).catch(() => {});
+  document.addEventListener('click', async e => {
+    if (!e.target.closest('#lcGo')) return;
+    const c = (document.getElementById('lcCountry') || {}).value || '';
+    try { paint(await api('POST', '/api/staff/linkcheck' + (c ? '?country=' + encodeURIComponent(c) : ''))); }
+    catch (err) { const el = said(); if (el) el.textContent = err.message; }
+  });
+  /* The destination list, the same one the download offers. */
+  setTimeout(() => {
+    const from = document.getElementById('dlCountry'), to = document.getElementById('lcCountry');
+    if (from && to && to.options.length < 2) to.innerHTML = from.innerHTML.replace('The whole catalogue', 'Every destination');
+    poll();
+  }, 1500);
+})();
 
 async function sheetPost(fields) {
   const f = $('#sFile').files[0];

@@ -164,6 +164,8 @@ node reqsunit.js | tail -1 | tee -a "$REPORT"
 run reqstest.js     8099
 # The 26 September round: eleven screenshots — rows, cards, a map, a tracker.
 run round140test.js 8099
+# Patch 141: the server checks the course links; a fake university answers each way.
+run linktest.js     8099 LINKCHECK_ALLOW_LOCAL=true
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097
