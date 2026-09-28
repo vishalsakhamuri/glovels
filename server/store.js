@@ -1247,6 +1247,18 @@ function open(dir) {
         Number(studentId), sender, body || '', file || '',
         String(author == null ? '' : author).slice(0, 80), now());
     },
+    /* Messages from before the sender was recorded. `nameFor(row)` returns the
+       name to stamp, or '' to leave the row as it is. Returns how many moved. */
+    backfillMessageAuthors(nameFor) {
+      let n = 0;
+      db.all("SELECT * FROM messages WHERE sender = ? AND (author IS NULL OR author = '')", 'them').forEach(m => {
+        const who = String(nameFor(m) || '').slice(0, 80);
+        if (!who) return;
+        db.run('UPDATE messages SET author = ? WHERE id = ?', who, m.id);
+        n++;
+      });
+      return n;
+    },
 
     /* ---- saved scholarships ---- */
     getSaved: id => db.all('SELECT * FROM saved_scholarships WHERE student_id = ?', Number(id)).map(r => r.sch_id),

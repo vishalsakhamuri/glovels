@@ -10403,6 +10403,77 @@ patch(
     marker=".fmap{margin-top:16px;",
 )
 
+
+# ------------------------------------------------------------ patch 142
+# Testing round 27 Sep: the entry offers renamed on the home page's first paint.
+# The live names come from the database; server/seed.js renameEntryOffers()
+# renames those once, and only where the office has not changed them.
+patch(
+    'index.html',
+    'entry offers renamed (1)',
+    '"name": "First Three Universities", "desc": "Three universities you actually match — each with the fee, the intake and the application deadline, and why you match it. Picked from your profile and in your account within the minute, with nobody needing to ring you."',
+    '"name": "Private match preview", "desc": "3 partner universities you match, instant."',
+    count=9,
+)
+patch(
+    'index.html',
+    'entry offers renamed (2)',
+    '"name": "Shortlist of Ten", "desc": "Ten matched universities with fees, intakes and deadlines, plus your profile assessed against them — where you are strong, where you are short, and what would actually raise your chances. Saved in your account and picked again whenever you update your profile."',
+    '"name": "Private shortlist of 10", "desc": "10 partner universities, plus a profile gap analysis."',
+    count=9,
+)
+patch(
+    'index.html',
+    'entry offers renamed (4)',
+    '"cta": "Choose Three Universities"',
+    '"cta": "Choose Public University Unlock"',
+    count=9,
+)
+patch(
+    'index.html',
+    'entry offers renamed (5)',
+    '{"id": "pkg-three-public", "tab": "study", "name": "Three Public Universities"',
+    '{"id": "pkg-three-public", "tab": "study", "name": "Public University Unlock"',
+)
+
+# Dashboard (27 Sep): the shortlist count is the whole shortlist; and the
+# serial number column no longer wraps (26 Sep).
+patch(
+    'dashboard.html',
+    'dashboard counts the whole shortlist (1)',
+    "const shown = (list.length ? list : (signedIn ? [] : FALLBACK)).filter(r => r.addedBy !== 'student');",
+    'const shown = (list.length ? list : (signedIn ? [] : FALLBACK)).filter(r => r.addedBy !== \'student\');\n/* THE NUMBER MY PROGRAMS SHOWS. `shown` leaves out the private universities\n   the student added themselves — they have their own place — but every count\n   on this screen said "17 shortlisted" where My Programs said 18. The count\n   is the whole shortlist; the table below is still the one we picked. */\nconst slTotal = signedIn ? list.length : shown.length;\nconst slMine = Math.max(0, slTotal - shown.length);\nconst slSaid = slTotal + \' universit\' + (slTotal === 1 ? \'y\' : \'ies\') + \' shortlisted\'\n  + (slMine ? \' (\' + slMine + \' you added)\' : \'\');',
+    marker='const slTotal = signedIn ? list.length : shown.length;',
+)
+patch(
+    'dashboard.html',
+    'dashboard counts the whole shortlist (2)',
+    "    + shown.length + ' universit' + (shown.length === 1 ? 'y' : 'ies') + ' shortlisted.'",
+    "    + slSaid + '.'",
+    marker="    + slSaid + '.'",
+)
+patch(
+    'dashboard.html',
+    'dashboard counts the whole shortlist (3)',
+    "  ? '<b>' + esc(order.package) + '</b><span>' + shown.length\n    + ' universit' + (shown.length === 1 ? 'y' : 'ies') + ' shortlisted · '",
+    "  ? '<b>' + esc(order.package) + '</b><span>' + slSaid + ' · '",
+    marker="<span>' + slSaid + ' · '",
+)
+patch(
+    'dashboard.html',
+    'dashboard counts the whole shortlist (4)',
+    "  ? ['Your shortlist is ready — ' + shown.length + ' universit' + (shown.length === 1 ? 'y' : 'ies'),",
+    "  ? ['Your shortlist is ready — ' + slTotal + ' universit' + (slTotal === 1 ? 'y' : 'ies'),",
+    marker="'Your shortlist is ready — ' + slTotal",
+)
+patch(
+    'dashboard.html',
+    'dashboard counts the whole shortlist (5)',
+    '.sl-num{color:var(--muted);font-variant-numeric:tabular-nums;width:1%}',
+    '.sl-num{color:var(--muted);font-variant-numeric:tabular-nums;width:1%;white-space:nowrap;padding-right:6px}',
+    marker='width:1%;white-space:nowrap;padding-right:6px}',
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

@@ -910,16 +910,38 @@ async function saveLogo(url) {
       });
       btn.disabled = true;
       try {
+        $$('#p-details [data-f]').forEach(i => { i.removeAttribute('aria-invalid'); i.style.borderColor = ''; });
         await api('PUT', '/api/partner/student/' + OPEN.id + '/profile', { profile });
+        $('#profSaid').style.color = '';
         $('#profSaid').textContent = 'Saved.';
         /* The row above shows what they are looking at, and it comes out of
            this record — so it must not still say "not decided" after the
            destination has just been typed in. */
         OPEN = await api('GET', '/api/partner/student/' + OPEN.id);
         await refreshList();
-      } catch (err) { $('#profSaid').textContent = err.message; }
+      } catch (err) {
+        /* NOT SAVED, said so it cannot be missed. The refusal used to be
+           grey text beside the button that erased itself after three
+           seconds, with the wrong values still sitting in the boxes — so a
+           form that had refused a mobile of "ft26zzz" looked exactly like one
+           that had saved it. Every box the server named turns red, the first
+           takes the cursor, and the message stays until the next save. */
+        const el = $('#profSaid');
+        el.style.color = '#a5311f';
+        el.textContent = 'Not saved. ' + err.message;
+        let first = null;
+        (err.fields || []).forEach(f => {
+          const box = document.querySelector('#p-details [data-f="' + f.field + '"]');
+          if (!box) return;
+          box.setAttribute('aria-invalid', 'true'); box.style.borderColor = '#c0392b';
+          if (!first) first = box;
+        });
+        if (first) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => first.focus(), 300); }
+        btn.disabled = false;
+        return;
+      }
       btn.disabled = false;
-      setTimeout(() => { const el = $('#profSaid'); if (el) el.textContent = ''; }, 3000);
+      setTimeout(() => { const el = $('#profSaid'); if (el && el.textContent === 'Saved.') el.textContent = ''; }, 3000);
       return;
     }
 

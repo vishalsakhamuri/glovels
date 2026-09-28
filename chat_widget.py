@@ -339,7 +339,7 @@ WIDGET = r"""
       try {
         var d = JSON.parse(ev.data);
         var m = d.msg || d;
-        if (m && m.who === 'them') arrive({ who: 'them', t: m.t, at: m.at });
+        if (m && m.who === 'them') arrive({ who: 'them', t: m.t, at: m.at, name: m.from || m.name || '' });
       } catch (e) {}
     });
   }

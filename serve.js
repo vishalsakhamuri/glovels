@@ -242,6 +242,8 @@ const movedTiers = seed.moveEntryTiersToServices({ db, content: content.shipped(
 /* And the sentence that said the cheapest way to a public university name was
    ₹9,999. It is ₹4,999 — only rewritten where nobody has edited that answer. */
 seed.fixCheapestPackagePrice({ db });
+seed.messagesSayWhoSentThem({ db });
+seed.renameEntryOffers({ db });
 /* The ones priced "on request" go straight on: there is no price to get wrong
    and the only button on them starts a conversation, which is the point. */
 /* Every package that names public universities now hands them over. Somebody
@@ -1684,8 +1686,23 @@ function withLiveDestinationFacts(html, slug) {
   };
   if (progs) cell('Programmes we track', progs.toLocaleString('en-IN'));
   if (unis) cell('Universities', unis.toLocaleString('en-IN'));
-  cell('Public university CGPA', bar(cc.minCgpaPublic));
-  cell('Private university CGPA', bar(cc.minCgpaPrivate));
+  /* THE BAR THE FINDER ACTUALLY APPLIES — the destination's own when the
+     office has set one, the finder's default when it has not. "Public
+     university CGPA 7.5+ on 10 is hard-wired": with Germany's bar blank the
+     page kept the 7.5 it was written with, while the finder applied its own
+     default — and the private tile said 6.0 while the finder used 7.0. The
+     page and the finder now read the same two numbers. */
+  let fin = {};
+  try { fin = (content && content.get('finder')) || {}; } catch (e) { fin = {}; }
+  const pub = bar(cc.minCgpaPublic) || bar(fin.cgpaFull);
+  const priv = bar(cc.minCgpaPrivate) || bar(fin.cgpaPartial);
+  cell('Public university CGPA', pub);
+  cell('Private university CGPA', priv);
+  /* The same number in the FAQ, and in its copy for search engines. */
+  if (pub) {
+    const n = pub.replace(/\+ on 10$/, '');
+    html = html.replace(/My CGPA is below [\d.]+/g, 'My CGPA is below ' + n);
+  }
 
   /* The same two numbers again, in the sentence above the box and in the line
      under the title. A page that argues with itself is worse than one that is

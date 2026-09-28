@@ -325,12 +325,20 @@ function paint() {
   const extra = all.length - req.filter(d => stOf(d.id) !== S.NONE).length;
   const backAll = all.filter(k => (DB.docs[k] || {}).status === S.RESCAN).length;
   const waiting = all.filter(k => (DB.docs[k] || {}).status === S.REVIEW).length;
-  $('#ringHead').textContent = (pct === 100 && !backAll
-    ? 'Every required document is verified'
-    : ok + ' of ' + req.length + ' required documents verified')
-      + (extra > 0 ? ' \u00b7 ' + extra + ' more on your file' : '')
+  /* THE SAME NUMBER THE COUNSELLOR SEES. The counsellor's tile counts every
+     document on the file ("11/12 verified"); this line said "8 of 10" — the
+     required ones only — so the two screens about one student disagreed, and
+     the file sent back looked as if it had vanished. The whole file leads
+     now, in the counsellor's terms, with the job first; the required count
+     follows, because it is what the ring measures. */
+  const okAll = all.filter(k => (DB.docs[k] || {}).status === S.OK).length;
+  $('#ringHead').textContent = (all.length
+      ? okAll + ' of ' + all.length + ' documents on your file verified'
+      : 'Nothing uploaded yet')
+      + (backAll ? ' \u00b7 ' + backAll + (backAll === 1 ? ' needs' : ' need') + ' a new copy from you' : '')
       + (waiting ? ' \u00b7 ' + waiting + ' waiting on your counsellor' : '')
-      + (backAll ? ' \u00b7 ' + backAll + ' need a new copy from you' : '');
+      + ' \u00b7 ' + (pct === 100 ? 'every required document is in'
+        : ok + ' of the ' + req.length + ' required are verified');
   /* Named, and linked to wherever that document actually lives. A visa
      document is uploaded on the visa screen, so pointing at it here and
      leaving them to find it would be half the job. */

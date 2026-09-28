@@ -1115,11 +1115,95 @@ function addMissingCountries({ db, countries }) {
   return n;
 }
 
+
+/*
+ * WHO SENT THE MESSAGES FROM BEFORE ANYBODY RECORDED IT.
+ *
+ * "Student can't tell a counsellor's message from an automatic one — every
+ *  incoming line is labelled Glovels." Messages sent since patch 137 carry
+ * the counsellor's name; the ones before it carry nothing, and nothing is
+ * rendered as the office. Most of those were a person: the student's
+ * counsellor adding a university, moving an application, typing a reply.
+ *
+ * The machine's own messages are a short, known list and are left alone —
+ * they are the office's, and "Glovels" is the right name for them. Anything
+ * else in a student's thread was sent by staff, and is put in the name of the
+ * counsellor assigned to that student. Runs once.
+ */
+const AUTOMATIC = [/^Your \d+ matched/, /^I have looked through the whole catalogue/, /^Welcome/,
+  /^If you decide you want somebody/, /^Two things worth starting/, /^Received \u20b9/];
+function messagesSayWhoSentThem({ db }) {
+  if (db.content('messageAuthorsV1')) return 0;
+  db.setContent('messageAuthorsV1', { done: true }, 'system');
+  if (typeof db.backfillMessageAuthors !== 'function') return 0;
+  const names = new Map();
+  const counsellorOf = id => {
+    if (names.has(id)) return names.get(id);
+    const st = db.studentById(id);
+    const c = st && st.counsellor_id ? db.studentById(st.counsellor_id) : null;
+    const name = (c && c.name) || '';
+    names.set(id, name);
+    return name;
+  };
+  const n = db.backfillMessageAuthors(m =>
+    AUTOMATIC.some(re => re.test(String(m.body || ''))) ? '' : counsellorOf(m.student_id));
+  if (n) db.log('system', 'messages say who sent them', n + ' earlier message(s) put in the counsellor\'s name');
+  return n;
+}
+
+
+/*
+ * THE ENTRY OFFERS, RENAMED (testing round 27 Sep).
+ *
+ *   ₹99    Private match preview    — 3 partner universities you match, instant.
+ *   ₹999   Private shortlist of 10  — 10 partner universities, plus a profile gap analysis.
+ *   ₹4,999 Public University Unlock
+ *
+ * The old names said "three universities" and "ten" without saying WHICH kind,
+ * next to a ₹4,999 package also called "three universities". Renamed only
+ * where the name is still the one we shipped — a name the office has since
+ * changed on the Home page screen is theirs. Runs once.
+ */
+function renameEntryOffers({ db }) {
+  if (db.content('entryOfferNamesV1')) return 0;
+  db.setContent('entryOfferNamesV1', { done: true }, 'system');
+  let n = 0;
+  const svc = db.content('services');
+  if (svc && Array.isArray(svc.items)) {
+    const RN = {
+      'first-three': ['First Three Universities', 'Private match preview', '3 partner universities you match, instant.'],
+      'shortlist-ten': ['Shortlist of Ten', 'Private shortlist of 10', '10 partner universities, plus a profile gap analysis.'],
+    };
+    const items = svc.items.map(x => {
+      const r = x && RN[x.id];
+      if (!r || x.name !== r[0]) return x;
+      n++;
+      return Object.assign({}, x, { name: r[1], desc: r[2] });
+    });
+    if (n) db.setContent('services', Object.assign({}, svc, { items }), 'system');
+  }
+  const pk = db.content('packages');
+  if (pk && Array.isArray(pk.items)) {
+    let m = 0;
+    const items = pk.items.map(x => {
+      if (!x || x.id !== 'pkg-three-public' || x.title !== 'Three Public Universities') return x;
+      m++;
+      return Object.assign({}, x, { title: 'Public University Unlock',
+        cta: x.cta === 'Choose Three Universities' ? 'Choose Public University Unlock' : x.cta });
+    });
+    if (m) { db.setContent('packages', Object.assign({}, pk, { items }), 'system'); n += m; }
+  }
+  if (n) db.log('system', 'entry offers renamed', 'Private match preview · Private shortlist of 10 · Public University Unlock');
+  return n;
+}
+
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, addMissingCountries,
   addMissingServices,
   addEntryTiers,
   moveEntryTiersToServices,
   fixCheapestPackagePrice,
+  messagesSayWhoSentThem,
+  renameEntryOffers,
   packagesDeliverWhatTheyUnlock,
   removeTheCardsThatWereSourceCode,
   chipsAskWhatItWas,

@@ -364,7 +364,11 @@ function paintRecord(r) {
       '<div class="out tiles" style="--tiles:4;margin:0 0 16px">' +
         '<div><b>' + r.shortlist.length + '</b><span>Shortlisted</span></div>' +
         '<div><b>' + Object.keys(r.apps).length + '</b><span>Applications</span></div>' +
-        '<div><b>' + r.docs.filter(d => d.status === 'ok').length + '/' + r.docs.length + '</b><span>Docs verified</span></div>' +
+        /* The student reads this same count on their Documents screen, and
+           a file sent back is named on both. */
+        '<div><b>' + r.docs.filter(d => d.status === 'ok').length + '/' + r.docs.length + '</b><span>Docs verified'
+          + (r.docs.filter(d => d.status === 'rescan').length ? ' \u00b7 ' + r.docs.filter(d => d.status === 'rescan').length + ' sent back' : '')
+          + '</span></div>' +
         '<div><b>' + filled + '</b><span>Profile fields</span></div>' +
       '</div>' +
       '<div class="tabs" style="margin-bottom:14px">' +

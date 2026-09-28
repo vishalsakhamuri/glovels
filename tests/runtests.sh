@@ -166,6 +166,8 @@ run reqstest.js     8099
 run round140test.js 8099
 # Patch 141: the server checks the course links; a fake university answers each way.
 run linktest.js     8099 LINKCHECK_ALLOW_LOCAL=true
+# The 27 September round: three names, a CGPA, two counts, who sent a message, a refusal.
+run round142test.js 8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

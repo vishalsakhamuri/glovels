@@ -2533,8 +2533,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     signedIn: true,
     name: s.name,
     counsellor: s.counsellor_id ? (db.studentById(s.counsellor_id) || {}).name || '' : '',
+    /* Who each one is from — the counsellor's name, or the office for what
+       the machine sent. This said '' for every message, so the chat panel
+       labelled a counsellor's own words "Glovels". */
     messages: db.getMessages(s.id).map(m => ({
-      who: m.sender, t: m.body, name: '', at: m.created_at,
+      who: m.sender, t: m.body, at: m.created_at,
+      name: m.sender === 'me' ? '' : (String(m.author || '').trim() || FROM_OFFICE),
     })),
   });
 

@@ -1374,12 +1374,20 @@ const signedIn = !!(window.__GLOVELS && window.__GLOVELS.user);
    count here is the rows the shortlist screen draws, and the card says
    the same total with the machine's share as a detail. */
 const shown = (list.length ? list : (signedIn ? [] : FALLBACK)).filter(r => r.addedBy !== 'student');
+/* THE NUMBER MY PROGRAMS SHOWS. `shown` leaves out the private universities
+   the student added themselves — they have their own place — but every count
+   on this screen said "17 shortlisted" where My Programs said 18. The count
+   is the whole shortlist; the table below is still the one we picked. */
+const slTotal = signedIn ? list.length : shown.length;
+const slMine = Math.max(0, slTotal - shown.length);
+const slSaid = slTotal + ' universit' + (slTotal === 1 ? 'y' : 'ies') + ' shortlisted'
+  + (slMine ? ' (' + slMine + ' you added)' : '');
 const usingSample = !list.length && !signedIn;
 const quota = order.publicUnis || 0;
 
 $('#helloSub').textContent = paid
   ? 'Here is where your application stands — ' + order.package + ', '
-    + shown.length + ' universit' + (shown.length === 1 ? 'y' : 'ies') + ' shortlisted.'
+    + slSaid + '.'
   : 'Here is where your application stands today.';
 
 const money = p => p.totalInr === 0 ? '\u20B90 tuition'
@@ -1557,8 +1565,7 @@ $('#planBadge').innerHTML = paid
   /* The same shortlist number as the rest of the screen. This read the
      latest order's own allowance — "0 universities" under Travel & Health
      Insurance, on a dashboard saying 15 two inches away. */
-  ? '<b>' + esc(order.package) + '</b><span>' + shown.length
-    + ' universit' + (shown.length === 1 ? 'y' : 'ies') + ' shortlisted · ' + (shown[0] && shown[0].intakes && shown[0].intakes[0]
+  ? '<b>' + esc(order.package) + '</b><span>' + slSaid + ' · ' + (shown[0] && shown[0].intakes && shown[0].intakes[0]
         ? shown[0].intakes[0].season + ' intake' : 'this intake') + '</span>'
   : '<b>No package yet</b><span>Choose one to unlock your matches</span>';
 
@@ -1592,7 +1599,7 @@ window.__markPaid = () => { STEPS[1][1] = true; paintSteps(); };
    those three things. */
 const __m = (window.__GLOVELS && window.__GLOVELS.matched) || null;
 const next = (__m && __m.delivered > 0)
-  ? ['Your shortlist is ready — ' + shown.length + ' universit' + (shown.length === 1 ? 'y' : 'ies'),
+  ? ['Your shortlist is ready — ' + slTotal + ' universit' + (slTotal === 1 ? 'y' : 'ies'),
      (shown.length > __m.delivered
         ? __m.delivered + ' picked for your ' + (__m.package || 'package') + ' and '
           + (shown.length - __m.delivered) + ' added by your counsellor. '
@@ -2286,7 +2293,7 @@ if (location.protocol === 'file:') {
       try {
         var d = JSON.parse(ev.data);
         var m = d.msg || d;
-        if (m && m.who === 'them') arrive({ who: 'them', t: m.t, at: m.at });
+        if (m && m.who === 'them') arrive({ who: 'them', t: m.t, at: m.at, name: m.from || m.name || '' });
       } catch (e) {}
     });
   }
