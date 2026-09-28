@@ -38,7 +38,7 @@ const PROFILE = {
   /* A second field since patch 143: the matcher no longer pads a list with
      unrelated programmes, and the demo catalogue has two private Data
      Science rows at two universities — three are needed to test "three different universities". */
-  g_field2: 'Computer Science', g_field3: 'Biotechnology',
+  g_field2: 'Computer Science', g_field3: 'Biotechnology', g_field4: 'Robotics',
   g_intake: 'Winter 2026', b_total: 'Under ₹10 Lakhs', d_cgpa: '7.8',
 };
 

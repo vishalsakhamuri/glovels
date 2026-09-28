@@ -436,8 +436,12 @@ let seq = 0;
   /* A profile is usable when it names a destination — and that has to survive
      the field becoming a list, or every buyer is told to fill in their profile
      when they already have. */
-  check('a profile that names destinations is usable',
-    MATCHES.usable({ g_country: 'Ireland, Poland' }));
+  /* Since patch 145 a destination alone is not enough to pick from — country
+     and budget alone delivered Pre-Masters and IT Security to somebody who had
+     said nothing about what they wanted to study. Level and field are. */
+  check('a profile that names destinations, a level and a field is usable',
+    MATCHES.usable({ g_country: 'Ireland, Poland', g_level: "Master's", g_field: 'Data Science' })
+    && !MATCHES.usable({ g_country: 'Ireland, Poland' }));
 
   /* ============================================ the agency fills the same form
    *

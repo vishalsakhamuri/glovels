@@ -172,6 +172,8 @@ run round142test.js 8099
 run round143test.js 8099
 # Patch 144: intakes by term — this semester, next semester, the exact closing date.
 run round144test.js 8099
+# Patch 145: what the student agents found — intake, visa, subject, words, the receipt.
+node round145test.js | tail -1 | tee -a "$REPORT"
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

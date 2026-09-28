@@ -1382,15 +1382,36 @@ function money(p) {
    intake closes 15 July" actually means.
    ⚠️ This is a display convenience, not a data fix. Refresh the intake dates in
    Glovels_Content_Master.xlsx and it becomes a no-op. */
-function upcoming(p) {
-  const now = new Date();
-  const dates = (p.intakes || []).map(i => {
-    const d = new Date(i.deadline);
-    if (isNaN(d)) return null;
-    while (d < now) d.setFullYear(d.getFullYear() + 1);
-    return d;
+/* The deadline to show: for the intake the student chose on their profile
+   when that term is still open for this programme, otherwise the next date
+   that is still ahead (patch 145 — the finder, this screen and the dashboard
+   now agree on which date a programme carries). */
+function deadlineFor(p, intakeText) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const m = /(summer|spring|winter|fall|autumn)\D{0,3}(\d{4})/i.exec(String(intakeText || ''));
+  if (m) {
+    const season = /summer|spring/i.test(m[1]) ? 'summer' : 'winter', year = Number(m[2]);
+    const start = new Date(year, season === 'summer' ? 3 : 9, 1);
+    const limit = new Date(start); limit.setMonth(limit.getMonth() + 1);
+    const hits = (p.intakes || []).filter(i => i && i.deadline
+      && (/summer|spring/i.test(String(i.season || '')) ? 'summer' : 'winter') === season).map(i => {
+        const d = new Date(i.deadline); if (isNaN(d)) return null;
+        const at = new Date(year, d.getMonth(), d.getDate());
+        while (at > limit) at.setFullYear(at.getFullYear() - 1);
+        return at >= today ? at : null;
+      }).filter(Boolean).sort((a, b) => a - b);
+    if (hits[0]) return hits[0];
+  }
+  const ds = (p.intakes || []).map(i => {
+    const d = new Date(i && i.deadline); if (isNaN(d)) return null;
+    const at = new Date(today.getFullYear(), d.getMonth(), d.getDate());
+    if (at < today) at.setFullYear(at.getFullYear() + 1);
+    return at;
   }).filter(Boolean).sort((a, b) => a - b);
-  return dates[0] || null;
+  return ds[0] || null;
+}
+function upcoming(p) {
+  return deadlineFor(p, ((typeof DB !== 'undefined' && DB && DB.profile) || {}).g_intake || '');
 }
 function nextDeadline(p) {
   const d = upcoming(p);
@@ -1556,7 +1577,10 @@ function card(p, inList) {
        two that decide whether somebody starts in time. Closed by default —
        twelve cards each shouting a document list is a wall. */
     needsBlock(p) +
-    (barOf(p) == null ? '' :
+    /* A row with a German-grade bar is judged on that bar alone — the CGPA
+       line beside it said "above yours" to students the matcher had
+       correctly judged on the German grade (patch 145). */
+    (barOf(p) == null || (p.germanGpa != null && p.germanGpa !== '') ? '' :
       '<div class="sl-meta" style="color:' + (clears(p) ? 'var(--muted)' : '#b42318') + '">' +
       (clears(p) ? 'Asks for ' + barOf(p) + '+ CGPA'
                  : 'Asks for ' + barOf(p) + '+ CGPA — above yours') + '</div>') +

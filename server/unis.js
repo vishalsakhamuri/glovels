@@ -83,6 +83,18 @@ function group(catalogue) {
   }
   const out = [...by.values()];
   for (const u of out) {
+    /* The main campus, not the first row's city (patch 145): TUM showed as
+       "Public university in Straubing", WHU as Düsseldorf, TH Köln as
+       Gummersbach. A city named in the university's own name wins; otherwise
+       the city most of its programmes are in. */
+    {
+      const n = new Map();
+      u.programmes.forEach(p => { const c = String(p.city || '').trim(); if (c) n.set(c, (n.get(c) || 0) + 1); });
+      const nameLc = u.name.toLowerCase();
+      const named = [...n.keys()].find(c => nameLc.includes(c.toLowerCase().split(/[\s,(/]/)[0]));
+      const most = [...n.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (named) u.city = named; else if (most) u.city = most[0];
+    }
     /* On the site — in the finder and on the lists — if ANY of its programmes
        is. A university whose every programme is search-only is reached from
        Google and the search box, and from nowhere else. */

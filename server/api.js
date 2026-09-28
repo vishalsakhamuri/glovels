@@ -964,7 +964,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           : 'Your ' + out.delivered + ' matched '
           + (owed.kind === 'public' ? 'public ' : '')
           + (out.delivered === 1 ? 'university is' : 'universities are')
-          + ' on your shortlist now — fees, intakes and deadlines are on each one. '
+          + ' on your shortlist now — with the fee on each, and the deadline wherever the university publishes one. '
+          /* Patch 145: say it when fewer fit than were bought, rather than
+             letting "your shortlist is ready" imply the full number. */
+          + (made.short ? 'Only ' + out.delivered + ' of the ' + owed.count + ' places could be filled with '
+            + 'universities that genuinely fit you right now; the other ' + made.short
+            + ' stay open, and your counsellor will fill them with you rather than pad the list. ' : '')
           + 'They are picked from what you told us about yourself, so if you change '
           + 'your profile the list is picked again.'
           /* And if we had to widen the search to fill it, say so here rather
@@ -2197,7 +2202,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        they just paid for, so it goes out whether or not they have an account. */
     mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({
       name, email, reference, packageName: label, grossPaise: gross,
-      publicUnis: pkg ? pkg.publicUnis : 0, siteUrl, hasAccount: !!s,
+      /* An account made for this order counts — the email said "create your
+         account" to people whose account was made seven milliseconds earlier. */
+      publicUnis: pkg ? pkg.publicUnis : 0, siteUrl, hasAccount: !!(s || buyer),
+      matchedOnly: !pkg && items.length > 0 && items.every(x => {
+        const svc = SERVICES_OF()[String(x.id || '')] || {};
+        return !!svc.matches;
+      }),
       services: items.map(x => x.name + (x.level ? ' (' + x.level + ')' : '')),
     }))).catch(() => {});
 

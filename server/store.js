@@ -1670,6 +1670,20 @@ function open(dir) {
         MIN(CASE WHEN fee_model IN ('free', 'package') THEN fee_model WHEN is_public = 1 THEN 'package' ELSE 'free' END) AS feeModel
         FROM programmes WHERE ` + w.join(' AND ') + ' GROUP BY uni_slug ORDER BY uni_slug ASC LIMIT ? OFFSET ?', ...a, perN, (pageN - 1) * perN)
         .map(u => Object.assign(u, { isPublic: !!u.isPublic, listed: !!u.listed }));
+      /* The main campus rather than MAX(city) — "Straubing" for TUM was the
+         alphabetically last campus (patch 145). Same rule as unis.js group(). */
+      if (universities.length) {
+        const rows = db.all('SELECT uni_slug AS slug, city, COUNT(*) AS n FROM programmes WHERE active = 1 AND city <> \'\' AND uni_slug IN ('
+          + universities.map(() => '?').join(',') + ') GROUP BY uni_slug, city', ...universities.map(u => u.slug));
+        const by = new Map();
+        rows.forEach(r => { const l = by.get(r.slug) || []; l.push(r); by.set(r.slug, l); });
+        universities.forEach(u => {
+          const l = (by.get(u.slug) || []).sort((x, y) => y.n - x.n);
+          const nm = String(u.name || '').toLowerCase();
+          const named = l.find(r => nm.includes(String(r.city).toLowerCase().split(/[\s,(/]/)[0]));
+          if (named) u.city = named.city; else if (l[0]) u.city = l[0].city;
+        });
+      }
       return { universities, total, page: pageN, per: perN };
     },
 

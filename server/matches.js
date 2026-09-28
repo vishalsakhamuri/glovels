@@ -127,6 +127,10 @@ function wants(profile) {
     field: [p.g_field, p.g_field2, p.g_field3, p.g_field4, p.g_field5]
       .map(x => String(x || '').trim()).filter(Boolean).join(' '),
     intake: String(p.g_intake || '').trim(),
+    term: termOf(p.g_intake),
+    /* Whether they hold (or are finishing) a bachelor's. A 12th-pass student
+       who ticks "Master's" is not sold master's degrees (patch 145). */
+    hasBachelor: !!(String(p.d_course || '').trim() || String(p.d_cgpa || '').trim()),
     /* ON THE TEN-POINT SCALE the bars are written on, not as typed.
      *
      * This read d_cgpa raw. Two faults came out of that: a profile carrying an
@@ -215,30 +219,30 @@ function germanOf(profile) {
  */
 const FIELD_WORDS = [
   ['Computer Science & IT', /comput|software|\bit\b|informati|programming|\bweb\b|\bcse\b|\bmca\b|\bbca\b|\bcs\b|coding|developer/],
-  ['Data Science, AI & Machine Learning', /\bdata\b|\bai\b|artificial|machine learning|\bml\b|analytics|big data|deep learning|intelligen/],
+  ['Data Science, AI & Machine Learning', /\bdata\b|\bai\b|artificial intelligence|machine learning|\bml\b|analytics|big data|deep learning/],
   ['Cybersecurity & Cloud', /cyber|security|cloud|network/],
-  ['Electrical & Electronics Engineering', /electric|electron|embedded|\bece\b|\beee\b|vlsi|semiconductor|telecom|power|microelectr|signal/],
+  ['Electrical & Electronics Engineering', /electric|electron|embedded|\bece\b|\beee\b|vlsi|semiconductor|telecom|power eng|microelectr|signal|communication eng|electronics and communication/],
   ['Mechanical & Automotive Engineering', /mechani|automotive|manufactur|production|mechatronic|industrial eng|\bev\b|vehicle/],
   ['Aerospace & Robotics', /aero|space|robot|automation|mechatronic|drone|avionic/],
   ['Renewable Energy', /renewable|energy|solar|wind|hydrogen/],
   ['Environmental Science & Sustainability', /environment|sustainab|climate|\bwater\b|ecolog|\bcivil\b|urban|geo/],
-  ['Business & Management', /business|management|\bbba\b|commerce|b\.?\s?com\b|entrepreneur|administration|supply chain|logistic|operations|human resource|\bhr\b|strateg/],
+  ['Business & Management', /business|general management|international management|management studies|\bbba\b|commerce|b\.?\s?com\b|entrepreneur|business administration|supply chain|logistic|operations management|human resource|\bhr\b/],
   ['MBA', /\bmba\b/],
   ['Finance, Banking & Accounting', /financ|bank|account|commerce|b\.?\s?com\b|fintech|\bca\b|actuar|invest/],
   ['Economics', /econom/],
   ['Marketing & Digital Media', /marketing|digital media|brand|advertis|social media/],
-  ['Media & Communication', /\bmedia\b|communicat|journalis|\bpr\b|public relations/],
+  ['Media & Communication', /\bmedia\b|mass communication|communication studies|communication design|journalis|\bpr\b|public relations/],
   ['Arts & Design', /design|\bart\b|\barts\b|architect|interior|\bux\b|\bui\b|b\.?\s?arch|illustrat|photograph|music/],
   ['Animation, Film & Game Design', /animat|\bfilm|\bgame|vfx|visual effect|cinema/],
   ['Fashion & Luxury Management', /fashion|luxury|textile/],
   ['Hospitality, Tourism & Events', /hospitality|hotel|touris|\bevent/],
   ['Medicine, Dentistry & Allied Health', /medic|dent|mbbs|\bbds\b|nurs|physio|pharm|clinical|therap|allied health/],
-  ['Public Health & Healthcare Management', /public health|health|hospital|pharm/],
+  ['Public Health & Healthcare Management', /public health|health|hospital|pharm|epidemiolog/],
   ['Biotechnology & Bioinformatics', /biotech|bioinform|biolog|life science|genetic|biochem|microbio|bioeng/],
   ['Natural Sciences (Physics, Chemistry, Maths)', /physic|chemi|math|statist|\bb\.?\s?sc\b/],
   ['Psychology', /psycholog/],
   ['Social Sciences & Social Work', /social|sociolog|anthropolog|development studies/],
-  ['International Relations & Public Policy', /international relation|policy|politic|governance|public admin|diplomac/],
+  ['International Relations & Public Policy', /international relation|public policy|policy stud|politic|governance|public admin|diplomac/],
   ['Law & Legal Studies', /\blaw\b|legal|\bllb\b|\bllm\b/],
   ['Humanities & Languages', /language|linguist|literat|history|philosoph|\benglish\b|humanit|german studies/],
   ['Education & Teaching', /educat|teach|pedagog/],
@@ -292,13 +296,21 @@ function relevance(p, w) {
 /** Enough of a profile to pick anything worth paying for. */
 function usable(profile) {
   const w = wants(profile);
-  return !!((w.countries && w.countries.length) || w.level || w.field);
+  /* What they are applying for and in what — patch 145. Country and budget
+     alone delivered thirteen universities, Pre-Masters and IT Security among
+     them, to somebody who had said nothing about what they wanted to study. */
+  return !!(w.level && w.field);
 }
 
 /* Words that carry no signal in a field name, so "Data Science and Engineering"
    and "Engineering" do not count as a match on "and". */
 const STOP = new Set(['and', 'the', 'of', 'in', 'for', 'with', 'a', 'an', 'to',
-  'science', 'studies', 'engineering', 'management']);
+  'science', 'studies', 'engineering', 'management',
+  /* Patch 145: words that appear in every other programme name and say
+     nothing about the subject — "Interactive Media Systems" is not an
+     embedded-systems course, "Public Policy" is not public health. */
+  'systems', 'system', 'public', 'technology', 'technologies', 'applied', 'international',
+  'digital', 'advanced', 'intelligent', 'global', 'master', 'masters', 'msc', 'programme', 'program']);
 
 const words = s => String(s || '').toLowerCase().split(/[^a-z0-9+]+/i)
   .filter(w => w.length > 2 && !STOP.has(w));
@@ -342,6 +354,8 @@ function score(p, w) {
      better pick than one where we cannot yet tell. */
   const vd = REQS.check(p.reqs || {}, w.answers || {});
   n -= vd.unknown.length * 3;
+  /* A known, open deadline for their term beats "no dates published". */
+  if (w.term) n += termStatus(p, w.term) === 'open' ? 12 : 0;
 
   if (w.cgpa >= 8) n += (Number(p.fit || 0) < 70 ? 6 : 0);
   else if (w.cgpa && w.cgpa < 7) n += (Number(p.fit || 0) >= 80 ? 6 : -6);
@@ -414,11 +428,77 @@ function subjectFits(p, w) {
   if (!want || !have) return true;
   const need = fieldsWanted(want), mine = fieldsWanted(have);
   if (!need.direct.size || !mine.direct.size) return true;
-  const near = new Set([...mine.direct, ...mine.related]);
+  /* Their own fields, and only the neighbours a German admissions office
+     actually treats as related. The whole family was too wide: an English
+     graduate "fitted" a Psychology master's that asks for a Psychology
+     bachelor's because both sit in the social-sciences family (patch 145). */
+  const near = new Set(mine.direct);
+  mine.direct.forEach(f => (SUBJECT_NEAR[f] || []).forEach(x => near.add(x)));
   return [...need.direct].some(f => near.has(f));
+}
+const SUBJECT_NEAR = {
+  'Computer Science & IT': ['Data Science, AI & Machine Learning', 'Cybersecurity & Cloud', 'Electrical & Electronics Engineering'],
+  'Data Science, AI & Machine Learning': ['Computer Science & IT', 'Natural Sciences (Physics, Chemistry, Maths)'],
+  'Cybersecurity & Cloud': ['Computer Science & IT'],
+  'Electrical & Electronics Engineering': ['Computer Science & IT', 'Renewable Energy', 'Aerospace & Robotics'],
+  'Mechanical & Automotive Engineering': ['Aerospace & Robotics', 'Renewable Energy'],
+  'Aerospace & Robotics': ['Mechanical & Automotive Engineering', 'Electrical & Electronics Engineering'],
+  'Business & Management': ['MBA', 'Finance, Banking & Accounting', 'Economics', 'Marketing & Digital Media'],
+  'Finance, Banking & Accounting': ['Business & Management', 'Economics'],
+  'Economics': ['Business & Management', 'Finance, Banking & Accounting'],
+  'Biotechnology & Bioinformatics': ['Natural Sciences (Physics, Chemistry, Maths)', 'Medicine, Dentistry & Allied Health'],
+  'Medicine, Dentistry & Allied Health': ['Public Health & Healthcare Management', 'Biotechnology & Bioinformatics'],
+  'Public Health & Healthcare Management': ['Medicine, Dentistry & Allied Health'],
+  'Arts & Design': ['Animation, Film & Game Design'],
+  'Environmental Science & Sustainability': ['Renewable Energy', 'Agriculture & Food Science'],
+};
+
+/*
+ * THE TERM THEY ASKED FOR (patch 145).
+ *
+ * "Winter 2027", "Summer 2027" — or nothing. A programme with a known
+ * deadline for that term that has already passed is not a pick: the students
+ * the agents played were sold RWTH for Summer 2027 when RWTH's summer
+ * deadline was 1 September 2026, and Ravensburg, which has no summer intake at
+ * all. A programme with NO dates is let through, marked unknown — most private
+ * universities admit on a rolling basis and simply do not publish one.
+ */
+function termOf(text) {
+  const m = /(summer|spring|winter|fall|autumn)\D{0,3}(\d{4})/i.exec(String(text || ''));
+  if (!m) return null;
+  const season = /summer|spring/i.test(m[1]) ? 'summer' : 'winter';
+  const year = Number(m[2]);
+  return { season, year, start: new Date(year, season === 'summer' ? 3 : 9, 1) };
+}
+function termDeadline(i, term) {
+  if (!i || !i.deadline || !term) return null;
+  const se = /summer|spring/i.test(String(i.season || '')) ? 'summer' : 'winter';
+  if (se !== term.season) return null;
+  const d = new Date(i.deadline);
+  if (isNaN(d)) return null;
+  const limit = new Date(term.start); limit.setMonth(limit.getMonth() + 1);
+  const at = new Date(term.year, d.getMonth(), d.getDate());
+  while (at > limit) at.setFullYear(at.getFullYear() - 1);
+  return at;
+}
+/* 'open' | 'closed' | 'unknown' for the term they want. */
+function termStatus(p, term, today) {
+  if (!term) return 'open';
+  const ins = (p.intakes || []).filter(i => i && i.deadline);
+  if (!ins.length) return 'unknown';
+  const t0 = today || new Date(new Date().toDateString());
+  return ins.some(i => { const at = termDeadline(i, term); return at && at >= t0; }) ? 'open' : 'closed';
+}
+
+/* A course a student visa does not cover: part-time, online, distance,
+   executive — Arjun was sold three of them for an MBA in Germany. */
+const NOT_FOR_VISA = /part[- ]?time|\bonline\b|distance|executive|berufsbegleitend|weekend|blended|fernstudium/i;
+function visaFriendly(p) {
+  return !NOT_FOR_VISA.test(String(p.program || '')) && !/distance learning|fernhochschule|fernuniversit/i.test(String(p.university || ''));
 }
 
 function clears(p, w, countries) {
+  if (!visaFriendly(p)) return false;
   if (!subjectFits(p, w)) return false;
   if (p.germanGpa != null && w.german != null) {
     if (w.german > Number(p.germanGpa)) return false;
@@ -428,6 +508,10 @@ function clears(p, w, countries) {
   }
   return REQS.check(p.reqs || {}, w.answers || {}).fails.length === 0;
 }
+
+const nextTerm = t => t.season === 'winter'
+  ? { season: 'summer', year: t.year + 1, start: new Date(t.year + 1, 3, 1) }
+  : { season: 'winter', year: t.year, start: new Date(t.year, 9, 1) };
 
 function pick(catalogue, profile, count, kind, drop, countries, prefer) {
   const w = wants(profile);
@@ -445,8 +529,26 @@ function pick(catalogue, profile, count, kind, drop, countries, prefer) {
       const lv = String(p.level || '').toLowerCase();
       if (lv !== w.level && !(off.has('level') && (LEVEL_NEAR[w.level] || []).includes(lv))) return false;
     }
-    /* undefined — not asked. null — asked, no ceiling. */
-    if (!off.has('budget') && w.ceiling && Number(p.totalInr || 0) > w.ceiling) return false;
+    /* undefined — not asked. null — asked, no ceiling. A private programme at
+       ₹0 is a fee nobody entered, not a free one — it cannot be promised as
+       inside a budget (patch 145). */
+    if (!off.has('budget') && w.ceiling && (Number(p.totalInr || 0) > w.ceiling
+      || (!p.isPublic && !Number(p.totalInr || 0)))) return false;
+    /* A master's or MBA needs a bachelor's. */
+    if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) return false;
+    /* The term they asked for: never one whose deadline has passed. When
+       nothing is open for it, 'term' comes off and the next term's open
+       programmes are used — said in the note. */
+    if (w.term) {
+      /* Relaxed, 'term' means the next intake this programme is open for —
+         a winter-only programme is open the winter after, not the summer. */
+      let st = termStatus(p, w.term);
+      if (st === 'closed' && off.has('term')) {
+        let t = w.term;
+        for (let k = 0; k < 3 && st === 'closed'; k++) { t = nextTerm(t); st = termStatus(p, t); }
+      }
+      if (st === 'closed') return false;
+    }
     /* Relevance to the field they asked for. Relaxed last, and only to
        "related", never to anything at all. */
     if (w.field) {
@@ -534,12 +636,13 @@ function uniKeys(p) {
  * note says which, and now that packages are scoped to a destination the
  * student is steered to the set that can actually serve them.
  */
-const RELAX = ['budget', 'level', 'field'];
+const RELAX = ['term', 'budget', 'level', 'field'];
 
 const RELAX_SAID = {
   budget: 'above the budget you gave',
   level: 'at a neighbouring level (an MBA for a master\u2019s, say)',
   field: 'in a field close to yours rather than exactly it',
+  term: 'for a later intake, because the deadlines for the one you picked have passed',
   country: 'outside the country you picked',
 };
 
@@ -571,6 +674,18 @@ function plan(catalogue, profile, count, kind, countries, opts) {
     if (wider.length > items.length) items = wider;
     else dropped.pop();
   }
+  /* Some lists need two things to come off together — a closed term AND a
+     budget nobody's fee fits. One at a time, neither helps; cumulatively,
+     in the same order, they do (patch 145). */
+  if (items.length < want) {
+    const acc = [];
+    for (const c of RELAX) {
+      acc.push(c);
+      const wider = pick(cat, profile, want, kind, acc, countries, o.prefer);
+      if (wider.length > items.length) { items = wider; dropped.length = 0; acc.forEach(x => dropped.push(x)); }
+      if (items.length >= want) break;
+    }
+  }
 
   /* How many universities the CGPA (or German-grade) bar alone is holding
      back — among programmes that are otherwise a fit: right kind, country,
@@ -591,6 +706,9 @@ function plan(catalogue, profile, count, kind, countries, opts) {
       }
       if (!off.has('budget') && w.ceiling && Number(p.totalInr || 0) > w.ceiling) return false;
       if (w.field && relevance(p, w) < (off.has('field') ? 2 : 3)) return false;
+      if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) return false;
+      if (w.term && termStatus(p, w.term) === 'closed' && !off.has('term')) return false;
+      if (!visaFriendly(p)) return false;
       if (REQS.check(p.reqs || {}, w.answers || {}).fails.length) return false;
       if (!subjectFits(p, w)) return false;
       return !clears(p, w, countries);             // excluded ONLY by the grade bar
@@ -599,6 +717,11 @@ function plan(catalogue, profile, count, kind, countries, opts) {
   }
 
   const parts = [];
+  if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(w.level || ''))) {
+    parts.push('A master\u2019s needs a completed (or final-year) bachelor\u2019s degree, and your '
+      + 'profile does not list one yet. Add your degree and marks and the list is picked again \u2014 '
+      + 'or, if you have just finished school, choose Bachelor\u2019s as the level.');
+  }
   if (dropped.length) {
     parts.push('Nothing matched every answer you gave, so some of these are '
       + dropped.map(c => RELAX_SAID[c]).join(', and some are ')
@@ -641,4 +764,4 @@ function promise(pkg) {
   };
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys };
+module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR };

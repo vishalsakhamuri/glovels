@@ -2148,7 +2148,29 @@ function verdict(reqs, s){
     if(s.papers === undefined || s.papers === null) unknown.push('papers');
     else if(!s.papers) fails.push({ key:'papers', want:'a published paper', have:'none' });
   }
+  /* The bachelor's subject, read the way the paid matcher reads it
+     (server/matches.js subjectFits) — patch 145. A CSE graduate was told
+     "You clear what it asks" on a master's that asks for Political Science. */
+  if(has(r.bachelorSubjects) && has(s.bachelorSubjects) && !subjectFitsText(r.bachelorSubjects, s.bachelorSubjects)){
+    fails.push({ key:'bachelorSubjects', want:'a bachelor\u2019s in ' + String(r.bachelorSubjects).split(/[—;]/)[0].trim().slice(0, 60), have: String(s.bachelorSubjects).slice(0, 40) });
+  }
   return { fails, unknown };
+}
+
+/* The catalogue fields a piece of text names — the same table the server
+   matches with, copied here (patch 145). */
+const SUBJ_WORDS = [["Computer Science & IT",/comput|software|\bit\b|informati|programming|\bweb\b|\bcse\b|\bmca\b|\bbca\b|\bcs\b|coding|developer/],["Data Science, AI & Machine Learning",/\bdata\b|\bai\b|artificial intelligence|machine learning|\bml\b|analytics|big data|deep learning/],["Cybersecurity & Cloud",/cyber|security|cloud|network/],["Electrical & Electronics Engineering",/electric|electron|embedded|\bece\b|\beee\b|vlsi|semiconductor|telecom|power eng|microelectr|signal|communication eng|electronics and communication/],["Mechanical & Automotive Engineering",/mechani|automotive|manufactur|production|mechatronic|industrial eng|\bev\b|vehicle/],["Aerospace & Robotics",/aero|space|robot|automation|mechatronic|drone|avionic/],["Renewable Energy",/renewable|energy|solar|wind|hydrogen/],["Environmental Science & Sustainability",/environment|sustainab|climate|\bwater\b|ecolog|\bcivil\b|urban|geo/],["Business & Management",/business|general management|international management|management studies|\bbba\b|commerce|b\.?\s?com\b|entrepreneur|business administration|supply chain|logistic|operations management|human resource|\bhr\b/],["MBA",/\bmba\b/],["Finance, Banking & Accounting",/financ|bank|account|commerce|b\.?\s?com\b|fintech|\bca\b|actuar|invest/],["Economics",/econom/],["Marketing & Digital Media",/marketing|digital media|brand|advertis|social media/],["Media & Communication",/\bmedia\b|mass communication|communication studies|communication design|journalis|\bpr\b|public relations/],["Arts & Design",/design|\bart\b|\barts\b|architect|interior|\bux\b|\bui\b|b\.?\s?arch|illustrat|photograph|music/],["Animation, Film & Game Design",/animat|\bfilm|\bgame|vfx|visual effect|cinema/],["Fashion & Luxury Management",/fashion|luxury|textile/],["Hospitality, Tourism & Events",/hospitality|hotel|touris|\bevent/],["Medicine, Dentistry & Allied Health",/medic|dent|mbbs|\bbds\b|nurs|physio|pharm|clinical|therap|allied health/],["Public Health & Healthcare Management",/public health|health|hospital|pharm|epidemiolog/],["Biotechnology & Bioinformatics",/biotech|bioinform|biolog|life science|genetic|biochem|microbio|bioeng/],["Natural Sciences (Physics, Chemistry, Maths)",/physic|chemi|math|statist|\bb\.?\s?sc\b/],["Psychology",/psycholog/],["Social Sciences & Social Work",/social|sociolog|anthropolog|development studies/],["International Relations & Public Policy",/international relation|public policy|policy stud|politic|governance|public admin|diplomac/],["Law & Legal Studies",/\blaw\b|legal|\bllb\b|\bllm\b/],["Humanities & Languages",/language|linguist|literat|history|philosoph|\benglish\b|humanit|german studies/],["Education & Teaching",/educat|teach|pedagog/],["Sport & Exercise Science",/sport|exercise|fitness/],["Agriculture & Food Science",/agri|food|nutrition|farm|dairy|horticult/]];
+const SUBJ_NEAR = {"Computer Science & IT":["Data Science, AI & Machine Learning","Cybersecurity & Cloud","Electrical & Electronics Engineering"],"Data Science, AI & Machine Learning":["Computer Science & IT","Natural Sciences (Physics, Chemistry, Maths)"],"Cybersecurity & Cloud":["Computer Science & IT"],"Electrical & Electronics Engineering":["Computer Science & IT","Renewable Energy","Aerospace & Robotics"],"Mechanical & Automotive Engineering":["Aerospace & Robotics","Renewable Energy"],"Aerospace & Robotics":["Mechanical & Automotive Engineering","Electrical & Electronics Engineering"],"Business & Management":["MBA","Finance, Banking & Accounting","Economics","Marketing & Digital Media"],"Finance, Banking & Accounting":["Business & Management","Economics"],"Economics":["Business & Management","Finance, Banking & Accounting"],"Biotechnology & Bioinformatics":["Natural Sciences (Physics, Chemistry, Maths)","Medicine, Dentistry & Allied Health"],"Medicine, Dentistry & Allied Health":["Public Health & Healthcare Management","Biotechnology & Bioinformatics"],"Public Health & Healthcare Management":["Medicine, Dentistry & Allied Health"],"Arts & Design":["Animation, Film & Game Design"],"Environmental Science & Sustainability":["Renewable Energy","Agriculture & Food Science"]};
+function subjFields(text){
+  const t = ' ' + String(text || '').toLowerCase() + ' ';
+  return SUBJ_WORDS.filter(([, re]) => re.test(t)).map(([f]) => f);
+}
+function subjectFitsText(want, have){
+  const need = subjFields(want), mine = subjFields(have);
+  if(!need.length || !mine.length) return true;
+  const near = new Set(mine);
+  mine.forEach(f => (SUBJ_NEAR[f] || []).forEach(x => near.add(x)));
+  return need.some(f => near.has(f));
 }
 
 /* Does this row state anything at all? Decides whether "you clear what it
@@ -2227,7 +2249,10 @@ function filtered(ignoreBands, collect){
     if(co && p.country !== co) return false;
     if(lv && p.level !== lv) return false;
     if(fd && p.field !== fd) return false;
-    if(ik && !openFor(p, termByKey(ik))) return false;
+    /* Rows with no published dates stay, marked "dates to confirm": most
+       private universities admit on a rolling basis, and hiding them all
+       emptied the private list the moment an intake was chosen (patch 145). */
+    if(ik && (p.intakes || []).some(i => i && i.deadline) && !openFor(p, termByKey(ik))) return false;
     if(sp && String(reqsOf(p).specialisation || '').trim() !== sp) return false;
     /* A stated tuition above what they will pay. Not stated is not excluded. */
     if(cap !== null){ const t = tuitionOf(p); if(t != null && t > cap) return false; }
@@ -2550,7 +2575,9 @@ function rowHtml(r){
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
       ${dl?`<span style="font-size:11.4px;color:var(--muted)" title="Applications for the next intake close on ${dl}">Closes ${dl}</span>`
         :dlNow.closed?`<span style="font-size:11.4px;color:#8a6a1f;font-weight:700"
-          >intake closed</span>`:''}
+          >intake closed</span>`
+        :!(r.intakes || []).some(i => i && i.deadline)?`<span style="font-size:11.4px;color:var(--muted)"
+          title="This university does not publish a fixed deadline \u2014 we confirm the date when we file">Dates to confirm</span>`:''}
       <button class="btn btn-sm ${feeOfRow === 'free' ? 'btn-primary' : 'btn-gold'}"
         data-apply="${esc(r.id)}" data-uni="${esc(unent(r.university))}"
         data-prog="${esc(unent(r.program))}">${feeOfRow === 'free' ? 'Apply free' : 'Apply'} ${ico('arrow')}</button></div></div>`;
@@ -2644,11 +2671,16 @@ function banner(list, shown){
           : '')
       + 'Use <b>Lock again</b> above to go back to the locked view.'];
   }
-  const free = (ctry && ctry.tuitionFree) || list.some(p => p.freeTuition);
+  /* Patch 145: these are PUBLIC universities, filed with a package — not "no
+     fee to apply" — and "no tuition either" only where that is true of the
+     public rows counted, not of Germany in general (TUM charges ₹26L). */
+  const pubRows = list.filter(p => p.isPublic);
+  const noTuition = pubRows.filter(p => !Number(p.totalInr || 0)).length;
   const open = NEEDED && NEEDED.size;
-  return ['gold','star',(open ? '' : 'You qualify for ')+pubUnis+' universit'+(pubUnis===1?'y':'ies')
-    + ' with no fee to apply' + (open ? ' match so far' : ''),
-    (free ? 'And no tuition to pay either. ' : '')
+  return ['gold','star',(open ? '' : 'You qualify for ')+pubUnis+' public universit'+(pubUnis===1?'y':'ies')
+    + (open ? ' so far' : ''),
+    (noTuition && noTuition === pubRows.length ? 'None of them charges tuition. '
+      : noTuition ? noTuition + ' of the programmes charge no tuition. ' : '')
     + (open ? 'Answer the ' + (NEEDED.size === 1 ? 'question' : 'questions') + ' above and we can say which of them would take you. '
             : '') + 'A package reveals them.'];
 }

@@ -176,7 +176,7 @@ Glovels
   },
 
   orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl,
-    hasAccount, services }) {
+    hasAccount, services, matchedOnly }) {
     const first = String(name || '').split(' ')[0] || 'there';
     const tax = Math.round(grossPaise - grossPaise / 1.18);
     /* A receipt for services has to name them. "2 services — ₹4,498" is not a
@@ -204,7 +204,7 @@ ${siteUrl}/login?signup=1&email=${encodeURIComponent(email)}`;
       /* The subject line is what decides whether this is opened at all, so it
          says what arrived rather than filing a reference number. */
       subject: publicUnis
-        ? `Your ${publicUnis} universities are ready — sign in to see them`
+        ? `Your ${publicUnis} universities — sign in to see them`
         : `Your Glovels order ${reference} — ${packageName}`,
       text: `Hi ${first},
 
@@ -222,7 +222,9 @@ What happens next:
 
 1. ${publicUnis
   ? `Sign in and open My Universities. Your ${publicUnis} universities are named there, each with the fee, the intake and the application deadline. They are not shown anywhere on the website — that list is yours.`
-  : 'A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist with you. That agreed shortlist is what the guarantee applies to.'}
+  : matchedOnly
+    ? 'Answer the six questions on your profile (what you want to study, where, the level and your budget). Your matched universities appear on your shortlist within a minute — nobody has to call you.'
+    : 'A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist with you. That agreed shortlist is what the guarantee applies to.'}
 ${/offer|boarding/i.test(String(packageName || ''))
   ? `2. Upload your documents in the portal. Start with the passport and your transcripts — the APS certificate for Germany takes 6–8 weeks, so it is the one to begin first.
 3. We file in deadline order, and follow every application up until there is a decision on record.`
@@ -257,7 +259,9 @@ Glovels
         p(publicUnis
           ? '<b>1.</b> Open My Universities and read them. Your counsellor can add or '
             + 'drop any of them with you once you have looked.'
-          : '<b>1.</b> A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist. That agreed shortlist is what the guarantee applies to.') +
+          : matchedOnly
+            ? '<b>1.</b> Answer the six questions on your profile. Your matched universities appear on your shortlist within a minute \u2014 nobody has to call you.'
+            : '<b>1.</b> A counsellor calls you within one working day, Mon–Sat 9:30–19:30 IST, to agree your shortlist. That agreed shortlist is what the guarantee applies to.') +
         p(/offer|boarding/i.test(String(packageName || ''))
           /* The same rule alerts.js uses to decide what a student is asked
              for. Telling somebody on a shortlisting package to upload their

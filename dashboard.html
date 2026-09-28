@@ -1392,17 +1392,38 @@ $('#helloSub').textContent = paid
 
 const money = p => p.totalInr === 0 ? '\u20B90 tuition'
   : '\u2248 \u20B9' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L total';
-const dateOf = p => {
-  const now = new Date();
+/* The deadline to show: for the intake the student chose on their profile
+   when that term is still open for this programme, otherwise the next date
+   that is still ahead (patch 145 — the finder, this screen and the dashboard
+   now agree on which date a programme carries). */
+function deadlineFor(p, intakeText) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const m = /(summer|spring|winter|fall|autumn)\D{0,3}(\d{4})/i.exec(String(intakeText || ''));
+  if (m) {
+    const season = /summer|spring/i.test(m[1]) ? 'summer' : 'winter', year = Number(m[2]);
+    const start = new Date(year, season === 'summer' ? 3 : 9, 1);
+    const limit = new Date(start); limit.setMonth(limit.getMonth() + 1);
+    const hits = (p.intakes || []).filter(i => i && i.deadline
+      && (/summer|spring/i.test(String(i.season || '')) ? 'summer' : 'winter') === season).map(i => {
+        const d = new Date(i.deadline); if (isNaN(d)) return null;
+        const at = new Date(year, d.getMonth(), d.getDate());
+        while (at > limit) at.setFullYear(at.getFullYear() - 1);
+        return at >= today ? at : null;
+      }).filter(Boolean).sort((a, b) => a - b);
+    if (hits[0]) return hits[0];
+  }
   const ds = (p.intakes || []).map(i => {
-    const d = new Date(i.deadline);
-    if (isNaN(d)) return null;
-    while (d < now) d.setFullYear(d.getFullYear() + 1);
-    return d;
+    const d = new Date(i && i.deadline); if (isNaN(d)) return null;
+    const at = new Date(today.getFullYear(), d.getMonth(), d.getDate());
+    if (at < today) at.setFullYear(at.getFullYear() + 1);
+    return at;
   }).filter(Boolean).sort((a, b) => a - b);
-  return ds[0] ? ds[0].toLocaleDateString('en-GB',
-    {day:'numeric', month:'short', year:'numeric'}) : '';
-};
+  return ds[0] || null;
+}
+const INTAKE_WANTED = ((window.__GLOVELS || {}).profile || {}).g_intake || '';
+const dateAt = p => deadlineFor(p, INTAKE_WANTED);
+const dateOf = p => { const d = dateAt(p); return d ? d.toLocaleDateString('en-GB',
+    {day:'numeric', month:'short', year:'numeric'}) : ''; };
 
 /* A table, because this is a list of the same nine facts about each row and
    the student reads DOWN one of them — the deadlines, or the fees. As free
@@ -1565,8 +1586,11 @@ $('#planBadge').innerHTML = paid
   /* The same shortlist number as the rest of the screen. This read the
      latest order's own allowance — "0 universities" under Travel & Health
      Insurance, on a dashboard saying 15 two inches away. */
-  ? '<b>' + esc(order.package) + '</b><span>' + slSaid + ' · ' + (shown[0] && shown[0].intakes && shown[0].intakes[0]
-        ? shown[0].intakes[0].season + ' intake' : 'this intake') + '</span>'
+  /* The intake the STUDENT chose, from their profile — the first programme's
+     first intake said "winter intake" to a student applying for Summer 2027
+     (patch 145). */
+  ? '<b>' + esc(order.package) + '</b><span>' + slSaid
+      + ((window.__GLOVELS || {}).profile && window.__GLOVELS.profile.g_intake ? ' · ' + esc(window.__GLOVELS.profile.g_intake) : '') + '</span>'
   : '<b>No package yet</b><span>Choose one to unlock your matches</span>';
 
 /* Four steps, ticked only where the thing has actually happened. The prototype
@@ -1683,7 +1707,12 @@ const steps = [
   ['Enrolled', paid ? (order.package + ' \u00b7 ' + (order.reference || '')) : 'Not yet',  paid],
   ['Profile completed', 'Eleven sections, once', false],
   ['Shortlist agreed', shown.length && paid
-      ? shown.length + ' of ' + quota + ' matched' : 'After your counsellor call', false],
+      /* "13 of 3 matched" (patch 145): the list against what the packages
+         promised, in universities, and never more than the promise. */
+      ? (() => { const owed = ((window.__GLOVELS || {}).matched && window.__GLOVELS.matched.owed) || quota;
+          const n = new Set(shown.map(p => p.university)).size;
+          return owed ? Math.min(n, owed) + ' of ' + owed + ' matched' : n + ' on your list'; })()
+      : 'After your counsellor call', false],
   ['Applications filed', 'In deadline order', false],
   ['Visa and departure', 'After your offer', false],
 ];
@@ -1707,7 +1736,8 @@ $('#journey').innerHTML = JOURNEY.map(([_, t, sub], i) =>
   + '<span><b>' + t + '</b>' + sub + '</span></li>').join('');
 
 const dl = shown.filter(p => dateOf(p))
-  .sort((a, b) => new Date(a.intakes[0].deadline) - new Date(b.intakes[0].deadline))
+  /* By the date shown, not the raw sheet date (patch 145). */
+  .sort((a, b) => dateAt(a) - dateAt(b))
   .slice(0, 5);
 $('#deadlines').innerHTML = dl.length
   ? dl.map(p => '<div class="deadline"><span>' + esc(p.university) + '</span>'
