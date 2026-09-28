@@ -170,6 +170,8 @@ run linktest.js     8099 LINKCHECK_ALLOW_LOCAL=true
 run round142test.js 8099
 # Patch 143: the shortlisting audit — requirements, levels, two promises, the office's removals.
 run round143test.js 8099
+# Patch 144: intakes by term — this semester, next semester, the exact closing date.
+run round144test.js 8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097
