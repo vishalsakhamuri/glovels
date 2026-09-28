@@ -1,5 +1,6 @@
 'use strict';
 const GRADES = require('./grades.js');
+const REQS = require('./reqs.js');
 /**
  * Picking universities for somebody, without a person in the room.
  *
@@ -107,7 +108,11 @@ function ceilingOf(value) {
 /** What the profile actually constrains. Anything blank constrains nothing. */
 function wants(profile) {
   const p = profile || {};
+  const fieldText = [p.g_field, p.g_field2, p.g_field3, p.g_field4, p.g_field5]
+    .map(x => String(x || '').trim()).filter(Boolean).join(' ');
   return {
+    /* The catalogue fields those words mean, and their neighbours. */
+    fields: fieldsWanted(fieldText),
     countries: destinations(p.g_country),
     level: match1(LEVEL, p.g_level),
     /* `undefined` means they did not say; `null` means they said "no ceiling". */
@@ -130,7 +135,158 @@ function wants(profile) {
      * every gate while their profile said it was complete. The maximum has
      * been on the profile since the German-grade patch and nothing read it. */
     cgpa: GRADES.cgpaTen(p) || 0,
+    /* Their German grade, when their university's pass mark lets us work it
+       out — a row that states a German grade is judged on that, as in the
+       finder, not on the country's CGPA bar. */
+    german: germanOf(p),
+    /* What they have said about English, German, their bachelor's and work —
+       read the way the finder reads it. */
+    answers: answersOf(p),
   };
+}
+
+/*
+ * WHAT THE STUDENT HAS TOLD US, in the shape server/reqs.js check() reads —
+ * the same reading the finder's myAnswers() makes of the profile, so the paid
+ * shortlist and the free finder cannot disagree about whether somebody clears
+ * a programme's IELTS, German, bachelor-length or work-experience bar.
+ *
+ * Patch 143. The paid shortlist checked the CGPA and nothing else, so a
+ * student with German B2 and no English test was sold fifteen programmes that
+ * all ask for IELTS, while the finder on the home page hid every one of them.
+ */
+function answersOf(profile) {
+  const P = profile || {};
+  const a = {};
+  [['e_test', 'e_score'], ['e2_test', 'e2_score']].forEach(([tk, sk]) => {
+    const t = String(P[tk] || '').toLowerCase(), sc = parseFloat(P[sk]);
+    if (/ielts/.test(t) && Number.isFinite(sc) && a.ielts == null) a.ielts = sc;
+    if (/toefl/.test(t) && Number.isFinite(sc) && a.toefl == null) a.toefl = sc;
+    if (/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(sc)) a.englishNone = true;
+  });
+  if (a.ielts != null || a.toefl != null) a.englishNone = false;
+  [['a_test', 'a_score'], ['a2_test', 'a2_score']].forEach(([tk, sk]) => {
+    const t = String(P[tk] || ''), sc = parseFloat(P[sk]);
+    if (/^gre$/i.test(t) && Number.isFinite(sc) && a.gre == null) a.gre = sc;
+  });
+  if (P.g_german) {
+    const t = String(P.g_german).trim();
+    if (/^none/i.test(t)) a.germanLevel = 'none';
+    else { const m = /\b(A1|A2|B1|B2|C1|C2)\b/i.exec(t); if (m) a.germanLevel = m[1].toUpperCase(); }
+  }
+  { const m = /^(\d)/.exec(String(P.d_dur || '')); if (m) a.bachelorYears = Number(m[1]); }
+  if (/^no$/i.test(String(P.w_has || ''))) a.workExpMonths = 0;
+  else {
+    const m = parseFloat(P.w_months);
+    if (Number.isFinite(m)) a.workExpMonths = m;
+    else if (/^yes/i.test(String(P.w_has || ''))) a.workExpMonths = 1;
+  }
+  if (P.g_papers) a.papers = /^yes/i.test(String(P.g_papers));
+  const bs = String(P.d_course || '').trim();
+  if (bs) a.bachelorSubjects = bs;
+  return a;
+}
+
+/* Their grade on the German scale (1.0 best, 4.0 pass), by the modified
+   Bavarian formula the finder uses — or null when their pass mark is not on
+   the profile, which is a reason not to judge, never a reason to guess. */
+function germanOf(profile) {
+  const P = profile || {};
+  const o = parseFloat(P.d_cgpa), m = parseFloat(P.d_max), p = parseFloat(P.d_pass);
+  if (![o, m, p].every(Number.isFinite) || m <= p || o < p || o > m) return null;
+  const g = Math.max(1, Math.min(4, 1 + 3 * (m - o) / (m - p)));
+  return Math.floor(g * 10) / 10;
+}
+
+/*
+ * WHICH OF THE CATALOGUE'S FIELDS A STUDENT MEANS.
+ *
+ * The profile asks for fields of study as free text — "Data Science", "B.Com",
+ * "EV design". The catalogue files every programme under one of thirty names.
+ * Before 143 the only link between the two was a shared word, with "science",
+ * "engineering" and "management" thrown away as noise — so "Computer Science"
+ * matched nothing at all in Data Science, AI or Cyber Security, and a ₹99
+ * shortlist for a data student was filled with Real Estate and Design
+ * Management because they were tuition-free.
+ *
+ * Now: the words map to catalogue fields (DIRECT), each field sits in a family
+ * (RELATED), and a programme outside both is not relevant to them. Relevance
+ * is a filter, relaxed last and said out loud, not a bonus a free fee can beat.
+ */
+const FIELD_WORDS = [
+  ['Computer Science & IT', /comput|software|\bit\b|informati|programming|\bweb\b|\bcse\b|\bmca\b|\bbca\b|\bcs\b|coding|developer/],
+  ['Data Science, AI & Machine Learning', /\bdata\b|\bai\b|artificial|machine learning|\bml\b|analytics|big data|deep learning|intelligen/],
+  ['Cybersecurity & Cloud', /cyber|security|cloud|network/],
+  ['Electrical & Electronics Engineering', /electric|electron|embedded|\bece\b|\beee\b|vlsi|semiconductor|telecom|power|microelectr|signal/],
+  ['Mechanical & Automotive Engineering', /mechani|automotive|manufactur|production|mechatronic|industrial eng|\bev\b|vehicle/],
+  ['Aerospace & Robotics', /aero|space|robot|automation|mechatronic|drone|avionic/],
+  ['Renewable Energy', /renewable|energy|solar|wind|hydrogen/],
+  ['Environmental Science & Sustainability', /environment|sustainab|climate|\bwater\b|ecolog|\bcivil\b|urban|geo/],
+  ['Business & Management', /business|management|\bbba\b|commerce|b\.?\s?com\b|entrepreneur|administration|supply chain|logistic|operations|human resource|\bhr\b|strateg/],
+  ['MBA', /\bmba\b/],
+  ['Finance, Banking & Accounting', /financ|bank|account|commerce|b\.?\s?com\b|fintech|\bca\b|actuar|invest/],
+  ['Economics', /econom/],
+  ['Marketing & Digital Media', /marketing|digital media|brand|advertis|social media/],
+  ['Media & Communication', /\bmedia\b|communicat|journalis|\bpr\b|public relations/],
+  ['Arts & Design', /design|\bart\b|\barts\b|architect|interior|\bux\b|\bui\b|b\.?\s?arch|illustrat|photograph|music/],
+  ['Animation, Film & Game Design', /animat|\bfilm|\bgame|vfx|visual effect|cinema/],
+  ['Fashion & Luxury Management', /fashion|luxury|textile/],
+  ['Hospitality, Tourism & Events', /hospitality|hotel|touris|\bevent/],
+  ['Medicine, Dentistry & Allied Health', /medic|dent|mbbs|\bbds\b|nurs|physio|pharm|clinical|therap|allied health/],
+  ['Public Health & Healthcare Management', /public health|health|hospital|pharm/],
+  ['Biotechnology & Bioinformatics', /biotech|bioinform|biolog|life science|genetic|biochem|microbio|bioeng/],
+  ['Natural Sciences (Physics, Chemistry, Maths)', /physic|chemi|math|statist|\bb\.?\s?sc\b/],
+  ['Psychology', /psycholog/],
+  ['Social Sciences & Social Work', /social|sociolog|anthropolog|development studies/],
+  ['International Relations & Public Policy', /international relation|policy|politic|governance|public admin|diplomac/],
+  ['Law & Legal Studies', /\blaw\b|legal|\bllb\b|\bllm\b/],
+  ['Humanities & Languages', /language|linguist|literat|history|philosoph|\benglish\b|humanit|german studies/],
+  ['Education & Teaching', /educat|teach|pedagog/],
+  ['Sport & Exercise Science', /sport|exercise|fitness/],
+  ['Agriculture & Food Science', /agri|food|nutrition|farm|dairy|horticult/],
+];
+const FAMILIES = [
+  ['Computer Science & IT', 'Data Science, AI & Machine Learning', 'Cybersecurity & Cloud', 'Electrical & Electronics Engineering'],
+  ['Electrical & Electronics Engineering', 'Mechanical & Automotive Engineering', 'Aerospace & Robotics', 'Renewable Energy'],
+  ['Business & Management', 'MBA', 'Finance, Banking & Accounting', 'Economics', 'Marketing & Digital Media', 'Hospitality, Tourism & Events', 'Fashion & Luxury Management'],
+  ['Medicine, Dentistry & Allied Health', 'Public Health & Healthcare Management', 'Biotechnology & Bioinformatics'],
+  ['Arts & Design', 'Animation, Film & Game Design', 'Media & Communication', 'Marketing & Digital Media', 'Fashion & Luxury Management'],
+  ['Environmental Science & Sustainability', 'Renewable Energy', 'Agriculture & Food Science'],
+  ['Social Sciences & Social Work', 'International Relations & Public Policy', 'Law & Legal Studies', 'Humanities & Languages', 'Education & Teaching', 'Psychology'],
+  ['Natural Sciences (Physics, Chemistry, Maths)', 'Biotechnology & Bioinformatics'],
+];
+/* The catalogue's older names for the same fields. */
+const FIELD_ALIAS = { 'computer science': 'Computer Science & IT' };
+const normField = f => FIELD_ALIAS[String(f || '').toLowerCase()] || String(f || '');
+
+function fieldsWanted(text) {
+  const t = ' ' + String(text || '').toLowerCase() + ' ';
+  const direct = new Set();
+  FIELD_WORDS.forEach(([f, re]) => { if (re.test(t)) direct.add(f); });
+  const related = new Set();
+  direct.forEach(f => FAMILIES.forEach(fam => { if (fam.includes(f)) fam.forEach(x => { if (!direct.has(x)) related.add(x); }); }));
+  return { direct, related };
+}
+
+/* 3 — their field, or their words in its name; 2 — the same family;
+   0 — neither. 1 when they gave no field, so nothing is ranked on it. */
+function relevance(p, w) {
+  if (!w.field) return 1;
+  const f = normField(p.field);
+  const want = words(w.field);
+  const inName = words(p.program).filter(x => want.includes(x)).length;
+  if (w.fields.direct.has(f) || inName) return 3;
+  /* The programme's own name read the way the student's words are — "M.Sc.
+     Artificial Intelligence" filed under Other is still an AI programme. */
+  /* Without the degree's own name: "Master of Arts in Governance" is not
+     an arts programme, and "Master's Programme" is not programming. */
+  const bare = String(p.program || '').replace(/\b(master|bachelor)('?s)?\s+(of\s+)?(arts|science|sciences|engineering|laws|business administration|fine arts|music)\b/gi, ' ')
+    .replace(/\b(m\.?\s?a|b\.?\s?a|m\.?\s?sc|b\.?\s?sc|m\.?\s?eng|b\.?\s?eng|ll\.?m|mba)\b\.?/gi, ' ')
+    .replace(/\bprogramme?s?\b/gi, ' ');
+  const byName = fieldsWanted(bare).direct;
+  if ([...byName].some(x => w.fields.direct.has(x))) return 3;
+  if (w.fields.related.has(f) || [...byName].some(x => w.fields.related.has(x))) return 2;
+  return 0;
 }
 
 /** Enough of a profile to pick anything worth paying for. */
@@ -157,32 +313,36 @@ const words = s => String(s || '').toLowerCase().split(/[^a-z0-9+]+/i)
 function score(p, w) {
   let n = Number(p.fit || 0);
 
-  /* Field is a preference, and it is where a shortlist stops feeling random.
-     A word in common with the field they typed is worth a lot; a word in the
-     programme's own name is worth more, because that is what they will read. */
+  /* Field first. Before 143 a matching word was worth 8 or 12 and a
+     tuition-free row 14, so the same handful of free programmes — Real
+     Estate, Design Management, Development Studies — turned up on the
+     shortlists of chemistry, mechanical and architecture students alike.
+     Relevance now outweighs everything else put together. */
   if (w.field) {
     const want = words(w.field);
-    const inField = words(p.field).filter(x => want.includes(x)).length;
     const inName = words(p.program).filter(x => want.includes(x)).length;
-    n += Math.min(3, inField) * 8 + Math.min(3, inName) * 12;
+    n += relevance(p, w) * 40 + Math.min(3, inName) * 8;
   }
 
-  /* Free tuition is the thing this business exists to find, and a student who
-     said "under ₹10 lakhs" has told us the fee is the constraint that matters. */
-  if ((Number(p.totalInr) || 0) === 0) n += 14;
-  else if (w.ceiling && Number(p.totalInr) <= w.ceiling * 0.6) n += 6;
+  /* Free tuition still counts — it is what this business finds — but only a
+     fee that is actually known to be nothing. A private programme at ₹0 is a
+     fee nobody has entered, not a free degree. */
+  const fee = Number(p.totalInr) || 0;
+  if (fee === 0 && p.isPublic) n += 8;
+  else if (fee > 0 && w.ceiling && fee <= w.ceiling * 0.6) n += 4;
 
-  /* An intake they can actually apply for. A programme whose only deadline has
-     passed is a bad row however well it fits. */
+  /* An intake they can actually apply for. */
   const seasons = (p.intakes || []).map(i => String(i.season || '').toLowerCase());
   if (w.intake) {
     const season = /summer/i.test(w.intake) ? 'summer' : 'winter';
     if (seasons.includes(season)) n += 10;
   }
 
-  /* Somebody with a strong record should not open a paid shortlist to find
-     only the easy options on it; somebody without one should not open it to
-     find only the impossible ones. */
+  /* A programme whose stated requirements they are known to clear is a
+     better pick than one where we cannot yet tell. */
+  const vd = REQS.check(p.reqs || {}, w.answers || {});
+  n -= vd.unknown.length * 3;
+
   if (w.cgpa >= 8) n += (Number(p.fit || 0) < 70 ? 6 : 0);
   else if (w.cgpa && w.cgpa < 7) n += (Number(p.fit || 0) >= 80 ? 6 : -6);
 
@@ -222,52 +382,123 @@ function barOf(p, countries) {
   return own == null || own === '' ? null : Number(own);
 }
 
-function pick(catalogue, profile, count, kind, drop, countries) {
+/* The levels a stated level may bend to when a shortlist cannot be filled.
+   A master's student may be shown an MBA and the other way round; a student
+   who has only finished school may be shown a foundation year. Never across
+   that line — before 143 a 12th-pass student who bought fifteen public
+   universities was handed fifteen master's degrees, "at a different level". */
+const LEVEL_NEAR = {
+  master: ['mba'], mba: ['master'],
+  bachelor: ['pathway', 'foundation', 'diploma'],
+  pathway: ['foundation', 'bachelor'], foundation: ['pathway', 'bachelor'],
+  diploma: ['bachelor'], phd: [],
+};
+
+/* Does this programme pass everything that is never relaxed? The CGPA or
+   German-grade bar, and every requirement it states that the student is
+   known to fall short of. */
+/*
+ * Is their bachelor's in something this programme accepts?
+ *
+ * Words on both sides, so it is read coarsely: the subjects the programme
+ * names and the degree the student holds are both mapped onto the
+ * catalogue's fields, and it fails only when they share neither a field nor
+ * a family. A B.Com holder is not shown a Computer Science master's that asks
+ * for a CS bachelor's; an ECE graduate is still shown one that asks for
+ * "Electrical Engineering, IT or related". Unstated on either side is never a
+ * failure. Patch 143.
+ */
+function subjectFits(p, w) {
+  const want = String((p.reqs || {}).bachelorSubjects || '').trim();
+  const have = String((w.answers || {}).bachelorSubjects || '').trim();
+  if (!want || !have) return true;
+  const need = fieldsWanted(want), mine = fieldsWanted(have);
+  if (!need.direct.size || !mine.direct.size) return true;
+  const near = new Set([...mine.direct, ...mine.related]);
+  return [...need.direct].some(f => near.has(f));
+}
+
+function clears(p, w, countries) {
+  if (!subjectFits(p, w)) return false;
+  if (p.germanGpa != null && w.german != null) {
+    if (w.german > Number(p.germanGpa)) return false;
+  } else {
+    const bar = barOf(p, countries);
+    if (w.cgpa && bar != null && w.cgpa < bar) return false;
+  }
+  return REQS.check(p.reqs || {}, w.answers || {}).fails.length === 0;
+}
+
+function pick(catalogue, profile, count, kind, drop, countries, prefer) {
   const w = wants(profile);
   const want = Math.max(0, Number(count) || 0);
   if (!want) return [];
   const off = new Set(drop || []);
+  const keep = new Set((prefer || []).map(String));
 
   const eligible = (catalogue || []).filter(p => {
     if (kind === 'public' && !p.isPublic) return false;
     if (kind === 'private' && p.isPublic) return false;
     if (!off.has('country') && w.countries
       && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) return false;
-    if (!off.has('level') && w.level
-      && String(p.level || '').toLowerCase() !== w.level) return false;
+    if (w.level) {
+      const lv = String(p.level || '').toLowerCase();
+      if (lv !== w.level && !(off.has('level') && (LEVEL_NEAR[w.level] || []).includes(lv))) return false;
+    }
     /* undefined — not asked. null — asked, no ceiling. */
     if (!off.has('budget') && w.ceiling && Number(p.totalInr || 0) > w.ceiling) return false;
-    /* The one constraint that is never relaxed — note it does not consult
-       `off`. Country, level and budget are preferences somebody stated and
-       might bend on. A CGPA bar is not: putting a university on a paid
-       shortlist that the student cannot apply to is not a near miss, it is
-       selling them something that does not exist. A shorter list is the right
-       answer here, every time — and relaxing the COUNTRY is the useful move
-       when this bites, because a student who cannot meet Germany's public bar
-       may comfortably meet somebody else's. */
-    const bar = barOf(p, countries);
-    if (w.cgpa && bar != null && w.cgpa < bar) return false;
-    return true;
+    /* Relevance to the field they asked for. Relaxed last, and only to
+       "related", never to anything at all. */
+    if (w.field) {
+      const r = relevance(p, w);
+      if (r < 2) return false;
+      if (r < 3 && !off.has('field')) return false;
+    }
+    /* Never relaxed: a paid shortlist must not name a programme the student
+       would be turned down for on the first line of the form. */
+    return clears(p, w, countries);
   });
 
+  const over = p => (w.ceiling ? Math.max(0, Number(p.totalInr || 0) - w.ceiling) : 0);
   const ranked = eligible
-    .map(p => ({ p, s: score(p, w) }))
-    /* By score, then by fee, then by id — the last one only so that two runs
-       over the same catalogue return the same shortlist. A paid shortlist that
-       reshuffles when you refresh looks like it was never real. */
-    .sort((a, b) => b.s - a.s
+    .map(p => ({ p, s: score(p, w) + (keep.has(String(p.id)) ? 25 : 0) }))
+    /* With the budget relaxed, the closest to it comes first — somebody who
+       said "under ₹10 lakhs" and was shown a ₹39 lakh programme at the top of
+       their list has been shown the wrong thing first. Then by score, then
+       fee, then id, so two runs over the same catalogue agree. */
+    .sort((a, b) => (off.has('budget') ? over(a.p) - over(b.p) : 0)
+      || b.s - a.s
       || (Number(a.p.totalInr || 0) - Number(b.p.totalInr || 0))
       || String(a.p.id).localeCompare(String(b.p.id)));
 
+  /* One per university. By name, simplified, as well as by key: "TU
+     Dortmund" and "TU Dortmund University" are one university, and so are
+     "FH Dortmund" and "Dortmund University of Applied Sciences and Arts". */
   const out = [], seen = new Set();
   for (const { p } of ranked) {
-    const key = p.uKey || p.university || p.id;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const keys = uniKeys(p);
+    if (keys.some(k => seen.has(k))) continue;
+    keys.forEach(k => seen.add(k));
     out.push(p);
     if (out.length >= want) break;
   }
   return out;
+}
+
+/* The ways one university's name is written in the catalogue, reduced to the
+   same key. Deliberately conservative: city plus kind of school, so two
+   different universities in one city are only merged when they are the same
+   kind (a TU and an HS in Dortmund stay two). */
+function uniKeys(p) {
+  const raw = String(p.university || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
+  const keys = [p.uKey || raw || p.id];
+  const kind = /applied|fachhochschule|\bfh\b|hochschule|\bhs\b|\bth\b|\bhaw\b/.test(raw) ? 'has'
+    : /technical|technische|\btu\b/.test(raw) ? 'tu' : /universit/.test(raw) ? 'uni' : '';
+  const city = String(p.city || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const cityInName = city && raw.includes(city.split(/[\s,/]/)[0]);
+  if (kind && cityInName && p.isPublic) keys.push('c:' + city.split(/[\s,/]/)[0] + ':' + kind);
+  return keys;
 }
 
 /*
@@ -303,11 +534,12 @@ function pick(catalogue, profile, count, kind, drop, countries) {
  * note says which, and now that packages are scoped to a destination the
  * student is steered to the set that can actually serve them.
  */
-const RELAX = ['budget', 'level'];
+const RELAX = ['budget', 'level', 'field'];
 
 const RELAX_SAID = {
   budget: 'above the budget you gave',
-  level: 'at a different level to the one you picked',
+  level: 'at a neighbouring level (an MBA for a master\u2019s, say)',
+  field: 'in a field close to yours rather than exactly it',
   country: 'outside the country you picked',
 };
 
@@ -318,16 +550,21 @@ const RELAX_SAID = {
  * come off; `note` is that said in a sentence, or empty when nothing was
  * relaxed and the picks are exactly what was asked for.
  */
-function plan(catalogue, profile, count, kind, countries) {
+function plan(catalogue, profile, count, kind, countries, opts) {
   const want = Math.max(0, Number(count) || 0);
   if (!want) return { items: [], relaxed: [], note: '', short: 0, cgpaHeld: 0 };
+  const o = opts || {};
+  /* Rows the office took off this student's list stay off it — a re-pick on
+     the next profile save used to put them straight back. */
+  const skip = new Set((o.exclude || []).map(String));
+  const cat = (catalogue || []).filter(p => !skip.has(String(p.id)));
 
-  let items = pick(catalogue, profile, want, kind, [], countries);
+  let items = pick(cat, profile, want, kind, [], countries, o.prefer);
   const dropped = [];
   for (const c of RELAX) {
     if (items.length >= want) break;
     dropped.push(c);
-    const wider = pick(catalogue, profile, want, kind, dropped, countries);
+    const wider = pick(cat, profile, want, kind, dropped, countries, o.prefer);
     /* Only keep the wider search if it actually found more. Dropping a
        constraint that was not narrowing anything should not be reported as
        though it were. */
@@ -335,27 +572,30 @@ function plan(catalogue, profile, count, kind, countries) {
     else dropped.pop();
   }
 
-  /* How many rows the CGPA bar alone is holding back, over everything else
-     that was allowed to relax. A list that comes up short has to be able to
-     say WHY, or the student reads it as us not trying — and "your CGPA is
-     below what these ask" is the one reason they can do something about, by
-     retaking a test, adding a bridging year, or looking somewhere else. */
-    const w = wants(profile);
+  /* How many universities the CGPA (or German-grade) bar alone is holding
+     back — among programmes that are otherwise a fit: right kind, country,
+     level, budget, field and stated requirements. Counting every private
+     university in Germany told a student with 5.5 that "another 4" were
+     held, when the bar was the whole story. */
+  const w = wants(profile);
   let cgpaHeld = 0;
-  if (items.length < want && w.cgpa) {
-    const withoutBar = (catalogue || []).filter(p => {
+  if (items.length < want && (w.cgpa || w.german != null)) {
+    const off = new Set(dropped);
+    const held = cat.filter(p => {
       if (kind === 'public' && !p.isPublic) return false;
       if (kind === 'private' && p.isPublic) return false;
-      if (!dropped.includes('country') && w.countries
-        && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) return false;
-      if (!dropped.includes('level') && w.level
-        && String(p.level || '').toLowerCase() !== w.level) return false;
-      if (!dropped.includes('budget') && w.ceiling
-        && Number(p.totalInr || 0) > w.ceiling) return false;
-      const bar = barOf(p, countries);
-      return bar != null && w.cgpa < bar;          // excluded ONLY by the bar
+      if (w.countries && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) return false;
+      if (w.level) {
+        const lv = String(p.level || '').toLowerCase();
+        if (lv !== w.level && !(off.has('level') && (LEVEL_NEAR[w.level] || []).includes(lv))) return false;
+      }
+      if (!off.has('budget') && w.ceiling && Number(p.totalInr || 0) > w.ceiling) return false;
+      if (w.field && relevance(p, w) < (off.has('field') ? 2 : 3)) return false;
+      if (REQS.check(p.reqs || {}, w.answers || {}).fails.length) return false;
+      if (!subjectFits(p, w)) return false;
+      return !clears(p, w, countries);             // excluded ONLY by the grade bar
     });
-    cgpaHeld = new Set(withoutBar.map(p => p.university)).size;
+    cgpaHeld = new Set(held.map(p => p.university)).size;
   }
 
   const parts = [];
@@ -401,4 +641,4 @@ function promise(pkg) {
   };
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX };
+module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys };

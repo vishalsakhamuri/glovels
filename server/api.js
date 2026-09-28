@@ -669,6 +669,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         addedBy: r.added_by === 'student' ? 'student'
           : r.added_by === 'matched' ? 'matched' : 'office',
         intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
+        /* Patch 143: the office hid this programme after it went on the list.
+           It stays — an application may be under way — but it is marked, so
+           nobody applies to a course that is no longer offered without asking. */
+        withdrawn: (() => {
+          try { const pr = typeof db.programme === 'function' ? db.programme(String(r.prog_id)) : null;
+            return !!(pr && !pr.active); } catch (e) { return false; }
+        })(),
       })),
       apps,
       docs,
@@ -714,7 +721,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         let held = 0;
         if (usable && got < owed.count) {
           try {
-            held = MATCHES.plan(rowsFor(prof), prof, owed.count, owed.kind, countryMap()).cgpaHeld || 0;
+            const cat = rowsFor(prof);
+            held = (owed.parts || [owed]).reduce((n, part) =>
+              n + (MATCHES.plan(cat, prof, part.count, part.kind, countryMap()).cgpaHeld || 0), 0);
           } catch (e) { held = 0; }
         }
         return {
@@ -789,11 +798,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const pkgs = PACKAGE_ITEMS();
     const byPkg = new Map(pkgs.map(p => [p.id, p]));
     const svcs = SERVICES_OF();
-    let best = { count: 0, kind: 'any', package: '', reference: '' };
+    /* THE BIGGEST PROMISE OF EACH KIND, and both kinds. Before 143 only the
+       single biggest promise counted, so buying Public University Unlock and
+       then the ₹999 private shortlist took the three public universities away
+       — they were a different kind, and the smaller number. A public promise
+       and a private one are two deliverables. */
+    const best = { public: null, private: null };
 
     const consider = (owed, label, reference) => {
-      if (owed.count > best.count) {
-        best = { count: owed.count, kind: owed.kind, package: label, reference };
+      if (!owed.count) return;
+      const k = owed.kind === 'public' ? 'public' : 'private';
+      if (!best[k] || owed.count > best[k].count) {
+        best[k] = { count: owed.count, kind: k, package: label, reference };
       }
     };
 
@@ -816,13 +832,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const id = String(it.id || '');
         const svc = svcs[id] || svcs[RETIRED[id] || ''] || null;
         if (!svc || !svc.matches) return;
-        /* A service reveals no public names — the ones that do are packages —
-           so `unlocks` is 0 and the matches are private universities. */
         consider(MATCHES.promise({ unlocks: 0, matches: svc.matches }),
           svc.name || it.name || 'your matching service', o.reference);
       });
     });
-    return best;
+    const parts = [best.public, best.private].filter(Boolean);
+    /* The old single-promise shape, for every screen that reads it: the total
+       count, the kind when there is only one, and the name of the bigger. */
+    const top = parts.slice().sort((a, b) => b.count - a.count)[0];
+    return {
+      count: parts.reduce((n, x) => n + x.count, 0),
+      kind: parts.length === 1 ? parts[0].kind : (parts.length ? 'any' : 'any'),
+      package: parts.map(x => x.package).join(' + ') || '',
+      reference: top ? top.reference : '',
+      parts,
+    };
   }
 
   /**
@@ -854,23 +878,50 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        them the matcher only ever saw a programme's OWN CGPA bar, which almost
        no row states — the rule lives on the country — so the paid shortlist
        ignored a requirement the free finder enforced. */
-    const made = MATCHES.plan(rowsFor(profile), profile, owed.count, owed.kind, countryMap());
-    const picks = made.items;
     const before = db.getShortlist(student.id);
     const have = new Set(before.map(r => String(r.prog_id)));
+    const applied = new Set(db.getApplications(student.id)
+      .filter(a => Number(a.stage || 0) > 0 || a.outcome).map(a => String(a.prog_id)));
+    const dismissed = typeof db.dismissedFor === 'function' ? db.dismissedFor(student.id) : [];
+    const catalogue = rowsFor(profile);
+    /* Earlier picks the student has already seen are preferred when they
+       still fit — a re-pick tops a list up, it does not reshuffle it. */
+    const prefer = before.filter(r => r.added_by === 'matched').map(r => String(r.prog_id));
+    const picks = [];
+    const notes = [];
+    const made = { relaxed: [], short: 0, cgpaHeld: 0 };
+    (owed.parts || [{ count: owed.count, kind: owed.kind }]).forEach(part => {
+      /* Whatever is already on the list by somebody's hand counts towards this
+         kind's number — a counsellor who added two public universities has
+         delivered two of the three. */
+      const byHand = before.filter(r => r.added_by !== 'matched'
+        && (part.kind === 'public' ? !!r.is_public : !r.is_public)).map(r => String(r.prog_id));
+      const need = Math.max(0, part.count - new Set(byHand).size);
+      const one = MATCHES.plan(catalogue.filter(p => !byHand.includes(String(p.id))),
+        profile, need, part.kind, countryMap(), { prefer, exclude: dismissed });
+      one.items.forEach(p => picks.push(p));
+      if (one.note) notes.push(one.note);
+      one.relaxed.forEach(r => { if (!made.relaxed.includes(r)) made.relaxed.push(r); });
+      made.short += one.short;
+      made.cgpaHeld += one.cgpaHeld;
+    });
+    made.items = picks;
+    made.note = notes.join(' ');
     const picked = new Set(picks.map(p => String(p.id)));
     picks.forEach(p => {
       if (!have.has(String(p.id))) out.added++;
       db.addShortlist(student.id, p, 'matched');
     });
     /* A re-pick REPLACES the machine's earlier picks, it does not pile on
-       them. Four profile saves used to leave ten universities on a package
-       that sells five — each run added its five and nobody took the old ones
-       away. Rows a counsellor or the student put there are theirs and stay. */
+       them. Rows a counsellor or the student put there are theirs and stay —
+       and so does any machine pick an application has already started on:
+       taking a university off the list while the counsellor is filing it left
+       an orphan tracker row and nobody told. */
     let dropped = 0;
     before.forEach(r => {
-      if (r.added_by === 'matched' && !picked.has(String(r.prog_id))) {
+      if (r.added_by === 'matched' && !picked.has(String(r.prog_id)) && !applied.has(String(r.prog_id))) {
         db.removeShortlist(student.id, r.prog_id);
+        db.removeApplication(student.id, r.prog_id);
         dropped++;
       }
     });
@@ -902,8 +953,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         && (Date.now() - Date.parse(last.created_at)) < 60 * 60 * 1000;
       if (recent && typeof db.deleteMessage === 'function') db.deleteMessage(last.id);
       if (!(opts && opts.quiet) && (!recent || typeof db.deleteMessage === 'function')) {
-        db.addMessage(student.id, 'them',
-          'Your ' + out.delivered + ' matched '
+        db.addMessage(student.id, 'them', !out.delivered
+          /* "Your 0 matched universities are on your shortlist now" was what a
+             student read after lowering their CGPA. Say what happened. */
+          ? 'With the profile you have just saved, none of the universities we match '
+            + 'automatically fit — so your earlier matches have come off the list. '
+            + (made.note ? made.note + ' ' : '')
+            + 'If something on your profile is wrong, correct it and the list is picked again; '
+            + 'otherwise your counsellor will go through the options with you.'
+          : 'Your ' + out.delivered + ' matched '
           + (owed.kind === 'public' ? 'public ' : '')
           + (out.delivered === 1 ? 'university is' : 'universities are')
           + ' on your shortlist now — fees, intakes and deadlines are on each one. '
@@ -1331,30 +1389,37 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    *
    * The office can still remove one, from the counsellor's own route below,
    * which is a decision somebody made rather than a mis-tap. */
-  route('DELETE', /^\/api\/shortlist\/(.+)$/, async (req, res) => json(res, 403, {
-    error: 'Your shortlist is confirmed with your counsellor. Message them to '
-         + 'swap a university and they will do it with you.',
-  }));
+  route('DELETE', /^\/api\/shortlist\/(.+)$/, async (req, res, s, m) => {
+    /* Patch 143: except what they added themselves and nothing has been
+       started on. A university a student marked while browsing is their own
+       interest, not the deliverable, and "message your counsellor to take off
+       the one you clicked by mistake" was a phone call about nothing. */
+    if (s && s.role === 'student') {
+      const progId = decodeURIComponent(m[1]);
+      const row = db.getShortlist(s.id).find(x => String(x.prog_id) === progId);
+      const app = db.getApplications(s.id).find(a => String(a.prog_id) === progId);
+      if (row && row.added_by === 'student' && !(app && (Number(app.stage || 0) > 0 || app.outcome))) {
+        db.removeShortlist(s.id, progId);
+        db.removeApplication(s.id, progId);
+        return json(res, 200, { removed: true, shortlist: stateFor(s).shortlist });
+      }
+    }
+    return json(res, 403, {
+      error: 'Your shortlist is confirmed with your counsellor. Message them to '
+           + 'swap a university and they will do it with you.',
+    });
+  });
 
   /* Used once, right after checkout, to store what the sales page matched. */
   route('POST', '/api/shortlist/bulk', async (req, res, s) => {
-    const b = await readJson(req);
-    const ids = Array.isArray(b.ids) ? b.ids : [];
-    let n = 0;
-    /* What the package matched. The office's list, not idle interest — it
-       is the deliverable the student paid for. */
-    /* Public universities are not taken from the browser here either. The
-       server matches those itself against the profile and the package — see
-       deliverMatches — so a list posted from a page could only ever be a way
-       of choosing them, and they are not the student's to choose. */
-    let skipped = 0;
-    ids.forEach(id => {
-      const p = lookup(id);
-      if (!p) return;
-      if (p.isPublic) { skipped++; return; }
-      db.addShortlist(s.id, p, 'office'); n++;
-    });
-    return json(res, 200, { added: n, skipped, shortlist: stateFor(s).shortlist });
+    await readJson(req);
+    /* Patch 143: this used to store whatever rows the home page had in view
+       as "your counsellor's shortlist" — up to twelve, from any country, any
+       level, Pre-Masters included — right after a purchase. What a purchase
+       delivers is picked on the server, against the profile, by
+       deliverMatches. The endpoint stays so an old page open in a tab does
+       not error; it adds nothing. */
+    return json(res, 200, { added: 0, skipped: 0, shortlist: s ? stateFor(s).shortlist : [] });
   });
 
   /*
@@ -3834,6 +3899,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
       const already = db.getShortlist(id).some(x => String(x.prog_id) === String(p.id));
       db.addShortlist(id, p, 'office');
+      if (typeof db.undismissShortlist === 'function') db.undismissShortlist(id, p.id);
       if (!already) {
         db.log(s.name, 'added a university', st.name + ' — ' + (p.university || p.id));
         /* "University application submission, every uni has a date" — so the
@@ -3880,6 +3946,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* The application goes with it. A tracker for a university nobody is
          applying to any more is a row that will be wrong forever. */
       db.removeApplication(id, progId);
+      /* And the machine is told: a re-pick on the student's next profile save
+         put a removed university straight back. */
+      if (typeof db.dismissShortlist === 'function') db.dismissShortlist(id, progId);
       if (row) {
         db.log(s.name, 'removed a university', st.name + ' — ' + (row.university || progId));
         db.addMessage(id, 'them', 'I have taken ' + progSaid(row)

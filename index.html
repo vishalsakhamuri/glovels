@@ -2704,8 +2704,14 @@ function render(){
      predates the column — reads as what it has always been. */
   const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
     ? r.feeModel : (r.isPublic ? 'package' : 'free');
-  const privAll = rows.filter(r => feeOf(r) !== 'free');
-  const pubAll = rows.filter(r => feeOf(r) === 'free');
+  /* By what the tabs are CALLED (patch 143). The "Public Universities" tab
+     split on the fee model, so it held 125 private programmes — SRH,
+     Fresenius, Frankfurt School — that the office files for a fee. Where a
+     destination has public universities the split is public/private; where
+     it has none, it is still the fee model, as before. */
+  const hasPub = rows.some(r => r.isPublic);
+  const privAll = hasPub ? rows.filter(r => r.isPublic) : rows.filter(r => feeOf(r) !== 'free');
+  const pubAll = hasPub ? rows.filter(r => !r.isPublic) : rows.filter(r => feeOf(r) === 'free');
   $('#rtnPriv') && ($('#rtnPriv').textContent = privAll.length);
   $('#rtnPub') && ($('#rtnPub').textContent = pubAll.length);
   /* If the tab being shown has emptied out under the filters — pick the UK and
@@ -3749,7 +3755,7 @@ render();
     if (p.program && p.university) {
       EXTRA_NAMES[p.id] = {
         program: p.program, university: p.university, city: p.city || '',
-        totalInr: p.totalInr || 0, url: p.url || '', uKey: 'live-' + p.id,
+        totalInr: p.totalInr || 0, url: p.url || '', uKey: p.uKey || ('live-' + p.id),
       };
     }
     if (known.has(String(p.id))) {
@@ -3765,6 +3771,13 @@ render();
           ? p.feeModel : (p.isPublic ? 'package' : 'free');
         if (p.fit != null) had.fit = p.fit;
         if (p.band) had.band = p.band;
+        /* Field, level and kind too. A row re-filed from Computer Science to
+           Electrical in the office kept its old field here, and every field
+           filter count was off by a few (patch 143). */
+        if (p.field) { had.field = p.field; had.fieldGroup = p.field; }
+        if (p.level) had.level = p.level;
+        if (typeof p.isPublic === 'boolean') had.isPublic = p.isPublic;
+        if (p.uKey) had.uKey = p.uKey;
         if (p.totalInr != null) {
           had.totalInr = p.totalInr;
           had.freeTuition = (p.totalInr || 0) === 0;
@@ -3785,7 +3798,11 @@ render();
       /* The bar THIS programme sets, which beats its country's rule in
          filtered(). Hardcoded null here, it could never beat anything. */
       minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),
-      fit: p.fit || 75, uKey: 'live-' + p.id,
+      /* The server's university key, so "N universities" counts universities.
+         'live-' + id made every added row its own university, and the banner
+         read "1394 universities with no fee to apply" for Germany's 184
+         (patch 143). */
+      fit: p.fit || 75, uKey: p.uKey || ('live-' + p.id),
       intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],
       nLen: p.nLen != null ? p.nLen : String(p.program || '').length,
       uLen: p.uLen != null ? p.uLen : String(p.university || '').length,
@@ -3850,6 +3867,24 @@ render();
       row.reqs = live.reqs; bars++;
     }
   });
+  /* Every field and level the catalogue actually holds gets an option. The
+     list was baked months ago, so 247 German programmes — Psychology, Law,
+     Humanities, Social Sciences, Sport, Education — could not be reached by
+     the Field filter at all (patch 143). */
+  (function addMissingOptions(){
+    const addTo = (sel, values, label, text) => {
+      if (!sel) return;
+      const have = new Set([...sel.options].map(o => o.value));
+      const miss = [...new Set(values)].filter(v => v && !have.has(v)).sort();
+      if (!miss.length) return;
+      const g = document.createElement('optgroup'); g.label = label;
+      miss.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = text(v); g.appendChild(o); });
+      sel.appendChild(g);
+    };
+    addTo($('#fField'), D.programs.map(p => p.field), 'More fields', v => v);
+    const LV = { phd: 'PhD / Doctorate', pathway: 'Foundation / Pathway', bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma', foundation: 'Foundation / Pathway' };
+    addTo($('#fLevel'), D.programs.map(p => p.level), 'More levels', v => LV[v] || v);
+  })();
   /* The questions that apply depend on the rows in view, and the rows just
      changed. Whether or not anything else did. */
   if (typeof showRelevant === 'function') showRelevant();

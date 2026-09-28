@@ -249,6 +249,7 @@ function uniRow(p) {
       '<b style="display:block" title="' + esc(uniFull(p)) + '">' + esc(uniName(p)) + '</b>' +
       '<span style="display:block;font-size:12px;color:var(--muted)">' +
         esc(p.program || '') + ' \u00b7 ' + money(p) + '</span>' +
+      (p.withdrawn ? '<span style="display:inline-block;margin-top:4px;font:700 11px/1.4 var(--sans);color:#9a3412;background:#fff4ed;border:1px solid #f3c9a8;border-radius:999px;padding:2px 8px">No longer offered — check before applying</span>' : '') +
     '</div>' +
     '<select data-stage="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
       'var(--sans);border:1.5px solid #d8dde4;border-radius:8px;background:var(--paper)">' +

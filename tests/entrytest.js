@@ -35,6 +35,10 @@ const stamp = Date.now();
 const PROFILE = {
   fullName: 'Entry Tier', city: 'Vijayawada',
   g_level: "Master's", g_field: 'Data Science', g_country: 'Germany',
+  /* A second field since patch 143: the matcher no longer pads a list with
+     unrelated programmes, and the demo catalogue has two private Data
+     Science rows at two universities — three are needed to test "three different universities". */
+  g_field2: 'Computer Science', g_field3: 'Biotechnology',
   g_intake: 'Winter 2026', b_total: 'Under ₹10 Lakhs', d_cgpa: '7.8',
 };
 
@@ -466,7 +470,7 @@ const PROFILE = {
   /* And the ₹99 is in the services grid, where it now belongs. */
   const grid = await hpage.textContent('#services, .svc-wrap, main').catch(() => '');
   check('the ₹99 service is on the home page',
-    /First Three Universities/.test(grid), (grid || '').slice(0, 50));
+    /Private match preview|First Three Universities/.test(grid), (grid || '').slice(0, 50));
   check('no page errors anywhere', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   await browser.close();

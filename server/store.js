@@ -69,6 +69,14 @@ CREATE TABLE IF NOT EXISTS shortlist (
   added_at    TEXT NOT NULL,
   PRIMARY KEY (student_id, prog_id)
 );
+/* Programmes the office took off a student's list. The machine's re-pick
+   reads this so a counsellor's "not this one" sticks (patch 143). */
+CREATE TABLE IF NOT EXISTS shortlist_dismissed (
+  student_id  INTEGER NOT NULL,
+  prog_id     TEXT NOT NULL,
+  at          TEXT NOT NULL,
+  PRIMARY KEY (student_id, prog_id)
+);
 CREATE TABLE IF NOT EXISTS applications (
   student_id  INTEGER NOT NULL,
   prog_id     TEXT NOT NULL,
@@ -1045,6 +1053,15 @@ function open(dir) {
     },
     removeShortlist: (studentId, progId) =>
       db.run('DELETE FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
+    /* "Not this one", remembered — see shortlist_dismissed. Adding it back by
+       hand clears it. */
+    dismissShortlist: (studentId, progId) =>
+      db.run('INSERT OR REPLACE INTO shortlist_dismissed (student_id, prog_id, at) VALUES (?, ?, ?)',
+        Number(studentId), String(progId), now()),
+    undismissShortlist: (studentId, progId) =>
+      db.run('DELETE FROM shortlist_dismissed WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
+    dismissedFor: studentId =>
+      db.all('SELECT prog_id FROM shortlist_dismissed WHERE student_id = ?', Number(studentId)).map(r => String(r.prog_id)),
 
     /* Every programme id any student has shortlisted or applied to, as one set.
        Deleting one of these blanks out that student's shortlist card and their
@@ -1391,13 +1408,15 @@ function open(dir) {
        search-only ones included, which is the right answer for the Catalogue
        screen and the wrong one for a destination page — it made the tile
        claim four more programmes than the finder underneath it could show. */
-    countProgrammes({ country, listed } = {}) {
+    countProgrammes({ country, listed, isPublic } = {}) {
       if (db.kind !== 'sqlite') {
         return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r =>
-          r.active && (!listed || !r.search_only) && (!country || r.country === country)).length;
+          r.active && (!listed || !r.search_only) && (!country || r.country === country)
+          && (isPublic === undefined || !!r.is_public === !!isPublic)).length;
       }
       const w = ['active = 1']; const a = [];
       if (listed) w.push('search_only = 0');
+      if (isPublic !== undefined) w.push(isPublic ? 'is_public = 1' : 'is_public = 0');
       if (country) { w.push('country = ?'); a.push(country); }
       return (db.one('SELECT COUNT(*) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
     },
@@ -1491,7 +1510,10 @@ function open(dir) {
       if (season) { w.push('intakes LIKE ?'); a.push('%"season":"' + season + '"%'); }
       if (budget) { w.push('total_inr <= ?'); a.push(budget); }
       if (free) w.push("fee_model = 'free'");
-      (q || []).forEach(word => { w.push("LOWER(university || ' ' || short_name || ' ' || city) LIKE ?"); a.push('%' + word + '%'); });
+      /* The search words arrive with their accents stripped ("munchen"), so
+         the names they are compared with are folded the same way — "münchen"
+         and "köln" found nothing before patch 143. */
+      (q || []).forEach(word => { w.push("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(university || ' ' || short_name || ' ' || city), 'ü', 'u'), 'Ü', 'u'), 'ö', 'o'), 'Ö', 'o'), 'ä', 'a'), 'Ä', 'a'), 'ß', 'ss'), 'é', 'e'), 'è', 'e') LIKE ?"); a.push('%' + word + '%'); });
       if (db.kind !== 'sqlite') {
         /* The development store: the same question, in JavaScript. */
         const rows = db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.country === country);

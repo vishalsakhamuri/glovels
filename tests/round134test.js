@@ -61,7 +61,9 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
     ok('  · a private one is still theirs to add', r.ok, r.status);
     r = await req('s', 'POST', '/api/shortlist/bulk', { ids: [pub.id, priv.id] });
     ok('  · and the bulk route does not let one in the back way',
-      r.ok && Number(r.body.skipped) === 1, JSON.stringify(r.body || {}).slice(0, 120));
+      /* Since patch 143 the bulk route adds nothing at all — what a purchase
+         delivers is picked on the server. */
+      r.ok && Number(r.body.added) === 0, JSON.stringify(r.body || {}).slice(0, 120));
     r = await req('s', 'GET', '/api/state');
     ok('  · so nothing public is on their shortlist',
       !(r.body.shortlist || []).some(x => x.isPublic),

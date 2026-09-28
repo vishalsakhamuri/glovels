@@ -196,7 +196,10 @@ function bakedIds() {
           if (html[k] === '[') depth++;
           else if (html[k] === ']' && --depth === 0) break;
         }
-        out = [...html.slice(j, k + 1).matchAll(/\{"id": "([^"]+)"/g)].map(m => m[1]);
+        /* Quoted or not. Ids 90003, 90012 and 90014 were baked as numbers,
+           never matched, and so three hidden IU rows stayed in the finder
+           (patch 143). */
+        out = [...html.slice(j, k + 1).matchAll(/\{"id": (?:"([^"]+)"|(\d+))/g)].map(m => m[1] || m[2]);
       }
       bakedList = out;
       bakedAt = at;
@@ -1712,6 +1715,15 @@ function withLiveDestinationFacts(html, slug) {
       '<b>' + progs.toLocaleString('en-IN') + ' programmes</b>');
     html = html.replace(/(<h1>Study in [^<]*<\/h1><p>)[\d,]+ programmes/,
       (m, a) => a + progs.toLocaleString('en-IN') + ' programmes');
+    /* And the public share in the same line — "2,069 programmes, 153 at
+       public universities" kept the 153 it was written with (patch 143). */
+    let pubN = 0;
+    try { pubN = Number(db.countProgrammes({ country: code, isPublic: true }) || 0); } catch (e) { pubN = 0; }
+    if (!pubN) {
+      try { pubN = (db.rowsForCountries ? db.rowsForCountries([code]) : []).filter(r => r.is_public && r.active && !r.search_only).length; } catch (e) { pubN = 0; }
+    }
+    if (pubN) html = html.replace(/(programmes, )[\d,]+( at public universit)/g,
+      (m, a, b) => a + pubN.toLocaleString('en-IN') + b);
   }
   if (unis) {
     html = html.replace(/<b>[\d,]+ universit(y|ies)<\/b>/g,

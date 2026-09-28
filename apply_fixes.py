@@ -10474,6 +10474,46 @@ patch(
     marker='width:1%;white-space:nowrap;padding-right:6px}',
 )
 
+# ------------------------------------------------------------ patch 143
+#
+# The shortlisting audit: hidden rows, stale fields, missing field options,
+# university counts and the public/private tabs on the finder.
+patch(
+    'index.html',
+    'finder, patch 143 (1)',
+    "  const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')\n    ? r.feeModel : (r.isPublic ? 'package' : 'free');\n  const privAll = rows.filter(r => feeOf(r) !== 'free');\n  const pubAll = rows.filter(r => feeOf(r) === 'free');\n  $('#rtnPriv') && ($('#rtnPriv').textContent = privAll.length);\n  $('#rtnPub') && ($('#rtnPub').textContent = pubAll.length);",
+    '  const feeOf = r => (r.feeModel === \'free\' || r.feeModel === \'package\')\n    ? r.feeModel : (r.isPublic ? \'package\' : \'free\');\n  /* By what the tabs are CALLED (patch 143). The "Public Universities" tab\n     split on the fee model, so it held 125 private programmes — SRH,\n     Fresenius, Frankfurt School — that the office files for a fee. Where a\n     destination has public universities the split is public/private; where\n     it has none, it is still the fee model, as before. */\n  const hasPub = rows.some(r => r.isPublic);\n  const privAll = hasPub ? rows.filter(r => r.isPublic) : rows.filter(r => feeOf(r) !== \'free\');\n  const pubAll = hasPub ? rows.filter(r => !r.isPublic) : rows.filter(r => feeOf(r) === \'free\');\n  $(\'#rtnPriv\') && ($(\'#rtnPriv\').textContent = privAll.length);\n  $(\'#rtnPub\') && ($(\'#rtnPub\').textContent = pubAll.length);',
+    marker='/* By what the tabs are CALLED (patch 143). The "Public Universities" tab',
+)
+patch(
+    'index.html',
+    'finder, patch 143 (2)',
+    "      EXTRA_NAMES[p.id] = {\n        program: p.program, university: p.university, city: p.city || '',\n        totalInr: p.totalInr || 0, url: p.url || '', uKey: 'live-' + p.id,\n      };\n    }",
+    "      EXTRA_NAMES[p.id] = {\n        program: p.program, university: p.university, city: p.city || '',\n        totalInr: p.totalInr || 0, url: p.url || '', uKey: p.uKey || ('live-' + p.id),\n      };\n    }",
+    marker="totalInr: p.totalInr || 0, url: p.url || '', uKey: p.uKey || ('live-' + p.id),",
+)
+patch(
+    'index.html',
+    'finder, patch 143 (3)',
+    '        if (p.fit != null) had.fit = p.fit;\n        if (p.band) had.band = p.band;\n        if (p.totalInr != null) {\n          had.totalInr = p.totalInr;',
+    "        if (p.fit != null) had.fit = p.fit;\n        if (p.band) had.band = p.band;\n        /* Field, level and kind too. A row re-filed from Computer Science to\n           Electrical in the office kept its old field here, and every field\n           filter count was off by a few (patch 143). */\n        if (p.field) { had.field = p.field; had.fieldGroup = p.field; }\n        if (p.level) had.level = p.level;\n        if (typeof p.isPublic === 'boolean') had.isPublic = p.isPublic;\n        if (p.uKey) had.uKey = p.uKey;\n        if (p.totalInr != null) {\n          had.totalInr = p.totalInr;",
+    marker='/* Field, level and kind too. A row re-filed from Computer Science to',
+)
+patch(
+    'index.html',
+    'finder, patch 143 (4)',
+    "         filtered(). Hardcoded null here, it could never beat anything. */\n      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),\n      fit: p.fit || 75, uKey: 'live-' + p.id,\n      intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],\n      nLen: p.nLen != null ? p.nLen : String(p.program || '').length,",
+    '         filtered(). Hardcoded null here, it could never beat anything. */\n      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),\n      /* The server\'s university key, so "N universities" counts universities.\n         \'live-\' + id made every added row its own university, and the banner\n         read "1394 universities with no fee to apply" for Germany\'s 184\n         (patch 143). */\n      fit: p.fit || 75, uKey: p.uKey || (\'live-\' + p.id),\n      intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: \'winter\', deadline: \'\'}],\n      nLen: p.nLen != null ? p.nLen : String(p.program || \'\').length,',
+    marker='/* The server\'s university key, so "N universities" counts universities.',
+)
+patch(
+    'index.html',
+    'finder, patch 143 (5)',
+    '    }\n  });\n  /* The questions that apply depend on the rows in view, and the rows just\n     changed. Whether or not anything else did. */',
+    '    }\n  });\n  /* Every field and level the catalogue actually holds gets an option. The\n     list was baked months ago, so 247 German programmes — Psychology, Law,\n     Humanities, Social Sciences, Sport, Education — could not be reached by\n     the Field filter at all (patch 143). */\n  (function addMissingOptions(){\n    const addTo = (sel, values, label, text) => {\n      if (!sel) return;\n      const have = new Set([...sel.options].map(o => o.value));\n      const miss = [...new Set(values)].filter(v => v && !have.has(v)).sort();\n      if (!miss.length) return;\n      const g = document.createElement(\'optgroup\'); g.label = label;\n      miss.forEach(v => { const o = document.createElement(\'option\'); o.value = v; o.textContent = text(v); g.appendChild(o); });\n      sel.appendChild(g);\n    };\n    addTo($(\'#fField\'), D.programs.map(p => p.field), \'More fields\', v => v);\n    const LV = { phd: \'PhD / Doctorate\', pathway: \'Foundation / Pathway\', bachelor: "Bachelor\'s", master: "Master\'s", mba: \'MBA\', diploma: \'Diploma / PG Diploma\', foundation: \'Foundation / Pathway\' };\n    addTo($(\'#fLevel\'), D.programs.map(p => p.level), \'More levels\', v => LV[v] || v);\n  })();\n  /* The questions that apply depend on the rows in view, and the rows just\n     changed. Whether or not anything else did. */',
+    marker='/* Every field and level the catalogue actually holds gets an option. The',
+)
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

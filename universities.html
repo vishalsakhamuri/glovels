@@ -1521,6 +1521,7 @@ function card(p, inList) {
        hover. See uniName() in build_portal.py. */
     '<div class="uni" title="' + esc(uniFull(p)) + '">' + esc(uniName(p)) + '</div>' +
     '<div class="city">' + esc([p.city, nameOf(p)].filter(Boolean).join(' · ')) + '</div>' +
+    (p.withdrawn ? '<span style="display:inline-block;margin-top:4px;font:700 11px/1.4 var(--sans);color:#9a3412;background:#fff4ed;border:1px solid #f3c9a8;border-radius:999px;padding:2px 8px">No longer offered — check before applying</span>' : '') +
     /* What this row asks of the student, rather than how it is constituted.
        Public-versus-private is a German fact — six of our seven destinations
        have no public university at all — and it never told a student what
@@ -1657,7 +1658,14 @@ const ownerOf = id => {
 };
 
 function paintMine() {
-  const items = shortlist().map(i => byId[i]).filter(Boolean);
+  const items = shortlist().map(i => {
+    /* A programme the office has since hidden is not in the catalogue any
+       more, so it vanished from this screen while the dashboard still counted
+       it. Drawn from the shortlist row instead, and marked (patch 143). */
+    const row = (typeof SHORT_ROWS !== 'undefined' ? SHORT_ROWS : []).find(r => String(r.id) === String(i));
+    const p = byId[i] || (row ? Object.assign({ uni: row.university }, row) : null);
+    return p && row && row.withdrawn ? Object.assign({}, p, { withdrawn: true }) : p;
+  }).filter(Boolean);
   const mine  = items.filter(p => ownerOf(p.id) === 'student');
   const auto  = items.filter(p => ownerOf(p.id) === 'matched');
   const ours  = items.filter(p => ownerOf(p.id) === 'office');
