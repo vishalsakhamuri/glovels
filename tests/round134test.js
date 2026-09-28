@@ -46,7 +46,19 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
      able to read. */
   r = await req('s', 'GET', '/api/catalogue');
   const cat = (r.body || {}).programmes || [];
-  const pub = cat.find(p => p.isPublic);
+  /* A real public id: since patch 146 a locked row in /api/catalogue carries
+     a stand-in id, so it is read from a university page's Apply button — the
+     way somebody trying the back door would. */
+  let pub = null;
+  {
+    const lr = await req('x', 'GET', '/api/universities/filter?country=DE');
+    const pu = ((lr.body || {}).universities || []).find(u => u.isPublic);
+    if (pu) {
+      const html = await (await fetch(BASE + pu.url)).text();
+      const m = /data-apply="([^"]+)"/.exec(html);
+      if (m) pub = { id: m[1], isPublic: true };
+    }
+  }
   const priv = cat.find(p => !p.isPublic);
   if (!pub || !priv) {
     ok('the catalogue has one of each to test with', false,

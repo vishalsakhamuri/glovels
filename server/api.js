@@ -18,6 +18,9 @@
  */
 
 const crypto = require('crypto');
+/* See the locked rows in /api/catalogue (patch 146). */
+const OPAQUE_KEY = crypto.randomBytes(24);
+const OPAQUE = (kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY).update(kind + ':' + String(v)).digest('hex').slice(0, 14);
 const PAY = require('./pay.js');
 const fs = require('fs');
 const path = require('path');
@@ -2952,8 +2955,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       }
       const mayName = quota > 0 && mayShow(p);
       if (mayName) spent = named.size;
+      /* A stand-in id and university key on a locked row (patch 146). The real
+         id is printed on the programme's Apply button on its university page,
+         and uKey is a hash of the university's name — either one turned a
+         locked, profile-matched row back into a name without a package. The
+         stand-ins are keyed on a secret that lives only in this process, so
+         they group rows by university for the counts and say nothing else. */
       return mayName ? p : {
-        id: p.id, country: p.country, level: p.level, field: p.field,
+        id: OPAQUE('p', p.id), country: p.country, level: p.level, field: p.field,
         band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
         /* Whether applying costs anything travels on a locked row, for the
            same reason the CGPA bar does: it is a fact about what this row
@@ -2981,7 +2990,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         /* uKey groups programmes by university so the page can say "12 public
            universities" without naming one. featured/featureSort say where the
            row sits, not what it is. None of the three is the name. */
-        uKey: p.uKey, featured: p.featured, featureSort: p.featureSort,
+        uKey: OPAQUE('u', p.uKey), featured: p.featured, featureSort: p.featureSort,
         nLen: String(p.program || '').length,
         /* The width of the blur on a locked row. It is what will be SHOWN
            once it is unlocked, so a row with a short name blurs at the

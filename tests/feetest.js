@@ -257,10 +257,13 @@ const stamp = Date.now();
 
   await page.selectOption('#fCountry', 'DE');
   await page.waitForTimeout(600);
-  check('Germany has both, so it is', (await typeHidden()) === false);
-  const deOpts = await page.$$eval('#fType option', o => o.map(x => x.value));
-  check('and both answers are offered',
-    deOpts.includes('free') && deOpts.includes('package'), JSON.stringify(deOpts));
+  /* Since patch 146 a student with no package browses the free-to-apply
+     universities by name here; the public ones matched to their profile are
+     the locked rows on the home page, which a package names. So for this
+     student Germany has one kind, and the question is not asked. */
+  check('without a package, Germany lists only what is free to apply to, so the question is not asked',
+    (await typeHidden()) === true);
+  const deOpts = (await typeHidden()) ? [] : await page.$$eval('#fType option', o => o.map(x => x.value));
 
   /* The fault this whole change exists to fix: an option that returns nothing. */
   for (const v of deOpts.filter(Boolean)) {
@@ -272,7 +275,7 @@ const stamp = Date.now();
 
   /* And it must never mix destinations, which is what "Any destination" as an
      opening position did. */
-  await page.selectOption('#fType', '');
+  if (!(await typeHidden())) await page.selectOption('#fType', '');
   await page.waitForTimeout(600);
   const mixed = await page.$$eval('#allGrid article.sl',
     c => c.map(x => (/🇩🇪|Germany/.test(x.textContent) ? 'de' : 'other')));

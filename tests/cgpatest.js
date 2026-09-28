@@ -84,7 +84,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const live = await (await anon.request.get(BASE + '/api/catalogue')).json();
   const rows = live.programmes || [];
   const privRow = rows.find(r => String(r.id) === String(priv.id));
-  const pubRow = rows.find(r => String(r.id) === String(pub.id));
+  /* By its bar, not its id: since patch 146 a locked row carries a stand-in id,
+     so the real one cannot find it — which is the point. 9.4 is set on this
+     row and on no other public one. */
+  const pubRow = rows.find(r => String(r.id) === String(pub.id))
+    || rows.find(r => r.isPublic && !r.university && Number(r.minCgpa) === 9.4);
 
   check('the public catalogue carries the bar on a named row',
     privRow && Number(privRow.minCgpa) === 9.4, privRow && privRow.minCgpa);

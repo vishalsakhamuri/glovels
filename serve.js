@@ -96,6 +96,46 @@ function liveCatalogue() { return db.rowsOnSite().map(fromRow); }
 /** One university, from its page address, or null. */
 function universityRows(slug) { return UNIS.group(db.rowsForUniversity(slug).map(fromRow))[0] || null; }
 /** The universities on the site (in a country, or all), grouped. */
+/*
+ * THE PORTAL PAGES' BAKED CATALOGUE, WITHOUT ITS PUBLIC ROWS (patch 146).
+ *
+ * Nine portal pages carry `const CAT = [...]` (and the dashboard a FALLBACK)
+ * from the build: 153 public programmes, named, under the same ids the home
+ * page's locked rows use. Anybody could read the page source and unlock the
+ * finder's profile-matched rows without a package. A signed-in student's own
+ * public universities reach these screens from /api/state (their shortlist),
+ * so the page never needed them baked in. Private rows stay: they are free to
+ * browse and apply to.
+ */
+const seedStrip = new Map();
+function withoutPublicSeed(html, file, keys) {
+  let at = 0;
+  try { at = fs.statSync(file).mtimeMs; } catch (e) { /* not cached */ }
+  const hit = seedStrip.get(file);
+  if (hit && hit.at === at) return hit.html;
+  let out = html;
+  for (const key of keys || ['const CAT = [', 'const FALLBACK = [']) {
+    const i = out.indexOf(key);
+    if (i < 0) continue;
+    const j = i + key.length - 1;
+    let depth = 0, k = j, inStr = false;
+    for (; k < out.length; k++) {
+      const ch = out[k];
+      if (inStr) { if (ch === '\\') k++; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === '[' || ch === '{') depth++;
+      else if ((ch === ']' || ch === '}') && --depth === 0) break;
+    }
+    try {
+      const arr = JSON.parse(out.slice(j, k + 1));
+      const kept = arr.filter(p => !(p && (p.isPublic === true || p.is_public === 1 || p.is_public === true)));
+      out = out.slice(0, j) + JSON.stringify(kept) + out.slice(k + 1);
+    } catch (e) { /* leave the page as it is rather than break it */ }
+  }
+  seedStrip.set(file, { at, html: out });
+  return out;
+}
+
 function listedUniversities(country) { return UNIS.group(db.rowsOnSite(country).map(fromRow)); }
 /* Which university pages the office took off search — read once per request
    that needs all of them, rather than one content row per university. */
@@ -2661,9 +2701,25 @@ const server = http.createServer(async (req, res) => {
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return notFound(res);
 
   const ext = path.extname(file).toLowerCase();
+  /* The seed catalogue, with every public programme named against the id the
+     finder's locked rows carry. Search and university pages are free to
+     browse — but this file matched the locked, profile-fitted rows to their
+     names, which is what a package is for (patch 146). Staff only. */
+  if (path.basename(file) === 'catalogue.json' && path.dirname(file) === ROOT) {
+    const who = whoIsIt(req);
+    if (!who || who.role === 'student' || who.role === 'partner') return notFound(res);
+  }
   if (ext === '.html') {
     const slug = path.basename(file, '.html');
     let html = fs.readFileSync(file, 'utf8');
+    /* The portal pages keep their baked list: a signed-in student browsing
+       universities by name is searching, which is free — and since the
+       finder's locked rows carry stand-in ids, nothing in that list can be
+       matched back to them (patch 146). */
+    /* The home page's baked public rows too: the live catalogue brings them
+       back as locked rows with stand-in ids, and the baked ones carried the
+       real ids (patch 146). */
+    if (slug === 'index' && path.dirname(file) === ROOT) html = withoutPublicSeed(html, file, ['"programs": [']);
     if (slug.startsWith('study-in-')) {
       html = withDestinationUniversities(withLiveDestinationFacts(html, slug), slug);
     }
