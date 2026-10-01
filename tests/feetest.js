@@ -105,15 +105,15 @@ const stamp = Date.now();
 
   /* ------------------------------------------------------- the sheet round-trip */
 
-  /* A partnership that lapses: a private university we no longer place for
-     free, so a student needs a package for it. One cell, and the finder has to
-     move the row to the other tab. */
-  const target = rows.find(r => r[iCty] === 'GB' && r[iApp] === 'Free');
-  check('there is a non-German row to change', !!target, target && target[iId]);
+  /* Changed 1 Oct: a private university is always free to apply, so the
+     column is flipped on a PUBLIC row — a public university we start placing
+     without a package. One cell, and the importer has to see it. */
+  const target = rows.find(r => r[iPub] === 'yes' && r[iApp] === 'Package');
+  check('there is a public row to change', !!target, target && target[iId]);
   const sheet = mut => [head].concat(rows.map(r => {
     const c = r.slice(); mut(c); return c;
   })).map(r => r.map(quote).join(',')).join('\n');
-  const flipped = sheet(c => { if (c[iId] === target[iId]) c[iApp] = 'Package'; });
+  const flipped = sheet(c => { if (c[iId] === target[iId]) c[iApp] = 'Free'; });
 
   const upload = async (body, confirm) => {
     const fd = { file: { name: 'catalogue.csv', mimeType: 'text/csv', buffer: Buffer.from(body) } };
@@ -138,12 +138,12 @@ const stamp = Date.now();
 
   const after = await (await admin.request.get(BASE + '/api/staff/catalogue.csv')).text();
   const back = parseCsv(after.replace(/^﻿/, '')).find(r => r[iId] === target[iId]);
-  check('the changed university reads charged afterwards',
-    back[iApp] === 'Package', back[iApp]);
+  check('the changed university reads free afterwards',
+    back[iApp] === 'Free', back[iApp]);
   /* Partnership and constitution are different facts. Changing what applying
      costs must not quietly reclassify a private university as a public one —
      the CGPA rules read that column. */
-  check('and is still a private university', back[iPub] === 'no', back[iPub]);
+  check('and is still a public university', back[iPub] === 'yes', back[iPub]);
 
   /* Put it back, so a second run of this suite starts where the first did. */
   await upload(sheet(() => {}), true);
@@ -519,22 +519,15 @@ const stamp = Date.now();
     free: Number(await np.textContent('#rtnPub')),
     pkg: Number(await np.textContent('#rtnPriv')),
   };
-  check('marking one cell Package moves that university across',
-    afterCounts.pkg === beforeCounts.pkg + 1 && afterCounts.free === beforeCounts.free - 1,
+  /* Changed 1 Oct (Vishal): "all private unis should be free to apply". A
+     private row marked Package on the sheet is a sheet mistake — it stays
+     free and stays on the free-to-apply tab. */
+  check('a private university marked Package stays free to apply',
+    afterCounts.pkg === beforeCounts.pkg && afterCounts.free === beforeCounts.free,
     JSON.stringify(beforeCounts) + ' -> ' + JSON.stringify(afterCounts));
-
-  await np.click('[data-rt="priv"]');
-  await np.waitForTimeout(700);
-  const movedRows = await np.$$eval('.mrow', r => r.map(x => x.innerText));
-  check('and it is the one whose cell we changed',
-    movedRows.length === 1 && movedRows[0].includes(partner[head.indexOf('university')]),
-    movedRows.length + ' rows');
-  /* It is charged now, not hidden. A private university's name was never the
-     thing a package bought, and changing what applying costs must not start
-     blurring it. */
-  check('a charged private university is still readable',
-    (await np.$$('.mrow .masked')).length === 0,
-    (await np.$$('.mrow .masked')).length + ' blurred');
+  const stored = ((await (await admin.request.get(BASE + '/api/catalogue')).json()).programmes || [])
+    .find(x => x.id === partner[iId]);
+  check('  · and its fee model is still free', stored && stored.feeModel === 'free', JSON.stringify(stored || {}).slice(0, 80));
 
   /* Put it back. */
   await upload(sheet(() => {}), true);

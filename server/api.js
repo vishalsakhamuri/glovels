@@ -6924,7 +6924,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          predates it, must not silently start charging for a university we are
          partnered with. Only when nothing is known at all does it fall back
          to the old axis. */
-      feeModel: (b.feeModel === 'free' || b.feeModel === 'package') ? b.feeModel
+      /* Every private university is free to apply (Vishal, 1 Oct): the
+         "Package" ones on the free-to-apply tab were sheet mistakes. Only a
+         public university can come with a package. */
+      feeModel: !b.isPublic ? 'free'
+        : (b.feeModel === 'free' || b.feeModel === 'package') ? b.feeModel
         : ((existing && existing.fee_model) ? existing.fee_model
            : (b.isPublic ? 'package' : 'free')),
       fit: Math.max(0, Math.min(100, Number(b.fit) || 0)),
@@ -8818,7 +8822,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   /* The original page for a slug, if it is still there. Read from disk rather
      than remembered, because that file is what the public actually gets. */
+  /* An original page whose full article is published is redirected to it,
+     not on the site any more (round 30 Sep, issue 4). Same list as serve.js. */
+  const REPLACED = { 'expatrio-vs-fintiba-blocked-account': 'expatrio-vs-fintiba-blocked-account-comparison-2027',
+    'german-universities-free-applications': 'german-public-universities-with-free-applications-no-uni-assist-or-vpd',
+    'german-universities-moi-instead-of-ielts': 'german-public-universities-accepting-moi-without-ielts',
+    'german-universities-lower-cgpa': 'german-public-universities-low-cgpa' };
+  const replaced = sl => { const t = REPLACED[sl]; const q = t && db.postBySlug(t); return !!(q && q.status === 'published'); };
   const onDisk = slug => {
+    if (replaced(String(slug))) return false;
     try {
       return fs.existsSync(path.join(__dirname, '..', 'post', String(slug) + '.html'));
     } catch (e) { return false; }
@@ -8891,7 +8903,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        draft. */
     let files = [];
     try { files = fs.readdirSync(path.join(__dirname, '..', 'post')).filter(f => f.endsWith('.html') && !f.startsWith('_')); } catch (e) {}
-    const stillUp = files.map(f => db.postBySlug(f.slice(0, -5))).filter(p => p && p.status !== 'published').length;
+    const stillUp = files.map(f => db.postBySlug(f.slice(0, -5))).filter(p => p && p.status !== 'published' && !replaced(p.slug)).length;
     stats.live += stillUp; stats.draft -= stillUp;
     return json(res, 200, { posts: pg.rows.map(p => postShape(p, false)),
       total: pg.total, page: pg.page, per: pg.per, stats });

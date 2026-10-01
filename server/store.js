@@ -692,6 +692,9 @@ function sqliteDriver(file) {
       (.txt, .html, a .docx passport) go back for a proper scan. */
    "UPDATE documents SET status = 'rescan' WHERE status = 'ok' AND doc_key NOT LIKE 'app:%' AND NOT (lower(filename) LIKE '%.pdf' OR lower(filename) LIKE '%.jpg' OR lower(filename) LIKE '%.jpeg' OR lower(filename) LIKE '%.png' OR lower(filename) LIKE '%.heic' OR lower(filename) LIKE '%.heif' OR lower(filename) LIKE '%.doc' OR lower(filename) LIKE '%.docx')",
    "UPDATE documents SET status = 'rescan' WHERE status = 'ok' AND (doc_key LIKE 'passport%' OR doc_key LIKE 'photo%') AND (lower(filename) LIKE '%.doc' OR lower(filename) LIKE '%.docx')",
+   /* 1 Oct: every private university is free to apply — 120 rows were marked
+      "Package" by the sheet and sat on the free-to-apply tab badged otherwise. */
+   "UPDATE programmes SET fee_model = 'free' WHERE is_public = 0 AND fee_model <> 'free'",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);

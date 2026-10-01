@@ -852,6 +852,15 @@ function postPage(post, isDraft) {
  * database version wins and the file is never reached again.
  */
 const BLOG_PER = 24;
+/* The original pages and the full articles that replace them (round 30 Sep). */
+const REPLACED_BY = {
+  'expatrio-vs-fintiba-blocked-account': 'expatrio-vs-fintiba-blocked-account-comparison-2027',
+  'german-universities-free-applications': 'german-public-universities-with-free-applications-no-uni-assist-or-vpd',
+  'german-universities-moi-instead-of-ielts': 'german-public-universities-accepting-moi-without-ielts',
+  'german-universities-lower-cgpa': 'german-public-universities-low-cgpa',
+};
+const replacedLive = slug => { const to = REPLACED_BY[slug]; if (!to) return false; const p = db.postBySlug(to); return !!(p && p.status === 'published'); };
+
 function blogList(pageNo) {
   /* A page of the live posts, from the database — ten thousand posts are
      not read, sorted and printed on every visit to /blog. The handful of
@@ -863,7 +872,7 @@ function blogList(pageNo) {
     let files = [];
     try { files = fs.readdirSync(path.join(ROOT, 'post')).filter(f => f.endsWith('.html') && !f.startsWith('_')).map(f => f.slice(0, -5)); } catch (e) {}
     const stillOnDisk = files.filter(sl => !shown.has(sl)).map(sl => db.postBySlug(sl))
-      .filter(p => p && p.status !== 'published');
+      .filter(p => p && p.status !== 'published' && !replacedLive(p.slug));
     posts = posts.concat(stillOnDisk).sort((a, b) =>
       String(b.published_at || b.created_at).localeCompare(String(a.published_at || a.created_at)));
   }
@@ -2548,6 +2557,16 @@ const server = http.createServer(async (req, res) => {
     '/book-online': '/#counsel',
     '/useful-links': '/glossary', '/project': '/success-stories',
   };
+  /* Round 30 Sep (issue 4): an original one-paragraph page hands over to the
+     full article that replaces it — once that article is published. */
+  {
+    const m = /^\/post\/([a-z0-9-]{1,90})(?:\.html)?$/.exec(pathname);
+    const to = m && REPLACED_BY[m[1]];
+    if (to) {
+      const p = db.postBySlug(to);
+      if (p && p.status === 'published') return send(res, 301, '', 'text/html', { Location: '/post/' + to });
+    }
+  }
   if (Object.prototype.hasOwnProperty.call(WIX_MOVED, pathname)) {
     return send(res, 301, '', 'text/html', { Location: WIX_MOVED[pathname] });
   }
