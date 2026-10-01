@@ -3973,7 +3973,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const opts = { kind: /^(public|private)$/.test(String(q.kind || '')) ? q.kind : 'any',
       field: String(q.field || '').trim(), q: String(q.q || '').slice(0, 80),
       ceiling: q.ceiling === undefined || q.ceiling === '' ? undefined : Number(q.ceiling) || 0,
-      limit: Number(q.limit) || 100 };
+      limit: Number(q.limit) || 100,
+      ggpa: q.ggpa, tuitionMax: q.tuitionMax, spec: String(q.spec || '').slice(0, 80) };
     const found = MATCHES.screen(cat, prof, countryMap(), opts);
     /* What the machine would deliver — the same call deliverMatches makes. */
     const auto = (owedParts || []).map(part => {

@@ -175,6 +175,7 @@ run round144test.js 8099
 # Patch 145: what the student agents found — intake, visa, subject, words, the receipt.
 node round145test.js | tail -1 | tee -a "$REPORT"
 node round149test.js | tail -1 | tee -a "$REPORT"
+node round150test.js | tail -1 | tee -a "$REPORT"
 # Patch 146: the match is what a package buys — no id or name leaks from locked rows.
 run round146test.js 8099
 run round147test.js 8099

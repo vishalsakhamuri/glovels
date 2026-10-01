@@ -105,6 +105,10 @@ const PROFILE = { g_country: 'Germany', g_level: "Master's", g_field: 'Computer 
     'the counsellor panel has a GRE filter (taken/not taken + score)');
   ok((await cp.$$eval('#gfEng option', o => o.map(x => x.textContent))).includes('MOI letter'),
     'and MOI letter as an English answer');
+  /* Patch 150 — the home page's filters too. */
+  ok(['#gfGgpa', '#gfTuition', '#gfSpec', '#gfPapers'].every(Boolean) &&
+    (await cp.locator('#fitBox #gfGgpa, #fitBox #gfTuition, #fitBox #gfSpec, #fitBox #gfPapers').count()) === 4,
+    'and German grade, tuition per semester, specialisation and publication');
   /* Fill what the empty profile is missing, then run it. */
   await cp.evaluate((p) => {
     const box = document.querySelector('#fitBox');

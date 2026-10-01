@@ -791,10 +791,17 @@ function promise(pkg) {
  * miss on exactly one thing, which is what a counsellor can do something
  * about (a test score, a bridging semester, a later intake).
  */
+const fold0 = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
 function screen(catalogue, profile, countries, opts) {
   const o = opts || {};
   const w = wants(profile);
   const ceiling = o.ceiling === undefined ? w.ceiling : (Number(o.ceiling) || null);
+  /* Patch 150 — the home page's other filters, same rules as index.html. */
+  const gg = parseFloat(o.ggpa);
+  if (Number.isFinite(gg) && gg >= 1 && gg <= 4) w.german = gg;
+  const tmax = o.tuitionMax === undefined || o.tuitionMax === '' ? null : Number(o.tuitionMax);
+  const spec = fold0(o.spec);
   const words = String(o.q || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean);
   const fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const out = { fits: [], near: [], counts: { looked: 0, fits: 0, near: 0, unknownDates: 0 } };
@@ -805,6 +812,19 @@ function screen(catalogue, profile, countries, opts) {
     if (w.level && String(p.level || '').toLowerCase() !== w.level) continue;
     if (o.field && normField(p.field) !== o.field) continue;
     if (words.length && !words.every(x => fold(p.program + ' ' + p.university + ' ' + p.city).includes(x))) continue;
+    /* No programme has a specialisation filled in yet, so the programme's own
+       name counts too: "Embedded" finds "Embedded Systems". */
+    if (spec && !fold0((p.reqs || {}).specialisation + ' ' + p.program).includes(spec)) continue;
+    /* A stated tuition above the cap. Not stated is not excluded (home page rule). */
+    if (tmax != null && Number.isFinite(tmax)) {
+      const tv = (p.reqs || {}).tuitionEurSem;
+      let t = tv !== undefined && tv !== null && tv !== '' && Number.isFinite(Number(tv)) ? Number(tv) : (Number(p.totalInr) === 0 ? 0 : null);
+      /* Per-semester fee not entered but a total is: a rough per-semester
+         figure (₹95 to the euro, four semesters), so "No tuition fee" does not
+         return a ₹20L private master's. */
+      if (t == null && Number(p.totalInr) > 0) t = Number(p.totalInr) / 95 / 4;
+      if (t != null && t > tmax) continue;
+    }
     const rel = o.field ? 3 : relevance(p, w);
     if (!o.field && w.field && rel < 2) continue;
     out.counts.looked++;

@@ -95,7 +95,8 @@
     el.innerHTML = '<div class="gf">'
       + (o.note ? '<p style="margin:0 0 10px;color:var(--muted,#5d6b7a);font-size:12.4px">' + o.note + '</p>' : '')
       + '<div class="gf-grid">'
-      + '<div><label>Destination</label><input id="gfCountry" value="' + esc(P.g_country || 'Germany') + '"></div>'
+      + '<div><label>Destination</label><input id="gfCountry" list="gfCountries" value="' + esc(P.g_country || 'Germany') + '">'
+      + '<datalist id="gfCountries">' + ['Germany', 'United Kingdom', 'Ireland', 'Canada', 'Italy', 'Poland', 'Spain', 'France', 'Netherlands', 'United States', 'Australia', 'New Zealand'].map(c => '<option value="' + c + '">').join('') + '</datalist></div>'
       + '<div><label>Level</label>' + sel('gfLevel', [["Master's", "Master's"], ['MBA', 'MBA'], ["Bachelor's", "Bachelor's"], ['Foundation', 'Foundation']], lv) + '</div>'
       + '<div><label>Field (exact)</label>' + sel('gfField', [['', 'From their profile']].concat(FIELDS.map(f => [f, f])), '') + '</div>'
       + '<div><label>Their field, in words</label><input id="gfWords" value="' + esc([P.g_field, P.g_field2].filter(Boolean).join(', ')) + '" placeholder="Data Science, AI"></div>'
@@ -103,12 +104,16 @@
       + '<div><label>Public or private</label>' + sel('gfKind', [['any', 'Both'], ['public', 'Public'], ['private', 'Private']], 'any') + '</div>'
       + '<div><label>Budget (total)</label>' + sel('gfBudget', [['', 'From their profile'], ['0', 'No ceiling'], ['1000000', 'Under ₹10L'], ['2000000', 'Under ₹20L'], ['4000000', 'Under ₹40L']], '') + '</div>'
       + '<div><label>Name contains</label><input id="gfQ" placeholder="TUM, Data, Berlin"></div>'
+      + '<div><label>Specialisation</label><input id="gfSpec" placeholder="Embedded Systems"></div>'
+      + '<div><label>Tuition per semester</label>' + sel('gfTuition', [['', 'Any tuition'], ['0', 'No tuition fee'], ['500', 'Up to €500'], ['1500', 'Up to €1,500'], ['4000', 'Up to €4,000'], ['6000', 'Up to €6,000']], '') + '</div>'
       + '<div><label>CGPA · out of · pass</label><div class="gf-row"><input id="gfCgpa" value="' + esc(P.d_cgpa || '') + '" inputmode="decimal"><input id="gfMax" value="' + esc(P.d_max || '10') + '" inputmode="decimal"><input id="gfPass" value="' + esc(P.d_pass || '') + '" inputmode="decimal" placeholder="pass"></div></div>'
       + '<div><label>Their bachelor’s</label><input id="gfBach" value="' + esc(P.d_course || '') + '" placeholder="B.Tech CSE"></div>'
+      + '<div><label>German grade (1.0 best)</label><input id="gfGgpa" inputmode="decimal" placeholder="worked out from CGPA"></div>'
       + '<div><label>Bachelor’s length</label>' + sel('gfDur', [['', 'Not said'], ['3 years', '3 years'], ['4 years', '4 years'], ['5 years', '5 years']], (/(\d)/.exec(P.d_dur || '') || [])[1] ? (/(\d)/.exec(P.d_dur)[1] + ' years') : '') + '</div>'
       + '<div><label>English test · score</label><div class="gf-row">' + sel('gfEng', [['', 'Not said'], ['IELTS', 'IELTS'], ['TOEFL', 'TOEFL'], ['Medium of Instruction letter', 'MOI letter'], ['Not taken yet', 'Not taken']], eng) + '<input id="gfEngS" value="' + esc(P.e_score || '') + '" inputmode="decimal"></div></div>'
       + '<div><label>GRE · score</label><div class="gf-row">' + sel('gfGre', [['', 'Not said'], ['GRE', 'Taken'], ['Not taken yet', 'Not taken']], gre) + '<input id="gfGreS" value="' + esc(gre === 'GRE' ? (P.a_score || '') : '') + '" inputmode="numeric" placeholder="e.g. 315"></div></div>'
       + '<div><label>German level</label>' + sel('gfGer', [['', 'Not said'], ['None yet', 'None'], ['A1', 'A1'], ['A2', 'A2'], ['B1', 'B1'], ['B2', 'B2'], ['C1', 'C1'], ['C2', 'C2']], P.g_german || '') + '</div>'
+      + '<div><label>Published a paper</label>' + sel('gfPapers', [['', 'Not said'], ['Yes', 'Yes'], ['No', 'No']], /^yes/i.test(P.g_papers || '') ? 'Yes' : /^no/i.test(P.g_papers || '') ? 'No' : '') + '</div>'
       + '<div><label>Work experience (months)</label><input id="gfWork" value="' + esc(/^no$/i.test(P.w_has || '') ? '0' : (P.w_months || '')) + '" inputmode="numeric" placeholder="not said"></div>'
       + '</div>'
       + '<p style="margin:10px 0 0"><button type="button" class="btn btn-primary btn-sm" id="gfGo">Find what fits</button>'
@@ -125,6 +130,10 @@
         a_test: v('gfGre'), a_score: v('gfGre') === 'GRE' ? v('gfGreS') : '',
       };
       if (v('gfBudget') !== '') f.ceiling = v('gfBudget');
+      if (v('gfSpec').trim()) f.spec = v('gfSpec').trim();
+      if (v('gfTuition') !== '') f.tuitionMax = v('gfTuition');
+      if (v('gfGgpa').trim()) f.ggpa = v('gfGgpa').trim().replace(',', '.');
+      f.g_papers = v('gfPapers');
       const wk = v('gfWork');
       if (wk !== '') { f.w_has = Number(wk) > 0 ? 'Yes' : 'No'; f.w_months = wk; }
       return f;
