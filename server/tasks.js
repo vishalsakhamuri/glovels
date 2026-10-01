@@ -844,10 +844,55 @@ function activityOf(db, staffId, days, now) {
   };
 }
 
+/*
+ * THE HELD PICKS, AS ONE TASK (patch 153).
+ *
+ * When the matcher delivers a package it puts the clear-cut universities on
+ * the student's list and HOLDS the ones with a special condition — ranked
+ * admission, English cleared only by an MOI letter, an unanswered
+ * requirement — for a person to look at. The student is told they will be
+ * released within 48 hours, and a promise with no task behind it is the
+ * exact kind of promise this file exists to stop the office making.
+ *
+ * One task per student, not one per university: the counsellor opens the
+ * case once and goes down the held rows there. A delivery that runs again
+ * (the student saved their profile) updates the count on the open task
+ * rather than making a second one. Dated two days out from today — not from
+ * the file opening, because the hold happened today.
+ *
+ * Returns the task row, or null when there is nothing held (and the open
+ * task, if any, has been closed).
+ */
+const HELD_KEY = 'held-review';
+function holdReview(db, student, count, now) {
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st) return null;
+  const T = now ? new Date(now).getTime() : Date.now();
+  const open = (db.tasksFor(st.id) || []).find(t => String(t.task_key) === HELD_KEY && !CLOSED.has(String(t.status)));
+  const n = Math.max(0, Number(count) || 0);
+  if (!n) {
+    /* Nothing is held any more — released, dismissed, or re-picked away. */
+    if (open) db.updateTask(open.id, { status: 'done' });
+    return null;
+  }
+  const title = 'Review ' + n + ' held programme' + (n === 1 ? '' : 's') + ' for ' + String(st.name || 'the student');
+  if (open) {
+    if (String(open.title) !== title) db.updateTask(open.id, { title });
+    return db.getTask(open.id);
+  }
+  return db.addTask({
+    studentId: st.id, ownerId: st.counsellor_id ? Number(st.counsellor_id) : null,
+    key: HELD_KEY, title, progId: '',
+    dueAt: plus(new Date(T).toISOString(), 2), basis: 'sla',
+    status: 'open', source: 'auto',
+  });
+}
+
 module.exports = {
   TEMPLATES, STATUSES, CLOSED,
   PHASES, rules, saveRules, ruleSettings, serviceSlaOf, syncTasks, syncAll,
   lateness, isLate, ownerOf,
   progressOf, activityOf, phaseOf, funnel,
   nextDeadline, fileDeadline, dueFor,
+  holdReview, HELD_KEY,
 };

@@ -734,6 +734,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           delivered: got, needsProfile: !usable,
           /* How many universities their CGPA is keeping off the list. */
           cgpaHeld: held,
+          /* Patch 153: how many picks are waiting on a counsellor's review
+             because of a special condition. The count only — the names are
+             what the review decides. */
+          held: typeof db.getHeld === 'function' ? db.getHeld(s.id).length : 0,
         };
       })(),
       /* What is still missing from their own file, named. "Your profile is 62%
@@ -920,8 +924,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     made.items = picks;
     made.note = notes.join(' ');
     const picked = new Set(picks.map(p => String(p.id)));
+    /*
+     * CLEAR-CUT PICKS GO ON THE LIST; THE REST ARE HELD (patch 153).
+     *
+     * A pick "fits" when it fails nothing the student has answered. Three
+     * kinds of fit still want a person before a student is told "apply
+     * here": admission is a ranked competition (NC); English is cleared only
+     * by an MOI letter they have yet to obtain; the programme states a
+     * requirement they have not answered. Those are stored as held rows —
+     * the student sees how many and why in general terms, the counsellor
+     * sees the names and releases them — and one task, due in two days,
+     * stands behind the promise. A university already on the list by
+     * anybody's hand is never demoted to held: being on the list is the
+     * stronger fact.
+     */
+    const heldNow = [];
+    const heldWas = new Set((typeof db.getHeld === 'function' ? db.getHeld(student.id) : []).map(r => String(r.prog_id)));
     picks.forEach(p => {
-      if (!have.has(String(p.id))) out.added++;
+      const id = String(p.id);
+      const reasons = have.has(id) ? [] : MATCHES.holdReasons(p, profile);
+      if (reasons.length) {
+        db.addHeld(student.id, p, reasons.join('; '));
+        heldNow.push(p);
+        return;
+      }
+      if (!have.has(id)) out.added++;
       db.addShortlist(student.id, p, 'matched');
     });
     /* A re-pick REPLACES the machine's earlier picks, it does not pile on
@@ -937,8 +964,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         dropped++;
       }
     });
+    /* And the held rows the same way: one the machine no longer picks is
+       not waiting for anybody's review. */
+    const heldIds = new Set(heldNow.map(p => String(p.id)));
+    let heldChanged = false;
+    (typeof db.getHeld === 'function' ? db.getHeld(student.id) : []).forEach(r => {
+      if (!heldIds.has(String(r.prog_id))) { db.removeShortlist(student.id, r.prog_id); heldChanged = true; }
+    });
+    heldNow.forEach(p => { if (!heldWas.has(String(p.id))) heldChanged = true; });
+    out.held = heldNow.length;
+    try { TASKS.holdReview(db, student, heldNow.length); } catch (e) { /* the hold stands without its task */ }
     out.dropped = dropped;
-    out.delivered = picks.length;
+    out.delivered = picks.length - heldNow.length;
     out.relaxed = made.relaxed;
     out.note = made.note;
     /* How many of the promised places could not be filled, and how many of
@@ -947,10 +984,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     out.short = made.short;
     out.cgpaHeld = made.cgpaHeld;
 
-    if (out.added || dropped) {
+    /* What the student is told about the held ones: the number and the kind
+       of condition, never a name — the name is what the review decides. */
+    const HELD_SAID = n => 'Another ' + n + ' universit' + (n === 1 ? 'y is' : 'ies are')
+      + ' being checked by your counsellor because of special conditions (restricted admission, '
+      + 'English proof) and will be released to your list within 48 hours. ';
+    if (out.added || dropped || heldChanged) {
       db.log('system', 'matches delivered',
         student.email + ' — ' + out.added + ' of ' + owed.count
         + (dropped ? ', ' + dropped + ' earlier pick(s) replaced' : '')
+        + (heldNow.length ? ', ' + heldNow.length + ' held for review' : '')
         + ' (' + (owed.package || 'package') + ')');
       /* And say so, in the thread they will look in. A shortlist that appears
          silently is a shortlist somebody has to be told about on the phone.
@@ -965,7 +1008,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         && (Date.now() - Date.parse(last.created_at)) < 60 * 60 * 1000;
       if (recent && typeof db.deleteMessage === 'function') db.deleteMessage(last.id);
       if (!(opts && opts.quiet) && (!recent || typeof db.deleteMessage === 'function')) {
-        db.addMessage(student.id, 'them', !out.delivered
+        db.addMessage(student.id, 'them', !out.delivered && heldNow.length
+          /* Patch 153: everything picked is waiting on a person. Not "none
+             fit" — they do — and not "on your shortlist now" — they are not. */
+          ? 'Your ' + heldNow.length + ' matched universit' + (heldNow.length === 1 ? 'y is' : 'ies are')
+            + ' being checked by your counsellor before ' + (heldNow.length === 1 ? 'it goes' : 'they go')
+            + ' on your shortlist now — each has a special condition (restricted admission, English proof) '
+            + 'that a person should look at first. They will be released within 48 hours, and this thread '
+            + 'will say so. ' + (made.note ? made.note : '')
+          : !out.delivered
           /* "Your 0 matched universities are on your shortlist now" was what a
              student read after lowering their CGPA. Say what happened. */
           ? 'With the profile you have just saved, none of the universities we match '
@@ -979,7 +1030,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           + ' on your shortlist now — with the fee on each, and the deadline wherever the university publishes one. '
           /* Patch 145: say it when fewer fit than were bought, rather than
              letting "your shortlist is ready" imply the full number. */
-          + (made.short ? 'Only ' + out.delivered + ' of the ' + owed.count + ' places could be filled with '
+          + (heldNow.length ? HELD_SAID(heldNow.length) : '')
+          + (made.short ? 'Only ' + (out.delivered + heldNow.length) + ' of the ' + owed.count + ' places could be filled with '
             + 'universities that genuinely fit you right now; the other ' + made.short
             + ' stay open, and your counsellor will fill them with you rather than pad the list. ' : '')
           + 'They are picked from what you told us about yourself, so if you change '
@@ -2499,7 +2551,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   ];
   const SOURCES = new Set(['website', 'blog', 'chat', 'facebook', 'instagram', 'whatsapp',
     'google', 'bing', 'youtube', 'linkedin', 'x', 'quora', 'reddit', 'phone', 'walk-in',
-    'referral', 'other']);
+    'referral', 'other',
+    /* Patch 153: the finder found nothing for them and they asked a person. */
+    'no-match']);
 
   const paramsOf = u => {
     try { return new URL(u).searchParams; } catch (e) { return new URLSearchParams(); }
@@ -2540,9 +2594,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   }
 
 
-  const enquiry = async (req, res) => {
-    const b = await readJson(req);
+  /* `shape`, when given, rewrites the body before it is validated — the way
+     /api/assist turns a finder's filter set into an enquiry (patch 153). One
+     validator, one rate limit, one record shape for every form on the site. */
+  const enquiry = async (req, res, shape) => {
+    let b = await readJson(req);
     if (b.website) return json(res, 200, { ok: true });          // honeypot
+    if (typeof shape === 'function') b = shape(b) || b;
     /* Six an hour from one address. A real person sending a second enquiry
        because they forgot to mention their intake is normal; a seventh in the
        same hour is not a person. */
@@ -2593,6 +2651,39 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   };
   route('POST', '/api/enquiries', enquiry, { open: true });
   route('POST', '/send.php', enquiry, { open: true });     // the live host's path
+
+  /*
+   * NOTHING MATCHED, SO A PERSON WILL LOOK (patch 153).
+   *
+   * The finder on the home page can now say no — a profile that no
+   * programme in the catalogue fits gets an empty list rather than a padded
+   * one — and an empty list with nothing under it is where a visitor leaves.
+   * The form under it is this: name, phone, email, a line if they want, and
+   * the filters they had set, so the counsellor who rings them knows what
+   * was asked for without asking again. It is an enquiry like any other,
+   * through the same validator and the same six-an-hour limit, filed under
+   * its own source so the Leads screen can count how often the catalogue
+   * comes up empty — which is a number the office wants.
+   */
+  const filterSummary = f => {
+    const o = f && typeof f === 'object' ? f : {};
+    return Object.keys(o).slice(0, 24).map(k => {
+      const v = Array.isArray(o[k]) ? o[k].join('/') : o[k];
+      if (v === undefined || v === null || v === '' || v === false) return '';
+      return String(k).replace(/[^\w .-]/g, '').slice(0, 24) + ': ' + String(v).replace(/\s+/g, ' ').slice(0, 60);
+    }).filter(Boolean).join('; ').slice(0, 300);
+  };
+  route('POST', '/api/assist', (req, res) => enquiry(req, res, b => {
+    const filters = filterSummary(b.filters);
+    const said = String(b.note || b.message || '').trim().slice(0, 200);
+    return Object.assign({}, b, {
+      source: 'no-match',
+      destination: b.country || b.destination || (b.filters && b.filters.country) || '',
+      note: 'Special assistance — no programme matched',
+      message: [filters ? 'Looked for: ' + filters : '', said].filter(Boolean).join(' — '),
+      consent: String(b.consent || '').toLowerCase() === 'yes' ? 'yes' : b.consent,
+    });
+  }), { open: true });
 
   /* Drafts as the portal shows them: the stored JSON parsed back, newest first,
      capped at what a screen can sensibly list. */
@@ -3918,6 +4009,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       counsellor: c ? { id: c.id, name: c.name } : null,
       profile: db.getProfile(id),
       shortlist: stateFor(st).shortlist,
+      /* Patch 153: the machine's picks waiting on this counsellor, with the
+         reason each is waiting. The student's own payload never carries
+         these — their screen gets a count. */
+      held: heldOf(id),
       apps: stateFor(st).apps,
       /* The submission confirmations and decision letters, in their own basket
          and NOT in `docs` below — that list is the student's own checklist and
@@ -4041,7 +4136,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * only — nothing is saved to their file.
    */
   const FIT_KEYS = ['g_country', 'g_level', 'g_field', 'g_field2', 'g_intake', 'b_total', 'e_test', 'e_score',
-    'g_german', 'w_has', 'w_months', 'd_course', 'd_dur', 'd_cgpa', 'd_max', 'd_pass', 'a_test', 'a_score', 'g_papers'];
+    'g_german', 'w_has', 'w_months', 'd_course', 'd_dur', 'd_cgpa', 'd_max', 'd_pass', 'a_test', 'a_score', 'g_papers',
+    /* Patch 153: the second English and aptitude tests, the GRE by section,
+       the bachelor's in ECTS, class rank, and whether ranked admission is
+       acceptable — every answer the home page's finder can now take. */
+    'e2_test', 'e2_score', 'a2_test', 'a2_score', 'a_quant', 'a_verbal', 'a_awa', 'd_ects', 'd_top', 'g_restricted', 'g_field3'];
   const fitRun = (profile, q, owedParts) => {
     const prof = Object.assign({}, profile || {});
     FIT_KEYS.forEach(k => { if (q[k] !== undefined) prof[k] = String(q[k]); });
@@ -4050,7 +4149,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       field: String(q.field || '').trim(), q: String(q.q || '').slice(0, 80),
       ceiling: q.ceiling === undefined || q.ceiling === '' ? undefined : Number(q.ceiling) || 0,
       limit: Number(q.limit) || 100,
-      ggpa: q.ggpa, tuitionMax: q.tuitionMax, spec: String(q.spec || '').slice(0, 80) };
+      ggpa: q.ggpa, tuitionMax: q.tuitionMax, spec: String(q.spec || '').slice(0, 80),
+      feeModel: String(q.feeModel || ''), restricted: String(q.restricted || '') };
     const found = MATCHES.screen(cat, prof, countryMap(), opts);
     /* What the machine would deliver — the same call deliverMatches makes. */
     const auto = (owedParts || []).map(part => {
@@ -4070,9 +4170,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!st) return json(res, 404, { error: 'No such student' });
     const q = url.parse(req.url, true).query || {};
     const owed = matchEntitlement(st);
+    /* Nothing bought: the counts the packages on sale promise, so the test
+       says what a purchase would deliver (patch 153). 3/10 only when the
+       content has no packages at all. */
     const parts = owed.parts && owed.parts.length ? owed.parts
-      : [{ kind: 'public', count: 3, package: 'Public University Unlock (not bought)' },
-         { kind: 'private', count: 10, package: 'Private shortlist of 10 (not bought)' }];
+      : MATCHES.partsFor(content).map(p => Object.assign(p, {
+          package: (p.kind === 'public' ? 'Public University Unlock' : 'Private shortlist of ' + p.count) + ' (not bought)' }));
     const out = fitRun(db.getProfile(id), q, parts);
     out.bought = !!(owed.parts && owed.parts.length);
     out.onList = db.getShortlist(id).map(r => String(r.prog_id));
@@ -4085,8 +4188,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('POST', '/api/staff/fit', staffOnly(async (req, res) => {
     const b = await readJson(req);
     const q = Object.assign({}, b.filters || {});
-    const parts = [{ kind: 'public', count: Number(b.publicCount) || 3, package: 'Public University Unlock' },
-      { kind: 'private', count: Number(b.privateCount) || 10, package: 'Private shortlist of 10' }];
+    const sold = MATCHES.partsFor(content);
+    const parts = [{ kind: 'public', count: Number(b.publicCount) || sold[0].count, package: 'Public University Unlock' },
+      { kind: 'private', count: Number(b.privateCount) || sold[1].count, package: 'Private shortlist of ' + (Number(b.privateCount) || sold[1].count) }];
     return json(res, 200, fitRun(b.profile || {}, q, parts));
   }));
 
@@ -4099,6 +4203,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
       const progId = decodeURIComponent(m[2]);
       const row = db.getShortlist(id).find(x => String(x.prog_id) === progId);
+      /* Patch 153: a HELD pick dismissed here was never on the student's
+         list, so there is nothing to tell them — it goes, it stays gone
+         (dismissed), and the review task closes when it was the last one. */
+      const heldRow = !row && typeof db.getHeld === 'function'
+        ? db.getHeld(id).find(x => String(x.prog_id) === progId) : null;
       db.removeShortlist(id, progId);
       /* The application goes with it. A tracker for a university nobody is
          applying to any more is a row that will be wrong forever. */
@@ -4111,8 +4220,46 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         db.addMessage(id, 'them', 'I have taken ' + progSaid(row)
           + ' off your list.', '', s.name);
         live.toStudent(id, 'shortlist', {});
+      } else if (heldRow) {
+        db.log(s.name, 'dismissed a held pick', st.name + ' — ' + (heldRow.university || progId));
+        try { TASKS.holdReview(db, st, db.getHeld(id).length); } catch (e) {}
       }
-      return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
+      return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps, held: heldOf(id) });
+    }));
+
+  /*
+   * THE COUNSELLOR HAS LOOKED: a held pick goes on the student's list
+   * (patch 153). It becomes a machine pick — 'matched', the same as the
+   * clear-cut ones — because that is what it was; the hold was a pause, not
+   * a different kind of row. The student is told in the thread, with the
+   * condition it was held for, so "restricted admission" is a thing they
+   * have read before the counsellor rings. The review task closes with the
+   * last one.
+   */
+  const heldOf = id => (typeof db.getHeld === 'function' ? db.getHeld(id) : []).map(r => ({
+    id: r.prog_id, program: r.program, university: r.university, city: r.city,
+    country: r.country, totalInr: r.total_inr, isPublic: !!r.is_public, url: r.url,
+    reason: String(r.hold_reason || ''), heldAt: r.added_at,
+  }));
+  route('POST', /^\/api\/staff\/student\/(\d+)\/shortlist\/(.+)\/release$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const st = db.studentById(id);
+      if (!st) return json(res, 404, { error: 'No such student' });
+      const progId = decodeURIComponent(m[2]);
+      const was = typeof db.getHeld === 'function' ? db.getHeld(id).find(x => String(x.prog_id) === progId) : null;
+      if (!was) return json(res, 404, { error: 'That programme is not being held for review' });
+      const row = db.releaseHeld(id, progId);
+      db.log(s.name, 'released a held pick', st.name + ' — ' + (was.university || progId)
+        + (was.hold_reason ? ' (' + was.hold_reason + ')' : ''));
+      db.addMessage(id, 'them', 'I have looked at ' + progSaid(row || was) + ' and it is on your list now.'
+        + (was.hold_reason ? ' Worth knowing: ' + String(was.hold_reason) + '.' : ''),
+        '', s.name);
+      try { TASKS.syncTasks(db, st); } catch (e) {}
+      try { TASKS.holdReview(db, st, db.getHeld(id).length); } catch (e) {}
+      live.toStudent(id, 'shortlist', {});
+      return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps, held: heldOf(id) });
     }));
 
   /*

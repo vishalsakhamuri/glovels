@@ -24,15 +24,24 @@
  */
 (function () {
   'use strict';
-  const FIELDS = ['Aerospace & Robotics', 'Agriculture & Food Science', 'Animation, Film & Game Design', 'Arts & Design',
-    'Biotechnology & Bioinformatics', 'Business & Management', 'Computer Science & IT', 'Cybersecurity & Cloud',
-    'Data Science, AI & Machine Learning', 'Economics', 'Education & Teaching', 'Electrical & Electronics Engineering',
-    'Environmental Science & Sustainability', 'Fashion & Luxury Management', 'Finance, Banking & Accounting',
-    'Hospitality, Tourism & Events', 'Humanities & Languages', 'International Relations & Public Policy',
-    'Law & Legal Studies', 'MBA', 'Marketing & Digital Media', 'Mechanical & Automotive Engineering',
-    'Media & Communication', 'Medicine, Dentistry & Allied Health', 'Natural Sciences (Physics, Chemistry, Maths)',
-    'Psychology', 'Public Health & Healthcare Management', 'Renewable Energy', 'Social Sciences & Social Work',
-    'Sport & Exercise Science'];
+  /* The same field names the home page's dropdown offers (patch 153 added the
+   * seventeen engineering, health, science and business ones), kept
+   * alphabetical so a counsellor finds them where they expect. */
+  const FIELDS = ['Aerospace & Robotics', 'Agriculture & Food Science', 'Animation, Film & Game Design',
+    'Architecture, Urban Planning & Built Environment', 'Arts & Design', 'Biomedical Engineering',
+    'Biotechnology & Bioinformatics', 'Business & Management', 'Chemical & Process Engineering',
+    'Civil & Construction Engineering', 'Computer Science & IT', 'Cybersecurity & Cloud',
+    'Data Science, AI & Machine Learning', 'Earth Sciences & Geology', 'Economics', 'Education & Teaching',
+    'Electrical & Electronics Engineering', 'Environmental Science & Sustainability', 'Fashion & Luxury Management',
+    'Finance, Banking & Accounting', 'Hospitality, Tourism & Events', 'Humanities & Languages',
+    'Industrial & Manufacturing Engineering', 'International Relations & Public Policy', 'Law & Legal Studies',
+    'MBA', 'Marine & Naval Engineering', 'Marketing & Digital Media', 'Materials Science & Engineering',
+    'Mathematics, Statistics & Actuarial Science', 'Mechanical & Automotive Engineering', 'Mechatronics, Robotics & Automation',
+    'Media & Communication', 'Medicine, Dentistry & Allied Health', 'Mining, Petroleum & Energy Engineering',
+    'Natural Sciences (Physics, Chemistry, Maths)', 'Nursing & Allied Health Sciences', 'Pharmacy & Pharmaceutical Sciences',
+    'Psychology', 'Public Health & Healthcare Management', 'Real Estate & Property Management', 'Renewable Energy',
+    'Social Sciences & Social Work', 'Sport & Exercise Science', 'Supply Chain, Logistics & Operations',
+    'Veterinary & Animal Sciences'];
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const lakh = n => n ? '₹' + (n / 100000).toFixed(n % 100000 ? 1 : 0) + 'L' : '₹0 tuition';
 
@@ -112,6 +121,18 @@
       + '<div><label>Bachelor’s length</label>' + sel('gfDur', [['', 'Not said'], ['3 years', '3 years'], ['4 years', '4 years'], ['5 years', '5 years']], (/(\d)/.exec(P.d_dur || '') || [])[1] ? (/(\d)/.exec(P.d_dur)[1] + ' years') : '') + '</div>'
       + '<div><label>English test · score</label><div class="gf-row">' + sel('gfEng', [['', 'Not said'], ['IELTS', 'IELTS'], ['TOEFL', 'TOEFL'], ['Medium of Instruction letter', 'MOI letter'], ['Not taken yet', 'Not taken']], eng) + '<input id="gfEngS" value="' + esc(P.e_score || '') + '" inputmode="decimal"></div></div>'
       + '<div><label>GRE · score</label><div class="gf-row">' + sel('gfGre', [['', 'Not said'], ['GRE', 'Taken'], ['Not taken yet', 'Not taken']], gre) + '<input id="gfGreS" value="' + esc(gre === 'GRE' ? (P.a_score || '') : '') + '" inputmode="numeric" placeholder="e.g. 315"></div></div>'
+      /* Patch 153 — the home page's "More filters" controls, so the counsellor
+       * can test exactly what a student would see. The GRE section row only
+       * appears once a GRE score is typed (a section score without a total is
+       * a question the server would not ask). */
+      + '<div id="gfGreSecWrap"' + (gre === 'GRE' && P.a_score ? '' : ' hidden') + '><label>GRE quant · verbal · AWA</label><div class="gf-row">'
+      + '<input id="gfGreQ" value="' + esc(P.a_quant || '') + '" inputmode="numeric" placeholder="Q">'
+      + '<input id="gfGreV" value="' + esc(P.a_verbal || '') + '" inputmode="numeric" placeholder="V">'
+      + '<input id="gfGreA" value="' + esc(P.a_awa || '') + '" inputmode="decimal" placeholder="AWA"></div></div>'
+      + '<div><label>Bachelor’s ECTS</label>' + sel('gfEcts', [['', 'Not said'], ['180', '180 (3-year)'], ['210', '210'], ['240', '240 (4-year)']], P.d_ects || '') + '</div>'
+      + '<div><label>Class rank</label>' + sel('gfTop', [['', 'Not said'], ['5', 'Top 5%'], ['10', 'Top 10%'], ['20', 'Top 20%'], ['30', 'Top 30%'], ['50', 'Top 50%'], ['100', 'Below 50%']], P.d_top || '') + '</div>'
+      + '<div><label>Restricted admission</label>' + sel('gfRestricted', [['', 'Show all'], ['open', 'Only open admission'], ['restricted', 'Only restricted']], /^no$/i.test(P.g_restricted || '') ? 'open' : '') + '</div>'
+      + '<div><label>Application fee</label>' + sel('gfFee', [['', 'Any application'], ['free', 'Free to apply'], ['package', 'Comes with a package']], '') + '</div>'
       + '<div><label>German level</label>' + sel('gfGer', [['', 'Not said'], ['None yet', 'None'], ['A1', 'A1'], ['A2', 'A2'], ['B1', 'B1'], ['B2', 'B2'], ['C1', 'C1'], ['C2', 'C2']], P.g_german || '') + '</div>'
       + '<div><label>Published a paper</label>' + sel('gfPapers', [['', 'Not said'], ['Yes', 'Yes'], ['No', 'No']], /^yes/i.test(P.g_papers || '') ? 'Yes' : /^no/i.test(P.g_papers || '') ? 'No' : '') + '</div>'
       + '<div><label>Work experience (months)</label><input id="gfWork" value="' + esc(/^no$/i.test(P.w_has || '') ? '0' : (P.w_months || '')) + '" inputmode="numeric" placeholder="not said"></div>'
@@ -136,13 +157,61 @@
       f.g_papers = v('gfPapers');
       const wk = v('gfWork');
       if (wk !== '') { f.w_has = Number(wk) > 0 ? 'Yes' : 'No'; f.w_months = wk; }
+      /* Patch 153 — the section scores travel only with a GRE total, the way
+       * the home page sends them; the rest are the student's profile keys the
+       * matcher reads (answersOf) plus the two screen-side filters. "Only open
+       * admission" is both: the server drops restricted rows (restricted='no')
+       * and the student is marked as not accepting them (g_restricted='no'). */
+      const gre = v('gfGre') === 'GRE';
+      f.a_quant = gre ? v('gfGreQ').trim() : '';
+      f.a_verbal = gre ? v('gfGreV').trim() : '';
+      f.a_awa = gre ? v('gfGreA').trim().replace(',', '.') : '';
+      f.d_ects = v('gfEcts');
+      f.d_top = v('gfTop');
+      const rs = v('gfRestricted');
+      f.g_restricted = rs === 'open' ? 'no' : '';
+      f.restricted = rs === 'open' ? 'no' : rs === 'restricted' ? 'yes' : '';
+      f.feeModel = v('gfFee');
+      f.limit = 500;
       return f;
     };
-    const item = (r, onList, canAdd) => '<li><div class="m"><b>' + esc(r.university) + '</b>'
-      + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + esc(r.city || '') + ' · ' + lakh(r.totalInr)
+    /* The GRE section row has nothing to say until there is a GRE score. */
+    const greSections = () => {
+      const w = el.querySelector('#gfGreSecWrap');
+      if (w) w.hidden = !(v('gfGre') === 'GRE' && v('gfGreS').trim() !== '');
+    };
+    el.addEventListener('input', e => { if (e.target.closest('#gfGre, #gfGreS')) greSections(); });
+    el.addEventListener('change', e => { if (e.target.closest('#gfGre, #gfGreS')) greSections(); });
+
+    /* Patch 153 (K) — one muted line of the special conditions a counsellor
+     * must know about before promising a place: "Restrictions: No" when the
+     * row is clear-cut, otherwise the conditions in plain words. Built from
+     * what the server says about this row — the restricted flag, the notes
+     * from check() and the unknowns it would ask the student. */
+    const restrictions = r => {
+      const out = [];
+      if (r.restricted) out.push('restricted admission (ranked, limited places)');
+      (r.notes || []).forEach(n => {
+        if (/moi/i.test(n)) out.push('English accepted via MOI letter');
+        else if (!/restricted/i.test(n)) out.push(String(n));
+      });
+      const reqs = r.reqs || {};
+      (r.ask || []).forEach(a => {
+        if (/gre section/i.test(a)) out.push('GRE section scores needed');
+        else if (/class rank/i.test(a) && reqs.topPercent) out.push('class rank top ' + reqs.topPercent + '% required');
+        else out.push('tell us your ' + a + ' to confirm');
+      });
+      return out.length ? out.join(', ') : 'No';
+    };
+    const feeOf = r => (r.feeModel || (r.isPublic ? 'package' : 'free')) === 'free' ? 'Free to apply' : 'With a package';
+    const item = (r, onList, canAdd) => '<li><div class="m"><b>' + esc(r.university)
+      + (r.restricted ? ' <span class="tag">Restricted</span>' : '') + '</b>'
+      + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + lakh(r.totalInr)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
       + (r.why && r.why.length ? '<small class="why">' + esc(r.why.join('; ')) + '</small>' : '')
       + (r.ask && r.ask.length ? '<small class="ask">Not known yet: ' + esc(r.ask.join(', ')) + '</small>' : '')
+      + (r.notes && r.notes.length ? '<small>' + esc(r.notes.join(' · ')) + '</small>' : '')
+      + '<small>Restrictions: ' + esc(restrictions(r)) + '</small>'
       + '</div>' + (onList.has(String(r.id)) ? '<span class="tag">on their list</span>'
         : canAdd ? '<button type="button" class="btn btn-ghost btn-sm" data-gfadd="' + esc(r.id) + '">Add</button>' : '')
       + '</li>';

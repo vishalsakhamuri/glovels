@@ -270,6 +270,10 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .mverdict.ok{background:#eaf4ee;color:#186139}
 .mverdict.unknown{background:var(--cream);color:var(--muted);border:1px dashed #cfd6de}
 .masks{font-size:11.6px;color:var(--muted);margin-top:3px;white-space:normal;line-height:1.45}
+.mrestr{font-size:11.4px;color:var(--muted);margin-top:3px;white-space:normal;line-height:1.45}
+.mrestr b{font-weight:700;color:inherit}
+.mtag{display:inline-block;margin:4px 6px 0 0;padding:2px 8px;border-radius:999px;background:#fbf3e0;color:#8a6a1f;
+  font:700 10.6px/1.5 var(--sans);letter-spacing:.2px;vertical-align:middle}
 .need{display:flex;align-items:center;gap:18px;background:#fff;border:1.5px solid #c9a24b;border-radius:14px;
   padding:16px 18px;margin:0 0 14px}
 .need-ring{flex:none;width:64px;height:64px;position:relative}
@@ -1307,11 +1311,11 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 
 <div class="finder-zone">
   <div class="finder">
-    <div class="fgrid"><div class="field"><label for="fCountry"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Country</label><select id="fCountry"><option value="">Any destination</option><optgroup label="UK &amp; North America"><option value="CA">🇨🇦 Canada (1)</option><option value="GB">🇬🇧 United Kingdom (4)</option></optgroup><optgroup label="Europe - public university routes"><option value="DE">🇩🇪 Germany (158)</option><option value="IE">🇮🇪 Ireland (2)</option><option value="IT">🇮🇹 Italy (1)</option><option value="PL">🇵🇱 Poland (3)</option><option value="ES">🇪🇸 Spain (2)</option></optgroup></select></div><div class="field"><label for="fLevel"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Study level</label><select id="fLevel"><option value="">Any level</option><option value="bachelor">Bachelor's (1)</option><option value="diploma">Diploma / PG Diploma (1)</option><option value="foundation">Foundation / Pathway (1)</option><option value="master">Master's (164)</option><option value="mba">MBA (4)</option></select></div><div class="field"><label for="fField"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Field</label><select id="fField"><option value="">Any field</option><optgroup label="Arts, Design &amp; Media"><option value="Animation, Film &amp; Game Design">Animation, Film &amp; Game Design (1)</option><option value="Arts &amp; Design">Arts &amp; Design (1)</option><option value="Fashion &amp; Luxury Management">Fashion &amp; Luxury Management (1)</option><option value="Media &amp; Communication">Media &amp; Communication (9)</option></optgroup><optgroup label="Business &amp; Management"><option value="Business &amp; Management">Business &amp; Management (18)</option><option value="Finance, Banking &amp; Accounting">Finance, Banking &amp; Accounting (2)</option><option value="Hospitality, Tourism &amp; Events">Hospitality, Tourism &amp; Events (2)</option><option value="MBA">MBA (2)</option><option value="Marketing &amp; Digital Media">Marketing &amp; Digital Media (1)</option></optgroup><optgroup label="Engineering &amp; Technology"><option value="Aerospace &amp; Robotics">Aerospace &amp; Robotics (6)</option><option value="Computer Science &amp; IT">Computer Science &amp; IT (20)</option><option value="Cybersecurity &amp; Cloud">Cybersecurity &amp; Cloud (3)</option><option value="Data Science, AI &amp; Machine Learning">Data Science, AI &amp; Machine Learning (23)</option><option value="Electrical &amp; Electronics Engineering">Electrical &amp; Electronics Engineering (12)</option><option value="Mechanical &amp; Automotive Engineering">Mechanical &amp; Automotive Engineering (13)</option></optgroup><optgroup label="Health &amp; Life Sciences"><option value="Biotechnology &amp; Bioinformatics">Biotechnology &amp; Bioinformatics (14)</option><option value="Medicine, Dentistry &amp; Allied Health">Medicine, Dentistry &amp; Allied Health (2)</option><option value="Public Health &amp; Healthcare Management">Public Health &amp; Healthcare Management (2)</option></optgroup><optgroup label="Law, Social Sciences &amp; Education"><option value="Economics">Economics (8)</option><option value="International Relations &amp; Public Policy">International Relations &amp; Public Policy (2)</option></optgroup><optgroup label="Sciences &amp; Environment"><option value="Agriculture &amp; Food Science">Agriculture &amp; Food Science (1)</option><option value="Environmental Science &amp; Sustainability">Environmental Science &amp; Sustainability (7)</option><option value="Natural Sciences (Physics, Chemistry, Maths)">Natural Sciences (Physics, Chemistry, Maths) (14)</option><option value="Renewable Energy">Renewable Energy (7)</option></optgroup></select></div><div class="field" id="fGgpaWrap" hidden><label for="fGgpa"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your German grade<button class="linkish" id="openGg" type="button" style="margin-left:auto">Work it out</button></label><select id="fGgpa"><option value="">Any grade</option><option value="1.5">1.0 &ndash; 1.5 (excellent)</option><option value="2.0">1.6 &ndash; 2.0 (very good)</option><option value="2.5">2.1 &ndash; 2.5 (good)</option><option value="3.0">2.6 &ndash; 3.0 (satisfactory)</option><option value="3.5">3.1 &ndash; 3.5 (sufficient)</option><option value="4.0">3.6 &ndash; 4.0 (pass)</option></select></div><div class="field" id="fCgpaWrap"><label for="fCgpa"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your CGPA<button class="linkish" id="openCgpa" type="button" style="margin-left:auto">Convert %</button></label><select id="fCgpa"><option value="">Any CGPA</option><option value="9.5">9.0 – 10.0</option><option value="8.5">8.0 – 8.9</option><option value="7.5">7.5 – 7.9</option><option value="7.2">7.0 – 7.4</option><option value="6.5">6.0 – 6.9</option><option value="5.5">below 6.0</option></select></div><div class="field" id="fSpecWrap" hidden><label for="fSpec"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Specialisation</label><select id="fSpec"><option value="">Any specialisation</option></select></div><div class="field" id="fIntakeWrap"><label for="fIntake"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Intake</label><select id="fIntake"><option value="">Any intake</option><option value="summer-2026">Summer 2026 (67)</option><option value="winter-2026">Winter 2026 (109)</option><option value="summer-2027">Summer 2027 (25)</option><option value="winter-2027">Winter 2027 (52)</option></select></div>
-      <div class="field" id="fEnglishWrap"><label for="fEnglish"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> IELTS / TOEFL</label><select id="fEnglish"><option value="">Not told us yet</option><optgroup label="IELTS overall"><option value="ielts:5.5">IELTS 5.5</option><option value="ielts:6">IELTS 6.0</option><option value="ielts:6.5">IELTS 6.5</option><option value="ielts:7">IELTS 7.0</option><option value="ielts:7.5">IELTS 7.5 or more</option></optgroup><optgroup label="TOEFL iBT"><option value="toefl:72">TOEFL 72</option><option value="toefl:80">TOEFL 80</option><option value="toefl:88">TOEFL 88</option><option value="toefl:95">TOEFL 95</option><option value="toefl:100">TOEFL 100 or more</option></optgroup><option value="none">Not taken yet</option></select></div><div class="field" id="fWorkWrap"><label for="fWork"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Work experience</label><select id="fWork"><option value="">Not told us yet</option><option value="0">None</option><option value="6">Under a year</option><option value="12">1 &ndash; 2 years</option><option value="24">2 &ndash; 3 years</option><option value="36">3 years or more</option></select></div>
+    <div class="fgrid"><div class="field"><label for="fCountry"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Country</label><select id="fCountry"><option value="">Any destination</option><optgroup label="UK &amp; North America"><option value="CA">🇨🇦 Canada (1)</option><option value="GB">🇬🇧 United Kingdom (4)</option></optgroup><optgroup label="Europe - public university routes"><option value="DE">🇩🇪 Germany (158)</option><option value="IE">🇮🇪 Ireland (2)</option><option value="IT">🇮🇹 Italy (1)</option><option value="PL">🇵🇱 Poland (3)</option><option value="ES">🇪🇸 Spain (2)</option></optgroup></select></div><div class="field"><label for="fLevel"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Study level</label><select id="fLevel"><option value="">Any level</option><option value="bachelor">Bachelor's (1)</option><option value="diploma">Diploma / PG Diploma (1)</option><option value="foundation">Foundation / Pathway (1)</option><option value="master">Master's (164)</option><option value="mba">MBA (4)</option></select></div><div class="field"><label for="fField"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Field</label><select id="fField"><option value="">Any field</option><optgroup label="Arts, Design &amp; Media"><option value="Animation, Film &amp; Game Design">Animation, Film &amp; Game Design (1)</option><option value="Architecture, Urban Planning &amp; Built Environment">Architecture, Urban Planning &amp; Built Environment (0)</option><option value="Arts &amp; Design">Arts &amp; Design (1)</option><option value="Fashion &amp; Luxury Management">Fashion &amp; Luxury Management (1)</option><option value="Media &amp; Communication">Media &amp; Communication (9)</option></optgroup><optgroup label="Business &amp; Management"><option value="Business &amp; Management">Business &amp; Management (18)</option><option value="Finance, Banking &amp; Accounting">Finance, Banking &amp; Accounting (2)</option><option value="Hospitality, Tourism &amp; Events">Hospitality, Tourism &amp; Events (2)</option><option value="MBA">MBA (2)</option><option value="Marketing &amp; Digital Media">Marketing &amp; Digital Media (1)</option><option value="Real Estate &amp; Property Management">Real Estate &amp; Property Management (0)</option><option value="Supply Chain, Logistics &amp; Operations">Supply Chain, Logistics &amp; Operations (0)</option></optgroup><optgroup label="Engineering &amp; Technology"><option value="Aerospace &amp; Robotics">Aerospace &amp; Robotics (6)</option><option value="Chemical &amp; Process Engineering">Chemical &amp; Process Engineering (0)</option><option value="Civil &amp; Construction Engineering">Civil &amp; Construction Engineering (0)</option><option value="Computer Science &amp; IT">Computer Science &amp; IT (20)</option><option value="Cybersecurity &amp; Cloud">Cybersecurity &amp; Cloud (3)</option><option value="Data Science, AI &amp; Machine Learning">Data Science, AI &amp; Machine Learning (23)</option><option value="Electrical &amp; Electronics Engineering">Electrical &amp; Electronics Engineering (12)</option><option value="Industrial &amp; Manufacturing Engineering">Industrial &amp; Manufacturing Engineering (0)</option><option value="Marine &amp; Naval Engineering">Marine &amp; Naval Engineering (0)</option><option value="Materials Science &amp; Engineering">Materials Science &amp; Engineering (0)</option><option value="Mechanical &amp; Automotive Engineering">Mechanical &amp; Automotive Engineering (13)</option><option value="Mechatronics, Robotics &amp; Automation">Mechatronics, Robotics &amp; Automation (0)</option><option value="Mining, Petroleum &amp; Energy Engineering">Mining, Petroleum &amp; Energy Engineering (0)</option></optgroup><optgroup label="Health &amp; Life Sciences"><option value="Biomedical Engineering">Biomedical Engineering (0)</option><option value="Biotechnology &amp; Bioinformatics">Biotechnology &amp; Bioinformatics (14)</option><option value="Medicine, Dentistry &amp; Allied Health">Medicine, Dentistry &amp; Allied Health (2)</option><option value="Nursing &amp; Allied Health Sciences">Nursing &amp; Allied Health Sciences (0)</option><option value="Pharmacy &amp; Pharmaceutical Sciences">Pharmacy &amp; Pharmaceutical Sciences (0)</option><option value="Public Health &amp; Healthcare Management">Public Health &amp; Healthcare Management (2)</option><option value="Veterinary &amp; Animal Sciences">Veterinary &amp; Animal Sciences (0)</option></optgroup><optgroup label="Law, Social Sciences &amp; Education"><option value="Economics">Economics (8)</option><option value="International Relations &amp; Public Policy">International Relations &amp; Public Policy (2)</option></optgroup><optgroup label="Sciences &amp; Environment"><option value="Agriculture &amp; Food Science">Agriculture &amp; Food Science (1)</option><option value="Earth Sciences &amp; Geology">Earth Sciences &amp; Geology (0)</option><option value="Environmental Science &amp; Sustainability">Environmental Science &amp; Sustainability (7)</option><option value="Mathematics, Statistics &amp; Actuarial Science">Mathematics, Statistics &amp; Actuarial Science (0)</option><option value="Natural Sciences (Physics, Chemistry, Maths)">Natural Sciences (Physics, Chemistry, Maths) (14)</option><option value="Renewable Energy">Renewable Energy (7)</option></optgroup></select></div><div class="field" id="fGgpaWrap" hidden><label for="fGgpa"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your German grade<button class="linkish" id="openGg" type="button" style="margin-left:auto">Work it out</button></label><select id="fGgpa"><option value="">Any grade</option><option value="1.5">1.0 &ndash; 1.5 (excellent)</option><option value="2.0">1.6 &ndash; 2.0 (very good)</option><option value="2.5">2.1 &ndash; 2.5 (good)</option><option value="3.0">2.6 &ndash; 3.0 (satisfactory)</option><option value="3.5">3.1 &ndash; 3.5 (sufficient)</option><option value="4.0">3.6 &ndash; 4.0 (pass)</option></select></div><div class="field" id="fCgpaWrap"><label for="fCgpa"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your CGPA<button class="linkish" id="openCgpa" type="button" style="margin-left:auto">Convert %</button></label><select id="fCgpa"><option value="">Any CGPA</option><option value="9.5">9.0 – 10.0</option><option value="8.5">8.0 – 8.9</option><option value="7.5">7.5 – 7.9</option><option value="7.2">7.0 – 7.4</option><option value="6.5">6.0 – 6.9</option><option value="5.5">below 6.0</option></select></div><div class="field" id="fSpecWrap" hidden><label for="fSpec"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Specialisation</label><select id="fSpec"><option value="">Any specialisation</option></select></div><div class="field" id="fIntakeWrap"><label for="fIntake"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Intake</label><select id="fIntake"><option value="">Any intake</option><option value="summer-2026">Summer 2026 (67)</option><option value="winter-2026">Winter 2026 (109)</option><option value="summer-2027">Summer 2027 (25)</option><option value="winter-2027">Winter 2027 (52)</option></select></div>
+      <div class="field" id="fEnglishWrap"><label for="fEnglish"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> IELTS / TOEFL</label><select id="fEnglish"><option value="">Not told us yet</option><optgroup label="IELTS overall"><option value="ielts:5.5">IELTS 5.5</option><option value="ielts:6">IELTS 6.0</option><option value="ielts:6.5">IELTS 6.5</option><option value="ielts:7">IELTS 7.0</option><option value="ielts:7.5">IELTS 7.5 or more</option></optgroup><optgroup label="TOEFL iBT"><option value="toefl:72">TOEFL 72</option><option value="toefl:80">TOEFL 80</option><option value="toefl:88">TOEFL 88</option><option value="toefl:95">TOEFL 95</option><option value="toefl:100">TOEFL 100 or more</option></optgroup><option value="moi">English-medium bachelor&rsquo;s (MOI letter)</option><option value="none">Not taken yet</option></select></div><div class="field" id="fWorkWrap"><label for="fWork"><svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg> Work experience</label><select id="fWork"><option value="">Not told us yet</option><option value="0">None</option><option value="6">Under a year</option><option value="12">1 &ndash; 2 years</option><option value="24">2 &ndash; 3 years</option><option value="36">3 years or more</option></select></div>
       <button class="btn btn-gold fgo" id="fGo">Find Programs <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
     </div>
-    <div class="fmore-bar"><button type="button" class="fmore-btn" id="fMoreBtn" aria-expanded="false" aria-controls="fMore"><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg> More filters <span class="fmore-n" id="fMoreN" hidden></span></button><span class="fmore-hint" id="fMoreHint">GRE, German level, your bachelor&rsquo;s, tuition, publications</span></div>
+    <div class="fmore-bar"><button type="button" class="fmore-btn" id="fMoreBtn" aria-expanded="false" aria-controls="fMore"><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg> More filters <span class="fmore-n" id="fMoreN" hidden></span></button><span class="fmore-hint" id="fMoreHint">GRE, German level, your bachelor&rsquo;s, tuition, publications, class rank, admission type</span></div>
     <div class="fgrid fmore" id="fMore" hidden>
       <div class="field" id="fGreWrap"><label for="fGre"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE</label><select id="fGre"><option value="">Not told us yet</option><option value="none">Not taken</option><option value="290">Under 300</option><option value="300">300 &ndash; 309</option><option value="310">310 &ndash; 319</option><option value="320">320 or more</option></select></div>
       <div class="field" id="fGermanWrap"><label for="fGerman"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> German language</label><select id="fGerman"><option value="">Not told us yet</option><option value="none">None yet</option><option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option></select></div>
@@ -1319,6 +1323,16 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <div class="field" id="fBachYearsWrap"><label for="fBachYears"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Bachelor&rsquo;s length</label><select id="fBachYears"><option value="">Not told us yet</option><option value="3">3 years</option><option value="4">4 years</option><option value="5">5 years</option></select></div>
       <div class="field" id="fTuitionWrap"><label for="fTuition"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Tuition per semester</label><select id="fTuition"><option value="">Any tuition</option><option value="0">No tuition fee</option><option value="500">Up to &euro;500</option><option value="1500">Up to &euro;1,500</option><option value="4000">Up to &euro;4,000</option><option value="6000">Up to &euro;6,000</option></select></div>
       <div class="field" id="fPapersWrap"><label for="fPapers"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Published a paper</label><select id="fPapers"><option value="">Not told us yet</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+      <!-- Patch 153. The GRE section boxes open only once a GRE total is in
+           the box above: a section score without a total is not how anyone
+           reads their report. -->
+      <div class="field" id="fGreQWrap" hidden><label for="fGreQ"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE Quant</label><input id="fGreQ" type="number" inputmode="numeric" min="130" max="170" step="1" placeholder="130 &ndash; 170" autocomplete="off"></div>
+      <div class="field" id="fGreVWrap" hidden><label for="fGreV"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE Verbal</label><input id="fGreV" type="number" inputmode="numeric" min="130" max="170" step="1" placeholder="130 &ndash; 170" autocomplete="off"></div>
+      <div class="field" id="fGreAWrap" hidden><label for="fGreA"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE AWA</label><input id="fGreA" type="number" inputmode="decimal" min="0" max="6" step="0.5" placeholder="0 &ndash; 6" autocomplete="off"></div>
+      <div class="field" id="fEctsWrap" hidden><label for="fEcts"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Bachelor&rsquo;s credits (ECTS)</label><select id="fEcts"><option value="">Not told us yet</option><option value="180">180 (3-year)</option><option value="210">210</option><option value="240">240 (4-year)</option></select></div>
+      <div class="field" id="fTopWrap" hidden><label for="fTop"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your class rank</label><select id="fTop"><option value="">Not told us yet</option><option value="5">Top 5%</option><option value="10">Top 10%</option><option value="20">Top 20%</option><option value="30">Top 30%</option><option value="50">Top 50%</option><option value="100">Below 50%</option></select></div>
+      <div class="field" id="fRestrictedWrap" hidden><label for="fRestricted"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg> Admission</label><select id="fRestricted"><option value="">Show all</option><option value="open">Only open admission</option><option value="restricted">Only restricted</option></select></div>
+      <div class="field" id="fFeeWrap"><label for="fFee"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Application</label><select id="fFee"><option value="">Any application</option><option value="free">Free to apply</option><option value="package">Comes with a package</option></select></div>
     </div>
     <div class="fsearch" id="fSearchWrap">
       <label for="fSearch" class="offscreen">Search a university or programme by name</label>
@@ -2041,13 +2055,17 @@ let PROFILE = {};
 const CEFR = ['none','A1','A2','B1','B2','C1','C2'];
 const REQ_LABEL = {
   english: 'IELTS or TOEFL score', gre: 'GRE', germanLevel: 'German language level',
-  bachelorYears: 'bachelor\u2019s length', workExpMonths: 'work experience', papers: 'a published paper'
+  bachelorYears: 'bachelor\u2019s length', workExpMonths: 'work experience', papers: 'a published paper',
+  /* Patch 153: the three the German public universities ask for most. */
+  greSections: 'GRE section scores', ects: 'bachelor\u2019s ECTS credits', topPercent: 'class rank (top %)'
 };
 /* Which box answers which question, for the chip that opens it. */
 const REQ_SHORT = { english: 'English score', gre: 'GRE', germanLevel: 'German level',
-  bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'a paper' };
+  bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'a paper',
+  greSections: 'GRE sections', ects: 'ECTS credits', topPercent: 'class rank' };
 const REQ_BOX = { english: '#fEnglish', gre: '#fGre', germanLevel: '#fGerman',
-  bachelorYears: '#fBachYears', workExpMonths: '#fWork', papers: '#fPapers' };
+  bachelorYears: '#fBachYears', workExpMonths: '#fWork', papers: '#fPapers',
+  greSections: '#fGreQ', ects: '#fEcts', topPercent: '#fTop' };
 const reqsOf = p => (p && p.reqs && typeof p.reqs === 'object') ? p.reqs : {};
 const boxOn = el => { const w = el.closest('.field') || el; return !w.hidden; };
 const has = v => v !== undefined && v !== null && v !== '';
@@ -2064,6 +2082,9 @@ function myAnswers(){
   const v = s => { const el = $(s); return el && boxOn(el) ? String(el.value || '').trim() : ''; };
   const en = v('#fEnglish');
   if(en === 'none') a.englishNone = true;
+  /* Patch 153: "my bachelor's was taught in English" is an answer, not a
+     score — the MOI letter clears where the programme accepts one. */
+  else if(en === 'moi'){ a.moi = true; a.englishNone = false; }
   else if(en){ const [t, s] = en.split(':'); a[t] = Number(s); }
   else {
     [['e_test','e_score'],['e2_test','e2_score']].forEach(([tk, sk]) => {
@@ -2084,12 +2105,35 @@ function myAnswers(){
       if(/^gre$/i.test(t) && Number.isFinite(s) && a.gre == null) a.gre = s;
     });
   }
+  /* The sections (patch 153). Only read while a GRE total is in the box
+     above — the section boxes are hidden otherwise, and boxOn() keeps a
+     hidden box from answering. The profile keeps its own copies. */
+  [['#fGreQ','a_quant','greQuant'],['#fGreV','a_verbal','greVerbal'],['#fGreA','a_awa','greAwa']].forEach(([id, pk, k]) => {
+    const n = num(v(id)); if(n != null) a[k] = n;
+    else if(a.gre !== false && num(PROFILE[pk]) != null) a[k] = num(PROFILE[pk]);
+  });
   const gl = v('#fGerman');
   if(gl) a.germanLevel = gl;
   else if(PROFILE.g_german){ const t = String(PROFILE.g_german); a.germanLevel = /^none/i.test(t) ? 'none' : (CEFR.includes(t) ? t : undefined); }
   const by = v('#fBachYears');
   if(by) a.bachelorYears = Number(by);
   else { const m = /^(\d)/.exec(String(PROFILE.d_dur || '')); if(m) a.bachelorYears = Number(m[1]); }
+  /* ECTS (patch 153): stated, or derived from the length the way
+     server/reqs.js derives it — 3 years is 180, 4 or more is 240. A
+     student who knows their credit count overrides the rule of thumb. */
+  const ec = num(v('#fEcts'));
+  if(ec != null) a.ects = ec;
+  else if(num(PROFILE.d_ects) != null) a.ects = num(PROFILE.d_ects);
+  else if(a.bachelorYears != null) a.ects = a.bachelorYears >= 4 ? 240 : 180;
+  /* Class standing (patch 153): 10 means "top 10%". */
+  const tp = num(v('#fTop'));
+  if(tp != null) a.topPercent = tp;
+  else if(num(PROFILE.d_top) != null) a.topPercent = num(PROFILE.d_top);
+  /* Restricted admission (patch 153). Default true: a competitive programme
+     is still one they may apply to. "Only open admission" is the one answer
+     that says no. */
+  const rs = v('#fRestricted');
+  a.restrictedOk = rs ? rs !== 'open' : !/^no$/i.test(String(PROFILE.g_restricted || ''));
   const wk = v('#fWork');
   if(wk !== '') a.workExpMonths = Number(wk);
   else if(/^no$/i.test(String(PROFILE.w_has || ''))) a.workExpMonths = 0;
@@ -2105,9 +2149,12 @@ function myAnswers(){
 /* The same rule as server/reqs.js check(): a requirement the programme has
    not stated cannot be failed; a question the student has not answered
    cannot be checked. `fails` are stated, answered and short; `unknown` are
-   stated and unanswered. */
+   stated and unanswered; `notes` (patch 153) are the special conditions a
+   row clears on — "clears via MOI letter", "restricted admission" — which
+   do not turn anyone down but are the counsellor's business before a name
+   is handed over. */
 function verdict(reqs, s){
-  const r = reqs || {}; const fails = [], unknown = [];
+  const r = reqs || {}; const fails = [], unknown = [], notes = [];
   const wantI = num(r.ieltsMin), wantT = num(r.toeflMin);
   if(wantI != null || wantT != null){
     const haveI = num(s.ielts), haveT = num(s.toefl);
@@ -2115,10 +2162,13 @@ function verdict(reqs, s){
     const okT = wantT != null && haveT != null && haveT >= wantT;
     const want = [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ');
     if(okI || okT){}
-    /* Patch 149: an MOI letter clears where it is accepted, as server/reqs.js. */
+    /* Patch 153 (replacing the 149 block): where the programme ACCEPTS an
+       MOI letter, English can never fail — a short score or no score at
+       all clears on the letter, and the row says so. Where it does not, or
+       has not said, the letter on its own is a fail, as before. */
+    else if(r.moiAccepted === true) notes.push('moi');
     else if(s.moi && haveI == null && haveT == null){
-      if(r.moiAccepted === true){}
-      else if(r.moiAccepted === false) fails.push({ key:'english', want: want + ' (MOI not accepted)', have:'MOI letter' });
+      if(r.moiAccepted === false) fails.push({ key:'english', want: want + ' (MOI not accepted)', have:'MOI letter' });
       else fails.push({ key:'english', want: want + ' (MOI not confirmed)', have:'MOI letter' });
     }
     else if(s.englishNone) fails.push({ key:'english', want, have:'not taken yet' });
@@ -2130,6 +2180,42 @@ function verdict(reqs, s){
     if(s.gre === false) fails.push({ key:'gre', want, have:'not taken' });
     else if(num(s.gre) == null) unknown.push('gre');
     else if(num(r.greMin) != null && num(s.gre) < num(r.greMin)) fails.push({ key:'gre', want, have:'GRE ' + s.gre });
+  }
+  /* The sections (patch 153). "Not taken" fails them all at once, named;
+     a section they gave and fell short on fails that section; a total with
+     no sections is one open question, not three. */
+  const SEC = [['greQuant','greQuant','GRE Quant'],['greVerbal','greVerbal','GRE Verbal'],['greAwa','greAwa','GRE AWA']]
+    .filter(([rk]) => num(r[rk]) != null);
+  if(SEC.length){
+    if(s.gre === false) fails.push({ key:'gre', label:'GRE', want: SEC.map(([rk,, l]) => l + ' ' + r[rk]).join(', '), have:'not taken' });
+    else {
+      let open = false;
+      SEC.forEach(([rk, sk, l]) => {
+        const have = num(s[sk]);
+        if(have == null) open = true;
+        else if(have < num(r[rk])) fails.push({ key:'gre', label: l, want: l + ' ' + r[rk], have: l + ' ' + have });
+      });
+      if(open) unknown.push(num(s.gre) != null ? 'greSections' : 'gre');
+    }
+  }
+  /* Bachelor's credits (patch 153). The answer is derived from the length
+     in myAnswers(), so "unknown" here means neither was given. */
+  if(num(r.ectsMin) != null){
+    const have = num(s.ects);
+    if(have == null) unknown.push('ects');
+    else if(have < num(r.ectsMin)) fails.push({ key:'ects', label:'Bachelor ECTS', want: r.ectsMin + ' ECTS', have: have + ' ECTS' });
+  }
+  /* Class rank (patch 153): a LARGER number is a worse standing. */
+  if(num(r.topPercent) != null){
+    const have = num(s.topPercent);
+    if(have == null) unknown.push('topPercent');
+    else if(have > num(r.topPercent)) fails.push({ key:'topPercent', label:'Class rank', want:'top ' + r.topPercent + '%', have:'top ' + have + '%' });
+  }
+  /* Restricted admission (patch 153) never turns anyone down on its own —
+     it is a note on the row — unless they asked for open admission only. */
+  if(r.restricted === true){
+    if(s.restrictedOk === false) fails.push({ key:'restricted', label:'Restricted admission', want:'open admission', have:'restricted (ranked, limited places)' });
+    else notes.push('restricted');
   }
   if(has(r.germanLevel) && r.germanLevel !== 'none'){
     const want = CEFR.indexOf(r.germanLevel), have = has(s.germanLevel) ? CEFR.indexOf(String(s.germanLevel)) : -1;
@@ -2157,13 +2243,16 @@ function verdict(reqs, s){
   if(has(r.bachelorSubjects) && has(s.bachelorSubjects) && !subjectFitsText(r.bachelorSubjects, s.bachelorSubjects)){
     fails.push({ key:'bachelorSubjects', want:'a bachelor\u2019s in ' + String(r.bachelorSubjects).split(/[—;]/)[0].trim().slice(0, 60), have: String(s.bachelorSubjects).slice(0, 40) });
   }
-  return { fails, unknown };
+  return { fails, unknown, notes };
 }
 
 /* The catalogue fields a piece of text names — the same table the server
    matches with, copied here (patch 145). */
-const SUBJ_WORDS = [["Computer Science & IT",/comput|software|\bit\b|informati|programming|\bweb\b|\bcse\b|\bmca\b|\bbca\b|\bcs\b|coding|developer/],["Data Science, AI & Machine Learning",/\bdata\b|\bai\b|artificial intelligence|machine learning|\bml\b|analytics|big data|deep learning/],["Cybersecurity & Cloud",/cyber|security|cloud|network/],["Electrical & Electronics Engineering",/electric|electron|embedded|\bece\b|\beee\b|vlsi|semiconductor|telecom|power eng|microelectr|signal|communication eng|electronics and communication/],["Mechanical & Automotive Engineering",/mechani|automotive|manufactur|production|mechatronic|industrial eng|\bev\b|vehicle/],["Aerospace & Robotics",/aero|space|robot|automation|mechatronic|drone|avionic/],["Renewable Energy",/renewable|energy|solar|wind|hydrogen/],["Environmental Science & Sustainability",/environment|sustainab|climate|\bwater\b|ecolog|\bcivil\b|urban|geo/],["Business & Management",/business|general management|international management|management studies|\bbba\b|commerce|b\.?\s?com\b|entrepreneur|business administration|supply chain|logistic|operations management|human resource|\bhr\b/],["MBA",/\bmba\b/],["Finance, Banking & Accounting",/financ|bank|account|commerce|b\.?\s?com\b|fintech|\bca\b|actuar|invest/],["Economics",/econom/],["Marketing & Digital Media",/marketing|digital media|brand|advertis|social media/],["Media & Communication",/\bmedia\b|mass communication|communication studies|communication design|journalis|\bpr\b|public relations/],["Arts & Design",/design|\bart\b|\barts\b|architect|interior|\bux\b|\bui\b|b\.?\s?arch|illustrat|photograph|music/],["Animation, Film & Game Design",/animat|\bfilm|\bgame|vfx|visual effect|cinema/],["Fashion & Luxury Management",/fashion|luxury|textile/],["Hospitality, Tourism & Events",/hospitality|hotel|touris|\bevent/],["Medicine, Dentistry & Allied Health",/medic|dent|mbbs|\bbds\b|nurs|physio|pharm|clinical|therap|allied health/],["Public Health & Healthcare Management",/public health|health|hospital|pharm|epidemiolog/],["Biotechnology & Bioinformatics",/biotech|bioinform|biolog|life science|genetic|biochem|microbio|bioeng/],["Natural Sciences (Physics, Chemistry, Maths)",/physic|chemi|math|statist|\bb\.?\s?sc\b/],["Psychology",/psycholog/],["Social Sciences & Social Work",/social|sociolog|anthropolog|development studies/],["International Relations & Public Policy",/international relation|public policy|policy stud|politic|governance|public admin|diplomac/],["Law & Legal Studies",/\blaw\b|legal|\bllb\b|\bllm\b/],["Humanities & Languages",/language|linguist|literat|history|philosoph|\benglish\b|humanit|german studies/],["Education & Teaching",/educat|teach|pedagog/],["Sport & Exercise Science",/sport|exercise|fitness/],["Agriculture & Food Science",/agri|food|nutrition|farm|dairy|horticult/]];
-const SUBJ_NEAR = {"Computer Science & IT":["Data Science, AI & Machine Learning","Cybersecurity & Cloud","Electrical & Electronics Engineering"],"Data Science, AI & Machine Learning":["Computer Science & IT","Natural Sciences (Physics, Chemistry, Maths)"],"Cybersecurity & Cloud":["Computer Science & IT"],"Electrical & Electronics Engineering":["Computer Science & IT","Renewable Energy","Aerospace & Robotics"],"Mechanical & Automotive Engineering":["Aerospace & Robotics","Renewable Energy"],"Aerospace & Robotics":["Mechanical & Automotive Engineering","Electrical & Electronics Engineering"],"Business & Management":["MBA","Finance, Banking & Accounting","Economics","Marketing & Digital Media"],"Finance, Banking & Accounting":["Business & Management","Economics"],"Economics":["Business & Management","Finance, Banking & Accounting"],"Biotechnology & Bioinformatics":["Natural Sciences (Physics, Chemistry, Maths)","Medicine, Dentistry & Allied Health"],"Medicine, Dentistry & Allied Health":["Public Health & Healthcare Management","Biotechnology & Bioinformatics"],"Public Health & Healthcare Management":["Medicine, Dentistry & Allied Health"],"Arts & Design":["Animation, Film & Game Design"],"Environmental Science & Sustainability":["Renewable Energy","Agriculture & Food Science"]};
+const SUBJ_WORDS = [["Computer Science & IT",/comput|software|\bit\b|informati|programming|\bweb\b|\bcse\b|\bmca\b|\bbca\b|\bcs\b|coding|developer/],["Data Science, AI & Machine Learning",/\bdata\b|\bai\b|artificial intelligence|machine learning|\bml\b|analytics|big data|deep learning/],["Cybersecurity & Cloud",/cyber|security|cloud|network/],["Electrical & Electronics Engineering",/electric|electron|embedded|\bece\b|\beee\b|vlsi|semiconductor|telecom|power eng|microelectr|signal|communication eng|electronics and communication/],["Mechanical & Automotive Engineering",/mechani|automotive|manufactur|production|mechatronic|industrial eng|\bev\b|vehicle/],["Aerospace & Robotics",/aero|space|robot|automation|mechatronic|drone|avionic/],["Renewable Energy",/renewable|energy|solar|wind|hydrogen/],["Environmental Science & Sustainability",/environment|sustainab|climate|\bwater\b|ecolog|\bcivil\b|urban|geo/],["Business & Management",/business|general management|international management|management studies|\bbba\b|commerce|b\.?\s?com\b|entrepreneur|business administration|supply chain|logistic|operations management|human resource|\bhr\b/],["MBA",/\bmba\b/],["Finance, Banking & Accounting",/financ|bank|account|commerce|b\.?\s?com\b|fintech|\bca\b|actuar|invest/],["Economics",/econom/],["Marketing & Digital Media",/marketing|digital media|brand|advertis|social media/],["Media & Communication",/\bmedia\b|mass communication|communication studies|communication design|journalis|\bpr\b|public relations/],["Arts & Design",/design|\bart\b|\barts\b|architect|interior|\bux\b|\bui\b|b\.?\s?arch|illustrat|photograph|music/],["Animation, Film & Game Design",/animat|\bfilm|\bgame|vfx|visual effect|cinema/],["Fashion & Luxury Management",/fashion|luxury|textile/],["Hospitality, Tourism & Events",/hospitality|hotel|touris|\bevent/],["Medicine, Dentistry & Allied Health",/medic|dent|mbbs|\bbds\b|nurs|physio|pharm|clinical|therap|allied health/],["Public Health & Healthcare Management",/public health|health|hospital|pharm|epidemiolog/],["Biotechnology & Bioinformatics",/biotech|bioinform|biolog|life science|genetic|biochem|microbio|bioeng/],["Natural Sciences (Physics, Chemistry, Maths)",/physic|chemi|math|statist|\bb\.?\s?sc\b/],["Psychology",/psycholog/],["Social Sciences & Social Work",/social|sociolog|anthropolog|development studies/],["International Relations & Public Policy",/international relation|public policy|policy stud|politic|governance|public admin|diplomac/],["Law & Legal Studies",/\blaw\b|legal|\bllb\b|\bllm\b/],["Humanities & Languages",/language|linguist|literat|history|philosoph|\benglish\b|humanit|german studies/],["Education & Teaching",/educat|teach|pedagog/],["Sport & Exercise Science",/sport|exercise|fitness/],["Agriculture & Food Science",/agri|food|nutrition|farm|dairy|horticult/],
+/* Patch 153: the seventeen fields the Germany sheet added. */
+["Civil & Construction Engineering",/\bcivil\b|construction|structural/],["Chemical & Process Engineering",/chemical eng|process eng|chemical/],["Industrial & Manufacturing Engineering",/industrial|manufactur|production/],["Materials Science & Engineering",/material|metallurg/],["Mechatronics, Robotics & Automation",/mechatronic|robot|automation/],["Mining, Petroleum & Energy Engineering",/mining|petroleum|geoengineering|energy eng/],["Marine & Naval Engineering",/naval|marine|\bship|\bocean/],["Architecture, Urban Planning & Built Environment",/architect|urban|planning|built environment/],["Biomedical Engineering",/biomedical/],["Pharmacy & Pharmaceutical Sciences",/pharma|pharmac/],["Nursing & Allied Health Sciences",/nursing|allied health|physiotherap/],["Veterinary & Animal Sciences",/veterinary|animal/],["Earth Sciences & Geology",/geology|\bearth\b|geoscien|geophys/],["Mathematics, Statistics & Actuarial Science",/mathematic|statistic|actuari/],["Supply Chain, Logistics & Operations",/supply chain|logistic|operations/],["Real Estate & Property Management",/real estate|property/]];
+const SUBJ_NEAR = {"Computer Science & IT":["Data Science, AI & Machine Learning","Cybersecurity & Cloud","Electrical & Electronics Engineering"],"Data Science, AI & Machine Learning":["Computer Science & IT","Natural Sciences (Physics, Chemistry, Maths)"],"Cybersecurity & Cloud":["Computer Science & IT"],"Electrical & Electronics Engineering":["Computer Science & IT","Renewable Energy","Aerospace & Robotics"],"Mechanical & Automotive Engineering":["Aerospace & Robotics","Renewable Energy"],"Aerospace & Robotics":["Mechanical & Automotive Engineering","Electrical & Electronics Engineering"],"Business & Management":["MBA","Finance, Banking & Accounting","Economics","Marketing & Digital Media"],"Finance, Banking & Accounting":["Business & Management","Economics"],"Economics":["Business & Management","Finance, Banking & Accounting"],"Biotechnology & Bioinformatics":["Natural Sciences (Physics, Chemistry, Maths)","Medicine, Dentistry & Allied Health"],"Medicine, Dentistry & Allied Health":["Public Health & Healthcare Management","Biotechnology & Bioinformatics"],"Public Health & Healthcare Management":["Medicine, Dentistry & Allied Health"],"Arts & Design":["Animation, Film & Game Design"],"Environmental Science & Sustainability":["Renewable Energy","Agriculture & Food Science"],
+"Civil & Construction Engineering":["Architecture, Urban Planning & Built Environment","Environmental Science & Sustainability"],"Chemical & Process Engineering":["Materials Science & Engineering","Natural Sciences (Physics, Chemistry, Maths)"],"Industrial & Manufacturing Engineering":["Mechanical & Automotive Engineering","Supply Chain, Logistics & Operations"],"Materials Science & Engineering":["Chemical & Process Engineering","Mechanical & Automotive Engineering"],"Mechatronics, Robotics & Automation":["Aerospace & Robotics","Mechanical & Automotive Engineering","Electrical & Electronics Engineering"],"Mining, Petroleum & Energy Engineering":["Renewable Energy","Earth Sciences & Geology"],"Marine & Naval Engineering":["Mechanical & Automotive Engineering"],"Architecture, Urban Planning & Built Environment":["Civil & Construction Engineering","Arts & Design"],"Biomedical Engineering":["Biotechnology & Bioinformatics","Electrical & Electronics Engineering"],"Pharmacy & Pharmaceutical Sciences":["Medicine, Dentistry & Allied Health","Biotechnology & Bioinformatics"],"Nursing & Allied Health Sciences":["Medicine, Dentistry & Allied Health","Public Health & Healthcare Management"],"Veterinary & Animal Sciences":["Agriculture & Food Science","Biotechnology & Bioinformatics"],"Earth Sciences & Geology":["Environmental Science & Sustainability","Natural Sciences (Physics, Chemistry, Maths)"],"Mathematics, Statistics & Actuarial Science":["Natural Sciences (Physics, Chemistry, Maths)","Data Science, AI & Machine Learning"],"Supply Chain, Logistics & Operations":["Business & Management","Industrial & Manufacturing Engineering"],"Real Estate & Property Management":["Business & Management","Finance, Banking & Accounting"]};
 function subjFields(text){
   const t = ' ' + String(text || '').toLowerCase() + ' ';
   return SUBJ_WORDS.filter(([, re]) => re.test(t)).map(([f]) => f);
@@ -2178,7 +2267,7 @@ function subjectFitsText(want, have){
 
 /* Does this row state anything at all? Decides whether "you clear what it
    asks" is a claim worth making. */
-const statesAny = r => ['ieltsMin','toeflMin','greRequired','greMin','germanLevel','bachelorYears','workExpRequired','workExpMonths','papersRequired']
+const statesAny = r => ['ieltsMin','toeflMin','greRequired','greMin','greQuant','greVerbal','greAwa','ectsMin','topPercent','germanLevel','bachelorYears','workExpRequired','workExpMonths','papersRequired']
   .some(k => has(r[k]) && !(k === 'germanLevel' && r[k] === 'none') && !(k === 'greRequired' && r[k] === false) && !(k === 'workExpRequired' && r[k] === false) && !(k === 'papersRequired' && r[k] === false));
 
 /* The one line under a name: what it asks for, in the student's words. */
@@ -2187,6 +2276,11 @@ function asksLine(r){
   if(num(q.ieltsMin) != null) bits.push('IELTS ' + q.ieltsMin);
   if(num(q.toeflMin) != null) bits.push('TOEFL ' + q.toeflMin);
   if(q.greRequired === true || num(q.greMin) != null) bits.push(num(q.greMin) != null ? 'GRE ' + q.greMin : 'GRE');
+  if(num(q.greQuant) != null) bits.push('GRE Quant ' + q.greQuant);
+  if(num(q.greVerbal) != null) bits.push('GRE Verbal ' + q.greVerbal);
+  if(num(q.greAwa) != null) bits.push('GRE AWA ' + q.greAwa);
+  if(num(q.ectsMin) != null) bits.push(q.ectsMin + ' ECTS');
+  if(num(q.topPercent) != null) bits.push('top ' + q.topPercent + '% of class');
   if(has(q.germanLevel) && q.germanLevel !== 'none') bits.push('German ' + q.germanLevel);
   if(num(q.bachelorYears) != null) bits.push(q.bachelorYears + '-year bachelor\u2019s');
   if(num(q.workExpMonths) > 0) bits.push(q.workExpMonths + ' months\u2019 work');
@@ -2201,6 +2295,13 @@ function asksLine(r){
    zero, which this site has always treated as load-bearing. Anything else
    is not stated, and a tuition filter does not exclude what it cannot read. */
 const tuitionOf = r => { const t = num(reqsOf(r).tuitionEurSem); return t != null ? t : (r.totalInr === 0 ? 0 : null); };
+
+/* How a row is applied to: free, or with a package. The column when the
+   office has filled it in; otherwise the fallback the server uses, so a row
+   the page shipped with — which predates the column — reads as what it has
+   always been. One helper for the filter, the tabs and the row (patch 153). */
+const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
+  ? r.feeModel : (r.isPublic ? 'package' : 'free');
 
 /* The rows a requirement was checked against on the last render, and the
    ones set aside. Read by the two boxes around the results. */
@@ -2222,6 +2323,17 @@ function showRelevant(){
   show('#fBachWrap', any(q => has(q.bachelorSubjects)));
   show('#fPapersWrap', any(q => q.papersRequired === true));
   show('#fTuitionWrap', view.some(p => tuitionOf(p) != null));
+  /* Patch 153. A section box opens only once a GRE total is in the box —
+     and only where a row in view asks for that section. */
+  const greScore = $('#fGre') && boxOn($('#fGre')) && num($('#fGre').value) != null;
+  show('#fGreQWrap', greScore && any(q => num(q.greQuant) != null));
+  show('#fGreVWrap', greScore && any(q => num(q.greVerbal) != null));
+  show('#fGreAWrap', greScore && any(q => num(q.greAwa) != null));
+  show('#fEctsWrap', any(q => num(q.ectsMin) != null));
+  show('#fTopWrap', any(q => num(q.topPercent) != null));
+  show('#fRestrictedWrap', any(q => q.restricted === true));
+  /* Always: every row is applied to one way or the other. */
+  show('#fFeeWrap', true);
   /* Specialisations, from the rows in view. The box waits for its data: a
      select with one option is not a filter. */
   const specs = [...new Set(view.map(p => String(reqsOf(p).specialisation || '').trim()).filter(Boolean))].sort();
@@ -2234,10 +2346,10 @@ function showRelevant(){
   show('#fSpecWrap', specs.length > 1);
   /* The whole panel, when nothing in it applies — the Netherlands with no
      requirements filled in yet has nothing to open. */
-  const more = ['#fGreWrap','#fGermanWrap','#fBachWrap','#fBachYearsWrap','#fTuitionWrap','#fPapersWrap'].filter(id => $(id) && !$(id).hidden).length;
+  const more = ['#fGreWrap','#fGermanWrap','#fBachWrap','#fBachYearsWrap','#fTuitionWrap','#fPapersWrap','#fGreQWrap','#fGreVWrap','#fGreAWrap','#fEctsWrap','#fTopWrap','#fRestrictedWrap','#fFeeWrap'].filter(id => $(id) && !$(id).hidden).length;
   const bar = $('.fmore-bar'); if(bar) bar.hidden = !more;
   if(!more && $('#fMore')) $('#fMore').hidden = true;
-  const set = ['#fGre','#fGerman','#fBach','#fBachYears','#fTuition','#fPapers'].filter(id => $(id) && boxOn($(id)) && String($(id).value || '').trim()).length;
+  const set = ['#fGre','#fGerman','#fBach','#fBachYears','#fTuition','#fPapers','#fGreQ','#fGreV','#fGreA','#fEcts','#fTop','#fRestricted','#fFee'].filter(id => $(id) && boxOn($(id)) && String($(id).value || '').trim()).length;
   const n = $('#fMoreN'); if(n){ n.textContent = set; n.hidden = !set; }
 }
 
@@ -2246,6 +2358,9 @@ function filtered(ignoreBands, collect){
         ik = $('#fIntake').value, cg = cgpaOf();
   const sp = $('#fSpec') && !$('#fSpecWrap').hidden ? $('#fSpec').value : '';
   const cap = $('#fTuition') && !$('#fTuitionWrap').hidden && $('#fTuition').value !== '' ? Number($('#fTuition').value) : null;
+  /* Patch 153: admission type and how the row is applied to. */
+  const adm = $('#fRestricted') && !$('#fRestrictedWrap').hidden ? $('#fRestricted').value : '';
+  const fee = $('#fFee') ? $('#fFee').value : '';
   const me = myAnswers();
   if(collect){ TURNED = []; NEEDED = new Map(); ASKED = 0; }
   return D.programs.filter(p => {
@@ -2259,12 +2374,18 @@ function filtered(ignoreBands, collect){
     if(sp && String(reqsOf(p).specialisation || '').trim() !== sp) return false;
     /* A stated tuition above what they will pay. Not stated is not excluded. */
     if(cap !== null){ const t = tuitionOf(p); if(t != null && t > cap) return false; }
+    /* Open admission is "not stated to be restricted": a row that has not
+       said is not hidden from someone avoiding the ranked ones (patch 153). */
+    if(adm === 'open' && reqsOf(p).restricted === true) return false;
+    if(adm === 'restricted' && reqsOf(p).restricted !== true) return false;
+    if(fee && feeOf(p) !== fee) return false;
     /* What it asks for, against what they told us. A stated requirement they
        fall short of sets the row aside — counted, and named where the name
        is theirs to see — rather than shown as if it were open to them. A
        stated requirement they have not answered leaves the row in, marked. */
     const vd = verdict(reqsOf(p), me);
     p._need = vd.unknown.length ? vd.unknown : null;
+    p._notes = vd.notes.length ? vd.notes : null;
     if(vd.fails.length){ if(collect) TURNED.push({ p, fails: vd.fails }); return false; }
     /* Counted only for rows that stay: a question on a row already set
        aside is not one worth answering. */
@@ -2310,15 +2431,24 @@ function filtered(ignoreBands, collect){
 /* ------------------------------------------------------ the gate, server-side */
 /* A locked row is REDUCED here, not hidden by CSS. Everything identifying is
    dropped before the row reaches the DOM. */
+/* The order both tabs use (patch 153): the matcher's. Cheapest-first was
+   decided 18 Aug, when fit sat at 80 on every row and decided nothing; the
+   catalogue now carries a real fit, and the row a student can still apply
+   to this season belongs above the one whose intake has closed. So: fit,
+   then open-this-season, then cheapest, then the id so the order is the
+   same on every render. Relevance to the field is already the filter. */
+const ORDER = {u10:0,u20:1,above20:2,elite:3};
+const cheap = (a,b) => (a.totalInr!==undefined && b.totalInr!==undefined)
+  ? (a.totalInr - b.totalInr)
+  : ((ORDER[a.band]||0) - (ORDER[b.band]||0));
+/* 0 = a deadline still ahead; 1 = no published dates (rolling admission);
+   2 = dates published, every one of them behind us. */
+const season = r => deadlineOf(r).at ? 0 : (r.intakes || []).some(i => i && i.deadline) ? 2 : 1;
+const rowOrder = (a,b) => ((b.fit||0) - (a.fit||0)) || (season(a) - season(b)) || cheap(a,b)
+  || String(a.id||'').localeCompare(String(b.id||''));
 function visibleRows(list){
-  /* Cheapest first, decided 18 Aug. Fit is only a tiebreaker, which is why the
-     Fit column sitting at 80 on every row no longer decides what a customer sees. */
-  const ORDER = {u10:0,u20:1,above20:2,elite:3};
-  const cheap = (a,b) => (a.totalInr!==undefined && b.totalInr!==undefined)
-    ? (a.totalInr - b.totalInr || b.fit - a.fit)
-    : ((ORDER[a.band]||0) - (ORDER[b.band]||0) || b.fit - a.fit);
-  const pub = list.filter(p => p.isPublic).sort(cheap);
-  const priv = list.filter(p => !p.isPublic).sort(cheap);
+  const pub = list.filter(p => p.isPublic).sort(rowOrder);
+  const priv = list.filter(p => !p.isPublic).sort(rowOrder);
   const shownPub = touched ? pub : pub.slice(0, S.browsePublic);
   const shownPriv = touched ? priv : priv.slice(0, S.browsePrivate);
   /* Quota counts UNIVERSITIES, not programmes. */
@@ -2339,6 +2469,10 @@ function visibleRows(list){
     /* lengths only — enough to size the blur so a long course name looks long.
        No name, no university, no fee reaches the browser. */
     nLen:p.nLen, uLen:p.uLen, fLen:(p.freeTuition?11:8), _need:p._need, _asks:statesAny(reqsOf(p)),
+    /* The special conditions, not the name (patch 153): "restricted" and
+       "clears via MOI" describe the route, and a counsellor says the same
+       on the phone before a package is bought. */
+    _notes:p._notes, restricted: reqsOf(p).restricted === true, feeModel: feeOf(p),
     /* When it closes. A date is not an identity, and a student deciding
        between this semester and the next needs it on every row (patch 144). */
     intakes:p.intakes
@@ -2539,14 +2673,13 @@ function feeUnknown(p){
 }
 function rowHtml(r){
   const cc = r.country, ctry = C[cc];
-  const feeOfRow = (r.feeModel === 'free' || r.feeModel === 'package')
-    ? r.feeModel : (r.isPublic ? 'package' : 'free');
+  const feeOfRow = feeOf(r);
   const type = `<div class="mtype ${feeOfRow === 'free' ? 'pub' : 'priv'}">`
     + `${feeOfRow === 'free' ? 'Free to apply' : 'With a package'}</div>`;
   if(r.locked) return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
     <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
-      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>${verdictChip(r)}
+      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>${verdictChip(r)}${restrictTag(r)}${restrictLine(r)}
       <span class="offscreen">A university in
         ${esc(ctry.name)} that matches you. The name and the fee are unlocked by a
         package.</span></div>
@@ -2577,7 +2710,7 @@ function rowHtml(r){
       {day:'numeric',month:'short',year:'numeric'}) : '';
   return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
-    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}</div>
+    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}${restrictTag(r)}${restrictLine(r)}</div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice">${feeUnknown(r)?'Fee to be confirmed':short(r.totalInr)}<small>${feeUnknown(r)?'':r.totalInr===0?'tuition':'total'}</small></div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
@@ -2601,7 +2734,34 @@ function verdictChip(r){
     return `<span class="mverdict unknown" title="Asks for ${esc(need.map(k => REQ_LABEL[k] || k).join(', '))} \u2014 tell us and we can say">Chances unknown \u00b7 ${esc(need.length === 1 ? first + '?' : need.length + ' answers short')}</span>`;
   }
   const asks = r.locked ? r._asks : statesAny(reqsOf(r));
+  /* Patch 153: cleared, but on the letter — said in the chip, because the
+     counsellor will say it on the phone and the student should hear it
+     here first. */
+  if(asks && (r._notes || []).includes('moi')) return `<span class="mverdict ok">${ico('check')}Clears via MOI letter</span>`;
   return asks ? `<span class="mverdict ok">${ico('check')}You clear what it asks</span>` : '';
+}
+
+/* Patch 153. Restricted admission — ranked, limited places — is not a
+   requirement anyone fails, so it is not in the chip; it is a tag. */
+const isRestricted = r => r.locked ? r.restricted === true : reqsOf(r).restricted === true;
+function restrictTag(r){
+  return isRestricted(r) ? `<span class="mtag" title="Places are limited and applicants are ranked (NC, aptitude test or interview)">Restricted admission</span>` : '';
+}
+
+/* The "Restrictions" line (patch 153, section K): one muted line on every
+   card, on the open and the locked row alike. "No" when nothing stands
+   between this student and an application; otherwise the special
+   conditions in plain words, the same words the counsellor's screen uses. */
+function restrictLine(r){
+  const q = r.locked ? {} : reqsOf(r), notes = r._notes || [], need = r._need || [], bits = [];
+  if(isRestricted(r)) bits.push('restricted admission (ranked, limited places)');
+  if(notes.includes('moi')) bits.push('English accepted via MOI letter');
+  need.forEach(k => {
+    if(k === 'greSections') bits.push('GRE section scores needed');
+    else if(k === 'topPercent') bits.push('class rank' + (num(q.topPercent) != null ? ' top ' + q.topPercent + '%' : '') + ' required');
+    else bits.push('tell us your ' + (REQ_LABEL[k] || k) + ' to confirm');
+  });
+  return `<div class="mrestr"><b>Restrictions:</b> ${bits.length ? esc(bits.join(' \u00b7 ')) : 'No'}</div>`;
 }
 
 /* The box above the results: what they have not told us, and why it costs
@@ -2614,7 +2774,8 @@ function needBox(list){
   const keys = [...NEEDED.keys()];
   const known = Object.keys(REQ_BOX).filter(k => !NEEDED.has(k));
   const me = myAnswers();
-  const done = known.filter(k => k === 'english' ? (me.ielts != null || me.toefl != null || me.englishNone) : k === 'gre' ? me.gre !== undefined : k === 'papers' ? me.papers !== undefined : me[k] !== undefined);
+  const done = known.filter(k => k === 'english' ? (me.ielts != null || me.toefl != null || me.englishNone || me.moi) : k === 'gre' ? me.gre !== undefined : k === 'papers' ? me.papers !== undefined
+    : k === 'greSections' ? (me.greQuant != null || me.greVerbal != null || me.greAwa != null) : me[k] !== undefined);
   const total = keys.length + done.length;
   const pct = total ? Math.round(done.length / total * 100) : 0;
   const dash = Math.round(264 * (1 - pct / 100));
@@ -2731,11 +2892,21 @@ function criteria(){
   const bits = [];
   [['Destination','#fCountry'],['Level','#fLevel'],['Field','#fField'],['Specialisation','#fSpec'],
    ['CGPA','#fCgpa'],['Intake','#fIntake'],['English','#fEnglish'],['Work','#fWork'],['GRE','#fGre'],
-   ['German','#fGerman'],['Bachelor\u2019s','#fBachYears'],['Tuition','#fTuition'],['Paper','#fPapers']].forEach(([lbl,s])=>{
+   ['German','#fGerman'],['Bachelor\u2019s','#fBachYears'],['Tuition','#fTuition'],['Paper','#fPapers'],
+   ['GRE Quant','#fGreQ'],['GRE Verbal','#fGreV'],['GRE AWA','#fGreA'],['ECTS','#fEcts'],['Class rank','#fTop'],
+   ['Admission','#fRestricted'],['Application','#fFee']].forEach(([lbl,s])=>{
     const el = $(s);
-    if(el && el.value && boxOn(el)) bits.push('<span>'+lbl+' <b>'+esc(el.options[el.selectedIndex].textContent.replace(/\s*\(\d+\)$/,''))+'</b></span>');
+    /* A number box has no options; its value is the text. */
+    if(el && el.value && boxOn(el)) bits.push('<span>'+lbl+' <b>'+esc(el.options ? el.options[el.selectedIndex].textContent.replace(/\s*\(\d+\)$/,'') : el.value)+'</b></span>');
   });
   return bits.join('');
+}
+
+/* The same, as plain text for a lead — what the form on an empty result
+   sends along, so the counsellor opens it knowing what was searched. */
+function criteriaText(){
+  const d = document.createElement('div'); d.innerHTML = criteria();
+  return [...d.querySelectorAll('span')].map(x => x.textContent.trim()).join('; ');
 }
 
 /* Private first, deliberately. A visitor's first sight of the finder used to be
@@ -2775,10 +2946,6 @@ function render(){
   $('#relock').hidden = !unlocked;
   /* Counted from everything that matched, not from what this tab is showing —
      the number on a tab is the reason to press it. */
-  /* Same fallback the server uses, so a row the page shipped with — which
-     predates the column — reads as what it has always been. */
-  const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
-    ? r.feeModel : (r.isPublic ? 'package' : 'free');
   /* By what the tabs are CALLED (patch 143). The "Public Universities" tab
      split on the fee model, so it held 125 private programmes — SRH,
      Fresenius, Frankfurt School — that the office files for a fee. Where a
@@ -2841,8 +3008,10 @@ function render(){
      * you are looking for. It reaches the leads book like every other form,
      * carrying what they had searched for, so the counsellor opens it already
      * knowing the answer to their first question. */
+    : touched && !list.length
+      ? assistForm()
     : bothEmpty
-      ? noMatchForm()
+      ? '<div class="empty"><b>Nothing here yet</b>Set your filters above and this becomes your own shortlist.</div>'
     : resTab === 'priv'
       ? '<div class="empty"><b>Nothing here matches those filters</b>'
         + 'There are ' + pubAll.length + ' free to apply to — the other tab. Or widen the '
@@ -2859,26 +3028,23 @@ function render(){
   $$('[data-rt-go]').forEach(b => b.onclick = () => {
     resTab = b.dataset.rtGo; render();
   });
-  if ($('#nmForm')) $('#nmForm').onsubmit = nmSend;
+  if ($('#asForm')) $('#asForm').onsubmit = asSend;
   $$('[data-goto-pkg]').forEach(b => b.onclick = () => showPackages());
   $$('[data-req]').forEach(b => b.onclick = () => openReq(b.dataset.req));
   $$('[data-apply]').forEach(b => b.onclick = () => applyNow(b));
   requestAnimationFrame(measure);
 }
 
-/* The form a dead-end search turns into. Deliberately says little about WHY
-   there is nothing: these placements are arranged one at a time and the list
-   is not something the site publishes. */
-function noMatchForm() {
-  const said = [
-    $('#fCountry') && $('#fCountry').selectedOptions[0] && $('#fCountry').value
-      ? $('#fCountry').selectedOptions[0].textContent.trim() : '',
-    $('#fField') && $('#fField').value ? $('#fField').value : '',
-    $('#fLevel') && $('#fLevel').value ? $('#fLevel').value : '',
-  ].filter(Boolean).join(' · ');
-  return '<div class="empty nomatch"><b>We do not list universities for this search publicly</b>'
-    + 'These placements are arranged directly, and which of them are open depends on your '
-    + 'marks and your intake \u2014 a counsellor holds that list.'
+/* The form a dead-end search turns into (patch 153: #rAssist, its own
+   endpoint). Deliberately says little about WHY there is nothing: these
+   placements are arranged one at a time and the list is not something the
+   site publishes. Shown in place of the results whenever the filters leave
+   nothing, and gone the moment they leave something — it lives inside
+   #rowsIn, which render() rewrites every time. */
+function assistForm() {
+  const said = criteriaText();
+  return '<div class="empty nomatch" id="rAssist"><b>You need special assistance</b>'
+    + 'No programme in our catalogue matches this profile yet — a counsellor will look at it personally.'
     /* THEY HAVE ALREADY TOLD US WHAT THEY WANT.
        It is on the screen in the filters they just set, so the form does not ask
        again: it shows what is being sent and takes the two things we do not
@@ -2886,56 +3052,76 @@ function noMatchForm() {
        nobody fills it in. */
     + (said ? '<p class="nm-said">Sending your search: <b>' + esc(said) + '</b></p>'
             : '<p class="nm-said">Sending what you were looking for.</p>')
-    + '<form class="nm-form" id="nmForm" novalidate>'
-    +   '<input id="nmName" placeholder="Your name" autocomplete="name">'
-    +   '<input id="nmPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel">'
-    +   '<input id="nmEmail" placeholder="Email" inputmode="email" autocomplete="email">'
-    +   '<input class="nm-hp" id="nmWeb" tabindex="-1" autocomplete="off" aria-hidden="true">'
-    +   '<label class="nm-ok" style="flex:1 1 100%;display:flex;gap:8px;align-items:flex-start;font-size:12.4px;color:var(--muted)"><input type="checkbox" id="nmOk" style="width:auto;flex:0 0 auto;margin-top:3px"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>'
-    +   '<button type="submit" class="btn btn-primary btn-sm" id="nmGo">Send to a counsellor</button>'
+    + '<form class="nm-form" id="asForm" novalidate>'
+    +   '<input id="asName" placeholder="Your name" autocomplete="name" maxlength="80">'
+    +   '<input id="asPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel" maxlength="20">'
+    +   '<input id="asMail" placeholder="Email" inputmode="email" autocomplete="email" maxlength="120">'
+    +   '<input id="asNote" placeholder="Anything else a counsellor should know (optional)" maxlength="500" style="flex:1 1 100%">'
+    /* The honeypot, as on the contact form: a field no person sees and a
+       bot fills. Named "website" because that is what a bot expects to find. */
+    +   '<label for="asHoney" class="sr">Leave this field empty</label>'
+    +   '<input class="nm-hp" id="asHoney" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">'
+    +   '<label class="nm-ok" style="flex:1 1 100%;display:flex;gap:8px;align-items:flex-start;font-size:12.4px;color:var(--muted)"><input type="checkbox" id="asOk" style="width:auto;flex:0 0 auto;margin-top:3px"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>'
+    +   '<button type="submit" class="btn btn-primary btn-sm" id="asGo">Ask a counsellor</button>'
     + '</form>'
-    + '<p class="nm-err" id="nmErr" role="alert" hidden></p></div>';
+    + '<p class="nm-err" id="asErr" role="alert" hidden></p></div>';
 }
 
-/* Sending it. Same endpoint, same leads book, same acknowledgement email as
-   every other form on the site — a second mechanism for the same job is how
-   one of them stops working without anybody noticing. */
-async function nmSend(e) {
+/* Sending it: POST /api/assist, which files it in the leads book under
+   "Special assistance" with the filters attached, so the counsellor opens
+   it already knowing the answer to their first question. Same checks as
+   the counselling form — an Indian mobile, an email that looks like one,
+   the consent box ticked, the honeypot empty. */
+async function asSend(e) {
   e.preventDefault();
-  const err = $('#nmErr');
+  const err = $('#asErr');
   const show = t => { err.textContent = t; err.hidden = !t; };
-  const name = ($('#nmName').value || '').trim();
-  const phone = ($('#nmPhone').value || '').trim();
-  const email = ($('#nmEmail').value || '').trim();
+  const name = ($('#asName').value || '').trim();
+  const phone = ($('#asPhone').value || '').trim();
+  const email = ($('#asMail').value || '').trim();
+  const note = ($('#asNote').value || '').trim();
+  if ($('#asHoney').value) return;          /* a bot filled the hidden field */
   if (!name) return show('Your name, so we know who we are calling.');
-  if (!/^[6-9]\d{9}$/.test(phone.replace(/\D/g, '').slice(-10))) {
+  if (!/^[6-9][0-9]{9}$/.test(phone.replace(/[^0-9]/g, '').slice(-10))) {
     return show('A 10-digit Indian mobile, please.');
   }
-  if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) return show('That email does not look right.');
-  if (!$('#nmOk').checked) return show('Please tick the box so we can call you back.');
+  if (!/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(email)) return show('That email does not look right.');
+  if (!$('#asOk').checked) return show('Please tick the box so we can call you back.');
   show('');
-  const btn = $('#nmGo');
-  btn.disabled = true; btn.textContent = 'Sending\u2026';
-  const what = [
-    $('#fCountry') && $('#fCountry').value ? 'country ' + $('#fCountry').value : '',
-    $('#fField') && $('#fField').value ? 'field ' + $('#fField').value : '',
-    $('#fLevel') && $('#fLevel').value ? 'level ' + $('#fLevel').value : '',
-    $('#fCgpa') && $('#fCgpa').value ? 'CGPA ' + $('#fCgpa').value : '',
-  ].filter(Boolean).join(', ');
-  const r = await sendForm({
-    name, phone, email, website: $('#nmWeb').value,
-    destination: ($('#fCountry') && $('#fCountry').value) || '',
-    note: 'Finder returned nothing' + (what ? ' \u2014 ' + what : ''),
-    consent: 'yes', consentWording: $('#nmOk').parentNode.textContent.trim(),
-    sourcePage: location.pathname, referrer: document.referrer,
-  }, { subject: 'Nothing matched on the finder' });
-  btn.disabled = false; btn.textContent = 'Send to a counsellor';
+  const btn = $('#asGo');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  /* The filters as the server names them, plus the summary in words. */
+  const pick = id => { const el = $(id); return el && boxOn(el) ? String(el.value || '').trim() : ''; };
+  const filters = { summary: criteriaText() };
+  [['country','#fCountry'],['level','#fLevel'],['field','#fField'],['specialisation','#fSpec'],['cgpa','#fCgpa'],
+   ['germanGrade','#fGgpa'],['intake','#fIntake'],['english','#fEnglish'],['work','#fWork'],['gre','#fGre'],
+   ['greQuant','#fGreQ'],['greVerbal','#fGreV'],['greAwa','#fGreA'],['german','#fGerman'],['bachelor','#fBach'],
+   ['bachelorYears','#fBachYears'],['ects','#fEcts'],['topPercent','#fTop'],['tuition','#fTuition'],['papers','#fPapers'],
+   ['restricted','#fRestricted'],['feeModel','#fFee']].forEach(([k, id]) => { const v = pick(id); if (v) filters[k] = v; });
+  if (bands.size) filters.bands = [...bands].join(',');
+  let r;
+  try {
+    r = await fetch('/api/assist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        name, phone, email, note, filters,
+        country: pick('#fCountry'),
+        website: $('#asHoney').value,
+        consent: 'yes', consentAt: new Date().toISOString(),
+        consentWording: $('#asOk').parentNode.textContent.trim(),
+        sourcePage: location.pathname + location.search, referrer: document.referrer || 'direct',
+      })
+    });
+  } catch (ex) { r = { ok: false }; }
+  btn.disabled = false; btn.textContent = 'Ask a counsellor';
   if (!r.ok) return show('That did not send. Try again, or call the office.');
-  const box = $('.nomatch');
+  if (window.glvTrack) glvTrack('generate_lead', { form: 'assist' });
+  const box = $('#rAssist');
   if (box) {
-    box.innerHTML = '<b>Thank you \u2014 a counsellor has this</b>'
-      + 'They will come back to you on ' + esc(phone) + ' with what is open for your '
-      + 'profile. Usually the same day, and always within one working day.';
+    box.innerHTML = '<b>Thanks — a counsellor will call you.</b>'
+      + 'On ' + esc(phone) + ', with what is open for your profile. Usually the same day, '
+      + 'and always within one working day.';
   }
 }
 
@@ -2999,9 +3185,10 @@ document.addEventListener('click', e => {
 
 $('#fGo').onclick = () => { touched = true; render();
   $('#results').scrollIntoView({behavior:'smooth',block:'start'}); };
-['#fCountry','#fLevel','#fField','#fCgpa','#fIntake','#fSpec','#fEnglish','#fWork','#fGre','#fGerman','#fBachYears','#fTuition','#fPapers'].forEach(s =>
+['#fCountry','#fLevel','#fField','#fCgpa','#fIntake','#fSpec','#fEnglish','#fWork','#fGre','#fGerman','#fBachYears','#fTuition','#fPapers',
+ '#fEcts','#fTop','#fRestricted','#fFee'].forEach(s =>
   $(s) && $(s).addEventListener('change', () => { showRelevant(); if(touched) render(); }));
-$('#fBach') && $('#fBach').addEventListener('change', () => { if(touched) render(); });
+['#fBach','#fGreQ','#fGreV','#fGreA'].forEach(s => $(s) && $(s).addEventListener('change', () => { showRelevant(); if(touched) render(); }));
 /* The destination changes which questions apply, before anybody presses Find. */
 ['#fCountry','#fLevel','#fField'].forEach(s => $(s) && $(s).addEventListener('change', showRelevant));
 $('#fMoreBtn') && ($('#fMoreBtn').onclick = () => {

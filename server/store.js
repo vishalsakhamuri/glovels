@@ -438,6 +438,13 @@ function sqliteDriver(file) {
     * counsellor. Calling those 'student' would move somebody's real shortlist
     * into a list of idle interest. */
    "ALTER TABLE shortlist ADD COLUMN added_by TEXT NOT NULL DEFAULT 'office'",
+   /* Patch 153. A fourth owner, 'held': the machine picked it but a person
+      has to look at it first — restricted admission, English cleared only by
+      an MOI letter, a requirement the student has not answered. The reason is
+      kept with the row so the counsellor's screen can say why without
+      re-running the matcher, and so the student can be told "special
+      conditions" without being told the name. */
+   "ALTER TABLE shortlist ADD COLUMN hold_reason TEXT NOT NULL DEFAULT ''",
    /* One row per device a member of staff has allowed notifications on. The
       endpoint is the identity — a browser that rotates a subscription gives us
       a new endpoint, and the old one starts returning 410, which is how dead
@@ -1035,7 +1042,40 @@ function open(dir) {
     },
 
     /* ---- shortlist ---- */
-    getShortlist: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id)),
+    /* The list, WITHOUT the held rows. Twenty callers read this as "what is
+       on the student's list", and a held row is precisely not on it yet —
+       the dashboard, the tasks, the partner's book, the counts all go on
+       seeing exactly what they saw. The held rows have their own reader. */
+    getShortlist: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id))
+      .filter(r => String(r.added_by) !== 'held'),
+    /* Patch 153: the machine's picks a counsellor has yet to release. */
+    getHeld: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id))
+      .filter(r => String(r.added_by) === 'held'),
+    /* A held pick. Never over a row that is already on the list: a university
+       the counsellor agreed, the machine delivered or the student marked is
+       on the list, and holding it would take it away. */
+    addHeld(studentId, p, reason) {
+      const existing = db.all('SELECT added_by FROM shortlist WHERE student_id = ? AND prog_id = ?',
+        Number(studentId), String(p.id))[0];
+      if (existing && String(existing.added_by) !== 'held') return false;
+      db.run(`INSERT OR REPLACE INTO shortlist
+        (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by, hold_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        Number(studentId), String(p.id), p.program || '', p.university || '', p.city || '',
+        p.country || '', Number(p.totalInr || 0), p.isPublic ? 1 : 0, p.url || '',
+        JSON.stringify(p.intakes || []), Number(p.fit || 0), now(), 'held', String(reason || '').slice(0, 400));
+      return true;
+    },
+    /* The counsellor has looked: it becomes a machine pick the student can
+       see. Only a held row moves — releasing what is not held is a no-op. */
+    releaseHeld(studentId, progId) {
+      const row = db.all('SELECT * FROM shortlist WHERE student_id = ? AND prog_id = ?',
+        Number(studentId), String(progId))[0];
+      if (!row || String(row.added_by) !== 'held') return null;
+      db.run('UPDATE shortlist SET added_by = ?, hold_reason = ?, added_at = ? WHERE student_id = ? AND prog_id = ?',
+        'matched', '', now(), Number(studentId), String(progId));
+      return db.all('SELECT * FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId))[0] || null;
+    },
     /**
      * `by` is 'student', 'matched' or 'office'.
      *

@@ -1485,6 +1485,17 @@ const pending = (paid && remaining)
       + (sla ? (sla.late ? 'Overdue — we will chase this' : 'Within 24 hours · '
                + sla.text) : 'Available within 24 hours') + '</span></article>'
   : '';
+/* Patch 153: the picks a counsellor is checking before they are named. The
+   number and the kind of condition only — a name here would be a name the
+   review has not yet agreed to. */
+const __held = Number((__m && __m.held) || 0);
+const heldNote = __held
+  ? '<article class="sl pending">' + ico('clock')
+    + '<b>' + __held + ' more universit' + (__held === 1 ? 'y is' : 'ies are')
+    + ' being checked by your counsellor</b>'
+    + '<p>Because of special conditions (restricted admission, English proof) \u2014 '
+    + (__held === 1 ? 'it' : 'they') + ' will be released to your list within 48 hours.</p></article>'
+  : '';
 
 /* Someone who has just paid should be able to see what they paid. Without this
    the only trace of a 74,999 rupee order is a package name on a progress bar. */
@@ -1511,7 +1522,7 @@ $('#slWrap').innerHTML = shown.length
       + SL_HEAD.map(h => '<th>' + h + '</th>').join('')
       + '</tr></thead><tbody>'
       + shown.map((p, i) => card(p, i)).join('')
-      + '</tbody></table></div>' + pending
+      + '</tbody></table></div>' + pending + heldNote
     + (order.demo
         ? '<p style="font-size:12.4px;color:var(--muted);margin:12px 0 0">'
           + 'The demo student\'s worked example. Pay with <b>' + DEMO_EMAIL + '</b> on the '
@@ -1529,7 +1540,7 @@ $('#slWrap').innerHTML = shown.length
     + '<p>They agree it with you before anything is submitted. If you already have '
     + 'universities in mind, mark them on My Programs and your counsellor will see them.</p>'
     + '<a class="btn btn-primary" href="universities.html">My universities ' + ico('arrow')
-    + '</a></div>';
+    + '</a></div>' + heldNote;
 
 /* The counsellor card from the prototype. The name is a placeholder until a
    counsellor is actually assigned, and it is labelled as such rather than

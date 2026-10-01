@@ -193,6 +193,15 @@ function answersOf(profile) {
   if (P.g_papers) a.papers = /^yes/i.test(String(P.g_papers));
   const bs = String(P.d_course || '').trim();
   if (bs) a.bachelorSubjects = bs;
+  /* Patch 153: the GRE by section, the bachelor's in ECTS, a class rank, and
+     whether a ranked (NC) admission is acceptable. The profile keys mirror the
+     finder's own controls: a_quant / a_verbal / a_awa, d_ects, d_top,
+     g_restricted. Restricted programmes are IN by default — a student who
+     has not said otherwise has not ruled out a competition, and most German
+     public master's are one. */
+  [['a_quant', 'greQuant'], ['a_verbal', 'greVerbal'], ['a_awa', 'greAwa'], ['d_ects', 'ects'], ['d_top', 'topPercent']]
+    .forEach(([pk, ak]) => { const n = parseFloat(P[pk]); if (Number.isFinite(n)) a[ak] = n; });
+  a.restrictedOk = !/^no$/i.test(String(P.g_restricted || '').trim());
   return a;
 }
 
@@ -253,19 +262,53 @@ const FIELD_WORDS = [
   ['Education & Teaching', /educat|teach|pedagog/],
   ['Sport & Exercise Science', /sport|exercise|fitness/],
   ['Agriculture & Food Science', /agri|food|nutrition|farm|dairy|horticult/],
+  /* Patch 153: the seventeen fields the Germany sheet files programmes under
+     that the list above had no name for — a civil engineer was "environmental"
+     and a pharmacist was "medicine". Each is its own shelf now, in the family
+     its neighbours sit in. */
+  ['Civil & Construction Engineering', /\bcivil\b|construction|structural/],
+  ['Chemical & Process Engineering', /chemical|process eng|process tech/],
+  ['Industrial & Manufacturing Engineering', /industrial|manufactur|production/],
+  ['Materials Science & Engineering', /materials?\b|metallurg/],
+  ['Mechatronics, Robotics & Automation', /mechatronic|robot|automation/],
+  ['Mining, Petroleum & Energy Engineering', /mining|petroleum|geoengineering|energy eng/],
+  ['Marine & Naval Engineering', /naval|marine|\bship|ocean/],
+  ['Architecture, Urban Planning & Built Environment', /architect|urban|town planning|spatial planning|regional planning|built env/],
+  ['Biomedical Engineering', /biomedical/],
+  ['Pharmacy & Pharmaceutical Sciences', /pharm/],
+  ['Nursing & Allied Health Sciences', /nursing|allied health|physiotherap/],
+  ['Veterinary & Animal Sciences', /veterinar|animal/],
+  ['Earth Sciences & Geology', /geolog|\bearth\b|geoscien|geophys/],
+  ['Mathematics, Statistics & Actuarial Science', /mathematic|statistic|actuari/],
+  ['Supply Chain, Logistics & Operations', /supply chain|logistic|operations/],
+  ['Real Estate & Property Management', /real estate|property/],
 ];
 const FAMILIES = [
   ['Computer Science & IT', 'Data Science, AI & Machine Learning', 'Cybersecurity & Cloud', 'Electrical & Electronics Engineering'],
-  ['Electrical & Electronics Engineering', 'Mechanical & Automotive Engineering', 'Aerospace & Robotics', 'Renewable Energy'],
-  ['Business & Management', 'MBA', 'Finance, Banking & Accounting', 'Economics', 'Marketing & Digital Media', 'Hospitality, Tourism & Events', 'Fashion & Luxury Management'],
-  ['Medicine, Dentistry & Allied Health', 'Public Health & Healthcare Management', 'Biotechnology & Bioinformatics'],
-  ['Arts & Design', 'Animation, Film & Game Design', 'Media & Communication', 'Marketing & Digital Media', 'Fashion & Luxury Management'],
-  ['Environmental Science & Sustainability', 'Renewable Energy', 'Agriculture & Food Science'],
+  ['Electrical & Electronics Engineering', 'Mechanical & Automotive Engineering', 'Aerospace & Robotics', 'Renewable Energy',
+    'Civil & Construction Engineering', 'Chemical & Process Engineering', 'Industrial & Manufacturing Engineering',
+    'Materials Science & Engineering', 'Mechatronics, Robotics & Automation', 'Mining, Petroleum & Energy Engineering',
+    'Marine & Naval Engineering', 'Biomedical Engineering'],
+  ['Business & Management', 'MBA', 'Finance, Banking & Accounting', 'Economics', 'Marketing & Digital Media', 'Hospitality, Tourism & Events', 'Fashion & Luxury Management',
+    'Supply Chain, Logistics & Operations', 'Real Estate & Property Management'],
+  ['Medicine, Dentistry & Allied Health', 'Public Health & Healthcare Management', 'Biotechnology & Bioinformatics',
+    'Biomedical Engineering', 'Pharmacy & Pharmaceutical Sciences', 'Nursing & Allied Health Sciences', 'Veterinary & Animal Sciences'],
+  ['Arts & Design', 'Animation, Film & Game Design', 'Media & Communication', 'Marketing & Digital Media', 'Fashion & Luxury Management',
+    'Architecture, Urban Planning & Built Environment'],
+  ['Environmental Science & Sustainability', 'Renewable Energy', 'Agriculture & Food Science',
+    'Earth Sciences & Geology', 'Civil & Construction Engineering', 'Architecture, Urban Planning & Built Environment'],
   ['Social Sciences & Social Work', 'International Relations & Public Policy', 'Law & Legal Studies', 'Humanities & Languages', 'Education & Teaching', 'Psychology'],
-  ['Natural Sciences (Physics, Chemistry, Maths)', 'Biotechnology & Bioinformatics'],
+  ['Natural Sciences (Physics, Chemistry, Maths)', 'Biotechnology & Bioinformatics',
+    'Mathematics, Statistics & Actuarial Science', 'Earth Sciences & Geology', 'Materials Science & Engineering'],
 ];
 /* The catalogue's older names for the same fields. */
-const FIELD_ALIAS = { 'computer science': 'Computer Science & IT' };
+const FIELD_ALIAS = {
+  'computer science': 'Computer Science & IT',
+  'civil engineering': 'Civil & Construction Engineering',
+  'architecture': 'Architecture, Urban Planning & Built Environment',
+  'mathematics': 'Mathematics, Statistics & Actuarial Science',
+  'logistics': 'Supply Chain, Logistics & Operations',
+};
 const normField = f => FIELD_ALIAS[String(f || '').toLowerCase()] || String(f || '');
 
 function fieldsWanted(text) {
@@ -793,6 +836,75 @@ function promise(pkg) {
  */
 const fold0 = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
+/* What check() calls a question, as the counsellor's screen says it. */
+const ASK_SAID = { english: 'English score', gre: 'GRE', greSections: 'GRE section scores', germanLevel: 'German level',
+  bachelorYears: 'bachelor\u2019s length', ects: 'bachelor ECTS', topPercent: 'class rank (top %)',
+  workExpMonths: 'work experience', papers: 'publications', moi: 'whether an MOI letter is accepted' };
+
+/*
+ * WHY A PICK IS HELD BACK FOR A PERSON TO LOOK AT (patch 153).
+ *
+ * The machine's shortlist is only ever as honest as the "fits" it is built
+ * on, and three kinds of fit are true on paper and still need a counsellor
+ * before a student is told "apply here": a programme where admission is a
+ * ranked competition; one where English is cleared only by an MOI letter the
+ * student has yet to obtain; and one that states a requirement the student
+ * has not answered. Those go on the list as HELD rows \u2014 the student sees the
+ * count and the reason in general terms, not the names \u2014 and the counsellor
+ * releases them within two days.
+ *
+ * Returns the reasons as sentences, or an empty list for a clear-cut pick.
+ */
+function holdReasons(p, profile) {
+  const vd = REQS.check((p && p.reqs) || {}, answersOf(profile));
+  const out = [];
+  (vd.notes || []).forEach(n => {
+    if (/moi/i.test(n)) out.push('Clears English only via MOI letter');
+    else if (/restricted/i.test(n)) out.push('Restricted admission \u2014 ranked, limited places');
+    else out.push(n);
+  });
+  vd.unknown.forEach(k => out.push('Not yet confirmed: ' + (ASK_SAID[k] || k)));
+  return out;
+}
+
+/*
+ * WHAT THE PACKAGES ON SALE PROMISE, as the two parts the staff screen
+ * tests against when the student has bought nothing yet (patch 153).
+ *
+ * The counsellor's "what would the machine deliver" ran with 3 public and 10
+ * private written into the handler, so the day the office changed the
+ * \u20b94,999 package to five universities the test screen went on saying
+ * three. The numbers live on the packages block \u2014 `unlocks` is how many
+ * public names a package reveals, `matches` how many it picks \u2014 and the
+ * services block carries the \u20b999 / \u20b9999 private shortlists. The biggest of
+ * each kind, exactly as matchEntitlement reads a real order.
+ *
+ * `content` is the content module (with get()), or a plain object holding
+ * {packages:{items}, services:{items}} \u2014 the tests hand in the latter.
+ */
+function partsFor(content, fallback) {
+  const fb = fallback || { public: 3, private: 10 };
+  const items = key => {
+    try {
+      const block = content && typeof content.get === 'function' ? content.get(key) : (content || {})[key];
+      return (block && Array.isArray(block.items)) ? block.items : (Array.isArray(block) ? block : []);
+    } catch (e) { return []; }
+  };
+  let pub = 0, priv = 0;
+  items('packages').forEach(p => {
+    if (p && p.active === false) return;
+    const pr = promise(p);
+    if (!pr.count) return;
+    if (pr.kind === 'public') pub = Math.max(pub, pr.count);
+    else priv = Math.max(priv, pr.count);
+  });
+  items('services').forEach(x => {
+    if (!x || x.active === false || !Number(x.matches)) return;
+    priv = Math.max(priv, Number(x.matches));
+  });
+  return [{ kind: 'public', count: pub || fb.public }, { kind: 'private', count: priv || fb.private }];
+}
+
 function screen(catalogue, profile, countries, opts) {
   const o = opts || {};
   const w = wants(profile);
@@ -805,9 +917,21 @@ function screen(catalogue, profile, countries, opts) {
   const words = String(o.q || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean);
   const fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const out = { fits: [], near: [], counts: { looked: 0, fits: 0, near: 0, unknownDates: 0 } };
+  /* Patch 153: two more of the home page's filters. How a programme is
+     applied for (free, or with a package — patch 152's rule: a private
+     university is free unless the row says otherwise), and whether admission
+     is ranked. Both are filters on the ROW, not on the student, so they sit
+     with kind/field/q rather than in check(). */
+  const feeWant = /^(free|package)$/.test(String(o.feeModel || '')) ? o.feeModel : '';
+  const restrWant = /^(yes|no)$/.test(String(o.restricted || '')) ? o.restricted : '';
   for (const p of catalogue || []) {
     if (o.kind === 'public' && !p.isPublic) continue;
     if (o.kind === 'private' && p.isPublic) continue;
+    const feeModel = p.feeModel || (p.isPublic ? 'package' : 'free');
+    if (feeWant && feeModel !== feeWant) continue;
+    const restricted = (p.reqs || {}).restricted === true;
+    if (restrWant === 'yes' && !restricted) continue;
+    if (restrWant === 'no' && restricted) continue;
     if (w.countries && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) continue;
     if (w.level && String(p.level || '').toLowerCase() !== w.level) continue;
     if (o.field && normField(p.field) !== o.field) continue;
@@ -849,11 +973,13 @@ function screen(catalogue, profile, countries, opts) {
     }
     const vd = REQS.check(p.reqs || {}, w.answers || {});
     vd.fails.forEach(f => why.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
-    vd.unknown.forEach(k => ask.push({ english: 'English score', gre: 'GRE', germanLevel: 'German level', bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'publications', moi: 'whether an MOI letter is accepted' }[k] || k));
+    vd.unknown.forEach(k => ask.push(ASK_SAID[k] || k));
     if (!subjectFits(p, w)) why.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
     const row = { id: p.id, program: p.program, university: p.university, city: p.city || '', country: p.country,
       level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),
-      intakes: p.intakes || [], relevance: rel, why, ask, score: score(p, w) };
+      intakes: p.intakes || [], relevance: rel, why, ask, score: score(p, w),
+      /* Patch 153: what the row is, and on what condition it clears. */
+      feeModel, restricted, notes: vd.notes || [] };
     if (!why.length) { out.fits.push(row); out.counts.fits++; }
     else if (why.length === 1) { out.near.push(row); out.counts.near++; }
   }
@@ -866,4 +992,4 @@ function screen(catalogue, profile, countries, opts) {
   return out;
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen };
+module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen, holdReasons, partsFor, normField, ASK_SAID };

@@ -551,6 +551,39 @@ function paintRecord(r) {
             'yet. Agree one on a call, then put it here \u2014 this is what the admission ' +
             'guarantee attaches to.</p>') +
 
+        /* Patch 153: the machine's picks waiting on this counsellor. Each
+           fits on paper and carries a condition a person should look at —
+           ranked admission, English only via an MOI letter, a requirement
+           the student has not answered. The student has been told the count
+           and a 48-hour promise; Release puts it on their list, Dismiss
+           keeps it off for good. */
+        (function () {
+          const held = r.held || [];
+          if (!held.length) return '';
+          return '<div id="heldList" style="margin-top:14px;padding:12px 14px;border-radius:11px;' +
+              'background:#fff8e6;border:1px solid #f1d9a0">'
+            + '<b style="display:block;font-size:13.4px;color:var(--navy-900)">'
+            + held.length + ' held for your review</b>'
+            + '<span style="display:block;font-size:12.2px;color:var(--muted);margin:3px 0 10px">'
+            + 'Matched, but with a special condition. The student sees the count, not the names, '
+            + 'and has been promised an answer within 48 hours.</span>'
+            + '<ul class="doclist">' + held.map(function (p) {
+                return '<li style="align-items:center;gap:10px;flex-wrap:wrap">'
+                  + '<div style="flex:1 1 200px;min-width:0">'
+                  + '<b style="display:block" title="' + esc(uniFull(p)) + '">'
+                    + esc(uniName(p)) + '</b>'
+                  + '<span style="display:block;font-size:12px;color:var(--muted)">'
+                  + esc(p.program || '') + ' \u00b7 ' + money(p) + '</span>'
+                  + '<span style="display:block;font-size:12px;color:#8a5a00;margin-top:3px">'
+                  + esc(p.reason || 'Special condition') + '</span></div>'
+                  + '<button type="button" class="btn btn-green btn-sm" data-unirelease="'
+                  + esc(p.id) + '">Release</button>'
+                  + '<button type="button" class="btn btn-ghost btn-sm" data-unidrop="'
+                  + esc(p.id) + '" data-uniname="' + esc(uniName(p)) + '" data-unilabel="Dismiss" title="Keep it off their list">Dismiss</button>'
+                  + '</li>';
+              }).join('') + '</ul></div>';
+        })() +
+
         (function () {
           const want = r.shortlist.filter(function (p) { return p.addedBy === 'student'; });
           if (!want.length) return '';
@@ -877,6 +910,24 @@ document.addEventListener('click', async e => {
     return;
   }
 
+  /* Patch 153: a held pick, looked at, goes on their list. */
+  const release = e.target.closest('[data-unirelease]');
+  if (release) {
+    release.disabled = true;
+    release.textContent = 'Releasing\u2026';
+    try {
+      await api('POST', '/api/staff/student/' + openId + '/shortlist/' +
+        encodeURIComponent(release.dataset.unirelease) + '/release', {});
+      await refreshCase();
+      toast('Released \u2014 it is on their list now, and they have been told.');
+    } catch (err) {
+      release.disabled = false;
+      release.textContent = 'Release';
+      toast('That did not work: ' + err.message, 'bad');
+    }
+    return;
+  }
+
   const add = e.target.closest('[data-uniadd]');
   if (add) {
     add.disabled = true;
@@ -917,7 +968,7 @@ document.addEventListener('click', async e => {
       $$('[data-unidrop]').forEach(b => {
         if (b === drop) return;
         b.dataset.sure = '';
-        b.textContent = 'Remove';
+        b.textContent = b.dataset.unilabel || 'Remove';
         b.style.cssText = '';
       });
       drop.dataset.sure = '1';
@@ -925,13 +976,13 @@ document.addEventListener('click', async e => {
          sheet, and one control on one screen does not earn a global style. */
       drop.style.cssText = 'border-color:#c0392b;color:#7a2118;background:#fdf3f2;'
         + 'font-weight:700';
-      drop.textContent = 'Remove ' + (drop.dataset.uniname || 'it') + '?';
+      drop.textContent = (drop.dataset.unilabel || 'Remove') + ' ' + (drop.dataset.uniname || 'it') + '?';
       drop.title = 'This also deletes the application — the stage, the decision '
         + 'and everything recorded against it. Press again to remove.';
       clearTimeout(dropTimer);
       dropTimer = setTimeout(() => {
         drop.dataset.sure = '';
-        drop.textContent = 'Remove';
+        drop.textContent = drop.dataset.unilabel || 'Remove';
         drop.style.cssText = '';
       }, 5000);
       return;
@@ -942,11 +993,11 @@ document.addEventListener('click', async e => {
       await api('DELETE', '/api/staff/student/' + openId + '/shortlist/' +
         encodeURIComponent(drop.dataset.unidrop));
       await refreshCase();
-      toast('Taken off their list, and the application with it.');
+      toast(drop.dataset.unilabel ? 'Dismissed \u2014 it stays off their list.' : 'Taken off their list, and the application with it.');
     } catch (err) {
       drop.disabled = false;
       drop.dataset.sure = '';
-      drop.textContent = 'Remove';
+      drop.textContent = drop.dataset.unilabel || 'Remove';
       drop.style.cssText = '';
       /* toast, not alert(): a modal dialog stops every other script on the page
          until somebody dismisses it, and this one is reporting a failure the

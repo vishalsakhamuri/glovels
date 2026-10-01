@@ -87,6 +87,29 @@ const FIELDS = [
   { key: 'papersRequired', col: 'papers required', aliases: ['paper publication', 'publications', 'papers', 'publication required'],
     type: 'yesno', label: 'Paper publication required',
     note: 'yes or no. Blank if not stated.' },
+  /* Patch 153. The Germany sheet states more than the total: the GRE by
+     section, the bachelor's in ECTS credits rather than years, a class rank,
+     and whether admission is open or ranked. Each is its own column for the
+     same reason the GRE got two — a programme that says "Quant 160" has said
+     nothing about the total, and folding it into greMin would invent one. */
+  { key: 'greQuant', col: 'gre quant min', aliases: ['gre quantitative', 'gre q', 'gre quant', 'quantitative reasoning'],
+    type: 'int', lo: 130, hi: 170, label: 'GRE Quantitative minimum',
+    note: 'Section score, 130–170. Blank if not stated.' },
+  { key: 'greVerbal', col: 'gre verbal min', aliases: ['gre verbal', 'gre v', 'verbal reasoning'],
+    type: 'int', lo: 130, hi: 170, label: 'GRE Verbal minimum',
+    note: 'Section score, 130–170. Blank if not stated.' },
+  { key: 'greAwa', col: 'gre awa min', aliases: ['gre awa', 'awa', 'analytical writing'],
+    type: 'number', lo: 0, hi: 6, step: 0.5, label: 'GRE AWA minimum',
+    note: 'Analytical Writing, 0–6 in halves. Blank if not stated.' },
+  { key: 'ectsMin', col: 'ects min', aliases: ['ects', 'bachelor ects', 'min ects', 'ects required'],
+    type: 'int', lo: 180, hi: 240, label: 'Bachelor ECTS required',
+    note: '180 for a 3-year bachelor’s, 210 or 240 for 4 years. Blank if not stated.' },
+  { key: 'restricted', col: 'restricted', aliases: ['restricted admission', 'nc', 'numerus clausus', 'zulassungsbeschränkt', 'admission restricted', 'selection procedure'],
+    type: 'yesno', label: 'Restricted admission (NC / selection)',
+    note: 'yes when places are limited and applicants are ranked (NC, aptitude assessment, selection interview); no when everyone who meets the requirements is admitted. Blank if not stated.' },
+  { key: 'topPercent', col: 'top percent', aliases: ['top %', 'top percent of class', 'class rank top %', 'top'],
+    type: 'int', lo: 1, hi: 100, label: 'Top % of class required',
+    note: 'e.g. 10 means the student must be in the top 10% of their class. Blank if not stated.' },
 ];
 
 const BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
@@ -223,10 +246,18 @@ const SHEET_HEADERS = FIELDS.map(f => f.col);
  *
  *   fails    [{key, label, want, have}]  — stated, answered, and not met
  *   unknown  [key]                       — stated by the programme, not answered
+ *   notes    [string]                    — clears, but on a condition worth
+ *                                          saying out loud (patch 153)
+ *
+ * `notes` is the third answer. "Clears via MOI letter" and "restricted
+ * admission" are neither a miss nor a question — the student fits — but a
+ * paid shortlist that names such a programme without a word about it is a
+ * shortlist a counsellor has to explain on the phone later. Every caller
+ * that only reads fails and unknown goes on working; `ok` is unchanged.
  */
 function check(reqs, student) {
   const r = reqs || {}; const s = student || {};
-  const fails = []; const unknown = [];
+  const fails = []; const unknown = []; const notes = [];
   const has = v => v !== undefined && v !== null && v !== '';
   const num = v => (has(v) && Number.isFinite(Number(v)) ? Number(v) : null);
 
@@ -239,6 +270,13 @@ function check(reqs, student) {
     const okI = wantI != null && haveI != null && haveI >= wantI;
     const okT = wantT != null && haveT != null && haveT >= wantT;
     if (okI || okT) { /* clears */ }
+    /* Patch 153: where the programme ACCEPTS an MOI letter, English can
+       never be the thing that fails. A short IELTS, or no test at all, is
+       covered by the bachelor's having been taught in English — the Germany
+       sheet says so for most public universities — and the student is told
+       that this is what carries them, because it is a letter they have to
+       go and get. */
+    else if (r.moiAccepted === true) notes.push('clears via MOI letter');
     /* Patch 149: a Medium of Instruction letter clears where it is accepted,
        fails where the programme says it is not, and is a question otherwise. */
     else if (s.moi === true && haveI == null && haveT == null) {
@@ -269,6 +307,29 @@ function check(reqs, student) {
     else if (notTaken) fails.push({ key: 'gre', label: 'GRE', want: num(r.greMin) != null ? String(r.greMin) : 'a GRE score', have: 'not taken' });
     else if (num(r.greMin) != null && have < num(r.greMin)) fails.push({ key: 'gre', label: 'GRE', want: String(r.greMin), have: String(have) });
   }
+  /* Patch 153: the GRE by section. A programme that asks "Quant 160" is
+     not asking for a total, and a 320 total says nothing about the split —
+     so a stated section with only a total on file is a question
+     ('greSections'), not a pass. "Not taken" misses here as it does above,
+     naming the sections it would have needed. */
+  const SECTIONS = [['greQuant', 'greQuant', 'GRE Quant'], ['greVerbal', 'greVerbal', 'GRE Verbal'], ['greAwa', 'greAwa', 'GRE AWA']];
+  const asked = SECTIONS.filter(([rk]) => num(r[rk]) != null);
+  if (asked.length) {
+    const notTaken = s.gre === false || s.gre === 0 || s.gre === '0' || /^(no|none|not taken)$/i.test(String(s.gre || ''));
+    if (notTaken) {
+      if (!fails.some(f => f.key === 'gre')) fails.push({ key: 'gre', label: 'GRE',
+        want: asked.map(([rk, , lb]) => lb + ' ' + r[rk]).join(', '), have: 'not taken' });
+    } else {
+      let missing = false;
+      asked.forEach(([rk, sk, lb]) => {
+        const have = num(s[sk]);
+        if (have == null) { missing = true; return; }
+        if (have < num(r[rk])) fails.push({ key: 'gre', label: lb, want: String(r[rk]), have: String(have) });
+      });
+      const u = num(s.gre) != null ? 'greSections' : 'gre';
+      if (missing && !unknown.includes(u)) unknown.push(u);
+    }
+  }
   if (has(r.germanLevel) && r.germanLevel !== 'none') {
     const want = CEFR.indexOf(r.germanLevel);
     const haveL = has(s.germanLevel) ? CEFR.indexOf(String(s.germanLevel)) : -1;
@@ -295,9 +356,41 @@ function check(reqs, student) {
     if (s.papers === undefined || s.papers === null || s.papers === '') unknown.push('papers');
     else if (!s.papers) fails.push({ key: 'papers', label: 'Publication', want: 'a published paper', have: 'none' });
   }
+  /* Patch 153: the bachelor's in credits. German universities count ECTS,
+     Indian students count years, and a three-year BSc is 180 either way —
+     so the years stand in when the credits were not asked: 3 → 180, 4 or 5 →
+     240. A stated 210 then turns down the three-year degree it was always
+     going to turn down. */
+  const wantEcts = num(r.ectsMin);
+  if (wantEcts != null) {
+    let have = num(s.ects);
+    if (have == null) {
+      const y = num(s.bachelorYears);
+      if (y != null) have = y >= 4 ? 240 : y === 3 ? 180 : null;
+    }
+    if (have == null) unknown.push('ects');
+    else if (have < wantEcts) fails.push({ key: 'ects', label: 'Bachelor ECTS', want: String(wantEcts), have: String(have) });
+  }
+  /* Class rank: "top 10%" is a bar a bigger number falls below. */
+  const wantTop = num(r.topPercent);
+  if (wantTop != null) {
+    const have = num(s.topPercent);
+    if (have == null) unknown.push('topPercent');
+    else if (have > wantTop) fails.push({ key: 'topPercent', label: 'Class rank',
+      want: 'top ' + wantTop + '%', have: 'top ' + have + '%' });
+  }
+  /* Restricted admission (NC, aptitude test, interview) never turns anybody
+     down on paper — it is a competition, not a bar — so it is a note unless
+     the student has said they only want programmes that admit everyone who
+     qualifies. */
+  if (r.restricted === true) {
+    if (s.restrictedOk === false) fails.push({ key: 'restricted', label: 'Restricted admission',
+      want: 'open admission', have: 'restricted (ranked, limited places)' });
+    else notes.push('restricted admission — ranked, limited places');
+  }
   /* The bachelor's subject is words on both sides, so it is never a hard
      fail: a mismatch is flagged for the counsellor, not scored. */
-  return { fails, unknown, ok: fails.length === 0 && unknown.length === 0 };
+  return { fails, unknown, notes, ok: fails.length === 0 && unknown.length === 0 };
 }
 
 module.exports = { FIELDS, BY_KEY, CEFR, clean, problems, parse, fromSheet, toSheet, SHEET_HEADERS, headingsFor, check };
