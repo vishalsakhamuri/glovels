@@ -512,8 +512,14 @@ function paintRecord(r) {
           '<h3 style="font-size:14.5px;margin:0">Their universities</h3>' +
           '<span style="font-size:11.8px;color:var(--muted)">' + r.shortlist.length +
             ' on the list</span>' +
-          '<button type="button" class="btn btn-primary btn-sm" id="addUni" ' +
-            'style="margin-left:auto">+ Add a university</button></div>' +
+          '<button type="button" class="btn btn-ghost btn-sm" id="fitUni" ' +
+            'style="margin-left:auto">Find what fits</button>' +
+          '<button type="button" class="btn btn-primary btn-sm" id="addUni">+ Add a university</button></div>' +
+        /* Patch 147: the finder's filters, with names, run through the same
+           rules as the paid shortlist — so a counsellor can test and build a
+           shortlist the student cannot see until they pay. */
+        '<div id="fitBox" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;' +
+          'background:var(--paper);border:1px solid var(--line)"></div>' +
         '<div id="uniAdd" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;' +
           'background:var(--paper);border:1px solid var(--line)">' +
           '<input id="uniQ" placeholder="Search the catalogue — university, course or country" ' +
@@ -808,6 +814,29 @@ document.addEventListener('click', async e => {
     }
     pw.disabled = false;
     pw.textContent = was;
+    return;
+  }
+
+  const fitOpen = e.target.closest('#fitUni');
+  if (fitOpen) {
+    const box = $('#fitBox');
+    box.hidden = !box.hidden;
+    if (!box.hidden && !box.dataset.mounted && window.GlovelsFit) {
+      box.dataset.mounted = '1';
+      const sid = openId;
+      window.GlovelsFit.mount(box, {
+        profile: (CASE && CASE.profile) || {},
+        note: 'Starts from ' + esc(((CASE && CASE.student && CASE.student.name) || 'the student').split(' ')[0])
+          + '\u2019s profile. Change anything to see what would fit instead.',
+        autorun: true,
+        run: f => api('GET', '/api/staff/student/' + sid + '/fit?' + Object.keys(f)
+          .filter(k => f[k] !== undefined).map(k => k + '=' + encodeURIComponent(f[k])).join('&')),
+        onAdd: async id => {
+          await api('POST', '/api/staff/student/' + sid + '/shortlist', { id });
+          await refreshCase();
+        },
+      });
+    }
     return;
   }
 

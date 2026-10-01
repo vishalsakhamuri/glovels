@@ -10606,6 +10606,57 @@ patch(
     marker='/* By the date shown, not the raw sheet date (patch 145). */',
 )
 
+patch(
+    'counsellor.html',
+    'staff matcher, patch 147 (1)',
+    '            \' on the list</span>\' +\n          \'<button type="button" class="btn btn-primary btn-sm" id="addUni" \' +\n            \'style="margin-left:auto">+ Add a university</button></div>\' +\n        \'<div id="uniAdd" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;\' +\n',
+    '            \' on the list</span>\' +\n          \'<button type="button" class="btn btn-ghost btn-sm" id="fitUni" \' +\n            \'style="margin-left:auto">Find what fits</button>\' +\n          \'<button type="button" class="btn btn-primary btn-sm" id="addUni">+ Add a university</button></div>\' +\n        /* Patch 147: the finder\'s filters, with names, run through the same\n           rules as the paid shortlist — so a counsellor can test and build a\n           shortlist the student cannot see until they pay. */\n        \'<div id="fitBox" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;\' +\n          \'background:var(--paper);border:1px solid var(--line)"></div>\' +\n        \'<div id="uniAdd" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;\' +\n',
+    marker='\'<button type="button" class="btn btn-primary btn-sm" id="addUni">+ Add a university</button></div>\' +',
+)
+patch(
+    'counsellor.html',
+    'staff matcher, patch 147 (2)',
+    '    pw.textContent = was;\n    return;\n',
+    "    pw.textContent = was;\n    return;\n  }\n\n  const fitOpen = e.target.closest('#fitUni');\n  if (fitOpen) {\n    const box = $('#fitBox');\n    box.hidden = !box.hidden;\n    if (!box.hidden && !box.dataset.mounted && window.GlovelsFit) {\n      box.dataset.mounted = '1';\n      const sid = openId;\n      window.GlovelsFit.mount(box, {\n        profile: (CASE && CASE.profile) || {},\n        note: 'Starts from ' + esc(((CASE && CASE.student && CASE.student.name) || 'the student').split(' ')[0])\n          + '\\u2019s profile. Change anything to see what would fit instead.',\n        autorun: true,\n        run: f => api('GET', '/api/staff/student/' + sid + '/fit?' + Object.keys(f)\n          .filter(k => f[k] !== undefined).map(k => k + '=' + encodeURIComponent(f[k])).join('&')),\n        onAdd: async id => {\n          await api('POST', '/api/staff/student/' + sid + '/shortlist', { id });\n          await refreshCase();\n        },\n      });\n    }\n    return;\n",
+    marker="note: 'Starts from ' + esc(((CASE && CASE.student && CASE.student.name) || 'the student').split(' ')[0])",
+)
+patch(
+    'counsellor.html',
+    'staff matcher, patch 147 (3)',
+    '<!-- /GLOVELS-PW-EYE -->\n</body>\n',
+    '<!-- /GLOVELS-PW-EYE -->\n<script src="/fitpanel.js"></script>\n</body>\n',
+    marker='<script src="/fitpanel.js"></script>',
+)
+patch(
+    'catalogue.html',
+    'staff matcher, patch 147 (1)',
+    '      <button class="tab" data-t="log" aria-selected="false">Recent changes</button>\n    </div>\n',
+    '      <button class="tab" data-t="log" aria-selected="false">Recent changes</button>\n      <button class="tab" data-t="fit" aria-selected="false">Test the matcher</button>\n    </div>\n',
+    marker='<button class="tab" data-t="fit" aria-selected="false">Test the matcher</button>',
+)
+patch(
+    'catalogue.html',
+    'staff matcher, patch 147 (2)',
+    '      </style>\n    </section>\n',
+    '      </style>\n    </section>\n\n    <!-- ------------------------------------------------- test the matcher -->\n    <!-- Patch 147: the home finder\'s filters, with names, for the office.\n         Students cannot see which universities fit them until they pay, so\n         this is where the shortlist rules are tested. -->\n    <section class="pane" id="t-fit">\n      <div class="card" style="padding:16px 18px">\n        <h2 style="margin:0 0 6px;font-size:17px">Test the matcher</h2>\n        <p style="margin:0 0 12px;color:var(--muted);font-size:12.8px">Type a student\'s answers and see every programme\n          that fits them, every one that misses on one thing and why, and exactly what the Public University Unlock (3)\n          and the Private shortlist of 10 would deliver — the same rules the paid shortlist uses.</p>\n        <div id="fitAdmin"></div>\n      </div>\n    </section>\n',
+    marker='<p style="margin:0 0 12px;color:var(--muted);font-size:12.8px">Type a student\'s answers and see every programme',
+)
+patch(
+    'catalogue.html',
+    'staff matcher, patch 147 (3)',
+    "    $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));\n    return;\n",
+    '    $$(\'.pane\').forEach(x => x.classList.toggle(\'active\', x.id === \'t-\' + t.dataset.t));\n    if (t.dataset.t === \'fit\' && window.GlovelsFit && !$(\'#fitAdmin\').dataset.mounted) {\n      $(\'#fitAdmin\').dataset.mounted = \'1\';\n      window.GlovelsFit.mount($(\'#fitAdmin\'), {\n        profile: { g_country: \'Germany\', g_level: "Master\'s", g_field: \'Data Science\', g_intake: \'\',\n          d_course: \'B.Tech CSE\', d_dur: \'4 years\', d_cgpa: \'7.8\', d_max: \'10\', d_pass: \'4\',\n          e_test: \'IELTS\', e_score: \'6.5\', w_has: \'No\' },\n        run: f => {\n          const filters = Object.assign({}, f);\n          return api(\'POST\', \'/api/staff/fit\', { profile: {}, filters });\n        },\n        autorun: true,\n      });\n    }\n    return;\n',
+    marker='profile: { g_country: \'Germany\', g_level: "Master\'s", g_field: \'Data Science\', g_intake: \'\',',
+)
+patch(
+    'catalogue.html',
+    'staff matcher, patch 147 (4)',
+    '<!-- /GLOVELS-PW-EYE -->\n</body>\n',
+    '<!-- /GLOVELS-PW-EYE -->\n<script src="/fitpanel.js"></script>\n</body>\n',
+    marker='<script src="/fitpanel.js"></script>',
+)
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

@@ -3953,6 +3953,66 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
     }));
 
+  /* ------------------------------------------------ what fits, for staff
+   *
+   * "We hide the university shortlist until paid by student, so we need these
+   *  proper filters to work in the counsellor and admin panel so that
+   *  shortlisting of the unis can be tested." (patch 147)
+   *
+   * The finder's filters, with names, run through the SAME rules the paid
+   * shortlist uses (MATCHES.screen / MATCHES.plan). The student's profile is
+   * the starting point; anything on the query overrides it for this search
+   * only — nothing is saved to their file.
+   */
+  const FIT_KEYS = ['g_country', 'g_level', 'g_field', 'g_field2', 'g_intake', 'b_total', 'e_test', 'e_score',
+    'g_german', 'w_has', 'w_months', 'd_course', 'd_dur', 'd_cgpa', 'd_max', 'd_pass', 'a_test', 'a_score', 'g_papers'];
+  const fitRun = (profile, q, owedParts) => {
+    const prof = Object.assign({}, profile || {});
+    FIT_KEYS.forEach(k => { if (q[k] !== undefined) prof[k] = String(q[k]); });
+    const cat = rowsFor(prof);
+    const opts = { kind: /^(public|private)$/.test(String(q.kind || '')) ? q.kind : 'any',
+      field: String(q.field || '').trim(), q: String(q.q || '').slice(0, 80),
+      ceiling: q.ceiling === undefined || q.ceiling === '' ? undefined : Number(q.ceiling) || 0,
+      limit: Number(q.limit) || 100 };
+    const found = MATCHES.screen(cat, prof, countryMap(), opts);
+    /* What the machine would deliver — the same call deliverMatches makes. */
+    const auto = (owedParts || []).map(part => {
+      const pl = MATCHES.plan(cat, prof, part.count, part.kind, countryMap());
+      return { kind: part.kind, count: part.count, package: part.package || '',
+        picks: pl.items.map(p => ({ id: p.id, program: p.program, university: p.university, totalInr: p.totalInr })),
+        note: pl.note, short: pl.short };
+    });
+    return { profile: prof, usable: MATCHES.usable(prof), fits: found.fits, near: found.near,
+      counts: found.counts, auto };
+  };
+
+  route('GET', /^\/api\/staff\/student\/(\d+)\/fit$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+    const st = db.studentById(id);
+    if (!st) return json(res, 404, { error: 'No such student' });
+    const q = url.parse(req.url, true).query || {};
+    const owed = matchEntitlement(st);
+    const parts = owed.parts && owed.parts.length ? owed.parts
+      : [{ kind: 'public', count: 3, package: 'Public University Unlock (not bought)' },
+         { kind: 'private', count: 10, package: 'Private shortlist of 10 (not bought)' }];
+    const out = fitRun(db.getProfile(id), q, parts);
+    out.bought = !!(owed.parts && owed.parts.length);
+    out.onList = db.getShortlist(id).map(r => String(r.prog_id));
+    out.dismissed = typeof db.dismissedFor === 'function' ? db.dismissedFor(id) : [];
+    return json(res, 200, out);
+  }));
+
+  /* The same, for a profile typed in on the admin screen — to test the
+     matcher without a student, a payment or a shortlist. */
+  route('POST', '/api/staff/fit', staffOnly(async (req, res) => {
+    const b = await readJson(req);
+    const q = Object.assign({}, b.filters || {});
+    const parts = [{ kind: 'public', count: Number(b.publicCount) || 3, package: 'Public University Unlock' },
+      { kind: 'private', count: Number(b.privateCount) || 10, package: 'Private shortlist of 10' }];
+    return json(res, 200, fitRun(b.profile || {}, q, parts));
+  }));
+
   route('DELETE', /^\/api\/staff\/student\/(\d+)\/shortlist\/(.+)$/,
     caseworkOnly(async (req, res, s, m) => {
       const id = Number(m[1]);

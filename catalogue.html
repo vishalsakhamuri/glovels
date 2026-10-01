@@ -978,6 +978,7 @@ select.assign.none:hover{border-color:#a5342b}
       <button class="tab" data-t="pages" aria-selected="false">University pages
         <span class="n" id="nPages">0</span></button>
       <button class="tab" data-t="log" aria-selected="false">Recent changes</button>
+      <button class="tab" data-t="fit" aria-selected="false">Test the matcher</button>
     </div>
 
     <!-- ------------------------------------------------------- programmes -->
@@ -1227,6 +1228,20 @@ select.assign.none:hover{border-color:#a5342b}
           border-radius:8px;border:1px solid var(--line);background:#f2f5f9;display:grid;
           place-items:center;font:600 11px/1.3 var(--sans);color:var(--muted)}
       </style>
+    </section>
+
+    <!-- ------------------------------------------------- test the matcher -->
+    <!-- Patch 147: the home finder's filters, with names, for the office.
+         Students cannot see which universities fit them until they pay, so
+         this is where the shortlist rules are tested. -->
+    <section class="pane" id="t-fit">
+      <div class="card" style="padding:16px 18px">
+        <h2 style="margin:0 0 6px;font-size:17px">Test the matcher</h2>
+        <p style="margin:0 0 12px;color:var(--muted);font-size:12.8px">Type a student's answers and see every programme
+          that fits them, every one that misses on one thing and why, and exactly what the Public University Unlock (3)
+          and the Private shortlist of 10 would deliver — the same rules the paid shortlist uses.</p>
+        <div id="fitAdmin"></div>
+      </div>
     </section>
 
     <section class="pane" id="t-log">
@@ -2774,6 +2789,19 @@ document.addEventListener('click', async e => {
   if (t) {
     $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
     $$('.pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
+    if (t.dataset.t === 'fit' && window.GlovelsFit && !$('#fitAdmin').dataset.mounted) {
+      $('#fitAdmin').dataset.mounted = '1';
+      window.GlovelsFit.mount($('#fitAdmin'), {
+        profile: { g_country: 'Germany', g_level: "Master's", g_field: 'Data Science', g_intake: '',
+          d_course: 'B.Tech CSE', d_dur: '4 years', d_cgpa: '7.8', d_max: '10', d_pass: '4',
+          e_test: 'IELTS', e_score: '6.5', w_has: 'No' },
+        run: f => {
+          const filters = Object.assign({}, f);
+          return api('POST', '/api/staff/fit', { profile: {}, filters });
+        },
+        autorun: true,
+      });
+    }
     return;
   }
   if (e.target.closest('[data-close]') || e.target === $('#progModal')) {
@@ -3219,5 +3247,6 @@ if (location.protocol === 'file:') {
 }());
 </script>
 <!-- /GLOVELS-PW-EYE -->
+<script src="/fitpanel.js"></script>
 </body>
 </html>

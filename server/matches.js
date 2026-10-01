@@ -764,4 +764,78 @@ function promise(pkg) {
   };
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR };
+/*
+ * THE SAME RULES, OPENED UP FOR STAFF (patch 147).
+ *
+ * "We hide the university shortlist until paid by student, so we need these
+ *  proper filters to work in the counsellor and admin panel."
+ *
+ * `plan` answers "which N would the package deliver". A counsellor needs the
+ * question behind it: every programme, and for each one whether it fits this
+ * student and — when it does not — exactly why. One function, so the screen
+ * a counsellor tests with and the machine that delivers the paid list can
+ * never disagree about what "fits" means.
+ *
+ *   opts.kind      'public' | 'private' | 'any'
+ *   opts.field     a catalogue field, exact — overrides the profile's words
+ *   opts.q         words in the programme or university name
+ *   opts.ceiling   rupees, overrides the profile's budget (0 = no ceiling)
+ *   opts.limit     how many of each list to return
+ *
+ * Returns { fits: [...], near: [...], counts } — `near` is programmes that
+ * miss on exactly one thing, which is what a counsellor can do something
+ * about (a test score, a bridging semester, a later intake).
+ */
+function screen(catalogue, profile, countries, opts) {
+  const o = opts || {};
+  const w = wants(profile);
+  const ceiling = o.ceiling === undefined ? w.ceiling : (Number(o.ceiling) || null);
+  const words = String(o.q || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean);
+  const fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const out = { fits: [], near: [], counts: { looked: 0, fits: 0, near: 0, unknownDates: 0 } };
+  for (const p of catalogue || []) {
+    if (o.kind === 'public' && !p.isPublic) continue;
+    if (o.kind === 'private' && p.isPublic) continue;
+    if (w.countries && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) continue;
+    if (w.level && String(p.level || '').toLowerCase() !== w.level) continue;
+    if (o.field && normField(p.field) !== o.field) continue;
+    if (words.length && !words.every(x => fold(p.program + ' ' + p.university + ' ' + p.city).includes(x))) continue;
+    const rel = o.field ? 3 : relevance(p, w);
+    if (!o.field && w.field && rel < 2) continue;
+    out.counts.looked++;
+    const why = [], ask = [];
+    if (!visaFriendly(p)) why.push('part-time / online / executive — a student visa does not cover it');
+    if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) why.push('needs a completed bachelor’s');
+    if (ceiling && Number(p.totalInr || 0) > ceiling) why.push('over budget (₹' + Math.round(Number(p.totalInr) / 100000) + 'L)');
+    if (ceiling && !p.isPublic && !Number(p.totalInr || 0)) why.push('fee not entered');
+    if (w.term) {
+      const st = termStatus(p, w.term);
+      if (st === 'closed') why.push('deadline for ' + w.term.season + ' ' + w.term.year + ' has passed');
+      if (st === 'unknown') { ask.push('dates not published'); out.counts.unknownDates++; }
+    }
+    if (p.germanGpa != null && w.german != null) {
+      if (w.german > Number(p.germanGpa)) why.push('asks German ' + Number(p.germanGpa).toFixed(1) + ', they have ' + w.german.toFixed(1));
+    } else {
+      const bar = barOf(p, countries);
+      if (w.cgpa && bar != null && w.cgpa < bar) why.push('asks ' + bar + '+ CGPA, they have ' + w.cgpa);
+    }
+    const vd = REQS.check(p.reqs || {}, w.answers || {});
+    vd.fails.forEach(f => why.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
+    vd.unknown.forEach(k => ask.push({ english: 'English score', gre: 'GRE', germanLevel: 'German level', bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'publications' }[k] || k));
+    if (!subjectFits(p, w)) why.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
+    const row = { id: p.id, program: p.program, university: p.university, city: p.city || '', country: p.country,
+      level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),
+      intakes: p.intakes || [], relevance: rel, why, ask, score: score(p, w) };
+    if (!why.length) { out.fits.push(row); out.counts.fits++; }
+    else if (why.length === 1) { out.near.push(row); out.counts.near++; }
+  }
+  /* Closest subject first — a Biotechnology student sees Biology before a
+     Mathematics programme that only shares the Natural Sciences shelf. */
+  const byScore = (a, b) => b.relevance - a.relevance || b.score - a.score || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
+  out.fits.sort(byScore); out.near.sort(byScore);
+  const lim = Math.max(1, Math.min(500, Number(o.limit) || 100));
+  out.fits = out.fits.slice(0, lim); out.near = out.near.slice(0, lim);
+  return out;
+}
+
+module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen };

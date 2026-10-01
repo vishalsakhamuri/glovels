@@ -1,0 +1,171 @@
+/*
+ * FIND WHAT FITS — the finder's filters, for staff, with the names (patch 147).
+ *
+ * "We hide the university shortlist until paid by student, so we need these
+ *  proper filters to work in the counsellor and admin panel so that
+ *  shortlisting of the unis can be tested."
+ *
+ * One panel, two screens:
+ *   counsellor  starts from the open student's profile; Add puts a programme
+ *               on their list.
+ *   catalogue   (admin) a profile typed in by hand — to test what a package
+ *               would deliver without a student, a payment or a shortlist.
+ *
+ * Every answer comes from the server's matcher (server/matches.js screen and
+ * plan), the same code that delivers the paid shortlist — so what passes here
+ * is exactly what a student would be given, and every "no" says why.
+ *
+ *   GlovelsFit.mount(element, {
+ *     profile,                 // the starting answers (the student's profile)
+ *     run(filters) -> Promise, // the server's answer for these filters
+ *     onAdd(id) -> Promise,    // optional: put one on the student's list
+ *     note                     // optional: a line above the form
+ *   })
+ */
+(function () {
+  'use strict';
+  const FIELDS = ['Aerospace & Robotics', 'Agriculture & Food Science', 'Animation, Film & Game Design', 'Arts & Design',
+    'Biotechnology & Bioinformatics', 'Business & Management', 'Computer Science & IT', 'Cybersecurity & Cloud',
+    'Data Science, AI & Machine Learning', 'Economics', 'Education & Teaching', 'Electrical & Electronics Engineering',
+    'Environmental Science & Sustainability', 'Fashion & Luxury Management', 'Finance, Banking & Accounting',
+    'Hospitality, Tourism & Events', 'Humanities & Languages', 'International Relations & Public Policy',
+    'Law & Legal Studies', 'MBA', 'Marketing & Digital Media', 'Mechanical & Automotive Engineering',
+    'Media & Communication', 'Medicine, Dentistry & Allied Health', 'Natural Sciences (Physics, Chemistry, Maths)',
+    'Psychology', 'Public Health & Healthcare Management', 'Renewable Energy', 'Social Sciences & Social Work',
+    'Sport & Exercise Science'];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const lakh = n => n ? '₹' + (n / 100000).toFixed(n % 100000 ? 1 : 0) + 'L' : '₹0 tuition';
+
+  /* This semester, next semester and the two after — the terms the finder offers. */
+  function terms() {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const out = [];
+    for (let y = t.getFullYear(); out.length < 4; y++) {
+      [['Summer', 3], ['Winter', 9]].forEach(([s, m]) => {
+        if (out.length < 4 && new Date(y, m, 1) > t) out.push(s + ' ' + y);
+      });
+    }
+    return out;
+  }
+  function nextDeadline(intakes, intakeText) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const m = /(summer|winter)\D{0,3}(\d{4})/i.exec(String(intakeText || ''));
+    const list = (intakes || []).filter(i => i && i.deadline).map(i => {
+      const d = new Date(i.deadline); if (isNaN(d)) return null;
+      let at;
+      if (m) {
+        const se = /summer|spring/i.test(String(i.season || '')) ? 'summer' : 'winter';
+        if (se !== m[1].toLowerCase()) return null;
+        const y = Number(m[2]), start = new Date(y, se === 'summer' ? 3 : 9, 1);
+        const limit = new Date(start); limit.setMonth(limit.getMonth() + 1);
+        at = new Date(y, d.getMonth(), d.getDate());
+        while (at > limit) at.setFullYear(at.getFullYear() - 1);
+      } else {
+        at = new Date(today.getFullYear(), d.getMonth(), d.getDate());
+        if (at < today) at.setFullYear(at.getFullYear() + 1);
+      }
+      return at >= today ? at : null;
+    }).filter(Boolean).sort((a, b) => a - b);
+    return list[0] ? list[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  }
+
+  const CSS = '.gf{font:400 13px/1.45 var(--sans,system-ui)}.gf .gf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 10px}'
+    + '.gf label{display:block;font:700 10.5px/1.3 var(--sans,system-ui);text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#5d6b7a);margin-bottom:3px}'
+    + '.gf input,.gf select{width:100%;padding:7px 9px;font:400 12.6px/1.3 var(--sans,system-ui);border:1.5px solid #d8dde4;border-radius:8px;background:#fff;box-sizing:border-box}'
+    + '.gf .gf-row{display:flex;gap:6px}.gf .gf-row>*{flex:1;min-width:0}'
+    + '.gf h4{margin:16px 0 6px;font-size:13.4px}.gf ul{list-style:none;margin:0;padding:0}'
+    + '.gf li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line,#e6e9ee)}'
+    + '.gf li .m{flex:1;min-width:0}.gf li b{display:block;font-size:13px}.gf small{display:block;color:var(--muted,#5d6b7a);font-size:11.8px}'
+    + '.gf .why{color:#b42318;font-weight:600}.gf .ask{color:#8a6a1f}.gf .tag{display:inline-block;font:700 10.5px/1.5 var(--sans,system-ui);padding:0 7px;border-radius:999px;background:#eef2f6;margin-right:4px}'
+    + '.gf .auto{background:#f5f8fb;border:1px solid var(--line,#e6e9ee);border-radius:10px;padding:10px 12px;margin-top:12px}'
+    + '.gf .sum{margin-top:10px;color:var(--muted,#5d6b7a);font-size:12.2px}';
+
+  function mount(el, o) {
+    if (!el) return;
+    if (!document.getElementById('gf-css')) {
+      const st = document.createElement('style'); st.id = 'gf-css'; st.textContent = CSS; document.head.appendChild(st);
+    }
+    const P = Object.assign({}, o.profile || {});
+    const sel = (id, opts, val) => '<select id="' + id + '">' + opts.map(([v, t]) =>
+      '<option value="' + esc(v) + '"' + (String(v) === String(val || '') ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>';
+    const lv = /mba/i.test(P.g_level || '') ? "MBA" : /bachelor/i.test(P.g_level || '') ? "Bachelor's" : /found|pathway/i.test(P.g_level || '') ? 'Foundation' : "Master's";
+    const eng = /toefl/i.test(P.e_test || '') ? 'TOEFL' : /ielts/i.test(P.e_test || '') ? 'IELTS' : /not taken/i.test(P.e_test || '') ? 'Not taken yet' : '';
+    const intake = terms().find(t => t.toLowerCase() === String(P.g_intake || '').toLowerCase()) || '';
+    el.innerHTML = '<div class="gf">'
+      + (o.note ? '<p style="margin:0 0 10px;color:var(--muted,#5d6b7a);font-size:12.4px">' + o.note + '</p>' : '')
+      + '<div class="gf-grid">'
+      + '<div><label>Destination</label><input id="gfCountry" value="' + esc(P.g_country || 'Germany') + '"></div>'
+      + '<div><label>Level</label>' + sel('gfLevel', [["Master's", "Master's"], ['MBA', 'MBA'], ["Bachelor's", "Bachelor's"], ['Foundation', 'Foundation']], lv) + '</div>'
+      + '<div><label>Field (exact)</label>' + sel('gfField', [['', 'From their profile']].concat(FIELDS.map(f => [f, f])), '') + '</div>'
+      + '<div><label>Their field, in words</label><input id="gfWords" value="' + esc([P.g_field, P.g_field2].filter(Boolean).join(', ')) + '" placeholder="Data Science, AI"></div>'
+      + '<div><label>Intake</label>' + sel('gfIntake', [['', 'Any intake']].concat(terms().map((t, i) => [t, (i === 0 ? 'This semester — ' : i === 1 ? 'Next semester — ' : '') + t])), intake) + '</div>'
+      + '<div><label>Public or private</label>' + sel('gfKind', [['any', 'Both'], ['public', 'Public'], ['private', 'Private']], 'any') + '</div>'
+      + '<div><label>Budget (total)</label>' + sel('gfBudget', [['', 'From their profile'], ['0', 'No ceiling'], ['1000000', 'Under ₹10L'], ['2000000', 'Under ₹20L'], ['4000000', 'Under ₹40L']], '') + '</div>'
+      + '<div><label>Name contains</label><input id="gfQ" placeholder="TUM, Data, Berlin"></div>'
+      + '<div><label>CGPA · out of · pass</label><div class="gf-row"><input id="gfCgpa" value="' + esc(P.d_cgpa || '') + '" inputmode="decimal"><input id="gfMax" value="' + esc(P.d_max || '10') + '" inputmode="decimal"><input id="gfPass" value="' + esc(P.d_pass || '') + '" inputmode="decimal" placeholder="pass"></div></div>'
+      + '<div><label>Their bachelor’s</label><input id="gfBach" value="' + esc(P.d_course || '') + '" placeholder="B.Tech CSE"></div>'
+      + '<div><label>Bachelor’s length</label>' + sel('gfDur', [['', 'Not said'], ['3 years', '3 years'], ['4 years', '4 years'], ['5 years', '5 years']], (/(\d)/.exec(P.d_dur || '') || [])[1] ? (/(\d)/.exec(P.d_dur)[1] + ' years') : '') + '</div>'
+      + '<div><label>English test · score</label><div class="gf-row">' + sel('gfEng', [['', 'Not said'], ['IELTS', 'IELTS'], ['TOEFL', 'TOEFL'], ['Not taken yet', 'Not taken']], eng) + '<input id="gfEngS" value="' + esc(P.e_score || '') + '" inputmode="decimal"></div></div>'
+      + '<div><label>German level</label>' + sel('gfGer', [['', 'Not said'], ['None yet', 'None'], ['A1', 'A1'], ['A2', 'A2'], ['B1', 'B1'], ['B2', 'B2'], ['C1', 'C1'], ['C2', 'C2']], P.g_german || '') + '</div>'
+      + '<div><label>Work experience (months)</label><input id="gfWork" value="' + esc(/^no$/i.test(P.w_has || '') ? '0' : (P.w_months || '')) + '" inputmode="numeric" placeholder="not said"></div>'
+      + '</div>'
+      + '<p style="margin:10px 0 0"><button type="button" class="btn btn-primary btn-sm" id="gfGo">Find what fits</button>'
+      + ' <span style="font-size:11.8px;color:var(--muted,#5d6b7a)">Nothing here is saved to the student’s file.</span></p>'
+      + '<div id="gfOut"></div></div>';
+
+    const v = id => (el.querySelector('#' + id) || {}).value || '';
+    const filters = () => {
+      const f = {
+        g_country: v('gfCountry'), g_level: v('gfLevel'), g_field: v('gfWords'), g_field2: '',
+        g_intake: v('gfIntake'), field: v('gfField'), kind: v('gfKind'), q: v('gfQ'),
+        d_cgpa: v('gfCgpa'), d_max: v('gfMax'), d_pass: v('gfPass'), d_course: v('gfBach'), d_dur: v('gfDur'),
+        e_test: v('gfEng'), e_score: v('gfEngS'), g_german: v('gfGer'),
+      };
+      if (v('gfBudget') !== '') f.ceiling = v('gfBudget');
+      const wk = v('gfWork');
+      if (wk !== '') { f.w_has = Number(wk) > 0 ? 'Yes' : 'No'; f.w_months = wk; }
+      return f;
+    };
+    const item = (r, onList, canAdd) => '<li><div class="m"><b>' + esc(r.university) + '</b>'
+      + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + esc(r.city || '') + ' · ' + lakh(r.totalInr)
+      + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
+      + (r.why && r.why.length ? '<small class="why">' + esc(r.why.join('; ')) + '</small>' : '')
+      + (r.ask && r.ask.length ? '<small class="ask">Not known yet: ' + esc(r.ask.join(', ')) + '</small>' : '')
+      + '</div>' + (onList.has(String(r.id)) ? '<span class="tag">on their list</span>'
+        : canAdd ? '<button type="button" class="btn btn-ghost btn-sm" data-gfadd="' + esc(r.id) + '">Add</button>' : '')
+      + '</li>';
+
+    async function go() {
+      const out = el.querySelector('#gfOut');
+      out.innerHTML = '<p class="sum">Checking every programme against the same rules the paid shortlist uses…</p>';
+      let d;
+      try { d = await o.run(filters()); } catch (e) { out.innerHTML = '<p class="why">' + esc(e.message || 'Could not run that.') + '</p>'; return; }
+      const onList = new Set((d.onList || []).map(String));
+      const canAdd = typeof o.onAdd === 'function';
+      const auto = (d.auto || []).map(a => '<div><b>' + esc(a.package || a.kind) + '</b> — '
+        + (a.picks.length ? a.picks.length + ' of ' + a.count + ': ' + a.picks.map(p => esc(p.university)).join(', ') : 'nothing fits yet')
+        + (a.note ? '<small>' + esc(a.note) + '</small>' : '') + '</div>').join('');
+      out.innerHTML = '<p class="sum">' + d.counts.looked + ' programmes in that field and level · <b>' + d.counts.fits + ' fit</b> · '
+        + d.counts.near + ' miss on one thing' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'
+        + (d.usable === false ? '<p class="why">The matcher needs a level and a field before it picks a paid list.</p>' : '')
+        + (auto ? '<div class="auto"><b style="display:block;margin-bottom:4px">What a package would deliver now'
+          + (d.bought === false ? ' (not bought yet)' : '') + '</b>' + auto + '</div>' : '')
+        + '<h4>Fits (' + d.fits.length + (d.counts.fits > d.fits.length ? ' of ' + d.counts.fits : '') + ')</h4>'
+        + (d.fits.length ? '<ul>' + d.fits.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">Nothing fits every answer.</p>')
+        + '<h4>Misses on one thing (' + d.near.length + ')</h4>'
+        + (d.near.length ? '<ul>' + d.near.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">None.</p>');
+    }
+    el.addEventListener('click', async e => {
+      if (e.target.closest('#gfGo')) { go(); return; }
+      const add = e.target.closest('[data-gfadd]');
+      if (add && o.onAdd) {
+        add.disabled = true;
+        try { await o.onAdd(add.dataset.gfadd); add.outerHTML = '<span class="tag">on their list</span>'; }
+        catch (err) { add.disabled = false; add.insertAdjacentHTML('afterend', '<small class="why">' + esc(err.message || 'Could not add it.') + '</small>'); }
+      }
+    });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('input')) { e.preventDefault(); go(); } });
+    if (o.autorun) go();
+  }
+  window.GlovelsFit = { mount };
+})();
