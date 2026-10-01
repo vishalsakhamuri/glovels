@@ -242,15 +242,15 @@ async function forgotPassword(){
       const d = await r.json().catch(() => ({}));
       forgotBox(d.message || 'If that email has an account, a reset link is on its way.');
     } catch (e) {
-      forgotBox('The Glovels server is not running, so the reset could not be requested. '
-        + 'Start it with start.command and try again.');
+      forgotBox('We can\u2019t reach Glovels right now, so the reset link was not sent. '
+        + 'Check your internet connection and try again.', true);
     }
     return;
   }
   forgotBox('Enter your email address above first, and we will send the reset link there.');
 }
 
-function forgotBox(message){
+function forgotBox(message, bad){
   const box = document.getElementById('forgotBox') || (function(){
     const d = document.createElement('div');
     d.id = 'forgotBox';
@@ -261,7 +261,32 @@ function forgotBox(message){
     return d;
   })();
   box.textContent = message;
+  /* Round 30 Sep (issue 6): a failure was shown in the green success box. */
+  box.style.background = bad ? '#fdf3f2' : '#eaf6ee';
+  box.style.borderColor = bad ? '#f0c8c4' : '#bfe0cc';
+  box.style.color = bad ? '#7a2118' : '#14603a';
+  const old = document.getElementById('authErr'); if (old) old.style.display = 'none';
 }
+
+/* Round 30 Sep (issue 25): somebody already signed in who opens /login is
+   taken to their own screen rather than shown a sign-in form. Not when they
+   are here to change a password or to use a reset link. */
+(function () {
+  const q = new URLSearchParams(location.search);
+  if (q.get('change') || q.get('token') || q.get('signup') || location.protocol === 'file:') return;
+  fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+    .then(r => r.json()).then(d => {
+      const u = d && d.user;
+      if (!u || d.mustChange) return;
+      const perms = u.perms || [];
+      const home = u.role === 'admin' ? 'admin.html'
+        : u.role === 'editor' ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
+        : u.role === 'counsellor' ? 'counsellor.html'
+        : u.role === 'partner' ? 'partner.html' : 'dashboard.html';
+      const next = q.get('next');
+      location.replace((next && /^\/[a-z0-9/_-]*$/i.test(next)) ? next : home);
+    }).catch(() => {});
+})();
 
 /* Arriving from the emailed link: /login?token=... becomes a set-a-new-password
    form. A separate page would be a second copy of this one's markup to keep in
@@ -561,13 +586,14 @@ $('#authForm').addEventListener('submit', async e => {
           ? 'This page was opened straight from the folder, so there is no Glovels server '
             + 'behind it to check your password. Close this tab, double-click start.command, '
             + 'and use the address it opens (http://localhost:8080).'
-          : 'The Glovels server is not running. Start it with start.command and try again.')
+          : 'We can\u2019t reach Glovels right now. Check your internet connection and try again.')
       : err.message);
   }
 });
 
 /* One place for what went wrong, under the button where the eye already is. */
 function showAuthError(msg) {
+  const fb = document.getElementById('forgotBox'); if (fb && msg) fb.remove();
   let el = document.getElementById('authErr');
   if (!el) {
     el = document.createElement('p');

@@ -748,7 +748,9 @@ function progressOf(db, studentId, now) {
     done, total: rows.length,
     percent: rows.length ? Math.round((done / rows.length) * 100) : 0,
     steps: rows.map(r => ({
-      title: r.title,
+      /* "Academic CV & Resume — delivered · To come" read as a contradiction
+         (round 30 Sep): the student sees the thing, not the office's verb. */
+      title: String(r.title || '').replace(/\s+—\s+delivered$/, ''),
       /* Whether the target day has gone. NOT how late it is and NOT whose
          fault — the student is told the work is running behind, which is
          theirs to know, and nothing about who owes it, which is not. */

@@ -196,7 +196,7 @@ const fakeSub = (tag) => ({
      an account that no longer exists is the worst kind of leftover, and the
      deletion path has to know about a table it was written before. */
   const del = await stu.request.fetch(BASE + '/api/account',
-    { method: 'DELETE', data: { email, password } });
+    { method: 'DELETE', data: { confirm: 'DELETE', email, password } });
   ok(del.ok(), 'the student deletes their account — ' + del.status());
   const after = await browser.newContext();
   await after.request.post(BASE + '/api/auth/login',

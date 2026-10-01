@@ -747,6 +747,7 @@ let DB = {{}};
 let ONLINE = true;
 let SERVER = {{ short: [], apps: {{}}, saved: [] }};
 const LOCAL_KEY = 'glovels.portal.offline';
+try {{ localStorage.removeItem(LOCAL_KEY); }} catch (e) {{}}   /* old offline copies, round 30 Sep */
 
 const api = async (method, path, body, isForm) => {{
   const opts = {{ method, credentials: 'same-origin', headers: {{}} }};
@@ -826,8 +827,8 @@ function offlineNotice(why) {{
   box.style.background = '#fdf6e6';
   box.style.borderColor = '#e6d5a8';
   box.style.color = '#5b4409';
-  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '
-    + 'not saved to your account. Start the server and reload.';
+  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '
+    + 'Check your internet connection and reload the page.';
 }}
 
 /* Changes are queued and flushed on a short timer: typing in the profile form
@@ -835,7 +836,7 @@ function offlineNotice(why) {{
    and a race with itself. */
 let flushTimer = null, flushing = false;
 function save() {{
-  try {{ localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); }} catch (e) {{}}
+  /* No copy of the student's file is kept in the browser (round 30 Sep). */
   if (!ONLINE) return;
   clearTimeout(flushTimer);
   flushTimer = setTimeout(flush, 350);
@@ -912,7 +913,7 @@ async function flush() {{
  * This waits for the request the press causes and hands back what the server
  * said, so a screen can say one thing. */
 async function saveNow() {{
-  try {{ localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); }} catch (e) {{}}
+  /* No copy of the student's file is kept in the browser (round 30 Sep). */
   clearTimeout(flushTimer);
   if (!ONLINE) return {{ ok: true, offline: true }};
   /* A debounced flush from the last keystroke may still be in the air. Waiting
@@ -935,8 +936,8 @@ async function boot(run) {{
   }} catch (e) {{
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({{ role: 'student' }});
-    try {{ DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {{}}; }} catch (x) {{ DB = {{}}; }}
-    offlineNotice('the Glovels server is not running.');
+    DB = {{}}; try {{ localStorage.removeItem(LOCAL_KEY); }} catch (x) {{}}
+    offlineNotice('we can\u2019t reach Glovels right now.');
     ORDER = DB.order || {{}};
     USER = DB.user || {{}};
     HANDOVER_KEYS = Array.isArray(DB.short) ? DB.short.slice() : [];
@@ -1065,8 +1066,8 @@ async function __dashBoot(main) {
     const d = document.querySelector('.p-demo');
     if (d) {
       d.style.background = '#fdf6e6';
-      d.textContent = 'The Glovels server is not running, so this is the last view '
-        + 'cached in this browser. Start it with start.command and reload.';
+      d.textContent = 'We can\u2019t reach Glovels right now. Check your internet '
+        + 'connection and reload the page.';
     }
   }
   main();
@@ -1453,8 +1454,9 @@ def main():
     import portal_chat
     (HERE / "chat.html").write_text(staff_page(
         "chat", "Website chat", "Website chat",
-        "People asking questions in the chat box on the website. They have not made an account "
-        "\u2014 they left a name and a number, and they are waiting.",
+        "Earlier conversations from the website chat box. The chat button is switched off on the "
+        "public site \u2014 visitors now reach the office on WhatsApp or the contact form \u2014 "
+        "so nothing new arrives here.",
         portal_chat.BODY, portal_chat.SCRIPT, "Counsellor"), encoding="utf-8")
     written.append("chat.html")
 

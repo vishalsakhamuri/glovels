@@ -248,11 +248,50 @@ function problems(profile) {
     say('pin', 'PIN code', pin, 'Six digits.');
   }
 
+  /* Round 30 Sep (issue 20): names of 3,000 characters, "1234" and HTML
+     were stored. Letters (any script), spaces and . - ' only, up to 100. */
+  for (const [key, label] of [['firstName', 'First name'], ['lastName', 'Last name'], ['fullName', 'Name']]) {
+    const v = String(p[key] == null ? '' : p[key]).trim();
+    if (!v) continue;
+    if (v.length > 100) out.push({ field: key, label, said: v.slice(0, 40), why: label + ' is too long — 100 characters at most.' });
+    /* Letters required; symbols and markup refused. Digits mixed in with
+       letters are let through — the office's own test accounts are named
+       "QA FT30 …" — but a name of only digits is not a name. */
+    else if (!/\p{L}/u.test(v) || !/^[\p{L}\p{M}\d .'’-]+$/u.test(v)) out.push({ field: key, label, said: v.slice(0, 40), why: label + ' can only have letters, spaces and . - \u2019' });
+  }
+  /* Issue 13: a recommender's email of "bad@", or the student's own. */
+  for (const n of [1, 2, 3]) {
+    const v = String(p['r' + n + '_mail'] == null ? '' : p['r' + n + '_mail']).trim();
+    if (!v) continue;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) say('r' + n + '_mail', 'Recommender ' + n + "'s email", v, 'Something like name@university.edu.');
+    else if (mail && v.toLowerCase() === mail.toLowerCase()) out.push({ field: 'r' + n + '_mail', label: 'Recommender ' + n + "'s email", said: v,
+      why: 'A recommender has to be somebody else — that is your own email.' });
+  }
+  /* Issue 21: the alternate number has to be a different one. */
+  if (phone && String(p.alt_phone || '').trim() && tenOf(p.alt_phone) === tenOf(phone)) {
+    out.push({ field: 'alt_phone', label: 'Alternate contact number', said: String(p.alt_phone), why: 'The alternate number is the same as your mobile — give a different one, or leave it blank.' });
+  }
+
   /* Old enough to apply, and not born tomorrow. "The date of birth accepts
      today's date as well" — a student is at least fifteen, and nobody on the
      books is over ninety. */
   const dob = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(p.dob || '').trim());
+  /* Round 30 Sep: 31 February 2000 and 2000-13-45 were saved. A Date rolls
+     those over silently (31 Feb → 2 Mar), so check the parts survive. */
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   if (dob) {
+    const y = Number(dob[1]), mo = Number(dob[2]), d = Number(dob[3]);
+    const real = new Date(y, mo - 1, d);
+    if (mo < 1 || mo > 12) {
+      out.push({ field: 'dob', label: 'Date of birth', said: p.dob, why: 'The month of birth has to be between 1 and 12.' });
+    } else if (d < 1 || real.getMonth() !== mo - 1 || real.getDate() !== d) {
+      const days = new Date(y, mo, 0).getDate();
+      out.push({ field: 'dob', label: 'Date of birth', said: p.dob, why: MONTHS[mo - 1] + ' ' + y + ' has ' + days + ' days.' });
+    }
+  } else if (String(p.dob || '').trim()) {
+    out.push({ field: 'dob', label: 'Date of birth', said: String(p.dob).slice(0, 20), why: 'The date of birth does not look right.' });
+  }
+  if (dob && !out.some(o => o.field === 'dob')) {
     const born = new Date(Number(dob[1]), Number(dob[2]) - 1, Number(dob[3]));
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const fifteen = new Date(today.getFullYear() - 15, today.getMonth(), today.getDate());

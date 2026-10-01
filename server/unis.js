@@ -99,10 +99,14 @@ function group(catalogue) {
        is. A university whose every programme is search-only is reached from
        Google and the search box, and from nowhere else. */
     u.listed = u.programmes.some(p => !p.searchOnly);
-    const fees = u.programmes.map(p => Number(p.totalInr) || 0);
-    u.feeMin = Math.min(...fees);
-    u.feeMax = Math.max(...fees);
-    u.tuitionFree = fees.some(f => f === 0);
+    /* Round 30 Sep (issue 1): a PRIVATE programme with no fee entered is not
+       free — it is unknown. It is left out of the range, so EBS is not
+       "no tuition on some programmes". */
+    const known = u.programmes.filter(p => p.isPublic || Number(p.totalInr) > 0 || (p.reqs && p.reqs.tuitionEurSem === 0));
+    const fees = known.map(p => Number(p.totalInr) || 0);
+    u.feeMin = fees.length ? Math.min(...fees) : null;
+    u.feeMax = fees.length ? Math.max(...fees) : null;
+    u.tuitionFree = known.length ? fees.some(f => f === 0) : false;
     u.levels = [...new Set(u.programmes.map(p => levelOf(p.level)))];
     u.fields = [...new Set(u.programmes.map(p => p.field).filter(Boolean))];
     u.seasons = [...new Set(u.programmes.flatMap(p => (p.intakes || [])

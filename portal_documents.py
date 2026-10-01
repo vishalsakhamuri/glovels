@@ -385,7 +385,7 @@ async function accept(id, file) {
      past a check on the name and never past the one on the server. */
   const wrong = notOurType(file.name);
   if (wrong) { toast(wrong, 'bad'); return; }
-  if (!ONLINE) { toast('Cannot upload while the server is not running.'); return; }
+  if (!ONLINE) { toast('We can\u2019t reach Glovels right now — try the upload again in a moment.'); return; }
   const fd = new FormData();
   fd.append('key', id);
   fd.append('file', file, file.name);

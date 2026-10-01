@@ -824,8 +824,8 @@ function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
 
   /* The opening two messages, from the counsellor who is now actually assigned. */
   db.addMessage(s.id, 'them',
-    'Hi! I am Kavya, your counsellor for the Germany desk. I have your profile open. '
-    + 'Once your documents are verified I will confirm the shortlist with you on a call.', '');
+    'Welcome — your counsellor has your profile open. Once your documents are '
+    + 'verified they will confirm the shortlist with you on a call.', '');
   db.addMessage(s.id, 'them',
     'Two things worth starting now, because they are the slowest: the APS certificate '
     + '(6\u20138 weeks) and your blocked account. Everything else can follow.', '');

@@ -147,9 +147,9 @@ const SECTIONS = [
      * alerts and the counsellor's screen read. It is composed from these two
      * on save, on the server, so nothing downstream had to change and a record
      * written before this still reads correctly. */
-    {k:'firstName', l:'First name / Given name', t:'text', ph:'Vishal',
+    {k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',
      help:'Exactly as it is printed on your passport.'},
-    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Sakhamuri'},
+    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},
     {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,
      help:'You have to be at least 15 to apply.'},
     {k:'gender',   l:'Gender', t:'select', o:['','Female','Male','Other','Prefer not to say']},
@@ -465,7 +465,7 @@ const SECTIONS = [
     /* More than one. A student deciding between Germany and Poland was being
        made to pick one before we would show them anything. */
     {k:'g_country',l:'Preferred destinations', t:'multi',
-     o:['Germany','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],
+     o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],
      help:'Choose as many as you are considering. Your matches cover all of them.'},
     {k:'g_intake', l:'Target intake', t:'select', o:['','Winter 2026','Summer 2027','Winter 2027','Summer 2028']},
     /* Two the finder reads. A German programme that asks for A2 and a

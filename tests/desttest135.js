@@ -110,7 +110,7 @@ const cell = (html, label) =>
   /* ---- 4. the enquiry it sends reaches the leads book ---- */
   const before2 = (await req('a', 'GET', '/api/staff/leads')).body.leads.length;
   r = await req('x', 'POST', '/api/enquiries', {
-    name: 'Nothing Listed ' + stamp, phone: '9876500150', email: 'nl' + stamp + '@ex.example',
+    name: 'Nothing Listed ' + stamp, phone: '9876500150', email: 'nl' + stamp + '@ex.example', consent: 'yes',
     destination: 'JP', note: 'Destination page with nothing listed',
     sourcePage: '/study-in-japan',
   });

@@ -422,6 +422,9 @@ function sqliteDriver(file) {
    "ALTER TABLE enquiries ADD COLUMN next_at TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE enquiries ADD COLUMN student_id INTEGER",
    "ALTER TABLE enquiries ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
+   /* Round 30 Sep (issue 4, DPDP): proof of consent — when, and to what words. */
+   "ALTER TABLE enquiries ADD COLUMN consent_at TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE enquiries ADD COLUMN consent_wording TEXT NOT NULL DEFAULT ''",
    /* Who put this university on the list.
     *
     * One list conflated two different things: what the student liked the look
@@ -542,6 +545,8 @@ function sqliteDriver(file) {
       * it was about. */
    "ALTER TABLE applications ADD COLUMN note TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE applications ADD COLUMN note_at TEXT NOT NULL DEFAULT ''",
+   /* Round 30 Sep (issue 3): an office-only note, never shown to the student. */
+   "ALTER TABLE applications ADD COLUMN internal_note TEXT NOT NULL DEFAULT ''",
    /* WHO PUT THIS FILE HERE — 'student' or 'staff'.
       *
       * Asked because the answer decides who may take it away again. A student
@@ -680,6 +685,13 @@ function sqliteDriver(file) {
       record, the way `intakes` is. server/reqs.js is the only file that knows
       what is inside it. Blank means not stated, never zero. */
    "ALTER TABLE programmes ADD COLUMN reqs TEXT NOT NULL DEFAULT ''",
+   /* Round 30 Sep (issue 7): the old welcome opened "Hi! I am Kavya" — the demo
+      counsellor — whoever was really assigned. Reworded where it was sent. */
+   "UPDATE messages SET body = 'Welcome — your counsellor has your profile open. Once your documents are verified they will confirm the shortlist with you on a call.' WHERE body LIKE 'Hi! I am Kavya, your counsellor%'",
+   /* Round 30 Sep (issue 12): files accepted before the type rules existed
+      (.txt, .html, a .docx passport) go back for a proper scan. */
+   "UPDATE documents SET status = 'rescan' WHERE status = 'ok' AND doc_key NOT LIKE 'app:%' AND NOT (lower(filename) LIKE '%.pdf' OR lower(filename) LIKE '%.jpg' OR lower(filename) LIKE '%.jpeg' OR lower(filename) LIKE '%.png' OR lower(filename) LIKE '%.heic' OR lower(filename) LIKE '%.heif' OR lower(filename) LIKE '%.doc' OR lower(filename) LIKE '%.docx')",
+   "UPDATE documents SET status = 'rescan' WHERE status = 'ok' AND (doc_key LIKE 'passport%' OR doc_key LIKE 'photo%') AND (lower(filename) LIKE '%.doc' OR lower(filename) LIKE '%.docx')",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -719,7 +731,7 @@ function jsonDriver(file) {
   const TABLES = ['students', 'sessions', 'profiles', 'shortlist', 'applications',
     'documents', 'messages', 'saved_scholarships', 'orders', 'enquiries',
     'password_resets', 'programmes', 'countries', 'audit', 'content', 'drafts',
-    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes', 'hits', 'tasks',
+    'chats', 'chat_messages', 'posts', 'lead_notes', 'staff_notes', 'hits', 'tasks', 'shortlist_dismissed',
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
@@ -1142,16 +1154,16 @@ function open(dir) {
        what somebody had typed, silently, on the screen that shows it. So the
        note is carried through unless this call is the one changing it. */
     putApplication(studentId, progId, stage, outcome, note) {
-      const had = db.one('SELECT note, note_at FROM applications WHERE student_id = ? AND prog_id = ?',
+      const had = db.one('SELECT * FROM applications WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(progId)) || {};
       const keep = note === undefined ? String(had.note || '') : String(note || '');
       const when = note === undefined ? String(had.note_at || '')
         : (keep ? now() : '');
       db.run(`INSERT OR REPLACE INTO applications
-                (student_id, prog_id, stage, outcome, updated_at, note, note_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                (student_id, prog_id, stage, outcome, updated_at, note, note_at, internal_note)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(studentId), String(progId), Number(stage) || 0, outcome || '', now(),
-        keep, when);
+        keep, when, String(had.internal_note || ''));
     },
     /* The note on its own, without having to know the stage to write it. The
        row may not exist yet — an application nobody has moved off stage zero
@@ -1162,6 +1174,14 @@ function open(dir) {
         Number(studentId), String(progId)) || {};
       this.putApplication(studentId, progId, Number(had.stage) || 0,
         had.outcome || '', String(note || ''));
+    },
+    /* The office's own note on one application. The row may not exist yet. */
+    putApplicationInternal(studentId, progId, text) {
+      const had = db.one('SELECT stage, outcome FROM applications WHERE student_id = ? AND prog_id = ?',
+        Number(studentId), String(progId));
+      if (!had) this.putApplication(studentId, progId, 0, '', undefined);
+      db.run('UPDATE applications SET internal_note = ? WHERE student_id = ? AND prog_id = ?',
+        String(text || ''), Number(studentId), String(progId));
     },
     removeApplication: (studentId, progId) =>
       db.run('DELETE FROM applications WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
@@ -1619,6 +1639,11 @@ function open(dir) {
       if (!country) return db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '');
       if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE country = ?', country).sort((a, b) => a.university.localeCompare(b.university));
       return db.all('SELECT * FROM programmes WHERE country = ? ORDER BY university ASC, program ASC', country);
+    },
+    /** One programme's band, and nothing else. */
+    setBand(id, band, who) {
+      db.run('UPDATE programmes SET band = ?, updated_at = ?, updated_by = ? WHERE id = ?', band, now(), who || 'system', id);
+      catVersion++;
     },
     /** Put every programme in the band its fee now falls in — one column, in one transaction. */
     rebandAll(bandFor, who) {
@@ -2216,13 +2241,14 @@ function open(dir) {
       const t = now();
       db.run(`INSERT INTO enquiries (name, phone, email, destination, consent, source_page,
                 referrer, note, source, campaign, status, owner_id, lost_reason, next_at,
-                student_id, updated_at, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                student_id, updated_at, created_at, consent_at, consent_wording)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         e.name, e.phone, e.email, e.destination || '', e.consent || '',
         e.sourcePage || '', e.referrer || '', e.note || '',
         e.source || 'website', e.campaign || '', e.status || 'new',
         e.ownerId == null ? null : Number(e.ownerId), '', e.nextAt || '',
-        e.studentId == null ? null : Number(e.studentId), t, t);
+        e.studentId == null ? null : Number(e.studentId), t, t,
+        e.consentAt || '', String(e.consentWording || '').slice(0, 400));
       return db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)[0] || null;
     },
     allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),

@@ -201,6 +201,7 @@ const text = async (ctx, url) => {
   await c.fill('#ctMail', email);
   await c.fill('#ctDest', 'Germany');
   await c.fill('#ctMsg', 'MSc Data Science, 7.4 CGPA.');
+  await c.check('#ctOk');
   await c.click('#ctGo');
   await c.waitForSelector('#ctSent', { timeout: 10000 });
   check('a good enquiry is accepted and says so', await c.isVisible('#ctSent'));

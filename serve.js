@@ -1218,7 +1218,8 @@ function universityPage(u) {
      University pages tab, or shipped in daad.js. */
   const daad = DAAD.daadUrl(u.slug, x.daad);
 
-  const feeLine = u.feeMin === 0 && u.feeMax === 0 ? 'No tuition — public university'
+  const feeLine = u.feeMin == null ? 'Fees to be confirmed'
+    : u.feeMin === 0 && u.feeMax === 0 ? 'No tuition — public university'
     : u.feeMin === u.feeMax ? UNIS.money(u.feeMin)
     : (u.feeMin === 0 ? '₹0 to ' : UNIS.money(u.feeMin) + ' to ') + UNIS.money(u.feeMax);
 
@@ -1257,7 +1258,7 @@ function universityPage(u) {
       + (u.city ? ' in ' + esc(u.city) : '') + ', ' + esc(c.name) + '. Glovels tracks '
       + n + ' programme' + (n === 1 ? '' : 's') + ' here'
       + (u.fields.length ? ' in ' + esc(u.fields.slice(0, 4).join(', ')) : '') + ', with '
-      + (u.tuitionFree ? 'no tuition fees' : 'total costs from ' + esc(UNIS.money(u.feeMin)))
+      + (u.tuitionFree ? 'no tuition fees' : u.feeMin == null ? 'fees to be confirmed' : 'total costs from ' + esc(UNIS.money(u.feeMin)))
       + (u.seasons.length ? ' and ' + esc(u.seasons.map(SEASON).join(' and ').toLowerCase())
         + ' intake' + (u.seasons.length > 1 ? 's' : '') : '')
       + '. ' + (free
@@ -1495,7 +1496,7 @@ function universitiesIndexPage() {
       + '<ul class="ulist">' + list.map(u =>
         '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.name) + '</b><small>'
         + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
-        + ' · ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
+        + ' · ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
         + (u.feeModel === 'free' ? ' · free to apply through us' : '')
         + (DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad) ? ' · on the DAAD' : '')
         + '</small></span><span class="n">' + u.programmes.length + ' programme'
@@ -1617,6 +1618,7 @@ function noListingBlock(c) {
     +   '<input id="nlPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel">'
     +   '<input id="nlEmail" placeholder="Email" inputmode="email" autocomplete="email">'
     +   '<input class="nl-hp" id="nlWeb" tabindex="-1" autocomplete="off" aria-hidden="true">'
+    +   '<label class="nl-ok"><input type="checkbox" id="nlOk"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>'
     +   '<button type="submit" class="btn btn-primary" id="nlGo">Send to a counsellor</button>'
     + '</form>'
     + '<p class="nl-err" id="nlErr" role="alert" hidden></p>'
@@ -1633,6 +1635,8 @@ const NOLIST_CSS = `<style>
   border-radius:10px;font:400 14px/1.4 var(--sans,inherit);background:#fff}
 .nl-form input:focus{outline:2px solid var(--blue,#1a4fb4);outline-offset:1px}
 .nl-form .btn{flex:0 0 auto}
+.nl-ok{flex:1 1 100%;display:flex;gap:8px;align-items:flex-start;font:400 12.6px/1.5 var(--sans,inherit);color:var(--muted,#5d6b7a)}
+.nl-ok input{flex:0 0 auto!important;width:auto;margin-top:3px}
 .nl-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .nl-err{margin:11px 0 0;font:600 13px/1.5 var(--sans,inherit);color:#c0392b}
 @media (max-width:560px){.nl-form input,.nl-form .btn{flex:1 1 100%}}
@@ -1653,6 +1657,8 @@ const NOLIST_JS = `<script>(function(){
       return show('A 10-digit Indian mobile, please.');
     }
     if (!/^[^@\\s]+@[^@\\s.]+\\.[^@\\s]+$/.test(email)) return show('That email does not look right.');
+    var okBox = document.getElementById('nlOk');
+    if (!okBox.checked) return show('Please tick the box so we can call you back.');
     show('');
     var btn = document.getElementById('nlGo');
     btn.disabled = true; btn.textContent = 'Sending\\u2026';
@@ -1663,6 +1669,7 @@ const NOLIST_JS = `<script>(function(){
         website: document.getElementById('nlWeb').value,
         destination: (document.getElementById('nlDest') || {}).value || '',
         note: 'Destination page with nothing listed',
+        consent: 'yes', consentWording: okBox.parentNode.textContent.trim(),
         sourcePage: location.pathname, referrer: document.referrer
       })
     }).then(function(r){
@@ -1829,7 +1836,7 @@ function withDestinationUniversities(html, slug) {
   const more = Math.max(0, total - lead.length);
   const li = u => '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.shortName || u.name) + '</b><small>'
       + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
-      + ' · ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
+      + ' · ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
       + (u.feeModel === 'free' ? ' · free to apply through us' : '')
       + '</small></span><span class="n">' + u.programmes.length + ' programme'
       + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>';
@@ -1892,7 +1899,7 @@ const UFILTER_JS = `<script>(function(){
   var row = function (u) {
     return '<li><a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
       + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' \u00b7 ' + esc(u.city) : '')
-      + ' \u00b7 ' + (u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + money(u.feeMin))
+      + ' \u00b7 ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + money(u.feeMin))
       + (u.feeModel === 'free' ? ' \u00b7 free to apply through us' : '')
       + '</small></span><span class="n">' + (u.matching < u.programmes ? u.matching + ' of ' + u.programmes : u.programmes)
       + ' programme' + (u.programmes === 1 ? '' : 's') + ' \u2192</span></a></li>';

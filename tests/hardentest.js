@@ -75,7 +75,7 @@ const ip = n => ({ 'X-Forwarded-For': '203.0.113.' + n });
   r = await post('/api/enquiries', { name: 'X', email: 'x@example.com', phone: '9876543210' },
     Object.assign({ Origin: 'null' }, ip(60)));
   check('and a null Origin', r.status === 403, String(r.status));
-  r = await post('/api/enquiries', { name: 'X', email: 'x' + Date.now() + '@example.com', phone: '9876543210' },
+  r = await post('/api/enquiries', { name: 'X', email: 'x' + Date.now() + '@example.com', phone: '9876543210', consent: 'yes' },
     Object.assign({ Origin: BASE }, ip(61)));
   check('while our own pages still get through', r.status === 200, String(r.status));
   r = await fetch(BASE + '/api/catalogue', { headers: { Origin: 'https://evil.example' } });

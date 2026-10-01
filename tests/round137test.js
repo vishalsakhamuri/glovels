@@ -117,9 +117,9 @@ async function req(who, method, path, body) {
      across from a book that correctly hid another counsellor's leads, every
      one of them was listed with a working phone number. */
   r = await req('x', 'POST', '/api/enquiries',
-    { name: 'Theirs ' + stamp, phone: '9876500191', email: 'th' + stamp + '@ex.example' });
+    { name: 'Theirs ' + stamp, phone: '9876500191', email: 'th' + stamp + '@ex.example', consent: 'yes' });
   r = await req('x', 'POST', '/api/enquiries',
-    { name: 'Nobody ' + stamp, phone: '9876500192', email: 'nb' + stamp + '@ex.example' });
+    { name: 'Nobody ' + stamp, phone: '9876500192', email: 'nb' + stamp + '@ex.example', consent: 'yes' });
   r = await req('a', 'GET', '/api/staff/leads');
   const other = (r.body.leads || []).find(l => l.name.includes('Theirs ' + stamp));
   r = await req('a', 'POST', '/api/staff/people',

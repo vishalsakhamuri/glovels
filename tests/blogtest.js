@@ -201,6 +201,7 @@ const stamp = Date.now();
   const mail = 'blog' + stamp + '@example.com';
   await reader.fill('#bfMail', mail);
   await reader.fill('#bfMsg', 'What CGPA do I need?');
+  await reader.check('#bfOk');
   await reader.click('#bfGo');
   await reader.waitForTimeout(1600);
   check('and a good one is thanked', await reader.isVisible('.bf-note.ok'),

@@ -60,6 +60,9 @@ const tap = async (p, sel) => {
 };
 const type = async (p, sel, v) => {
   if (!(await seen(p, sel))) return false;
+  /* Clicked first, as a person would: the confirm boxes are read-only until
+     focused (so a password manager cannot fill them) — round 30 Sep. */
+  await p.click(sel, { timeout: 4000 }).catch(() => {});
   return p.fill(sel, v, { timeout: 4000 }).then(() => true).catch(() => false);
 };
 const words = (p, sel) => p.textContent(sel).catch(() => '');
@@ -144,7 +147,7 @@ const whoami = async ctx => {
      the last administrator lock everybody out. Borrowing this route to get
      round that would be a way to empty the organisation. */
   const staffTry = await admin.request.fetch(BASE + '/api/account', {
-    method: 'DELETE', data: { email: 'admin@glovels.com', password: 'glovels123' },
+    method: 'DELETE', data: { confirm: 'DELETE', email: 'admin@glovels.com', password: 'glovels123' },
   });
   ok(staffTry.status() === 403, 'a staff account is refused here — ' + staffTry.status());
   ok(!!(await whoami(admin)), 'and is still signed in afterwards');
@@ -152,12 +155,17 @@ const whoami = async ctx => {
   /* ------------------------------------------------------- the two gates, cold
      Both answer 422. Not 401: see the note at the top of this file. */
   const wrongEmail = await stu.request.fetch(BASE + '/api/account', {
-    method: 'DELETE', data: { email: 'someone.else@student.example', password },
+    method: 'DELETE', data: { confirm: 'DELETE', email: 'someone.else@student.example', password },
   });
   ok(wrongEmail.status() === 422, 'a different email is refused — ' + wrongEmail.status());
 
+  const noWord = await stu.request.fetch(BASE + '/api/account', {
+    method: 'DELETE', data: { email, password },
+  });
+  ok(noWord.status() === 422, 'without DELETE typed the server refuses — ' + noWord.status());
+
   const wrongPass = await stu.request.fetch(BASE + '/api/account', {
-    method: 'DELETE', data: { email, password: 'not-the-password' },
+    method: 'DELETE', data: { confirm: 'DELETE', email, password: 'not-the-password' },
   });
   ok(wrongPass.status() === 422,
     'a wrong password is refused with 422, not 401 — ' + wrongPass.status());
@@ -227,6 +235,9 @@ const whoami = async ctx => {
   /* ------------------------------------------- the wrong password, on screen */
   await type(page, '#delEmail', email);
   await type(page, '#delPass', 'still-not-the-password');
+  /* Round 30 Sep: filled email and password are not enough — DELETE is typed. */
+  ok(!(await page.isEnabled('#delGo').catch(() => true)), 'Delete permanently stays disabled until DELETE is typed');
+  await type(page, '#delWord', 'DELETE');
   await tap(page, '#delGo');
   await page.waitForTimeout(1800);
 
@@ -326,7 +337,7 @@ const whoami = async ctx => {
   ok(!gated.ok(), 'that account is shut out of the rest of the site — ' + gated.status());
 
   const tGo = await T.request.fetch(BASE + '/api/account', {
-    method: 'DELETE', data: { email: tEmail },
+    method: 'DELETE', data: { confirm: 'DELETE', email: tEmail },
   });
   ok(tGo.ok(), 'but can still delete itself, with no password — ' + tGo.status()
     + ' ' + (await tGo.text()).slice(0, 80));
@@ -340,7 +351,7 @@ const whoami = async ctx => {
     { data: { name: 'Other Student', email: uEmail, phone: '9876543210',
       password: 'other-password-' + S, terms: true } });
   const uBad = await U.request.fetch(BASE + '/api/account', {
-    method: 'DELETE', data: { email: 'wrong@student.example', password: 'other-password-' + S },
+    method: 'DELETE', data: { confirm: 'DELETE', email: 'wrong@student.example', password: 'other-password-' + S },
   });
   ok(uBad.status() === 422, 'the email gate holds on a fresh account too — ' + uBad.status());
   ok(!!(await whoami(U)), 'and that account is untouched');
@@ -348,7 +359,7 @@ const whoami = async ctx => {
   /* ------------------------------------------------------ nobody else's account */
   const V = await browser.newContext();
   const anon = await V.request.fetch(BASE + '/api/account', {
-    method: 'DELETE', data: { email: uEmail, password: 'other-password-' + S },
+    method: 'DELETE', data: { confirm: 'DELETE', email: uEmail, password: 'other-password-' + S },
   });
   ok(anon.status() === 401,
     'a signed-out request cannot delete an account by naming it — ' + anon.status());

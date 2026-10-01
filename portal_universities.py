@@ -261,7 +261,8 @@ function card(p, inList) {
     /* A row with a German-grade bar is judged on that bar alone — the CGPA
        line beside it said "above yours" to students the matcher had
        correctly judged on the German grade (patch 145). */
-    (barOf(p) == null || (p.germanGpa != null && p.germanGpa !== '') ? '' :
+    /* "Asks for 0+ CGPA" (round 30 Sep): no minimum is no line. */
+    (barOf(p) == null || !(barOf(p) > 0) || (p.germanGpa != null && p.germanGpa !== '') ? '' :
       '<div class="sl-meta" style="color:' + (clears(p) ? 'var(--muted)' : '#b42318') + '">' +
       (clears(p) ? 'Asks for ' + barOf(p) + '+ CGPA'
                  : 'Asks for ' + barOf(p) + '+ CGPA — above yours') + '</div>') +

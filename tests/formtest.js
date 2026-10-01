@@ -270,8 +270,10 @@ async function walk(page) {
   const none = await buy('fb0', base);
 
   const robots = list => list.filter(n => /robot/i.test(n)).length;
-  ok(box1.length > 0 && box3.length > 0 && none.length > 0,
-    'all three students get a shortlist — '
+  /* Since patch 145 a student who has said nothing about what they want to
+     study is not sent a paid list at all — the matcher waits for a field. */
+  ok(box1.length > 0 && box3.length > 0 && none.length === 0,
+    'both students who named a field get a shortlist, and the one who did not waits — '
     + [box1.length, box3.length, none.length].join('/'));
   ok(robots(box1) > 0, 'a field in box one matches — ' + JSON.stringify(box1.slice(0, 2)));
   ok(robots(box3) > 0,

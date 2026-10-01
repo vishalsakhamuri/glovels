@@ -115,6 +115,9 @@ FORM = """
         <label for="bfSite" class="sr" style="position:absolute;left:-9999px">Leave this field empty</label>
         <input id="bfSite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
           style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+        <label class="bf-ok" style="display:flex;gap:8px;align-items:flex-start;font-size:12.6px;margin:4px 0 10px">
+          <input type="checkbox" id="bfOk" style="width:auto;margin-top:3px">
+          <span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>
         <button class="btn btn-green" type="submit" id="bfGo">Ask a counsellor</button>
         <p class="bf-note" id="bfMsgOut" role="status"></p>
         <p class="bf-fine">We use this to reply to you about this question. Nothing else.</p>
@@ -251,6 +254,8 @@ FORM_JS = """
     if (!name) return say('Tell us your name.');
     if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) return say('That email address is not valid.');
     if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
+    var okBox = document.getElementById('bfOk');
+    if (okBox && !okBox.checked) return say('Please tick the box so we can reply to you.');
     var btn = document.getElementById('bfGo');
     btn.disabled = true; btn.textContent = 'Sending\\u2026';
     try {
@@ -262,7 +267,8 @@ FORM_JS = """
              and a number and has to ask what it is about. */
           note: 'From the blog: ' + document.title.replace(/ \\| Glovels$/, ''),
           message: f.message.value.trim(),
-          consent: 'blog',
+          consent: 'yes', source: 'blog',
+          consentWording: okBox ? okBox.parentNode.textContent.replace(/\s+/g, ' ').trim() : '',
           website: f.website ? f.website.value : '',
           sourcePage: location.pathname,
           referrer: document.referrer || 'direct'

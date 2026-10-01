@@ -10696,6 +10696,648 @@ patch(
 )
 
 
+patch(
+    'admin.html',
+    'full test 30 Sep, patch 151 (1)',
+    '      (/^configured/.test(ov.channels.whatsapp) ? \'Configured\' : \'Off\') + \'</span></li>\' +\n    \'<li>\' + ico(\'check\') + \'<span style="flex:1">Live messenger</span>\' +\n      \'<span class="st ok">\' + (ov.online.students + ov.online.staff) + \' online</span></li>\';\n',
+    '      (/^configured/.test(ov.channels.whatsapp) ? \'Configured\' : \'Off\') + \'</span></li>\' +\n    \'<li>\' + ico(\'check\') + \'<span style="flex:1">Portal messenger (signed-in students and staff)</span>\' +\n      \'<span class="st ok">\' + (ov.online.students + ov.online.staff) + \' online</span></li>\';\n',
+    marker='\'<li>\' + ico(\'check\') + \'<span style="flex:1">Portal messenger (signed-in students and staff)</span>\' +',
+)
+patch(
+    'applications.html',
+    'full test 30 Sep, patch 151 (1)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'applications.html',
+    'full test 30 Sep, patch 151 (2)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'applications.html',
+    'full test 30 Sep, patch 151 (3)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'applications.html',
+    'full test 30 Sep, patch 151 (4)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'applications.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'chat.html',
+    'full test 30 Sep, patch 151 (1)',
+    '    <div class="p-top">\n      <div><h1>Website chat</h1><p>People asking questions in the chat box on the website. They have not made an account — they left a name and a number, and they are waiting.</p></div>\n    </div>\n',
+    '    <div class="p-top">\n      <div><h1>Website chat</h1><p>Earlier conversations from the website chat box. The chat button is switched off on the public site — visitors now reach the office on WhatsApp or the contact form — so nothing new arrives here.</p></div>\n    </div>\n',
+    marker='<div><h1>Website chat</h1><p>Earlier conversations from the website chat box. The chat button is switched off on the public site — visitors now reach the office on WhatsApp or the contact form — so nothing new arrives here.</p></div>',
+)
+patch(
+    'contact-us.html',
+    'full test 30 Sep, patch 151 (1)',
+    '      style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">\n    <p class="ct-err" id="ctErr" role="alert" hidden></p>\n',
+    '      style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">\n    <label class="ct-ok" style="display:flex;gap:8px;align-items:flex-start;font-size:12.8px;margin:6px 0 10px">\n      <input type="checkbox" id="ctOk" style="width:auto;margin-top:3px">\n      <span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>\n    <p class="ct-err" id="ctErr" role="alert" hidden></p>\n',
+    marker='<span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>',
+)
+patch(
+    'contact-us.html',
+    'full test 30 Sep, patch 151 (2)',
+    '    });\n    if (bad) { err.textContent = bad; err.hidden = false; $(checks[0][0]).focus(); return; }\n',
+    "    });\n    if (!bad && !$('ctOk').checked) bad = 'Please tick the box so we can reply to you.';\n    if (bad) { err.textContent = bad; err.hidden = false; $(checks[0][0]).focus(); return; }\n",
+    marker="if (!bad && !$('ctOk').checked) bad = 'Please tick the box so we can reply to you.';",
+)
+patch(
+    'contact-us.html',
+    'full test 30 Sep, patch 151 (3)',
+    "      source: 'contact-us',\n      /* The field no person can see. The server drops anything that fills\n",
+    "      source: 'contact-us',\n      consent: 'yes',\n      consentWording: $('ctOk').parentNode.textContent.replace(/\\s+/g, ' ').trim(),\n      /* The field no person can see. The server drops anything that fills\n",
+    marker="consentWording: $('ctOk').parentNode.textContent.replace(/\\s+/g, ' ').trim(),",
+)
+patch(
+    'counsellor.html',
+    'full test 30 Sep, patch 151 (1)',
+    '      \'margin-top:9px">\' +\n      \'<textarea data-note="\' + esc(p.id) + \'" rows="2" maxlength="600" \' +\n',
+    '      \'margin-top:9px">\' +\n      \'<label style="flex-basis:100%;font:700 10.6px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em;color:#8a5a00">\' +\n        \'Note to the student — they see this and are messaged it</label>\' +\n      \'<textarea data-note="\' + esc(p.id) + \'" rows="2" maxlength="600" \' +\n',
+    marker='\'<label style="flex-basis:100%;font:700 10.6px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em;color:#8a5a00">\' +',
+)
+patch(
+    'counsellor.html',
+    'full test 30 Sep, patch 151 (2)',
+    '      \'<textarea data-note="\' + esc(p.id) + \'" rows="2" maxlength="600" \' +\n        \'placeholder="What is happening on this one — filed, chased, reference number…" \' +\n        \'style="flex:1;min-width:220px;padding:8px 10px;font:400 12.4px/1.5 var(--sans);\' +\n',
+    '      \'<textarea data-note="\' + esc(p.id) + \'" rows="2" maxlength="600" \' +\n        \'placeholder="What the student should know — filed, chased, reference number…" \' +\n        \'style="flex:1;min-width:220px;padding:8px 10px;font:400 12.4px/1.5 var(--sans);\' +\n',
+    marker='\'placeholder="What the student should know — filed, chased, reference number…" \' +',
+)
+patch(
+    'counsellor.html',
+    'full test 30 Sep, patch 151 (3)',
+    '        esc(String(a.note || \'\')) + \'</textarea>\' +\n      \'<button type="button" class="btn btn-ghost btn-sm" data-notesave="\' + esc(p.id) + \'">\' +\n',
+    '        esc(String(a.note || \'\')) + \'</textarea>\' +\n      \'<label style="flex-basis:100%;font:700 10.6px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:4px">\' +\n        \'Office only — the student never sees this</label>\' +\n      \'<textarea data-inote="\' + esc(p.id) + \'" rows="2" maxlength="1000" \' +\n        \'placeholder="Internal: portal logins, what was chased, anything not for the student" \' +\n        \'style="flex:1;min-width:220px;padding:8px 10px;font:400 12.4px/1.5 var(--sans);\' +\n        \'border:1.5px dashed #c9d1dc;border-radius:9px;background:#fbfbf8;resize:vertical">\' +\n        esc(String(((CASE && CASE.internalNotes) || {})[p.id] || \'\')) + \'</textarea>\' +\n      \'<button type="button" class="btn btn-ghost btn-sm" data-notesave="\' + esc(p.id) + \'">\' +\n',
+    marker='\'<label style="flex-basis:100%;font:700 10.6px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:4px">\' +',
+)
+patch(
+    'counsellor.html',
+    'full test 30 Sep, patch 151 (4)',
+    '      \'<button type="button" class="btn btn-ghost btn-sm" data-notesave="\' + esc(p.id) + \'">\' +\n        \'Save note</button>\' +\n      /* The two files. `data-appfile` carries the kind; the row\'s own id says\n',
+    '      \'<button type="button" class="btn btn-ghost btn-sm" data-notesave="\' + esc(p.id) + \'">\' +\n        \'Save notes</button>\' +\n      /* The two files. `data-appfile` carries the kind; the row\'s own id says\n',
+    marker="'Save notes</button>' +",
+)
+patch(
+    'counsellor.html',
+    'full test 30 Sep, patch 151 (5)',
+    "  const box = row && row.querySelector('[data-note]');\n  if (!box) return;\n",
+    "  const box = row && row.querySelector('[data-note]');\n  const ibox = row && row.querySelector('[data-inote]');\n  if (!box) return;\n",
+    marker="const ibox = row && row.querySelector('[data-inote]');",
+)
+patch(
+    'counsellor.html',
+    'full test 30 Sep, patch 151 (6)',
+    "    const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +\n      encodeURIComponent(id), { stage, outcome, note: box.value });\n    toast(r.noted ? 'Saved, and the student has been told.' : 'Saved.');\n",
+    "    const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +\n      encodeURIComponent(id), { stage, outcome, note: box.value, internalNote: ibox ? ibox.value : undefined });\n    toast(r.noted ? 'Saved, and the student has been told.' : 'Saved.');\n",
+    marker='encodeURIComponent(id), { stage, outcome, note: box.value, internalNote: ibox ? ibox.value : undefined });',
+)
+patch(
+    'dashboard.html',
+    'full test 30 Sep, patch 151 (1)',
+    "      d.style.background = '#fdf6e6';\n      d.textContent = 'The Glovels server is not running, so this is the last view '\n        + 'cached in this browser. Start it with start.command and reload.';\n    }\n",
+    "      d.style.background = '#fdf6e6';\n      d.textContent = 'We can\\u2019t reach Glovels right now. Check your internet '\n        + 'connection and reload the page.';\n    }\n",
+    marker="d.textContent = 'We can\\u2019t reach Glovels right now. Check your internet '",
+)
+patch(
+    'dashboard.html',
+    'full test 30 Sep, patch 151 (2)',
+    '  el.innerHTML =\n      \'<div class="todo-head"><b>Your file is \' + t.complete + \'% complete</b>\'\n    + \'<span>\' + why + \'</span></div>\'\n',
+    '  el.innerHTML =\n      /* A count, not a percentage (round 30 Sep): the profile screen measures\n         every box on the form, this card only what your package needs, and\n         two different percentages for "complete" read as one of them wrong. */\n      \'<div class="todo-head"><b>\' + (gaps.length + docs.length) + \' thing\'\n      + (gaps.length + docs.length === 1 ? \'\' : \'s\') + \' still needed for your file</b>\'\n    + \'<span>\' + why + \'</span></div>\'\n',
+    marker="+ (gaps.length + docs.length === 1 ? '' : 's') + ' still needed for your file</b>'",
+)
+patch(
+    'dashboard.html',
+    'full test 30 Sep, patch 151 (3)',
+    "             student's business, whose fault it is is not. */\n          : x.behind ? ' \\u00b7 was due ' + esc(x.by) + ' — running behind'\n          : ' \\u00b7 aiming for ' + esc(x.by)) +\n",
+    '             student\'s business, whose fault it is is not. */\n          /* Round 30 Sep: five "running behind" lines told the student the\n             office was late without anything they could do about it. */\n          : x.behind ? \' \\u00b7 your counsellor will confirm the date\'\n          : \' \\u00b7 aiming for \' + esc(x.by)) +\n',
+    marker='/* Round 30 Sep: five "running behind" lines told the student the',
+)
+patch(
+    'documents.html',
+    'full test 30 Sep, patch 151 (1)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'documents.html',
+    'full test 30 Sep, patch 151 (2)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'documents.html',
+    'full test 30 Sep, patch 151 (3)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'documents.html',
+    'full test 30 Sep, patch 151 (4)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'documents.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'documents.html',
+    'full test 30 Sep, patch 151 (6)',
+    "  if (wrong) { toast(wrong, 'bad'); return; }\n  if (!ONLINE) { toast('Cannot upload while the server is not running.'); return; }\n  const fd = new FormData();\n",
+    "  if (wrong) { toast(wrong, 'bad'); return; }\n  if (!ONLINE) { toast('We can\\u2019t reach Glovels right now — try the upload again in a moment.'); return; }\n  const fd = new FormData();\n",
+    marker="if (!ONLINE) { toast('We can\\u2019t reach Glovels right now — try the upload again in a moment.'); return; }",
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (1)',
+    '    <p class="co-legal" style="font-size:11.6px;color:var(--muted);margin:11px 0 0;text-align:center">\n      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.<br>\n      By continuing you accept our <a href="terms.html">Terms</a> and\n      <a href="refunds.html#guarantee-terms">Refund &amp; Cancellation policy</a>.</p>\n  </div>\n',
+    '    <p class="co-legal" style="font-size:11.6px;color:var(--muted);margin:11px 0 0;text-align:center">\n      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.</p>\n  </div>\n',
+    marker='<svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.</p>',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (2)',
+    '    <p class="co-legal" id="scLegal" style="font-size:11.6px;color:var(--muted);\n      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.<br>\n      By continuing you accept our <a href="terms.html">Terms</a> and\n      <a href="refunds.html">Refund &amp; Cancellation policy</a>.</p>\n  </div>\n',
+    '    <p class="co-legal" id="scLegal" style="font-size:11.6px;color:var(--muted);\n      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.</p>\n  </div>\n',
+    marker='margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.</p>',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (3)',
+    '          <div class="fld"><label for="cDest">Where are you thinking of going?</label>\n            <select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>\n          <label for="cHoney" class="sr">Leave this field empty</label>\n',
+    '          <div class="fld"><label for="cDest">Where are you thinking of going?</label>\n            <select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="FR">🇫🇷 France</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>\n          <label for="cHoney" class="sr">Leave this field empty</label>\n',
+    marker='<select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="FR">🇫🇷 France</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (4)',
+    '\nfunction rowHtml(r){\n',
+    "\n/* Round 30 Sep (issue 1): a private programme with no fee entered is not free. */\nfunction feeUnknown(p){\n  return !!p && !p.isPublic && !Number(p.totalInr)\n    && !(p.reqs && typeof p.reqs === 'object' && p.reqs.tuitionEurSem === 0);\n}\nfunction rowHtml(r){\n",
+    marker='/* Round 30 Sep (issue 1): a private programme with no fee entered is not free. */',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (5)',
+    '    <div class="mctry">${esc(ctry.name)}</div>${type}\n    <div class="mprice">${short(r.totalInr)}<small>${r.totalInr===0?\'tuition\':\'total\'}</small></div>\n    <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>\n',
+    '    <div class="mctry">${esc(ctry.name)}</div>${type}\n    <div class="mprice">${feeUnknown(r)?\'Fee to be confirmed\':short(r.totalInr)}<small>${feeUnknown(r)?\'\':r.totalInr===0?\'tuition\':\'total\'}</small></div>\n    <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>\n',
+    marker='<div class="mprice">${feeUnknown(r)?\'Fee to be confirmed\':short(r.totalInr)}<small>${feeUnknown(r)?\'\':r.totalInr===0?\'tuition\':\'total\'}</small></div>',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (6)',
+    '    +   \'<input class="nm-hp" id="nmWeb" tabindex="-1" autocomplete="off" aria-hidden="true">\'\n    +   \'<button type="submit" class="btn btn-primary btn-sm" id="nmGo">Send to a counsellor</button>\'\n',
+    '    +   \'<input class="nm-hp" id="nmWeb" tabindex="-1" autocomplete="off" aria-hidden="true">\'\n    +   \'<label class="nm-ok" style="flex:1 1 100%;display:flex;gap:8px;align-items:flex-start;font-size:12.4px;color:var(--muted)"><input type="checkbox" id="nmOk" style="width:auto;flex:0 0 auto;margin-top:3px"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>\'\n    +   \'<button type="submit" class="btn btn-primary btn-sm" id="nmGo">Send to a counsellor</button>\'\n',
+    marker='+   \'<label class="nm-ok" style="flex:1 1 100%;display:flex;gap:8px;align-items:flex-start;font-size:12.4px;color:var(--muted)"><input type="checkbox" id="nmOk" style="width:auto;flex:0 0 auto;margin-top:3px"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>\'',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (7)',
+    "  if (!/^[^@\\s]+@[^@\\s.]+\\.[^@\\s]+$/.test(email)) return show('That email does not look right.');\n  show('');\n",
+    "  if (!/^[^@\\s]+@[^@\\s.]+\\.[^@\\s]+$/.test(email)) return show('That email does not look right.');\n  if (!$('#nmOk').checked) return show('Please tick the box so we can call you back.');\n  show('');\n",
+    marker="if (!$('#nmOk').checked) return show('Please tick the box so we can call you back.');",
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (8)',
+    "    note: 'Finder returned nothing' + (what ? ' \\u2014 ' + what : ''),\n    sourcePage: location.pathname, referrer: document.referrer,\n",
+    "    note: 'Finder returned nothing' + (what ? ' \\u2014 ' + what : ''),\n    consent: 'yes', consentWording: $('#nmOk').parentNode.textContent.trim(),\n    sourcePage: location.pathname, referrer: document.referrer,\n",
+    marker="consent: 'yes', consentWording: $('#nmOk').parentNode.textContent.trim(),",
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (9)',
+    "  if(isNaN(raw)) { $('#cvOut').hidden = true; return; }\n  const cl = (n,lo,hi) => Math.max(lo, Math.min(hi, n));\n",
+    '  if(isNaN(raw)) { $(\'#cvOut\').hidden = true; return; }\n  /* Round 30 Sep (issue 17): 150% became a 10.00 CGPA and "open to you".\n     Out of the scale is refused, not quietly capped. */\n  const top = sc === \'pct\' ? 100 : sc === \'g4\' ? 4 : 10;\n  const note = $(\'#cvNote\');\n  if(raw > top || raw <= 0){\n    $(\'#cvOut\').hidden = true;\n    note.textContent = sc === \'pct\' ? \'A percentage is between 0 and 100.\'\n      : sc === \'g4\' ? \'A GPA on this scale is between 0 and 4.\' : \'A CGPA out of 10 is between 0 and 10.\';\n    note.hidden = false;\n    return;\n  }\n  if(/between 0 and/.test(note.textContent)) note.hidden = true;\n  const cl = (n,lo,hi) => Math.max(lo, Math.min(hi, n));\n',
+    marker=": sc === 'g4' ? 'A GPA on this scale is between 0 and 4.' : 'A CGPA out of 10 is between 0 and 10.';",
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (10)',
+    "          email: $('#scMail').value.trim(),\n          consentAt: new Date().toISOString(),\n          sourcePage: location.pathname, referrer: document.referrer || 'direct',\n",
+    "          email: $('#scMail').value.trim(),\n          consent: 'yes', consentAt: new Date().toISOString(),\n          consentWording: 'Placed an order; Glovels contacts me to deliver it.',\n          sourcePage: location.pathname, referrer: document.referrer || 'direct',\n",
+    marker="consentWording: 'Placed an order; Glovels contacts me to deliver it.',",
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (11)',
+    '      \'<div class="field" style="margin-bottom:12px"><label for="aiProg">Programme</label>\'\n    + \'<input id="aiProg" value="M.Sc. Data Science" style="cursor:text"></div>\'\n    + \'<div class="field" style="margin-bottom:12px"><label for="aiUni">University</label>\'\n',
+    '      \'<div class="field" style="margin-bottom:12px"><label for="aiProg">Programme</label>\'\n    + \'<input id="aiProg" placeholder="e.g. M.Sc. Data Science" style="cursor:text"></div>\'\n    + \'<div class="field" style="margin-bottom:12px"><label for="aiUni">University</label>\'\n',
+    marker='+ \'<input id="aiProg" placeholder="e.g. M.Sc. Data Science" style="cursor:text"></div>\'',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (12)',
+    '    + \'<div class="field" style="margin-bottom:12px"><label for="aiUni">University</label>\'\n    + \'<input id="aiUni" value="RWTH Aachen University" style="cursor:text"></div>\'\n    + \'<div class="lv-lbl">\'+(kind === \'sop\' ? \'What should it draw on?\' : \'What did they actually see?\')+\'</div>\'\n',
+    '    + \'<div class="field" style="margin-bottom:12px"><label for="aiUni">University</label>\'\n    + \'<input id="aiUni" placeholder="e.g. RWTH Aachen University" style="cursor:text"></div>\'\n    + \'<div class="lv-lbl">\'+(kind === \'sop\' ? \'What should it draw on?\' : \'What did they actually see?\')+\'</div>\'\n',
+    marker='+ \'<input id="aiUni" placeholder="e.g. RWTH Aachen University" style="cursor:text"></div>\'',
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (13)',
+    "\nconst lakh = inr => inr === 0 ? '₹0 tuition'\n",
+    "\n/* Its own copy: this block cannot see the finder's (round 30 Sep). */\nconst feeTbc = p => !!p && !p.isPublic && !Number(p.totalInr)\n  && !(p.reqs && typeof p.reqs === 'object' && p.reqs.tuitionEurSem === 0);\nconst lakh = inr => inr === 0 ? '₹0 tuition'\n",
+    marker="/* Its own copy: this block cannot see the finder's (round 30 Sep). */",
+)
+patch(
+    'index.html',
+    'full test 30 Sep, patch 151 (14)',
+    '    ? \'<span>\'+ico(\'lock\')+bandLabel(p.band)+\' · exact fee with a package</span>\'\n    : esc(lakh(p.totalInr));\n  const basis = p.locked ? \'\' : (p.totalInr === 0 ? \'tuition\' : \'total\');\n  return \'<article class="ccard\'+(p.locked?\' clocked\':\'\')+\'" data-band="\'+p.band+\'">\'\n',
+    '    ? \'<span>\'+ico(\'lock\')+bandLabel(p.band)+\' · exact fee with a package</span>\'\n    : feeTbc(p) ? \'Fee to be confirmed\' : esc(lakh(p.totalInr));\n  const basis = p.locked || feeTbc(p) ? \'\' : (p.totalInr === 0 ? \'tuition\' : \'total\');\n  return \'<article class="ccard\'+(p.locked?\' clocked\':\'\')+\'" data-band="\'+p.band+\'">\'\n',
+    marker="const basis = p.locked || feeTbc(p) ? '' : (p.totalInr === 0 ? 'tuition' : 'total');",
+)
+patch(
+    'login.html',
+    'full test 30 Sep, patch 151 (1)',
+    "    } catch (e) {\n      forgotBox('The Glovels server is not running, so the reset could not be requested. '\n        + 'Start it with start.command and try again.');\n    }\n",
+    "    } catch (e) {\n      forgotBox('We can\\u2019t reach Glovels right now, so the reset link was not sent. '\n        + 'Check your internet connection and try again.', true);\n    }\n",
+    marker="forgotBox('We can\\u2019t reach Glovels right now, so the reset link was not sent. '",
+)
+patch(
+    'login.html',
+    'full test 30 Sep, patch 151 (2)',
+    "\nfunction forgotBox(message){\n  const box = document.getElementById('forgotBox') || (function(){\n",
+    "\nfunction forgotBox(message, bad){\n  const box = document.getElementById('forgotBox') || (function(){\n",
+    marker='function forgotBox(message, bad){',
+)
+patch(
+    'login.html',
+    'full test 30 Sep, patch 151 (3)',
+    '  box.textContent = message;\n}\n',
+    "  box.textContent = message;\n  /* Round 30 Sep (issue 6): a failure was shown in the green success box. */\n  box.style.background = bad ? '#fdf3f2' : '#eaf6ee';\n  box.style.borderColor = bad ? '#f0c8c4' : '#bfe0cc';\n  box.style.color = bad ? '#7a2118' : '#14603a';\n  const old = document.getElementById('authErr'); if (old) old.style.display = 'none';\n}\n",
+    marker="const old = document.getElementById('authErr'); if (old) old.style.display = 'none';",
+)
+patch(
+    'login.html',
+    'full test 30 Sep, patch 151 (4)',
+    "  const old = document.getElementById('authErr'); if (old) old.style.display = 'none';\n}\n\n/* Arriving from the emailed link: /login?token=... becomes a set-a-new-password\n",
+    "  const old = document.getElementById('authErr'); if (old) old.style.display = 'none';\n}\n\n/* Round 30 Sep (issue 25): somebody already signed in who opens /login is\n   taken to their own screen rather than shown a sign-in form. Not when they\n   are here to change a password or to use a reset link. */\n(function () {\n  const q = new URLSearchParams(location.search);\n  if (q.get('change') || q.get('token') || q.get('signup') || location.protocol === 'file:') return;\n  fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })\n    .then(r => r.json()).then(d => {\n      const u = d && d.user;\n      if (!u || d.mustChange) return;\n      const perms = u.perms || [];\n      const home = u.role === 'admin' ? 'admin.html'\n        : u.role === 'editor' ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')\n        : u.role === 'counsellor' ? 'counsellor.html'\n        : u.role === 'partner' ? 'partner.html' : 'dashboard.html';\n      const next = q.get('next');\n      location.replace((next && /^\\/[a-z0-9/_-]*$/i.test(next)) ? next : home);\n    }).catch(() => {});\n})();\n\n/* Arriving from the emailed link: /login?token=... becomes a set-a-new-password\n",
+    marker="if (q.get('change') || q.get('token') || q.get('signup') || location.protocol === 'file:') return;",
+)
+patch(
+    'login.html',
+    'full test 30 Sep, patch 151 (5)',
+    "            + 'and use the address it opens (http://localhost:8080).'\n          : 'The Glovels server is not running. Start it with start.command and try again.')\n      : err.message);\n",
+    "            + 'and use the address it opens (http://localhost:8080).'\n          : 'We can\\u2019t reach Glovels right now. Check your internet connection and try again.')\n      : err.message);\n",
+    marker=": 'We can\\u2019t reach Glovels right now. Check your internet connection and try again.')",
+)
+patch(
+    'login.html',
+    'full test 30 Sep, patch 151 (6)',
+    "function showAuthError(msg) {\n  let el = document.getElementById('authErr');\n",
+    "function showAuthError(msg) {\n  const fb = document.getElementById('forgotBox'); if (fb && msg) fb.remove();\n  let el = document.getElementById('authErr');\n",
+    marker="const fb = document.getElementById('forgotBox'); if (fb && msg) fb.remove();",
+)
+patch(
+    'messages.html',
+    'full test 30 Sep, patch 151 (1)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'messages.html',
+    'full test 30 Sep, patch 151 (2)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'messages.html',
+    'full test 30 Sep, patch 151 (3)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'messages.html',
+    'full test 30 Sep, patch 151 (4)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'messages.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'partner.html',
+    'full test 30 Sep, patch 151 (1)',
+    '        <button type="button" class="outgo" data-tile="docs" aria-pressed="false">\n          <b id="kDocs">—</b><span>Documents in review</span></button>\n        <button type="button" class="outgo" data-tile="closed" aria-pressed="false">\n',
+    '        <button type="button" class="outgo" data-tile="docs" aria-pressed="false">\n          <b id="kDocs">—</b><span>Students with documents in review</span></button>\n        <button type="button" class="outgo" data-tile="closed" aria-pressed="false">\n',
+    marker='<b id="kDocs">—</b><span>Students with documents in review</span></button>',
+)
+patch(
+    'partner.html',
+    'full test 30 Sep, patch 151 (2)',
+    '            <option value="">Not decided yet</option>\n            <option>Germany</option><option>Canada</option>\n            <option>United Kingdom</option><option>Ireland</option>\n',
+    '            <option value="">Not decided yet</option>\n            <option>Germany</option><option>France</option><option>Canada</option>\n            <option>United Kingdom</option><option>Ireland</option>\n',
+    marker='<option>Germany</option><option>France</option><option>Canada</option>',
+)
+patch(
+    'partner.html',
+    'full test 30 Sep, patch 151 (3)',
+    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'Vishal',\n     help:'Exactly as it is printed on your passport.'},\n",
+    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',\n     help:'Exactly as it is printed on your passport.'},\n",
+    marker="{k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',",
+)
+patch(
+    'partner.html',
+    'full test 30 Sep, patch 151 (4)',
+    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Sakhamuri'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
+    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
+    marker="{k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},",
+)
+patch(
+    'partner.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    {k:'g_country',l:'Preferred destinations', t:'multi',\n     o:['Germany','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],\n     help:'Choose as many as you are considering. Your matches cover all of them.'},\n",
+    "    {k:'g_country',l:'Preferred destinations', t:'multi',\n     o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],\n     help:'Choose as many as you are considering. Your matches cover all of them.'},\n",
+    marker="o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (1)',
+    '              <label for="delEmail">Type your email address to confirm</label>\n              <input type="email" id="delEmail" autocomplete="off" placeholder="you@email.com">\n            </div>\n',
+    '              <label for="delEmail">Type your email address to confirm</label>\n              <input type="text" id="delEmail" name="del-confirm-email" autocomplete="off" readonly\n                inputmode="email" placeholder="you@email.com">\n            </div>\n',
+    marker='<input type="text" id="delEmail" name="del-confirm-email" autocomplete="off" readonly',
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (2)',
+    '              <label for="delPass">Your password</label>\n              <input type="password" id="delPass" autocomplete="current-password">\n            </div>\n',
+    '              <label for="delPass">Your password</label>\n              <input type="password" id="delPass" name="del-confirm-pass" autocomplete="new-password" readonly>\n            </div>\n            <div class="field" style="margin-bottom:14px">\n              <label for="delWord">Type DELETE in capitals</label>\n              <input type="text" id="delWord" name="del-confirm-word" autocomplete="off" spellcheck="false" placeholder="DELETE">\n            </div>\n',
+    marker='<input type="text" id="delWord" name="del-confirm-word" autocomplete="off" spellcheck="false" placeholder="DELETE">',
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (3)',
+    '            <div style="display:flex;gap:10px;flex-wrap:wrap">\n              <button type="button" class="btn d-go" id="delGo">Delete permanently</button>\n              <button type="button" class="btn btn-ghost" id="delCancel">Keep my account</button>\n',
+    '            <div style="display:flex;gap:10px;flex-wrap:wrap">\n              <button type="button" class="btn d-go" id="delGo" disabled>Delete permanently</button>\n              <button type="button" class="btn btn-ghost" id="delCancel">Keep my account</button>\n',
+    marker='<button type="button" class="btn d-go" id="delGo" disabled>Delete permanently</button>',
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (4)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (5)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (6)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (7)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (8)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (9)',
+    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'Vishal',\n     help:'Exactly as it is printed on your passport.'},\n",
+    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',\n     help:'Exactly as it is printed on your passport.'},\n",
+    marker="{k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (10)',
+    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Sakhamuri'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
+    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
+    marker="{k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (11)',
+    "    {k:'g_country',l:'Preferred destinations', t:'multi',\n     o:['Germany','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],\n     help:'Choose as many as you are considering. Your matches cover all of them.'},\n",
+    "    {k:'g_country',l:'Preferred destinations', t:'multi',\n     o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],\n     help:'Choose as many as you are considering. Your matches cover all of them.'},\n",
+    marker="o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (12)',
+    "const DEMO = {\n  firstName:'Vishal', lastName:'Sakhamuri',\n  dob:'2002-04-11', gender:'Male', pob:'Hyderabad',\n",
+    "const DEMO = {\n  firstName:'Aarav', lastName:'Sharma',\n  dob:'2002-04-11', gender:'Male', pob:'Hyderabad',\n",
+    marker="firstName:'Aarav', lastName:'Sharma',",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (13)',
+    " * enforces is a suggestion. */\n$('#delOpen').addEventListener('click', () => {\n",
+    ' * enforces is a suggestion. */\n/* Round 30 Sep (issue 2): the browser\'s password manager filled both boxes\n   the moment the section opened, so "Delete permanently" was one click away.\n   The boxes are read-only until touched (password managers skip read-only\n   fields), are emptied on opening, and a typed DELETE is required too. */\nconst delReady = () => {\n  $(\'#delGo\').disabled = !($(\'#delEmail\').value.trim() && $(\'#delPass\').value && $(\'#delWord\').value.trim() === \'DELETE\');\n};\n[\'#delEmail\', \'#delPass\', \'#delWord\'].forEach(id => {\n  const el = $(id);\n  el.addEventListener(\'focus\', () => el.removeAttribute(\'readonly\'));\n  el.addEventListener(\'input\', delReady);\n});\n$(\'#delOpen\').addEventListener(\'click\', () => {\n',
+    marker="$('#delGo').disabled = !($('#delEmail').value.trim() && $('#delPass').value && $('#delWord').value.trim() === 'DELETE');",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (14)',
+    "  $('#delOpen').hidden = true;\n  $('#delEmail').focus();\n",
+    "  $('#delOpen').hidden = true;\n  $('#delEmail').value = ''; $('#delPass').value = ''; $('#delWord').value = '';\n  delReady();\n  $('#delEmail').focus();\n",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (15)',
+    "  $('#delEmail').focus();\n});\n",
+    "  $('#delEmail').focus();\n  /* Some managers fill after a beat — empty them again if so. */\n  setTimeout(() => { if (document.activeElement !== $('#delPass')) $('#delPass').value = ''; delReady(); }, 400);\n});\n",
+    marker="setTimeout(() => { if (document.activeElement !== $('#delPass')) $('#delPass').value = ''; delReady(); }, 400);",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (16)',
+    "  $('#delErr').hidden = true;\n  $('#delEmail').value = ''; $('#delPass').value = '';\n});\n",
+    "  $('#delErr').hidden = true;\n  $('#delEmail').value = ''; $('#delPass').value = ''; $('#delWord').value = '';\n  delReady();\n});\n",
+)
+patch(
+    'profile.html',
+    'full test 30 Sep, patch 151 (17)',
+    "    const out = await api('DELETE', '/api/account', {\n      email: $('#delEmail').value, password: $('#delPass').value,\n    });\n",
+    "    const out = await api('DELETE', '/api/account', {\n      email: $('#delEmail').value, password: $('#delPass').value, confirm: $('#delWord').value.trim(),\n    });\n",
+    marker="email: $('#delEmail').value, password: $('#delPass').value, confirm: $('#delWord').value.trim(),",
+)
+patch(
+    'scholarships.html',
+    'full test 30 Sep, patch 151 (1)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'scholarships.html',
+    'full test 30 Sep, patch 151 (2)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'scholarships.html',
+    'full test 30 Sep, patch 151 (3)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'scholarships.html',
+    'full test 30 Sep, patch 151 (4)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'scholarships.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'services.html',
+    'full test 30 Sep, patch 151 (1)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'services.html',
+    'full test 30 Sep, patch 151 (2)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'services.html',
+    'full test 30 Sep, patch 151 (3)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'services.html',
+    'full test 30 Sep, patch 151 (4)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'services.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'universities.html',
+    'full test 30 Sep, patch 151 (1)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'universities.html',
+    'full test 30 Sep, patch 151 (2)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'universities.html',
+    'full test 30 Sep, patch 151 (3)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'universities.html',
+    'full test 30 Sep, patch 151 (4)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'universities.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'universities.html',
+    'full test 30 Sep, patch 151 (6)',
+    '       correctly judged on the German grade (patch 145). */\n    (barOf(p) == null || (p.germanGpa != null && p.germanGpa !== \'\') ? \'\' :\n      \'<div class="sl-meta" style="color:\' + (clears(p) ? \'var(--muted)\' : \'#b42318\') + \'">\' +\n',
+    '       correctly judged on the German grade (patch 145). */\n    /* "Asks for 0+ CGPA" (round 30 Sep): no minimum is no line. */\n    (barOf(p) == null || !(barOf(p) > 0) || (p.germanGpa != null && p.germanGpa !== \'\') ? \'\' :\n      \'<div class="sl-meta" style="color:\' + (clears(p) ? \'var(--muted)\' : \'#b42318\') + \'">\' +\n',
+    marker="(barOf(p) == null || !(barOf(p) > 0) || (p.germanGpa != null && p.germanGpa !== '') ? '' :",
+)
+patch(
+    'visa.html',
+    'full test 30 Sep, patch 151 (1)',
+    "const LOCAL_KEY = 'glovels.portal.offline';\n\n",
+    "const LOCAL_KEY = 'glovels.portal.offline';\ntry { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */\n\n",
+    marker='try { localStorage.removeItem(LOCAL_KEY); } catch (e) {}   /* old offline copies, round 30 Sep */',
+)
+patch(
+    'visa.html',
+    'full test 30 Sep, patch 151 (2)',
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Working offline — ' + why + ' Your changes are held in this browser and are '\n    + 'not saved to your account. Start the server and reload.';\n}\n",
+    "  box.style.color = '#5b4409';\n  txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '\n    + 'Check your internet connection and reload the page.';\n}\n",
+    marker="txt.textContent = 'Not connected — ' + why + ' Changes made now are not saved. '",
+)
+patch(
+    'visa.html',
+    'full test 30 Sep, patch 151 (3)',
+    'function save() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  if (!ONLINE) return;\n',
+    "function save() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  if (!ONLINE) return;\n",
+)
+patch(
+    'visa.html',
+    'full test 30 Sep, patch 151 (4)',
+    'async function saveNow() {\n  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch (e) {}\n  clearTimeout(flushTimer);\n',
+    "async function saveNow() {\n  /* No copy of the student's file is kept in the browser (round 30 Sep). */\n  clearTimeout(flushTimer);\n",
+)
+patch(
+    'visa.html',
+    'full test 30 Sep, patch 151 (5)',
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    try { DB = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch (x) { DB = {}; }\n    offlineNotice('the Glovels server is not running.');\n    ORDER = DB.order || {};\n",
+    "    if (e.mustChange) return mustChangeScreen({ role: 'student' });\n    DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}\n    offlineNotice('we can\\u2019t reach Glovels right now.');\n    ORDER = DB.order || {};\n",
+    marker='DB = {}; try { localStorage.removeItem(LOCAL_KEY); } catch (x) {}',
+)
+patch(
+    'visa.html',
+    'full test 30 Sep, patch 151 (6)',
+    "  }\n  if (!ONLINE) { toast('Cannot upload while the server is not running.'); return; }\n  const fd = new FormData();\n",
+    "  }\n  if (!ONLINE) { toast('We can\\u2019t reach Glovels right now — try the upload again in a moment.'); return; }\n  const fd = new FormData();\n",
+    marker="if (!ONLINE) { toast('We can\\u2019t reach Glovels right now — try the upload again in a moment.'); return; }",
+)
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

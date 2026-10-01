@@ -46,7 +46,7 @@ const stamp = Date.now();
   /* ------------------------------------------- and somebody enquires ------ */
   const lguest = await browser.newContext();
   await lguest.request.post(BASE + '/api/enquiries', {
-    data: { name: 'Asker ' + stamp, email: 'ask' + stamp + '@example.com', phone: '9876500002' },
+    data: { name: 'Asker ' + stamp, email: 'ask' + stamp + '@example.com', phone: '9876500002', consent: 'yes' },
     headers: { 'x-forwarded-for': '203.0.113.55' },
   });
 

@@ -2854,7 +2854,7 @@ staffBoot(async me => {
     '<li>' + ico('chat') + '<span style="flex:1">WhatsApp</span><span class="st ' +
       (/^configured/.test(ov.channels.whatsapp) ? 'ok' : 'none') + '">' +
       (/^configured/.test(ov.channels.whatsapp) ? 'Configured' : 'Off') + '</span></li>' +
-    '<li>' + ico('check') + '<span style="flex:1">Live messenger</span>' +
+    '<li>' + ico('check') + '<span style="flex:1">Portal messenger (signed-in students and staff)</span>' +
       '<span class="st ok">' + (ov.online.students + ov.online.staff) + ' online</span></li>';
 
   paint();

@@ -79,15 +79,20 @@ BODY = """
           <div id="delConfirm" hidden>
             <div class="field" style="margin-bottom:14px">
               <label for="delEmail">Type your email address to confirm</label>
-              <input type="email" id="delEmail" autocomplete="off" placeholder="you@email.com">
+              <input type="text" id="delEmail" name="del-confirm-email" autocomplete="off" readonly
+                inputmode="email" placeholder="you@email.com">
             </div>
             <div class="field" style="margin-bottom:14px">
               <label for="delPass">Your password</label>
-              <input type="password" id="delPass" autocomplete="current-password">
+              <input type="password" id="delPass" name="del-confirm-pass" autocomplete="new-password" readonly>
+            </div>
+            <div class="field" style="margin-bottom:14px">
+              <label for="delWord">Type DELETE in capitals</label>
+              <input type="text" id="delWord" name="del-confirm-word" autocomplete="off" spellcheck="false" placeholder="DELETE">
             </div>
             <p class="ferr" id="delErr" hidden></p>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <button type="button" class="btn d-go" id="delGo">Delete permanently</button>
+              <button type="button" class="btn d-go" id="delGo" disabled>Delete permanently</button>
               <button type="button" class="btn btn-ghost" id="delCancel">Keep my account</button>
             </div>
           </div>
@@ -103,7 +108,7 @@ SCRIPT = r"""
    stop agreeing. */
 """ + SECTIONS_JS + r"""
 const DEMO = {
-  firstName:'Vishal', lastName:'Sakhamuri',
+  firstName:'Aarav', lastName:'Sharma',
   dob:'2002-04-11', gender:'Male', pob:'Hyderabad',
   phone:'98765 43210', email:'student@glovels.com',
   addr1:'Plot 60, 1st Floor', addr2:'Behind Big C Mobiles, Madhapur',
@@ -691,16 +696,33 @@ $('#nextBtn').addEventListener('click', () => goTo(cur + 1));
  * because this is irreversible and a deliberate action should take a deliberate
  * amount of effort. The server checks both again — a confirmation a browser
  * enforces is a suggestion. */
+/* Round 30 Sep (issue 2): the browser's password manager filled both boxes
+   the moment the section opened, so "Delete permanently" was one click away.
+   The boxes are read-only until touched (password managers skip read-only
+   fields), are emptied on opening, and a typed DELETE is required too. */
+const delReady = () => {
+  $('#delGo').disabled = !($('#delEmail').value.trim() && $('#delPass').value && $('#delWord').value.trim() === 'DELETE');
+};
+['#delEmail', '#delPass', '#delWord'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('focus', () => el.removeAttribute('readonly'));
+  el.addEventListener('input', delReady);
+});
 $('#delOpen').addEventListener('click', () => {
   $('#delConfirm').hidden = false;
   $('#delOpen').hidden = true;
+  $('#delEmail').value = ''; $('#delPass').value = ''; $('#delWord').value = '';
+  delReady();
   $('#delEmail').focus();
+  /* Some managers fill after a beat — empty them again if so. */
+  setTimeout(() => { if (document.activeElement !== $('#delPass')) $('#delPass').value = ''; delReady(); }, 400);
 });
 $('#delCancel').addEventListener('click', () => {
   $('#delConfirm').hidden = true;
   $('#delOpen').hidden = false;
   $('#delErr').hidden = true;
-  $('#delEmail').value = ''; $('#delPass').value = '';
+  $('#delEmail').value = ''; $('#delPass').value = ''; $('#delWord').value = '';
+  delReady();
 });
 $('#delGo').addEventListener('click', async () => {
   const err = $('#delErr');
@@ -711,7 +733,7 @@ $('#delGo').addEventListener('click', async () => {
   btn.textContent = 'Deleting…';
   try {
     const out = await api('DELETE', '/api/account', {
-      email: $('#delEmail').value, password: $('#delPass').value,
+      email: $('#delEmail').value, password: $('#delPass').value, confirm: $('#delWord').value.trim(),
     });
     /* Straight out, and told what happened on the way. Leaving them on a
        screen whose account no longer exists would be the last thing this

@@ -743,11 +743,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       saved: db.getSaved(s.id),
       drafts: draftsFor(s.id),
       msgs: db.getMessages(s.id).map(msgShape(s.id)),
-      order: orders[0] ? {
-        reference: orders[0].reference, package: orders[0].package,
-        publicUnis: orders[0].public_unis, grossPaise: orders[0].gross_paise,
-        paidAt: orders[0].created_at,
-      } : null,
+      /* The headline plan. Round 30 Sep (issue 8): the newest order was taken,
+         so a ₹0 insurance add-on bought last became the student's "plan" over
+         the ₹4,999 package. The package that unlocks universities, then the
+         one that cost something, then the newest. */
+      order: (() => {
+        const head = orders.slice().sort((a, b) =>
+          ((b.public_unis || 0) > 0) - ((a.public_unis || 0) > 0)
+          || ((b.gross_paise || 0) > 0) - ((a.gross_paise || 0) > 0))[0];
+        return head ? {
+          reference: head.reference, package: head.package,
+          publicUnis: head.public_unis, grossPaise: head.gross_paise,
+          paidAt: head.created_at,
+        } : null;
+      })(),
       orders: orders.map(o => ({
         reference: o.reference, package: o.package, grossPaise: o.gross_paise,
         publicUnis: o.public_unis, status: o.status, paidAt: o.created_at,
@@ -1305,6 +1314,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return Object.assign({}, p, { fullName: [first, last].filter(Boolean).join(' ') });
   };
 
+  /* Round 30 Sep (issue 3): a save that sent two fields replaced a 56-field
+     profile with those two, and answered "ok". A save is now MERGED into what
+     is stored — a field sent blank is cleared, a field not sent is kept. Only
+     problems this save introduces are refused, so an old bad value elsewhere
+     in the record cannot block saving an unrelated section. */
+  const mergeProfile = (id, sent) => {
+    const before = db.getProfile(id) || {};
+    const merged = withFullName(Object.assign({}, before, sent));
+    if (merged.p_num != null) merged.p_num = GRADES.passportOf(merged.p_num);
+    const key = w => w.field + '|' + w.said + '|' + w.why;
+    const old = new Set(GRADES.problems(before).map(key));
+    const wrong = GRADES.problems(merged).filter(w => !old.has(key(w)));
+    return { merged, wrong };
+  };
+
   route('PUT', '/api/profile', async (req, res, s) => {
     const b = await readJson(req);
     /* A profile of the four characters `"x"` replaced the whole record with a
@@ -1317,15 +1341,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         && (typeof b.profile !== 'object' || Array.isArray(b.profile))) {
       return json(res, 422, { error: 'That is not a profile.' });
     }
-    const prof = withFullName(b.profile || {});
-    if (prof.p_num != null) prof.p_num = GRADES.passportOf(prof.p_num);
+    const { merged: prof, wrong } = mergeProfile(s.id, b.profile || {});
     /* REFUSED, not clamped, and not stored.
      *
      * A CGPA of 47.9 was accepted and then compared against every programme's
      * bar, so the student was shown 174 of 174 as open to them. Rewriting it
      * to 10 would be worse than refusing: it stores a grade they never got and
      * nobody ever finds out where it came from. */
-    const wrong = GRADES.problems(prof);
     if (wrong.length) {
       return json(res, 422, {
         error: wrong[0].why,
@@ -1770,7 +1792,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('POST', '/api/messages', async (req, res, s) => {
     const b = await readJson(req);
-    const body = String(b.body || '').slice(0, 4000);
+    /* Only spaces is nothing to send (round 30 Sep) — it showed as an empty bubble. */
+    const body = String(b.body || '').trim() ? String(b.body).slice(0, 4000) : '';
     const file = String(b.file || '').slice(0, 200);
     if (!body && !file) return json(res, 422, { error: 'Nothing to send' });
 
@@ -2528,6 +2551,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const email = String(b.email || '').trim();
     const phone = String(b.phone || '').trim();
     if (!name || !phone || !email) return json(res, 422, { ok: false, error: 'Name, phone and email are required' });
+    /* Round 30 Sep (issues 4, 20): the tick box was only checked in the
+       browser, and a 3,000-character name filled the Leads screen. */
+    if (name.length > 100) return json(res, 422, { ok: false, error: 'That name is too long — 100 characters at most.' });
+    if (!/\p{L}/u.test(name) || !/^[\p{L}\p{M}\d .'’-]+$/u.test(name)) return json(res, 422, { ok: false, error: 'A name can only have letters, spaces and . - \u2019' });
+    if (String(b.consent || '').toLowerCase() !== 'yes') {
+      return json(res, 422, { ok: false, error: 'Please tick the box to agree that Glovels may contact you.' });
+    }
+    const consentWording = String(b.consentWording || '').replace(/\s+/g, ' ').trim().slice(0, 400)
+      || 'I agree that Glovels may contact me about my enquiry.';
     if (!validEmail(email)) return json(res, 422, { ok: false, error: 'That email address is not valid' });
     if (!validPhone(phone)) return json(res, 422, { ok: false, error: 'That does not look like an Indian mobile number' });
     /* What it is about, in their words or in the page's.
@@ -2541,7 +2573,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const from = sourceOf(req, b);
     const record = {
       name, email, phone: '+91' + tenDigits(phone),
-      destination: b.destination, consent: b.consent,
+      destination: b.destination, consent: 'yes', consentAt: new Date().toISOString(), consentWording,
       note: about && said && said !== about ? about + ' — “' + said + '”' : (about || said),
       source: from.source, campaign: from.campaign,
       sourcePage: b.sourcePage, referrer: b.referrer,
@@ -2791,6 +2823,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
     }
 
+    if (kind === 'sop' && !String(b.programme || '').trim()) {
+      return json(res, 422, { error: 'Which programme is this for? Type its name — the draft is written to it.' });
+    }
     const out = WRITING.draft(bank, {
       kind,
       programme: b.programme, university: b.university,
@@ -3069,6 +3104,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
     }
 
+    if (String(b.confirm || '').trim() !== 'DELETE') {
+      return json(res, 422, { error: 'Type DELETE in capitals to confirm.' });
+    }
     const typed = String(b.email || '').trim().toLowerCase();
     if (typed !== String(s.email || '').trim().toLowerCase()) {
       return json(res, 422, {
@@ -3233,8 +3271,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          "use student@glovels.com" box when there are none. It is not a secret:
          it says whether a well-known account exists, which anyone could
          discover by trying it once. */
+      /* Round 30 Sep (issue 25): the account count and the storage engine
+         are nobody's business on a public address. */
+      if (!n && n !== 0) throw new Error('unreadable');
       return json(res, 200, {
-        ok: true, accounts: n, storage: db.kind,
+        ok: true,
         demoAccounts: !!(CFG.seedDemo && !CFG.production),
       });
     } catch (e) {
@@ -3291,8 +3332,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         error: perm === 'catalogue'
           ? 'You do not have access to change the universities on this site. An administrator '
             + 'can give it to you on the Organisation screen.'
-          : 'You do not have access to change the home page. An administrator can give it to '
-            + 'you on the Organisation screen.',
+          : 'You do not have access to change the website content (home page and blog). An '
+            + 'administrator can give it to you on the Organisation screen.',
       });
     }
     return handler(req, res, s, m);
@@ -3472,13 +3513,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          fills in the same record on a student's behalf; if it composed a name
          differently the two screens would disagree about what somebody is
          called, which is the whole reason this field list is shared. */
-      const prof = withFullName((b && typeof b.profile === 'object' && b.profile) || {});
-      if (prof.p_num != null) prof.p_num = GRADES.passportOf(prof.p_num);
+      if (b && b.profile != null && (typeof b.profile !== 'object' || Array.isArray(b.profile))) {
+        return json(res, 422, { error: 'That is not a profile.' });
+      }
+      const { merged: prof, wrong } = mergeProfile(st.id, (b && b.profile) || {});
       /* Same bounds as the student's own save. An agency typing a CGPA of 47.9
          into a student's record corrupts that student's matching exactly as
          thoroughly, and it is harder to notice because the student never saw
          the form. */
-      const wrong = GRADES.problems(prof);
       if (wrong.length) {
         return json(res, 422, {
           error: wrong[0].why,
@@ -3733,6 +3775,22 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) {
         return rejected.push({ at, who: name, why: 'that is not an email address' });
       }
+      /* Round 30 Sep (issue 9): "zzzzz" and destination "ZZ" were accepted here
+         while the student-details form refused them. The same rules now. */
+      const nameWrong = GRADES.problems({ fullName: name }).find(w => w.field === 'fullName');
+      if (nameWrong) return rejected.push({ at, who: name, why: nameWrong.why });
+      if (String(row.phone || '').trim() && !validPhone(row.phone)) {
+        return rejected.push({ at, who: name, why: 'the mobile has to be ten digits, starting 6 to 9' });
+      }
+      const destSaid = String(row.destination || row.country || '').trim();
+      let destination = '';
+      if (destSaid && !/^(not (decided|sure)( yet)?|open to advice|any)$/i.test(destSaid)) {
+        const cs = Object.values(countryMap() || {});
+        const hit = cs.find(c => c && (String(c.code || '').toUpperCase() === destSaid.toUpperCase()
+          || String(c.name || '').toLowerCase() === destSaid.toLowerCase()));
+        if (!hit) return rejected.push({ at, who: name, why: '"' + destSaid.slice(0, 30) + '" is not a destination we place students in' });
+        destination = hit.name;
+      }
       const existing = db.studentByEmail(email);
       if (existing) {
         /* Already ours. Say WHOSE rather than "duplicate": an agency sending
@@ -3755,7 +3813,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       db.setPartner(person.id, agencyOf(s));
       try {
         db.putProfile(person.id, {
-          g_country: String(row.destination || row.country || '').slice(0, 60),
+          g_country: destination,
           g_level: String(row.level || '').slice(0, 40),
           g_field: String(row.field || '').slice(0, 80),
           g_budget: String(row.budget || '').slice(0, 40),
@@ -3784,6 +3842,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     }
     if (url_.length > 400000) {
       return json(res, 422, { error: 'That image is too big — 300KB or under, please.' });
+    }
+    /* Round 30 Sep (issue 21): an HTML file labelled as a PNG was accepted.
+       The bytes have to be the kind of image the label says. */
+    if (url_) {
+      const m2 = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,(.*)$/s.exec(url_);
+      let buf = Buffer.alloc(0);
+      try { buf = Buffer.from(m2[2], 'base64'); } catch (e) {}
+      const kind = m2[1];
+      const head = buf.slice(0, 12);
+      const ok = kind === 'png' ? head.slice(0, 8).toString('hex') === '89504e470d0a1a0a'
+        : (kind === 'jpeg' || kind === 'jpg') ? (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff)
+        : kind === 'gif' ? head.slice(0, 4).toString('latin1') === 'GIF8'
+        : kind === 'webp' ? head.slice(0, 4).toString('latin1') === 'RIFF' && head.slice(8, 12).toString('latin1') === 'WEBP'
+        : (() => { const t = buf.toString('utf8'); return /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<svg[\s>]/i.test(t) && !/<script|\son\w+\s*=|javascript:/i.test(t); })();
+      if (!ok) return json(res, 422, { error: 'That file is not a real ' + (kind === 'svg+xml' ? 'SVG' : kind.toUpperCase()) + ' image. Save the logo again as a PNG or JPG and upload that.' });
     }
     /* The agency's mark, kept on the account that owns it, so a colleague
        changing it changes it for everybody — which is what a logo is. */
@@ -3850,6 +3923,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          and NOT in `docs` below — that list is the student's own checklist and
          the counters beside it read it as one. */
       appFiles: stateFor(st).appFiles,
+      /* The office-only note per application (issue 3) — staff payload only. */
+      internalNotes: Object.fromEntries(db.getApplications(id)
+        .filter(a => String(a.internal_note || '').trim()).map(a => [a.prog_id, String(a.internal_note)])),
       docs: db.getDocuments(id).map(d => ({
         key: d.doc_key, file: d.filename, status: d.status, at: d.uploaded_at,
         bytes: d.bytes,
@@ -4070,6 +4146,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
       const before = db.getApplications(id).find(a => String(a.prog_id) === progId);
       db.putApplication(id, progId, stage, outcome, note);
+      /* Round 30 Sep (issue 3): the office-only note. Stored apart, never
+         shown to the student and never messaged to them. */
+      if (b.internalNote !== undefined) {
+        db.putApplicationInternal(id, progId, String(b.internalNote || '').replace(/\s+$/, '').slice(0, 1000));
+      }
 
       /* The sentence the student reads, from the one list rather than written
          again here. It used to say "Offer" or "has said no" and nothing else,
@@ -4413,6 +4494,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const status = ['ok', 'wait', 'rescan', 'none'].includes(b.status)
         ? b.status : 'wait';
       const was = (db.getDocuments(id) || []).find(d => String(d.doc_key) === String(m[2]));
+      /* Round 30 Sep (issue 12): a .docx was accepted as a passport and .txt
+         files as marksheets — uploaded before the type rules existed. Nothing
+         is accepted unless every file in the slot is a kind we take, and an
+         identity document (passport, photo) has to be a scan or a photo. */
+      if (status === 'ok') {
+        const files = (db.getDocuments(id) || []).filter(d => String(d.doc_key) === String(m[2]));
+        const ID_SLOTS = /^(passport|photo|aadhaar|pan)/i;
+        const bad = files.find(d => {
+          const ext = String(d.filename || '').toLowerCase().split('.').pop();
+          if (!FILE_KINDS.some(k => k.ext.includes(ext))) return true;
+          return ID_SLOTS.test(String(m[2])) && /^(doc|docx)$/.test(ext);
+        });
+        if (bad) {
+          return json(res, 422, { error: '"' + String(bad.filename).slice(0, 60) + '" cannot be accepted here — '
+            + (ID_SLOTS.test(String(m[2])) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).' : 'Glovels takes ' + FILE_LIST + '.')
+            + ' Ask the student for a scanned copy.' });
+        }
+      }
       db.setDocStatus(id, m[2], status);
       live.toStudent(id, 'documents', { key: m[2], status });
       /*
@@ -6225,6 +6324,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
         note: e.note || '', source: e.source || 'website', status: e.status || 'new',
         page: e.source_page || '', at: e.created_at,
+        consent: e.consent || '', consentAt: e.consent_at || '', consentWording: e.consent_wording || '',
         ownerId: e.owner_id || null,
         owner: e.owner_id ? ((who.get(Number(e.owner_id)) || {}).name || 'Somebody who has left') : '',
         mine: e.owner_id ? Number(e.owner_id) === Number(s.id) : true,
@@ -6359,6 +6459,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (email && !validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
     if (phone && !validPhone(phone)) return json(res, 422, { error: 'That does not look like an Indian mobile number' });
 
+    if (String(b.source || '').trim() && !SOURCES.has(String(b.source).toLowerCase())) {
+      return json(res, 422, { error: '"' + String(b.source).slice(0, 30) + '" is not a lead source we track.' });
+    }
     const source = SOURCES.has(String(b.source || '').toLowerCase())
       ? String(b.source).toLowerCase() : 'phone';
     const row = db.addEnquiry({
@@ -6404,6 +6507,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       return json(res, 403, { error: 'That lead belongs to somebody else' });
     }
     const b = await readJson(req);
+    /* Round 30 Sep (issue 21): "banana" answered 200 and was ignored. */
+    if (b.status !== undefined && b.status !== '' && !LEAD_STATUS.includes(b.status)) {
+      return json(res, 422, { error: '"' + String(b.status).slice(0, 30) + '" is not a lead status. Use one of: ' + LEAD_STATUS.join(', ') + '.' });
+    }
+    if (b.source !== undefined && b.source !== '' && !SOURCES.has(String(b.source).toLowerCase())) {
+      return json(res, 422, { error: '"' + String(b.source).slice(0, 30) + '" is not a lead source we track.' });
+    }
     const status = LEAD_STATUS.includes(b.status) ? b.status : (e.status || 'new');
     /* A caller who says nothing about the reason keeps the one already
        recorded. This is not politeness: the leads book now assigns an owner
@@ -6684,6 +6794,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     { id: 'above20', ceilInr: 4000000 }, { id: 'elite', ceilInr: null },
   ];
 
+  function topBand() {
+    let bands = FALLBACK_BANDS;
+    try { const f = content && content.get('finder'); if (f && f.bands && f.bands.length) bands = f.bands; } catch (e) {}
+    const top = bands.find(b => b.ceilInr == null);
+    return top ? top.id : bands[bands.length - 1].id;
+  }
   /** Which budget bucket a fee falls in, by the ceilings the office set. */
   function bandFor(totalInr) {
     let bands = FALLBACK_BANDS;
@@ -6856,7 +6972,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        written here, because otherwise editing them changes a label and nothing
        else — the buckets would keep their old boundaries and the screen would
        be lying about what it does. */
-    if (!out.band) out.band = bandFor(out.totalInr);
+    /* Round 30 Sep: the v8 import carried each row's OLD band beside its new
+       fee, so a ₹54L MBA stayed "Under ₹10L". A fee bucket cannot disagree
+       with the fee: it is worked out whenever there is one. Only the top band
+       ("Top-ranked") is a choice somebody makes, and that one is kept. */
+    if (!out.band || (Number(out.totalInr) > 0 && out.band !== topBand())) out.band = bandFor(out.totalInr);
     if (!out.fit) out.fit = 75;
     return out;
   }
@@ -7131,6 +7251,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     text('city', 'The city', FIELD_LIMITS.city);
     text('shortName', 'The short name', FIELD_LIMITS.shortName);
     text('field', 'The field', FIELD_LIMITS.field);
+    /* Round 30 Sep (issue 21): a level of "banana" was accepted. */
+    if (String(b.level || '').trim() && !normLevel(b.level)) {
+      out.push({ field: 'level', why: '"' + String(b.level).slice(0, 30) + '" is not a level — Master\u2019s, Bachelor\u2019s, MBA, PhD, Diploma or Foundation.' });
+    }
     return out;
   }
 
@@ -8202,8 +8326,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, content.home(), { 'Cache-Control': 'no-cache' });
   }, { open: true });
 
-  route('GET', '/api/staff/content', staffOnly(async (req, res) => {
+  route('GET', '/api/staff/content', staffOnly(async (req, res, s) => {
     if (!content) return noContent(res);
+    /* Round 30 Sep (issue 24): any counsellor could read the editor's payload,
+       admin audit trail included. It is for people who edit the site. */
+    if (!can(s, 'content') && s.role !== 'admin') {
+      return json(res, 403, { error: 'You do not have access to the website content. An administrator can give it to you on the Organisation screen.' });
+    }
     const out = content.home();
     /* Staff get the catalogue of editable lines, not the overrides map: they
        need to see every line on the page, including the ones nobody has
@@ -8214,7 +8343,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     out.writing = content.get('writing');
     out.updated = {};
     CONTENT_KEYS.concat(['writing', 'textOverrides']).forEach(k => { out.updated[k] = db.contentMeta(k) || null; });
-    out.audit = db.auditTrail(40);
+    out.audit = s.role === 'admin' ? db.auditTrail(40) : [];
     return json(res, 200, out);
   }));
 
@@ -8324,6 +8453,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           const n = Number(raw.replace(/[^0-9.\-]/g, ''));
           if (raw && Number.isFinite(n) && n < 0) {
             wrong.push([name, 'A price cannot be negative. You entered ' + n + '.']);
+            continue;
+          }
+          /* Round 30 Sep (issue 21): ₹99,99,99,999 was accepted (the cleaner
+             then capped it silently). Nothing we sell costs over ₹50 lakh. */
+          if (raw && Number.isFinite(n) && n > 5000000) {
+            wrong.push([name, 'A price over ₹50,00,000 cannot be right. You entered ₹' + n.toLocaleString('en-IN') + '.']);
             continue;
           }
           /* Zero is a real answer for a SERVICE — twelve of them are priced on
@@ -9043,6 +9178,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     try { host = new URL(origin).host; } catch (e) { return true; }
     return host.toLowerCase() !== String(req.headers.host || '').toLowerCase();
   };
+
+  /* Once at start: put back any programme whose band disagrees with its fee
+     (the v8 import left 29 like that). The top band is left alone. */
+  try {
+    const top = topBand();
+    const wrong = db.programmes(true).filter(r => Number(r.total_inr) > 0 && r.band !== top && r.band !== bandFor(r.total_inr));
+    if (wrong.length) {
+      if (typeof db.setBand === 'function') wrong.forEach(r => db.setBand(r.id, bandFor(r.total_inr), 'system'));
+      console.log('  re-banded', wrong.length, 'programme(s) whose band disagreed with the fee');
+    }
+  } catch (e) { console.error('  re-band at start failed', e && e.message); }
 
   return async function handle(req, res, pathname) {
     if (crossSite(req)) {

@@ -1468,9 +1468,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div id="buyBody"></div>
     <button class="btn btn-primary" id="buyPay" style="width:100%;margin-top:16px">Pay</button>
     <p class="co-legal" style="font-size:11.6px;color:var(--muted);margin:11px 0 0;text-align:center">
-      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.<br>
-      By continuing you accept our <a href="terms.html">Terms</a> and
-      <a href="refunds.html#guarantee-terms">Refund &amp; Cancellation policy</a>.</p>
+      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.</p>
   </div>
 </div>
 <section class="block" id="services">
@@ -1515,9 +1513,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div id="scBody"></div>
     <button class="btn btn-primary" id="scPay" style="width:100%;margin-top:16px">Pay</button>
     <p class="co-legal" id="scLegal" style="font-size:11.6px;color:var(--muted);
-      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.<br>
-      By continuing you accept our <a href="terms.html">Terms</a> and
-      <a href="refunds.html">Refund &amp; Cancellation policy</a>.</p>
+      margin:11px 0 0;text-align:center"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg> Card details, when you pay, go to the payment provider — never to us.</p>
   </div>
 </div>
 
@@ -1651,7 +1647,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
           <div class="fld"><label for="cMail">Email <span class="req" aria-hidden="true">*</span></label>
             <input id="cMail" inputmode="email" autocomplete="email"><span class="err"></span></div>
           <div class="fld"><label for="cDest">Where are you thinking of going?</label>
-            <select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>
+            <select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="FR">🇫🇷 France</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>
           <label for="cHoney" class="sr">Leave this field empty</label>
           <input type="text" id="cHoney" name="website" tabindex="-1" autocomplete="off"
             style="position:absolute;left:-9999px;width:1px;height:1px">
@@ -2536,6 +2532,11 @@ function deadlineOf(r){
   return dates.length ? { at: dates[0] } : {};
 }
 
+/* Round 30 Sep (issue 1): a private programme with no fee entered is not free. */
+function feeUnknown(p){
+  return !!p && !p.isPublic && !Number(p.totalInr)
+    && !(p.reqs && typeof p.reqs === 'object' && p.reqs.tuitionEurSem === 0);
+}
 function rowHtml(r){
   const cc = r.country, ctry = C[cc];
   const feeOfRow = (r.feeModel === 'free' || r.feeModel === 'package')
@@ -2578,7 +2579,7 @@ function rowHtml(r){
     <div class="mcc">${ctry.flag}</div>
     <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}</div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
-    <div class="mprice">${short(r.totalInr)}<small>${r.totalInr===0?'tuition':'total'}</small></div>
+    <div class="mprice">${feeUnknown(r)?'Fee to be confirmed':short(r.totalInr)}<small>${feeUnknown(r)?'':r.totalInr===0?'tuition':'total'}</small></div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
       ${dl?`<span style="font-size:11.4px;color:var(--muted)" title="Applications for the next intake close on ${dl}">Closes ${dl}</span>`
         :dlNow.closed?`<span style="font-size:11.4px;color:#8a6a1f;font-weight:700"
@@ -2890,6 +2891,7 @@ function noMatchForm() {
     +   '<input id="nmPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel">'
     +   '<input id="nmEmail" placeholder="Email" inputmode="email" autocomplete="email">'
     +   '<input class="nm-hp" id="nmWeb" tabindex="-1" autocomplete="off" aria-hidden="true">'
+    +   '<label class="nm-ok" style="flex:1 1 100%;display:flex;gap:8px;align-items:flex-start;font-size:12.4px;color:var(--muted)"><input type="checkbox" id="nmOk" style="width:auto;flex:0 0 auto;margin-top:3px"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>'
     +   '<button type="submit" class="btn btn-primary btn-sm" id="nmGo">Send to a counsellor</button>'
     + '</form>'
     + '<p class="nm-err" id="nmErr" role="alert" hidden></p></div>';
@@ -2910,6 +2912,7 @@ async function nmSend(e) {
     return show('A 10-digit Indian mobile, please.');
   }
   if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) return show('That email does not look right.');
+  if (!$('#nmOk').checked) return show('Please tick the box so we can call you back.');
   show('');
   const btn = $('#nmGo');
   btn.disabled = true; btn.textContent = 'Sending\u2026';
@@ -2923,6 +2926,7 @@ async function nmSend(e) {
     name, phone, email, website: $('#nmWeb').value,
     destination: ($('#fCountry') && $('#fCountry').value) || '',
     note: 'Finder returned nothing' + (what ? ' \u2014 ' + what : ''),
+    consent: 'yes', consentWording: $('#nmOk').parentNode.textContent.trim(),
     sourcePage: location.pathname, referrer: document.referrer,
   }, { subject: 'Nothing matched on the finder' });
   btn.disabled = false; btn.textContent = 'Send to a counsellor';
@@ -3218,6 +3222,18 @@ gradeScale();
 function convert(){
   const raw = parseFloat($('#cvVal').value), sc = $('#cvScale').value, mul = parseFloat($('#cvMul').value);
   if(isNaN(raw)) { $('#cvOut').hidden = true; return; }
+  /* Round 30 Sep (issue 17): 150% became a 10.00 CGPA and "open to you".
+     Out of the scale is refused, not quietly capped. */
+  const top = sc === 'pct' ? 100 : sc === 'g4' ? 4 : 10;
+  const note = $('#cvNote');
+  if(raw > top || raw <= 0){
+    $('#cvOut').hidden = true;
+    note.textContent = sc === 'pct' ? 'A percentage is between 0 and 100.'
+      : sc === 'g4' ? 'A GPA on this scale is between 0 and 4.' : 'A CGPA out of 10 is between 0 and 10.';
+    note.hidden = false;
+    return;
+  }
+  if(/between 0 and/.test(note.textContent)) note.hidden = true;
   const cl = (n,lo,hi) => Math.max(lo, Math.min(hi, n));
   let c10 = sc === 'pct' ? raw/mul : sc === 'g4' ? raw*2.5 : raw;
   c10 = cl(c10, 0, 10);
@@ -4244,7 +4260,8 @@ $('#planCta').onclick = () => {
           amount: inr(gross), gst: inr(tax),
           name: $('#scName').value.trim(), phone: $('#scPhone').value.trim(),
           email: $('#scMail').value.trim(),
-          consentAt: new Date().toISOString(),
+          consent: 'yes', consentAt: new Date().toISOString(),
+          consentWording: 'Placed an order; Glovels contacts me to deliver it.',
           sourcePage: location.pathname, referrer: document.referrer || 'direct',
           to: TO
         })
@@ -4526,9 +4543,9 @@ async function openAI(kind){
   $('#aiT').textContent = kind === 'sop' ? 'AI Statement of Purpose' : 'AI Letter of Recommendation';
   $('#aiBody').innerHTML =
       '<div class="field" style="margin-bottom:12px"><label for="aiProg">Programme</label>'
-    + '<input id="aiProg" value="M.Sc. Data Science" style="cursor:text"></div>'
+    + '<input id="aiProg" placeholder="e.g. M.Sc. Data Science" style="cursor:text"></div>'
     + '<div class="field" style="margin-bottom:12px"><label for="aiUni">University</label>'
-    + '<input id="aiUni" value="RWTH Aachen University" style="cursor:text"></div>'
+    + '<input id="aiUni" placeholder="e.g. RWTH Aachen University" style="cursor:text"></div>'
     + '<div class="lv-lbl">'+(kind === 'sop' ? 'What should it draw on?' : 'What did they actually see?')+'</div>'
     + chips(sigs, 'sig')
     + (kind === 'sop' ? '<div class="lv-lbl">Why this course?</div>' + chips(mots, 'mot')
@@ -4640,6 +4657,9 @@ const ico = n => '<svg class="ico" aria-hidden="true"><use href="#i-'+n+'"/></sv
 const nf = new Intl.NumberFormat('en-IN');
 let cat = 'all', field = null;
 
+/* Its own copy: this block cannot see the finder's (round 30 Sep). */
+const feeTbc = p => !!p && !p.isPublic && !Number(p.totalInr)
+  && !(p.reqs && typeof p.reqs === 'object' && p.reqs.tuitionEurSem === 0);
 const lakh = inr => inr === 0 ? '₹0 tuition'
   : inr >= 1e7 ? '≈ ₹'+(inr/1e7).toFixed(1)+'Cr'
   : '≈ ₹'+(inr/1e5).toFixed(inr % 1e5 ? 1 : 0)+'L';
@@ -4743,8 +4763,8 @@ function card(p){
   const trend = TRENDING.includes(p.field);
   const fee = p.locked
     ? '<span>'+ico('lock')+bandLabel(p.band)+' · exact fee with a package</span>'
-    : esc(lakh(p.totalInr));
-  const basis = p.locked ? '' : (p.totalInr === 0 ? 'tuition' : 'total');
+    : feeTbc(p) ? 'Fee to be confirmed' : esc(lakh(p.totalInr));
+  const basis = p.locked || feeTbc(p) ? '' : (p.totalInr === 0 ? 'tuition' : 'total');
   return '<article class="ccard'+(p.locked?' clocked':'')+'" data-band="'+p.band+'">'
     + '<div class="ctop"><div class="crow1"><span class="cflag">'+c.flag+'</span>'
     + '<span class="cband">'+esc(bandLabel(p.band))+'</span></div>'

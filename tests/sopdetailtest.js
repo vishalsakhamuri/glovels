@@ -134,6 +134,8 @@ const PROJ = 'a Telugu OCR pipeline for handwritten land records';
   /* End to end: type, generate, and read the words back off the page. */
   await page.click('[data-chip="work"][data-group="sig"]');
   await page.fill('#d_work', WORK);
+  /* The programme is no longer pre-filled (round 30 Sep) — typed, as a student does. */
+  await page.fill('#aiProg', 'M.Sc. Data Science');
   await page.click('#aiGo');
   await page.waitForSelector('#aiOut .ai-draft p');
   await page.waitForTimeout(400);

@@ -47,7 +47,7 @@ const find = (rows, name) => (rows || []).find(r => r.name === name);
 
   /* An enquiry, so the by-source list has something in it. */
   await post('/api/enquiries', { name: 'Traffic Test', email: 'traffic' + Date.now() + '@example.com', phone: '9876543210',
-    referrer: 'https://chatgpt.com/', source: 'website' }, { 'X-Forwarded-For': '203.0.113.2' });
+    referrer: 'https://chatgpt.com/', source: 'website', consent: 'yes' }, { 'X-Forwarded-For': '203.0.113.2' });
 
   /* ------------------------------------------------ the count */
   r = await post('/api/auth/login', ADMIN);

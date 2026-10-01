@@ -423,6 +423,9 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         placeholder="Your course, your CGPA, your intake — whatever is on your mind."></textarea></label>
     <input id="ctTrap" tabindex="-1" autocomplete="off" aria-hidden="true"
       style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    <label class="ct-ok" style="display:flex;gap:8px;align-items:flex-start;font-size:12.8px;margin:6px 0 10px">
+      <input type="checkbox" id="ctOk" style="width:auto;margin-top:3px">
+      <span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>
     <p class="ct-err" id="ctErr" role="alert" hidden></p>
     <button class="btn btn-green" id="ctGo" type="submit">Send</button>
   </form>
@@ -1046,6 +1049,7 @@ if (location.protocol === 'file:') {
       el.classList.toggle('bad', !ok);
       if (!ok && !bad) bad = c[2];
     });
+    if (!bad && !$('ctOk').checked) bad = 'Please tick the box so we can reply to you.';
     if (bad) { err.textContent = bad; err.hidden = false; $(checks[0][0]).focus(); return; }
 
     var btn = $('ctGo');
@@ -1060,6 +1064,8 @@ if (location.protocol === 'file:') {
       destination: $('ctDest').value.trim(),
       message: $('ctMsg').value.trim(),
       source: 'contact-us',
+      consent: 'yes',
+      consentWording: $('ctOk').parentNode.textContent.replace(/\s+/g, ' ').trim(),
       /* The field no person can see. The server drops anything that fills
          it, and a script that fills every box it finds fills this one. */
       website: $('ctTrap').value

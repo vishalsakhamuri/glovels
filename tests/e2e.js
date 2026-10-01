@@ -84,6 +84,7 @@ const watch = (page, errs) => {
   await p.fill('#ctMail', VISITOR.email);
   await p.fill('#ctDest', 'Germany');
   await p.fill('#ctMsg', 'Is a public university in Germany possible with 7.2 CGPA?');
+  await p.check('#ctOk');
   await p.click('#ctGo');
   await p.waitForSelector('#ctSent', { timeout: 10000 });
   check('the enquiry is accepted and says so', await p.isVisible('#ctSent'));

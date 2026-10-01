@@ -242,6 +242,21 @@ function all(db, now) {
       let intakes = [];
       try { intakes = JSON.parse(row.intakes || '[]'); } catch (e) { intakes = []; }
       const app = apps[String(row.prog_id)] || { stage: 0, outcome: '' };
+      /* Round 30 Sep (issue 19): a programme the office has taken off the
+         site, still on a student's list with nothing applied. The counsellor
+         is the one to replace it — tell them. */
+      if (!(Number(app.stage) >= 2 || app.outcome)) {
+        let gone = false;
+        try { const pr = typeof db.programme === 'function' ? db.programme(String(row.prog_id)) : null; gone = !!(pr && !pr.active); } catch (e) {}
+        if (gone) {
+          add({
+            kind: 'withdrawn', urgency: 'soon', who: owner,
+            title: (row.university || 'A university') + ' is no longer offered — on ' + st.name + '\u2019s list',
+            detail: (row.program ? row.program + ' — ' : '') + 'taken off the catalogue. Replace it, or check with the university before applying.',
+            subject: { studentId: st.id, progId: row.prog_id }, at: '',
+          });
+        }
+      }
       /* Submitted, or decided. A deadline for an application that is already in
          is not a deadline, it is history. */
       if (Number(app.stage) >= 2 || app.outcome) continue;
@@ -415,7 +430,19 @@ function all(db, now) {
 
     if (e.next_at) {
       const due = daysBetween(String(e.next_at).slice(0, 10), T);
-      if (due <= 0) {
+      /* Round 30 Sep (issue 24): "9871 day(s) late" — a follow-up date typed
+         before the past-date check existed (year 1999 and similar). A date
+         more than a year before the lead was even made is a typo, not a debt. */
+      const madeAt = String(e.created_at || '').slice(0, 10);
+      const yearBefore = madeAt ? (Number(madeAt.slice(0, 4)) - 1) + madeAt.slice(4) : '';
+      if (yearBefore && String(e.next_at).slice(0, 10) < yearBefore) {
+        add({
+          kind: 'followup', urgency: 'soon', who: owner,
+          title: 'Follow-up date for ' + (e.name || 'a lead') + ' looks mistyped — set a new one',
+          detail: 'Stored as ' + String(e.next_at).slice(0, 10) + '.',
+          subject: { leadId: e.id }, at: '',
+        });
+      } else if (due <= 0) {
         add({
           kind: 'followup', urgency: due <= -2 ? 'now' : 'soon', who: owner,
           title: 'Follow up with ' + (e.name || 'a lead')

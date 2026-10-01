@@ -179,6 +179,7 @@ node round150test.js | tail -1 | tee -a "$REPORT"
 # Patch 146: the match is what a package buys — no id or name leaks from locked rows.
 run round146test.js 8099
 run round147test.js 8099
+run round151test.js 8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

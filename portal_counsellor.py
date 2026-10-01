@@ -283,13 +283,22 @@ function uniRow(p) {
      * same line pushed Remove off the edge. */
     '<div style="flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;' +
       'margin-top:9px">' +
+      '<label style="flex-basis:100%;font:700 10.6px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em;color:#8a5a00">' +
+        'Note to the student — they see this and are messaged it</label>' +
       '<textarea data-note="' + esc(p.id) + '" rows="2" maxlength="600" ' +
-        'placeholder="What is happening on this one — filed, chased, reference number…" ' +
+        'placeholder="What the student should know — filed, chased, reference number…" ' +
         'style="flex:1;min-width:220px;padding:8px 10px;font:400 12.4px/1.5 var(--sans);' +
         'border:1.5px solid #d8dde4;border-radius:9px;background:var(--paper);resize:vertical">' +
         esc(String(a.note || '')) + '</textarea>' +
+      '<label style="flex-basis:100%;font:700 10.6px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:4px">' +
+        'Office only — the student never sees this</label>' +
+      '<textarea data-inote="' + esc(p.id) + '" rows="2" maxlength="1000" ' +
+        'placeholder="Internal: portal logins, what was chased, anything not for the student" ' +
+        'style="flex:1;min-width:220px;padding:8px 10px;font:400 12.4px/1.5 var(--sans);' +
+        'border:1.5px dashed #c9d1dc;border-radius:9px;background:#fbfbf8;resize:vertical">' +
+        esc(String(((CASE && CASE.internalNotes) || {})[p.id] || '')) + '</textarea>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-notesave="' + esc(p.id) + '">' +
-        'Save note</button>' +
+        'Save notes</button>' +
       /* The two files. `data-appfile` carries the kind; the row's own id says
          which application, so the key is built in one place rather than
          spelled out in the markup twice. */
@@ -970,6 +979,7 @@ document.addEventListener('click', async e => {
   const id = b.dataset.notesave;
   const row = b.closest('li');
   const box = row && row.querySelector('[data-note]');
+  const ibox = row && row.querySelector('[data-inote]');
   if (!box) return;
   /* The stage and outcome go up with it, because this endpoint sets all three
      and sending the note alone would reset the other two to their defaults.
@@ -982,7 +992,7 @@ document.addEventListener('click', async e => {
   b.textContent = 'Saving…';
   try {
     const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +
-      encodeURIComponent(id), { stage, outcome, note: box.value });
+      encodeURIComponent(id), { stage, outcome, note: box.value, internalNote: ibox ? ibox.value : undefined });
     toast(r.noted ? 'Saved, and the student has been told.' : 'Saved.');
     await refreshCase();
   } catch (err) {

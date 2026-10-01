@@ -1168,8 +1168,8 @@ async function __dashBoot(main) {
     const d = document.querySelector('.p-demo');
     if (d) {
       d.style.background = '#fdf6e6';
-      d.textContent = 'The Glovels server is not running, so this is the last view '
-        + 'cached in this browser. Start it with start.command and reload.';
+      d.textContent = 'We can\u2019t reach Glovels right now. Check your internet '
+        + 'connection and reload the page.';
     }
   }
   main();
@@ -1224,7 +1224,11 @@ function __dashTodo(s) {
   const el = document.createElement('div');
   el.className = 'todo-card';
   el.innerHTML =
-      '<div class="todo-head"><b>Your file is ' + t.complete + '% complete</b>'
+      /* A count, not a percentage (round 30 Sep): the profile screen measures
+         every box on the form, this card only what your package needs, and
+         two different percentages for "complete" read as one of them wrong. */
+      '<div class="todo-head"><b>' + (gaps.length + docs.length) + ' thing'
+      + (gaps.length + docs.length === 1 ? '' : 's') + ' still needed for your file</b>'
     + '<span>' + why + '</span></div>'
     + '<div class="todo-bar"><i style="width:' + t.complete + '%"></i></div>'
     + '<ul>'
@@ -1695,7 +1699,9 @@ $('#nextUp').innerHTML =
           /* A target that has gone is not something to still be "aiming for".
              Said plainly, without naming anybody: running behind is the
              student's business, whose fault it is is not. */
-          : x.behind ? ' \u00b7 was due ' + esc(x.by) + ' — running behind'
+          /* Round 30 Sep: five "running behind" lines told the student the
+             office was late without anything they could do about it. */
+          : x.behind ? ' \u00b7 your counsellor will confirm the date'
           : ' \u00b7 aiming for ' + esc(x.by)) +
       '</span></div></li>';
   }).join('');

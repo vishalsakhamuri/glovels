@@ -123,6 +123,10 @@ function plan(db, now) {
   const out = [];
 
   for (const person of staff) {
+    /* Round 30 Sep (issue 15): test accounts with made-up addresses
+       (test@test.com, e@q.com, 13@13.com) were among the 17 a day. Mail to
+       domains that do not exist teaches inboxes our mail is spam. */
+    if (!deliverable(person.email)) continue;
     const isAdmin = person.role === 'admin';
     const mine = isAdmin
       ? alerts
@@ -162,6 +166,18 @@ function plan(db, now) {
  *
  * Returns a stop function, which the tests use and nothing else does.
  */
+/** An address worth sending a daily email to — not a placeholder domain. */
+function deliverable(email) {
+  const m = /^[^\s@]+@([^\s@]+\.[a-z]{2,})$/i.exec(String(email || '').trim());
+  if (!m) return false;
+  const dom = m[1].toLowerCase();
+  if (/(^|\.)(test|example|invalid|localhost|local)$/.test(dom)) return false;
+  if (/^(test|example|mailinator|fake|abc|xyz|asdf|qwerty)\.(com|org|net|in)$/.test(dom)) return false;
+  const sld = dom.split('.').slice(-2)[0];
+  if (sld.length < 2 || /^\d+$/.test(sld)) return false;      // q.com, 13.com
+  return true;
+}
+
 function start({ db, mail, siteUrl, hour, shell }) {
   const at = hour == null ? 9 : Number(hour);       // 9am, India
 

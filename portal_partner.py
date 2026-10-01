@@ -171,7 +171,7 @@ BODY = """
         <button type="button" class="outgo" data-tile="short" aria-pressed="false">
           <b id="kShort">—</b><span>Shortlisted</span></button>
         <button type="button" class="outgo" data-tile="docs" aria-pressed="false">
-          <b id="kDocs">—</b><span>Documents in review</span></button>
+          <b id="kDocs">—</b><span>Students with documents in review</span></button>
         <button type="button" class="outgo" data-tile="closed" aria-pressed="false">
           <b id="kClosed">—</b><span>Closed files</span></button>
       </div>
@@ -229,7 +229,7 @@ BODY = """
           <label for="aCountry">Where they want to go (optional)</label>
           <select id="aCountry">
             <option value="">Not decided yet</option>
-            <option>Germany</option><option>Canada</option>
+            <option>Germany</option><option>France</option><option>Canada</option>
             <option>United Kingdom</option><option>Ireland</option>
             <option>Poland</option><option>Spain</option><option>Italy</option>
           </select></div>

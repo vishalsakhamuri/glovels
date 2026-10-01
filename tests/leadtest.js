@@ -27,7 +27,7 @@ const stamp = Date.now();
 
   /* ------------------------------------------------- where a lead came from */
   const send = (data, referer) => guest.request.post(BASE + '/api/enquiries',
-    { data, headers: referer ? { Referer: referer } : {} });
+    { data: Object.assign({ consent: 'yes' }, data), headers: referer ? { Referer: referer } : {} });
 
   await send({ name: 'Ad ' + stamp, email: 'ad' + stamp + '@example.com', phone: '9876543210' },
     BASE + '/?utm_source=facebook&utm_campaign=aug-germany');
@@ -38,7 +38,7 @@ const stamp = Date.now();
   await send({ name: 'Direct ' + stamp, email: 'di' + stamp + '@example.com',
     phone: '9876543213' }, BASE + '/contact-us');
   await send({ name: 'Reader ' + stamp, email: 're' + stamp + '@example.com',
-    phone: '9876543214', consent: 'blog', note: 'From the blog: Blocked accounts' },
+    phone: '9876543214', consent: 'yes', source: 'blog', note: 'From the blog: Blocked accounts' },
     BASE + '/post/germany-blocked-account-increase-2027');
 
   const first = await (await staff.request.get(BASE + '/api/staff/leads')).json();

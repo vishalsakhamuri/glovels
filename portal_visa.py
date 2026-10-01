@@ -141,7 +141,7 @@ async function vAccept(id, file) {
     toast('That file is over 20 MB. Please compress it or send a smaller scan.');
     return;
   }
-  if (!ONLINE) { toast('Cannot upload while the server is not running.'); return; }
+  if (!ONLINE) { toast('We can\u2019t reach Glovels right now — try the upload again in a moment.'); return; }
   const fd = new FormData();
   fd.append('key', id);
   fd.append('file', file, file.name);
