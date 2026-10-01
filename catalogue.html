@@ -2313,9 +2313,19 @@ function paintPlan(d) {
   if (c.warned) {
     html += '<p style="margin:14px 0 0;padding:11px 13px;border-radius:10px;background:#fffaf0;' +
       'border:1px solid #f0dcb4;font:600 12.6px/1.55 var(--sans);color:#7a5510">' +
-      c.warned + ' row' + (c.warned === 1 ? ' has' : 's have') + ' a word that could not be ' +
-      'matched &mdash; the level, the budget band or an intake season. Those rows still import; ' +
-      'the note under each one says what will happen to it.</p>';
+      /* Patch 148: the warnings are not all unmatched words. Most on a full
+         data sheet are "this row and id X are the same course" — say which. */
+      (() => {
+        const all = [].concat(p.update || [], p.create || []);
+        const dup = all.filter(r => (r.warn || []).some(w => /same course/.test(w))).length;
+        const other = Math.max(0, c.warned - dup);
+        const parts = [];
+        if (dup) parts.push(dup + ' row' + (dup === 1 ? ' has' : 's have') + ' a twin already in the catalogue ' +
+          '(same university, programme and level) &mdash; usually a hidden duplicate, so nothing goes wrong');
+        if (other) parts.push(other + ' row' + (other === 1 ? ' has' : 's have') + ' a word that could not be ' +
+          'matched &mdash; the level, the budget band or an intake season');
+        return parts.join('; ') + '. These rows still import; the note under each one says which row or what will happen.';
+      })() + '</p>';
   }
 
   /* What the importer did that nobody asked it to. Said once, at the top,

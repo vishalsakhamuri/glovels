@@ -10657,6 +10657,15 @@ patch(
 )
 
 
+patch(
+    'catalogue.html',
+    'import warning wording, patch 148 (1)',
+    '      \'border:1px solid #f0dcb4;font:600 12.6px/1.55 var(--sans);color:#7a5510">\' +\n      c.warned + \' row\' + (c.warned === 1 ? \' has\' : \'s have\') + \' a word that could not be \' +\n      \'matched &mdash; the level, the budget band or an intake season. Those rows still import; \' +\n      \'the note under each one says what will happen to it.</p>\';\n  }\n',
+    '      \'border:1px solid #f0dcb4;font:600 12.6px/1.55 var(--sans);color:#7a5510">\' +\n      /* Patch 148: the warnings are not all unmatched words. Most on a full\n         data sheet are "this row and id X are the same course" — say which. */\n      (() => {\n        const all = [].concat(p.update || [], p.create || []);\n        const dup = all.filter(r => (r.warn || []).some(w => /same course/.test(w))).length;\n        const other = Math.max(0, c.warned - dup);\n        const parts = [];\n        if (dup) parts.push(dup + \' row\' + (dup === 1 ? \' has\' : \'s have\') + \' a twin already in the catalogue \' +\n          \'(same university, programme and level) &mdash; usually a hidden duplicate, so nothing goes wrong\');\n        if (other) parts.push(other + \' row\' + (other === 1 ? \' has\' : \'s have\') + \' a word that could not be \' +\n          \'matched &mdash; the level, the budget band or an intake season\');\n        return parts.join(\'; \') + \'. These rows still import; the note under each one says which row or what will happen.\';\n      })() + \'</p>\';\n  }\n',
+    marker="return parts.join('; ') + '. These rows still import; the note under each one says which row or what will happen.';",
+)
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)
