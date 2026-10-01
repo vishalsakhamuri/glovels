@@ -89,7 +89,8 @@
     const sel = (id, opts, val) => '<select id="' + id + '">' + opts.map(([v, t]) =>
       '<option value="' + esc(v) + '"' + (String(v) === String(val || '') ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>';
     const lv = /mba/i.test(P.g_level || '') ? "MBA" : /bachelor/i.test(P.g_level || '') ? "Bachelor's" : /found|pathway/i.test(P.g_level || '') ? 'Foundation' : "Master's";
-    const eng = /toefl/i.test(P.e_test || '') ? 'TOEFL' : /ielts/i.test(P.e_test || '') ? 'IELTS' : /not taken/i.test(P.e_test || '') ? 'Not taken yet' : '';
+    const eng = /toefl/i.test(P.e_test || '') ? 'TOEFL' : /ielts/i.test(P.e_test || '') ? 'IELTS' : /medium of instruction|^moi/i.test(P.e_test || '') ? 'Medium of Instruction letter' : /not taken/i.test(P.e_test || '') ? 'Not taken yet' : '';
+    const gre = /^gre$/i.test(P.a_test || '') ? 'GRE' : /^(not taken|not taken yet|not required)$/i.test(P.a_test || '') ? 'Not taken yet' : '';
     const intake = terms().find(t => t.toLowerCase() === String(P.g_intake || '').toLowerCase()) || '';
     el.innerHTML = '<div class="gf">'
       + (o.note ? '<p style="margin:0 0 10px;color:var(--muted,#5d6b7a);font-size:12.4px">' + o.note + '</p>' : '')
@@ -105,7 +106,8 @@
       + '<div><label>CGPA · out of · pass</label><div class="gf-row"><input id="gfCgpa" value="' + esc(P.d_cgpa || '') + '" inputmode="decimal"><input id="gfMax" value="' + esc(P.d_max || '10') + '" inputmode="decimal"><input id="gfPass" value="' + esc(P.d_pass || '') + '" inputmode="decimal" placeholder="pass"></div></div>'
       + '<div><label>Their bachelor’s</label><input id="gfBach" value="' + esc(P.d_course || '') + '" placeholder="B.Tech CSE"></div>'
       + '<div><label>Bachelor’s length</label>' + sel('gfDur', [['', 'Not said'], ['3 years', '3 years'], ['4 years', '4 years'], ['5 years', '5 years']], (/(\d)/.exec(P.d_dur || '') || [])[1] ? (/(\d)/.exec(P.d_dur)[1] + ' years') : '') + '</div>'
-      + '<div><label>English test · score</label><div class="gf-row">' + sel('gfEng', [['', 'Not said'], ['IELTS', 'IELTS'], ['TOEFL', 'TOEFL'], ['Not taken yet', 'Not taken']], eng) + '<input id="gfEngS" value="' + esc(P.e_score || '') + '" inputmode="decimal"></div></div>'
+      + '<div><label>English test · score</label><div class="gf-row">' + sel('gfEng', [['', 'Not said'], ['IELTS', 'IELTS'], ['TOEFL', 'TOEFL'], ['Medium of Instruction letter', 'MOI letter'], ['Not taken yet', 'Not taken']], eng) + '<input id="gfEngS" value="' + esc(P.e_score || '') + '" inputmode="decimal"></div></div>'
+      + '<div><label>GRE · score</label><div class="gf-row">' + sel('gfGre', [['', 'Not said'], ['GRE', 'Taken'], ['Not taken yet', 'Not taken']], gre) + '<input id="gfGreS" value="' + esc(gre === 'GRE' ? (P.a_score || '') : '') + '" inputmode="numeric" placeholder="e.g. 315"></div></div>'
       + '<div><label>German level</label>' + sel('gfGer', [['', 'Not said'], ['None yet', 'None'], ['A1', 'A1'], ['A2', 'A2'], ['B1', 'B1'], ['B2', 'B2'], ['C1', 'C1'], ['C2', 'C2']], P.g_german || '') + '</div>'
       + '<div><label>Work experience (months)</label><input id="gfWork" value="' + esc(/^no$/i.test(P.w_has || '') ? '0' : (P.w_months || '')) + '" inputmode="numeric" placeholder="not said"></div>'
       + '</div>'
@@ -119,7 +121,8 @@
         g_country: v('gfCountry'), g_level: v('gfLevel'), g_field: v('gfWords'), g_field2: '',
         g_intake: v('gfIntake'), field: v('gfField'), kind: v('gfKind'), q: v('gfQ'),
         d_cgpa: v('gfCgpa'), d_max: v('gfMax'), d_pass: v('gfPass'), d_course: v('gfBach'), d_dur: v('gfDur'),
-        e_test: v('gfEng'), e_score: v('gfEngS'), g_german: v('gfGer'),
+        e_test: v('gfEng'), e_score: /medium of instruction|not taken/i.test(v('gfEng')) ? '' : v('gfEngS'), g_german: v('gfGer'),
+        a_test: v('gfGre'), a_score: v('gfGre') === 'GRE' ? v('gfGreS') : '',
       };
       if (v('gfBudget') !== '') f.ceiling = v('gfBudget');
       const wk = v('gfWork');

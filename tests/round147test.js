@@ -100,6 +100,11 @@ const PROFILE = { g_country: 'Germany', g_level: "Master's", g_field: 'Computer 
   await cp.evaluate(() => document.querySelector('#fitUni').click());
   await cp.waitForTimeout(800);
   ok(await cp.locator('#fitBox select, #fitBox input').count() > 5, 'the panel opens with its filters');
+  /* Patch 149 — the testing team could not find these. */
+  ok(await cp.locator('#fitBox #gfGre').count() === 1 && await cp.locator('#fitBox #gfGreS').count() === 1,
+    'the counsellor panel has a GRE filter (taken/not taken + score)');
+  ok((await cp.$$eval('#gfEng option', o => o.map(x => x.textContent))).includes('MOI letter'),
+    'and MOI letter as an English answer');
   /* Fill what the empty profile is missing, then run it. */
   await cp.evaluate((p) => {
     const box = document.querySelector('#fitBox');

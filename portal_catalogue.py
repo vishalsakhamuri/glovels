@@ -572,6 +572,7 @@ const REQ_FIELDS = [
   ['tuitionEurSem', 'Tuition per semester (EUR)', 'int', '<b>0 means no tuition.</b> Blank means not stated. The semester contribution is not tuition.', 'type="number" min="0" max="30000" step="1" placeholder="0"'],
   ['ieltsMin', 'IELTS minimum', 'number', 'Overall band. Blank if not stated or not required.', 'type="number" min="4" max="9" step="0.5" placeholder="6.5"'],
   ['toeflMin', 'TOEFL iBT minimum', 'int', 'Blank if not stated or not required.', 'type="number" min="40" max="120" step="1" placeholder="88"'],
+  ['moiAccepted', 'MOI letter accepted', 'yesno', 'Yes if a Medium of Instruction letter is taken instead of IELTS/TOEFL. Blank if not stated.', ''],
   ['greRequired', 'GRE required', 'yesno', 'Most German programmes do not ask. Blank if not stated.', ''],
   ['greMin', 'GRE minimum', 'int', 'Total, if a figure is stated. Blank when only "required" is known.', 'type="number" min="260" max="340" step="1" placeholder="300"'],
   ['germanLevel', 'German level required', 'level', '"none" for an English-taught programme. Blank if not stated.', ''],

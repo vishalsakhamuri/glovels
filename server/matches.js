@@ -167,12 +167,17 @@ function answersOf(profile) {
     if (/ielts/.test(t) && Number.isFinite(sc) && a.ielts == null) a.ielts = sc;
     if (/toefl/.test(t) && Number.isFinite(sc) && a.toefl == null) a.toefl = sc;
     if (/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(sc)) a.englishNone = true;
+    if (/medium of instruction|^moi\b/.test(t)) a.moi = true;
   });
+  if (a.moi) a.englishNone = false;
   if (a.ielts != null || a.toefl != null) a.englishNone = false;
   [['a_test', 'a_score'], ['a2_test', 'a2_score']].forEach(([tk, sk]) => {
     const t = String(P[tk] || ''), sc = parseFloat(P[sk]);
     if (/^gre$/i.test(t) && Number.isFinite(sc) && a.gre == null) a.gre = sc;
   });
+  /* Patch 149: "not taken" is an answer — a programme that requires the GRE
+     is a miss, not a question. "Planning to take" stays a question. */
+  if (a.gre == null && /^(not taken|not taken yet|not required|none|no)$/i.test(String(P.a_test || '').trim())) a.gre = false;
   if (P.g_german) {
     const t = String(P.g_german).trim();
     if (/^none/i.test(t)) a.germanLevel = 'none';
@@ -805,7 +810,10 @@ function screen(catalogue, profile, countries, opts) {
     out.counts.looked++;
     const why = [], ask = [];
     if (!visaFriendly(p)) why.push('part-time / online / executive — a student visa does not cover it');
-    if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) why.push('needs a completed bachelor’s');
+    /* Patch 149: in the staff screen an unanswered bachelor's is a question,
+       not a miss — otherwise an empty profile shows every master's as missed.
+       (Package delivery, plan(), still refuses to pick without it.) */
+    if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) ask.push('their bachelor’s');
     if (ceiling && Number(p.totalInr || 0) > ceiling) why.push('over budget (₹' + Math.round(Number(p.totalInr) / 100000) + 'L)');
     if (ceiling && !p.isPublic && !Number(p.totalInr || 0)) why.push('fee not entered');
     if (w.term) {
@@ -821,7 +829,7 @@ function screen(catalogue, profile, countries, opts) {
     }
     const vd = REQS.check(p.reqs || {}, w.answers || {});
     vd.fails.forEach(f => why.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
-    vd.unknown.forEach(k => ask.push({ english: 'English score', gre: 'GRE', germanLevel: 'German level', bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'publications' }[k] || k));
+    vd.unknown.forEach(k => ask.push({ english: 'English score', gre: 'GRE', germanLevel: 'German level', bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'publications', moi: 'whether an MOI letter is accepted' }[k] || k));
     if (!subjectFits(p, w)) why.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
     const row = { id: p.id, program: p.program, university: p.university, city: p.city || '', country: p.country,
       level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),

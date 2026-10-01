@@ -10666,6 +10666,36 @@ patch(
 )
 
 
+patch(
+    'index.html',
+    'GRE and MOI, patch 149 (1)',
+    "      if(/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(s)) a.englishNone = true;\n    });\n",
+    "      if(/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(s)) a.englishNone = true;\n      if(/medium of instruction|^moi\\b/.test(t)) a.moi = true;   /* patch 149 */\n    });\n",
+    marker='if(/medium of instruction|^moi\\b/.test(t)) a.moi = true;   /* patch 149 */',
+)
+patch(
+    'index.html',
+    'GRE and MOI, patch 149 (2)',
+    '    });\n    if(a.ielts != null || a.toefl != null) a.englishNone = false;\n  }\n',
+    '    });\n    if(a.ielts != null || a.toefl != null || a.moi) a.englishNone = false;\n  }\n',
+    marker='if(a.ielts != null || a.toefl != null || a.moi) a.englishNone = false;',
+)
+patch(
+    'index.html',
+    'GRE and MOI, patch 149 (3)',
+    "    if(okI || okT){}\n    else if(s.englishNone) fails.push({ key:'english', want, have:'not taken yet' });\n",
+    "    if(okI || okT){}\n    /* Patch 149: an MOI letter clears where it is accepted, as server/reqs.js. */\n    else if(s.moi && haveI == null && haveT == null){\n      if(r.moiAccepted === true){}\n      else if(r.moiAccepted === false) fails.push({ key:'english', want: want + ' (MOI not accepted)', have:'MOI letter' });\n      else fails.push({ key:'english', want: want + ' (MOI not confirmed)', have:'MOI letter' });\n    }\n    else if(s.englishNone) fails.push({ key:'english', want, have:'not taken yet' });\n",
+    marker="else if(r.moiAccepted === false) fails.push({ key:'english', want: want + ' (MOI not accepted)', have:'MOI letter' });",
+)
+patch(
+    'catalogue.html',
+    'GRE and MOI, patch 149 (1)',
+    '  [\'toeflMin\', \'TOEFL iBT minimum\', \'int\', \'Blank if not stated or not required.\', \'type="number" min="40" max="120" step="1" placeholder="88"\'],\n  [\'greRequired\', \'GRE required\', \'yesno\', \'Most German programmes do not ask. Blank if not stated.\', \'\'],\n',
+    '  [\'toeflMin\', \'TOEFL iBT minimum\', \'int\', \'Blank if not stated or not required.\', \'type="number" min="40" max="120" step="1" placeholder="88"\'],\n  [\'moiAccepted\', \'MOI letter accepted\', \'yesno\', \'Yes if a Medium of Instruction letter is taken instead of IELTS/TOEFL. Blank if not stated.\', \'\'],\n  [\'greRequired\', \'GRE required\', \'yesno\', \'Most German programmes do not ask. Blank if not stated.\', \'\'],\n',
+    marker="['moiAccepted', 'MOI letter accepted', 'yesno', 'Yes if a Medium of Instruction letter is taken instead of IELTS/TOEFL. Blank if not stated.', ''],",
+)
+
+
 if __name__ == "__main__":
     for a in applied:
         print("  applied ", a)

@@ -58,6 +58,11 @@ const FIELDS = [
      "required" far more often than it says how much. "Required, amount not
      stated" is a real answer — a student with no GRE at all is turned down —
      and a single number column could only say it with a made-up number. */
+  /* Patch 149. Whether a Medium of Instruction letter (the bachelor's taught
+     in English) is taken instead of IELTS/TOEFL. Blank = not stated. */
+  { key: 'moiAccepted', col: 'moi accepted', aliases: ['moi', 'english moi', 'medium of instruction', 'moi letter accepted'],
+    type: 'yesno', label: 'MOI letter accepted',
+    note: 'Yes if a Medium of Instruction letter is taken instead of IELTS/TOEFL. Blank if not stated.' },
   { key: 'greRequired', col: 'gre required', aliases: ['gre', 'gre needed', 'needs gre'],
     type: 'yesno', label: 'GRE required',
     note: 'yes or no. Blank if not stated. Most German programmes do not ask.' },
@@ -234,6 +239,19 @@ function check(reqs, student) {
     const okI = wantI != null && haveI != null && haveI >= wantI;
     const okT = wantT != null && haveT != null && haveT >= wantT;
     if (okI || okT) { /* clears */ }
+    /* Patch 149: a Medium of Instruction letter clears where it is accepted,
+       fails where the programme says it is not, and is a question otherwise. */
+    else if (s.moi === true && haveI == null && haveT == null) {
+      if (r.moiAccepted === true) { /* clears */ }
+      else if (r.moiAccepted === false) fails.push({ key: 'english', label: 'English test',
+        want: [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ') + ' (MOI not accepted)',
+        have: 'MOI letter' });
+      /* Not stated: most German programmes want the test, so an MOI student
+         is not counted as clearing until the programme says it accepts it. */
+      else fails.push({ key: 'english', label: 'English test',
+        want: [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ') + ' (MOI not confirmed)',
+        have: 'MOI letter' });
+    }
     else if (s.englishNone === true) fails.push({ key: 'english', label: 'English test',
       want: [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or '),
       have: 'not taken yet' });

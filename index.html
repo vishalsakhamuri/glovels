@@ -2075,8 +2075,9 @@ function myAnswers(){
       if(/ielts/.test(t) && Number.isFinite(s) && a.ielts == null) a.ielts = s;
       if(/toefl/.test(t) && Number.isFinite(s) && a.toefl == null) a.toefl = s;
       if(/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(s)) a.englishNone = true;
+      if(/medium of instruction|^moi\b/.test(t)) a.moi = true;   /* patch 149 */
     });
-    if(a.ielts != null || a.toefl != null) a.englishNone = false;
+    if(a.ielts != null || a.toefl != null || a.moi) a.englishNone = false;
   }
   const gr = v('#fGre');
   if(gr === 'none') a.gre = false;
@@ -2118,6 +2119,12 @@ function verdict(reqs, s){
     const okT = wantT != null && haveT != null && haveT >= wantT;
     const want = [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ');
     if(okI || okT){}
+    /* Patch 149: an MOI letter clears where it is accepted, as server/reqs.js. */
+    else if(s.moi && haveI == null && haveT == null){
+      if(r.moiAccepted === true){}
+      else if(r.moiAccepted === false) fails.push({ key:'english', want: want + ' (MOI not accepted)', have:'MOI letter' });
+      else fails.push({ key:'english', want: want + ' (MOI not confirmed)', have:'MOI letter' });
+    }
     else if(s.englishNone) fails.push({ key:'english', want, have:'not taken yet' });
     else if(haveI == null && haveT == null) unknown.push('english');
     else fails.push({ key:'english', want, have:[haveI != null ? 'IELTS ' + haveI : null, haveT != null ? 'TOEFL ' + haveT : null].filter(Boolean).join(', ') });
