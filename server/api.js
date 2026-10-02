@@ -2626,7 +2626,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        does not say which post, or from a form where somebody typed a question
        that was then thrown away, is a lead the counsellor starts from
        nothing. */
-    const said = String(b.message || b.note || '').trim().slice(0, 400);
+    /* Patch 154: a special-assistance lead carries the whole search. */
+    const said = String(b.message || b.note || '').trim().slice(0, b.source === 'no-match' ? 1800 : 400);
     const about = String(b.note || '').trim().slice(0, 200);
     const from = sourceOf(req, b);
     const record = {
@@ -2665,13 +2666,29 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * its own source so the Leads screen can count how often the catalogue
    * comes up empty — which is a number the office wants.
    */
+  /* Patch 154: the whole search, not a sample of it. The lead is the only
+     record of what the student typed, and the counsellor is asked to review
+     it, so every box and the profile the finder read (`filters.profile`, one
+     level down) are written out — longer than before, still bounded. */
   const filterSummary = f => {
     const o = f && typeof f === 'object' ? f : {};
-    return Object.keys(o).slice(0, 24).map(k => {
-      const v = Array.isArray(o[k]) ? o[k].join('/') : o[k];
-      if (v === undefined || v === null || v === '' || v === false) return '';
-      return String(k).replace(/[^\w .-]/g, '').slice(0, 24) + ': ' + String(v).replace(/\s+/g, ' ').slice(0, 60);
-    }).filter(Boolean).join('; ').slice(0, 300);
+    const line = (k, v) => String(k).replace(/[^\w .-]/g, '').slice(0, 24) + ': ' + String(v).replace(/\s+/g, ' ').slice(0, 80);
+    const parts = [];
+    Object.keys(o).slice(0, 48).forEach(k => {
+      const v = o[k];
+      if (v === undefined || v === null || v === '' || v === false) return;
+      if (Array.isArray(v)) { parts.push(line(k, v.join('/'))); return; }
+      if (typeof v === 'object') {
+        Object.keys(v).slice(0, 32).forEach(kk => {
+          const vv = v[kk];
+          if (vv === undefined || vv === null || vv === '' || vv === false) return;
+          parts.push(line(k + '.' + kk, Array.isArray(vv) ? vv.join('/') : vv));
+        });
+        return;
+      }
+      parts.push(line(k, v));
+    });
+    return parts.join('; ').slice(0, 1500);
   };
   route('POST', '/api/assist', (req, res) => enquiry(req, res, b => {
     const filters = filterSummary(b.filters);

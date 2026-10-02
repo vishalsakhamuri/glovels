@@ -2052,6 +2052,7 @@ const cgpaForBar = () => {
    the grade. The finder reads its answers from here when the box on the
    page is empty, so nobody is asked twice. */
 let PROFILE = {};
+let ME = {};
 const CEFR = ['none','A1','A2','B1','B2','C1','C2'];
 const REQ_LABEL = {
   english: 'IELTS or TOEFL score', gre: 'GRE', germanLevel: 'German language level',
@@ -2311,29 +2312,28 @@ let TURNED = [], NEEDED = new Map(), ASKED = 0;
    the rows under the destination, level and field, before the answers are
    applied. Otherwise it is a question nobody will read the answer to. */
 function showRelevant(){
+  /* Patch 154. Every box, every time.
+   *
+   * Until now a box opened only when a programme in view stated that
+   * requirement — the page would not ask a question no row could answer.
+   * That made the home page and the counsellor's panel look different from
+   * one another, and the request on 2 October was the opposite: the student
+   * and the counsellor are to see the same set of filters, so that what the
+   * office types in is what the student could have typed in. A box with
+   * nothing behind it is harmless — a requirement a programme has not stated
+   * cannot be failed — so nothing is lost by showing it, and the row counts
+   * explain themselves. The only thing still read from the rows is the
+   * specialisation list, because a select needs its options. */
   const co = $('#fCountry').value, lv = $('#fLevel').value, fd = $('#fField').value;
   const view = D.programs.filter(p => (!co || p.country === co) && (!lv || p.level === lv) && (!fd || p.field === fd));
-  const any = f => view.some(p => f(reqsOf(p)));
   const show = (id, on) => { const el = $(id); if(el) el.hidden = !on; };
-  show('#fEnglishWrap', any(q => num(q.ieltsMin) != null || num(q.toeflMin) != null));
-  show('#fWorkWrap', any(q => q.workExpRequired === true || num(q.workExpMonths) > 0));
-  show('#fGreWrap', any(q => q.greRequired === true || num(q.greMin) != null));
-  show('#fGermanWrap', any(q => has(q.germanLevel) && q.germanLevel !== 'none'));
-  show('#fBachYearsWrap', any(q => num(q.bachelorYears) != null));
-  show('#fBachWrap', any(q => has(q.bachelorSubjects)));
-  show('#fPapersWrap', any(q => q.papersRequired === true));
-  show('#fTuitionWrap', view.some(p => tuitionOf(p) != null));
-  /* Patch 153. A section box opens only once a GRE total is in the box —
-     and only where a row in view asks for that section. */
-  const greScore = $('#fGre') && boxOn($('#fGre')) && num($('#fGre').value) != null;
-  show('#fGreQWrap', greScore && any(q => num(q.greQuant) != null));
-  show('#fGreVWrap', greScore && any(q => num(q.greVerbal) != null));
-  show('#fGreAWrap', greScore && any(q => num(q.greAwa) != null));
-  show('#fEctsWrap', any(q => num(q.ectsMin) != null));
-  show('#fTopWrap', any(q => num(q.topPercent) != null));
-  show('#fRestrictedWrap', any(q => q.restricted === true));
-  /* Always: every row is applied to one way or the other. */
-  show('#fFeeWrap', true);
+  ['#fEnglishWrap','#fWorkWrap','#fGreWrap','#fGermanWrap','#fBachYearsWrap','#fBachWrap','#fPapersWrap','#fTuitionWrap',
+   '#fEctsWrap','#fTopWrap','#fRestrictedWrap','#fFeeWrap'].forEach(id => show(id, true));
+  /* The three section boxes still wait for a GRE total: they are a detail of
+     that answer, not a question of their own — the counsellor's panel does
+     the same. */
+  const greScore = $('#fGre') && num($('#fGre').value) != null;
+  show('#fGreQWrap', greScore); show('#fGreVWrap', greScore); show('#fGreAWrap', greScore);
   /* Specialisations, from the rows in view. The box waits for its data: a
      select with one option is not a filter. */
   const specs = [...new Set(view.map(p => String(reqsOf(p).specialisation || '').trim()).filter(Boolean))].sort();
@@ -2344,11 +2344,7 @@ function showRelevant(){
     if(specs.includes(cur)) sp.value = cur;
   }
   show('#fSpecWrap', specs.length > 1);
-  /* The whole panel, when nothing in it applies — the Netherlands with no
-     requirements filled in yet has nothing to open. */
-  const more = ['#fGreWrap','#fGermanWrap','#fBachWrap','#fBachYearsWrap','#fTuitionWrap','#fPapersWrap','#fGreQWrap','#fGreVWrap','#fGreAWrap','#fEctsWrap','#fTopWrap','#fRestrictedWrap','#fFeeWrap'].filter(id => $(id) && !$(id).hidden).length;
-  const bar = $('.fmore-bar'); if(bar) bar.hidden = !more;
-  if(!more && $('#fMore')) $('#fMore').hidden = true;
+  const bar = $('.fmore-bar'); if(bar) bar.hidden = false;
   const set = ['#fGre','#fGerman','#fBach','#fBachYears','#fTuition','#fPapers','#fGreQ','#fGreV','#fGreA','#fEcts','#fTop','#fRestricted','#fFee'].filter(id => $(id) && boxOn($(id)) && String($(id).value || '').trim()).length;
   const n = $('#fMoreN'); if(n){ n.textContent = set; n.hidden = !set; }
 }
@@ -3043,8 +3039,16 @@ function render(){
    #rowsIn, which render() rewrites every time. */
 function assistForm() {
   const said = criteriaText();
-  return '<div class="empty nomatch" id="rAssist"><b>You need special assistance</b>'
-    + 'No programme in our catalogue matches this profile yet — a counsellor will look at it personally.'
+  const v = id => { const el = $(id); return el ? String(el.value || '').trim() : ''; };
+  const txt = id => { const el = $(id); return el && el.selectedIndex > 0 ? el.options[el.selectedIndex].textContent.trim() : ''; };
+  const asGuess = {
+    degree: [v('#fBach') || PROFILE.d_course || '', (v('#fCgpa') ? 'CGPA ' + txt('#fCgpa') : v('#fGgpa') ? 'German grade ' + txt('#fGgpa') : (PROFILE.d_cgpa ? 'CGPA ' + PROFILE.d_cgpa + (PROFILE.d_max ? '/' + PROFILE.d_max : '') : ''))].filter(Boolean).join(', '),
+    english: txt('#fEnglish') || [PROFILE.e_test, PROFILE.e_score].filter(Boolean).join(' '),
+    intake: txt('#fIntake') || PROFILE.g_intake || '',
+    budget: PROFILE.b_total || ''
+  };
+  return '<div class="empty nomatch" id="rAssist"><b>Your profile needs special assistance</b>'
+    + 'No programme matched these filters. Leave your details and our experts will review your data and call you back.'
     /* THEY HAVE ALREADY TOLD US WHAT THEY WANT.
        It is on the screen in the filters they just set, so the form does not ask
        again: it shows what is being sent and takes the two things we do not
@@ -3053,16 +3057,26 @@ function assistForm() {
     + (said ? '<p class="nm-said">Sending your search: <b>' + esc(said) + '</b></p>'
             : '<p class="nm-said">Sending what you were looking for.</p>')
     + '<form class="nm-form" id="asForm" novalidate>'
-    +   '<input id="asName" placeholder="Your name" autocomplete="name" maxlength="80">'
-    +   '<input id="asPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel" maxlength="20">'
-    +   '<input id="asMail" placeholder="Email" inputmode="email" autocomplete="email" maxlength="120">'
+    /* Patch 154: pre-filled from the account when they are signed in, and
+       the profile the finder already read (their course, CGPA, tests) rides
+       along in `filters`, so the counsellor opens the lead with everything. */
+    +   '<input id="asName" placeholder="Your name" autocomplete="name" maxlength="80" value="' + esc(ME.name || '') + '">'
+    +   '<input id="asPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel" maxlength="20" value="' + esc(ME.phone || '') + '">'
+    +   '<input id="asMail" placeholder="Email" inputmode="email" autocomplete="email" maxlength="120" value="' + esc(ME.email || '') + '">'
+    /* Patch 154: the four things a counsellor needs on the call to suggest a
+       university, asked only when the search did not already say them —
+       pre-filled from the boxes and the profile where it did. */
+    +   '<input id="asDegree" placeholder="Your bachelor\'s and CGPA (e.g. B.Tech CSE, 7.8/10)" maxlength="120" value="' + esc(asGuess.degree) + '" style="flex:1 1 100%">'
+    +   '<input id="asEnglish" placeholder="English test and score (IELTS 6.5 / TOEFL 90 / MOI / not yet)" maxlength="60" value="' + esc(asGuess.english) + '">'
+    +   '<input id="asIntake" placeholder="When do you want to start? (e.g. Winter 2027)" maxlength="40" value="' + esc(asGuess.intake) + '">'
+    +   '<input id="asBudget" placeholder="Budget for the whole course (₹)" maxlength="40" value="' + esc(asGuess.budget) + '">'
     +   '<input id="asNote" placeholder="Anything else a counsellor should know (optional)" maxlength="500" style="flex:1 1 100%">'
     /* The honeypot, as on the contact form: a field no person sees and a
        bot fills. Named "website" because that is what a bot expects to find. */
     +   '<label for="asHoney" class="sr">Leave this field empty</label>'
     +   '<input class="nm-hp" id="asHoney" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">'
     +   '<label class="nm-ok" style="flex:1 1 100%;display:flex;gap:8px;align-items:flex-start;font-size:12.4px;color:var(--muted)"><input type="checkbox" id="asOk" style="width:auto;flex:0 0 auto;margin-top:3px"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>'
-    +   '<button type="submit" class="btn btn-primary btn-sm" id="asGo">Ask a counsellor</button>'
+    +   '<button type="submit" class="btn btn-primary btn-sm" id="asGo">Ask our experts to review</button>'
     + '</form>'
     + '<p class="nm-err" id="asErr" role="alert" hidden></p></div>';
 }
@@ -3099,6 +3113,16 @@ async function asSend(e) {
    ['bachelorYears','#fBachYears'],['ects','#fEcts'],['topPercent','#fTop'],['tuition','#fTuition'],['papers','#fPapers'],
    ['restricted','#fRestricted'],['feeModel','#fFee']].forEach(([k, id]) => { const v = pick(id); if (v) filters[k] = v; });
   if (bands.size) filters.bands = [...bands].join(',');
+  /* Patch 154: what the finder read from their profile without a box being
+     touched — bachelor's, CGPA, tests, German, work — so the counsellor sees the
+     whole picture the matcher saw, not only the boxes. */
+  const prof = {};
+  ['d_course','d_cgpa','d_max','d_pass','d_dur','d_ects','d_top','e_test','e_score','e2_test','e2_score','a_test','a_score','a_quant','a_verbal','a_awa','g_german','w_has','w_months','g_papers','g_field','g_field2','g_intake','b_total']
+    .forEach(k => { if (PROFILE[k] !== undefined && PROFILE[k] !== null && String(PROFILE[k]).trim() !== '') prof[k] = PROFILE[k]; });
+  if (Object.keys(prof).length) filters.profile = prof;
+  const extra = {};
+  [['bachelor','#asDegree'],['english','#asEnglish'],['intake','#asIntake'],['budget','#asBudget']].forEach(([k, id]) => { const el = $(id); if (el && String(el.value || '').trim()) extra[k] = String(el.value).trim().slice(0, 120); });
+  if (Object.keys(extra).length) filters.told = extra;
   let r;
   try {
     r = await fetch('/api/assist', {
@@ -3114,12 +3138,12 @@ async function asSend(e) {
       })
     });
   } catch (ex) { r = { ok: false }; }
-  btn.disabled = false; btn.textContent = 'Ask a counsellor';
+  btn.disabled = false; btn.textContent = 'Ask our experts to review';
   if (!r.ok) return show('That did not send. Try again, or call the office.');
   if (window.glvTrack) glvTrack('generate_lead', { form: 'assist' });
   const box = $('#rAssist');
   if (box) {
-    box.innerHTML = '<b>Thanks — a counsellor will call you.</b>'
+    box.innerHTML = '<b>Thank you — our experts will review your data and call you back.</b>'
       + 'On ' + esc(phone) + ', with what is open for your profile. Usually the same day, '
       + 'and always within one working day.';
   }
@@ -3378,6 +3402,9 @@ gradeScale();
     .then(s => {
       const pr = (s && s.profile) || {};
       PROFILE = Object.assign({ __signedIn: !!s }, pr);
+      /* Patch 154: who they are, for the special-assistance form — a signed-in
+         student should never be asked to type their own name again. */
+      ME = (s && s.user) ? { name: s.user.name || '', phone: s.user.phone || '', email: s.user.email || '' } : {};
       if(touched) render();
       const max = parseFloat(pr.d_max), pass = parseFloat(pr.d_pass),
             now = parseFloat(String(pr.d_cgpa || '').replace(/[^0-9.]/g, ''));
