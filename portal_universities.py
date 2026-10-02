@@ -169,12 +169,25 @@ function germanLine(p) {
 function flagOf(p) { return (COUNTRIES[p.country] || {}).flag || ''; }
 function nameOf(p)  { return (COUNTRIES[p.country] || {}).name || p.country; }
 
+/* Whole calendar days from today to a deadline — never a time-of-day sum.
+   (deadline − now) / 86400000 was read against the clock: a deadline parsed
+   as UTC midnight on the 31st, measured from 2 Oct at two in the afternoon,
+   is 28.4 days and rounds to 28, so every counter on the student side ran a
+   day short of the counsellor's Tasks tab, which counts days the way the
+   server does (server/days.js daysBetweenDays). The deadline's own date is
+   read in UTC because a plain 'YYYY-MM-DD' parses as UTC midnight, and
+   today's in local time, because that is the day the student is on. */
+function calDays(d) {
+  const t = new Date();
+  return Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+    - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000);
+}
 /* How long there is, said in the unit somebody acts on. "15 Jan 2027" is a
    fact; "start now — that is 5 weeks away" is a decision. */
 function whenToApply(p) {
   const d = upcoming(p);
   if (!d) return '';
-  const days = Math.round((d - new Date()) / 86400000);
+  const days = calDays(d);
   if (days <= 0) return 'The deadline has passed — ask your counsellor about the next intake.';
   /* Applications are not a same-week job: documents have to be attested,
      transcripts requested, and for Germany the APS alone takes 6–8 weeks. */

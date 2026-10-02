@@ -1021,6 +1021,12 @@ select.assign.none:hover{border-color:#a5342b}
          beside them. */
       .pacts{text-align:right;white-space:nowrap}
       .pacts .pact + .pact{margin-left:6px}
+      /* The row's own "are you sure" — once asked, it stays visible whether
+         or not the pointer is still on the row. */
+      .pask{display:inline-flex;align-items:center;gap:6px;font-size:12.4px;
+        color:var(--navy-900);font-weight:600}
+      .pask .pact{opacity:1}
+      .pask .pact + .pact{margin-left:0}
       /* A closed file is still readable, just visibly done with. */
       .prow.shut > td:not(.pacts){opacity:.55}
     </style>
@@ -2903,6 +2909,30 @@ async function saveLogo(url) {
 
     /* The three row controls come before the row itself, because they sit
        inside it — without this, Close file would also open the student. */
+    /* Close file asks first, the way Remove does. One press used to close the
+       file at once, and because the row then left the list the NEXT student's
+       Close file button slid under a cursor that had not moved — a second
+       click closed a file nobody meant to touch. Inline on the row rather
+       than a browser confirm(): it names what it is about to do, it does not
+       block the page, and Keep puts the row back exactly as it was. */
+    const ask = e.target.closest('[data-close-file]:not([data-sure])');
+    if (ask) {
+      e.stopPropagation();
+      const cell = ask.closest('td');
+      const id = ask.dataset.closeFile;
+      cell.innerHTML =
+        '<span class="pask" role="group" aria-label="Close this file?">'
+        + '<span>Close this file?</span>'
+        + '<button type="button" class="btn btn-primary btn-sm pact" data-close-file="' + id
+          + '" data-sure="1">Close</button>'
+        + '<button type="button" class="btn btn-ghost btn-sm pact" data-keep-file="' + id
+          + '">Keep</button></span>';
+      const yes = cell.querySelector('[data-sure]'); if (yes) yes.focus();
+      return;
+    }
+    const keep = e.target.closest('[data-keep-file]');
+    if (keep) { e.stopPropagation(); return paint(); }
+
     const shut = e.target.closest('[data-close-file], [data-open-again]');
     if (shut) {
       e.stopPropagation();

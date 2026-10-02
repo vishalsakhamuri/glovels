@@ -26,19 +26,22 @@ const stamp = Date.now();
   const guest = await browser.newContext();
 
   /* ------------------------------------------------- where a lead came from */
+  /* Patch 157: a repeat phone attaches to the open lead with that number, so
+     every run dials fresh ones. */
+  const ph = n => String(6000000000 + (Date.now() % 1000000000) + Number(n)).slice(-10);
   const send = (data, referer) => guest.request.post(BASE + '/api/enquiries',
     { data: Object.assign({ consent: 'yes' }, data), headers: referer ? { Referer: referer } : {} });
 
-  await send({ name: 'Ad ' + stamp, email: 'ad' + stamp + '@example.com', phone: '9876543210' },
+  await send({ name: 'Ad ' + stamp, email: 'ad' + stamp + '@example.com', phone: ph('10') },
     BASE + '/?utm_source=facebook&utm_campaign=aug-germany');
-  await send({ name: 'Click ' + stamp, email: 'cl' + stamp + '@example.com', phone: '9876543211' },
+  await send({ name: 'Click ' + stamp, email: 'cl' + stamp + '@example.com', phone: ph('11') },
     BASE + '/?gclid=abc123');
   await send({ name: 'Search ' + stamp, email: 'se' + stamp + '@example.com',
-    phone: '9876543212', referrer: 'https://www.google.com/search?q=study+in+germany' });
+    phone: ph('12'), referrer: 'https://www.google.com/search?q=study+in+germany' });
   await send({ name: 'Direct ' + stamp, email: 'di' + stamp + '@example.com',
-    phone: '9876543213' }, BASE + '/contact-us');
+    phone: ph('13') }, BASE + '/contact-us');
   await send({ name: 'Reader ' + stamp, email: 're' + stamp + '@example.com',
-    phone: '9876543214', consent: 'yes', source: 'blog', note: 'From the blog: Blocked accounts' },
+    phone: ph('14'), consent: 'yes', source: 'blog', note: 'From the blog: Blocked accounts' },
     BASE + '/post/germany-blocked-account-increase-2027');
 
   const first = await (await staff.request.get(BASE + '/api/staff/leads')).json();

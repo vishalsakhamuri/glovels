@@ -2502,6 +2502,11 @@ $('#saveBtn').addEventListener('click', async () => {
       + 'device — try again in a moment.' : out.error, 'bad');
     return;
   }
+  /* Pressing Save with nothing changed used to leave the status line beside
+     the button blank — flush() only writes it when a request goes, and none
+     did — so the press looked ignored. The same line the real save uses,
+     with the same fade, so the button always answers in the same place. */
+  if (out && out.nothing) saveState('ok', 'Nothing changed — already saved');
   toast((out && out.nothing ? 'Already saved — nothing changed. ' : 'Saved. ')
     + overall() + '% of your profile is complete.');
 });

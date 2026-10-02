@@ -156,7 +156,19 @@ const stamp = Date.now();
 
   /* --------------------------------------------------- closing a finished file */
 
+  /* Patch 157: the first press asks; nothing closes until "Close" is pressed
+     on the row itself. */
   await page.$eval('.prow [data-close-file]', el => el.click());
+  await page.waitForTimeout(300);
+  check('one click on Close file asks first, closes nothing', (await page.$$('.prow')).length === 3
+    && (await page.$$('.prow [data-close-file][data-sure]')).length === 1);
+  await page.$eval('.prow [data-keep-file]', el => el.click());
+  await page.waitForTimeout(300);
+  check('Keep puts the row back as it was', (await page.$$('.prow')).length === 3
+    && (await page.$$('.prow [data-close-file][data-sure]')).length === 0);
+  await page.$eval('.prow [data-close-file]', el => el.click());
+  await page.waitForTimeout(300);
+  await page.$eval('.prow [data-close-file][data-sure]', el => el.click());
   await page.waitForTimeout(700);
   check('closing a file takes it off the list', (await page.$$('.prow')).length === 2);
   check('the closed counter picks it up',

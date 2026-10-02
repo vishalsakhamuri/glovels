@@ -28,6 +28,24 @@ BODY = """
       .p-cols.aside>*{min-width:0}
     </style>
 
+    <style>
+      /* The Tasks tab's table. `.p-card > .tbl` holds every table open at
+         1,180px so a six-column roster scrolls rather than crushes — but this
+         one has four columns and sits in an 852px thread, where the floor
+         pushed State to "Not sta…" and the done · stuck controls off the
+         right edge with nothing on screen to say so. Four columns fit: the
+         task's name is the one thing that may wrap, the date, the state pill
+         and the two controls keep their width. */
+      .p-card > .tktbl.tbl{min-width:0;width:100%;table-layout:auto}
+      .tktbl th, .tktbl td{padding:9px 10px}
+      .tktbl th:first-child, .tktbl td:first-child{padding-left:14px;white-space:normal;
+        overflow-wrap:anywhere}
+      .tktbl th:last-child, .tktbl td:last-child{padding-right:14px;white-space:nowrap;
+        width:1%}
+      .tktbl td:nth-child(2), .tktbl td:nth-child(3){white-space:nowrap}
+      .tktbl .st{white-space:nowrap}
+    </style>
+
     <div class="p-cols aside" style="--aside:320px;align-items:start;gap:16px">
 
       <div class="p-card" style="padding:0;overflow:hidden">
@@ -640,7 +658,7 @@ function paintRecord(r) {
           ? '<p style="font-size:13px;color:var(--muted)">Nothing is owed on this file yet. ' +
             'Steps appear as soon as a package is bought or a university is shortlisted.</p>'
           : '<div class="p-card" style="padding:0;overflow-x:auto">' +
-            '<table class="tbl" style="margin:0"><thead><tr><th>What</th><th>By when</th>' +
+            '<table class="tbl tktbl" style="margin:0"><thead><tr><th>What</th><th>By when</th>' +
             '<th>State</th><th></th></tr></thead><tbody>' +
             (r.tasks || []).map(t => {
               const late = t.over != null && t.over > 0;

@@ -161,7 +161,20 @@ function verdict(s) {
   return miss.length ? {ok: false, why: 'Not yet — it ' + miss.join(', and ')}
                      : {ok: true, why: 'You meet the published criteria'};
 }
-function dleft(s) { return Math.round((new Date(s.deadline) - new Date()) / 86400000); }
+/* Whole calendar days from today to a deadline — never a time-of-day sum.
+   (deadline − now) / 86400000 was read against the clock: a deadline parsed
+   as UTC midnight on the 31st, measured from 2 Oct at two in the afternoon,
+   is 28.4 days and rounds to 28, so every counter on the student side ran a
+   day short of the counsellor's Tasks tab, which counts days the way the
+   server does (server/days.js daysBetweenDays). The deadline's own date is
+   read in UTC because a plain 'YYYY-MM-DD' parses as UTC midnight, and
+   today's in local time, because that is the day the student is on. */
+function calDays(d) {
+  const t = new Date();
+  return Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+    - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000);
+}
+function dleft(s) { return calDays(new Date(s.deadline)); }
 /* An award whose deadline has passed is not one you can apply for, whatever
    your CGPA. It stayed in the list, counted in the total, and sat in "ones you
    qualify for" — a scholarship you cannot enter, offered as an opportunity. */

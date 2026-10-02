@@ -989,13 +989,16 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
 .uni-others{columns:2;column-gap:28px;padding-left:18px;margin:12px 0 0}
 @media (max-width:600px){.uni-others{columns:1}}
 .uni-others li{break-inside:avoid;margin:0 0 7px;font-size:14px}
-.ulist{list-style:none;padding:0;margin:14px 0 30px;display:grid;gap:10px}
-.ulist li a{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--paper);
-  border:1px solid var(--line);border-radius:12px;padding:13px 16px;text-decoration:none;color:inherit}
+.ulist{list-style:none;padding:0;margin:14px 0 30px;display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
+.ulist li{min-width:0}
+.ulist li a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--paper);
+  border:1px solid var(--line);border-radius:12px;padding:13px 16px;text-decoration:none;color:inherit;min-width:0}
+.ulist li a>span{min-width:0;overflow-wrap:anywhere}
 .ulist li a:hover{border-color:var(--navy-700)}
 .ulist b{font:700 15px/1.35 var(--sans);color:var(--navy-900)}
 .ulist small{display:block;margin-top:3px;font:400 12.4px/1.5 var(--sans);color:var(--muted)}
 .ulist .n{font:700 12px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
+@media (max-width:600px){.ulist li a{grid-template-columns:minmax(0,1fr)}.ulist .n{white-space:normal}}
 /* The apply sheet */
 .apsheet{position:fixed;inset:0;background:rgba(6,18,30,.55);display:none;align-items:center;justify-content:center;z-index:500;padding:18px}
 .apsheet.on{display:flex}
@@ -2619,7 +2622,9 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/success-stories') {
     const page = successStoriesPage();
-    if (page) return send(res, 200, forIndexing(page, 'success-stories'), TYPES['.html']);
+    /* The header script every other public page carries (withSignedInNav),
+       so a signed-in student sees "My dashboard" here too, not "Sign in". */
+    if (page) return send(res, 200, withSignedInNav(forIndexing(page, 'success-stories')), TYPES['.html']);
   }
 
   const acc = /^\/acceptance\/([A-Za-z0-9-]{3,30})$/.exec(pathname);

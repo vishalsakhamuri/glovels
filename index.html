@@ -2826,9 +2826,15 @@ function banner(list, shown){
   if(!touched) return null;
   if(!list.length) return ['blue','info','No matches with those filters',
     'Try a wider field or level, or talk to a counsellor — we may have a route that is not in the list yet.'];
-  if(!pubUnis) return ['blue','info','Nothing free to apply to matches yet',
-    'The matches here are ones we file for you with a package — readable now, '
-    + 'with prices. A counsellor can also map a pathway route.'];
+  /* Patch 157: no public university in the list means every row IS free to
+     apply to (patch 152) — the old wording said the opposite above rows
+     labelled "Free to apply". */
+  if(!pubUnis){
+    const unis = new Set(list.map(p => p.uKey)).size;
+    return ['gold','star', unis + ' universit' + (unis === 1 ? 'y' : 'ies') + ' free to apply to',
+      'We file these applications for you at no charge — pick one and press <b>Apply free</b>. '
+      + 'Want a public university as well? A counsellor can map a route.'];
+  }
   if(unlocked){
     /* What the package bought, not what this filter happens to be showing. A
        banner that says "0 unlocked" to somebody looking at their thirteen is
@@ -2848,7 +2854,10 @@ function banner(list, shown){
      fee to apply" — and "no tuition either" only where that is true of the
      public rows counted, not of Germany in general (TUM charges ₹26L). */
   const pubRows = list.filter(p => p.isPublic);
-  const noTuition = pubRows.filter(p => !Number(p.totalInr || 0)).length;
+  /* Patch 157: "no tuition" only where the sheet SAYS 0 — a row whose
+     tuition nobody has filled in has a total of 0 too, and that is not a
+     promise anyone should read on the banner. */
+  const noTuition = pubRows.filter(p => { const t = reqsOf(p).tuitionEurSem; return t !== null && t !== undefined && t !== '' && Number(t) === 0; }).length;
   const open = NEEDED && NEEDED.size;
   return ['gold','star',(open ? '' : 'You qualify for ')+pubUnis+' public universit'+(pubUnis===1?'y':'ies')
     + (open ? ' so far' : ''),
@@ -4249,6 +4258,11 @@ render();
   const off = new Set((data.inactive || []).map(String));
   const before = D.programs.length;
   if (off.size) D.programs = D.programs.filter(p => !off.has(String(p.id)));
+  /* Patch 157: a row with no level or no field is half an import, not a
+     programme — it matched every search (nothing to fail on) and, marked
+     public with no price, told Canada "none of them charges tuition". It
+     stays in the admin catalogue to be finished; it is not offered here. */
+  D.programs = D.programs.filter(p => p.level && p.field);
   const removed = before - D.programs.length;
 
   if (added || removed || touchedCountries || urls || bars) {

@@ -317,6 +317,18 @@ CREATE INDEX IF NOT EXISTS idx_orders_email    ON orders(email);
 
 const now = () => new Date().toISOString();
 
+/* A university's short name as it may be stored: text, or nothing.
+   Five rows reached the public pages reading "undefined" — a programme
+   editor fell back to a field that did not exist and String(undefined) was
+   written as if somebody had typed it. The words JavaScript prints for
+   "nothing" are never a short name, so they are blank here, at the one
+   place the column is written. */
+const cleanShortName = v => {
+  if (v == null) return '';
+  const s = String(v).trim();
+  return /^(undefined|null|nan)$/i.test(s) ? '' : s;
+};
+
 /* A file that belongs to one APPLICATION rather than to the student — the
    screenshot of a submission, the decision letter that came back. The shape is
    owned by server/docs.js (`app:<progId>:proof` / `:decision`); matched here on
@@ -425,6 +437,13 @@ function sqliteDriver(file) {
    /* Round 30 Sep (issue 4, DPDP): proof of consent — when, and to what words. */
    "ALTER TABLE enquiries ADD COLUMN consent_at TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE enquiries ADD COLUMN consent_wording TEXT NOT NULL DEFAULT ''",
+   /* 2 Oct: HOW MANY TIMES THIS PERSON HAS COME BACK.
+      One phone number had eight open leads, one per form it filled in. A
+      second enquiry from a number or an email that already has an open lead
+      is now filed on that lead as a note (fileEnquiry), and this counts
+      them, so the Leads screen can say "returning" instead of listing the
+      same student eight times. Zero for a lead that has enquired once. */
+   "ALTER TABLE enquiries ADD COLUMN returns INTEGER NOT NULL DEFAULT 0",
    /* Who put this university on the list.
     *
     * One list conflated two different things: what the student liked the look
@@ -884,7 +903,7 @@ function open(dir) {
     if (db.kind !== 'sqlite') return;
     try {
       db.run('INSERT INTO prog_fts (rowid, id, university, short_name, city, program, field) VALUES ((SELECT rowid FROM programmes WHERE id = ?), ?, ?, ?, ?, ?, ?)',
-        String(p.id), String(p.id), String(p.university || ''), String(p.shortName == null ? '' : p.shortName), String(p.city || ''),
+        String(p.id), String(p.id), String(p.university || ''), cleanShortName(p.shortName), String(p.city || ''),
         String(p.program || ''), String(p.field || ''));
     } catch (e) { /* the index is a convenience; the table is the truth */ }
   };
@@ -907,6 +926,22 @@ function open(dir) {
      and the index rebuilt when it does not match the table. Both are a
      one-off on an old database and nothing on a new one. */
   if (db.kind === 'sqlite') {
+    /* 2 Oct: the five rows whose short name read "undefined" on the public
+       pages. Blanked, and their index rows rewritten, before the count check
+       below so a rebuild (if one happens) already sees the blank. Idempotent:
+       nothing matches on the second start. */
+    try {
+      const bad = db.all("SELECT id, university, city, program, field FROM programmes WHERE short_name IN ('undefined', 'null', 'NaN', 'Undefined', 'NULL')");
+      if (bad.length) {
+        db.run('BEGIN');
+        bad.forEach(r => {
+          db.run("UPDATE programmes SET short_name = '' WHERE id = ?", r.id);
+          ftsDrop(r.id);
+          ftsPut({ id: r.id, university: r.university, shortName: '', city: r.city, program: r.program, field: r.field });
+        });
+        db.run('COMMIT');
+      }
+    } catch (e) { try { db.run('ROLLBACK'); } catch (e2) {} }
     try {
       const missing = db.all("SELECT id, university FROM programmes WHERE uni_slug = ''");
       if (missing.length) {
@@ -1838,7 +1873,7 @@ function open(dir) {
          feature_sort, fee_model, german_gpa, search_only, uni_slug, reqs, updated_at, updated_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university,
-        String(p.shortName == null ? '' : p.shortName).trim().slice(0, 40),
+        cleanShortName(p.shortName).slice(0, 40),
         p.city || '', p.country,
         p.level || '', p.field || '', p.band || '', p.isPublic ? 1 : 0,
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
@@ -2293,6 +2328,59 @@ function open(dir) {
         e.studentId == null ? null : Number(e.studentId), t, t,
         e.consentAt || '', String(e.consentWording || '').slice(0, 400));
       return db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)[0] || null;
+    },
+    /* THE SAME PERSON, AGAIN (2 Oct).
+     *
+     * Every form on the site filed a new lead, so a student who pressed Apply
+     * on three universities and then filled in the contact form was four rows
+     * on the Leads screen — one phone number had eight. The office cannot
+     * tell a returning student from eight strangers, and three counsellors
+     * can end up calling one person.
+     *
+     * A public enquiry is matched against the OPEN leads (not converted, not
+     * lost) by phone — digits only, last ten, so "+91 98765 43210" and
+     * "9876543210" are the same number — or by email, lowercased. A match is
+     * filed as a note on that lead (what was said, where it came from, when),
+     * the lead's updated time moves, and `returns` counts the visit so the
+     * list can badge it "returning". A converted or lost lead is finished
+     * business: a new enquiry from that person is a new lead, as before.
+     *
+     * Only the public forms come through here. A lead a counsellor adds by
+     * hand (POST /api/staff/leads) still goes through addEnquiry: they know
+     * who they are writing down.
+     *
+     * Returns the row the enquiry now lives on, with `attached: true` when it
+     * was filed on an existing lead. */
+    fileEnquiry(e) {
+      const digits = String(e.phone || '').replace(/\D/g, '').slice(-10);
+      const email = String(e.email || '').trim().toLowerCase();
+      let open = null;
+      if (digits.length === 10 || email) {
+        const w = []; const a = [];
+        if (digits.length === 10) { w.push('phone LIKE ?'); a.push('%' + digits); }
+        if (email) { w.push('LOWER(email) = ?'); a.push(email); }
+        const rows = db.all("SELECT * FROM enquiries WHERE status NOT IN ('converted', 'lost') AND ("
+          + w.join(' OR ') + ') ORDER BY id desc', ...a);
+        /* LIKE '%digits' can match a longer number ending the same way;
+           the last-ten comparison is made again here, exactly. */
+        open = rows.find(r => (digits.length === 10 && String(r.phone || '').replace(/\D/g, '').slice(-10) === digits)
+          || (email && String(r.email || '').trim().toLowerCase() === email)) || null;
+      }
+      if (!open) return Object.assign(this.addEnquiry(e) || {}, { attached: false });
+      const t = now();
+      const where = [e.source || 'website', e.campaign ? 'campaign ' + e.campaign : '', e.sourcePage ? 'on ' + e.sourcePage : '']
+        .filter(Boolean).join(', ');
+      const body = ['Enquired again via ' + where + ' at ' + t.slice(0, 16).replace('T', ' ') + ' UTC',
+        e.destination ? 'Destination: ' + e.destination : '',
+        e.note ? String(e.note).slice(0, 1800) : '']
+        .filter(Boolean).join('\n');
+      this.addLeadNote(open.id, 'website', 'enquiry', body);
+      /* A destination they now name on a lead that had none is worth keeping;
+         the one the counsellor already has is not overwritten. */
+      db.run(`UPDATE enquiries SET returns = returns + 1, updated_at = ?,
+                destination = CASE WHEN COALESCE(destination, '') = '' THEN ? ELSE destination END
+              WHERE id = ?`, t, String(e.destination || ''), Number(open.id));
+      return Object.assign(db.one('SELECT * FROM enquiries WHERE id = ?', Number(open.id)) || open, { attached: true });
     },
     allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
     enquiryById: id => db.one('SELECT * FROM enquiries WHERE id = ?', Number(id)),

@@ -1593,7 +1593,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       source: from.source, campaign: from.campaign,
       sourcePage: b.sourcePage || '/', referrer: b.referrer || '',
     };
-    db.addEnquiry(record);
+    /* Filed on this person's open lead if they have one (2 Oct). */
+    db.fileEnquiry(record);
     mail.send(Object.assign({ to: mail.office, replyTo: email },
       EMAILS.enquiryToOffice(record))).catch(() => {});
     mail.send(Object.assign({ to: email },
@@ -2637,7 +2638,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       source: from.source, campaign: from.campaign,
       sourcePage: b.sourcePage, referrer: b.referrer,
     };
-    db.addEnquiry(record);
+    /* 2 Oct: a second enquiry from a number or email that already has an
+       open lead is filed on that lead as a note, not as a ninth row. The
+       response is the same either way — the form does not need to know. */
+    db.fileEnquiry(record);
 
     /* Two messages: the office gets the lead, the enquirer gets an
        acknowledgement. A form that goes quiet is a lead that calls a competitor
@@ -2805,7 +2809,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        nobody has to remember to look in two places for the same person. */
     try {
       const from = sourceOf(req, { consent: 'chat', referrer: b.referrer });
-      db.addEnquiry({
+      db.fileEnquiry({
         name, phone: phone ? '+91' + phone : '', email: isEmail ? contact.toLowerCase() : '',
         destination: '', consent: 'chat', sourcePage: String(b.page || '').slice(0, 200),
         source: from.source, campaign: from.campaign,
@@ -3498,7 +3502,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return {
       id: st.id, name: st.name, email: st.email, phone: st.phone,
       added: st.created_at,
-      status: st.status || 'active',
+      /* Patch 157: a file the partner closed reads 'closed' here, not the
+         account's 'active' — the two were disagreeing in the same payload. */
+      status: Number(st.partner_closed) ? 'closed' : (st.status || 'active'),
       /* The name only. A partner knowing their file is with somebody is the
          point; a phone number for that person is how the office stops being
          the single door it was asked to be. */
@@ -6534,6 +6540,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       studentId: e.student_id || null,
       nextAt: e.next_at || '',
       followUps: c.n, lastTouch: c.last, lastBy: c.lastWho,
+      /* 2 Oct: how many times this person has come back through a public
+         form since the lead was opened — each one is a note of kind
+         'enquiry' on the thread, so it is also in followUps / lastTouch. */
+      returning: Number(e.returns || 0) > 0, returns: Number(e.returns || 0),
       page: e.source_page || '', referrer: e.referrer || '',
       at: e.created_at, updatedAt: e.updated_at || e.created_at,
     };
@@ -7001,7 +7011,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
         germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
         reqs: REQS.parse(r.reqs),
-        shortName: r.short_name || '',
+        shortName: shortNameOf(r.short_name),
         totalInr: r.total_inr, url: r.url,
       feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
         active: !!r.active, searchOnly: !!r.search_only,
@@ -7051,6 +7061,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   };
   const normBand = v => BANDS[String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '')] || '';
 
+  /* A short name is text or it is nothing. `String(undefined)` is the word
+     "undefined", and five rows reached the public pages with that as the
+     university's name (2 Oct). Every write of shortName in this file goes
+     through here, and so does every read that puts one on a page. */
+  const shortNameOf = v => {
+    if (v == null) return '';
+    const s = String(v).trim();
+    return /^(undefined|null|nan)$/i.test(s) ? '' : s;
+  };
+
   function cleanProgramme(b, existing) {
     const t = (k, max) => String(b[k] == null ? (existing ? existing[k] : '') : b[k]).trim().slice(0, max);
     const country = String(b.country || '').toUpperCase().slice(0, 2);
@@ -7076,7 +7096,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        * derived one cannot be corrected by the office. So it is a column, it
        * is blank for everything outside Germany, and blank means "use the full
        * name" rather than "guess". */
-      shortName: t('shortName', FIELD_LIMITS.shortName),
+      /* The row from the database calls this column short_name, so the
+         generic fallback above read existing.shortName — undefined — and
+         String() made it the word. This is where "undefined" came from. */
+      shortName: shortNameOf(b.shortName == null ? (existing ? existing.short_name : '') : b.shortName)
+        .slice(0, FIELD_LIMITS.shortName),
       city: t('city', FIELD_LIMITS.city),
       country,
       level: normLevel(b.level),
@@ -7176,7 +7200,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         isPublic: !!r.is_public, fit: r.fit, minCgpa: r.min_cgpa,
         germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),
         reqs: REQS.parse(r.reqs),
-        shortName: r.short_name || '',
+        shortName: shortNameOf(r.short_name),
         totalInr: r.total_inr, url: r.url || '',
         feeModel: r.fee_model || (r.is_public ? 'package' : 'free'),
         active: !!r.active, searchOnly: !!r.search_only,
@@ -7237,7 +7261,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const universities = unis
       .filter(u => hits(norm(u.name + ' ' + u.shortName + ' ' + u.city + ' ' + ((cm[u.country] || {}).name || ''))))
       .slice(0, 8)
-      .map(u => ({ name: u.name, shortName: u.shortName, slug: u.slug, city: u.city,
+      .map(u => ({ name: u.name, shortName: shortNameOf(u.shortName), slug: u.slug, city: u.city,
         country: u.country, countryName: (cm[u.country] || {}).name || u.country,
         programmes: (typeof db.rowsForUniversity === 'function' ? db.rowsForUniversity(u.slug).length : u.programmes.length),
         url: '/university/' + u.slug }));
@@ -7315,7 +7339,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (hidden(f.slug)) continue;
       const u = UNIS.group(f.rows.map(UNIS.fromRow))[0];
       if (!u) continue;
-      out.push({ slug: u.slug, name: u.shortName || u.name, city: u.city, isPublic: u.isPublic,
+      out.push({ slug: u.slug, name: shortNameOf(u.shortName) || u.name, city: u.city, isPublic: u.isPublic,
         feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
         featured: u.programmes.some(p => p.featured), programmes: u.programmes.length, matching: f.matching,
         url: '/university/' + u.slug });
@@ -7342,7 +7366,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const x = UNIS.cleanExtras(db.content('university:' + u.slug));
         const meta = db.contentMeta('university:' + u.slug);
         return {
-          slug: u.slug, name: u.name, shortName: u.shortName || '', city: u.city || '', country: u.country,
+          slug: u.slug, name: u.name, shortName: shortNameOf(u.shortName), city: u.city || '', country: u.country,
           isPublic: !!u.isPublic, feeModel: u.feeModel || (u.isPublic ? 'package' : 'free'),
           programmes: u.n, listed: !!u.listed,
           url: '/university/' + u.slug,
@@ -7464,7 +7488,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
         germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
         reqs: REQS.parse(p.reqs),
-        shortName: p.short_name || '',
+        shortName: shortNameOf(p.short_name),
         totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         intakes: (() => { try { return JSON.parse(p.intakes); } catch (e) { return []; } })(),
@@ -7586,7 +7610,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         isPublic: !!p.is_public, fit: p.fit, minCgpa: p.min_cgpa,
         germanGpa: p.german_gpa == null ? null : Number(p.german_gpa),
         reqs: REQS.parse(p.reqs),
-        shortName: p.short_name || '',
+        shortName: shortNameOf(p.short_name),
         totalInr: p.total_inr, url: p.url,
         feeModel: p.fee_model || (p.is_public ? 'package' : 'free'),
         featured: !!p.featured, featureSort: p.feature_sort || 0,
@@ -7751,7 +7775,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return [
       /* In the same position as its header — a row whose cells are one column
          out of step is a row that silently rewrites the wrong fields. */
-      r.id, r.program, r.university, r.short_name || '', r.city || '', r.country,
+      r.id, r.program, r.university, shortNameOf(r.short_name), r.city || '', r.country,
       r.level || '', r.field || '',
       r.is_public ? 'yes' : 'no',
       r.fee_model === 'free' ? 'Free' : 'Package',
@@ -8318,7 +8342,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            from this list makes every one of those rows read "already right",
            the apply pass skips them, the office is told nothing needed doing,
            and the whole upload is thrown away without a word. */
-        shortName: String(existing.short_name || ''),
+        shortName: shortNameOf(existing.short_name),
         intakes: asIntakes(oldIntakes),
         /* And the requirements, for the fifth time, for the same reason —
            and this one is the biggest: the first upload of these nine
@@ -8337,7 +8361,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         minCgpa: bar(clean.minCgpa), fit: Number(clean.fit || 0),
         feeModel: clean.feeModel,
         germanGpa: bar(clean.germanGpa),
-        shortName: String(clean.shortName || ''),
+        shortName: shortNameOf(clean.shortName),
         intakes: asIntakes(clean.intakes),
         reqs: clean.reqs === undefined ? '' : JSON.stringify(REQS.clean(clean.reqs).reqs),
       };
