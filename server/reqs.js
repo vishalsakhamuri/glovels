@@ -337,7 +337,11 @@ function check(reqs, student) {
     else if (haveL < want) fails.push({ key: 'germanLevel', label: 'German', want: r.germanLevel, have: CEFR[haveL] });
   }
   if (num(r.bachelorYears) != null) {
-    const have = num(s.bachelorYears);
+    /* Patch 156: the credit count stands in for the length when the years
+       were not given — 240 ECTS is a four-year degree, 180 a three-year one.
+       Most rows know only the years, so the ECTS answer has to reach them. */
+    let have = num(s.bachelorYears);
+    if (have == null && num(s.ects) != null) have = num(s.ects) >= 240 ? 4 : 3;
     if (have == null) unknown.push('bachelorYears');
     else if (have < num(r.bachelorYears)) fails.push({ key: 'bachelorYears', label: "Bachelor's length",
       want: r.bachelorYears + ' years', have: have + ' years' });

@@ -1317,19 +1317,19 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     </div>
     <div class="fmore-bar"><button type="button" class="fmore-btn" id="fMoreBtn" aria-expanded="false" aria-controls="fMore"><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg> More filters <span class="fmore-n" id="fMoreN" hidden></span></button><span class="fmore-hint" id="fMoreHint">GRE, German level, your bachelor&rsquo;s, tuition, publications, class rank, admission type</span></div>
     <div class="fgrid fmore" id="fMore" hidden>
-      <div class="field" id="fGreWrap"><label for="fGre"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE</label><select id="fGre"><option value="">Not told us yet</option><option value="none">Not taken</option><option value="290">Under 300</option><option value="300">300 &ndash; 309</option><option value="310">310 &ndash; 319</option><option value="320">320 or more</option></select></div>
+      <!-- Patch 156. The GRE is a yes/no question first; the score boxes —
+           total, Quant, Verbal, AWA — open on "Yes". -->
+      <div class="field" id="fGreWrap"><label for="fGre"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> Taken the GRE?</label><select id="fGre"><option value="">Not told us yet</option><option value="none">No</option><option value="yes">Yes</option></select></div>
+      <div class="field" id="fGreSWrap" hidden><label for="fGreS"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE total</label><input id="fGreS" type="number" inputmode="numeric" min="260" max="340" step="1" placeholder="260 &ndash; 340" autocomplete="off"></div>
+            <div class="field" id="fGreQWrap" hidden><label for="fGreQ"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE Quant</label><input id="fGreQ" type="number" inputmode="numeric" min="130" max="170" step="1" placeholder="130 &ndash; 170" autocomplete="off"></div>
+            <div class="field" id="fGreVWrap" hidden><label for="fGreV"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE Verbal</label><input id="fGreV" type="number" inputmode="numeric" min="130" max="170" step="1" placeholder="130 &ndash; 170" autocomplete="off"></div>
+            <div class="field" id="fGreAWrap" hidden><label for="fGreA"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE AWA</label><input id="fGreA" type="number" inputmode="decimal" min="0" max="6" step="0.5" placeholder="0 &ndash; 6" autocomplete="off"></div>
       <div class="field" id="fGermanWrap"><label for="fGerman"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> German language</label><select id="fGerman"><option value="">Not told us yet</option><option value="none">None yet</option><option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option></select></div>
       <div class="field" id="fBachWrap"><label for="fBach"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Your bachelor&rsquo;s</label><input id="fBach" type="text" maxlength="80" placeholder="B.Tech Computer Science" autocomplete="off"></div>
       <div class="field" id="fBachYearsWrap"><label for="fBachYears"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Bachelor&rsquo;s length</label><select id="fBachYears"><option value="">Not told us yet</option><option value="3">3 years</option><option value="4">4 years</option><option value="5">5 years</option></select></div>
+            <div class="field" id="fEctsWrap" hidden><label for="fEcts"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Bachelor&rsquo;s credits (ECTS)</label><select id="fEcts"><option value="">Not told us yet</option><option value="180">180 (3-year)</option><option value="210">210</option><option value="240">240 (4-year)</option></select></div>
       <div class="field" id="fTuitionWrap"><label for="fTuition"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Tuition per semester</label><select id="fTuition"><option value="">Any tuition</option><option value="0">No tuition fee</option><option value="500">Up to &euro;500</option><option value="1500">Up to &euro;1,500</option><option value="4000">Up to &euro;4,000</option><option value="6000">Up to &euro;6,000</option></select></div>
       <div class="field" id="fPapersWrap"><label for="fPapers"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Published a paper</label><select id="fPapers"><option value="">Not told us yet</option><option value="yes">Yes</option><option value="no">No</option></select></div>
-      <!-- Patch 153. The GRE section boxes open only once a GRE total is in
-           the box above: a section score without a total is not how anyone
-           reads their report. -->
-      <div class="field" id="fGreQWrap" hidden><label for="fGreQ"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE Quant</label><input id="fGreQ" type="number" inputmode="numeric" min="130" max="170" step="1" placeholder="130 &ndash; 170" autocomplete="off"></div>
-      <div class="field" id="fGreVWrap" hidden><label for="fGreV"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE Verbal</label><input id="fGreV" type="number" inputmode="numeric" min="130" max="170" step="1" placeholder="130 &ndash; 170" autocomplete="off"></div>
-      <div class="field" id="fGreAWrap" hidden><label for="fGreA"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> GRE AWA</label><input id="fGreA" type="number" inputmode="decimal" min="0" max="6" step="0.5" placeholder="0 &ndash; 6" autocomplete="off"></div>
-      <div class="field" id="fEctsWrap" hidden><label for="fEcts"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Bachelor&rsquo;s credits (ECTS)</label><select id="fEcts"><option value="">Not told us yet</option><option value="180">180 (3-year)</option><option value="210">210</option><option value="240">240 (4-year)</option></select></div>
       <div class="field" id="fTopWrap" hidden><label for="fTop"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Your class rank</label><select id="fTop"><option value="">Not told us yet</option><option value="5">Top 5%</option><option value="10">Top 10%</option><option value="20">Top 20%</option><option value="30">Top 30%</option><option value="50">Top 50%</option><option value="100">Below 50%</option></select></div>
       <div class="field" id="fRestrictedWrap" hidden><label for="fRestricted"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg> Admission</label><select id="fRestricted"><option value="">Show all</option><option value="open">Only open admission</option><option value="restricted">Only restricted</option></select></div>
       <div class="field" id="fFeeWrap"><label for="fFee"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg> Application</label><select id="fFee"><option value="">Any application</option><option value="free">Free to apply</option><option value="package">Comes with a package</option></select></div>
@@ -2099,7 +2099,10 @@ function myAnswers(){
   }
   const gr = v('#fGre');
   if(gr === 'none') a.gre = false;
-  else if(gr) a.gre = Number(gr);
+  /* Patch 156: "Yes" with a total is the score; "Yes" without one is
+     'taken' — a GRE-asking programme then asks for the figure rather than
+     turning them down. */
+  else if(gr === 'yes') a.gre = num(v('#fGreS')) != null ? num(v('#fGreS')) : (num(PROFILE.a_score) != null && /^gre$/i.test(String(PROFILE.a_test || '')) ? num(PROFILE.a_score) : 'taken');
   else {
     [['a_test','a_score'],['a2_test','a2_score']].forEach(([tk, sk]) => {
       const t = String(PROFILE[tk] || ''), s = parseFloat(PROFILE[sk]);
@@ -2123,8 +2126,8 @@ function myAnswers(){
      server/reqs.js derives it — 3 years is 180, 4 or more is 240. A
      student who knows their credit count overrides the rule of thumb. */
   const ec = num(v('#fEcts'));
-  if(ec != null) a.ects = ec;
-  else if(num(PROFILE.d_ects) != null) a.ects = num(PROFILE.d_ects);
+  if(ec != null){ a.ects = ec; a.ectsStated = ec; }
+  else if(num(PROFILE.d_ects) != null){ a.ects = num(PROFILE.d_ects); a.ectsStated = a.ects; }
   else if(a.bachelorYears != null) a.ects = a.bachelorYears >= 4 ? 240 : 180;
   /* Class standing (patch 153): 10 means "top 10%". */
   const tp = num(v('#fTop'));
@@ -2224,7 +2227,11 @@ function verdict(reqs, s){
     else if(have < want) fails.push({ key:'germanLevel', want:'German ' + r.germanLevel, have: have === 0 ? 'no German yet' : 'German ' + CEFR[have] });
   }
   if(num(r.bachelorYears) != null){
-    const have = num(s.bachelorYears);
+    /* Patch 156: a stated credit count stands in for the length — 240 is a
+       four-year degree, 180 a three-year one — so the ECTS box screens
+       against the 1,500 rows that only know the years. */
+    let have = num(s.bachelorYears);
+    if(have == null && num(s.ectsStated) != null) have = num(s.ectsStated) >= 240 ? 4 : 3;
     if(have == null) unknown.push('bachelorYears');
     else if(have < num(r.bachelorYears)) fails.push({ key:'bachelorYears', want: r.bachelorYears + '-year bachelor\u2019s', have: have + '-year' });
   }
@@ -2332,8 +2339,8 @@ function showRelevant(){
   /* The three section boxes still wait for a GRE total: they are a detail of
      that answer, not a question of their own — the counsellor's panel does
      the same. */
-  const greScore = $('#fGre') && num($('#fGre').value) != null;
-  show('#fGreQWrap', greScore); show('#fGreVWrap', greScore); show('#fGreAWrap', greScore);
+  const greScore = $('#fGre') && $('#fGre').value === 'yes';
+  show('#fGreSWrap', greScore); show('#fGreQWrap', greScore); show('#fGreVWrap', greScore); show('#fGreAWrap', greScore);
   /* Specialisations, from the rows in view. The box waits for its data: a
      select with one option is not a filter. */
   const specs = [...new Set(view.map(p => String(reqsOf(p).specialisation || '').trim()).filter(Boolean))].sort();
@@ -2345,7 +2352,7 @@ function showRelevant(){
   }
   show('#fSpecWrap', specs.length > 1);
   const bar = $('.fmore-bar'); if(bar) bar.hidden = false;
-  const set = ['#fGre','#fGerman','#fBach','#fBachYears','#fTuition','#fPapers','#fGreQ','#fGreV','#fGreA','#fEcts','#fTop','#fRestricted','#fFee'].filter(id => $(id) && boxOn($(id)) && String($(id).value || '').trim()).length;
+  const set = ['#fGre','#fGerman','#fBach','#fBachYears','#fTuition','#fPapers','#fGreS','#fGreQ','#fGreV','#fGreA','#fEcts','#fTop','#fRestricted','#fFee'].filter(id => $(id) && boxOn($(id)) && String($(id).value || '').trim()).length;
   const n = $('#fMoreN'); if(n){ n.textContent = set; n.hidden = !set; }
 }
 
@@ -2888,7 +2895,7 @@ function unnumber(){
 function criteria(){
   const bits = [];
   [['Destination','#fCountry'],['Level','#fLevel'],['Field','#fField'],['Specialisation','#fSpec'],
-   ['CGPA','#fCgpa'],['Intake','#fIntake'],['English','#fEnglish'],['Work','#fWork'],['GRE','#fGre'],
+   ['CGPA','#fCgpa'],['Intake','#fIntake'],['English','#fEnglish'],['Work','#fWork'],['GRE','#fGre'],['GRE total','#fGreS'],
    ['German','#fGerman'],['Bachelor\u2019s','#fBachYears'],['Tuition','#fTuition'],['Paper','#fPapers'],
    ['GRE Quant','#fGreQ'],['GRE Verbal','#fGreV'],['GRE AWA','#fGreA'],['ECTS','#fEcts'],['Class rank','#fTop'],
    ['Admission','#fRestricted'],['Application','#fFee']].forEach(([lbl,s])=>{
@@ -3144,7 +3151,7 @@ async function asSend(e) {
   const pick = id => { const el = $(id); return el && boxOn(el) ? String(el.value || '').trim() : ''; };
   const filters = { summary: criteriaText() };
   [['country','#fCountry'],['level','#fLevel'],['field','#fField'],['specialisation','#fSpec'],['cgpa','#fCgpa'],
-   ['germanGrade','#fGgpa'],['intake','#fIntake'],['english','#fEnglish'],['work','#fWork'],['gre','#fGre'],
+   ['germanGrade','#fGgpa'],['intake','#fIntake'],['english','#fEnglish'],['work','#fWork'],['gre','#fGre'],['greScore','#fGreS'],
    ['greQuant','#fGreQ'],['greVerbal','#fGreV'],['greAwa','#fGreA'],['german','#fGerman'],['bachelor','#fBach'],
    ['bachelorYears','#fBachYears'],['ects','#fEcts'],['topPercent','#fTop'],['tuition','#fTuition'],['papers','#fPapers'],
    ['restricted','#fRestricted'],['feeModel','#fFee']].forEach(([k, id]) => { const v = pick(id); if (v) filters[k] = v; });
@@ -3248,7 +3255,7 @@ $('#fGo').onclick = () => { touched = true; render();
 ['#fCountry','#fLevel','#fField','#fCgpa','#fIntake','#fSpec','#fEnglish','#fWork','#fGre','#fGerman','#fBachYears','#fTuition','#fPapers',
  '#fEcts','#fTop','#fRestricted','#fFee'].forEach(s =>
   $(s) && $(s).addEventListener('change', () => { showRelevant(); if(touched) render(); }));
-['#fBach','#fGreQ','#fGreV','#fGreA'].forEach(s => $(s) && $(s).addEventListener('change', () => { showRelevant(); if(touched) render(); }));
+['#fBach','#fGreS','#fGreQ','#fGreV','#fGreA'].forEach(s => $(s) && $(s).addEventListener('change', () => { showRelevant(); if(touched) render(); }));
 /* The destination changes which questions apply, before anybody presses Find. */
 ['#fCountry','#fLevel','#fField'].forEach(s => $(s) && $(s).addEventListener('change', showRelevant));
 $('#fMoreBtn') && ($('#fMoreBtn').onclick = () => {

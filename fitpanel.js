@@ -178,7 +178,7 @@
     /* The GRE section row has nothing to say until there is a GRE score. */
     const greSections = () => {
       const w = el.querySelector('#gfGreSecWrap');
-      if (w) w.hidden = !(v('gfGre') === 'GRE' && v('gfGreS').trim() !== '');
+      if (w) w.hidden = v('gfGre') !== 'GRE';   /* patch 156: open on "Taken" */
     };
     el.addEventListener('input', e => { if (e.target.closest('#gfGre, #gfGreS')) greSections(); });
     el.addEventListener('change', e => { if (e.target.closest('#gfGre, #gfGreS')) greSections(); });
