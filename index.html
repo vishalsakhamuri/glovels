@@ -2642,8 +2642,9 @@ function rebuildIntakes(){
     .filter(x => x.count);
   const label = x => (x.n === 0 ? 'This semester \u2014 ' : x.n === 1 ? 'Next semester \u2014 ' : '')
     + SEASON(x.t.season) + ' ' + x.t.year
-    + ' (starts ' + x.t.start.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) + ')'
-    + ' \u00b7 ' + x.count + ' open';
+    + ' (starts ' + x.t.start.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) + ')';
+    /* Patch 155: no count on the option. "1394 open" beside an intake was a
+       catalogue figure, not a promise to the visitor, and it read as one. */
   sel.innerHTML = '<option value="">Any intake</option>'
     + rows.map(x => '<option value="' + esc(x.t.key) + '">' + esc(label(x)) + '</option>').join('');
   sel.value = [...sel.options].some(o => o.value === keep) ? keep : '';
@@ -3037,6 +3038,26 @@ function render(){
    site publishes. Shown in place of the results whenever the filters leave
    nothing, and gone the moment they leave something — it lives inside
    #rowsIn, which render() rewrites every time. */
+/* Patch 155. How strong is what they have told us? Grade first — a CGPA of
+   8 on ten, or a German 2.0, is the line most public universities draw —
+   then an English score and a GRE lift a borderline profile over it. Nothing
+   said about any of these is 'unknown', not 'weak': the page never calls a
+   visitor weak on the strength of an empty box. */
+function profileTier(){
+  const a = myAnswers();
+  const cg = cgpaOf() !== null ? cgpaOf() : cgpaForBar();
+  const gg = MYGERMAN;
+  let grade = null;
+  if (gg != null) grade = gg <= 2.0 ? 2 : gg <= 2.7 ? 1 : 0;
+  else if (cg != null) grade = cg >= 8 ? 2 : cg >= 7 ? 1 : 0;
+  const en = (a.ielts != null && a.ielts >= 6.5) || (a.toefl != null && a.toefl >= 90) || a.moi === true;
+  const gre = typeof a.gre === 'number' && a.gre >= 310;
+  const work = Number(a.workExpMonths) >= 12;
+  if (grade === null && !en && !gre && !work) return 'unknown';
+  const pts = (grade || 0) + (en ? 1 : 0) + (gre ? 1 : 0) + (work ? 0.5 : 0);
+  return pts >= 3 ? 'strong' : 'fair';
+}
+
 function assistForm() {
   const said = criteriaText();
   const v = id => { const el = $(id); return el ? String(el.value || '').trim() : ''; };
@@ -3047,8 +3068,23 @@ function assistForm() {
     intake: txt('#fIntake') || PROFILE.g_intake || '',
     budget: PROFILE.b_total || ''
   };
-  return '<div class="empty nomatch" id="rAssist"><b>Your profile needs special assistance</b>'
-    + 'No programme matched these filters. Leave your details and our experts will review your data and call you back.'
+  /* Patch 155. Three openings, by what they have told us. A list that came
+     up empty is not a verdict on the student — it is the limit of what the
+     online catalogue can match on its own — and the line has to say so in a
+     way that makes the next step feel worth taking. A strong profile is told
+     it deserves a person; an ordinary one is told what a person adds; a
+     visitor who has told us nothing is simply invited. */
+  const tier = profileTier();
+  const opening = tier === 'strong'
+    ? ['Your profile looks strong — it deserves personal attention',
+       'The right programmes for a profile like yours are not always on an online list. Our experts know which universities to approach, and will review your data and call you back with hand-picked options.']
+    : tier === 'fair'
+    ? ['Your profile is promising — a little more work opens better universities',
+       'Nothing in the online list fits exactly yet, but that is where our experts come in: they will review your data, see what strengthens your case, and call you back with universities that are within reach.']
+    : ['Let our experts find the right universities for you',
+       'The online list could not match these filters on its own. Tell us a little about yourself and our experts will review your data and call you back with universities that fit.'];
+  return '<div class="empty nomatch" id="rAssist"><b>' + opening[0] + '</b>'
+    + opening[1]
     /* THEY HAVE ALREADY TOLD US WHAT THEY WANT.
        It is on the screen in the filters they just set, so the form does not ask
        again: it shows what is being sent and takes the two things we do not
@@ -3143,7 +3179,7 @@ async function asSend(e) {
   if (window.glvTrack) glvTrack('generate_lead', { form: 'assist' });
   const box = $('#rAssist');
   if (box) {
-    box.innerHTML = '<b>Thank you — our experts will review your data and call you back.</b>'
+    box.innerHTML = '<b>Thank you — our experts will review your data and call you back with universities that fit.</b>'
       + 'On ' + esc(phone) + ', with what is open for your profile. Usually the same day, '
       + 'and always within one working day.';
   }
