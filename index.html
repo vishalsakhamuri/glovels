@@ -4142,6 +4142,12 @@ render();
       return;
     }
 
+    /* Patch 157: a row with no level or no field is half an import, not a
+       programme — defaulted to 'master' / 'Other' it matched every search
+       and, marked public with no price, told Canada "none of them charges
+       tuition". It stays in the admin catalogue to be finished. */
+    if (!p.level || !p.field) return;
+
     const row = {
       id: p.id, country: p.country, level: p.level || 'master',
       fieldGroup: p.field || 'Other', field: p.field || 'Other',
@@ -4258,11 +4264,6 @@ render();
   const off = new Set((data.inactive || []).map(String));
   const before = D.programs.length;
   if (off.size) D.programs = D.programs.filter(p => !off.has(String(p.id)));
-  /* Patch 157: a row with no level or no field is half an import, not a
-     programme — it matched every search (nothing to fail on) and, marked
-     public with no price, told Canada "none of them charges tuition". It
-     stays in the admin catalogue to be finished; it is not offered here. */
-  D.programs = D.programs.filter(p => p.level && p.field);
   const removed = before - D.programs.length;
 
   if (added || removed || touchedCountries || urls || bars) {
