@@ -208,13 +208,13 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .hero h1{font-size:clamp(28px,4vw,46px);line-height:1.06;color:#fff}
 .hero h1 em{font-style:italic;color:var(--gold-soft)}
 .hero-sub{display:inline-block;max-width:760px;margin:12px 0 0;color:#c8d6e4;font-size:15.5px;vertical-align:middle}
-.avatars{display:flex}
-.avatars span{width:28px;height:28px;border-radius:50%;border:2px solid var(--navy-800);
-  margin-left:-9px;display:grid;place-items:center;font:700 10.5px/1 var(--sans);color:#fff}
-.avatars span:first-child{margin-left:0}
-.hero-rate{display:inline-flex;align-items:center;justify-content:center;gap:11px;margin:12px 0 0 14px;
-  flex-wrap:wrap;color:#dbe5ef;font-size:13px;vertical-align:middle}
-@media (max-width:820px){.hero-rate{display:flex;margin:14px 0 0}.hero-sub{display:block;margin:12px auto 0}}
+.hero-rate{display:flex;align-items:center;justify-content:center;gap:10px;margin:16px auto 0;
+  flex-wrap:wrap;color:#fff;font-size:13px}
+.hero-rate .hchip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;
+  background:transparent;border:1px solid rgba(255,255,255,.28);color:#fff;font:600 13px/1.2 var(--sans);white-space:nowrap}
+.hero-rate .hchip b{color:var(--gold-soft);font-weight:800}
+@media (max-width:820px){.hero-rate{margin:14px 0 0}.hero-sub{display:block;margin:12px auto 0}}
+@media (max-width:480px){.hero-rate .hchip{white-space:normal;text-align:left}}
 .stars{color:var(--gold);letter-spacing:1px}
 .journey{max-width:1000px;margin:22px auto 0;padding:0 var(--wrap);position:relative;z-index:2}
 .jhead{font:800 10.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;
@@ -536,6 +536,14 @@ section[id]{scroll-margin-top:92px}
 .demo-note .ico{font-size:16px;flex:none;margin-top:1px}
 .rmore{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px}
 .rmore .hint{font-size:12.4px;color:var(--muted)}
+.rmore .rmore-find{margin-left:auto;font-size:15px;padding:13px 26px;background:var(--green);
+  border-color:var(--green);color:#fff;box-shadow:0 10px 24px rgba(31,122,77,.28)}
+.rmore .rmore-find:hover{background:var(--green-deep);border-color:var(--green-deep)}
+.rmore-note{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45}
+@media (max-width:640px){
+  .rmore .rmore-find{order:-1;width:100%;margin-left:0}
+  .rmore .hint{width:100%}
+}
 .rfoot{margin-top:14px;padding-top:13px;border-top:1px dashed var(--line);font-size:12.8px;
   color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 /* A search that found nothing, turned into an enquiry. Wider padding than the
@@ -1073,6 +1081,7 @@ nav.menu>a:hover::after{right:0}
 .mega a{display:block;padding:9px 12px;border-radius:9px;font-size:13.4px;color:var(--navy-800);
   font-weight:500}
 .mega a:hover{background:var(--cream);color:var(--blue-deep)}
+.mega .mega-lbl,.mm-sub .mega-lbl{display:block;margin:8px 0 2px;padding-top:8px;border-top:1px solid var(--line);font:700 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .nav-cta{display:flex;align-items:center;gap:10px}
 .signin{font:700 13.6px/1 var(--sans);color:var(--navy-800);border:1px solid rgba(13,35,56,.4);
   background:var(--paper);padding:11px 17px;border-radius:var(--r-pill)}
@@ -1268,7 +1277,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 <header class="site" id="top">
   <div class="nav">
     <a class="logo" href="#top" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a>
-    <nav class="menu" aria-label="Main"><a href="about-us.html">About Us</a><div class="nav-drop"><button class="ndt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a><a href="study-in-usa.html">Study in United States</a><a href="study-in-australia.html">Study in Australia</a><a href="study-in-france.html">Study in France</a><a href="study-in-czechrepublic.html">Study in Czech Republic</a><a href="study-in-finland.html">Study in Finland</a><a href="study-in-singapore.html">Study in Singapore</a><a href="study-in-japan.html">Study in Japan</a><a href="study-in-new-zealand.html">Study in New Zealand</a></div></div><div class="nav-drop"><button class="ndt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="nav-drop"><button class="ndt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a><a href="visa-processing.html">Visa processing</a></div></div><div class="nav-drop"><button class="ndt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a></nav>
+    <nav class="menu" aria-label="Main"><a href="/find-university">Find University</a><a href="about-us.html">About Us</a><div class="nav-drop"><button class="ndt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a><a href="study-in-usa.html">Study in United States</a><a href="study-in-australia.html">Study in Australia</a><a href="study-in-france.html">Study in France</a><a href="study-in-czechrepublic.html">Study in Czech Republic</a><a href="study-in-finland.html">Study in Finland</a><a href="study-in-singapore.html">Study in Singapore</a><a href="study-in-japan.html">Study in Japan</a><a href="study-in-new-zealand.html">Study in New Zealand</a></div></div><div class="nav-drop"><button class="ndt">Work &amp; Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a><span class="mega-lbl">Migrate</span><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a><a href="visa-processing.html">Visa processing</a></div></div><div class="nav-drop"><button class="ndt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mega"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a></nav>
     <div class="nav-cta">
       <a class="signin" href="login.html">Sign in</a>
       <a class="btn btn-green" href="#counsel">Book Free Counselling</a>
@@ -1281,7 +1290,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 <aside class="mobile-menu" id="mm" aria-label="Menu">
   <div class="mm-top"><a class="logo" href="#top" aria-label="Glovels — home"><span class="logo-img" role="img" aria-label="Glovels"></span></a>
     <button class="sheet-close" id="mmClose" aria-label="Close menu"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button></div>
-  <a href="about-us.html">About Us</a><div class="mm-item"><button class="mmt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a><a href="study-in-usa.html">Study in United States</a><a href="study-in-australia.html">Study in Australia</a><a href="study-in-france.html">Study in France</a><a href="study-in-czechrepublic.html">Study in Czech Republic</a><a href="study-in-finland.html">Study in Finland</a><a href="study-in-singapore.html">Study in Singapore</a><a href="study-in-japan.html">Study in Japan</a><a href="study-in-new-zealand.html">Study in New Zealand</a></div></div><div class="mm-item"><button class="mmt">Work Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a></div></div><div class="mm-item"><button class="mmt">Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a><a href="visa-processing.html">Visa processing</a></div></div><div class="mm-item"><button class="mmt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a>
+  <a href="/find-university">Find University</a><a href="about-us.html">About Us</a><div class="mm-item"><button class="mmt">Study Abroad <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="study-in-germany.html">Study in Germany</a><a href="study-in-canada.html">Study in Canada</a><a href="study-in-united-kingdom.html">Study in United Kingdom</a><a href="study-in-ireland.html">Study in Ireland</a><a href="study-in-poland.html">Study in Poland</a><a href="study-in-spain.html">Study in Spain</a><a href="study-in-italy.html">Study in Italy</a><a href="study-in-usa.html">Study in United States</a><a href="study-in-australia.html">Study in Australia</a><a href="study-in-france.html">Study in France</a><a href="study-in-czechrepublic.html">Study in Czech Republic</a><a href="study-in-finland.html">Study in Finland</a><a href="study-in-singapore.html">Study in Singapore</a><a href="study-in-japan.html">Study in Japan</a><a href="study-in-new-zealand.html">Study in New Zealand</a></div></div><div class="mm-item"><button class="mmt">Work &amp; Migrate <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="work-medical-pg-germany.html">Medical PG in Germany</a><a href="work-nursing-germany.html">Nursing Jobs in Germany</a><a href="work-opportunity-card.html">Germany Opportunity Card</a><a href="work-pharma-germany.html">Pharma Jobs in Germany</a><span class="mega-lbl">Migrate</span><a href="migrate-canada-pr.html">Canada PR</a><a href="migrate-australia-pr.html">Australia PR</a><a href="visa-processing.html">Visa processing</a></div></div><div class="mm-item"><button class="mmt">Test Prep <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></button><div class="mm-sub"><a href="test-ielts-toefl-pte.html">IELTS, TOEFL &amp; PTE</a><a href="test-gre-gmat-sat.html">GRE, GMAT &amp; SAT</a><a href="language-german.html">German classes</a><a href="language-french.html">French classes</a></div></div><a href="index.html#services">Services</a><a href="index.html#packages">Packages</a><a href="blog.html">Blog</a><a href="contact-us.html">Contact</a>
   <a href="login.html">Sign in</a>
   <a class="btn btn-green" href="#counsel" style="margin-top:16px;color:#fff">Book Free Counselling</a>
 </aside>
@@ -1298,12 +1307,9 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <h1>Find your university <em>in seconds</em></h1>
     <p class="hero-sub">Your country, level and CGPA — instant matches, including public universities.</p>
     <div class="hero-rate">
-      <span class="avatars" aria-hidden="true">
-        <span style="background:#1c4d78">R</span><span style="background:#8a6a1f">A</span>
-        <span style="background:#1f7a4d">S</span><span style="background:#123a7b">M</span>
-      </span>
-      
-      <span>· 3,200+ students placed abroad</span>
+      <span class="hchip"><b aria-hidden="true">✓</b>Prices published upfront</span>
+      <span class="hchip"><b aria-hidden="true">✓</b>Free to apply at partner universities</span>
+      <span class="hchip"><b aria-hidden="true">✓</b>Counsellors in Hyderabad, online anywhere</span>
     </div>
   </div>
   <div class="journey"><div class="jhead">Your journey</div><div class="jrow"><div class="jstep"><div class="jdot"><svg class="ico" aria-hidden="true"><use href="#i-list"/></svg><span class="jbadge">1</span></div><div class="jlbl">Shortlist</div></div><div class="jstep"><div class="jdot"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span class="jbadge">2</span></div><div class="jlbl">Application Processing</div></div><div class="jstep"><div class="jdot"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg><span class="jbadge">3</span></div><div class="jlbl">Financial Planning</div></div><div class="jstep"><div class="jdot"><svg class="ico" aria-hidden="true"><use href="#i-stamp"/></svg><span class="jbadge">4</span></div><div class="jlbl">Visa Filing</div></div><div class="jstep fly"><div class="jflight" aria-hidden="true"><svg class="arc" viewBox="0 0 200 42" preserveAspectRatio="none"><path d="M0 38 C60 34 130 16 200 6"/></svg><svg class="jplane near" viewBox="0 0 64 64"><use href="#i-jet"/></svg><svg class="jplane far" viewBox="0 0 64 64"><use href="#i-jet"/></svg></div><div class="jdot"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span class="jbadge">5</span></div><div class="jlbl">Post-Visa Support</div></div></div></div>
@@ -1380,7 +1386,9 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <span class="hint" id="rHint"></span>
       <button class="btn btn-ghost btn-sm" data-show-packages>See our packages
         <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+      <a class="btn btn-green rmore-find" id="rFind" href="/find-university">More universities <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
     </div>
+    <p class="rmore-note">Opens Find University with your filters applied — all results, sort, compare and save.</p>
     <div class="rfoot">
       <span>Universities we are partnered with are <b>free to apply to</b> — nothing to buy first. The rest open with a package.</span>
     </div>
@@ -1505,7 +1513,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <div class="ai-step"><span>3</span><b>A human finishes it</b>
         <p>Your writer rewrites it with you — a raw AI draft costs you the application.</p></div>
     </div>
-    <div class="tabs" role="tablist"><button class="tab" data-cat="top" role="tab" aria-selected="true" style="--tabc:#8a6a1f"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span>Most Booked</span><span class="n">9</span></button><button class="tab" data-cat="consult" role="tab" aria-selected="false" style="--tabc:#123a7b"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Consultation</span><span class="n">8</span></button><button class="tab" data-cat="test" role="tab" aria-selected="false" style="--tabc:#5b3fa8"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>Test Prep</span><span class="n">6</span></button><button class="tab" data-cat="lang" role="tab" aria-selected="false" style="--tabc:#1a6a52"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>Language</span><span class="n">2</span></button><button class="tab" data-cat="post" role="tab" aria-selected="false" style="--tabc:#0e5f73"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg><span>Loan / financial services</span><span class="n">4</span></button><button class="tab" data-cat="migrate" role="tab" aria-selected="false" style="--tabc:#7a3f2b"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span>Work &amp; migrate</span><span class="n">0</span></button><button class="tab" data-cat="onshore" role="tab" aria-selected="false" style="--tabc:#2b5f3a"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>After you arrive</span><span class="n">0</span></button></div>
+    <div class="tabs" role="tablist"><button class="tab" data-cat="top" role="tab" aria-selected="true" style="--tabc:#8a6a1f"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span>Most Booked</span><span class="n">9</span></button><button class="tab" data-cat="consult" role="tab" aria-selected="false" style="--tabc:#123a7b"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Consultation</span><span class="n">8</span></button><button class="tab" data-cat="test" role="tab" aria-selected="false" style="--tabc:#5b3fa8"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>Test Prep</span><span class="n">6</span></button><button class="tab" data-cat="lang" role="tab" aria-selected="false" style="--tabc:#1a6a52"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>Language</span><span class="n">2</span></button><button class="tab" data-cat="post" role="tab" aria-selected="false" style="--tabc:#0e5f73"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg><span>Loan / financial services</span><span class="n">4</span></button><button class="tab" data-cat="migrate" role="tab" aria-selected="false" style="--tabc:#7a3f2b"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span>Work &amp; migrate</span><span class="n">0</span></button></div>
     <div class="svc-grid" id="svcGrid"></div>
     <div id="planBar">
       <div><div class="pt" id="planTotal">₹0</div>
@@ -2927,6 +2935,25 @@ function criteriaText(){
    universities with real prices and they cost nothing to show. */
 let resTab = 'pub';
 
+/* The filter boxes as the server names them. One list, read by the
+   special-assistance form and by the "More universities" link, so the two
+   can never disagree about what a filter is called. */
+const FILTER_BOXES = [['country','#fCountry'],['level','#fLevel'],['field','#fField'],['specialisation','#fSpec'],['cgpa','#fCgpa'],
+   ['germanGrade','#fGgpa'],['intake','#fIntake'],['english','#fEnglish'],['work','#fWork'],['gre','#fGre'],['greScore','#fGreS'],
+   ['greQuant','#fGreQ'],['greVerbal','#fGreV'],['greAwa','#fGreA'],['german','#fGerman'],['bachelor','#fBach'],
+   ['bachelorYears','#fBachYears'],['ects','#fEcts'],['topPercent','#fTop'],['tuition','#fTuition'],['papers','#fPapers'],
+   ['restricted','#fRestricted'],['feeModel','#fFee']];
+const pickBox = id => { const el = $(id); return el && boxOn(el) ? String(el.value || '').trim() : ''; };
+/* /find-university carrying whatever is set here, under the same key names.
+   Nothing set, plain /find-university. */
+function finderHref(){
+  const q = new URLSearchParams();
+  FILTER_BOXES.forEach(([k, id]) => { const v = pickBox(id); if (v) q.set(k, v); });
+  const qs = q.toString();
+  return '/find-university' + (qs ? '?' + qs : '');
+}
+function syncFinderLink(){ const a = $('#rFind'); if (a) a.href = finderHref(); }
+
 function render(){
   /* Here rather than once at load: the live catalogue rewrites the destination
      list when the office adds a university, and it writes the counts back in. */
@@ -3045,6 +3072,7 @@ function render(){
   $$('[data-goto-pkg]').forEach(b => b.onclick = () => showPackages());
   $$('[data-req]').forEach(b => b.onclick = () => openReq(b.dataset.req));
   $$('[data-apply]').forEach(b => b.onclick = () => applyNow(b));
+  syncFinderLink();
   requestAnimationFrame(measure);
 }
 
@@ -3157,13 +3185,9 @@ async function asSend(e) {
   const btn = $('#asGo');
   btn.disabled = true; btn.textContent = 'Sending…';
   /* The filters as the server names them, plus the summary in words. */
-  const pick = id => { const el = $(id); return el && boxOn(el) ? String(el.value || '').trim() : ''; };
+  const pick = pickBox;
   const filters = { summary: criteriaText() };
-  [['country','#fCountry'],['level','#fLevel'],['field','#fField'],['specialisation','#fSpec'],['cgpa','#fCgpa'],
-   ['germanGrade','#fGgpa'],['intake','#fIntake'],['english','#fEnglish'],['work','#fWork'],['gre','#fGre'],['greScore','#fGreS'],
-   ['greQuant','#fGreQ'],['greVerbal','#fGreV'],['greAwa','#fGreA'],['german','#fGerman'],['bachelor','#fBach'],
-   ['bachelorYears','#fBachYears'],['ects','#fEcts'],['topPercent','#fTop'],['tuition','#fTuition'],['papers','#fPapers'],
-   ['restricted','#fRestricted'],['feeModel','#fFee']].forEach(([k, id]) => { const v = pick(id); if (v) filters[k] = v; });
+  FILTER_BOXES.forEach(([k, id]) => { const v = pick(id); if (v) filters[k] = v; });
   if (bands.size) filters.bands = [...bands].join(',');
   /* Patch 154: what the finder read from their profile without a box being
      touched — bachelor's, CGPA, tests, German, work — so the counsellor sees the
@@ -3208,7 +3232,7 @@ function measure(){
   const n = $$('#rowsIn .mrow').length;
   const rowH = $('.mrow') ? $('.mrow').offsetHeight + 10 : 74;
   const vis = Math.max(1, Math.floor(box.clientHeight / rowH));
-  $('#rHint').textContent = over ? 'Showing '+vis+' of '+n+' · scroll for more' : '';
+  $('#rHint').textContent = over ? 'Showing '+vis+' of '+n.toLocaleString('en-IN')+' matches' : '';
   wrap.classList.toggle('at-end', box.scrollTop >= box.scrollHeight - box.clientHeight - 1);
 }
 $('#rows').addEventListener('scroll', measure);
@@ -4901,7 +4925,11 @@ window.__glovelsSetServices = function (list) {
   const s = SERVICES.find(x => String(x.id) === decodeURIComponent(m[1]));
   if (!s) return;
   chosen.add(s.id);
-  cat = (s.cats || [])[0] || cat;
+  /* Only a category that has a tab on this page. The "After you arrive"
+     services live on the services page and in the portal; the homepage has
+     no tab for them, so a deep link to one keeps the current tab. */
+  const tabbed = (s.cats || []).find(c => document.querySelector('[data-cat="' + c + '"]'));
+  cat = tabbed || cat;
   document.querySelectorAll('[data-cat]').forEach(function (b) {
     b.setAttribute('aria-selected', b.dataset.cat === cat ? 'true' : 'false');
   });

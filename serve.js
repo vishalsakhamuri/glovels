@@ -574,6 +574,15 @@ function sitemapXml(part, partNo) {
   /* The university pages, from the catalogue — every one the office has not
      taken off search. */
   pages.push('university');
+  /* Patch 159: the results page, and one address per destination and per
+     destination-and-level — the searches people type into Google. The
+     page marks any other filter set noindex itself. */
+  pages.push('find-university');
+  try {
+    const cs = {};
+    liveCatalogue().forEach(p => { if (p.searchOnly || !p.level || !p.field) return; cs[p.country] = cs[p.country] || new Set(); cs[p.country].add(String(p.level).toLowerCase()); });
+    Object.keys(cs).forEach(c => { pages.push('find-university?country=' + c); cs[c].forEach(l => pages.push('find-university?country=' + c + '&amp;level=' + l)); });
+  } catch (e) { /* no catalogue, no extra addresses */ }
   addedDestinations().forEach(c => pages.push('study-in-' + studySlugOf(c)));
   pages.sort();
   const base = CFG.siteUrl || '';
@@ -2444,8 +2453,32 @@ function forIndexing(html, slug) {
     '<meta name="robots" content="index,follow,max-image-preview:large">');
 }
 
+/* Patch 159: /find-university — every programme, filtered, sorted, in the
+   address. The module renders with the same code the browser runs. */
+const FINDPAGE = require('./server/findpage.js');
+const findPage = FINDPAGE.makeFindPage({
+  templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg: DEFAULT_OG, content, slugOf: UNIS.slugOf,
+});
+const FIND_SRC = {
+  'find.js': () => fs.readFileSync(path.join(__dirname, 'server', 'find.js'), 'utf8'),
+  /* reqs.js is CommonJS; wrapped so the browser gets window.REQS. */
+  'reqs.js': () => '(function(){var module={exports:{}};\n' + fs.readFileSync(path.join(__dirname, 'server', 'reqs.js'), 'utf8') + '\nwindow.REQS=module.exports;})();',
+  'find-page.js': () => FINDPAGE.FIND_PAGE_JS,
+};
+
 const server = http.createServer(async (req, res) => {
   const { pathname, query } = url.parse(req.url);
+
+  if (pathname === '/find-university' || pathname === '/find-university/' || pathname === '/find-university.html') {
+    if (pathname !== '/find-university') return send(res, 301, '', 'text/html', { Location: '/find-university' + (query ? '?' + query : '') });
+    const out = findPage.render(query || '');
+    if (out) {
+      const html = out.indexable ? forIndexing(out.html, 'find-university') : withAddedDestinations(out.html);
+      return send(res, 200, withSignedInNav(html), TYPES['.html'], { 'Cache-Control': 'no-cache' });
+    }
+  }
+  const findJs = /^\/js\/(find\.js|reqs\.js|find-page\.js)$/.exec(pathname);
+  if (findJs) return send(res, 200, FIND_SRC[findJs[1]](), TYPES['.js'], { 'Cache-Control': 'no-cache' });
 
   // The API first — it owns /api/* and the form endpoint.
   if (pathname.startsWith('/api/') || pathname === '/send.php') {
