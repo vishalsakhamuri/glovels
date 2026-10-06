@@ -3229,10 +3229,10 @@ function measure(){
   const box = $('#rows'), wrap = $('#rowsWrap');
   const over = box.scrollHeight > box.clientHeight + 2;
   wrap.classList.toggle('no-scroll', !over);
-  const n = $$('#rowsIn .mrow').length;
-  const rowH = $('.mrow') ? $('.mrow').offsetHeight + 10 : 74;
-  const vis = Math.max(1, Math.floor(box.clientHeight / rowH));
-  $('#rHint').textContent = over ? 'Showing '+vis+' of '+n.toLocaleString('en-IN')+' matches' : '';
+  /* Patch 160: no count. "Showing 1 of 291 matches" was a catalogue figure
+     read as a promise — what a visitor sees is what their package shows, and
+     a search with nothing in it already opens the special-assistance form. */
+  $('#rHint').textContent = '';
   wrap.classList.toggle('at-end', box.scrollTop >= box.scrollHeight - box.clientHeight - 1);
 }
 $('#rows').addEventListener('scroll', measure);
