@@ -400,8 +400,7 @@ function score(p, w) {
 
   /* A programme whose stated requirements they are known to clear is a
      better pick than one where we cannot yet tell. */
-  const vd = REQS.check(p.reqs || {}, w.answers || {});
-  n -= vd.unknown.length * 3;
+  n += shortfall(p, w).n;
   /* A known, open deadline for their term beats "no dates published". */
   if (w.term) n += termStatus(p, w.term) === 'open' ? 12 : 0;
 
@@ -547,14 +546,31 @@ function visaFriendly(p) {
 
 function clears(p, w, countries) {
   if (!visaFriendly(p)) return false;
-  if (!subjectFits(p, w)) return false;
+  /* Patch 162: the grade bar is the one requirement that turns a row away.
+     Everything else a programme states — IELTS, GRE, German, the bachelor's
+     length or subject, work, a paper, class rank — RANKS it (score()), so a
+     student's package shows the best of what their grade allows and the
+     counsellor sees the rest and can swap. */
   if (p.germanGpa != null && w.german != null) {
     if (w.german > Number(p.germanGpa)) return false;
   } else {
     const bar = barOf(p, countries);
     if (w.cgpa && bar != null && w.cgpa < bar) return false;
   }
-  return REQS.check(p.reqs || {}, w.answers || {}).fails.length === 0;
+  return true;
+}
+
+/* Patch 162: what a row's stated requirements say about this student, as a
+   number — cleared ones lift it, shortfalls sink it, open questions cost a
+   little. The order the package shows is this plus the fit. */
+function shortfall(p, w) {
+  const r = p.reqs || {};
+  const vd = REQS.check(r, w.answers || {});
+  const stated = Object.keys(r).filter(k => { const v = r[k]; return k !== 'tuitionEurSem' && k !== 'specialisation' && v !== null && v !== undefined && v !== '' && v !== false; }).length;
+  const cleared = Math.max(0, stated - vd.fails.length - vd.unknown.length);
+  let n = cleared * 5 - vd.fails.length * 25 - vd.unknown.length * 3;
+  if (!subjectFits(p, w)) n -= 20;
+  return { n, fails: vd.fails, unknown: vd.unknown, notes: vd.notes || [], subject: subjectFits(p, w) };
 }
 
 const nextTerm = t => t.season === 'winter'
@@ -757,8 +773,6 @@ function plan(catalogue, profile, count, kind, countries, opts) {
       if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) return false;
       if (w.term && termStatus(p, w.term) === 'closed' && !off.has('term')) return false;
       if (!visaFriendly(p)) return false;
-      if (REQS.check(p.reqs || {}, w.answers || {}).fails.length) return false;
-      if (!subjectFits(p, w)) return false;
       return !clears(p, w, countries);             // excluded ONLY by the grade bar
     });
     cgpaHeld = new Set(held.map(p => p.university)).size;
@@ -971,13 +985,16 @@ function screen(catalogue, profile, countries, opts) {
       const bar = barOf(p, countries);
       if (w.cgpa && bar != null && w.cgpa < bar) why.push('asks ' + bar + '+ CGPA, they have ' + w.cgpa);
     }
+    /* Patch 162: a shortfall on what the row states ranks it lower — it is
+       said on the row (`soft`), it is not a reason to leave it out. */
     const vd = REQS.check(p.reqs || {}, w.answers || {});
-    vd.fails.forEach(f => why.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
+    const soft = [];
+    vd.fails.forEach(f => soft.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
     vd.unknown.forEach(k => ask.push(ASK_SAID[k] || k));
-    if (!subjectFits(p, w)) why.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
+    if (!subjectFits(p, w)) soft.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
     const row = { id: p.id, program: p.program, university: p.university, city: p.city || '', country: p.country,
       level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),
-      intakes: p.intakes || [], relevance: rel, why, ask, score: score(p, w),
+      intakes: p.intakes || [], relevance: rel, why, ask, soft, score: score(p, w),
       /* Patch 153: what the row is, and on what condition it clears. */
       feeModel, restricted, notes: vd.notes || [] };
     if (!why.length) { out.fits.push(row); out.counts.fits++; }
@@ -985,11 +1002,12 @@ function screen(catalogue, profile, countries, opts) {
   }
   /* Closest subject first — a Biotechnology student sees Biology before a
      Mathematics programme that only shares the Natural Sciences shelf. */
-  const byScore = (a, b) => b.relevance - a.relevance || b.score - a.score || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
+  const tierOf = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
+  const byScore = (a, b) => b.relevance - a.relevance || tierOf(a) - tierOf(b) || b.score - a.score || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
   out.fits.sort(byScore); out.near.sort(byScore);
   const lim = Math.max(1, Math.min(500, Number(o.limit) || 100));
   out.fits = out.fits.slice(0, lim); out.near = out.near.slice(0, lim);
   return out;
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen, holdReasons, partsFor, normField, ASK_SAID };
+module.exports = { pick, plan, promise, wants, usable, score, shortfall, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen, holdReasons, partsFor, normField, ASK_SAID };

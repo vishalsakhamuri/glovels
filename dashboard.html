@@ -1488,7 +1488,10 @@ const pending = (paid && remaining)
 /* Patch 153: the picks a counsellor is checking before they are named. The
    number and the kind of condition only — a name here would be a name the
    review has not yet agreed to. */
-const __held = Number((__m && __m.held) || 0);
+/* Patch 161: read through window — `__m` is declared with const further
+   down this script, and reading the binding here threw before it was
+   initialised, which blanked the whole steps card (QA, 7 Oct). */
+const __held = Number(((window.__GLOVELS && window.__GLOVELS.matched) || {}).held || 0);
 const heldNote = __held
   ? '<article class="sl pending">' + ico('clock')
     + '<b>' + __held + ' more universit' + (__held === 1 ? 'y is' : 'ies are')

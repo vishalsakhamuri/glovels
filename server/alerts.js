@@ -400,11 +400,15 @@ function all(db, now) {
     let plan = null;
     try { plan = o.plan ? JSON.parse(o.plan) : null; } catch (e) { plan = null; }
     if (!plan) continue;
-    const late = PLANS.overdue(plan, T);
+    const late = PLANS.overdue(plan, T, o.created_at);
     if (!late.length) continue;
     const st = o.student_id ? byId.get(Number(o.student_id)) : null;
     const owner = st && st.counsellor_id ? Number(st.counsellor_id) : null;
-    const days = daysBetween(T, late[0].dueAt);
+    /* An undated first part is late by the grace it was given from the day
+       the order was placed. */
+    const lateFrom = p => p.dueAt
+      || new Date(new Date(o.created_at).getTime() + PLANS.GRACE_DAYS * 864e5).toISOString();
+    const days = daysBetween(T, lateFrom(late[0]));
     add({
       kind: 'payment',
       /* A week late is a conversation. A month late is a decision somebody
@@ -415,9 +419,9 @@ function all(db, now) {
         + inr(late.reduce((n, p) => n + Number(p.paise || 0), 0))
         + ' overdue on ' + o.reference,
       detail: late.map(p => p.label + ' (' + inr(p.paise) + ', due '
-        + String(p.dueAt).slice(0, 10) + ')').join(' · '),
+        + String(lateFrom(p)).slice(0, 10) + ')').join(' · '),
       subject: { studentId: o.student_id || null, reference: o.reference },
-      at: late[0].dueAt,
+      at: lateFrom(late[0]),
     });
   }
 
@@ -485,8 +489,28 @@ function all(db, now) {
  */
 function forStaff(db, staff, now) {
   const { alerts } = all(db, now);
-  if (staff.role === 'admin') return alerts;
-  return alerts.filter(a => a.who == null || Number(a.who) === Number(staff.id));
+  return alerts.filter(a => visibleTo(db, staff, a));
+}
+
+/**
+ * May this member of staff see this alert? The one place the rule lives, so
+ * the bell and the morning email cannot disagree.
+ *
+ * Patch 160 (D2): an alert ABOUT A STUDENT follows the student file. A
+ * counsellor who cannot open the file (`canSee`: the student is assigned to
+ * somebody else, or to nobody yet) does not get told the student's deadline,
+ * their silence, their unpaid instalment or the text of their last message —
+ * a task they personally owe on somebody else's student included, since the
+ * alert names the student. Lead alerts keep the old rule: their own leads,
+ * and the ones nobody owns. An administrator sees everything.
+ */
+function visibleTo(db, staff, a) {
+  if (!staff || staff.role === 'admin') return true;
+  const studentId = a && a.subject && a.subject.studentId;
+  if (studentId != null && studentId !== '') {
+    try { return !!db.canSee(staff, Number(studentId)); } catch (e) { return false; }
+  }
+  return a.who == null || Number(a.who) === Number(staff.id);
 }
 
 /** What one student is being asked for. Their own file, and nothing else. */
@@ -518,7 +542,7 @@ const counts = list => list.reduce((m, a) => {
 }, { now: 0, soon: 0, watch: 0, total: 0 });
 
 module.exports = {
-  all, forStaff, forStudent, counts,
+  all, forStaff, forStudent, counts, visibleTo,
   missingFrom, missingDocs, waitingSince, stagesFor,
   PROFILE_MUST, DOCS_MUST, STAGES,
 };

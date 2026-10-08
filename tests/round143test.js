@@ -72,10 +72,14 @@ async function req(who, method, path, body) {
   ok('the public university that fits is delivered', has(F), ids.join(','));
   ok('  · and still there after the private purchase — a second order no longer takes it away', has(F) && has(B), ids.join(','));
   ok('the private university that fits is delivered', has(B), ids.join(','));
-  ok('a programme asking IELTS 7 is not sold to an IELTS 6.5 student', !has(A));
-  ok('  · nor a public one asking IELTS 8', !has(G));
-  ok('a programme asking for a Computer Science bachelor\'s is not sold to a B.Com', !has(C));
-  ok('a programme that requires work experience is not sold to somebody with none', !has(D));
+  /* Patch 162: a shortfall on what a programme states ranks it after the
+     ones they clear — it no longer keeps it off the list. The CGPA bar is
+     the one requirement that still turns a row away. */
+  const order = ids;
+  ok('a programme asking IELTS 7 is still delivered to an IELTS 6.5 student, after the one they clear', has(A) && order.indexOf(B) < order.indexOf(A), ids.join(','));
+  ok('  · and a public one asking IELTS 8 is delivered after the public one they clear', has(G) && order.indexOf(F) < order.indexOf(G), ids.join(','));
+  ok('a programme asking for a Computer Science bachelor\'s ranks after the plain one for a B.Com', has(C) && order.indexOf(B) < order.indexOf(C), ids.join(','));
+  ok('a programme that requires work experience ranks after the plain one for somebody with none', has(D) && order.indexOf(B) < order.indexOf(D), ids.join(','));
   ok('a bachelor\'s is never offered for a master\'s, even when the list comes up short', !has(E));
   ok('nothing irrelevant pads the list — every pick is a zymurgy programme',
     (s.shortlist || []).filter(x => x.addedBy === 'matched').every(x => /zymurgy/i.test(x.program)),
@@ -85,9 +89,9 @@ async function req(who, method, path, body) {
   ok('the dashboard knows both promises (3 public + 10 private)', s.matched && s.matched.owed === 13, JSON.stringify(s.matched));
 
   /* The home page's bulk post adds nothing any more. */
-  r = await req('s', 'POST', '/api/shortlist/bulk', { ids: [A, C, D] });
+  r = await req('s', 'POST', '/api/shortlist/bulk', { ids: [E] });
   ok('the post-checkout bulk add stores nothing', r.status === 200 && r.body.added === 0
-    && !(r.body.shortlist || []).some(x => [A, C, D].includes(x.id)), JSON.stringify(r.body).slice(0, 160));
+    && !(r.body.shortlist || []).some(x => x.id === E), JSON.stringify(r.body).slice(0, 160));
 
   /* The counsellor's "not this one" sticks. */
   const sid = s.user && s.user.id;
@@ -98,8 +102,8 @@ async function req(who, method, path, body) {
   ok('  · and a profile save does not put it back', !(s.shortlist || []).some(x => x.id === B), (s.shortlist || []).map(x => x.id).join(','));
 
   /* A student's own pick is theirs to remove; the deliverable is not. */
-  await req('s', 'POST', '/api/shortlist', { id: A });
-  r = await req('s', 'DELETE', '/api/shortlist/' + encodeURIComponent(A));
+  await req('s', 'POST', '/api/shortlist', { id: E });
+  r = await req('s', 'DELETE', '/api/shortlist/' + encodeURIComponent(E));
   ok('a student can remove a university they added themselves', r.status === 200, r.status + ' ' + r.text.slice(0, 100));
   r = await req('s', 'DELETE', '/api/shortlist/' + encodeURIComponent(F));
   ok('  · but not one their package delivered', r.status === 403, r.status);

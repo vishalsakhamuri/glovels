@@ -1768,13 +1768,19 @@ function paint() {
      now, in the counsellor's terms, with the job first; the required count
      follows, because it is what the ring measures. */
   const okAll = all.filter(k => (DB.docs[k] || {}).status === S.OK).length;
+  /* THE SAME RATIO AS THE RING. "6 of 12 documents verified" beside a ring
+     at 40% (4 of the 10 required) read as two screens disagreeing about one
+     file. The headline now states what the ring measures — the required
+     documents — and the rest of the file follows as a second figure, so
+     nothing verified goes unmentioned and nothing is counted twice. */
+  const okExtra = Math.max(0, okAll - ok);
   $('#ringHead').textContent = (all.length
-      ? okAll + ' of ' + all.length + ' documents on your file verified'
+      ? (pct === 100 ? 'All ' + req.length + ' required documents verified'
+          : ok + ' of ' + req.length + ' required documents verified')
+        + (okExtra ? ' (+' + okExtra + ' optional)' : '')
       : 'Nothing uploaded yet')
       + (backAll ? ' \u00b7 ' + backAll + (backAll === 1 ? ' needs' : ' need') + ' a new copy from you' : '')
-      + (waiting ? ' \u00b7 ' + waiting + ' waiting on your counsellor' : '')
-      + ' \u00b7 ' + (pct === 100 ? 'every required document is in'
-        : ok + ' of the ' + req.length + ' required are verified');
+      + (waiting ? ' \u00b7 ' + waiting + ' waiting on your counsellor' : '');
   /* Named, and linked to wherever that document actually lives. A visa
      document is uploaded on the visa screen, so pointing at it here and
      leaving them to find it would be half the job. */
@@ -1797,8 +1803,10 @@ function paint() {
             'Send it below</a>').filter((v, i, a) => a.indexOf(v) === i).join(' \u00b7 ') +
       '</p>';
   }
+  /* "Other documents" blocks nothing by design, and an empty description
+     read as a value that failed to load. Say what the slot is for instead. */
   $('#blockList').innerHTML = DOCS.filter(d => stOf(d.id) !== S.OK).map(d =>
-    '<li>' + ico('clock') + ' <span>' + esc(d.blocks) + '</span>' +
+    '<li>' + ico('clock') + ' <span>' + esc(d.blocks || 'Nothing \u2014 helps the counsellor') + '</span>' +
     '<span class="st ' + stOf(d.id) + '">' + esc(d.name) + '</span></li>').join('')
     || '<li>' + ico('check') + ' <span>Nothing is blocked. Your file is complete.</span></li>';
   DB.docsPct = pct;

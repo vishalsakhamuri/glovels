@@ -52,8 +52,18 @@ SCRIPT = CGPA_JS + GERMAN_JS + r"""
 DB.short = DB.short || [];
 const shortlist = () => DB.short;
 
+/* The home page's rule, word for word: a private programme with no price on
+   it is "Fee to be confirmed", not "₹0 tuition" — nobody has priced it. A
+   public one at 0 really is free (German public universities), and the
+   catalogue can say so outright with tuitionEurSem 0. No price at all is
+   never a number to format. */
+function feeTbc(p) {
+  return !!p && !p.isPublic && !Number(p.totalInr)
+    && !(p.reqs && typeof p.reqs === 'object' && p.reqs.tuitionEurSem === 0);
+}
 function money(p) {
-  if (p.totalInr === 0) return '₹0 tuition';
+  if (feeTbc(p) || p.totalInr == null || isNaN(Number(p.totalInr))) return 'Fee to be confirmed';
+  if (Number(p.totalInr) === 0) return '₹0 tuition';
   return '≈ ₹' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L total';
 }
 /* Intakes repeat every year, and the ones in the catalogue are last cycle's
@@ -246,7 +256,8 @@ function card(p, inList) {
       + (feeOf(p) === 'free' ? 'Fast-track — free' : 'Comprehensive filing') + '</span>' +
     (p.isPublic ? '<span class="sl-tag">' + ico('check') + ' Public university</span>' : '') +
     '<div class="sl-meta"><b>' + money(p) + '</b></div>' +
-    (nextDeadline(p) ? '<div class="sl-meta" style="color:var(--muted)">Next deadline: ' +
+    /* A programme that is no longer offered has no deadline worth chasing. */
+    (!p.withdrawn && nextDeadline(p) ? '<div class="sl-meta" style="color:var(--muted)">Next deadline: ' +
       nextDeadline(p) + '</div>' : '') +
     /* THE FIT SCORE IS GONE FROM HERE.
      *

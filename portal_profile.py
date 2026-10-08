@@ -681,6 +681,14 @@ $('#saveBtn').addEventListener('click', async () => {
   /* The server's own sentence, not a rewrite of it: it names the box and what
      was typed, and the field-level message is already on the screen. */
   if (out && out.ok === false) {
+    /* drawForm() has just redrawn the section, and the marks the server's
+       answer put under the boxes went with it — so "First name is required"
+       arrived as a toast and nothing on the form said which box. Put them
+       back on the freshly drawn fields. */
+    if (out.fields && out.fields.length) {
+      dispatchEvent(new CustomEvent('glovels:profile-invalid',
+        { detail: { fields: out.fields, error: out.error } }));
+    }
     toast(out.unreachable ? 'That did not reach the server. It is still on this '
       + 'device — try again in a moment.' : out.error, 'bad');
     return;

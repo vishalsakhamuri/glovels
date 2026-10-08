@@ -50,7 +50,8 @@ const page = async p => { const r = await fetch(BASE + p); let t = await r.text(
 
   /* 3. one count of documents on both screens */
   t = await page('/documents');
-  ok('the student screen leads with the whole file, in the counsellor\'s terms', /documents on your file verified/.test(t) && /required are verified/.test(t));
+  /* Patch 161 (D17): one ratio — the required documents, the same the ring measures. */
+  ok('the student screen leads with the required documents, the ring\'s own ratio', /required documents verified/.test(t));
   t = await page('/counsellor');
   ok('the counsellor tile names a file sent back', /' sent back'/.test(t));
 

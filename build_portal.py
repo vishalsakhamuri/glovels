@@ -230,9 +230,14 @@ def staff_sidebar(active, role_note, nav=None, brand=True):
     )
     mark = ('<span class="logo-img" role="img" aria-label="Glovels"></span>'
             if brand else '')
+    # The white-labelled partner page carries no mark of ours, so until the
+    # agency uploads a logo the box has nothing in it — and an empty white
+    # box in the corner read as a broken image. Hidden until showLogo() has
+    # something to put in it.
+    box = '' if brand else ' hidden'
     return f"""<div class="p-shell">
   <aside class="p-side">
-    <div class="p-logo">{mark}
+    <div class="p-logo"{box}>{mark}
       <img id="ownLogo" alt="" hidden></div>
     <div class="plan-badge"><b id="staffName">\u2014</b><span id="staffRole">\u2014</span>
       <a href="#" id="staffOut" class="p-out">
@@ -561,6 +566,14 @@ async function staffBoot(run) {{
   }} catch (e) {{
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({{ role: 'staff' }});
+    /* Not a staff account. The staff sidebar — seven links this person
+       cannot open, and a name slot reading "—" — was still drawn around the
+       message, which made a refusal look like a broken page. Only the
+       message and the way back to their own screen stay. */
+    const side = document.querySelector('.p-side');
+    if (side) side.remove();
+    const shell = document.querySelector('.p-shell');
+    if (shell) shell.style.gridTemplateColumns = '1fr';
     document.querySelector('.p-main').innerHTML =
       '<div class="sl-empty" style="margin-top:40px"><b>This screen is not for your account</b>' +
       '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';

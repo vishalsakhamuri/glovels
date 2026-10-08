@@ -135,7 +135,10 @@ function draft(bank, input, pass) {
        and "Each of those…" after a single strength. */
     if (s) s = s.replace(/\b([Tt])he this programme\b/g, (m, t0) => (t0 === 'T' ? 'This' : 'this') + ' programme');
     if (s && signals.length === 1) {
-      s = s.replace(/\bEach of those\b/g, 'That').replace(/\beach of those\b/g, 'that')
+      /* Patch 160 (D7): one ticked quality is "the quality ... is", not
+         "the qualities ... are". */
+      s = s.replace(/\b([Tt]he) qualities I can speak to directly are\b/g, '$1 quality I can speak to directly is')
+        .replace(/\bEach of those\b/g, 'That').replace(/\beach of those\b/g, 'that')
         .replace(/\btogether they are\b/g, 'it is').replace(/\bTogether they are\b/g, 'It is')
         .replace(/\bthey are why\b/g, 'it is why');
     }

@@ -104,18 +104,18 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     if (R.said) {
       const parts = Object.keys(R.student).filter(k => k !== 'restrictedOk').length;
       return '<div class="fprof said"><b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
-        + (R.turned ? R.turned.toLocaleString('en-IN') + ' programme' + (R.turned === 1 ? '' : 's') + ' would turn you down on those and ' + (R.turned === 1 ? 'is' : 'are') + ' not shown. ' : '')
+        + (R.turned ? R.turned.toLocaleString('en-IN') + ' programme' + (R.turned === 1 ? '' : 's') + ' ask a higher CGPA and ' + (R.turned === 1 ? 'is' : 'are') + ' not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
         + '<a href="index.html#find">Change your answers →</a></div>';
     }
     return '<div class="fprof"><b>Tell us your scores to see which of these would take you.</b> Your CGPA, IELTS and bachelor’s length are enough to start — '
-      + '<a href="index.html#find">add them on the finder →</a> or <a href="signup.html">create a free account</a> and we keep them.</div>';
+      + '<a href="index.html#find">add them on the finder →</a> or <a href="login.html?signup=1">create a free account</a> and we keep them.</div>';
   }
 
   function bodyHtml(f, R, countries) {
     const rows = R.rows.slice(0, PAGE);
     const ctx = { countries, said: R.said };
     const list = rows.length ? rows.map(p => FIND.rowHtml(p, ctx)).join('') : FIND.emptyHtml(f);
-    const sort = '<label class="fsort">Sort <select id="fsort">' + Object.keys(FIND.SORTS).map(k => '<option value="' + k + '"' + ((f.sort || 'fit') === k ? ' selected' : '') + '>' + FIND.SORTS[k] + '</option>').join('') + '</select></label>';
+    const sort = '<label class="fsort">Sort <select id="fsort">' + Object.keys(FIND.SORTS).map(k => '<option value="' + k + '"' + ((f.sort || FIND.defaultSort(R.said)) === k ? ' selected' : '') + '>' + FIND.SORTS[k] + '</option>').join('') + '</select></label>';
     const view = '<div class="fview" role="group" aria-label="View"><button type="button" data-view="list" aria-pressed="' + (f.view !== 'uni') + '">List</button><button type="button" data-view="uni" aria-pressed="' + (f.view === 'uni') + '">By university</button></div>';
     return '<form id="ffilters" class="ffilters" action="/find-university" method="get">'
       + '<div class="fsearch"><input type="search" name="q" value="' + esc(f.q || '') + '" placeholder="Programme, university or city" aria-label="Search programmes"><button type="submit" class="btn btn-green btn-sm">Search</button></div>'
@@ -123,7 +123,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       + '<div class="flayout"><button type="button" class="btn btn-sm fsheet-btn" id="fsheetBtn" aria-controls="frail" aria-expanded="false">Filters<span id="fcount"></span></button>'
       + '<aside class="frail" id="frail"><div class="frail-head"><b>Filters</b><button type="button" class="flink" id="fsheetClose">Done</button></div>' + railHtml(f, R, countries) + '</aside>'
       + '<div class="fresults">'
-      + '<div class="fhead"><h2 id="fsummary">' + R.total.toLocaleString('en-IN') + ' programme' + (R.total === 1 ? '' : 's') + ' at ' + R.unis.toLocaleString('en-IN') + ' universit' + (R.unis === 1 ? 'y' : 'ies') + ' match</h2>'
+      + '<div class="fhead"><h2 id="fsummary">' + R.total.toLocaleString('en-IN') + ' programme' + (R.total === 1 ? '' : 's') + ' at ' + R.unis.toLocaleString('en-IN') + ' universit' + (R.unis === 1 ? 'y' : 'ies') + (R.total === 1 ? ' matches' : ' match') + '</h2>'
       + '<div class="ftools">' + sort + view + '<button type="button" class="btn btn-sm" id="fshare">Share this search</button></div></div>'
       + profileStrip(R)
       + '<div id="flist" class="flist" data-total="' + R.total + '">' + list + '</div>'
@@ -218,6 +218,7 @@ const FIND_CSS = `<style>/* GLOVELS-FIND-CSS */
 .ft.trest{color:#7a3f2b;border-color:#ebc9bd;background:#fbefea}
 .fv{display:inline-block;margin:8px 0 0;font:600 12.4px/1.3 var(--sans);color:#14603a}
 .fv.unknown{color:#8a6a1f}
+.fv.short{color:#8a6a1f;background:#fdf6e6;border:1px solid #e6d5a8;border-radius:99px;padding:2px 9px}
 .fside{text-align:right;min-width:150px}
 .fcost{font:700 20px/1.1 var(--serif,Georgia,serif);color:var(--green)}
 .fcost small{display:block;font:400 11.4px/1.3 var(--sans);color:var(--muted);margin-top:2px}
@@ -291,7 +292,7 @@ function render(){
       return '<h3 class="funi">' + esc(name) + ' <small style="color:var(--muted);font-weight:400">' + g.length + ' programme' + (g.length === 1 ? '' : 's') + '</small></h3>' + g.map(function(p){ return F.rowHtml(p, ctx()); }).join(''); }).join('');
   } else out = slice.map(function(p){ return F.rowHtml(p, ctx()); }).join('');
   list.innerHTML = out;
-  $('#fsummary').textContent = result.total.toLocaleString('en-IN') + ' programme' + (result.total === 1 ? '' : 's') + ' at ' + result.unis.toLocaleString('en-IN') + ' universit' + (result.unis === 1 ? 'y' : 'ies') + ' match';
+  $('#fsummary').textContent = result.total.toLocaleString('en-IN') + ' programme' + (result.total === 1 ? '' : 's') + ' at ' + result.unis.toLocaleString('en-IN') + ' universit' + (result.unis === 1 ? 'y' : 'ies') + (result.total === 1 ? ' matches' : ' match');
   var pg = $('.fpage');
   if (result.total > shown) {
     if (!pg) { pg = document.createElement('div'); pg.className = 'fpage'; list.after(pg); }
@@ -334,7 +335,7 @@ function counts(){
   $$('#frail input[type=radio]').forEach(function(i){ i.checked = (f[i.name] || '') === i.value; });
   $$('#frail input[type=checkbox]').forEach(function(i){ i.checked = !!f[i.name]; });
   var cg = $('#fcgpa'); if (cg) { cg.value = f.cgpa || '10'; var o = cg.nextElementSibling; if (o) o.textContent = f.cgpa ? 'CGPA ' + f.cgpa : 'Not told us yet'; }
-  var s = $('#fsort'); if (s) s.value = f.sort || 'fit';
+  var s = $('#fsort'); if (s) s.value = f.sort || F.defaultSort(result.said);
   $$('.fview button').forEach(function(b){ b.setAttribute('aria-pressed', String((f.view || 'list') === b.dataset.view)); });
 }
 
@@ -344,7 +345,7 @@ function profile(){
     var parts = Object.keys(result.student).filter(function(k){ return k !== 'restrictedOk'; }).length;
     el.className = 'fprof said';
     el.innerHTML = '<b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
-      + (result.turned ? result.turned.toLocaleString('en-IN') + ' programme' + (result.turned === 1 ? '' : 's') + ' would turn you down on those and ' + (result.turned === 1 ? 'is' : 'are') + ' not shown. ' : '')
+      + (result.turned ? result.turned.toLocaleString('en-IN') + ' programme' + (result.turned === 1 ? '' : 's') + ' ask a higher CGPA and ' + (result.turned === 1 ? 'is' : 'are') + ' not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
       + '<a href="index.html#find">Change your answers →</a>';
   } else if (me) {
     el.className = 'fprof';
@@ -425,7 +426,7 @@ document.addEventListener('click', function(e){
   if (t.id === 'fsheetClose') { e.preventDefault(); $('#frail').classList.remove('open'); $('#fsheetBtn').setAttribute('aria-expanded', 'false'); return; }
 });
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { if (!$('#fmodal').hidden) closeModal(); else $('#frail').classList.remove('open'); } });
-var sortEl = $('#fsort'); if (sortEl) sortEl.addEventListener('change', function(){ set('sort', sortEl.value === 'fit' ? '' : sortEl.value); });
+var sortEl = $('#fsort'); if (sortEl) sortEl.addEventListener('change', function(){ set('sort', sortEl.value === F.defaultSort(result && result.said) ? '' : sortEl.value); });
 var form = $('#ffilters'); if (form) form.addEventListener('submit', function(e){ e.preventDefault(); set('q', (form.q.value || '').trim()); });
 
 /* The catalogue as THIS visitor may see it — names where a package covers them. */

@@ -69,8 +69,10 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
   const three = PLANS.split(7499900, null, 0);
   check('the first part is due now, the rest later',
     three[0].status === 'due' && three.slice(1).every(p => p.status === 'later'));
-  check('the later ones carry a date somebody can chase',
-    three.slice(1).every(p => !!p.dueAt), JSON.stringify(three.map(p => p.dueAt)));
+  /* Patch 161 (D8): a later part is asked for when its work is done, so it
+     carries no calendar date to be chased on. */
+  check('the later ones carry no date until their milestone',
+    three.slice(1).every(p => !p.dueAt), JSON.stringify(three.map(p => p.dueAt)));
   check('the first does not — it is being paid at the checkout', !three[0].dueAt);
   check('and each part is named after the work, not numbered',
     three.every(p => /[a-z]/.test(p.label) && !/^Part \d/.test(p.label)),

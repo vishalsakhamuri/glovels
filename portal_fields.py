@@ -147,7 +147,7 @@ const SECTIONS = [
      * alerts and the counsellor's screen read. It is composed from these two
      * on save, on the server, so nothing downstream had to change and a record
      * written before this still reads correctly. */
-    {k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',
+    {k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport', must:1,
      help:'Exactly as it is printed on your passport.'},
     {k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},
     {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,

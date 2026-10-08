@@ -453,10 +453,16 @@ function paint() {
   $('#stuPager').innerHTML = pagerHtml('pstu', list.length, 'students', paint);
   $('#stuRows').innerHTML = paged('pstu', list).map(row).join('')
     || '<tr><td colspan="6" style="padding:22px;color:var(--muted)">'
-       + (STUDENTS.length
+       /* An empty book is not a search with no hits. "Nothing matches that."
+          is for a filter that emptied a list; a partner with nobody on the
+          list yet is told so, with the way to add one right there. */
+       + (!book.length && !t.closedBook
+            ? 'No students yet \u2014 <button type="button" class="btn btn-primary btn-sm" '
+              + 'data-open-add>Add a student</button>'
+            : book.length
             ? (tile === 'all' ? 'Nothing matches that.'
                : 'No students ' + (TILES[tile] || TILES.all).says + ' yet.')
-            : 'No students yet. Add one on the right, or paste a sheet.')
+            : 'No closed files yet.')
        + '</td></tr>';
 }
 
@@ -539,10 +545,18 @@ function detailsPane(s) {
         + 'resize:vertical">' + esc(v) + '</textarea>';
     } else {
       input = '<input id="' + id + '" data-f="' + f.k + '" type="' + (f.t || 'text')
-        + '" value="' + esc(v) + '" placeholder="' + esc(f.ph || '') + '" style="cursor:text">';
+        + '" value="' + esc(v) + '" placeholder="' + esc(f.ph || '') + '" style="cursor:text"'
+        + (f.must ? ' required' : '') + '>';
     }
-    return '<div class="field" style="margin-bottom:13px"><label for="' + id + '">'
-      + esc(f.l) + '</label>' + input
+    /* Required, said on the label the way the student's own form says it:
+       the mark, the attribute, and a line under the box for the server's
+       answer when a save is refused. */
+    return '<div class="field' + (f.must ? ' must' : '') + '" data-k="' + f.k
+      + '" style="margin-bottom:13px"><label for="' + id + '" style="display:flex;align-items:center">'
+      + esc(f.l)
+      + (f.must ? '<span class="reqmark" title="Required">required</span>' : '')
+      + '</label>' + input
+      + '<p class="ferr" hidden></p>'
       + (f.help ? '<span style="display:block;margin-top:5px;font-size:11.4px;'
           + 'color:var(--muted);line-height:1.5">' + esc(f.help) + '</span>' : '')
       + '</div>';
@@ -770,6 +784,11 @@ function showLogo(url) {
   const img = $('#ownLogo');
   const box = $('#logoNow');
   const mark = document.querySelector('.p-logo .logo-img');
+  /* The sidebar box is drawn only when there is a logo to put in it. This
+     page carries no mark of ours (white label, complete), so without this an
+     agency that had not uploaded one yet saw an empty white box. */
+  const corner = document.querySelector('.p-logo');
+  if (corner) corner.hidden = !url;
   if (url) {
     img.src = url; img.hidden = false;
     img.style.cssText = 'max-width:132px;max-height:52px;display:block';
@@ -893,7 +912,7 @@ async function saveLogo(url) {
       return;
     }
 
-    if (e.target.closest('#openAdd')) {
+    if (e.target.closest('#openAdd, [data-open-add]')) {
       $('#addOut').innerHTML = '';
       $('#addModal').classList.add('on');
       const f = $('#aName'); if (f) f.focus();
@@ -941,6 +960,8 @@ async function saveLogo(url) {
       btn.disabled = true;
       try {
         $$('#p-details [data-f]').forEach(i => { i.removeAttribute('aria-invalid'); i.style.borderColor = ''; });
+        $$('#p-details .field.bad').forEach(b => b.classList.remove('bad'));
+        $$('#p-details .ferr').forEach(m => { m.hidden = true; m.textContent = ''; });
         await api('PUT', '/api/partner/student/' + OPEN.id + '/profile', { profile });
         $('#profSaid').style.color = '';
         $('#profSaid').textContent = 'Saved.';
@@ -964,6 +985,14 @@ async function saveLogo(url) {
           const box = document.querySelector('#p-details [data-f="' + f.field + '"]');
           if (!box) return;
           box.setAttribute('aria-invalid', 'true'); box.style.borderColor = '#c0392b';
+          /* The server's words under the box it is about, not only beside
+             the button — "First name is required" belongs on First name. */
+          const wrap = box.closest('.field');
+          if (wrap) {
+            wrap.classList.add('bad');
+            const m = wrap.querySelector('.ferr');
+            if (m) { m.textContent = f.why; m.hidden = false; }
+          }
           if (!first) first = box;
         });
         if (first) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => first.focus(), 300); }

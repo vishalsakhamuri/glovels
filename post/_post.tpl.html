@@ -377,8 +377,8 @@ html.review-copy .towrite{display:block !important}
 .signin,.nav-cta .btn{white-space:nowrap}
 /* The tight band, roughly a laptop: the menu gives up its spacing first, and
    the buttons shed a little padding rather than a line. */
-@media (max-width:1400px){
-  nav.menu{gap:clamp(9px,1.1vw,16px)}
+@media (max-width:1680px){
+  nav.menu{gap:clamp(8px,1vw,16px)}
   nav.menu>a,.ndt{font-size:13px}
   .nav-cta{gap:8px}
   .nav-cta .btn{padding:11px 16px;font-size:13.2px}
@@ -389,6 +389,22 @@ html.review-copy .towrite{display:block !important}
   nav.menu>a,.ndt{font-size:12.5px}
   .nav-cta .btn{padding:10px 13px;font-size:12.6px}
   .signin{padding:10px 12px;font-size:12.6px}
+}
+/* GLOVELS-NAV-SIGNED: signed in, the Sign in pill becomes "My dashboard" /
+   "My students" / "My office", and the full menu no longer fits beside it on a
+   laptop. Below 1600px a signed-in page folds the menu into the burger and
+   keeps the short pill, the way every page already does below 1160px. The
+   page is signed in when <html> carries .signed (set by the header script) or,
+   failing that, when the pill itself carries it. Clipping the body is the
+   safety net: nothing in the header can make the page scroll sideways. */
+body{overflow-x:clip}
+@media (max-width:1600px){
+  html.signed nav.menu{display:none}
+  html.signed .burger{display:flex}
+  html.signed .nav-cta{margin-left:auto}
+  html:has(a.signin.signed) nav.menu{display:none}
+  html:has(a.signin.signed) .burger{display:flex}
+  html:has(a.signin.signed) .nav-cta{margin-left:auto}
 }
 </style>
 
@@ -444,15 +460,15 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <form id="postForm" novalidate>
         <div class="bf-grid">
           <div class="field"><label for="bfName">Your name</label>
-            <input id="bfName" name="name" autocomplete="name" required></div>
+            <input id="bfName" name="name" autocomplete="name" maxlength="100" required></div>
           <div class="field"><label for="bfPhone">Mobile</label>
             <input id="bfPhone" name="phone" inputmode="numeric" autocomplete="tel"
-              placeholder="10 digits" required></div>
+              placeholder="10 digits" maxlength="20" required></div>
         </div>
         <div class="field"><label for="bfMail">Email</label>
-          <input id="bfMail" name="email" type="email" autocomplete="email" required></div>
+          <input id="bfMail" name="email" type="email" autocomplete="email" maxlength="120" required></div>
         <div class="field"><label for="bfMsg">What would you like to know?</label>
-          <textarea id="bfMsg" name="message" rows="3"
+          <textarea id="bfMsg" name="message" rows="3" maxlength="2000"
             placeholder="Optional — your CGPA, your intake, the course you have in mind"></textarea></div>
         <label for="bfSite" class="sr" style="position:absolute;left:-9999px">Leave this field empty</label>
         <input id="bfSite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
@@ -1014,6 +1030,9 @@ if ('serviceWorker' in navigator) {
     var email = f.email.value.trim();
     var phone = f.phone.value.trim().replace(/\D/g, '').slice(-10);
     if (!name) return say('Tell us your name.');
+    /* D21: a name is letters — the server refuses "12345" with a 422. */
+    if (!(function () { try { return new RegExp('\\p{L}', 'u').test(name); } catch (e) { return /[A-Za-z\u00C0-\u024F]/.test(name); } }()))
+      return say('A name needs at least one letter.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
     if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
     var okBox = document.getElementById('bfOk');

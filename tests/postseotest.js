@@ -253,7 +253,10 @@ const BODY = [
 
   /* And it stops appearing the moment the post it points at comes off the
      site. A related link to a 404 is worse than one fewer link. */
-  await staff.request.delete(BASE + '/api/staff/post/' + p1.id);
+  /* Patch 161 (D22): a live post is taken off the site by saving it as a
+     draft — DELETE refuses a live one. */
+  const p1full = await (await staff.request.get(BASE + '/api/staff/post/' + p1.id)).json();
+  await staff.request.put(BASE + '/api/staff/post/' + p1.id, { data: Object.assign({}, p1full.post, { status: 'draft' }) });
   await page.goto(BASE + '/post/' + p2.slug, { waitUntil: 'domcontentloaded' });
   ok((await page.$$('.related a')).length === 0,
     'a related post taken off the site stops being linked to');

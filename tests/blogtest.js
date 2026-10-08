@@ -217,12 +217,17 @@ const stamp = Date.now();
   /* ------------------------------------------------------------ taking it off */
   const mine = await (await staff.request.get(BASE + '/api/staff/posts?per=500')).json();
   const row = (mine.posts || []).find(p => p.slug === slug);
+  /* Patch 161 (D22): a live post cannot be deleted — it is taken off the
+     site first (saved as a draft), and only a draft can go. */
   const off = await staff.request.delete(BASE + '/api/staff/post/' + row.id);
-  const offBody = await off.json();
-  check('a live post is unpublished rather than deleted', offBody.unpublished === true,
-    JSON.stringify(offBody).slice(0, 90));
+  check('a live post refuses to be deleted', off.status() === 409, off.status());
+  const fullRow = await (await staff.request.get(BASE + '/api/staff/post/' + row.id)).json();
+  await staff.request.put(BASE + '/api/staff/post/' + row.id, { data: Object.assign({}, fullRow.post, { status: 'draft' }) });
   const gone = await guest.request.get(BASE + '/post/' + slug);
-  check('and the page stops answering visitors', gone.status() === 404, gone.status());
+  check('taken off the site, the page stops answering visitors', gone.status() === 404, gone.status());
+  const del = await staff.request.delete(BASE + '/api/staff/post/' + row.id);
+  const delBody = await del.json();
+  check('and the draft can then be deleted', del.status() === 200 && delBody.deleted === true, JSON.stringify(delBody).slice(0, 90));
 
   /* ------------------------------------------- and only the people it is for */
   const stu = await browser.newContext();

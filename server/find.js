@@ -192,8 +192,11 @@
     return v;
   }
 
-  function sortRows(rows, key) {
-    const k = SORTS[key] ? key : 'fit';
+  /* Patch 161 (D4): with nothing said about themselves a visitor sees no
+     fit score, so the list opens on the nearest deadline instead. */
+  const defaultSort = said => said ? 'fit' : 'deadline';
+  function sortRows(rows, key, said) {
+    const k = SORTS[key] ? key : defaultSort(said);
     const az = p => (locked(p) ? '￿' : '') + String(p.program || '').toLowerCase() + ' ' + String(p.university || '').toLowerCase();
     const cost = p => { const t = tuitionOf(p); if (t != null) return t * (p.semesters || 4); const n = Number(p.totalInr || 0); return n > 0 ? n / 90 : (locked(p) ? 1e12 : 1e11); };
     const dl = p => { const d = nextDeadline(p).at; return d ? d.getTime() : 8.64e15; };
@@ -214,10 +217,12 @@
     let turned = 0;
     kept.forEach(p => {
       const v = said ? verdict(p, s, REQS) : { fails: [], unknown: [], notes: [], ok: false };
-      if (said && v.fails.length) { turned++; return; }
-      out.push(Object.assign({}, p, { _v: v, _locked: locked(p), _fee: feeOf(p), _dl: nextDeadline(p) }));
+      /* Patch 162: a shortfall ranks the row lower; it does not drop it. The
+         CGPA bar is the exception — the one requirement that turns a row away. */
+      if (said && v.fails.some(x => x.key === 'cgpa')) { turned++; return; }
+      out.push(Object.assign({}, p, { _v: v, _tier: v.fails.length ? 2 : v.unknown.length ? 1 : 0, _locked: locked(p), _fee: feeOf(p), _dl: nextDeadline(p) }));
     });
-    const sorted = sortRows(out, f.sort);
+    const sorted = said ? sortRows(out, f.sort, said).sort((a, b) => a._tier - b._tier) : sortRows(out, f.sort, said);
     const unis = new Set(sorted.map(p => p.uKey || p.university || p.id)).size;
     const facet = (key, valueOf) => {
       const c = {};
@@ -304,9 +309,9 @@
     tags.push(fee === 'free' ? '<span class="ft tfree">Free to apply</span>' : '<span class="ft tpkg">With a package</span>');
     if (reqsOf(p).moiAccepted === true) tags.push('<span class="ft">MOI accepted</span>');
     if (reqsOf(p).restricted === true || p.restricted === true) tags.push('<span class="ft trest">Restricted admission</span>');
-    if (p.fit) tags.push('<span class="ft tfit">Fit ' + Number(p.fit) + '%</span>');
+    if (p.fit && ctx && ctx.said) tags.push('<span class="ft tfit">Fit ' + Number(p.fit) + '%</span>');
     let verdictHtml = '';
-    if (v.fails && v.fails.length) verdictHtml = '';
+    if (v.fails && v.fails.length) verdictHtml = '<span class="fv short" title="' + esc(v.fails.map(x => (x.label || x.key) + ': asks ' + x.want + ', you said ' + x.have).join('; ')) + '">Lower priority \u00b7 ' + esc(v.fails.length === 1 ? (v.fails[0].label || v.fails[0].key) + ' asks ' + v.fails[0].want : v.fails.length + ' things it asks') + '</span>';
     else if (v.unknown && v.unknown.length) verdictHtml = '<span class="fv unknown">Chances unknown · tell us your ' + esc(REQ_WORDS[v.unknown[0]] || v.unknown[0]) + '</span>';
     else if (v.notes && v.notes.includes('moi')) verdictHtml = '<span class="fv ok">✓ Clears via MOI letter</span>';
     else if (ctx && ctx.said && statesAny(p)) verdictHtml = '<span class="fv ok">✓ You clear what it asks</span>';
@@ -347,6 +352,6 @@
       + ' — or <a href="index.html#counsel">ask a counsellor</a> to check your profile against the full list.</div>';
   }
 
-  return { KEYS, LEVELS, SORTS, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml,
+  return { KEYS, LEVELS, SORTS, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml,
     nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num };
 });

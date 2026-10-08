@@ -128,9 +128,8 @@ function plan(db, now) {
        domains that do not exist teaches inboxes our mail is spam. */
     if (!deliverable(person.email)) continue;
     const isAdmin = person.role === 'admin';
-    const mine = isAdmin
-      ? alerts
-      : alerts.filter(a => a.who == null || Number(a.who) === Number(person.id));
+    /* Patch 160 (D2): the same rule as the bell, from the same place. */
+    const mine = alerts.filter(a => ALERTS.visibleTo(db, person, a));
     if (!mine.length) continue;
 
     const byPerson = isAdmin

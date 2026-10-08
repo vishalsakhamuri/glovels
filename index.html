@@ -70,9 +70,12 @@ h1,h2,h3,h4{font-family:var(--disp);font-weight:600;letter-spacing:-.01em;margin
 .btn:hover{transform:translateY(-2px)}
 .btn .ico{font-size:15px}
 .btn-sm{font-size:12.5px;padding:9px 15px}
-.btn-gold{background:linear-gradient(160deg,#d4ad55,var(--gold-deep));color:#fff;
+.btn-gold{background:linear-gradient(160deg,#d4ad55,var(--gold-deep));color:#0b1f3a;
   border-color:var(--gold-deep);box-shadow:0 10px 24px rgba(184,143,52,.42),
   inset 0 1px 0 rgba(255,255,255,.24)}
+/* Patch 161 (D14): navy on gold reads at 7:1; white on this gold was 2.1–3.0:1,
+   under the 4.5:1 a call to action needs. The arrow icon follows the text. */
+.btn-gold .ico{color:#0b1f3a}
 .btn-primary{background:linear-gradient(160deg,#2560c9,var(--blue-deep));color:#fff;
   border-color:var(--blue-deep);box-shadow:0 10px 24px rgba(18,58,123,.3)}
 .btn-green{background:linear-gradient(160deg,#278a58,var(--green-deep));color:#fff;
@@ -269,6 +272,7 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   font:700 11px/1.35 var(--sans);max-width:100%}
 .mverdict.ok{background:#eaf4ee;color:#186139}
 .mverdict.unknown{background:var(--cream);color:var(--muted);border:1px dashed #cfd6de}
+.mverdict.short{background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8}
 .masks{font-size:11.6px;color:var(--muted);margin-top:3px;white-space:normal;line-height:1.45}
 .mrestr{font-size:11.4px;color:var(--muted);margin-top:3px;white-space:normal;line-height:1.45}
 .mrestr b{font-weight:700;color:inherit}
@@ -1162,8 +1166,8 @@ footer.site .fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;g
 .signin,.nav-cta .btn{white-space:nowrap}
 /* The tight band, roughly a laptop: the menu gives up its spacing first, and
    the buttons shed a little padding rather than a line. */
-@media (max-width:1400px){
-  nav.menu{gap:clamp(9px,1.1vw,16px)}
+@media (max-width:1680px){
+  nav.menu{gap:clamp(8px,1vw,16px)}
   nav.menu>a,.ndt{font-size:13px}
   .nav-cta{gap:8px}
   .nav-cta .btn{padding:11px 16px;font-size:13.2px}
@@ -1174,6 +1178,19 @@ footer.site .fgrid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1.15fr;g
   nav.menu>a,.ndt{font-size:12.5px}
   .nav-cta .btn{padding:10px 13px;font-size:12.6px}
   .signin{padding:10px 12px;font-size:12.6px}
+}
+/* GLOVELS-NAV-SIGNED: signed in, the Sign in pill becomes "My dashboard" /
+   "My students" / "My office", and the full menu no longer fits beside it on a
+   laptop. Below 1600px a signed-in page folds the menu into the burger and
+   keeps the short pill, the way every page already does below 1160px. */
+body{overflow-x:clip}
+@media (max-width:1600px){
+  html.signed nav.menu{display:none}
+  html.signed .burger{display:flex}
+  html.signed .nav-cta{margin-left:auto}
+  html:has(a.signin.signed) nav.menu{display:none}
+  html:has(a.signin.signed) .burger{display:flex}
+  html:has(a.signin.signed) .nav-cta{margin-left:auto}
 }
 </style>
 <style>/* GLOVELS-PKG-ROW */
@@ -2397,7 +2414,15 @@ function filtered(ignoreBands, collect){
     const vd = verdict(reqsOf(p), me);
     p._need = vd.unknown.length ? vd.unknown : null;
     p._notes = vd.notes.length ? vd.notes : null;
-    if(vd.fails.length){ if(collect) TURNED.push({ p, fails: vd.fails }); return false; }
+    /* Patch 162: a stated requirement they fall short of no longer sets the
+       row aside — it ranks it lower. "GRE yes/no, top 10%, German, the
+       bachelor's subjects — these are there to prioritise the universities
+       in the right order": a student's package shows the best three, five
+       or ten of what their country, level, field and CGPA allow, and the
+       counsellor sees the rest and can swap. The shortfall travels on the
+       row so the chip can say it. */
+    p._short = vd.fails.length ? vd.fails : null;
+    if(vd.fails.length && collect) TURNED.push({ p, fails: vd.fails });
     /* Counted only for rows that stay: a question on a row already set
        aside is not one worth answering. */
     if(collect){
@@ -2455,7 +2480,10 @@ const cheap = (a,b) => (a.totalInr!==undefined && b.totalInr!==undefined)
 /* 0 = a deadline still ahead; 1 = no published dates (rolling admission);
    2 = dates published, every one of them behind us. */
 const season = r => deadlineOf(r).at ? 0 : (r.intakes || []).some(i => i && i.deadline) ? 2 : 1;
-const rowOrder = (a,b) => ((b.fit||0) - (a.fit||0)) || (season(a) - season(b)) || cheap(a,b)
+/* Patch 162: what they clear comes first, what we cannot tell next, what
+   they fall short of last — then the fit, the deadline and the price. */
+const tier = r => (r._short && r._short.length) ? 2 : (r._need && r._need.length) ? 1 : 0;
+const rowOrder = (a,b) => (tier(a) - tier(b)) || ((b.fit||0) - (a.fit||0)) || (season(a) - season(b)) || cheap(a,b)
   || String(a.id||'').localeCompare(String(b.id||''));
 function visibleRows(list){
   const pub = list.filter(p => p.isPublic).sort(rowOrder);
@@ -2479,7 +2507,7 @@ function visibleRows(list){
     locked:true, isPublic:true, country:p.country, band:p.band, id:'locked-'+p.band,
     /* lengths only — enough to size the blur so a long course name looks long.
        No name, no university, no fee reaches the browser. */
-    nLen:p.nLen, uLen:p.uLen, fLen:(p.freeTuition?11:8), _need:p._need, _asks:statesAny(reqsOf(p)),
+    nLen:p.nLen, uLen:p.uLen, fLen:(p.freeTuition?11:8), _need:p._need, _short:p._short, _asks:statesAny(reqsOf(p)),
     /* The special conditions, not the name (patch 153): "restricted" and
        "clears via MOI" describe the route, and a counsellor says the same
        on the phone before a package is bought. */
@@ -2741,6 +2769,12 @@ function rowHtml(r){
    green chip on a programme we know nothing about would be a lie. */
 function verdictChip(r){
   const need = r._need;
+  /* Patch 162: short of something it asks — shown, ranked lower, said. */
+  if(r._short && r._short.length){
+    const f = r._short[0];
+    const say = f.want + (f.have ? ' \u2014 you said ' + f.have : '');
+    return `<span class="mverdict short" title="Asks for ${esc(r._short.map(x => x.want + ' (you: ' + x.have + ')').join('; '))}">Lower priority \u00b7 ${esc(r._short.length === 1 ? say : r._short.length + ' things it asks')}</span>`;
+  }
   if(need && need.length){
     const first = REQ_SHORT[need[0]] || need[0];
     return `<span class="mverdict unknown" title="Asks for ${esc(need.map(k => REQ_LABEL[k] || k).join(', '))} \u2014 tell us and we can say">Chances unknown \u00b7 ${esc(need.length === 1 ? first + '?' : need.length + ' answers short')}</span>`;
@@ -2816,14 +2850,14 @@ function turnedBox(){
   if(!touched || !TURNED.length){ el.hidden = true; el.innerHTML = ''; return; }
   const n = TURNED.length;
   const say = f => f.want + ' \u2014 you said ' + f.have;
-  el.innerHTML = `<details class="turned"><summary>${n} ${n === 1 ? 'programme' : 'programmes'} would turn you down on what you told us</summary><ul>`
+  el.innerHTML = `<details class="turned"><summary>${n} ${n === 1 ? 'programme is' : 'programmes are'} ranked lower \u2014 short of something ${n === 1 ? 'it asks' : 'they ask'} on what you told us</summary><ul>`
     + TURNED.slice(0, 40).map(({ p, fails }) => {
         const open = !p.isPublic || revealed[p.id];
         const name = open ? `<b>${esc(unent(p.program))}</b> \u00b7 ${esc(unent(p.shortName || p.university))}` : `<b>A public university</b> \u00b7 ${esc(C[p.country] ? C[p.country].name : p.country)}`;
         return `<li>${name}<span>${esc(fails.map(say).join('; '))}</span></li>`;
       }).join('')
     + (n > 40 ? `<li><small>\u2026 and ${n - 40} more</small></li>` : '')
-    + `</ul><p style="margin:10px 0 0;font:400 12.6px/1.5 var(--sans);color:var(--muted)">A score can be retaken and an intake can wait. Ask a counsellor before crossing any of these off.</p></details>`;
+    + `</ul><p style="margin:10px 0 0;font:400 12.6px/1.5 var(--sans);color:var(--muted)">They stay on your list, below the ones you clear. A score can be retaken and an intake can wait \u2014 your counsellor decides with you.</p></details>`;
   el.hidden = false;
 }
 

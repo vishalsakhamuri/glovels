@@ -229,8 +229,8 @@ let seq = 0;
   check('  · and it is optional',
     (await page.$$('[name="alt_phone"]')).length === 1
       && /optional/i.test(await labelOf('alt_phone')));
-  check('mobile and email are marked required on the label, not just implied',
-    (await page.$$('#pForm .reqmark')).length === 2);
+  check('first name, mobile and email are marked required on the label, not just implied',
+    (await page.$$('#pForm .reqmark')).length === 3);
 
   await page.fill('[name="phone"]', '');
   await page.fill('[name="email"]', 'someone@example.com');

@@ -56,7 +56,9 @@ check('said: an IELTS bar with no score is an open question', r.rows.find(p => p
 r = F.run(rows, F.parse('?country=DE&cgpa=7.5&english=ielts:6.5'), R);
 check('IELTS 6.5 clears row a', r.rows.find(p => p.id === 'a')._v.ok === true);
 r = F.run(rows, F.parse('?country=DE&work=6'), R);
-check('6 months of work fails the MBA that wants 24', !r.rows.some(p => p.id === 'c') && r.turned === 1);
+/* Patch 162: a shortfall ranks the row last, it does not drop it. */
+check('6 months of work ranks the MBA that wants 24 last, still shown', r.rows[r.rows.length - 1].id === 'c' && r.turned === 0 && r.rows.find(p => p.id === 'c')._tier === 2);
+check('and the row says so', F.rowHtml(r.rows.find(p => p.id === 'c'), { countries: {}, said: true }).includes('Lower priority'));
 r = F.run(rows, F.parse('?tuition=0'), R);
 check('no-tuition keeps only a stated 0', r.total === 1 && r.rows[0].id === 'a');
 r = F.run(rows, F.parse('?tuition=1500'), R);

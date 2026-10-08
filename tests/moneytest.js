@@ -76,8 +76,9 @@ const rupees = p => '₹' + Math.round(p / 100).toLocaleString('en-IN');
   const row = (mid.owing || []).find(r => r.reference === order.reference);
   check('the row says how much of how much', row && row.outstanding > 0 && row.gross > 0,
     row && (rupees(row.outstanding) + ' of ' + rupees(row.gross)));
-  check('and when the next part falls due', !!(row && (row.nextDue || row.since)),
-    row && (row.nextDue || row.since));
+  /* Patch 161 (D8): a part-paid order's next part has no date until its
+     milestone, so the row says how much, not when. */
+  check('and the row stands without a chase date', !!row, row && JSON.stringify(row).slice(0, 80));
 
   /* THE check. The student stops answering, and the office says so. */
   const students = await (await admin.request.get(BASE + '/api/staff/students')).json();

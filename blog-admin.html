@@ -1373,6 +1373,14 @@ async function staffBoot(run) {
   } catch (e) {
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({ role: 'staff' });
+    /* Not a staff account. The staff sidebar — seven links this person
+       cannot open, and a name slot reading "—" — was still drawn around the
+       message, which made a refusal look like a broken page. Only the
+       message and the way back to their own screen stay. */
+    const side = document.querySelector('.p-side');
+    if (side) side.remove();
+    const shell = document.querySelector('.p-shell');
+    if (shell) shell.style.gridTemplateColumns = '1fr';
     document.querySelector('.p-main').innerHTML =
       '<div class="sl-empty" style="margin-top:40px"><b>This screen is not for your account</b>' +
       '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';
@@ -1741,8 +1749,8 @@ function editor(p) {
         + 'before this screen existed is still being served at that address. '
         + 'Publishing what you write here replaces it; until then, visitors see '
         + 'the old page.</p>' : '')
-      + (isNew ? '' : '<button type="button" class="btn btn-ghost btn-sm" id="pDrop">'
-        + (p.status === 'published' ? 'Take off the site' : 'Delete') + '</button>')
+      + (isNew ? '' : '<span id="pDropWrap"><button type="button" class="btn btn-ghost btn-sm" id="pDrop">'
+        + (p.status === 'published' ? 'Take off the site' : 'Delete draft') + '</button></span>')
       + '</div>'
 
     + '<div class="field"><label for="pTitle">Headline</label>'
@@ -1870,6 +1878,7 @@ function editor(p) {
         + (p.status === 'published' ? 'Save and keep it live' : 'Publish to the site')
         + '</button>'
       + '<span id="pSaid" style="font:600 12.6px/1.5 var(--sans);color:#14603a"></span>'
+      + '<span id="pWarn" style="font:600 12.6px/1.5 var(--sans);color:#8a5a0b"></span>'
     + '</div>';
 
   ['pTitle', 'pSlug', 'pExcerpt', 'pBody', 'pMetaTitle', 'pMetaDesc'].forEach(id => {
@@ -2156,20 +2165,11 @@ function body() {
 async function save(status, p) {
   const err = $('#pErr');
   err.style.display = 'none';
-  /* The same rule the server holds: this box back-dates a post, it does not
-     schedule one. Said here first so the writer is not told after the save. */
-  const when = $('#pPublished').value;
-  if (when) {
-    const end = new Date(); end.setHours(23, 59, 59, 999);
-    if (new Date(when + 'T09:00:00') > end) {
-      err.textContent = 'Published on is in the future. The site does not hold a post back '
-        + 'until a date — leave the box empty to use the day you press Publish, or put the '
-        + 'day it was actually written.';
-      err.style.display = 'block';
-      $('#pPublished').focus();
-      return;
-    }
-  }
+  /* No future-date refusal here any more. The server accepts a date ahead
+     and answers with a `warning` when it is more than a year out (patch 160,
+     D22); a check on this side that refused first meant that warning could
+     never be seen. The server is the one rule, and its answer is shown
+     beside the saved message below. */
   const data = Object.assign(body(), { status });
   const btn = status === 'published' ? $('#pPub') : $('#pSave');
   const was = btn.textContent;
@@ -2186,6 +2186,10 @@ async function save(status, p) {
     $('#pSaid').textContent = status === 'published'
       ? 'On the site — glovels.com/post/' + r.post.slug
       : 'Saved. Not on the site.';
+    /* The server saves and warns rather than refusing — a publish date more
+       than a year ahead, say. The warning stays beside the saved message
+       until the next save, because it is about the post as it now stands. */
+    if ($('#pWarn')) $('#pWarn').textContent = r.warning ? '\u26a0 ' + r.warning : '';
     setTimeout(() => { if ($('#pSaid')) $('#pSaid').textContent = ''; }, 6000);
   } catch (e) {
     err.textContent = e.message;
@@ -2196,17 +2200,48 @@ async function save(status, p) {
 }
 
 async function drop(p) {
-  /* Unpublishing is one press; deleting something that was live is not
-     offered at all, because the address has been shared and indexed. */
+  /* Taking a live post off the site is a save as a draft — the address has
+     been shared and indexed, so the row stays and the page stops. Deleting
+     is only for a draft, and the server refuses it for anything live. */
   const live = p.status === 'published';
-  if (!live && !confirm('Delete “' + p.title + '”? It was never on the site, '
-      + 'so nothing links to it.')) return;
-  await api('DELETE', '/api/staff/post/' + p.id);
-  openId = live ? p.id : null;
-  await load();
-  if (live) open_(p.id);
-  else $('#editor').innerHTML = '<p style="margin:0;font-size:13px;color:var(--muted)">'
-    + 'Deleted. Pick another post, or start a new one.</p>';
+  if (live) return save('draft', p);
+  /* Asks first, in place of the button rather than in a browser confirm():
+     it names the draft, it does not block the page, and Keep puts the button
+     back exactly as it was. */
+  const wrap = $('#pDropWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<span role="group" aria-label="Delete this draft?" '
+    + 'style="display:inline-flex;align-items:center;gap:8px;font:600 12.6px/1.5 var(--sans);'
+    + 'color:var(--navy-900)">'
+    + '<span>Delete \u201c' + esc(p.title || 'this draft') + '\u201d? It was never on the site.</span>'
+    + '<button type="button" class="btn btn-primary btn-sm" id="pDropYes">Delete</button>'
+    + '<button type="button" class="btn btn-ghost btn-sm" id="pDropNo">Keep</button></span>';
+  $('#pDropNo').onclick = () => {
+    wrap.innerHTML = '<button type="button" class="btn btn-ghost btn-sm" id="pDrop">Delete draft</button>';
+    $('#pDrop').onclick = () => drop(p);
+  };
+  $('#pDropYes').onclick = async () => {
+    const err = $('#pErr');
+    err.style.display = 'none';
+    $('#pDropYes').disabled = true;
+    $('#pDropYes').textContent = 'Deleting\u2026';
+    try {
+      await api('DELETE', '/api/staff/post/' + p.id);
+    } catch (e) {
+      /* 409 for a live post, with the server's own words; anything else the
+         same way. The button comes back so the writer can try again. */
+      err.textContent = e.message;
+      err.style.display = 'block';
+      $('#pDropNo').onclick();
+      return;
+    }
+    openId = null;
+    dirty = false;
+    await load();
+    $('#editor').innerHTML = '<p style="margin:0;font-size:13px;color:var(--muted)">'
+      + 'Deleted. Pick another post, or start a new one.</p>';
+  };
+  $('#pDropYes').focus();
 }
 
 async function open_(id) {

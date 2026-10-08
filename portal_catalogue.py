@@ -291,6 +291,10 @@ BODY = """
         #uniEd .coverrow img,#uniEd .coverrow .nopic{width:130px;aspect-ratio:16/9;object-fit:cover;
           border-radius:8px;border:1px solid var(--line);background:#f2f5f9;display:grid;
           place-items:center;font:600 11px/1.3 var(--sans);color:var(--muted)}
+        /* The destination row's own "are you sure" — Remove asks on the row,
+           naming the destination and how many programmes go with it. */
+        .dask{display:inline-flex;align-items:center;gap:6px;font-size:12.4px;
+          color:var(--navy-900);font-weight:600;white-space:nowrap}
       </style>
     </section>
 
@@ -462,7 +466,9 @@ function paintProgs() {
          moves every university in the country. */
       '<td style="white-space:nowrap">' + (() => {
         const b = barOf(p);
-        if (b.n == null) return '<span style="color:var(--muted)">—</span>';
+        /* No bar at all, or a bar of 0 — a rule of 0 excludes nobody, so it
+           is not a bar to show; "0 · Germany rule" read as a requirement. */
+        if (b.n == null || !(b.n > 0)) return '<span style="color:var(--muted)">—</span>';
         return b.own
           ? '<b style="font:700 12.6px/1.4 var(--sans)">' + b.n + '</b>'
             + '<span style="display:block;font-size:10.8px;color:var(--muted)">its own</span>'
@@ -476,7 +482,7 @@ function paintProgs() {
           : '<span class="st ok">On the site</span>') +
         (p.featured ? '<br><span class="st ok" style="margin-top:4px;display:inline-block">' +
           '\u2605 Showcase' + (p.featureSort ? ' #' + p.featureSort : '') + '</span>' : '') + '</td>' +
-      '<td><button type="button" class="btn btn-ghost btn-sm" data-edit="' + esc(p.id) + '">Edit</button></td>' +
+      '<td style="white-space:nowrap"><button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap" data-edit="' + esc(p.id) + '">Edit</button></td>' +
       '</tr>';
   }).join('') || '<tr><td colspan="9" style="padding:22px;color:var(--muted)">Nothing matches.</td></tr>';
 
@@ -1605,6 +1611,29 @@ document.addEventListener('click', async e => {
     }
     return;
   }
+
+  /* Remove asks first, on the row. One press used to delete the destination
+     and every programme under it at once. Inline rather than a browser
+     confirm(): it names the destination and its programme count, it does
+     not block the page, and Keep paints the row back exactly as it was. */
+  const dask = e.target.closest('[data-ddel]:not([data-sure])');
+  if (dask) {
+    const d = DESTS.find(x => x.code === dask.dataset.ddel) || {name: dask.dataset.ddel, programmes: 0};
+    const n = d.programmes || 0;
+    const cell = dask.closest('td');
+    cell.innerHTML =
+      '<span class="dask" role="group" aria-label="Remove this destination?">'
+      + '<span>Remove ' + esc(d.name) + ' and its ' + n.toLocaleString('en-IN')
+        + (n === 1 ? ' programme' : ' programmes') + '?</span>'
+      + '<button type="button" class="btn btn-primary btn-sm" data-ddel="' + esc(d.code)
+        + '" data-sure="1">Remove</button>'
+      + '<button type="button" class="btn btn-ghost btn-sm" data-dkeep="' + esc(d.code)
+        + '">Keep</button></span>';
+    const yes = cell.querySelector('[data-sure]'); if (yes) yes.focus();
+    return;
+  }
+  const dkeep = e.target.closest('[data-dkeep]');
+  if (dkeep) { paintDests(); return; }
 
   const dd = e.target.closest('[data-ddel]');
   if (dd) {

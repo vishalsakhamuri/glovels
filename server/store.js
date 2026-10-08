@@ -464,6 +464,9 @@ function sqliteDriver(file) {
       re-running the matcher, and so the student can be told "special
       conditions" without being told the name. */
    "ALTER TABLE shortlist ADD COLUMN hold_reason TEXT NOT NULL DEFAULT ''",
+   /* Patch 162: the matcher's order. Picks share one added_at, so without
+      this the "best three" came back in whatever order SQLite felt like. */
+   "ALTER TABLE shortlist ADD COLUMN rank INTEGER NOT NULL DEFAULT 0",
    /* One row per device a member of staff has allowed notifications on. The
       endpoint is the identity — a browser that rotates a subscription gives us
       a new endpoint, and the old one starts returning 410, which is how dead
@@ -1081,7 +1084,7 @@ function open(dir) {
        on the student's list", and a held row is precisely not on it yet —
        the dashboard, the tasks, the partner's book, the counts all go on
        seeing exactly what they saw. The held rows have their own reader. */
-    getShortlist: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id))
+    getShortlist: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc, rank asc, rowid asc', Number(id))
       .filter(r => String(r.added_by) !== 'held'),
     /* Patch 153: the machine's picks a counsellor has yet to release. */
     getHeld: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id))
@@ -1126,7 +1129,7 @@ function open(dir) {
      * exactly what confirming means. The machine re-running over a university
      * a counsellor has already agreed does not demote it back.
      */
-    addShortlist(studentId, p, by) {
+    addShortlist(studentId, p, by, rank) {
       const existing = db.all(
         'SELECT added_by FROM shortlist WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(p.id))[0];
@@ -1135,11 +1138,11 @@ function open(dir) {
       const prior = existing && existing.added_by;
       const owner = prior && (RANK[prior] || 0) > RANK[want] ? prior : want;
       db.run(`INSERT OR REPLACE INTO shortlist
-        (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by, rank)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(studentId), String(p.id), p.program || '', p.university || '', p.city || '',
         p.country || '', Number(p.totalInr || 0), p.isPublic ? 1 : 0, p.url || '',
-        JSON.stringify(p.intakes || []), Number(p.fit || 0), now(), owner);
+        JSON.stringify(p.intakes || []), Number(p.fit || 0), now(), owner, Number(rank || 0));
     },
     removeShortlist: (studentId, progId) =>
       db.run('DELETE FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),

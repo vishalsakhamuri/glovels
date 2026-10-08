@@ -435,8 +435,8 @@ p[data-legal-row].on{display:block}
 .signin,.nav-cta .btn{white-space:nowrap}
 /* The tight band, roughly a laptop: the menu gives up its spacing first, and
    the buttons shed a little padding rather than a line. */
-@media (max-width:1400px){
-  nav.menu{gap:clamp(9px,1.1vw,16px)}
+@media (max-width:1680px){
+  nav.menu{gap:clamp(8px,1vw,16px)}
   nav.menu>a,.ndt{font-size:13px}
   .nav-cta{gap:8px}
   .nav-cta .btn{padding:11px 16px;font-size:13.2px}
@@ -447,6 +447,22 @@ p[data-legal-row].on{display:block}
   nav.menu>a,.ndt{font-size:12.5px}
   .nav-cta .btn{padding:10px 13px;font-size:12.6px}
   .signin{padding:10px 12px;font-size:12.6px}
+}
+/* GLOVELS-NAV-SIGNED: signed in, the Sign in pill becomes "My dashboard" /
+   "My students" / "My office", and the full menu no longer fits beside it on a
+   laptop. Below 1600px a signed-in page folds the menu into the burger and
+   keeps the short pill, the way every page already does below 1160px. The
+   page is signed in when <html> carries .signed (set by the header script) or,
+   failing that, when the pill itself carries it. Clipping the body is the
+   safety net: nothing in the header can make the page scroll sideways. */
+body{overflow-x:clip}
+@media (max-width:1600px){
+  html.signed nav.menu{display:none}
+  html.signed .burger{display:flex}
+  html.signed .nav-cta{margin-left:auto}
+  html:has(a.signin.signed) nav.menu{display:none}
+  html:has(a.signin.signed) .burger{display:flex}
+  html:has(a.signin.signed) .nav-cta{margin-left:auto}
 }
 </style>
 

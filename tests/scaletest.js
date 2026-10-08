@@ -106,7 +106,13 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const map = await (await guest.request.get(BASE + '/sitemap.xml')).text();
   check('every published post is in the sitemap', made.length === 26 && made.every(p => map.includes('/post/' + p.slug + '</loc>')),
     made.filter(p => map.includes('/post/' + p.slug + '</loc>')).length);
-  for (const p of made) { await ctx.request.delete(BASE + '/api/staff/post/' + p.id); await ctx.request.delete(BASE + '/api/staff/post/' + p.id); }
+  /* Patch 161 (D22): a live post is taken off the site by saving it as a
+     draft; DELETE then removes the draft. */
+  for (const p of made) {
+    const full = await (await ctx.request.get(BASE + '/api/staff/post/' + p.id)).json();
+    await ctx.request.put(BASE + '/api/staff/post/' + p.id, { data: Object.assign({}, full.post, { status: 'draft' }) });
+    await ctx.request.delete(BASE + '/api/staff/post/' + p.id);
+  }
   const after = await get('/api/staff/posts?q=scale%20test&per=100');
   check('taken down again', after.total === 0, after.total);
 

@@ -1935,7 +1935,7 @@ const UFILTER_JS = `<script>(function(){
       if (!d || my !== seq) return;
       var U = d.universities || [];
       list.innerHTML = U.map(row).join('') || '<li style="color:var(--muted);padding:8px 0">Nothing clears every filter. Loosen one, or <a href="index.html#counsel">ask a counsellor</a> \u2014 we add universities on request.</li>';
-      count.textContent = (d.total > U.length ? 'Showing ' + U.length + ' of ' + d.total : d.total) + ' universit' + (d.total === 1 ? 'y' : 'ies') + ' match';
+      count.textContent = (d.total > U.length ? 'Showing ' + U.length + ' of ' + d.total : d.total) + ' universit' + (d.total === 1 ? 'y matches' : 'ies match');
       moreEl.textContent = d.total > U.length ? 'And ' + (d.total - U.length) + ' more match \u2014 narrow the filters, or search below.' : 'Every one has its own page. Search for another below.';
     }).catch(function () {});
   }
@@ -2296,6 +2296,7 @@ const SIGNED_IN_NAV = `<script>
     var label=role==='student'?'My dashboard':role==='partner'?'My students':'My office';
     var first=String(u.name||'').trim().split(/\s+/)[0];
     links.forEach(function(a){a.href=home;a.textContent=label;a.title=first?('Signed in as '+first):'';a.classList.add('signed');});
+    document.documentElement.classList.add('signed');
   }).catch(function(){});
 })();
 </script>

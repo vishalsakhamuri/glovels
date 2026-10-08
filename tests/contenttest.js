@@ -18,7 +18,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
 
 (async () => {
   const browser = await chromium.launch();
-  const ctx = await browser.newContext();
+  /* Patch 161 (D5): signed in, a page under 1600px folds the menu into the
+     burger, so the header button this test edits is only on screen wide. */
+  const ctx = await browser.newContext({ viewport: { width: 1700, height: 900 } });
   await ctx.request.post(BASE + '/api/auth/login',
     { data: { email: 'admin@glovels.com', password: 'glovels123' } });
 

@@ -102,15 +102,15 @@ FORM = """
       <form id="postForm" novalidate>
         <div class="bf-grid">
           <div class="field"><label for="bfName">Your name</label>
-            <input id="bfName" name="name" autocomplete="name" required></div>
+            <input id="bfName" name="name" autocomplete="name" maxlength="100" required></div>
           <div class="field"><label for="bfPhone">Mobile</label>
             <input id="bfPhone" name="phone" inputmode="numeric" autocomplete="tel"
-              placeholder="10 digits" required></div>
+              placeholder="10 digits" maxlength="20" required></div>
         </div>
         <div class="field"><label for="bfMail">Email</label>
-          <input id="bfMail" name="email" type="email" autocomplete="email" required></div>
+          <input id="bfMail" name="email" type="email" autocomplete="email" maxlength="120" required></div>
         <div class="field"><label for="bfMsg">What would you like to know?</label>
-          <textarea id="bfMsg" name="message" rows="3"
+          <textarea id="bfMsg" name="message" rows="3" maxlength="2000"
             placeholder="Optional — your CGPA, your intake, the course you have in mind"></textarea></div>
         <label for="bfSite" class="sr" style="position:absolute;left:-9999px">Leave this field empty</label>
         <input id="bfSite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
@@ -252,6 +252,9 @@ FORM_JS = """
     var email = f.email.value.trim();
     var phone = f.phone.value.trim().replace(/\\D/g, '').slice(-10);
     if (!name) return say('Tell us your name.');
+    /* D21: a name is letters — the server refuses "12345" with a 422. */
+    if (!(function () { try { return new RegExp('\\\\p{L}', 'u').test(name); } catch (e) { return /[A-Za-z\\u00C0-\\u024F]/.test(name); } }()))
+      return say('A name needs at least one letter.');
     if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) return say('That email address is not valid.');
     if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
     var okBox = document.getElementById('bfOk');

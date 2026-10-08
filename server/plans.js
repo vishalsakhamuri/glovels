@@ -153,12 +153,19 @@ function split(grossPaise, pkg, placedAt) {
     const amounts = amountsFor(gross, rows);
     if (!amounts) continue;
     return rows.map((r, i) => {
-      const due = new Date(start.getTime() + r.dueDays * 864e5);
       return {
         n: i + 1,
         label: r.label,
         paise: amounts[i],
-        dueAt: r.dueDays ? due.toISOString() : '',
+        /* Patch 160 (D8): a later part is not given a calendar date at the
+           checkout. "When your applications go in" is a milestone, not a day
+           thirty days from the sale, and a date written in before the work
+           exists is what made part 2 of GLV-4235 read as overdue while the
+           unpaid first part was the money actually owed. The authored
+           `dueDays` is kept on the part, for whenever the milestone is marked
+           reached. */
+        dueAt: '',
+        dueDays: r.dueDays || 0,
         /* The first part is paid at the checkout; the rest are collected. */
         status: i === 0 ? 'due' : 'later',
         paidAt: '',
@@ -192,10 +199,22 @@ function nextDue(plan) {
  * chasing somebody for money before we have done the thing it pays for is how
  * a business loses a customer it had already won.
  */
-function overdue(plan, now) {
+/* How long an undated part that is DUE may sit unpaid before it is late. The
+   first part is paid at the checkout; one that is still open a week after the
+   order was placed is a checkout that was never finished, or a transfer that
+   never came. */
+const GRACE_DAYS = 7;
+
+function overdue(plan, now, placedAt) {
   const t = now ? new Date(now).getTime() : Date.now();
-  return (plan || []).filter(p =>
-    p.status !== 'paid' && p.dueAt && new Date(p.dueAt).getTime() < t);
+  const placed = placedAt ? new Date(placedAt).getTime() : NaN;
+  return (plan || []).filter(p => {
+    /* Patch 160 (D8): only a part that is DUE can be late. A part marked
+       'later' is waiting on a milestone, whatever date it may carry. */
+    if (p.status !== 'due') return false;
+    if (p.dueAt) return new Date(p.dueAt).getTime() < t;
+    return Number.isFinite(placed) && t - placed > GRACE_DAYS * 864e5;
+  });
 }
 
 /** One line a card can print: "Part payment available — ₹30,000 to start." */
@@ -208,6 +227,6 @@ function teaser(grossPaise, pkg, inr) {
 }
 
 module.exports = {
-  THRESHOLD_PAISE, MIN_PART_PAISE, MAX_PARTS, DEFAULT_PLAN, SERVICE_PLAN,
+  THRESHOLD_PAISE, MIN_PART_PAISE, MAX_PARTS, DEFAULT_PLAN, SERVICE_PLAN, GRACE_DAYS,
   allowed, split, phasesFor, outstanding, collected, nextDue, overdue, teaser,
 };

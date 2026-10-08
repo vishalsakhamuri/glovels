@@ -36,6 +36,29 @@ BODY = """
 
       .lrow{cursor:pointer}
       .lrow.on td{background:#f0f5fb}
+
+      /* The book's table. `.p-card > .tbl` holds every table open at 1,180px
+         so a wide roster scrolls rather than crushes — but this one sits in
+         an 811px column beside the detail pane, where the floor cut Owner in
+         half and pushed Follow-ups and Came in off the right edge with
+         nothing on screen to say so. Six columns fit on a fixed grid: the
+         message under the name is the one thing that may wrap, and it stops
+         at two lines; the pills and dates keep their width. */
+      .p-card > .lbtbl.tbl{min-width:0;width:100%;table-layout:fixed}
+      .lbtbl th, .lbtbl td{padding:9px 8px}
+      .lbtbl th:first-child, .lbtbl td:first-child{padding-left:14px;width:32%}
+      .lbtbl th:nth-child(2), .lbtbl td:nth-child(2){width:13%}
+      .lbtbl th:nth-child(3), .lbtbl td:nth-child(3){width:14%}
+      .lbtbl th:nth-child(4), .lbtbl td:nth-child(4){width:19%}
+      .lbtbl th:nth-child(5), .lbtbl td:nth-child(5){width:12%}
+      .lbtbl th:last-child, .lbtbl td:last-child{padding-right:14px;width:10%}
+      .lbtbl .src, .lbtbl .st{white-space:nowrap}
+      .lbtbl select.assign{min-width:0;padding-left:8px;padding-right:22px}
+      .lbtbl .lnote{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+        overflow:hidden;font-size:11.6px;color:var(--muted);line-height:1.45}
+      /* On a phone the six columns cannot share 340px; the table goes back to
+         its full width inside the card's own sideways scroll, as before. */
+      @media (max-width:700px){.p-card > .lbtbl.tbl{min-width:1180px;width:auto;table-layout:auto}}
       .cold td:first-child{box-shadow:inset 3px 0 0 #c0392b}
 
       .thread{max-height:34vh;overflow-y:auto;display:flex;flex-direction:column;gap:9px;
@@ -123,7 +146,7 @@ BODY = """
 
       <div class="lead-cols">
         <div class="p-card" style="padding:0;overflow-x:auto">
-          <table class="tbl" style="margin:0">
+          <table class="tbl lbtbl" style="margin:0">
             <thead><tr><th>Who</th><th>Source</th><th>Status</th><th>Owner</th>
               <th>Follow-ups</th><th>Came in</th></tr></thead>
             <tbody id="leadRows"></tbody>
@@ -295,9 +318,8 @@ function paint() {
     return '<tr class="lrow' + (l.id === openId ? ' on' : '') + (cold ? ' cold' : '')
       + '" data-lead="' + l.id + '">'
       + '<td><b>' + esc(l.name || 'no name') + '</b>'
-        + (l.note ? '<br><span style="font-size:11.6px;color:var(--muted)">'
-          + esc(l.note.slice(0, 70)) + '</span>' : '')
-        + '<br><span style="font-size:11.6px;color:var(--muted)">'
+        + (l.note ? '<span class="lnote">' + esc(l.note.slice(0, 160)) + '</span>' : '')
+        + '<span style="display:block;font-size:11.6px;color:var(--muted)">'
         + esc(l.phone || l.email || 'nothing given') + '</span></td>'
       + '<td><span class="' + srcClass(l.source) + '">'
         + esc(SOURCE_LABEL[l.source] || l.source) + '</span>'

@@ -44,6 +44,12 @@ BODY = """
         width:1%}
       .tktbl td:nth-child(2), .tktbl td:nth-child(3){white-space:nowrap}
       .tktbl .st{white-space:nowrap}
+      /* done · stuck · reopen are links, the way the Organisation screen
+         draws its own; nothing on this page styled `.lnk`, so they came out
+         as bare browser buttons. */
+      .tktbl .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
+        text-decoration:underline;cursor:pointer}
+      .tktbl .lnk:hover{color:var(--navy-900)}
     </style>
 
     <div class="p-cols aside" style="--aside:320px;align-items:start;gap:16px">
@@ -339,6 +345,16 @@ function appFileMark(id, kind) {
   const n = (slot && (slot.files || []).length) || 0;
   return n ? ' ✓' + (n > 1 ? ' ' + n : '') : '';
 }
+
+/* "2026-08-26" as "26 Aug 2026", the way every other date on the portal
+   reads. Built from the parts rather than parsed, because a bare date string
+   parses as UTC midnight and reads a day early west of Greenwich. */
+const dueDay = s => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  if (!m) return String(s || '');
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    .toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 function paintRecord(r) {
   CASE = r;
@@ -673,7 +689,7 @@ function paintRecord(r) {
                     ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
                       'dated back from the university deadline</span>' : '') + '</td>' +
                 '<td>' + (t.due
-                  ? '<b' + (late ? ' style="color:#a8343a"' : '') + '>' + esc(t.due) +
+                  ? '<b' + (late ? ' style="color:#a8343a"' : '') + '>' + esc(dueDay(t.due)) +
                     '</b><span style="display:block;font-size:11.4px;color:' +
                     (late ? '#a8343a' : 'var(--muted)') + '">' + esc(said) + '</span>'
                   : '<span style="font-size:11.8px;color:var(--muted)">waiting on a ' +

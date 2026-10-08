@@ -1678,6 +1678,14 @@ async function staffBoot(run) {
   } catch (e) {
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({ role: 'staff' });
+    /* Not a staff account. The staff sidebar — seven links this person
+       cannot open, and a name slot reading "—" — was still drawn around the
+       message, which made a refusal look like a broken page. Only the
+       message and the way back to their own screen stay. */
+    const side = document.querySelector('.p-side');
+    if (side) side.remove();
+    const shell = document.querySelector('.p-shell');
+    if (shell) shell.style.gridTemplateColumns = '1fr';
     document.querySelector('.p-main').innerHTML =
       '<div class="sl-empty" style="margin-top:40px"><b>This screen is not for your account</b>' +
       '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';

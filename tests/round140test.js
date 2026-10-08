@@ -27,7 +27,8 @@ const get = async p => {
   ok('showcase: the counsellor button sits to the right', /justify-content:flex-end;margin-top:22px">\s*<a class="btn btn-primary" href="#counsel">Talk to a counsellor/.test(r.text));
   ok('counselling form: three asterisks', (r.text.match(/<span class="req" aria-hidden="true">\*<\/span>/g) || []).length === 3);
   ok('nav: an open menu closes on scroll', /addEventListener\('scroll', \(\) => \$\$\('\.nav-drop\.open'\)/.test(r.text));
-  ok('hero: the proof line is inline beside the subtitle', /\.hero-sub\{display:inline-block;/.test(r.text) && /\.hero-rate\{display:inline-flex;/.test(r.text));
+  /* Patch 159 (C1): the proof line is three trust chips under the subtitle. */
+  ok('hero: three trust chips under the subtitle', (r.text.match(/class="hchip"/g) || []).length === 3 && !/class="avatars"/.test(r.text));
   ok('footer: the map box with its Google address', /id="fMap" data-src="https:\/\/www\.google\.com\/maps\?q=Metro\+Pillar\+C1734/.test(r.text));
   ok('footer: the map loads only when the footer is in view', /IntersectionObserver/.test(r.text) && /box\.replaceChildren\(f\)/.test(r.text));
   const csp = r.h.get('content-security-policy') || '';

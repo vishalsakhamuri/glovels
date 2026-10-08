@@ -318,8 +318,8 @@ html.review-copy .towrite{display:block !important}
 .signin,.nav-cta .btn{white-space:nowrap}
 /* The tight band, roughly a laptop: the menu gives up its spacing first, and
    the buttons shed a little padding rather than a line. */
-@media (max-width:1400px){
-  nav.menu{gap:clamp(9px,1.1vw,16px)}
+@media (max-width:1680px){
+  nav.menu{gap:clamp(8px,1vw,16px)}
   nav.menu>a,.ndt{font-size:13px}
   .nav-cta{gap:8px}
   .nav-cta .btn{padding:11px 16px;font-size:13.2px}
@@ -330,6 +330,22 @@ html.review-copy .towrite{display:block !important}
   nav.menu>a,.ndt{font-size:12.5px}
   .nav-cta .btn{padding:10px 13px;font-size:12.6px}
   .signin{padding:10px 12px;font-size:12.6px}
+}
+/* GLOVELS-NAV-SIGNED: signed in, the Sign in pill becomes "My dashboard" /
+   "My students" / "My office", and the full menu no longer fits beside it on a
+   laptop. Below 1600px a signed-in page folds the menu into the burger and
+   keeps the short pill, the way every page already does below 1160px. The
+   page is signed in when <html> carries .signed (set by the header script) or,
+   failing that, when the pill itself carries it. Clipping the body is the
+   safety net: nothing in the header can make the page scroll sideways. */
+body{overflow-x:clip}
+@media (max-width:1600px){
+  html.signed nav.menu{display:none}
+  html.signed .burger{display:flex}
+  html.signed .nav-cta{margin-left:auto}
+  html:has(a.signin.signed) nav.menu{display:none}
+  html:has(a.signin.signed) .burger{display:flex}
+  html:has(a.signin.signed) .nav-cta{margin-left:auto}
 }
 </style>
 <style>/* GLOVELS-PAGE-COPY-CSS */
@@ -407,20 +423,20 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <form id="ctForm" class="ct-form" novalidate>
     <div class="ct-row">
       <label>Your name
-        <input id="ctName" autocomplete="name" placeholder="Ananya Rao" required></label>
+        <input id="ctName" autocomplete="name" placeholder="Ananya Rao" maxlength="100" required></label>
       <label>Mobile number
         <input id="ctPhone" inputmode="tel" autocomplete="tel"
-          placeholder="98765 43210" required></label>
+          placeholder="98765 43210" maxlength="20" required></label>
     </div>
     <div class="ct-row">
       <label>Email
         <input id="ctMail" inputmode="email" autocomplete="email"
-          placeholder="you@example.com" required></label>
+          placeholder="you@example.com" maxlength="120" required></label>
       <label>Where are you headed?
-        <input id="ctDest" placeholder="Germany, Canada, not sure yet"></label>
+        <input id="ctDest" placeholder="Germany, Canada, not sure yet" maxlength="100"></label>
     </div>
     <label>What would you like to ask?
-      <textarea id="ctMsg" rows="4"
+      <textarea id="ctMsg" rows="4" maxlength="2000"
         placeholder="Your course, your CGPA, your intake — whatever is on your mind."></textarea></label>
     <input id="ctTrap" tabindex="-1" autocomplete="off" aria-hidden="true"
       style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
@@ -1036,8 +1052,16 @@ if (location.protocol === 'file:') {
        would answer a person, and write nothing down. */
     if ($('ctTrap').value) { done(); return; }
 
+    /* D21: a name is letters. The server refuses "12345" with a 422, and so
+       does this, before the round trip. \p{L} is any letter in any script;
+       a browser too old to know it falls back to the Latin alphabet. */
+    var hasLetter = (function () {
+      try { var re = new RegExp('\\p{L}', 'u'); return function (v) { return re.test(v); }; }
+      catch (e) { return function (v) { return /[A-Za-z\u00C0-\u024F]/.test(v); }; }
+    }());
     var checks = [
-      ['ctName', function (v) { return v.length > 1; }, 'Tell us your name.'],
+      ['ctName', function (v) { return v.length > 1 && hasLetter(v); },
+        function (v) { return v.length > 1 ? 'A name needs at least one letter.' : 'Tell us your name.'; }],
       ['ctPhone', function (v) {
         return /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10));
       }, 'A 10-digit Indian mobile, please.'],
@@ -1048,7 +1072,7 @@ if (location.protocol === 'file:') {
     checks.forEach(function (c) {
       var el = $(c[0]), ok = c[1](el.value.trim());
       el.classList.toggle('bad', !ok);
-      if (!ok && !bad) bad = c[2];
+      if (!ok && !bad) bad = typeof c[2] === 'function' ? c[2](el.value.trim()) : c[2];
     });
     if (!bad && !$('ctOk').checked) bad = 'Please tick the box so we can reply to you.';
     if (bad) { err.textContent = bad; err.hidden = false; $(checks[0][0]).focus(); return; }
@@ -1078,6 +1102,18 @@ if (location.protocol === 'file:') {
       body: JSON.stringify(payload)
     })
       .then(function (r) {
+        /* D21: a 422 is the server saying what is wrong with what they typed —
+           show that, next to the form, and let them fix it. The mail fallback
+           below is for a server that cannot be reached, not for a bad name. */
+        if (r.status === 422) {
+          return r.json().catch(function () { return {}; }).then(function (d) {
+            btn.disabled = false;
+            btn.textContent = 'Send';
+            err.textContent = d.error || 'Please check what you typed and try again.';
+            err.hidden = false;
+            if (/name/i.test(d.error || '')) { $('ctName').classList.add('bad'); $('ctName').focus(); }
+          });
+        }
         if (!r.ok) throw new Error('the server answered ' + r.status);
         if (window.glvTrack) glvTrack('generate_lead', { form: 'contact' });
         done();

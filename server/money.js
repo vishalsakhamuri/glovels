@@ -27,6 +27,8 @@
  * liability anybody owes.
  */
 
+const PLANS = require('./plans.js');
+
 const GST_RATE = 0.18;
 
 /** The tax inside an inclusive amount. */
@@ -116,8 +118,9 @@ function summarise(students, orders, now) {
        thing that can be late; an order with no plan is owed but not yet due. */
     let plan = null;
     try { plan = o.plan ? JSON.parse(o.plan) : null; } catch (e) { plan = null; }
-    const late = (plan || []).filter(p =>
-      p.status !== 'paid' && p.dueAt && new Date(p.dueAt).getTime() < t);
+    /* Patch 160 (D8): the same rule as the payment alert, from the same
+       place — only a part that is DUE can be late. */
+    const late = PLANS.overdue(plan, t, o.created_at);
     const lateSum = late.reduce((n, p) => n + Number(p.paise || 0), 0);
     out.overdue += lateSum;
 
@@ -135,7 +138,8 @@ function summarise(students, orders, now) {
       overdue: lateSum,
       /* The date the oldest unpaid instalment was due, which is what "how late"
          means in a sentence somebody says on the phone. */
-      since: late.length ? late.map(p => p.dueAt).sort()[0] : '',
+      since: late.length ? late.map(p => p.dueAt
+        || new Date(new Date(o.created_at).getTime() + PLANS.GRACE_DAYS * 864e5).toISOString()).sort()[0] : '',
       nextDue: (plan || []).filter(p => p.status !== 'paid')
         .map(p => p.dueAt).filter(Boolean).sort()[0] || '',
     });

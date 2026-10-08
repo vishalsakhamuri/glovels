@@ -85,7 +85,7 @@
     + '.gf h4{margin:16px 0 6px;font-size:13.4px}.gf ul{list-style:none;margin:0;padding:0}'
     + '.gf li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line,#e6e9ee)}'
     + '.gf li .m{flex:1;min-width:0}.gf li b{display:block;font-size:13px}.gf small{display:block;color:var(--muted,#5d6b7a);font-size:11.8px}'
-    + '.gf .why{color:#b42318;font-weight:600}.gf .ask{color:#8a6a1f}.gf .tag{display:inline-block;font:700 10.5px/1.5 var(--sans,system-ui);padding:0 7px;border-radius:999px;background:#eef2f6;margin-right:4px}'
+    + '.gf .why{color:#b42318;font-weight:600}.gf .soft{color:#8a6a1f;font-weight:600}.gf .ask{color:#8a6a1f}.gf .tag{display:inline-block;font:700 10.5px/1.5 var(--sans,system-ui);padding:0 7px;border-radius:999px;background:#eef2f6;margin-right:4px}'
     + '.gf .auto{background:#f5f8fb;border:1px solid var(--line,#e6e9ee);border-radius:10px;padding:10px 12px;margin-top:12px}'
     + '.gf .sum{margin-top:10px;color:var(--muted,#5d6b7a);font-size:12.2px}';
 
@@ -209,6 +209,9 @@
       + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + lakh(r.totalInr)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
       + (r.why && r.why.length ? '<small class="why">' + esc(r.why.join('; ')) + '</small>' : '')
+      /* Patch 162: short of something stated — on the list, ranked lower, the
+         counsellor's call. */
+      + (r.soft && r.soft.length ? '<small class="soft">Lower priority — ' + esc(r.soft.join('; ')) + '</small>' : '')
       + (r.ask && r.ask.length ? '<small class="ask">Not known yet: ' + esc(r.ask.join(', ')) + '</small>' : '')
       + (r.notes && r.notes.length ? '<small>' + esc(r.notes.join(' · ')) + '</small>' : '')
       + '<small>Restrictions: ' + esc(restrictions(r)) + '</small>'

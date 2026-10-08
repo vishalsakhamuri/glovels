@@ -647,7 +647,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       slot.at = d.uploaded_at;
     });
     const apps = {};
+    /* Patch 160 (D11): only the applications for programmes ON THE LIST.
+       A record for a programme since taken off the shortlist stays in the
+       database — nothing is deleted — but the counsellor's header said "23
+       applications" over a list of 18, because this carried every row ever
+       written and the student's own screen walks the shortlist. One rule for
+       both screens, here. */
+    const listed = new Set(db.getShortlist(s.id).map(r => String(r.prog_id)));
     db.getApplications(s.id).forEach(a => {
+      if (!listed.has(String(a.prog_id))) return;
       apps[a.prog_id] = {
         stage: a.stage, outcome: a.outcome,
         /* The counsellor's sentence about this one application, and when it
@@ -940,7 +948,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      */
     const heldNow = [];
     const heldWas = new Set((typeof db.getHeld === 'function' ? db.getHeld(student.id) : []).map(r => String(r.prog_id)));
-    picks.forEach(p => {
+    picks.forEach((p, rank) => {
       const id = String(p.id);
       const reasons = have.has(id) ? [] : MATCHES.holdReasons(p, profile);
       if (reasons.length) {
@@ -949,7 +957,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         return;
       }
       if (!have.has(id)) out.added++;
-      db.addShortlist(student.id, p, 'matched');
+      db.addShortlist(student.id, p, 'matched', rank + 1);
     });
     /* A re-pick REPLACES the machine's earlier picks, it does not pile on
        them. Rows a counsellor or the student put there are theirs and stay —
@@ -1378,6 +1386,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const key = w => w.field + '|' + w.said + '|' + w.why;
     const old = new Set(GRADES.problems(before).map(key));
     const wrong = GRADES.problems(merged).filter(w => !old.has(key(w)));
+    /* Patch 160 (D6): a save that CLEARS the first name is refused.
+       The same merge rule as every other check above — only a problem this
+       save introduces is a reason to refuse it. A record that never had a
+       first name is not made worse by a save of the Goals section, and the
+       profile page sends the whole form on every save, so "blank and sent"
+       cannot by itself be the test: it would lock every section until the
+       name was typed. Blanking a name that was there is a new problem, and
+       is refused. Last name stays optional: a great many single-name
+       passports are real passports. */
+    const blank = v => String(v == null ? '' : v).trim() === '';
+    if (sent && Object.prototype.hasOwnProperty.call(sent, 'firstName')
+        && blank(sent.firstName) && !blank(before.firstName)) {
+      wrong.unshift({ field: 'firstName', label: 'First name', said: '',
+        why: 'First name is required' });
+    }
     return { merged, wrong };
   };
 
@@ -2628,7 +2651,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        that was then thrown away, is a lead the counsellor starts from
        nothing. */
     /* Patch 154: a special-assistance lead carries the whole search. */
-    const said = String(b.message || b.note || '').trim().slice(0, b.source === 'no-match' ? 1800 : 400);
+    /* Patch 160 (D21): the message is cut at 2,000 characters, the way every
+       other free-text box on the site is cut — truncated, not refused. */
+    const said = String(b.message || b.note || '').trim().slice(0, b.source === 'no-match' ? 1800 : 2000);
     const about = String(b.note || '').trim().slice(0, 200);
     const from = sourceOf(req, b);
     const record = {
@@ -2935,8 +2960,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
     }
 
-    if (kind === 'sop' && !String(b.programme || '').trim()) {
+    /* Patch 160 (D7): the letter needs the programme, as the statement always
+       has — and the university too, because a reference written to "this
+       programme at your chosen university" is not one anybody can send. The
+       statement keeps its one requirement: its page asks for the programme
+       and a student writing to a shortlist of six fills the university in
+       by hand on each copy. */
+    if (!String(b.programme || '').trim()) {
       return json(res, 422, { error: 'Which programme is this for? Type its name — the draft is written to it.' });
+    }
+    if (kind === 'lor' && !String(b.university || '').trim()) {
+      return json(res, 422, { error: 'Which university is this for? Type its name — the letter is written to it.' });
     }
     const out = WRITING.draft(bank, {
       kind,
@@ -4042,8 +4076,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          the counters beside it read it as one. */
       appFiles: stateFor(st).appFiles,
       /* The office-only note per application (issue 3) — staff payload only. */
-      internalNotes: Object.fromEntries(db.getApplications(id)
-        .filter(a => String(a.internal_note || '').trim()).map(a => [a.prog_id, String(a.internal_note)])),
+      internalNotes: (() => {
+        /* Patch 160 (D11): the same shortlist rule as `apps`. */
+        const listed = new Set(db.getShortlist(id).map(r => String(r.prog_id)));
+        return Object.fromEntries(db.getApplications(id)
+          .filter(a => listed.has(String(a.prog_id)) && String(a.internal_note || '').trim())
+          .map(a => [a.prog_id, String(a.internal_note)]));
+      })(),
       docs: db.getDocuments(id).map(d => ({
         key: d.doc_key, file: d.filename, status: d.status, at: d.uploaded_at,
         bytes: d.bytes,
@@ -9133,14 +9172,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        and then told every reader and Google that it was written four years
        from now. Refused rather than quietly corrected — the writer meant
        something by that date and only they know what. */
+    /* Patch 160 (D22): a future date is ACCEPTED, and one more than a year
+       ahead comes back with a warning beside the saved post rather than a
+       refusal — the writer meant something by it, and the screen can say so
+       without standing in the way of the save. */
+    let warning = '';
     if (stated) {
-      const end = new Date(); end.setHours(23, 59, 59, 999);
-      if (new Date(stated) > end) {
-        return { error: 'Published on is ' + new Date(stated).toLocaleDateString('en-GB',
-          { day: 'numeric', month: 'short', year: 'numeric' }) + ', which is in the future. '
-          + 'The site does not hold a post back until a date — leave the box empty to use '
-          + 'the day you press Publish, or put the day it was actually written.' };
-      }
+      const yearAhead = new Date(); yearAhead.setFullYear(yearAhead.getFullYear() + 1);
+      if (new Date(stated) > yearAhead) warning = 'Publish date is more than a year ahead';
     }
 
     let slug = PROSE.slugify(b.slug || title);
@@ -9166,6 +9205,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       .filter((x, i, a) => a.indexOf(x) === i && x !== slug && !!db.postBySlug(x))
       .slice(0, 6).join(',');
     return {
+      warning,
       post: {
         slug, title, body, excerpt,
         cover: String(b.cover || '').trim().slice(0, 400),
@@ -9287,7 +9327,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const row = db.addPost(r.post);
     db.log(s.name, r.post.status === 'published' ? 'published a post' : 'started a post',
       r.post.title);
-    return json(res, 200, { post: postShape(row, true) });
+    return json(res, 200, Object.assign({ post: postShape(row, true) },
+      r.warning ? { warning: r.warning } : {}));
   }));
 
   route('PUT', /^\/api\/staff\/post\/(\d+)$/, needs('content', async (req, res, s, m) => {
@@ -9300,21 +9341,25 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       was.status !== 'published' && r.post.status === 'published' ? 'published a post'
         : r.post.status === 'published' ? 'edited a live post' : 'saved a draft',
       r.post.title);
-    return json(res, 200, { post: postShape(row, true) });
+    return json(res, 200, Object.assign({ post: postShape(row, true) },
+      r.warning ? { warning: r.warning } : {}));
   }));
 
   route('DELETE', /^\/api\/staff\/post\/(\d+)$/, needs('content', async (req, res, s, m) => {
     const p = db.postById(Number(m[1]));
     if (!p) return json(res, 404, { error: 'No such post' });
     /* A published post has an address people have shared and Google has
-       indexed. Taking it off the site is unpublishing; deleting the row is only
-       for something that was never live. */
+       indexed. Deleting the row is only for something that is not live.
+       Patch 160 (D22): a live post is REFUSED here rather than quietly turned
+       into a draft — the button said delete, and the writer who pressed it
+       on a live post should be told to take it off the site first, as a
+       deliberate step, not find it half-gone. */
     if (p.status === 'published') {
-      db.updatePost(p.id, Object.assign(postShape(p, true), {
-        status: 'draft', body: p.body, updatedBy: s.name,
-      }));
-      db.log(s.name, 'took a post off the site', p.title);
-      return json(res, 200, { unpublished: true });
+      return json(res, 409, {
+        error: 'This post is live on the site. Take it off the site first — save it as a '
+          + 'draft — and then delete it.',
+        published: true,
+      });
     }
     db.deletePost(p.id);
     db.log(s.name, 'deleted a draft', p.title);
