@@ -3153,7 +3153,15 @@ function assistForm() {
      it deserves a person; an ordinary one is told what a person adds; a
      visitor who has told us nothing is simply invited. */
   const tier = profileTier();
-  const opening = tier === 'strong'
+  /* Patch 162: a destination whose programmes are not on the site yet. The
+     list is empty because the data is not in, not because of the student —
+     say so, and take their details for the counsellor who places there. */
+  const co = $('#fCountry') ? $('#fCountry').value : '';
+  const bare = co && C[co] && !D.programs.some(p => p.country === co);
+  const opening = bare
+    ? ['We place students in ' + esc(C[co].name) + ' through our counsellors',
+       'The ' + esc(C[co].name) + ' universities we work with are not on the online list yet. Leave your details and an expert will review your data and call you back with the options that fit you there.']
+    : tier === 'strong'
     ? ['Your profile looks strong — it deserves personal attention',
        'The right programmes for a profile like yours are not always on an online list. Our experts know which universities to approach, and will review your data and call you back with hand-picked options.']
     : tier === 'fair'
@@ -4331,12 +4339,16 @@ render();
       const any = sel.querySelector('option[value=""]');
       const counts = {};
       D.programs.forEach(p => { counts[p.country] = (counts[p.country] || 0) + 1; });
+      /* Patch 162: every destination the office shows, with or without
+         programmes, and no counts. A country whose data is not in yet still
+         belongs in the list — choosing it brings up the special-assistance
+         form, which is the right answer until the data is. */
       sel.innerHTML = (any ? any.outerHTML : '<option value="">Any destination</option>')
         + Object.values(C)
-            .filter(c => counts[c.code])
-            .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+            .filter(c => c.active !== false)
+            .sort((a, b) => (counts[b.code] ? 1 : 0) - (counts[a.code] ? 1 : 0) || String(a.name).localeCompare(String(b.name)))
             .map(c => '<option value="' + esc(c.code) + '">' + (c.flag || '') + ' '
-              + esc(c.name) + ' (' + counts[c.code] + ')</option>').join('');
+              + esc(c.name) + '</option>').join('');
       sel.value = keep;
     }
     render();
