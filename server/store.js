@@ -316,6 +316,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_email    ON orders(email);
 `;
 
 const now = () => new Date().toISOString();
+/* The lead-note kinds that mean somebody actually spoke to the person (F8). */
+const CONTACT_KINDS = new Set(['call', 'whatsapp', 'email', 'meeting']);
 
 /* A university's short name as it may be stored: text, or nothing.
    Five rows reached the public pages reading "undefined" — a programme
@@ -724,6 +726,34 @@ function sqliteDriver(file) {
    /* 1 Oct: every private university is free to apply — 120 rows were marked
       "Package" by the sheet and sat on the free-to-apply tab badged otherwise. */
    "UPDATE programmes SET fee_model = 'free' WHERE is_public = 0 AND fee_model <> 'free'",
+   /* 8 Oct (F2): every rupee that moved, as its own row.
+    *
+    * The order carried a running total and the plan carried a status per
+    * part, and that was the whole record — "₹30,000 arrived" with no date,
+    * no method and nobody's name on it. A payment is a fact of its own: who
+    * took it, how (cash, bank, UPI, card), against which part, under what
+    * reference. A refund is the same row with a negative amount and
+    * kind 'refund'. The order's totals are still kept on the order, so every
+    * screen that read them keeps working; this is the ledger behind them. */
+   `CREATE TABLE IF NOT EXISTS payments (
+      id          INTEGER PRIMARY KEY,
+      order_ref   TEXT NOT NULL,
+      student_id  INTEGER,
+      paise       INTEGER NOT NULL,
+      at          TEXT NOT NULL,
+      method      TEXT NOT NULL DEFAULT 'other',
+      reference   TEXT NOT NULL DEFAULT '',
+      note        TEXT NOT NULL DEFAULT '',
+      by_staff    TEXT NOT NULL DEFAULT '',
+      kind        TEXT NOT NULL DEFAULT 'payment',
+      part_n      INTEGER,
+      created_at  TEXT NOT NULL
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_ref)',
+   /* Money given back, kept apart from money received. A refund does not
+      un-pay a part — the part WAS paid, on a date, by a method — so what came
+      back is its own figure and "received" is the difference. */
+   'ALTER TABLE orders ADD COLUMN refunded_paise INTEGER NOT NULL DEFAULT 0',
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -767,7 +797,7 @@ function jsonDriver(file) {
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
-    'push_subs'];
+    'push_subs', 'payments'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1448,10 +1478,53 @@ function open(dir) {
        registers — otherwise a student who paid as a guest signs in to an empty
        dashboard, which is the worst possible first impression after paying. */
     claimOrders(studentId, email) {
+      /* 8 Oct (F1): a STUDENT claims orders. This ran on every sign-in, so an
+         administrator signing in with the address a test order was placed
+         under took that order onto their own account — which is exactly the
+         rule the order route now keeps, undone at the next login. */
+      const who = this.studentById(studentId);
+      if (!who || who.role !== 'student') return 0;
       const rows = db.all('SELECT * FROM orders WHERE email = ?', String(email).toLowerCase());
       rows.filter(r => !r.student_id).forEach(r =>
         db.run('UPDATE orders SET student_id = ? WHERE reference = ?', Number(studentId), r.reference));
       return rows.length;
+    },
+    /* Whose order it is. Used by the start-up repair and by nothing a browser
+       can reach directly — the rule that the id must be a STUDENT's is kept by
+       the callers, and both of them are in this file or next to the order
+       route. */
+    setOrderStudent: (reference, studentId) =>
+      db.run('UPDATE orders SET student_id = ? WHERE reference = ?',
+        studentId == null ? null : Number(studentId), String(reference)),
+    /* What came back. Kept as its own running figure rather than subtracted
+       from paid_paise, so the plan's "part 2 paid on the 14th by UPI" stays
+       true after a refund. */
+    setOrderRefunded: (reference, paise) =>
+      db.run('UPDATE orders SET refunded_paise = ? WHERE reference = ?',
+        Math.max(0, Math.round(Number(paise) || 0)), String(reference)),
+
+    /* ---- payments: the ledger behind the order totals (F2) ---- */
+    addPayment(p) {
+      const r = db.run(`INSERT INTO payments
+        (order_ref, student_id, paise, at, method, reference, note, by_staff, kind, part_n, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        String(p.orderRef), p.studentId == null ? null : Number(p.studentId),
+        Math.round(Number(p.paise) || 0), String(p.at || now()),
+        String(p.method || 'other').slice(0, 20), String(p.reference || '').slice(0, 80),
+        String(p.note || '').slice(0, 400), String(p.byStaff || '').slice(0, 80),
+        p.kind === 'refund' ? 'refund' : 'payment',
+        p.partN == null ? null : Number(p.partN), now());
+      return db.one('SELECT * FROM payments WHERE id = ?', Number(r.lastInsertRowid));
+    },
+    paymentsFor: ref => db.all('SELECT * FROM payments WHERE order_ref = ? ORDER BY id asc', String(ref)),
+    /* Every payment, grouped by order, in one read — the order book draws two
+       hundred rows and must not ask two hundred times. */
+    paymentsByOrder() {
+      const out = {};
+      db.all('SELECT * FROM payments WHERE id > ? ORDER BY id asc', 0).forEach(p => {
+        (out[String(p.order_ref)] = out[String(p.order_ref)] || []).push(p);
+      });
+      return out;
     },
 
     /* ---- the catalogue, asked of the database ----
@@ -2165,6 +2238,12 @@ function open(dir) {
      * and widening the first would have emailed every admin twice. */
     caseworkers: () => db.all(
       "SELECT * FROM students WHERE role IN ('counsellor', 'admin') ORDER BY role, name"),
+    /* 8 Oct (F5): the ones a student can be GIVEN to today. A counsellor whose
+       file was closed (status completed/left) still resolves by id — their
+       name stays on old rows — but is not offered in the dropdown. */
+    activeCaseworkers() {
+      return this.caseworkers().filter(c => (c.status || 'active') === 'active');
+    },
     staffByRole: r => db.all('SELECT * FROM students WHERE role = ?', r),
     allStudents: () => db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student'),
 
@@ -2407,11 +2486,20 @@ function open(dir) {
     },
     /* Every note on every lead in one read. Asking per lead meant one query
        per row to draw a list of two hundred. */
+    /* 8 Oct (F8): `n`, `last` and `lastWho` count CONTACT — a call, a WhatsApp,
+       an email, a meeting. A note typed to oneself, a status change, "added by
+       hand", the conversion line and a repeat enquiry from the website are
+       things that happened to the row, not times anybody spoke to the person,
+       and counting them made "Followed up" read eight on a lead nobody had
+       rung. The whole thread is still counted, as `all` / `lastAny`. */
     leadNoteCounts() {
       const out = {};
       db.all('SELECT * FROM lead_notes WHERE id > ?', 0).forEach(n => {
         const k = String(n.lead_id);
-        if (!out[k]) out[k] = { n: 0, last: '', lastWho: '' };
+        if (!out[k]) out[k] = { n: 0, last: '', lastWho: '', all: 0, lastAny: '' };
+        out[k].all++;
+        if (String(n.created_at) > out[k].lastAny) out[k].lastAny = n.created_at;
+        if (!CONTACT_KINDS.has(String(n.kind || ''))) return;
         out[k].n++;
         if (String(n.created_at) > out[k].last) {
           out[k].last = n.created_at;
@@ -2420,7 +2508,33 @@ function open(dir) {
       });
       return out;
     },
+    /* 8 Oct (F6): a duplicate lead folded into the one that stays. The notes
+       move across — the account of a phone call is about the person, not the
+       row — and the duplicate goes. */
+    mergeLead(fromId, intoId) {
+      const a = Number(fromId), b = Number(intoId);
+      const from = this.enquiryById(a), into = this.enquiryById(b);
+      if (!from || !into || a === b) return { error: 'No such lead' };
+      const moved = db.all('SELECT * FROM lead_notes WHERE lead_id = ?', a).length;
+      db.run('UPDATE lead_notes SET lead_id = ? WHERE lead_id = ?', b, a);
+      /* What the duplicate knew that the keeper did not. */
+      const fill = {};
+      ['phone', 'email', 'destination', 'note', 'source', 'campaign'].forEach(k => {
+        if (!String(into[k] || '').trim() && String(from[k] || '').trim()) fill[k] = from[k];
+      });
+      db.run(`UPDATE enquiries SET phone = ?, email = ?, destination = ?, note = ?, source = ?, campaign = ?,
+                returns = ?, updated_at = ? WHERE id = ?`,
+        fill.phone || into.phone || '', fill.email || into.email || '',
+        fill.destination || into.destination || '', fill.note || into.note || '',
+        fill.source || into.source || '', fill.campaign || into.campaign || '',
+        Number(into.returns || 0) + Number(from.returns || 0) + 1, now(), b);
+      db.run('DELETE FROM enquiries WHERE id = ?', a);
+      return { ok: true, moved, lead: this.enquiryById(b) };
+    },
     countStudents: () => db.all('SELECT * FROM students WHERE id > ?', 0).length,
+    /* Every account, whatever its role — for the one screen (the order book)
+       that has to name whoever an order is on, even when that is wrong. */
+    allAccounts: () => db.all('SELECT * FROM students WHERE id > ?', 0),
 
     /* ---- the blog ---- */
 
@@ -2676,7 +2790,56 @@ function open(dir) {
       return v;
     };
   });
+
+  /*
+   * 8 Oct (F1): ORDERS THAT BELONG TO A MEMBER OF STAFF.
+   *
+   * The checkout attached an order to whoever was signed in, so a partner,
+   * an administrator and a counsellor placing test orders from the public
+   * site each ended up with the order on their own account — GLV-6238 on a
+   * partner, four on the admin, one on Kavya. An order's student_id is a
+   * STUDENT's id and nothing else; the order route now keeps that rule, and
+   * this puts right the rows written before it did.
+   *
+   * By the buyer's email: an existing student on that address takes the
+   * order; otherwise a student account is made from the buyer details, with
+   * a password nobody knows and the must-change flag set, the way imports
+   * arrive — no email goes out from a start-up repair. If the email itself is
+   * a staff address there is no student to make, so the order is detached
+   * (student_id NULL — a guest order) rather than left on a staff account.
+   * Idempotent: on the second start nothing matches.
+   */
+  try {
+    const people = new Map(db.all('SELECT * FROM students WHERE id > ?', 0).map(p => [Number(p.id), p]));
+    const bad = db.all('SELECT * FROM orders WHERE id > ?', 0).filter(o => {
+      if (o.student_id == null) return false;
+      const who = people.get(Number(o.student_id));
+      return !!who && who.role !== 'student';
+    });
+    bad.forEach(o => {
+      const email = String(o.email || '').trim().toLowerCase();
+      const was = people.get(Number(o.student_id));
+      let target = email ? store.studentByEmail(email) : null;
+      let made = false;
+      if (target && target.role !== 'student') target = null;
+      if (!target && email && !store.studentByEmail(email)) {
+        const crypto = require('crypto');
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.scryptSync(crypto.randomBytes(24).toString('hex'), salt, 64,
+          { N: 16384, r: 8, p: 1 }).toString('hex');
+        target = store.createStudent(email, String(o.name || email).slice(0, 120),
+          String(o.phone || '').slice(0, 30), hash, salt, 'student');
+        store.setMustChange(target.id, true);
+        people.set(Number(target.id), target);
+        made = true;
+      }
+      store.setOrderStudent(o.reference, target ? target.id : null);
+      store.log('system', 'order relinked to a student',
+        o.reference + ': was on ' + (was ? was.role + ' ' + (was.email || was.id) : '#' + o.student_id)
+        + ' → ' + (target ? (made ? 'new student ' : 'student ') + target.email : 'no student (' + (email || 'no email') + ' is a staff address)'));
+    });
+  } catch (e) { /* an old database with no orders table */ }
   return store;
 }
 
-module.exports = { open };
+module.exports = { open, CONTACT_KINDS };

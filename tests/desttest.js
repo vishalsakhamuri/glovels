@@ -104,7 +104,15 @@ const NEW = {
   await page.goto(BASE + '/');
   await page.waitForTimeout(1000);
   const opts = await page.evaluate(() => [...document.querySelectorAll('#fCountry option')].map(o => o.value));
-  check('the finder dropdown does not offer a destination with no programmes', !opts.includes('JP') && opts.includes('DE'), opts.join(','));
+  /* Patch 162: every shown destination is offered — the ones with programmes
+     first — and a bare one opens the special-assistance form. */
+  check('the finder dropdown offers a destination with no programmes, after the ones with', opts.includes('JP') && opts.includes('DE') && opts.indexOf('DE') < opts.indexOf('JP'), opts.join(','));
+  const bare = await page.evaluate(async () => {
+    const sel = document.getElementById('fCountry'); sel.value = 'JP'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    document.getElementById('fGo').click(); await new Promise(r => setTimeout(r, 1200));
+    const a = document.getElementById('rAssist'); return a ? a.textContent.slice(0, 120) : '';
+  });
+  check('and choosing it opens the special-assistance form, saying the route goes through a counsellor', /through our counsellors/.test(bare), bare);
   check('no script errors on the home page', !errors.length, errors.join(' | '));
 
   /* ------------------------ a database seeded before the eight existed */

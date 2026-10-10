@@ -36,10 +36,35 @@ const gstIn = paise => Math.round(paise - paise / (1 + GST_RATE));
 
 /** What has actually been collected on one order. */
 function collected(order) {
+  return Math.max(0, grossIn(order) - Number(order.refunded_paise || 0));
+}
+
+/* What arrived, before anything went back. */
+function grossIn(order) {
   if (order.status === 'paid') return Number(order.gross_paise || 0);
   /* A part-paid order carries its own running total, kept by recordPayment. An
-     order with a plan and nothing paid has 0, which is correct. */
+     order with a plan and nothing paid has 0, which is correct. A refunded
+     order's paid_paise is what had arrived before it was given back. */
   return Number(order.paid_paise || 0);
+}
+
+/* 8 Oct (F2): what came back on an order. */
+const refunded = order => Number(order.refunded_paise || 0);
+
+/**
+ * The three figures a row on any money screen shows, from the order alone —
+ * no ledger read needed, so the order book and the Money screen agree with
+ * each other and with the student's own dashboard.
+ */
+function figures(order) {
+  const gross = Number(order.gross_paise || 0);
+  const received = collected(order);
+  return {
+    grossPaise: gross,
+    receivedPaise: received,
+    refundedPaise: refunded(order),
+    outstandingPaise: order.status === 'refunded' ? 0 : Math.max(0, gross - received),
+  };
 }
 
 /**
@@ -50,6 +75,8 @@ function collected(order) {
  * somebody abandoned, is not a promise anybody made.
  */
 const EARNED = new Set(['paid', 'owing', 'part']);
+/* Every rupee given back is counted even though a refunded order is no
+   longer earned — the money moved, and "received" has to be net of it. */
 
 /**
  * The four numbers, plus the working.
@@ -58,7 +85,7 @@ const EARNED = new Set(['paid', 'owing', 'part']);
  * rather than fetched, so the caller decides the window and a test can hand it
  * whatever situation it wants to describe.
  */
-function summarise(students, orders, now) {
+function summarise(students, orders, now, payments) {
   const byId = new Map(students.map(s => [Number(s.id), s]));
   const statusOf = order => {
     const s = order.student_id ? byId.get(Number(order.student_id)) : null;
@@ -74,6 +101,7 @@ function summarise(students, orders, now) {
     orders: 0,
     services: 0,        /* line items on fully-paid orders — work delivered */
     overdue: 0,         /* of `pending`, the part whose date has passed */
+    refunded: 0,        /* given back, across every order */
     students: { active: 0, completed: 0, left: 0 },
     /* Who to chase, longest overdue first. The point of the screen. */
     owing: [],
@@ -87,6 +115,7 @@ function summarise(students, orders, now) {
   const t = now || Date.now();
 
   for (const o of orders) {
+    out.refunded += refunded(o);
     if (!EARNED.has(o.status)) continue;
     const gross = Number(o.gross_paise || 0);
     const got = collected(o);
@@ -135,6 +164,10 @@ function summarise(students, orders, now) {
       gross,
       collected: got,
       outstanding: left,
+      /* The same three names the order book uses, so one screen can be
+         written against both. */
+      receivedPaise: got, outstandingPaise: left, refundedPaise: refunded(o),
+      payments: payments ? (payments[String(o.reference)] || []).length : undefined,
       overdue: lateSum,
       /* The date the oldest unpaid instalment was due, which is what "how late"
          means in a sentence somebody says on the phone. */
@@ -150,4 +183,4 @@ function summarise(students, orders, now) {
   return out;
 }
 
-module.exports = { summarise, gstIn, collected, EARNED, GST_RATE };
+module.exports = { summarise, gstIn, collected, grossIn, refunded, figures, EARNED, GST_RATE };

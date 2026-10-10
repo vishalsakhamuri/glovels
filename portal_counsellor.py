@@ -85,6 +85,54 @@ BODY = """
         <div id="casePager"></div>
       </div>
 
+      <!-- Money, in the office's hand (F2, 8 Oct). The same sheet the
+           Organisation screen uses: amount, day, how it arrived, reference,
+           note. Asks once, inline, before anything is sent. Admins only — the
+           buttons that open it are drawn for an administrator alone, and the
+           server refuses anybody else. -->
+      <div class="modal" id="payModal" role="dialog" aria-modal="true">
+        <div class="sheet" style="width:min(540px,100%)">
+          <button class="sheet-close" data-pclose aria-label="Close">✕</button>
+          <h3 id="payTitle" style="margin:0 0 6px">Record a payment</h3>
+          <p id="payAbout" style="margin:0 0 14px;font-size:12.8px;line-height:1.55;color:var(--muted)"></p>
+          <div id="payForm">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="field"><label for="payAmount">Amount (&#8377;)</label>
+                <input id="payAmount" inputmode="decimal" placeholder="5000"></div>
+              <div class="field"><label for="payDate">Date</label>
+                <input id="payDate" type="date"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+              <div class="field"><label for="payMethod">How it arrived</label>
+                <select id="payMethod">
+                  <option value="cash">Cash</option>
+                  <option value="bank">Bank transfer</option>
+                  <option value="upi">UPI</option>
+                  <option value="card">Card</option>
+                  <option value="other">Other</option>
+                </select></div>
+              <div class="field"><label for="payRef">Reference</label>
+                <input id="payRef" placeholder="UTR, receipt number, cheque&hellip;"></div>
+            </div>
+            <div class="field" style="margin-top:10px"><label for="payNote">Note (optional)</label>
+              <input id="payNote" placeholder="For the record"></div>
+          </div>
+          <p id="payErr" role="alert" style="display:none;margin:12px 0 0;padding:11px 13px;
+            border-radius:10px;font:600 12.8px/1.5 var(--sans);background:#fdf3f2;
+            border:1px solid #f0c8c4;color:#7a2118"></p>
+          <div id="payAsk" hidden style="margin:14px 0 0;padding:12px 14px;border-radius:10px;
+            background:#fff8e6;border:1px solid #f1d9a0;font:600 12.8px/1.55 var(--sans);
+            color:var(--navy-900)"></div>
+          <div id="payDone" hidden style="margin:14px 0 0;padding:12px 14px;border-radius:10px;
+            background:#e6f4ec;border:1px solid #bfe0cc;font:600 12.8px/1.6 var(--sans);
+            color:#14603a"></div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px" id="payButtons">
+            <button type="button" class="btn btn-ghost" data-pclose>Cancel</button>
+            <button type="button" class="btn btn-primary" id="paySave">Record it</button>
+          </div>
+        </div>
+      </div>
+
       <div id="pane">
         <div class="sl-empty" style="margin:0">
           <b>Pick a student</b>
@@ -129,7 +177,10 @@ function row(s) {
       '<b style="display:block;font:600 13.4px/1.3 var(--sans);color:var(--navy-900)">' + esc(s.name) + '</b>' +
       '<span style="display:block;font:400 12px/1.45 var(--sans);color:var(--muted);' +
         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(preview) + '</span>' +
-      (s.package ? '<span class="sl-chip" style="margin-top:6px;display:inline-block">' + esc(s.package) + '</span>' : '') +
+      /* F4 (8 Oct): the MAIN package, with the add-ons counted — never the
+         newest ₹0 add-on standing in for what was actually paid for. */
+      (s.package ? '<span class="sl-chip" style="margin-top:6px;display:inline-block">' + esc(s.package) +
+        (s.addOnCount ? ' \u00b7 +' + s.addOnCount + ' add-on' + (s.addOnCount === 1 ? '' : 's') : '') + '</span>' : '') +
     '</span>' +
     '<span style="flex:none;text-align:right">' +
       (s.unread ? '<span style="display:inline-block;min-width:20px;padding:2px 6px;border-radius:99px;' +
@@ -185,7 +236,10 @@ async function loadCase() {
 
 /* --------------------------------------------------------------- the record */
 
-const money = p => p.totalInr === 0 ? '₹0 tuition'
+/* F9 (8 Oct): the home page's rule. A public programme at ₹0 has no tuition
+   fee; a private one at ₹0 is a fee nobody has written down yet. */
+const money = p => !Number(p.totalInr)
+  ? (p.isPublic || (p.reqs && p.reqs.tuitionEurSem === 0) ? 'No tuition fee' : 'Fee to be confirmed')
   : '≈ ₹' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L';
 
 function bubble(m) {
@@ -375,7 +429,15 @@ function paintRecord(r) {
       '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
         '<h3 style="margin:0;font-size:17px">' + esc(r.student.name) + '</h3>' +
         (r.counsellor ? '<span class="pill">' + esc(r.counsellor.name) + '</span>' : '') +
-        '<span class="pill" style="margin-left:auto">' + (r.orders[0] ? esc(r.orders[0].package) : 'No package') + '</span>' +
+        /* F4 (8 Oct): the main package (server rule: taken on, carries a
+           package, unlocks universities), with the add-ons counted — not
+           orders[0], which was the newest ₹0 add-on. */
+        '<span class="pill" style="margin-left:auto" title="' +
+          esc(((r.package && r.package.addOns) || []).join(', ')) + '">' +
+          (r.package && r.package.package
+            ? esc(r.package.package) + (r.package.addOnCount
+                ? ' \u00b7 +' + r.package.addOnCount + ' add-on' + (r.package.addOnCount === 1 ? '' : 's') : '')
+            : (r.orders[0] ? esc(r.orders[0].package) : 'No package')) + '</span>' +
         /* A student who cannot get in has no portal at all, and the office
            hears about it by phone. The reset endpoint has existed all along;
            it was only ever reachable from the staff list, which does not
@@ -545,6 +607,23 @@ function paintRecord(r) {
                   'color:var(--muted)"></span>' +
               '</div></div></div>' +
         '</div>' +
+
+        /* ---- what they bought, and what has arrived on it (F2, 8 Oct) ----
+           Every order on the file with its ledger. An administrator records
+           the money here — a payment, an instalment, a refund — and makes an
+           order the counsellor agreed on the phone. A counsellor reads it. */
+        '<div style="display:flex;align-items:baseline;gap:10px;margin:18px 0 10px;flex-wrap:wrap">' +
+          '<h3 style="font-size:14.5px;margin:0">Orders &amp; money</h3>' +
+          '<span style="font-size:11.8px;color:var(--muted)">' + r.orders.length +
+            ' on the file</span>' +
+          (ME === 'admin'
+            ? '<button type="button" class="btn btn-primary btn-sm" id="newOrder" ' +
+              'style="margin-left:auto">+ Create order</button>'
+            : '') + '</div>' +
+        '<div id="newOrderBox" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;' +
+          'background:var(--paper);border:1px solid var(--line)"></div>' +
+        '<div id="orderList"></div>' +
+
         /* The list, and the controls that run it. This is the counsellor's
            actual job: agree a shortlist on a call, put it here, and move each
            one along as it goes. Before this the student had to add their own
@@ -707,6 +786,10 @@ function paintRecord(r) {
       '</section>' +
     '</div>';
 
+  /* The orders, then their ledgers as each one answers. */
+  paintOrderCards();
+  hydrateOrders();
+
   const th = $('#thread');
   th.innerHTML = r.msgs.map(bubble).join('');
   th.scrollTop = th.scrollHeight;
@@ -811,7 +894,9 @@ async function searchUnis(q) {
   const mine = caseCgpa();
   const short = p => {
     const bar = barOf(p);
-    if (bar == null) return '';
+    /* F9 (8 Oct): say so, rather than leave a blank that reads as "no rule". */
+    if (bar == null) return '<span style="display:block;font-size:11.4px;color:var(--muted)">' +
+      'No minimum stated</span>';
     return mine != null && mine < bar
       ? '<span style="display:block;font:600 11.4px/1.4 var(--sans);color:#b42318">' +
         'Asks for ' + bar + '+ CGPA \u2014 they have ' + mine + '</span>'
@@ -824,7 +909,7 @@ async function searchUnis(q) {
         '<li><div style="flex:1;min-width:0"><b style="display:block">' +
         esc(uniName(p)) + '</b><span style="display:block;font-size:11.8px;' +
         'color:var(--muted)">' + esc(p.name || p.program || '') + ' \u00b7 ' +
-        esc(p.country || '') + '</span>' + short(p) + '</div>' +
+        esc(p.country || '') + ' \u00b7 ' + money(p) + '</span>' + short(p) + '</div>' +
         (on.has(String(p.id))
           ? '<span class="st ok">on their list</span>'
           : '<button type="button" class="btn btn-primary btn-sm" data-uniadd="' +
@@ -1252,6 +1337,388 @@ async function open(id) {
     $('#pane').innerHTML = '<div class="sl-empty"><b>Could not open that record</b><p>' + esc(e.message) + '</p></div>';
   }
 }
+
+/* ------------------------------------------------ orders & money on the file (F2)
+ *
+ * The file lists every order with what has arrived on it, from the same
+ * ledger the Organisation screen reads (GET /api/staff/order/:ref). An
+ * administrator can take a payment, settle an instalment, give money back and
+ * make an order on the file; a counsellor reads the figures — the server
+ * answers 403 to anything else, and the buttons are not drawn for them.
+ */
+const inrPaise = p => '\u20b9' + Math.round(Number(p || 0) / 100).toLocaleString('en-IN');
+const METHOD_LABEL = { cash: 'Cash', bank: 'Bank transfer', upi: 'UPI', card: 'Card', other: 'Other' };
+const ORDER_STATE = {
+  paid: ['ok', 'paid'], part: ['wait', 'part paid'], owing: ['wait', 'to collect'],
+  awaiting: ['wait', 'card started'], failed: ['bad', 'card failed'], refunded: ['none', 'refunded'],
+};
+const todayStr = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+};
+/* reference → what GET /api/staff/order/:ref said ({order, payments, plan}). */
+let ORD_DETAIL = {};
+
+/* One order on the file: the headline, the three figures, the controls, and
+   the ledger once it has been read. */
+function orderCard(o) {
+  const d = ORD_DETAIL[o.reference];
+  const row = d && d.order ? d.order : o;
+  const received = row.receivedPaise != null ? row.receivedPaise : Number(row.paidPaise || 0);
+  const outstanding = row.outstandingPaise != null ? row.outstandingPaise
+    : (row.status === 'refunded' ? 0 : Math.max(0, Number(row.grossPaise || 0) - received));
+  const refunded = Number(row.refundedPaise || 0);
+  const st = ORDER_STATE[row.status] || ['none', row.status || ''];
+  const admin = ME === 'admin';
+  const canTake = row.status !== 'refunded' && row.status !== 'failed' && outstanding > 0;
+  const pays = d && !d.error ? (d.payments || []) : [];
+  const plan = d && !d.error ? (d.plan || []) : (row.plan || []);
+  return '<div class="p-card" data-ocard="' + esc(o.reference) + '" style="padding:12px 14px;margin:0 0 10px">' +
+    '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' +
+      '<b style="font-size:13.4px">' + esc(o.reference) + '</b>' +
+      '<span style="font-size:12.6px;color:var(--navy-800)">' + esc(row.package || o.package || '') +
+        (row.kind === 'services' && (row.items || []).length
+          ? ' <span style="color:var(--muted)">\u00b7 ' + (row.items || []).map(x => esc(x.name || x.id)).join(', ') + '</span>' : '') +
+      '</span>' +
+      '<span class="st ' + st[0] + '" style="text-transform:none;letter-spacing:0">' + esc(st[1]) + '</span>' +
+      '<b style="margin-left:auto;font-size:13.4px">' + inrPaise(row.grossPaise || o.grossPaise) + '</b>' +
+    '</div>' +
+    '<div style="margin-top:4px;font-size:12px;color:var(--muted)">' +
+      inrPaise(received) + ' received' +
+      (outstanding ? ' \u00b7 ' + inrPaise(outstanding) + ' to collect' : row.status === 'refunded' ? '' : ' \u00b7 nothing left to collect') +
+      (refunded ? ' \u00b7 ' + inrPaise(refunded) + ' refunded' : '') +
+      (!d ? ' \u00b7 reading the ledger\u2026' : d.error ? ' \u00b7 <span style="color:#b03a2e">' + esc(d.error) + '</span>' : '') +
+    '</div>' +
+    (admin
+      ? '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">' +
+          (canTake ? '<button type="button" class="btn btn-primary btn-sm" data-pay="' + esc(o.reference) + '">Record payment</button>' : '') +
+          (received > 0 ? '<button type="button" class="btn btn-ghost btn-sm" data-refund="' + esc(o.reference) + '">Refund</button>' : '') +
+        '</div>'
+      : '') +
+    (pays.length
+      ? '<table class="tbl" style="margin:10px 0 0;min-width:0;width:100%;table-layout:auto">' +
+        '<thead><tr><th>Date</th><th style="text-align:right">Amount</th><th>Method</th><th>Reference</th><th>Who</th></tr></thead><tbody>' +
+        pays.map(p => '<tr>' +
+          '<td style="white-space:nowrap">' + esc(dueDay(p.at)) + '</td>' +
+          '<td style="text-align:right;white-space:nowrap;' + (p.paise < 0 ? 'color:#b03a2e' : '') + '">' +
+            (p.paise < 0 ? '\u2212 ' : '') + inrPaise(Math.abs(p.paise || 0)) +
+            (p.kind === 'refund' ? ' <span class="st none">refund</span>' : '') +
+            (p.part ? ' <span style="font-size:11px;color:var(--muted)">part ' + p.part + '</span>' : '') + '</td>' +
+          '<td>' + esc(METHOD_LABEL[p.method] || p.method || '') + '</td>' +
+          '<td style="font-size:12px">' + esc(p.ref || '\u2014') +
+            (p.note ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' + esc(p.note) + '</span>' : '') + '</td>' +
+          '<td style="font-size:12px">' + esc(p.by || '') + '</td></tr>').join('') +
+        '</tbody></table>'
+      : (d && !d.error ? '<p style="margin:8px 0 0;font-size:12px;color:var(--muted)">Nothing recorded on it yet.</p>' : '')) +
+    (plan.length
+      ? '<ul class="doclist" style="margin:10px 0 0">' + plan.map(p => {
+          const owed = Number(p.paise || 0) - Number(p.partPaise || 0);
+          return '<li style="align-items:center;gap:10px;flex-wrap:wrap">' +
+            '<span style="flex:1 1 200px;min-width:0;font-size:12.4px"><b>Part ' + p.n + '</b> \u00b7 ' + esc(p.label || '') +
+              ' \u00b7 ' + inrPaise(p.paise) +
+              (p.dueAt ? ' <span style="color:var(--muted)">\u00b7 due ' + esc(dueDay(p.dueAt)) + '</span>' : '') +
+              (p.partPaise && p.status !== 'paid' ? ' <span style="color:var(--muted)">\u00b7 ' + inrPaise(p.partPaise) + ' so far</span>' : '') +
+            '</span>' +
+            (p.status === 'paid'
+              ? '<span class="st ok">paid' + (p.paidAt ? ' ' + esc(dueDay(p.paidAt)) : '') + '</span>'
+              : '<span class="st ' + (p.status === 'due' ? 'wait' : 'none') + '">' + esc(p.status || 'later') + '</span>' +
+                (admin && row.status !== 'refunded'
+                  ? ' <button type="button" class="btn btn-ghost btn-sm" data-part="' + esc(o.reference) +
+                    '" data-n="' + p.n + '" data-owed="' + owed + '">Mark paid</button>'
+                  : '')) +
+            '</li>';
+        }).join('') + '</ul>'
+      : '') +
+  '</div>';
+}
+
+function paintOrderCards() {
+  const box = $('#orderList');
+  if (!box || !CASE) return;
+  const list = CASE.orders || [];
+  box.innerHTML = list.length ? list.map(orderCard).join('')
+    : '<p style="font-size:12.8px;color:var(--muted)">Nothing bought yet.' +
+      (ME === 'admin' ? ' <b>Create order</b> puts one on the file for what was agreed on the phone.' : '') + '</p>';
+}
+
+/* Each order's ledger, read once per file. */
+async function hydrateOrders() {
+  if (!CASE) return;
+  const sid = openId;
+  for (const o of (CASE.orders || [])) {
+    try {
+      const d = await api('GET', '/api/staff/order/' + encodeURIComponent(o.reference));
+      ORD_DETAIL[o.reference] = d;
+    } catch (e) {
+      ORD_DETAIL[o.reference] = { error: e.message || 'Could not read the ledger.' };
+    }
+  }
+  if (openId === sid) paintOrderCards();
+}
+
+/* Back to the file tab after a repaint: the repaint lands on Conversation. */
+function showFileTab() {
+  $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x.dataset.t === 'file')));
+  $$('#pane .pane').forEach(x => x.classList.toggle('active', x.id === 't-file'));
+}
+
+/* ---- the sheet ---- */
+let PAY = null;
+const paySay = m => { const el = $('#payErr'); el.textContent = m || ''; el.style.display = m ? 'block' : 'none'; };
+
+function openPay(kind, ref, part) {
+  const d = ORD_DETAIL[ref];
+  const o = (d && d.order) || ((CASE && CASE.orders) || []).find(x => x.reference === ref) || { reference: ref };
+  const received = o.receivedPaise != null ? o.receivedPaise : Number(o.paidPaise || 0);
+  const outstanding = o.outstandingPaise != null ? o.outstandingPaise : Math.max(0, Number(o.grossPaise || 0) - received);
+  PAY = { kind, ref, part: part || null, o };
+  $('#payTitle').textContent = kind === 'refund' ? 'Record a refund'
+    : kind === 'part' ? 'Mark part ' + part.n + ' paid' : 'Record a payment';
+  $('#payAbout').innerHTML = '<b>' + esc(ref) + '</b>' +
+    (CASE && CASE.student ? ' \u00b7 ' + esc(CASE.student.name) : '') +
+    (o.package ? ' \u00b7 ' + esc(o.package) : '') +
+    '<span style="display:block;margin-top:3px">' + inrPaise(o.grossPaise || 0) + ' agreed \u00b7 ' +
+    inrPaise(received) + ' received' + (outstanding ? ' \u00b7 ' + inrPaise(outstanding) + ' to come' : '') + '</span>';
+  const amt = $('#payAmount');
+  amt.value = kind === 'part' ? String(Math.round(Number(part.owed || 0) / 100))
+    : kind === 'refund' ? String(Math.round(received / 100))
+    : (outstanding ? String(Math.round(outstanding / 100)) : '');
+  amt.readOnly = kind === 'part';
+  $('#payDate').value = todayStr();
+  $('#payMethod').value = kind === 'refund' ? 'bank' : 'upi';
+  $('#payRef').value = '';
+  $('#payNote').value = '';
+  $('#payNote').parentElement.hidden = kind === 'part';
+  paySay('');
+  $('#payAsk').hidden = true;
+  $('#payDone').hidden = true;
+  $('#payForm').hidden = false;
+  $('#payButtons').hidden = false;
+  $('#paySave').textContent = kind === 'refund' ? 'Refund it' : kind === 'part' ? 'Mark it paid' : 'Record it';
+  $('#payModal').classList.add('on');
+  amt.focus();
+}
+
+/* First press asks, inline and with the figures; the second sends. */
+function payAsk() {
+  const k = PAY.kind;
+  const amount = Number(String($('#payAmount').value).replace(/[^\d.]/g, ''));
+  if (!(amount > 0)) { paySay('An amount in rupees, more than zero.'); $('#payAmount').focus(); return; }
+  const day = $('#payDate').value || todayStr();
+  const method = METHOD_LABEL[$('#payMethod').value] || 'Other';
+  const ref = $('#payRef').value.trim();
+  paySay('');
+  $('#payAsk').hidden = false;
+  $('#payAsk').innerHTML =
+    (k === 'refund' ? 'Give back ' : k === 'part' ? 'Mark part ' + PAY.part.n + ' of ' : 'Record ') +
+    '<b>\u20b9' + amount.toLocaleString('en-IN') + '</b>' + (k === 'part' ? ' as paid' : '') +
+    ' on <b>' + esc(PAY.ref) + '</b> by ' + esc(method) + ', ' + esc(dueDay(day)) +
+    (ref ? ', ref ' + esc(ref) : '') + '? The student is told on their thread.' +
+    '<div style="display:flex;gap:8px;margin-top:9px">' +
+      '<button type="button" class="btn btn-primary btn-sm" id="payYes">Yes, ' +
+        (k === 'refund' ? 'refund it' : 'record it') + '</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="payNo">Back</button></div>';
+  $('#payButtons').hidden = true;
+}
+
+async function paySend() {
+  const k = PAY.kind;
+  const body = {
+    amount: Number(String($('#payAmount').value).replace(/[^\d.]/g, '')),
+    date: $('#payDate').value || todayStr(),
+    method: $('#payMethod').value,
+    reference: $('#payRef').value.trim(),
+    note: $('#payNote').value.trim(),
+  };
+  const yes = $('#payYes');
+  if (yes) { yes.disabled = true; yes.textContent = 'Recording\u2026'; }
+  let r;
+  try {
+    const base = '/api/staff/order/' + encodeURIComponent(PAY.ref);
+    r = k === 'part'
+      ? await api('POST', base + '/part/' + PAY.part.n + '/paid', { date: body.date, method: body.method, reference: body.reference })
+      : await api('POST', base + (k === 'refund' ? '/refund' : '/payment'), body);
+  } catch (e) {
+    paySay(e.message || 'That did not save.');
+    $('#payAsk').hidden = true;
+    $('#payButtons').hidden = false;
+    return;
+  }
+  const o = r.order || {};
+  $('#payAsk').hidden = true;
+  $('#payForm').hidden = true;
+  $('#payDone').hidden = false;
+  $('#payDone').innerHTML = (k === 'refund'
+      ? 'Refunded <b>' + inrPaise(r.refundedPaise || 0) + '</b> on ' + esc(PAY.ref) + '.' +
+        (r.fullyRefunded ? ' Everything received has gone back \u2014 the order is closed.' : '')
+      : 'Recorded <b>' + inrPaise((r.payment || {}).paise || 0) + '</b> on ' + esc(PAY.ref) + '.' +
+        /* The /part route answers in the old shape, without `settled`. */
+        (k === 'part' ? ' Settles part ' + PAY.part.n + '.'
+          : r.settled && r.settled.length ? ' Settles part ' + r.settled.join(' and ') + '.' : '')) +
+    '<span style="display:block;margin-top:5px">' + inrPaise(o.receivedPaise || 0) + ' received \u00b7 ' +
+      (o.outstandingPaise ? inrPaise(o.outstandingPaise) + ' still to collect' : 'nothing left to collect') +
+      (o.refundedPaise ? ' \u00b7 ' + inrPaise(o.refundedPaise) + ' refunded' : '') +
+      ' \u00b7 ' + esc(o.status || '') + '</span>' +
+    '<span style="display:block;margin-top:5px;font-weight:400">The student has been told on their thread.</span>' +
+    '<div style="margin-top:9px"><button type="button" class="btn btn-ghost btn-sm" data-pclose>Close</button></div>';
+  toast(k === 'refund' ? 'Refund recorded.' : 'Payment recorded.');
+  if (r.order) ORD_DETAIL[r.order.reference] = { order: r.order, payments: r.order.payments || [], plan: r.order.plan || null };
+  paintOrderCards();
+  /* The file's own figures (package, tasks, thread) moved too. */
+  if (openId) {
+    try { paintRecord(await api('GET', '/api/staff/student/' + openId)); showFileTab(); } catch (e) { /* the cards are right already */ }
+  }
+}
+
+/* ---- making an order on the file ---- */
+let CATALOG_PRICES = null;
+async function priceLists() {
+  if (CATALOG_PRICES) return CATALOG_PRICES;
+  const c = await api('GET', '/api/content');
+  const pk = ((c.packages && c.packages.items) || c.packages || []).filter(p => p.active !== false && p.sell && Number(p.priceInr) > 0);
+  const sv = ((c.services && c.services.items) || c.services || []).filter(x => x.active !== false);
+  CATALOG_PRICES = { packages: pk, services: sv };
+  return CATALOG_PRICES;
+}
+const inr = n => '\u20b9' + Number(n || 0).toLocaleString('en-IN');
+
+async function openNewOrder() {
+  const box = $('#newOrderBox');
+  if (!box) return;
+  box.hidden = !box.hidden;
+  if (box.hidden) return;
+  box.innerHTML = '<p style="margin:0;font-size:12.4px;color:var(--muted)">Reading the price list\u2026</p>';
+  let lists;
+  try { lists = await priceLists(); }
+  catch (e) { box.innerHTML = '<p style="margin:0;color:#b03a2e;font-weight:700">' + esc(e.message) + '</p>'; return; }
+  box.innerHTML =
+    '<b style="display:block;font:700 13.4px/1.4 var(--sans);color:var(--navy-900)">Create an order for ' +
+      esc(CASE.student.name) + '</b>' +
+    '<p style="margin:3px 0 10px;font-size:12.2px;color:var(--muted);line-height:1.55">Priced from the same list the ' +
+      'website charges. It goes on the file as <b>to collect</b> \u2014 record the money as it arrives.</p>' +
+    '<b style="display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:8px 0 6px">A package</b>' +
+    '<div style="display:grid;gap:5px">' +
+      '<label style="display:flex;gap:8px;align-items:center;font:600 12.6px/1.4 var(--sans)">' +
+        '<input type="radio" name="noPkg" value="" checked> No package \u2014 services only</label>' +
+      lists.packages.map(p => '<label style="display:flex;gap:8px;align-items:center;font:600 12.6px/1.4 var(--sans)">' +
+        '<input type="radio" name="noPkg" value="' + esc(p.id) + '" data-price="' + Number(p.priceInr) + '"> ' +
+        esc(p.title) + ' <span style="color:var(--muted);font-weight:400">\u00b7 ' + inr(p.priceInr) +
+        (p.unlocks ? ' \u00b7 ' + p.unlocks + ' universities' : '') + '</span></label>').join('') +
+    '</div>' +
+    '<b style="display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px">Services</b>' +
+    '<div style="display:grid;gap:5px;max-height:220px;overflow-y:auto;padding-right:4px">' +
+      lists.services.map(x => {
+        const lv = x.levels || [];
+        return '<label style="display:flex;gap:8px;align-items:center;font:600 12.6px/1.4 var(--sans)">' +
+          '<input type="checkbox" data-svc="' + esc(x.id) + '" data-price="' + (x.isFree ? 0 : Number(x.priceInr || 0)) + '"> ' +
+          esc(x.name) +
+          (lv.length
+            ? ' <select data-lvl="' + esc(x.id) + '" style="margin-left:4px;padding:3px 6px;font:600 11.8px/1.3 var(--sans);border:1px solid #d8dde4;border-radius:7px">' +
+              lv.map(l => '<option value="' + esc(l.code) + '" data-price="' + Number(l.priceInr || 0) + '">' + esc(l.code) + ' \u00b7 ' + inr(l.priceInr) + '</option>').join('') + '</select>'
+            : ' <span style="color:var(--muted);font-weight:400">\u00b7 ' + (x.isFree ? 'free' : inr(x.priceInr)) + '</span>') +
+          '</label>';
+      }).join('') +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-top:12px">' +
+      '<div><label for="noNote" style="display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Note (optional)</label>' +
+        '<input id="noNote" placeholder="Agreed on the call of 8 Oct" style="width:100%;padding:8px 10px;font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px"></div>' +
+      '<label style="display:flex;gap:7px;align-items:center;font:600 12.2px/1.4 var(--sans);padding-bottom:9px"><input type="checkbox" id="noParts"> In parts, if the price allows</label>' +
+    '</div>' +
+    '<p id="noErr" role="alert" style="display:none;margin:10px 0 0;padding:10px 12px;border-radius:9px;font:600 12.6px/1.5 var(--sans);background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118"></p>' +
+    '<div id="noAsk" hidden style="margin:10px 0 0;padding:11px 13px;border-radius:10px;background:#fff8e6;border:1px solid #f1d9a0;font:600 12.6px/1.55 var(--sans);color:var(--navy-900)"></div>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:12px" id="noButtons">' +
+      '<b id="noTotal" style="font-size:13.4px">' + inr(0) + '</b>' +
+      '<span style="flex:1"></span>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="noCancel">Cancel</button>' +
+      '<button type="button" class="btn btn-primary btn-sm" id="noGo">Create order</button>' +
+    '</div>';
+  noTotal();
+}
+
+function noBasket() {
+  const box = $('#newOrderBox');
+  const pkg = box.querySelector('input[name="noPkg"]:checked');
+  const packageId = pkg ? pkg.value : '';
+  let total = pkg ? Number(pkg.dataset.price || 0) : 0;
+  const names = [];
+  if (pkg && pkg.value) names.push(pkg.parentElement.textContent.split('\u00b7')[0].trim());
+  const services = [];
+  box.querySelectorAll('[data-svc]:checked').forEach(c => {
+    const id = c.dataset.svc;
+    const lvl = box.querySelector('[data-lvl="' + id + '"]');
+    const level = lvl ? lvl.value : '';
+    const price = lvl ? Number(lvl.selectedOptions[0].dataset.price || 0) : Number(c.dataset.price || 0);
+    total += price;
+    services.push({ id, level });
+    names.push(c.parentElement.textContent.split('\u00b7')[0].trim() + (level ? ' (' + level + ')' : ''));
+  });
+  return { packageId, services, total, names };
+}
+function noTotal() {
+  const el = $('#noTotal');
+  if (el) el.textContent = inr(noBasket().total);
+}
+const noSay = m => { const el = $('#noErr'); if (!el) return; el.textContent = m || ''; el.style.display = m ? 'block' : 'none'; };
+
+async function noSend() {
+  const b = noBasket();
+  const btn = $('#noYes');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating\u2026'; }
+  try {
+    const r = await api('POST', '/api/staff/student/' + openId + '/order', {
+      packageId: b.packageId || undefined,
+      services: b.services,
+      note: $('#noNote').value.trim(),
+      payIn: $('#noParts').checked ? 'parts' : 'full',
+    });
+    toast('Order ' + r.order.reference + ' is on the file.');
+    ORD_DETAIL[r.order.reference] = { order: r.order, payments: r.order.payments || [], plan: r.order.plan || null };
+    paintRecord(await api('GET', '/api/staff/student/' + openId));
+    showFileTab();
+  } catch (e) {
+    noSay(e.message || 'That did not save.');
+    $('#noAsk').hidden = true;
+    $('#noButtons').hidden = false;
+  }
+}
+
+document.addEventListener('change', e => {
+  if (e.target.closest('#newOrderBox')) noTotal();
+});
+
+document.addEventListener('click', e => {
+  const pay = e.target.closest('[data-pay]');
+  if (pay) { openPay('payment', pay.dataset.pay); return; }
+  const rf = e.target.closest('[data-refund]');
+  if (rf) { openPay('refund', rf.dataset.refund); return; }
+  const part = e.target.closest('[data-part]');
+  if (part) { openPay('part', part.dataset.part, { n: Number(part.dataset.n), owed: Number(part.dataset.owed) }); return; }
+  if (e.target.closest('#paySave')) { payAsk(); return; }
+  if (e.target.closest('#payYes')) { paySend(); return; }
+  if (e.target.closest('#payNo')) { $('#payAsk').hidden = true; $('#payButtons').hidden = false; return; }
+  if (e.target.closest('[data-pclose]') || e.target === $('#payModal')) {
+    $('#payModal').classList.remove('on');
+    return;
+  }
+  if (e.target.closest('#newOrder')) { openNewOrder(); return; }
+  if (e.target.closest('#noCancel')) { $('#newOrderBox').hidden = true; return; }
+  if (e.target.closest('#noGo')) {
+    const b = noBasket();
+    noSay('');
+    if (!b.packageId && !b.services.length) { noSay('Pick a package or at least one service.'); return; }
+    $('#noAsk').hidden = false;
+    $('#noAsk').innerHTML = 'Create an order for <b>' + esc(CASE.student.name) + '</b>: ' + esc(b.names.join(', ')) +
+      ' \u2014 <b>' + inr(b.total) + '</b>' + ($('#noParts').checked ? ', in parts' : '') +
+      '? It goes on their file as to collect, and they are told on their thread.' +
+      '<div style="display:flex;gap:8px;margin-top:9px">' +
+        '<button type="button" class="btn btn-primary btn-sm" id="noYes">Create</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" id="noBack">Back</button></div>';
+    $('#noButtons').hidden = true;
+    return;
+  }
+  if (e.target.closest('#noYes')) { noSend(); return; }
+  if (e.target.closest('#noBack')) { $('#noAsk').hidden = true; $('#noButtons').hidden = false; return; }
+});
 
 /* --------------------------------------------------------------- behaviour */
 

@@ -44,6 +44,7 @@
 
 const ALERTS = require('./alerts.js');
 const DAYS = require('./days.js');
+const APPS = require('./apps.js');
 
 const DAY = DAYS.DAY;
 /* Calendar days in India, from one place — see server/days.js for why all
@@ -631,6 +632,66 @@ function phaseOf(db, student, now) {
   const T = now ? new Date(now).getTime() : Date.now();
   const st = typeof student === 'object' ? student : db.studentById(Number(student));
   if (!st) return null;
+  const base = taskPhaseOf(db, st, T);
+  return base ? liftByApplications(db, st, base, T) : base;
+}
+
+/*
+ * 8 Oct (F3): THE APPLICATIONS SAY WHERE THE FILE IS, TOO.
+ *
+ * A student with seven applications submitted read "Enrolled — here 40
+ * days", because the phase came off the tasks alone and nobody had ticked
+ * the welcome call. The tasks still drive it — nothing here closes one — but
+ * an application that has been filed is proof the file is at least Applying,
+ * and an offer in hand is proof it is at least waiting on offers. The floor
+ * only ever lifts: a phase the tasks put further along stays where it is.
+ */
+function applicationFloor(db, st) {
+  let apps = [];
+  try { apps = db.getApplications(st.id) || []; } catch (e) { apps = []; }
+  /* Only universities still on the list — an application against a row the
+     counsellor took off the shortlist is history, not state. */
+  let listed = null;
+  try { listed = new Set((db.getShortlist(st.id) || []).map(r => String(r.prog_id))); } catch (e) { listed = null; }
+  const live = apps.filter(a => !listed || listed.has(String(a.prog_id)));
+  const SENT = APPS.STAGES.findIndex(x => x.k === 'sent');
+  /* Submitted: the stage says so, or the university has answered — a decision
+     is proof of a filing whatever the stage field reads. */
+  const submitted = live.filter(a => Number(a.stage || 0) >= SENT || String(a.outcome || ''));
+  const offers = live.filter(a => APPS.hadOffer(a.outcome));
+  if (!submitted.length) return null;
+  const since = submitted.map(a => a.updated_at).filter(Boolean).sort()[0] || '';
+  if (offers.length) {
+    return { key: 'offers', done: offers.length, total: submitted.length, since,
+      since2: offers.map(a => a.updated_at).filter(Boolean).sort()[0] || since };
+  }
+  return { key: 'applying', done: submitted.length, total: live.length, since };
+}
+
+function liftByApplications(db, st, base, T) {
+  let floor = null;
+  try { floor = applicationFloor(db, st); } catch (e) { floor = null; }
+  if (!floor) return base;
+  const at = PHASES.find(p => p.key === floor.key);
+  if (!at || base.finished || PHASE_AT.get(at.key) <= Number(base.index || 0)) return base;
+  const since = (floor.key === 'offers' ? floor.since2 : floor.since) || floor.since || st.created_at;
+  return {
+    key: at.key, label: at.label, short: at.short,
+    index: PHASE_AT.get(at.key), of: PHASES.length,
+    done: floor.done, total: floor.total,
+    since, days: DAYS.daysBetweenDays(DAYS.istDay(since), DAYS.istDay(T)) || 0,
+    /* Late work from the phases behind is still late — it is carried, so the
+       board does not lose it by moving the file on. */
+    late: base.late || 0, waiting: false, blocking: base.blocking || [],
+    finished: false,
+    /* Where this came from, so a screen can say "from the applications"
+       rather than imply a task was ticked. */
+    from: 'applications',
+    taskPhase: base.key,
+  };
+}
+
+function taskPhaseOf(db, st, T) {
   const rows = (db.tasksFor(st.id) || []).filter(t => String(t.status) !== 'dropped');
   const phaseKey = t => {
     const tpl = TEMPLATES.find(x => x.key === t.task_key);

@@ -175,16 +175,20 @@ function split(grossPaise, pkg, placedAt) {
   return null;
 }
 
+/* 8 Oct (F2): a part may be PARTLY paid — ₹20,000 handed over against a
+   ₹30,000 part. `partPaise` holds what has arrived on a part that is not yet
+   settled; a settled part is its whole amount. */
+const paidOn = p => (p.status === 'paid' ? Number(p.paise || 0)
+  : Math.min(Number(p.paise || 0), Math.max(0, Number(p.partPaise || 0))));
+
 /** What is still owed on a schedule. */
 function outstanding(plan) {
-  return (plan || []).filter(p => p.status !== 'paid')
-    .reduce((n, p) => n + Number(p.paise || 0), 0);
+  return (plan || []).reduce((n, p) => n + Math.max(0, Number(p.paise || 0) - paidOn(p)), 0);
 }
 
 /** What has been received. */
 function collected(plan) {
-  return (plan || []).filter(p => p.status === 'paid')
-    .reduce((n, p) => n + Number(p.paise || 0), 0);
+  return (plan || []).reduce((n, p) => n + paidOn(p), 0);
 }
 
 /** The next one somebody has to chase, if any. */
@@ -228,5 +232,5 @@ function teaser(grossPaise, pkg, inr) {
 
 module.exports = {
   THRESHOLD_PAISE, MIN_PART_PAISE, MAX_PARTS, DEFAULT_PLAN, SERVICE_PLAN, GRACE_DAYS,
-  allowed, split, phasesFor, outstanding, collected, nextDue, overdue, teaser,
+  allowed, split, phasesFor, outstanding, collected, nextDue, overdue, teaser, paidOn,
 };

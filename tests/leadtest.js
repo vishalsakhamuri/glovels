@@ -158,7 +158,9 @@ const stamp = Date.now();
   check('marked with where it came from', walk && walk.source === 'whatsapp', walk && walk.source);
   check('and owned by whoever wrote it down, not left for nobody',
     walk && !!walk.ownerId, walk && walk.owner);
-  check('with the first note already on it', walk && walk.followUps >= 1, walk && walk.followUps);
+  /* Patch 163 (F8): follow-ups count contact only — the "added" line is a
+     note on the thread, not a call made. */
+  check('with the first note already on it, and no follow-up counted for it', walk && walk.notes >= 1 && walk.followUps === 0, walk && (walk.notes + '/' + walk.followUps));
 
   /* ------------------------------------------------- and then they say yes */
   const won = await staff.request.post(BASE + '/api/staff/lead/' + walk.id + '/convert',

@@ -76,7 +76,12 @@ const stamp = Date.now();
 
   if (sel) {
     await sel.selectOption(String(counsellor.id));
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(300);
+    /* Patch 163 (F5): the change asks first — Move / Keep — and saves on Move. */
+    const ask = await page.$('.assign-ask [data-move]');
+    check('the change asks before it moves anyone', !!ask);
+    if (ask) await ask.click();
+    await page.waitForTimeout(700);
 
     const orders = await (await staff.request.get(BASE + '/api/staff/orders')).json();
     const mine = (orders.orders || []).find(o => o.email === email);

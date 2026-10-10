@@ -396,7 +396,9 @@ function all(db, now) {
 
   /* ---- a part payment whose date has gone past ---- */
   for (const o of db.allOrders()) {
-    if (o.status === 'paid') continue;
+    /* 8 Oct (F2): a refunded order is finished business — nobody is chased
+       for money that was handed back. */
+    if (o.status === 'paid' || o.status === 'refunded') continue;
     let plan = null;
     try { plan = o.plan ? JSON.parse(o.plan) : null; } catch (e) { plan = null; }
     if (!plan) continue;
@@ -426,6 +428,9 @@ function all(db, now) {
   }
 
   /* ---- a lead nobody has called, or a follow-up that was promised ---- */
+  /* 8 Oct (F8): `n` counts contact only — a call, a WhatsApp, an email, a
+     meeting. A note somebody typed to themselves is not a call made, and a
+     lead with three such notes and no call is still a lead nobody has rung. */
   const noteCounts = db.leadNoteCounts();
   for (const e of db.allEnquiries()) {
     if (e.status === 'converted' || e.status === 'lost') continue;

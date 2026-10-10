@@ -473,6 +473,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     from: m.sender === 'me' ? '' : (String(m.author || '').trim() || FROM_OFFICE),
     attachment: attachmentOf(studentId, m.file),
   });
+  /* 8 Oct: a notice written to a student's thread, pushed to their open
+     Messages screen with the message ITSELF — the screen reads `msg.who` and
+     an empty payload threw on it. */
+  const pingThread = studentId => {
+    try {
+      const msgs = db.getMessages(studentId).map(msgShape(studentId));
+      live.toStudent(studentId, 'message', { studentId, msg: msgs[msgs.length - 1] });
+    } catch (e) { /* the message is on the file either way */ }
+  };
 
   /*
    * Where an attachment is written, and what it is called on the file.
@@ -590,6 +599,38 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   /* The whole of a student's portal in one response. The portal screens each
      need a slice of it and there is no benefit in six round trips on load. */
+  /*
+   * 8 Oct (F4): WHICH ORDER IS "THE PACKAGE".
+   *
+   * Every list took orders[0] — the newest — so a ₹0 insurance add-on bought
+   * last became the student's package over the ₹49,999 they had actually
+   * paid for. The main order is the one that was taken on (paid, owing or
+   * part-paid) and carries a package, the one that unlocks universities
+   * first; failing that the highest-value order. Everything else bought is an
+   * add-on, listed by name.
+   */
+  function packageOf(orders) {
+    const rows = orders || [];
+    const earned = rows.filter(o => MONEY.EARNED.has(o.status));
+    const pool = earned.length ? earned
+      : rows.filter(o => o.status !== 'failed' && o.status !== 'refunded');
+    const main = pool.slice().sort((a, b) =>
+      (!!b.package_id - !!a.package_id)
+      || (((b.public_unis || 0) > 0) - ((a.public_unis || 0) > 0))
+      || ((b.gross_paise || 0) - (a.gross_paise || 0))
+      || (Number(b.id || 0) - Number(a.id || 0)))[0] || null;
+    const addOns = pool.filter(o => o !== main).map(o => o.package || '').filter(Boolean);
+    return {
+      package: main ? (main.package || '') : '',
+      packageId: main ? (main.package_id || '') : '',
+      reference: main ? main.reference : '',
+      grossPaise: main ? (main.gross_paise || 0) : 0,
+      status: main ? main.status : '',
+      addOns, addOnCount: addOns.length,
+      orders: rows.length,
+    };
+  }
+
   function stateFor(s) {
     const orders = db.ordersFor(s.id);
     /* A SLOT HOLDS A SET, and still answers as one thing.
@@ -760,13 +801,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          the ₹4,999 package. The package that unlocks universities, then the
          one that cost something, then the newest. */
       order: (() => {
-        const head = orders.slice().sort((a, b) =>
-          ((b.public_unis || 0) > 0) - ((a.public_unis || 0) > 0)
-          || ((b.gross_paise || 0) > 0) - ((a.gross_paise || 0) > 0))[0];
+        /* 8 Oct (F4): the same rule every staff list uses (packageOf). */
+        const main = packageOf(orders);
+        const head = main.reference ? orders.find(o => o.reference === main.reference) : null;
         return head ? {
           reference: head.reference, package: head.package,
           publicUnis: head.public_unis, grossPaise: head.gross_paise,
           paidAt: head.created_at,
+          addOns: main.addOns,
         } : null;
       })(),
       orders: orders.map(o => ({
@@ -2048,9 +2090,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   function recordPayment(order, paymentId, which) {
     const plan = planOf(order);
+    /* 8 Oct (F2): the gateway's money goes in the same ledger as the office's,
+       so GET /api/staff/order/:ref lists a card payment beside a bank
+       transfer. */
+    const ledger = paise => {
+      try {
+        db.addPayment({ orderRef: order.reference, studentId: order.student_id, paise,
+          at: new Date().toISOString(), method: 'card', reference: paymentId || '',
+          note: 'Razorpay', byStaff: 'razorpay', kind: 'payment', partN: null });
+      } catch (e) { /* the order is marked paid either way */ }
+    };
     if (!plan) {
       /* Paid in one go: the order is simply paid. */
       db.setOrderPaid(order.reference, paymentId || '');
+      ledger(Number(order.gross_paise || 0));
       return { status: 'paid', plan: null, outstanding: 0 };
     }
     const part = which
@@ -2059,7 +2112,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (part) {
       part.status = 'paid';
       part.paidAt = new Date().toISOString();
+      part.method = 'card';
       if (paymentId) part.paymentId = String(paymentId).slice(0, 60);
+      ledger(Number(part.paise || 0) - Math.max(0, Number(part.partPaise || 0)));
+      part.partPaise = Number(part.paise || 0);
     }
     const got = PLANS.collected(plan);
     const left = PLANS.outstanding(plan);
@@ -2072,11 +2128,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return { status: left <= 0 ? 'paid' : 'part', plan, outstanding: left, collected: got };
   }
 
-  route('POST', '/api/orders', async (req, res) => {
-    const b = await readJson(req);
-
+  /*
+   * What is in the basket: the package (if any) and the services, priced from
+   * OUR catalogue. Shared by the public checkout and by the office making an
+   * order on a student's file (F2), so the two can never price a thing
+   * differently.
+   */
+  function basketFrom(b) {
     const pkg = b.packageId ? PACKAGES()[b.packageId] : null;
-    if (b.packageId && !pkg) return json(res, 400, { error: 'No such package' });
+    if (b.packageId && !pkg) return { error: 'No such package', code: 400 };
 
     /* Services: [{id, level}] or plain ids. Anything not on the list today is
        dropped rather than guessed at — a service that has been retired must not
@@ -2100,9 +2160,118 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
     });
 
-    if (!pkg && !items.length) {
-      return json(res, 400, { error: 'Nothing was selected' });
+    if (!pkg && !items.length) return { error: 'Nothing was selected', code: 400 };
+
+    const gross = (pkg ? pkg.paise : 0) + items.reduce((t, x) => t + x.paise, 0);
+    /* What the order is CALLED. A package keeps its name; a basket of services
+       is named by what is in it, because "Order GLV-4821" on a dashboard tells
+       a student nothing about what they bought. */
+    const label = pkg ? pkg.name
+      : items.length === 1 ? items[0].name
+      : items.length + ' services';
+    return { pkg, items, gross, label };
+  }
+
+  /*
+   * The order row itself, from a priced basket. The schedule is worked out
+   * here, from our own price and our own phases — a browser asking to pay ₹1
+   * of ₹74,999 "in parts" is asking for the schedule to come from the
+   * request, and it does not.
+   */
+  const newReference = () => 'GLV-' + crypto.randomInt(1000, 9999);
+  function placeOrder({ basket, name, email, phone, studentId, status, payIn, accepted, reference }) {
+    const { pkg, items, gross, label } = basket;
+    reference = reference || newReference();
+    /* Packages and baskets of services alike — the rule is the price, not what
+       was bought. A student buying four services for ₹32,000 is in exactly the
+       position the rule exists for. */
+    const canSplit = PLANS.allowed(gross);
+    const inParts = canSplit && payIn === 'parts';
+    const plan = inParts ? PLANS.split(gross, pkg, Date.now()) : null;
+    /* The gateway collects the first part, not the total. This is the number
+       that has to be right: charging the full amount and calling it an
+       instalment is the worst possible version of this feature. */
+    const chargeNow = plan ? plan[0].paise : gross;
+    const order = db.addOrder({
+      plan,
+      studentId: studentId || null, reference, package: label,
+      /* The id as well as the name. The name is editable on the Home page
+         screen; what a student is owed is not. */
+      packageId: pkg ? pkg.id : '',
+      publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
+      status, kind: pkg ? 'package' : 'services',
+      items: items.map(x => ({ id: x.id, name: x.name, level: x.level, paise: x.paise })),
+      accepted,
+    });
+    return { order, reference, plan, chargeNow, canSplit, gross, label, pkg, items };
+  }
+
+  /*
+   * 8 Oct (F1): WHOSE ORDER THIS IS.
+   *
+   * An order's student_id is a STUDENT's id. The checkout used to attach the
+   * order to whoever was signed in, so a partner, an administrator or a
+   * counsellor placing a test order from the public site put it on their own
+   * account. Now: a signed-in student takes their own order; otherwise the
+   * buyer's email is matched to an existing student, and failing that a
+   * student account is made from the buyer details (the path a signed-out
+   * guest always took). A staff account is never linked — if the email IS a
+   * staff address, the order stays a guest order.
+   *
+   * Returns { buyer, created, newSession } — `newSession` is true only when
+   * nobody was signed in and the account was made here, which is the one
+   * case the browser should be signed in to it.
+   */
+  function buyerFor({ who, name, email, phone, reference }) {
+    if (who && who.role === 'student') return { buyer: who, created: null, newSession: false };
+    const existing = db.studentByEmail(email);
+    if (existing && existing.role === 'student') {
+      return { buyer: existing, created: null, newSession: false };
     }
+    if (existing) {
+      /* A staff address. There is no student to make and no staff account to
+         link, so the order waits for its account like any guest order. */
+      db.log('system', 'order left unlinked',
+        reference + ' — ' + email + ' is a ' + existing.role + ' account, not a student');
+      return { buyer: null, created: null, newSession: false };
+    }
+    /* A password nobody will ever use or see. The account is unusable until
+       the set-password link is followed, which is the point — there is no
+       weak default sitting on it. */
+    const salt = newSalt();
+    const temp = newPassword();
+    const created = db.createStudent(email, name, tenDigits(phone) ? '+91' + tenDigits(phone) : '',
+      hashPassword(temp, salt), salt);
+    db.setMustChange(created.id, true);
+    db.claimOrders(created.id, email);
+    /* The welcome messages are seeded by the caller once the order is on the
+       account — they read the entitlement, and an account seeded before its
+       ₹99 order exists reads as a counsellor's client. */
+
+    /* Both ways in, because they fail differently. The password is what a
+       counsellor reads out when a student phones to say nothing arrived; the
+       link is what works when they have forgotten it. Neither survives first
+       use — the account demands its own password either way. */
+    const invite = newToken();
+    /* Days, not the 30 minutes a forgotten password gets. This one is an
+       invitation — it may sit unread over a weekend, and a student coming
+       back to a dead link after paying is the worst version of this. */
+    db.createReset(invite, created.id, 60 * 24 * 7);
+    mail.send(Object.assign({ to: created.email }, EMAILS.credentials({
+      name: created.name, email: created.email, password: temp, siteUrl,
+      role: 'student', madeBy: who ? who.name : '',
+    }))).catch(() => {});
+    db.log(who ? who.name : 'system', 'Account created at checkout', email + ' — ' + reference
+      + (who ? ' (order placed by ' + who.role + ' ' + who.email + ')' : ''));
+    return { buyer: db.studentById(created.id), created, newSession: !who };
+  }
+
+  route('POST', '/api/orders', async (req, res) => {
+    const b = await readJson(req);
+
+    const basket = basketFrom(b);
+    if (basket.error) return json(res, basket.code, { error: basket.error });
+    const { pkg, items, gross, label } = basket;
 
     const name = String(b.name || '').trim();
     const email = String(b.email || '').trim().toLowerCase();
@@ -2116,16 +2285,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        and sends email, which is the expensive kind of junk. */
     if (floodedBy(clientIp(req), 'order', 10, 60 * 60 * 1000)) return slowDown(res);
 
-    const s = me(req);
-    const reference = 'GLV-' + crypto.randomInt(1000, 9999);
-    const gross = (pkg ? pkg.paise : 0) + items.reduce((t, x) => t + x.paise, 0);
-
-    /* What the order is CALLED. A package keeps its name; a basket of services
-       is named by what is in it, because "Order GLV-4821" on a dashboard tells
-       a student nothing about what they bought. */
-    const label = pkg ? pkg.name
-      : items.length === 1 ? items[0].name
-      : items.length + ' services';
+    /* Who is at the keyboard — which is not the same as whose order it is. */
+    const who = me(req);
+    const s = who && who.role === 'student' ? who : null;
 
     /*
      * `awaiting` when a gateway is going to collect, `owing` when a counsellor
@@ -2159,34 +2321,25 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /*
      * Paying in parts.
      *
-     * Anything over ₹10,000 may be spread. The schedule is worked out here,
-     * from our own price and our own phases — a browser asking to pay ₹1 of
-     * ₹74,999 "in parts" is asking for the schedule to come from the request,
-     * and it does not.
+     * Anything over ₹10,000 may be spread (placeOrder works the schedule out).
      */
-    /* Packages and baskets of services alike — the rule is the price, not what
-       was bought. A student buying four services for ₹32,000 is in exactly the
-       position the rule exists for. */
-    const canSplit = PLANS.allowed(gross);
-    const inParts = canSplit && b.payIn === 'parts';
-    const plan = inParts ? PLANS.split(gross, pkg, Date.now()) : null;
-    /* The gateway collects the first part, not the total. This is the number
-       that has to be right: charging the full amount and calling it an
-       instalment is the worst possible version of this feature. */
-    const chargeNow = plan ? plan[0].paise : gross;
-
     const collecting = pay.enabled;
-    const order = db.addOrder({
-      plan,
-      studentId: s ? s.id : null, reference, package: label,
-      /* The id as well as the name. The name is editable on the Home page
-         screen; what a student is owed is not. */
-      packageId: pkg ? pkg.id : '',
-      publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
-      status: collecting ? 'awaiting' : 'owing', kind: pkg ? 'package' : 'services',
-      items: items.map(x => ({ id: x.id, name: x.name, level: x.level, paise: x.paise })),
-      accepted,
+    /* Whose order this is — decided BEFORE the row is written, so the row
+       never carries a staff id even for a moment. */
+    const ref = newReference();
+    const linked = buyerFor({ who, name, email, phone, reference: ref });
+    const placed = placeOrder({
+      basket, name, email, phone, reference: ref,
+      studentId: linked.buyer ? linked.buyer.id : null,
+      status: collecting ? 'awaiting' : 'owing',
+      payIn: b.payIn, accepted,
     });
+    const { order, reference, plan, chargeNow, canSplit } = placed;
+    if (linked.created) seedMessages(linked.created);
+    if (linked.buyer && who && who.role !== 'student') {
+      db.log(who.name, 'placed an order for a student',
+        reference + ' \u2192 ' + linked.buyer.email + ' (signed in as ' + who.role + ')');
+    }
 
     /* The gateway's own order, created from OUR total. The browser is handed an
        id and the public key id; the amount it displays comes from Razorpay,
@@ -2229,47 +2382,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * an existing account because somebody typed its address into a checkout
      * would be a way into it.
      */
-    let created = null;
-    let inviteLink = '';
+    const created = linked.created;
     let sessionCookieHeader = null;
-    if (!s && !db.studentByEmail(email)) {
-      /* A password nobody will ever use or see. The account is unusable until
-         the set-password link is followed, which is the point — there is no
-         weak default sitting on it. */
-      const salt = newSalt();
-      const temp = newPassword();
-      created = db.createStudent(email, name, tenDigits(phone) ? '+91' + tenDigits(phone) : '',
-        hashPassword(temp, salt), salt);
-      db.setMustChange(created.id, true);
-      db.claimOrders(created.id, email);
-      seedMessages(created);
-
-      /* Both ways in, because they fail differently. The password is what a
-         counsellor reads out when a student phones to say nothing arrived; the
-         link is what works when they have forgotten it. Neither survives first
-         use — the account demands its own password either way. */
-      const invite = newToken();
-      /* Days, not the 30 minutes a forgotten password gets. This one is an
-         invitation — it may sit unread over a weekend, and a student coming
-         back to a dead link after paying is the worst version of this. */
-      db.createReset(invite, created.id, 60 * 24 * 7);
-      inviteLink = siteUrl + '/login?token=' + invite;
-      mail.send(Object.assign({ to: created.email }, EMAILS.credentials({
-        name: created.name, email: created.email, password: temp, siteUrl,
-        role: 'student', madeBy: '',
-      }))).catch(() => {});
-
+    /* Signed in on this browser straight away — ONLY when nobody was signed
+       in and this is the browser that just placed the order. An administrator
+       placing an order for a student must not be signed out into the
+       student's account; and creating a session for an EXISTING account
+       because somebody typed its address into a checkout would be a way in. */
+    if (created && linked.newSession) {
       const sess = newToken();
       db.createSession(sess, created.id, 30);
       sessionCookieHeader = sessionCookie(sess, 30);
-      db.log('system', 'Account created at checkout', email + ' — ' + reference);
     }
 
     /* If they were already signed in with a profile filled in, the shortlist
        they just bought is on their screen before they have finished reading
        the confirmation. A brand-new account has no profile yet and is picked
        up the moment they save one. */
-    const buyer = s || (created ? db.studentById(created.id) : null);
+    const buyer = linked.buyer;
 
     /*
      * Somebody to talk to, from the minute they pay.
@@ -2322,11 +2452,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       reference, package: label, publicUnis: pkg ? pkg.publicUnis : 0,
       grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax,
       services: items.map(x => ({ id: x.id, name: x.name, level: x.level, priceInr: x.paise / 100 })),
-      linkedToAccount: !!s || !!created,
+      linkedToAccount: !!buyer,
       /* So the confirmation can say "your dashboard is ready" rather than
          "now go and make an account", which is what it said to somebody whose
          account had just been made for them. */
       accountCreated: !!created,
+      /* Whose it is (F1) — never the staff account that pressed the button. */
+      studentId: buyer ? buyer.id : null,
       createdAt: order.created_at,
       /* Present only when there is genuinely a card form to open. The page
          decides which confirmation to show from this and nothing else. */
@@ -3543,7 +3675,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          point; a phone number for that person is how the office stops being
          the single door it was asked to be. */
       counsellor: c ? c.name : '',
-      package: orders[0] ? orders[0].package : '',
+      package: packageOf(orders).package,
+      addOns: packageOf(orders).addOns,
       destination: profile.g_country || profile.destination || '',
       level: profile.g_level || '',
       field: profile.g_field || '',
@@ -4020,7 +4153,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('GET', '/api/staff/me', staffOnly(async (req, res, s) => json(res, 200, {
     user: publicStudent(s),
     counsellors: s.role === 'admin'
-      ? db.caseworkers().map(c => ({ id: c.id, name: c.name, email: c.email }))
+      ? db.activeCaseworkers().map(c => ({ id: c.id, name: c.name, email: c.email }))
       : [],
     live: live.counts(),
     channels: notify.status(),
@@ -4047,7 +4180,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         docsVerified: docs.filter(d => d.status === 'ok').length,
         docsWaiting: docs.filter(d => d.status === 'wait').length,
         unread: db.unreadForStaff(st.id),
-        package: orders[0] ? orders[0].package : null,
+        /* 8 Oct (F4): the MAIN package, not the newest order. */
+        package: (() => { const m = packageOf(orders); return m.package || null; })(),
+        addOns: packageOf(orders).addOns,
+        addOnCount: packageOf(orders).addOnCount,
         lastMessage: last ? { who: last.sender, body: last.body, at: last.created_at } : null,
       };
     });
@@ -4088,6 +4224,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         bytes: d.bytes,
       })),
       orders: stateFor(st).orders,
+      /* 8 Oct (F4): the main package and the add-ons, for the file header. */
+      package: packageOf(db.ordersFor(id)),
       /* WHERE THIS FILE HAS GOT TO — derived from the tasks, never set.
          The header shows it, and when it stops moving it is what the office
          asks about. */
@@ -4746,7 +4884,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
             + (why ? ' ' + why : ' The one on file is not clear enough to send on.')
             + ' You can upload a new one on your Documents screen — the old one stays '
             + 'until the new one arrives.', '', s.name);
-          live.toStudent(id, 'message', {});
+          pingThread(id);
         } catch (e) { /* the status is set either way */ }
         if (st && st.email) {
           mail.send(Object.assign({ to: st.email },
@@ -4762,17 +4900,92 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('PUT', /^\/api\/staff\/student\/(\d+)\/counsellor$/, caseworkOnly(async (req, res, s, m) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Only an admin can assign counsellors' });
     const b = await readJson(req);
+    const id = Number(m[1]);
+    const st = db.studentById(id);
+    if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
     const cid = b.counsellorId === null || b.counsellorId === '' ? null : Number(b.counsellorId);
+    let c = null;
     if (cid !== null) {
-      const c = db.studentById(cid);
+      c = db.studentById(cid);
       /* An administrator can be somebody's counsellor. In an office this size
          they usually are, for the hard files. */
       if (!c || !['counsellor', 'admin'].includes(c.role)) {
         return json(res, 400, { error: 'That person cannot be assigned students' });
       }
+      if ((c.status || 'active') !== 'active') {
+        return json(res, 400, { error: c.name + '\u2019s account is closed — pick somebody active.' });
+      }
     }
-    db.assignCounsellor(Number(m[1]), cid);
-    return json(res, 200, { ok: true });
+    const before = st.counsellor_id ? Number(st.counsellor_id) : null;
+    db.assignCounsellor(id, cid);
+    const changed = before !== (cid === null ? null : Number(cid));
+    /*
+     * 8 Oct (F5): a change is an event, not a field edit.
+     *
+     * The student was handed to somebody else and nobody was told — not the
+     * student, whose screen quietly showed a new name, and not the new
+     * counsellor, who found the file by noticing their caseload had grown. So:
+     * the student is told on their thread, the new counsellor is told on
+     * their phone and by email, and the log says who did it.
+     */
+    if (changed) {
+      const was = before ? db.studentById(before) : null;
+      db.log(s.name, 'reassigned a counsellor',
+        st.name + ' (' + st.email + '): ' + (was ? was.name : 'nobody') + ' \u2192 ' + (c ? c.name : 'nobody'));
+      if (c) {
+        try {
+          db.addMessage(id, 'them',
+            'Your counsellor is now ' + c.name + '. They have your whole file — nothing you have '
+            + 'sent is lost, and this is where to reach them.', '', c.name);
+          pingThread(id);
+        } catch (e) { /* the assignment stands */ }
+        if (Number(c.id) !== Number(s.id)) {
+          if (push) {
+            push.toStaff(c.id, {
+              title: 'New student on your list',
+              body: st.name + ' has been assigned to you by ' + s.name + '.',
+              url: (siteUrl || '') + '/counsellor?student=' + id,
+              tag: 'assigned-' + id,
+            }).catch(() => {});
+          }
+          notify.notify({
+            to: c.email, phone: c.phone,
+            email: EMAILS.staffChase({
+              toName: c.name, fromName: s.name, studentName: st.name, siteUrl,
+              body: st.name + ' is now on your list' + (was ? ' (from ' + was.name + ')' : '')
+                + '. Open the file and say hello — they have been told you are their counsellor.',
+            }),
+            whatsapp: { text: 'Glovels: ' + st.name + ' has been assigned to you by ' + s.name + '.' },
+          }).catch(() => {});
+        }
+        /* The new owner has a welcome call to make. */
+        try { TASKS.syncTasks(db, db.studentById(id)); } catch (e) { /* not fatal */ }
+      } else if (was) {
+        try {
+          db.addMessage(id, 'them', 'Your file is being handed to a new counsellor — '
+            + 'we will tell you who shortly.');
+          pingThread(id);
+        } catch (e) { /* the assignment stands */ }
+      }
+    }
+    return json(res, 200, { ok: true, changed,
+      counsellor: c ? { id: c.id, name: c.name } : null,
+      was: before });
+  }));
+
+  /*
+   * 8 Oct (F5): who a student can be given to. Active counsellors and
+   * administrators only — a closed account resolves by id for old rows but is
+   * not offered. With each one's open caseload, so the list can show load.
+   */
+  route('GET', '/api/staff/counsellors', caseworkOnly(async (req, res) => {
+    const students = db.allStudents();
+    const rows = db.activeCaseworkers().map(c => ({
+      id: c.id, name: c.name, email: c.email, role: c.role,
+      caseload: students.filter(st => Number(st.counsellor_id) === Number(c.id)
+        && (st.status || 'active') === 'active').length,
+    }));
+    return json(res, 200, { counsellors: rows });
   }));
 
   /* ------------------------------------------------------ push notifications
@@ -4876,7 +5089,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    */
   route('GET', '/api/staff/money', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
-    const sum = MONEY.summarise(db.allStudents(), db.allOrders(), Date.now());
+    const sum = MONEY.summarise(db.allStudents(), db.allOrders(), Date.now(), db.paymentsByOrder());
     return json(res, 200, Object.assign({ gstRate: MONEY.GST_RATE }, sum));
   }));
 
@@ -5351,28 +5564,364 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!part) return json(res, 404, { error: 'No such part' });
       if (part.status === 'paid') return json(res, 409, { error: 'That part is already paid.' });
 
-      const done = recordPayment(order, String(b.note || 'collected by ' + s.name).slice(0, 60),
-        part.n);
-      db.log(s.name, 'recorded a part payment',
-        order.reference + ' — part ' + part.n + ', ' + inrOf(part.paise)
-        + (done.outstanding ? ', ' + inrOf(done.outstanding) + ' still to come' : ', settled'));
-      /* The student is told on their own thread. Money arriving is the one
-         thing nobody should have to ask about. */
-      if (order.student_id) {
-        try {
-          db.addMessage(order.student_id, 'them',
-            'Received ' + inrOf(part.paise) + ' for ' + order.reference + ' — ' + part.label
-            + '. ' + (done.outstanding
-              ? inrOf(done.outstanding) + ' left on this package.'
-              : 'That settles it, thank you.'));
-          live.toStudent(order.student_id, 'message', {});
-        } catch (e) { /* the payment is recorded either way */ }
-      }
+      /* 8 Oct (F2): through the same ledger as the newer routes, so a part
+         collected here has a row in `payments` with a date, a method and the
+         counsellor's name — and the student is told, as before. */
+      const done = takePayment(order, {
+        paise: Number(part.paise || 0) - PLANS.paidOn(part),
+        day: cleanDay(b.date), method: cleanMethod(b.method),
+        reference: String(b.reference || '').trim().slice(0, 80),
+        note: String(b.note || 'collected by ' + s.name).trim().slice(0, 400),
+        staff: s, partN: part.n,
+      });
       return json(res, 200, {
-        reference: order.reference, status: done.status,
-        plan: done.plan, outstandingPaise: done.outstanding,
+        reference: order.reference, status: done.order.status,
+        plan: planOf(done.order), outstandingPaise: done.outstanding,
+        order: orderRow(done.order), payment: paymentShape(done.payment),
       });
     }));
+
+
+  /* =========================================================== the money (F2)
+   *
+   * Recording what arrived, in the office's hand.
+   *
+   * There was one route — mark the next part of a plan paid — and nothing for
+   * an order paid in one go, nothing for a partial amount, nothing for money
+   * going back, and no record of HOW it arrived or who took it. Everything
+   * below writes a row in `payments` and brings the order's own totals into
+   * line with it, so the order book, the Money screen and the student's
+   * dashboard all read the same ledger.
+   *
+   * Admins only on the writes, exactly as the Money screen is. A counsellor
+   * can read an order.
+   */
+  const METHODS = new Set(['cash', 'bank', 'upi', 'card', 'other']);
+  const cleanMethod = m => (METHODS.has(String(m || '').toLowerCase()) ? String(m).toLowerCase() : 'other');
+  /* A day, as YYYY-MM-DD; today when blank or unreadable. Stored as the start
+     of that day in UTC, so it sorts with the created_at columns beside it. */
+  const cleanDay = d => {
+    const raw = String(d || '').trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && !Number.isNaN(new Date(raw + 'T00:00:00Z').getTime())) return raw;
+    return new Date().toISOString().slice(0, 10);
+  };
+  const rupeesToPaise = v => Math.round((Number(v) || 0) * 100);
+
+  const paymentShape = p => ({
+    id: p.id, reference: p.order_ref, paise: Number(p.paise || 0),
+    amountInr: Math.round(Number(p.paise || 0)) / 100,
+    at: String(p.at || '').slice(0, 10), method: p.method || 'other',
+    ref: p.reference || '', note: p.note || '', by: p.by_staff || '',
+    kind: p.kind || 'payment', part: p.part_n == null ? null : Number(p.part_n),
+    recordedAt: p.created_at,
+  });
+
+  /*
+   * One order, the way every staff screen sees it. `ctx` carries the lookups
+   * the order book builds once for two hundred rows; a single-order caller
+   * passes nothing and they are read on the spot.
+   */
+  function orderRow(o, ctx) {
+    const c = ctx || {};
+    const people = c.people || null;
+    const who = o.student_id
+      ? (people ? people.get(Number(o.student_id)) : db.studentById(o.student_id)) || null
+      : null;
+    const pays = c.payments ? (c.payments[String(o.reference)] || []) : db.paymentsFor(o.reference);
+    let items = [];
+    try { items = JSON.parse(o.items || '[]'); } catch (e) { items = []; }
+    const fig = MONEY.figures(o);
+    /* Whose file this is on — and whether that is even a student. The book
+       must never offer "Open" on a row that points at a staff account. */
+    const isStudent = !!who && who.role === 'student';
+    return {
+      reference: o.reference,
+      kind: o.kind || 'package',
+      package: o.package || '',
+      packageId: o.package_id || '',
+      items,
+      publicUnis: o.public_unis || 0,
+      grossPaise: o.gross_paise || 0,
+      status: o.status || '',
+      name: o.name || '',
+      email: o.email || '',
+      phone: o.phone || '',
+      acceptedAt: (() => {
+        try { return o.accepted ? (JSON.parse(o.accepted).at || '') : ''; }
+        catch (e) { return ''; }
+      })(),
+      plan: (() => {
+        try { return o.plan ? JSON.parse(o.plan) : null; } catch (e) { return null; }
+      })(),
+      paidPaise: o.paid_paise || 0,
+      paidAt: o.paid_at || '',
+      /* The three figures every money screen prints (F2). */
+      receivedPaise: fig.receivedPaise,
+      outstandingPaise: fig.outstandingPaise,
+      refundedPaise: fig.refundedPaise,
+      payments: pays.map(paymentShape),
+      at: o.created_at,
+      studentId: o.student_id || null,
+      studentName: who ? who.name : '',
+      studentRole: who ? (who.role || 'student') : '',
+      /* True only when the row can be opened as a student file. */
+      isStudent,
+      counsellorId: isStudent ? (who.counsellor_id || null) : null,
+      counsellorName: isStudent && who.counsellor_id
+        ? ((db.studentById(who.counsellor_id) || {}).name || '')
+        : '',
+    };
+  }
+
+  /* The student hears about money on their own thread — the one thing nobody
+     should have to ask about. */
+  function tellStudentMoney(order, text) {
+    if (!order.student_id) return;
+    try {
+      db.addMessage(order.student_id, 'them', text);
+      pingThread(order.student_id);
+    } catch (e) { /* the payment is recorded either way */ }
+  }
+
+  /*
+   * Money in. The amount is applied to the plan's unpaid parts in order: a
+   * part covered in full is settled (status, date, method, reference on the
+   * part); what is left over goes on the next; an amount that does not
+   * cover a part is written on that part and the part stays due. An order
+   * with no plan is paid when the running total reaches the price, and
+   * carries a partial until then.
+   *
+   * Returns { order, payment, settled: [parts], outstanding }.
+   */
+  function takePayment(order, { paise, day, method, reference, note, staff, partN }) {
+    const plan = planOf(order);
+    const at = day + 'T00:00:00.000Z';
+    const settled = [];
+    let left = paise;
+    if (plan) {
+      /* A named part first, when the caller said which; then in order. */
+      const queue = plan.filter(p => p.status !== 'paid')
+        .sort((a, b) => Number(a.n) - Number(b.n));
+      if (partN) {
+        const i = queue.findIndex(p => Number(p.n) === Number(partN));
+        if (i > 0) queue.unshift(queue.splice(i, 1)[0]);
+      }
+      for (const part of queue) {
+        if (left <= 0) break;
+        const owedOnPart = Number(part.paise || 0) - PLANS.paidOn(part);
+        if (owedOnPart <= 0) continue;
+        if (left >= owedOnPart) {
+          part.status = 'paid';
+          part.paidAt = at;
+          part.method = method;
+          if (reference) part.paymentId = String(reference).slice(0, 60);
+          part.partPaise = Number(part.paise || 0);
+          left -= owedOnPart;
+          settled.push(part);
+        } else {
+          part.partPaise = PLANS.paidOn(part) + left;
+          /* Money has started arriving on it, so it is due — whatever
+             milestone it was waiting on. */
+          if (part.status === 'later') part.status = 'due';
+          left = 0;
+        }
+      }
+      /* Anything beyond the schedule is still money received; it sits on the
+         order's total and the book shows the order over-paid rather than
+         losing a rupee somebody handed over. */
+      const got = PLANS.collected(plan) + left;
+      db.setOrderPlan(order.reference, plan, got);
+      if (PLANS.outstanding(plan) <= 0) db.setOrderPaid(order.reference, reference || method);
+      else db.setOrderStatus(order.reference, 'part');
+    } else {
+      const had = MONEY.grossIn(order);
+      const got = had + paise;
+      db.setOrderPlan(order.reference, null, got);
+      if (got >= Number(order.gross_paise || 0)) db.setOrderPaid(order.reference, reference || method);
+      else db.setOrderStatus(order.reference, 'part');
+    }
+    const payment = db.addPayment({
+      orderRef: order.reference, studentId: order.student_id, paise, at,
+      method, reference, note, byStaff: staff.name, kind: 'payment',
+      partN: settled.length === 1 ? settled[0].n : (partN || null),
+    });
+    const fresh = db.orderByReference(order.reference);
+    const fig = MONEY.figures(fresh);
+    db.log(staff.name, 'recorded a payment',
+      order.reference + ' — ' + inrOf(paise) + ' by ' + method
+      + (reference ? ' (' + reference + ')' : '') + ' on ' + day
+      + (settled.length ? ', settles part ' + settled.map(p => p.n).join(' and ') : '')
+      + (fig.outstandingPaise ? ', ' + inrOf(fig.outstandingPaise) + ' still to come' : ', settled'));
+    tellStudentMoney(fresh, 'Received ' + inrOf(paise) + ' for ' + order.reference
+      + (settled.length === 1 ? ' — ' + settled[0].label : '') + '. '
+      + (fig.outstandingPaise ? inrOf(fig.outstandingPaise) + ' left on this package.' : 'That settles it, thank you.'));
+    return { order: fresh, payment, settled, outstanding: fig.outstandingPaise };
+  }
+
+  /* Money back. A negative row in the ledger; the order's refunded figure
+     rises and "received" falls by the same amount. When everything that was
+     received has gone back, the order is `refunded` and leaves the book. */
+  function giveRefund(order, { paise, day, method, reference, note, staff }) {
+    const at = day + 'T00:00:00.000Z';
+    const had = MONEY.collected(order);
+    const back = Math.min(paise, had);
+    db.setOrderRefunded(order.reference, Number(order.refunded_paise || 0) + back);
+    const payment = db.addPayment({
+      orderRef: order.reference, studentId: order.student_id, paise: -back, at,
+      method, reference, note, byStaff: staff.name, kind: 'refund', partN: null,
+    });
+    const after = db.orderByReference(order.reference);
+    const fullyBack = MONEY.collected(after) <= 0;
+    if (fullyBack) db.setOrderStatus(order.reference, 'refunded');
+    const fresh = db.orderByReference(order.reference);
+    db.log(staff.name, 'recorded a refund',
+      order.reference + ' — ' + inrOf(back) + ' by ' + method
+      + (reference ? ' (' + reference + ')' : '') + ' on ' + day
+      + (fullyBack ? ', order refunded in full' : ', ' + inrOf(MONEY.collected(fresh)) + ' still held')
+      + (note ? ' — ' + String(note).slice(0, 120) : ''));
+    tellStudentMoney(fresh, 'Refunded ' + inrOf(back) + ' on ' + order.reference
+      + (fullyBack ? '. The order is closed.' : '.'));
+    return { order: fresh, payment, refunded: back, fullyBack };
+  }
+
+  /* The guard the Money screen uses, with the student scope the /part route
+     always had on top. */
+  const orderForStaff = (s, ref, write) => {
+    const order = db.orderByReference(ref);
+    if (!order) return { code: 404, error: 'No such order' };
+    if (write && s.role !== 'admin') return { code: 403, error: 'Only an administrator can record money' };
+    if (order.student_id && !db.canSee(s, order.student_id)) {
+      return { code: 403, error: 'That student is not assigned to you' };
+    }
+    if (!order.student_id && s.role !== 'admin') {
+      return { code: 403, error: 'Only an administrator can open an order with no student on it' };
+    }
+    return { order };
+  };
+
+  /* GET /api/staff/order/:ref → { order, payments, plan } */
+  route('GET', /^\/api\/staff\/order\/(GLV-\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    const got = orderForStaff(s, m[1], false);
+    if (got.error) return json(res, got.code, { error: got.error });
+    const row = orderRow(got.order);
+    return json(res, 200, { order: row, payments: row.payments, plan: row.plan });
+  }));
+
+  /* POST /api/staff/order/:ref/payment {amount, date, method, reference, note} */
+  route('POST', /^\/api\/staff\/order\/(GLV-\d+)\/payment$/, caseworkOnly(async (req, res, s, m) => {
+    const got = orderForStaff(s, m[1], true);
+    if (got.error) return json(res, got.code, { error: got.error });
+    const order = got.order;
+    if (order.status === 'refunded') return json(res, 409, { error: 'That order was refunded. Make a new order to take money again.' });
+    const b = await readJson(req);
+    const paise = rupeesToPaise(b.amount);
+    if (!(paise > 0)) return json(res, 422, { error: 'An amount in rupees, more than zero.' });
+    const owed = MONEY.figures(order).outstandingPaise;
+    if (owed <= 0) return json(res, 409, { error: 'It is all paid.' });
+    const done = takePayment(order, {
+      paise, day: cleanDay(b.date), method: cleanMethod(b.method),
+      reference: String(b.reference || '').trim().slice(0, 80),
+      note: String(b.note || '').trim().slice(0, 400), staff: s,
+      partN: Number(b.part || b.n || 0) || null,
+    });
+    return json(res, 200, { order: orderRow(done.order), payment: paymentShape(done.payment),
+      settled: done.settled.map(p => p.n), outstandingPaise: done.outstanding });
+  }));
+
+  /* POST /api/staff/order/:ref/part/:n/paid {date, method, reference} — that
+     part, in full. The old /part route keeps working below. */
+  const partPaid = async (req, res, s, ref, which) => {
+    const got = orderForStaff(s, ref, true);
+    if (got.error) return json(res, got.code, { error: got.error });
+    const order = got.order;
+    const plan = planOf(order);
+    if (!plan) return json(res, 409, { error: 'That order is not being paid in parts.' });
+    const b = await readJson(req);
+    const next = PLANS.nextDue(plan);
+    if (!next && !which && !b.n) return json(res, 409, { error: 'It is all paid.' });
+    const n = Number(which || b.n || 0) || (next || {}).n;
+    const part = plan.find(x => Number(x.n) === Number(n));
+    if (!part) return json(res, 404, { error: 'No such part' });
+    if (part.status === 'paid') return json(res, 409, { error: 'That part is already paid.' });
+    const owedOnPart = Number(part.paise || 0) - PLANS.paidOn(part);
+    const done = takePayment(order, {
+      paise: owedOnPart, day: cleanDay(b.date), method: cleanMethod(b.method),
+      reference: String(b.reference || b.note || '').trim().slice(0, 80),
+      note: String(b.note || '').trim().slice(0, 400), staff: s, partN: part.n,
+    });
+    return json(res, 200, {
+      order: orderRow(done.order), payment: paymentShape(done.payment),
+      /* The old route's shape, kept for the screens that read it. */
+      reference: order.reference, status: done.order.status,
+      plan: planOf(done.order), outstandingPaise: done.outstanding,
+    });
+  };
+  route('POST', /^\/api\/staff\/order\/(GLV-\d+)\/part\/(\d+)\/paid$/,
+    caseworkOnly((req, res, s, m) => partPaid(req, res, s, m[1], Number(m[2]))));
+
+  /* POST /api/staff/order/:ref/refund {amount, date, method, reference, note} */
+  route('POST', /^\/api\/staff\/order\/(GLV-\d+)\/refund$/, caseworkOnly(async (req, res, s, m) => {
+    const got = orderForStaff(s, m[1], true);
+    if (got.error) return json(res, got.code, { error: got.error });
+    const order = got.order;
+    const b = await readJson(req);
+    const paise = rupeesToPaise(b.amount);
+    if (!(paise > 0)) return json(res, 422, { error: 'An amount in rupees, more than zero.' });
+    const held = MONEY.collected(order);
+    if (held <= 0) return json(res, 409, { error: 'Nothing has been received on that order, so there is nothing to refund.' });
+    if (paise > held) {
+      return json(res, 422, { error: 'Only ' + inrOf(held) + ' has been received on that order.' });
+    }
+    const done = giveRefund(order, {
+      paise, day: cleanDay(b.date), method: cleanMethod(b.method),
+      reference: String(b.reference || '').trim().slice(0, 80),
+      note: String(b.note || '').trim().slice(0, 400), staff: s,
+    });
+    return json(res, 200, { order: orderRow(done.order), payment: paymentShape(done.payment),
+      refundedPaise: done.refunded, fullyRefunded: done.fullyBack });
+  }));
+
+  /*
+   * POST /api/staff/student/:id/order {packageId | services:[{id,level}], note, method?, payIn?}
+   *
+   * An order made on a student's file by the office — the counsellor agreed
+   * it on the phone and will collect. Built exactly as the checkout builds
+   * one (same basket, same schedule), status `owing`, no gateway, no
+   * receipt email until money moves.
+   */
+  route('POST', /^\/api\/staff\/student\/(\d+)\/order$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can make an order' });
+    const id = Number(m[1]);
+    const st = db.studentById(id);
+    if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
+    const b = await readJson(req);
+    const basket = basketFrom(b);
+    if (basket.error) return json(res, basket.code, { error: basket.error });
+    const placed = placeOrder({
+      basket, name: st.name, email: st.email, phone: st.phone || '',
+      studentId: st.id, status: 'owing', payIn: b.payIn,
+      accepted: {
+        at: new Date().toISOString(), ip: clientIp(req), agent: 'office',
+        name: st.name, email: st.email, line: acceptanceLine(basket.pkg),
+        by: s.name, note: String(b.note || '').trim().slice(0, 400),
+      },
+    });
+    db.log(s.name, 'created an order', placed.reference + ' — ' + placed.label + ', '
+      + inrOf(placed.gross) + ' for ' + st.email
+      + (placed.plan ? ', in ' + placed.plan.length + ' parts' : '')
+      + (b.note ? ' — ' + String(b.note).trim().slice(0, 120) : '')
+      + ' (created by ' + s.name + ')');
+    /* The universities a package promises are owed from the moment the order
+       exists, as at the checkout. */
+    let matched = { owed: 0, added: 0 };
+    try { matched = deliverMatches(st); } catch (e) { /* the order stands */ }
+    try { TASKS.syncTasks(db, st); } catch (e) { /* likewise */ }
+    tellStudentMoney(placed.order, 'Your order ' + placed.reference + ' — ' + placed.label
+      + ' (' + inrOf(placed.gross) + ') — is on your file. '
+      + (placed.plan ? inrOf(placed.plan[0].paise) + ' to start; your counsellor will take it.'
+        : 'Your counsellor will take the payment.'));
+    return json(res, 200, { order: orderRow(placed.order), matched });
+  }));
 
   /* ------------------------------------------------- reading the room */
   /*
@@ -5437,7 +5986,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     return json(res, 200, {
       conversations: rows,
-      counsellors: db.caseworkers().map(c => ({ id: c.id, name: c.name })),
+      counsellors: db.activeCaseworkers().map(c => ({ id: c.id, name: c.name })),
       summary: {
         total: rows.length,
         waiting: rows.filter(r => !!r.waitingSince).length,
@@ -6034,59 +6583,25 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('GET', '/api/staff/orders', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
-    const byId = new Map(db.allStudents().map(st => [st.id, st]));
-    const orders = db.allOrders().map(o => {
-      let items = [];
-      try { items = JSON.parse(o.items || '[]'); } catch (e) { items = []; }
-      const st = o.student_id ? byId.get(o.student_id) : null;
-      return {
-        reference: o.reference,
-        kind: o.kind || 'package',
-        package: o.package || '',
-        items,
-        publicUnis: o.public_unis || 0,
-        grossPaise: o.gross_paise || 0,
-        status: o.status || '',
-        name: o.name || '',
-        email: o.email || '',
-        phone: o.phone || '',
-        /* Whether there is a record of what they accepted, and when. The words
-           themselves are on the receipt — the book only needs to say that one
-           exists, because an order with nothing recorded against it is the one
-           worth spotting. */
-        acceptedAt: (() => {
-          try { return o.accepted ? (JSON.parse(o.accepted).at || '') : ''; }
-          catch (e) { return ''; }
-        })(),
-        /* The schedule and what is still owed. An order book that shows
-           ₹74,999 against an order where ₹30,000 has arrived is a revenue
-           figure nobody can act on. */
-        plan: (() => {
-          try { return o.plan ? JSON.parse(o.plan) : null; } catch (e) { return null; }
-        })(),
-        paidPaise: o.paid_paise || 0,
-        at: o.created_at,
-        /* Whether this order has an account behind it yet. A guest order is not
-           a problem — it is the normal path — but it is the one somebody has to
-           chase, so it is said out loud rather than left to be inferred from a
-           null. */
-        studentId: o.student_id || null,
-        studentName: st ? st.name : '',
-        /* Who is dealing with it. The order book is where somebody decides
-           that, so the screen needs the current answer to render the control —
-           without it every row would open on "unassigned" and the first
-           glance at the book would say nobody is doing any of it. */
-        counsellorId: st ? (st.counsellor_id || null) : null,
-        /* Not byId — that map is students only, and a counsellor is not one. */
-        counsellorName: st && st.counsellor_id
-          ? ((db.studentById(st.counsellor_id) || {}).name || '')
-          : '',
-      };
-    });
+    /* Every account, not every student: an order that points at a staff
+       account (F1, before the repair) has to be NAMED as such, with its
+       role, so the screen never offers to open it as a student file. */
+    const ctx = {
+      people: new Map(db.allAccounts().map(p => [Number(p.id), p])),
+      payments: db.paymentsByOrder(),
+    };
+    const orders = db.allOrders().map(o => orderRow(o, ctx));
     return json(res, 200, {
       orders,
       grossPaise: orders.reduce((a, o) => a + o.grossPaise, 0),
+      /* The two figures the book's header shows (F2), net of refunds. */
+      receivedPaise: orders.reduce((a, o) => a + o.receivedPaise, 0),
+      outstandingPaise: orders.filter(o => MONEY.EARNED.has(o.status))
+        .reduce((a, o) => a + o.outstandingPaise, 0),
+      refundedPaise: orders.reduce((a, o) => a + o.refundedPaise, 0),
       guests: orders.filter(o => !o.studentId).length,
+      /* Rows still on a non-student account — zero after the start-up repair. */
+      mislinked: orders.filter(o => o.studentId && !o.isStudent).length,
     });
   }));
 
@@ -6578,10 +7093,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       owner: owner ? owner.name : '',
       studentId: e.student_id || null,
       nextAt: e.next_at || '',
+      /* 8 Oct (F8): CONTACT only — call, WhatsApp, email, meeting. A note to
+         oneself, a status change, "added by hand", the conversion line and a
+         repeat enquiry are on the thread (`notes`, `lastNote`) but are not
+         times anybody spoke to the person. */
       followUps: c.n, lastTouch: c.last, lastBy: c.lastWho,
+      notes: c.all == null ? c.n : c.all, lastNote: c.lastAny || c.last,
       /* 2 Oct: how many times this person has come back through a public
          form since the lead was opened — each one is a note of kind
-         'enquiry' on the thread, so it is also in followUps / lastTouch. */
+         'enquiry' on the thread, so it counts in `notes`, not in followUps. */
       returning: Number(e.returns || 0) > 0, returns: Number(e.returns || 0),
       page: e.source_page || '', referrer: e.referrer || '',
       at: e.created_at, updatedAt: e.updated_at || e.created_at,
@@ -6627,7 +7147,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          could be owned by an administrator and the dropdown that assigns one
          did not list any, so an admin-owned lead showed as unassigned and
          could not be handed back. */
-      counsellors: db.caseworkers().map(c => ({ id: c.id, name: c.name })),
+      counsellors: db.activeCaseworkers().map(c => ({ id: c.id, name: c.name })),
       statuses: LEAD_STATUS, reasons: LOST_REASONS,
       summary: {
         total: leads.length,
@@ -6785,6 +7305,90 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, {
       lead: leadShape(row, db.leadNoteCounts(), peopleMap()),
       notes: db.leadNotes(e.id).map(n => ({
+        id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
+      })),
+    });
+  }));
+
+  /*
+   * 8 Oct (F6): IS THIS PERSON ALREADY HERE?
+   *
+   * GET /api/staff/lead-lookup?email=&phone=
+   *   → { student: {id, name, email} | null, leads: [{id, name, status, created_at, owner}] }
+   *
+   * Asked before a lead is written down by hand, and when one is opened: the
+   * same number on three open leads is three counsellors ringing one person.
+   * Email lowercased; phone by its last ten digits, so "+91 98765 43210" and
+   * "9876543210" are one number. Converted and lost leads are finished
+   * business and are left out of the list — but if the person converted, the
+   * student they became is reported, because that is the answer.
+   */
+  route('GET', '/api/staff/lead-lookup', caseworkOnly(async (req, res, s) => {
+    const q = url.parse(req.url, true).query;
+    const email = String(q.email || '').trim().toLowerCase();
+    const digits = String(q.phone || '').replace(/\D/g, '').slice(-10);
+    if (!email && digits.length < 10) {
+      return json(res, 422, { error: 'An email address or a ten-digit number to look up.' });
+    }
+    const same = e => (email && String(e.email || '').trim().toLowerCase() === email)
+      || (digits.length === 10 && String(e.phone || '').replace(/\D/g, '').slice(-10) === digits);
+    const people = peopleMap();
+    let rows = db.allEnquiries().filter(same);
+    /* A counsellor sees their own and the unowned, as on the Leads screen. */
+    if (s.role !== 'admin') rows = rows.filter(e => !e.owner_id || Number(e.owner_id) === Number(s.id));
+    const open = rows.filter(e => e.status !== 'converted' && e.status !== 'lost');
+    /* The student: by email first, then through a converted lead, then by
+       phone among the students. */
+    let student = email ? db.studentByEmail(email) : null;
+    if (student && student.role !== 'student') student = null;
+    if (!student) {
+      const won = rows.find(e => e.status === 'converted' && e.student_id);
+      if (won) student = db.studentById(won.student_id);
+      if (student && student.role !== 'student') student = null;
+    }
+    if (!student && digits.length === 10) {
+      student = db.allStudents().find(st => String(st.phone || '').replace(/\D/g, '').slice(-10) === digits) || null;
+    }
+    return json(res, 200, {
+      student: student ? { id: student.id, name: student.name, email: student.email } : null,
+      leads: open.map(e => ({
+        id: e.id, name: e.name, status: e.status || 'new', created_at: e.created_at,
+        owner: e.owner_id && people.get(Number(e.owner_id)) ? people.get(Number(e.owner_id)).name : '',
+        ownerId: e.owner_id || null, source: e.source || 'website',
+        phone: e.phone || '', email: e.email || '',
+      })),
+      /* How many finished leads matched, so the screen can say "and two
+         older ones, closed". */
+      closed: rows.length - open.length,
+    });
+  }));
+
+  /*
+   * POST /api/staff/lead/:id/merge {into: leadId} — fold a duplicate into the
+   * lead that stays. Its notes move across; blanks on the keeper are filled
+   * from the duplicate; the duplicate is deleted. Admins only, and logged.
+   */
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/merge$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can merge leads' });
+    const from = db.enquiryById(Number(m[1]));
+    if (!from) return json(res, 404, { error: 'No such enquiry' });
+    const b = await readJson(req);
+    const into = db.enquiryById(Number(b.into || 0));
+    if (!into) return json(res, 404, { error: 'No such lead to merge into' });
+    if (Number(into.id) === Number(from.id)) return json(res, 422, { error: 'That is the same lead.' });
+    const out = db.mergeLead(from.id, into.id);
+    if (out.error) return json(res, 400, { error: out.error });
+    db.addLeadNote(into.id, s.name, 'change',
+      'Merged in lead #' + from.id + ' (' + (from.name || from.email || from.phone || 'no name') + ')'
+      + (out.moved ? ' with ' + out.moved + ' note' + (out.moved === 1 ? '' : 's') : ''));
+    db.log(s.name, 'merged leads',
+      '#' + from.id + ' (' + (from.name || from.email || from.phone) + ') into #' + into.id
+      + ' (' + (into.name || into.email || into.phone) + ')');
+    const row = db.enquiryById(into.id);
+    return json(res, 200, {
+      ok: true, merged: from.id, into: into.id, movedNotes: out.moved,
+      lead: leadShape(row, db.leadNoteCounts(), peopleMap()),
+      notes: db.leadNotes(into.id).map(n => ({
         id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
       })),
     });

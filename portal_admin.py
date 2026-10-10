@@ -228,6 +228,55 @@ BODY = """
       </div>
     </div>
 
+    <!-- Money, in the office's hand (F2, 8 Oct). One sheet for a payment, an
+         instalment and a refund: the amount, the day it arrived, how, a
+         reference and a note. It asks once, inline, before anything is sent,
+         and says what the order looks like afterwards. Admins only — the
+         server refuses anybody else, and the buttons that open it are only
+         drawn for an administrator. -->
+    <div class="modal" id="payModal" role="dialog" aria-modal="true">
+      <div class="sheet" style="width:min(540px,100%)">
+        <button class="sheet-close" data-pclose aria-label="Close">✕</button>
+        <h3 id="payTitle">Record a payment</h3>
+        <p class="lead" id="payAbout"></p>
+        <div id="payForm">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="field"><label for="payAmount">Amount (&#8377;)</label>
+              <input id="payAmount" inputmode="decimal" placeholder="5000"></div>
+            <div class="field"><label for="payDate">Date</label>
+              <input id="payDate" type="date"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+            <div class="field"><label for="payMethod">How it arrived</label>
+              <select id="payMethod">
+                <option value="cash">Cash</option>
+                <option value="bank">Bank transfer</option>
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select></div>
+            <div class="field"><label for="payRef">Reference</label>
+              <input id="payRef" placeholder="UTR, receipt number, cheque&hellip;"></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label for="payNote">Note (optional)</label>
+            <input id="payNote" placeholder="For the record"></div>
+        </div>
+        <p id="payErr" role="alert" style="display:none;margin:12px 0 0;padding:11px 13px;
+          border-radius:10px;font:600 12.8px/1.5 var(--sans);background:#fdf3f2;
+          border:1px solid #f0c8c4;color:#7a2118"></p>
+        <div id="payAsk" hidden style="margin:14px 0 0;padding:12px 14px;border-radius:10px;
+          background:#fff8e6;border:1px solid #f1d9a0;font:600 12.8px/1.55 var(--sans);
+          color:var(--navy-900)"></div>
+        <div id="payDone" hidden style="margin:14px 0 0;padding:12px 14px;border-radius:10px;
+          background:#e6f4ec;border:1px solid #bfe0cc;font:600 12.8px/1.6 var(--sans);
+          color:#14603a"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px" id="payButtons">
+          <button type="button" class="btn btn-ghost" data-pclose>Cancel</button>
+          <button type="button" class="btn btn-primary" id="paySave">Record it</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Four full tables on one page was thirty-four screens of scrolling at a
          hundred and thirty students, and the fourth one may as well not have
          existed. One at a time, with the true count on each tab. -->
@@ -285,6 +334,11 @@ BODY = """
         <button type="button" id="ordNone" hidden class="st bad"
           style="border:0;cursor:pointer;text-transform:none;letter-spacing:0;
           font:700 12.4px/1.4 var(--sans)"></button>
+        <!-- F1 (8 Oct): an order that points at a staff account is not a
+             student's order. Zero after the start-up repair; said here if not. -->
+        <span id="ordMis" hidden class="st bad" style="text-transform:none;letter-spacing:0"></span>
+        <!-- F2: the three figures the book adds up to, net of refunds. -->
+        <span id="ordMoney" style="font:600 12.2px/1.4 var(--sans);color:var(--muted)"></span>
         <input id="findOrder" placeholder="Reference, name or email"
           style="margin-left:auto;padding:8px 11px;font:400 12.8px/1.4 var(--sans);
           border:1.5px solid #d8dde4;border-radius:9px;min-width:220px"></div>
@@ -292,7 +346,7 @@ BODY = """
         <table class="tbl" style="margin:0">
           <thead><tr><th>Reference</th><th>Who</th><th>What they bought</th>
             <th style="text-align:right">Amount</th><th>Account</th><th>Counsellor</th>
-            <th>When</th></tr></thead>
+            <th>When</th><th>Money</th></tr></thead>
           <tbody id="ordRows"></tbody>
         </table>
         <div id="ordPager"></div>
@@ -301,8 +355,9 @@ BODY = """
         An order placed before somebody signs up shows as <b>no account yet</b>. It attaches
         itself the moment they register with the same email &mdash; nothing is lost, but until
         then there is nobody to call it up on a dashboard, so those are the ones to chase.
-        No money moves on this site yet: an amount here is what was agreed, not what was
-        collected.</p>
+        The amount is what was agreed; what has actually arrived is under it, and
+        <b>Record payment</b> is how money taken by hand &mdash; cash, a bank transfer, UPI
+        &mdash; gets onto the order. <b>History</b> opens the ledger for one order.</p>
     </div>
 
     <!-- The money.
@@ -713,27 +768,55 @@ const inr = p => '₹' + Number(p / 100).toLocaleString('en-IN');
  * from the order book assigns the person who placed it, which is what somebody
  * looking at that row means.
  */
-function assignCell(studentId, currentId) {
+function assignCell(studentId, currentId, who) {
   if (!studentId) return '';
   const has = currentId != null && currentId !== '';
-  const opts = ['<option value="">— nobody yet —</option>'].concat(
+  /* F5 (8 Oct): active counsellors and administrators only (GET
+     /api/staff/counsellors); a closed account that still holds a student is
+     named so the row does not read as unassigned. */
+  const known = COUNSELLORS.some(c => String(c.id) === String(currentId));
+  const opts = ['<option value="">Unassigned</option>'].concat(
     COUNSELLORS.map(c => '<option value="' + c.id + '"' +
-      (String(c.id) === String(currentId) ? ' selected' : '') + '>' + esc(c.name) + '</option>')
+      (String(c.id) === String(currentId) ? ' selected' : '') + '>' + esc(c.name) + '</option>'),
+    has && !known ? ['<option value="' + esc(currentId) + '" selected>Closed account</option>'] : []
   ).join('');
-  return '<select class="assign' + (has ? '' : ' none') + '" data-assign="' + studentId +
-    '">' + opts + '</select>';
+  /* The change is not saved on change — the question is asked under the
+     select first (see the [data-assign] handler), so the select remembers
+     what it was and whose it is. */
+  return '<span class="assignwrap" style="display:inline-block;max-width:100%">' +
+    '<select class="assign' + (has ? '' : ' none') + '" data-assign="' + studentId +
+    '" data-was="' + (has ? esc(currentId) : '') + '" data-who="' + esc(who || 'this student') +
+    '">' + opts + '</select></span>';
 }
+
+/* F4: "· +2 add-ons", with the names on hover. */
+function addOnsSaid(s) {
+  const n = Number(s.addOnCount || (s.addOns || []).length || 0);
+  if (!n) return '';
+  return ' <span style="font-size:11.6px;color:var(--muted);white-space:nowrap" title="' +
+    esc((s.addOns || []).join(', ')) + '">\u00b7 +' + n + ' add-on' + (n === 1 ? '' : 's') + '</span>';
+}
+
+/* The name a counsellor id answers to on this screen. */
+const counsellorName = id => {
+  if (id === null || id === '' || id === undefined) return 'Unassigned';
+  const c = COUNSELLORS.find(x => String(x.id) === String(id));
+  return c ? c.name : 'a closed account';
+};
 
 function row(s) {
   return '<tr data-row="' + s.id + '">' +
     '<td><b>' + esc(s.name) + '</b><br><span style="font-size:11.8px;color:var(--muted)">' +
       esc(s.email) + '</span></td>' +
-    '<td>' + (s.package ? '<span class="sl-chip">' + esc(s.package) + '</span>'
+    /* F4 (8 Oct): the MAIN package, with the add-ons counted beside it —
+       never the newest ₹0 insurance add-on standing in for the ₹49,999 that
+       was paid. */
+    '<td>' + (s.package ? '<span class="sl-chip">' + esc(s.package) + '</span>' + addOnsSaid(s)
                         : '<span style="color:var(--muted);font-size:12.4px">—</span>') + '</td>' +
     '<td>' + s.shortlist + '</td>' +
     '<td>' + s.docsVerified + '/' + s.docsTotal +
       (s.docsWaiting ? ' <span class="st wait" style="margin-left:5px">' + s.docsWaiting + ' waiting</span>' : '') + '</td>' +
-    '<td>' + assignCell(s.id, s.counsellor ? s.counsellor.id : null) + '</td>' +
+    '<td>' + assignCell(s.id, s.counsellor ? s.counsellor.id : null, s.name) + '</td>' +
     '<td style="white-space:nowrap"><a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + s.id + '">Open' +
       (s.unread ? ' <span class="st wait" style="margin-left:5px">' + s.unread + '</span>' : '') + '</a>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-invite="' + s.id +
@@ -1191,6 +1274,8 @@ async function paintMoney() {
 
   $('#moneyMore').innerHTML = [
     ['GST inside what arrived', inrPaise(MONEY.gst)],
+    /* F2: money that went back. "Received" above is already net of it. */
+    ['Refunded', inrPaise(MONEY.refunded || 0)],
     ['Services delivered', MONEY.services],
     ['Orders on the book', MONEY.orders],
     ['Students on the books', MONEY.students.active],
@@ -1207,8 +1292,9 @@ async function paintMoney() {
         '<td><b>' + esc(r.name) + '</b><br>' +
           '<span style="font-size:11.6px;color:var(--muted)">' + esc(r.email) + '</span></td>' +
         '<td style="font-size:12.4px">' + esc(r.package || '—') + '</td>' +
-        '<td><b>' + inrPaise(r.outstanding) + '</b><br>' +
+        '<td><b>' + inrPaise(r.outstandingPaise != null ? r.outstandingPaise : r.outstanding) + '</b><br>' +
           '<span style="font-size:11.4px;color:var(--muted)">of ' + inrPaise(r.gross) +
+          ' \u00b7 ' + inrPaise(r.receivedPaise || r.collected || 0) + ' received' +
           '</span></td>' +
         '<td>' + (r.overdue
           ? '<span class="st bad">' + inrPaise(r.overdue) + '</span>'
@@ -1219,6 +1305,9 @@ async function paintMoney() {
           ? '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + r.studentId +
             '">Open</a>'
           : '<span style="font-size:11.6px;color:var(--muted)">no account yet</span>') +
+          /* F2: the money is taken here, on the row that says who owes it. */
+          ' <button type="button" class="btn btn-primary btn-sm" data-pay="' + esc(r.reference) +
+            '" style="margin-left:6px">Record payment</button>' +
           '</td></tr>').join('')
     : '<tr><td colspan="6" style="padding:20px;color:var(--muted)">'
       + 'Nothing outstanding. Everything agreed has been collected.</td></tr>';
@@ -1227,6 +1316,10 @@ async function paintMoney() {
 /* ------------------------------------------------------------- the orders */
 
 let ORDERS = [], orderFilter = '', orderUnassigned = false;
+/* The book's own figures (F1/F2): mislinked, received, outstanding, refunded. */
+let ORD_META = {};
+/* Which order's ledger is open, and what GET /api/staff/order/:ref said. */
+let ORD_OPEN = '', ORD_DETAIL = {};
 
 const inrPaise = p => '\u20b9' + Math.round(Number(p || 0) / 100).toLocaleString('en-IN');
 
@@ -1263,6 +1356,22 @@ function paintOrders() {
   const otab = $('.otab[data-o="orders"] .n');
   if (otab) otab.textContent = list.length;
 
+  /* F1: rows still pointing at a staff account. F2: what the book adds up to. */
+  const mis = Number(ORD_META.mislinked || 0);
+  const misEl = $('#ordMis');
+  if (misEl) {
+    misEl.hidden = !mis;
+    misEl.textContent = mis + (mis === 1 ? ' order is' : ' orders are') + ' on a staff account, not a student';
+  }
+  const mEl = $('#ordMoney');
+  if (mEl) {
+    mEl.textContent = ORDERS.length
+      ? inrPaise(ORD_META.receivedPaise || 0) + ' received \u00b7 ' +
+        inrPaise(ORD_META.outstandingPaise || 0) + ' to collect' +
+        (ORD_META.refundedPaise ? ' \u00b7 ' + inrPaise(ORD_META.refundedPaise) + ' refunded' : '')
+      : '';
+  }
+
   $('#ordRows').innerHTML = paged('ord', list).map(o => {
     /* What they actually bought, by name. A row that says "services" and a
        total is no use to somebody on the phone to the person who bought it. */
@@ -1279,11 +1388,13 @@ function paintOrders() {
         esc(o.email || '') + (o.phone ? ' \u00b7 ' + esc(o.phone) : '') + '</span></td>' +
       '<td style="max-width:320px">' + what + '</td>' +
       '<td style="text-align:right;white-space:nowrap"><b>' + inrPaise(o.grossPaise) + '</b>' +
-        /* Being paid in parts: what has arrived, and what has not. */
-        (o.plan && o.plan.length
+        /* What has arrived, and what has not — on every order, not only the
+           ones in parts (F2). The server's figures, net of refunds. */
+        (o.receivedPaise || o.outstandingPaise || o.refundedPaise
           ? '<span style="display:block;margin-top:2px;font-size:11.4px;color:var(--muted)">' +
-            inrPaise(o.paidPaise || 0) + ' in \u00b7 ' +
-            inrPaise((o.grossPaise || 0) - (o.paidPaise || 0)) + ' to come</span>'
+            inrPaise(o.receivedPaise || 0) + ' in' +
+            (o.outstandingPaise ? ' \u00b7 ' + inrPaise(o.outstandingPaise) + ' to come' : '') +
+            (o.refundedPaise ? ' \u00b7 ' + inrPaise(o.refundedPaise) + ' back' : '') + '</span>'
           : '') +
         /* Paid, owed, or half way through a card payment. Before there was a
            gateway every order said "paid" and none of them were; now the word
@@ -1294,11 +1405,19 @@ function paintOrders() {
           owing: '<span class="st wait">to collect</span>',
           awaiting: '<span class="st wait">card started</span>',
           failed: '<span class="st bad">card failed</span>',
+          refunded: '<span class="st none">refunded</span>',
         }[o.status] || '<span class="st none">' + esc(o.status || '—') + '</span>') +
         '</span></td>' +
+      /* F1: the student's name, linking to their file — and when the row
+         points at an account that is NOT a student, say so and offer no
+         Open, because there is no student file to open. */
       '<td>' + (o.studentId
-        ? '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + o.studentId +
-          '">' + esc(o.studentName || 'Open') + '</a>'
+        ? (o.isStudent === false
+            ? '<span class="st bad" style="text-transform:none;letter-spacing:0">Not linked</span>' +
+              '<span style="display:block;font-size:11.2px;color:var(--muted)">on a ' +
+              esc(o.studentRole || 'staff') + ' account</span>'
+            : '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + o.studentId +
+              '">' + esc(o.studentName || 'Open') + '</a>')
         : '<span class="st wait">no account yet</span>') + '</td>' +
       /* Who is doing this one. An order is the moment somebody has paid and is
          waiting to be dealt with, so it is the row where the question gets
@@ -1306,9 +1425,11 @@ function paintOrders() {
          screens away, on a list that is sorted by name and not by what came
          in. A guest order has nobody to assign yet, so it says which button
          fixes that instead of showing a select that cannot be used. */
-      '<td>' + (o.studentId
-        ? assignCell(o.studentId, o.counsellorId)
-        : '<span style="font-size:11.8px;color:var(--muted)">once they register</span>') +
+      '<td>' + (o.studentId && o.isStudent !== false
+        ? assignCell(o.studentId, o.counsellorId, o.studentName || o.name)
+        : o.studentId
+          ? '<span style="font-size:11.8px;color:var(--muted)">\u2014</span>'
+          : '<span style="font-size:11.8px;color:var(--muted)">once they register</span>') +
         '</td>' +
       '<td style="white-space:nowrap;color:var(--muted);font-size:12.2px">' +
         esc(whenShort(o.at)) +
@@ -1322,9 +1443,12 @@ function paintOrders() {
           : '<span style="display:block;margin-top:4px;color:#b03a2e;font-weight:700">' +
             'nothing recorded</span>') +
         '</td>' +
-      '</tr>';
+      /* F2: the money, taken here. */
+      '<td style="white-space:nowrap">' + moneyButtons(o) + '</td>' +
+      '</tr>' +
+      (ORD_OPEN === o.reference ? ledgerRow(o) : '');
   }).join('') ||
-    '<tr><td colspan="7" style="color:var(--muted);padding:22px">' +
+    '<tr><td colspan="8" style="color:var(--muted);padding:22px">' +
     (ORDERS.length ? 'No order matches that.'
       : 'No orders yet. One appears here the moment somebody buys a package or a service ' +
         'on the site \u2014 whether or not they have an account.') + '</td></tr>';
@@ -1335,6 +1459,267 @@ document.addEventListener('click', e => {
     orderUnassigned = !orderUnassigned;
     PAGE_AT.ord = 0;
     paintOrders();
+  }
+});
+
+/* ------------------------------------------------------- recording money (F2)
+ *
+ * There was one route — mark the next instalment paid — and no screen for it.
+ * Now every order row and every "who to ring" row can take a payment, settle
+ * an instalment or give money back, through one sheet, and every order can
+ * show its ledger: what arrived, when, how and who took it. Admins only; the
+ * server refuses a counsellor with a 403, and this screen is admin-only
+ * anyway.
+ */
+const METHOD_LABEL = { cash: 'Cash', bank: 'Bank transfer', upi: 'UPI', card: 'Card', other: 'Other' };
+/* "2026-10-08" → "8 Oct 2026". Built from the parts so it never reads a day
+   early west of Greenwich. */
+const dayOf = s => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  if (!m) return String(s || '');
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    .toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+const todayStr = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+};
+const canTake = o => o.status !== 'refunded' && o.status !== 'failed' && (o.outstandingPaise || 0) > 0;
+const canRefund = o => (o.receivedPaise || 0) > 0;
+
+function moneyButtons(o) {
+  return (canTake(o)
+      ? '<button type="button" class="btn btn-primary btn-sm" data-pay="' + esc(o.reference) + '">Record payment</button> '
+      : '') +
+    (canRefund(o)
+      ? '<button type="button" class="btn btn-ghost btn-sm" data-refund="' + esc(o.reference) + '">Refund</button> '
+      : '') +
+    '<button type="button" class="btn btn-ghost btn-sm" data-ledger="' + esc(o.reference) + '"' +
+      (ORD_OPEN === o.reference ? ' aria-expanded="true"' : '') + '>' +
+      (ORD_OPEN === o.reference ? 'Close' : 'History') + '</button>';
+}
+
+/* The ledger under an order: every payment and refund, then the schedule
+   with a Mark paid on each part still owed. */
+function ledgerRow(o) {
+  const d = ORD_DETAIL[o.reference];
+  let inner;
+  if (!d) {
+    inner = '<span style="color:var(--muted)">Reading the ledger\u2026</span>';
+  } else if (d.error) {
+    inner = '<span style="color:#b03a2e;font-weight:700">' + esc(d.error) + '</span>';
+  } else {
+    const pays = d.payments || [];
+    const plan = d.plan || [];
+    inner =
+      '<b style="display:block;font:700 12.6px/1.4 var(--sans);margin-bottom:6px">Payments on ' +
+        esc(o.reference) + ' \u2014 ' + inrPaise(d.order.receivedPaise) + ' received' +
+        (d.order.outstandingPaise ? ', ' + inrPaise(d.order.outstandingPaise) + ' to come' : '') +
+        (d.order.refundedPaise ? ', ' + inrPaise(d.order.refundedPaise) + ' refunded' : '') + '</b>' +
+      (pays.length
+        ? '<table class="tbl ledger" style="margin:0 0 10px;min-width:0;width:100%">' +
+          '<thead><tr><th>Date</th><th style="text-align:right">Amount</th><th>Method</th>' +
+          '<th>Reference</th><th>Who</th></tr></thead><tbody>' +
+          pays.map(p => '<tr>' +
+            '<td style="white-space:nowrap">' + esc(dayOf(p.at)) + '</td>' +
+            '<td style="text-align:right;white-space:nowrap;' + (p.kind === 'refund' || p.paise < 0 ? 'color:#b03a2e' : '') + '">' +
+              (p.paise < 0 ? '\u2212 ' : '') + inrPaise(Math.abs(p.paise || 0)) +
+              (p.kind === 'refund' ? ' <span class="st none">refund</span>' : '') +
+              (p.part ? ' <span style="font-size:11px;color:var(--muted)">part ' + p.part + '</span>' : '') + '</td>' +
+            '<td>' + esc(METHOD_LABEL[p.method] || p.method || '') + '</td>' +
+            '<td style="font-size:12px">' + esc(p.ref || '\u2014') +
+              (p.note ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' + esc(p.note) + '</span>' : '') + '</td>' +
+            '<td style="font-size:12px">' + esc(p.by || '') + '</td></tr>').join('') +
+          '</tbody></table>'
+        : '<p style="margin:0 0 10px;font-size:12.4px;color:var(--muted)">Nothing recorded yet.</p>') +
+      (plan.length
+        ? '<b style="display:block;font:700 12.6px/1.4 var(--sans);margin-bottom:6px">Instalments</b>' +
+          '<ul class="doclist" style="margin:0">' + plan.map(p => {
+            const owed = Number(p.paise || 0) - Number(p.partPaise || 0);
+            return '<li style="align-items:center;gap:10px;flex-wrap:wrap">' +
+              '<span style="flex:1 1 200px;min-width:0"><b>Part ' + p.n + '</b> \u00b7 ' + esc(p.label || '') +
+                ' \u00b7 ' + inrPaise(p.paise) +
+                (p.dueAt ? ' <span style="color:var(--muted)">\u00b7 due ' + esc(dayOf(p.dueAt)) + '</span>' : '') +
+                (p.partPaise && p.status !== 'paid' ? ' <span style="color:var(--muted)">\u00b7 ' + inrPaise(p.partPaise) + ' so far</span>' : '') +
+              '</span>' +
+              (p.status === 'paid'
+                ? '<span class="st ok">paid' + (p.paidAt ? ' ' + esc(dayOf(p.paidAt)) : '') + '</span>'
+                : '<span class="st ' + (p.status === 'due' ? 'wait' : 'none') + '">' + esc(p.status || 'later') + '</span>' +
+                  (d.order.status !== 'refunded'
+                    ? ' <button type="button" class="btn btn-ghost btn-sm" data-part="' + esc(o.reference) +
+                      '" data-n="' + p.n + '" data-owed="' + owed + '">Mark paid</button>'
+                    : '')) +
+              '</li>';
+          }).join('') + '</ul>'
+        : '');
+  }
+  return '<tr class="ordx"><td colspan="8" style="background:var(--paper);padding:12px 16px">' + inner + '</td></tr>';
+}
+
+async function readLedger(ref) {
+  try {
+    ORD_DETAIL[ref] = await api('GET', '/api/staff/order/' + encodeURIComponent(ref));
+  } catch (e) {
+    ORD_DETAIL[ref] = { error: e.message || 'Could not read that order.' };
+  }
+  if (ORD_OPEN === ref) paintOrders();
+}
+function openLedger(ref) {
+  ORD_OPEN = ORD_OPEN === ref ? '' : ref;
+  paintOrders();
+  if (ORD_OPEN) readLedger(ref);
+}
+
+/* Re-read the book after money moved, so the row, the header figures and the
+   Money tab all say the same thing. */
+async function loadOrders() {
+  try {
+    const od = await api('GET', '/api/staff/orders');
+    ORDERS = od.orders || [];
+    ORD_META = od;
+    paintOrders();
+    if (ORD_OPEN) await readLedger(ORD_OPEN);
+  } catch (e) { /* leave what is on the screen */ }
+}
+
+/* What the sheet is doing right now. */
+let PAY = null;
+const paySay = m => { const el = $('#payErr'); el.textContent = m || ''; el.style.display = m ? 'block' : 'none'; };
+
+function orderByRef(ref) {
+  return ORDERS.find(o => o.reference === ref)
+    || ((MONEY && MONEY.owing) || []).map(r => ({
+         reference: r.reference, grossPaise: r.gross, receivedPaise: r.receivedPaise || r.collected || 0,
+         outstandingPaise: r.outstandingPaise != null ? r.outstandingPaise : r.outstanding,
+         studentName: r.name, name: r.name, package: r.package, status: r.status,
+       })).find(o => o.reference === ref)
+    || { reference: ref };
+}
+
+/* kind: 'payment' | 'part' | 'refund'. */
+function openPay(kind, ref, part) {
+  const o = orderByRef(ref);
+  PAY = { kind, ref, part: part || null, o };
+  const who = o.studentName || o.name || '';
+  $('#payTitle').textContent = kind === 'refund' ? 'Record a refund'
+    : kind === 'part' ? 'Mark part ' + part.n + ' paid' : 'Record a payment';
+  $('#payAbout').innerHTML = '<b>' + esc(ref) + '</b>' + (who ? ' \u00b7 ' + esc(who) : '') +
+    (o.package ? ' \u00b7 ' + esc(o.package) : '') +
+    '<span style="display:block;margin-top:3px">' + inrPaise(o.grossPaise || 0) + ' agreed \u00b7 ' +
+    inrPaise(o.receivedPaise || 0) + ' received' +
+    (o.outstandingPaise ? ' \u00b7 ' + inrPaise(o.outstandingPaise) + ' to come' : '') + '</span>';
+  const amt = $('#payAmount');
+  amt.value = kind === 'part' ? String(Math.round(Number(part.owed || 0) / 100))
+    : kind === 'refund' ? String(Math.round(Number(o.receivedPaise || 0) / 100))
+    : (o.outstandingPaise ? String(Math.round(o.outstandingPaise / 100)) : '');
+  amt.readOnly = kind === 'part';
+  $('#payDate').value = todayStr();
+  $('#payMethod').value = kind === 'refund' ? 'bank' : 'upi';
+  $('#payRef').value = '';
+  $('#payNote').value = '';
+  $('#payNote').parentElement.hidden = kind === 'part';
+  paySay('');
+  $('#payAsk').hidden = true;
+  $('#payDone').hidden = true;
+  $('#payForm').hidden = false;
+  $('#payButtons').hidden = false;
+  $('#paySave').disabled = false;
+  $('#paySave').textContent = kind === 'refund' ? 'Refund it' : kind === 'part' ? 'Mark it paid' : 'Record it';
+  $('#payModal').classList.add('on');
+  amt.focus();
+}
+
+/* First press asks, second press sends. The question is written inline, in
+   the sheet, with the figures that are about to be written — not a browser
+   confirm() that stops the page and cannot be styled or read back. */
+function payAsk() {
+  const k = PAY.kind;
+  const amount = Number(String($('#payAmount').value).replace(/[^\d.]/g, ''));
+  if (!(amount > 0)) { paySay('An amount in rupees, more than zero.'); $('#payAmount').focus(); return; }
+  const day = $('#payDate').value || todayStr();
+  const method = METHOD_LABEL[$('#payMethod').value] || 'Other';
+  const ref = $('#payRef').value.trim();
+  paySay('');
+  $('#payAsk').hidden = false;
+  $('#payAsk').innerHTML =
+    (k === 'refund' ? 'Give back ' : k === 'part' ? 'Mark part ' + PAY.part.n + ' of ' : 'Record ') +
+    '<b>\u20b9' + amount.toLocaleString('en-IN') + '</b>' +
+    (k === 'part' ? ' as paid' : '') + ' on <b>' + esc(PAY.ref) + '</b> by ' + esc(method) + ', ' + esc(dayOf(day)) +
+    (ref ? ', ref ' + esc(ref) : '') + '?' +
+    (k === 'refund' ? ' The student is told on their thread.' : ' The student is told on their thread.') +
+    '<div style="display:flex;gap:8px;margin-top:9px">' +
+      '<button type="button" class="btn btn-primary btn-sm" id="payYes">Yes, ' +
+        (k === 'refund' ? 'refund it' : 'record it') + '</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="payNo">Back</button></div>';
+  $('#payButtons').hidden = true;
+}
+
+async function paySend() {
+  const k = PAY.kind;
+  const body = {
+    amount: Number(String($('#payAmount').value).replace(/[^\d.]/g, '')),
+    date: $('#payDate').value || todayStr(),
+    method: $('#payMethod').value,
+    reference: $('#payRef').value.trim(),
+    note: $('#payNote').value.trim(),
+  };
+  const yes = $('#payYes');
+  if (yes) { yes.disabled = true; yes.textContent = 'Recording\u2026'; }
+  let r;
+  try {
+    const base = '/api/staff/order/' + encodeURIComponent(PAY.ref);
+    r = k === 'part'
+      ? await api('POST', base + '/part/' + PAY.part.n + '/paid', { date: body.date, method: body.method, reference: body.reference })
+      : await api('POST', base + (k === 'refund' ? '/refund' : '/payment'), body);
+  } catch (e) {
+    paySay(e.message || 'That did not save.');
+    $('#payAsk').hidden = true;
+    $('#payButtons').hidden = false;
+    return;
+  }
+  const o = r.order || {};
+  $('#payAsk').hidden = true;
+  $('#payForm').hidden = true;
+  $('#payDone').hidden = false;
+  $('#payDone').innerHTML = (k === 'refund'
+      ? 'Refunded <b>' + inrPaise(r.refundedPaise || 0) + '</b> on ' + esc(PAY.ref) + '.' +
+        (r.fullyRefunded ? ' Everything received has gone back \u2014 the order is closed.' : '')
+      : 'Recorded <b>' + inrPaise((r.payment || {}).paise || 0) + '</b> on ' + esc(PAY.ref) + '.' +
+        /* The /part route answers in the old shape, without `settled`. */
+        (k === 'part' ? ' Settles part ' + PAY.part.n + '.'
+          : r.settled && r.settled.length ? ' Settles part ' + r.settled.join(' and ') + '.' : '')) +
+    '<span style="display:block;margin-top:5px">' + inrPaise(o.receivedPaise || 0) + ' received \u00b7 ' +
+      (o.outstandingPaise ? inrPaise(o.outstandingPaise) + ' still to collect' : 'nothing left to collect') +
+      (o.refundedPaise ? ' \u00b7 ' + inrPaise(o.refundedPaise) + ' refunded' : '') +
+      ' \u00b7 ' + esc(o.status || '') + '</span>' +
+    '<span style="display:block;margin-top:5px;font-weight:400">The student has been told on their thread.</span>' +
+    '<div style="margin-top:9px"><button type="button" class="btn btn-ghost btn-sm" data-pclose>Close</button></div>';
+  toast(k === 'refund' ? 'Refund recorded.' : 'Payment recorded.');
+  /* The row, the header figures and the Money tab all read the same ledger. */
+  if (r.order) {
+    const i = ORDERS.findIndex(x => x.reference === r.order.reference);
+    if (i >= 0) ORDERS[i] = r.order;
+    ORD_DETAIL[r.order.reference] = { order: r.order, payments: r.order.payments || [], plan: r.order.plan || null };
+  }
+  paintOrders();
+  await loadOrders();
+  await paintMoney();
+}
+
+document.addEventListener('click', e => {
+  const pay = e.target.closest('[data-pay]');
+  if (pay) { openPay('payment', pay.dataset.pay); return; }
+  const rf = e.target.closest('[data-refund]');
+  if (rf) { openPay('refund', rf.dataset.refund); return; }
+  const part = e.target.closest('[data-part]');
+  if (part) { openPay('part', part.dataset.part, { n: Number(part.dataset.n), owed: Number(part.dataset.owed) }); return; }
+  const led = e.target.closest('[data-ledger]');
+  if (led) { openLedger(led.dataset.ledger); return; }
+  if (e.target.closest('#paySave')) { payAsk(); return; }
+  if (e.target.closest('#payYes')) { paySend(); return; }
+  if (e.target.closest('#payNo')) { $('#payAsk').hidden = true; $('#payButtons').hidden = false; return; }
+  if (e.target.closest('[data-pclose]') || e.target === $('#payModal')) {
+    $('#payModal').classList.remove('on');
   }
 });
 
@@ -1364,6 +1749,7 @@ staffBoot(async me => {
   STUDENTS = st.students;
   COUNSELLORS = ov.counsellors;
   ORDERS = od.orders || [];
+  ORD_META = od;
   try { connectLive({}); } catch (e) {}
 
   $('#kStudents').textContent = ov.students;
@@ -1401,15 +1787,60 @@ staffBoot(async me => {
   paint();
 });
 
-document.addEventListener('change', async e => {
+/*
+ * F5 (8 Oct): a change of counsellor is an event, not a field edit.
+ *
+ * Choosing a name used to save on the spot — one slip of the mouse down a
+ * long list moved a student, and nobody was told. Now the select asks first,
+ * under itself: "Move Vishal from Kavya to Arjun? [Move] [Keep]". Keep puts
+ * the select back. Move saves, and the server tells the student on their
+ * thread and the new counsellor by phone and email — which is what the toast
+ * says.
+ */
+document.addEventListener('change', e => {
   const sel = e.target.closest('[data-assign]');
   if (!sel) return;
+  const wrap = sel.closest('.assignwrap') || sel.parentElement;
+  const old = wrap.querySelector('.assign-ask');
+  if (old) old.remove();
+  const was = sel.dataset.was === '' ? null : sel.dataset.was;
+  const to = sel.value === '' ? null : sel.value;
+  if (String(was || '') === String(to || '')) return;
+  const box = document.createElement('div');
+  box.className = 'assign-ask';
+  box.style.cssText = 'margin-top:6px;padding:8px 10px;border-radius:9px;background:#fff8e6;' +
+    'border:1px solid #f1d9a0;font:600 12px/1.5 var(--sans);color:var(--navy-900);' +
+    'white-space:normal;max-width:280px';
+  box.innerHTML = 'Move <b>' + esc(sel.dataset.who || 'this student') + '</b> from ' +
+    esc(counsellorName(was)) + ' to <b>' + esc(counsellorName(to)) + '</b>?' +
+    '<div style="display:flex;gap:6px;margin-top:6px">' +
+    '<button type="button" class="btn btn-primary btn-sm" data-move>Move</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-keep>Keep</button></div>';
+  wrap.appendChild(box);
+});
+
+document.addEventListener('click', async e => {
+  const keep = e.target.closest('[data-keep]');
+  const move = e.target.closest('[data-move]');
+  if (!keep && !move) return;
+  const box = (keep || move).closest('.assign-ask');
+  const wrap = box && box.parentElement;
+  const sel = wrap && wrap.querySelector('[data-assign]');
+  if (!sel) return;
+  if (keep) {
+    sel.value = sel.dataset.was || '';
+    box.remove();
+    return;
+  }
   const id = Number(sel.dataset.assign);
   const cid = sel.value === '' ? null : Number(sel.value);
+  const who = sel.dataset.who || 'the student';
+  move.disabled = true;
+  move.textContent = 'Moving\u2026';
   try {
-    await api('PUT', '/api/staff/student/' + id + '/counsellor', { counsellorId: cid });
+    const r = await api('PUT', '/api/staff/student/' + id + '/counsellor', { counsellorId: cid });
+    const c = (r && r.counsellor) || COUNSELLORS.find(x => x.id === cid) || null;
     const s = STUDENTS.find(x => x.id === id);
-    const c = COUNSELLORS.find(x => x.id === cid);
     if (s) s.counsellor = c ? { id: c.id, name: c.name } : null;
     /* The same student is on three tabs, and one of them is the one being
        looked at. Reloading the screen to make the other two agree would throw
@@ -1423,13 +1854,18 @@ document.addEventListener('change', async e => {
     });
     const conv = CONVS.find(x => x.id === id);
     if (conv) conv.counsellor = c ? { id: c.id, name: c.name } : null;
-    toast(c ? 'Assigned to ' + c.name + ' — they can open the file now.'
-            : 'Unassigned. Nobody but an admin can open that file now.');
+    toast(c ? 'Moved \u2014 ' + who + ' and ' + c.name + ' have been told'
+            : 'Moved \u2014 ' + who + ' is unassigned and has been told; only an admin can open the file now.');
     paint();
     paintOrders();
     paintConvs();
+    paintPeople().catch(() => {});
   } catch (err) {
-    toast(err.message);
+    box.innerHTML = '<span style="color:#b03a2e">' + esc(err.message || 'That did not save.') + '</span>' +
+      '<div style="display:flex;gap:6px;margin-top:6px">' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-keep>Keep ' +
+        esc(counsellorName(sel.dataset.was === '' ? null : sel.dataset.was)) + '</button></div>';
+    toast(err.message, 'bad');
   }
 });
 
@@ -1456,8 +1892,16 @@ async function paintPeople() {
      accepts either — this filter was the only thing still saying otherwise, so
      those students stayed unassigned and out of every caseload count. Website
      editors are excluded: a student handed to one is a student nobody rings. */
-  COUNSELLORS = PEOPLE.filter(p => p.role === 'counsellor' || p.role === 'admin')
-    .map(p => ({ id: p.id, name: p.name, caseload: p.caseload }));
+  /* F5 (8 Oct): the server's own list — active accounts only, so a closed
+     counsellor is never offered. The old filter stays as the fallback. */
+  try {
+    const cs = await api('GET', '/api/staff/counsellors');
+    COUNSELLORS = (cs.counsellors || []).map(c => ({ id: c.id, name: c.name, caseload: c.caseload }));
+  } catch (e) {
+    COUNSELLORS = PEOPLE.filter(p => (p.role === 'counsellor' || p.role === 'admin')
+        && (p.status || 'active') === 'active')
+      .map(p => ({ id: p.id, name: p.name, caseload: p.caseload }));
+  }
 
   $('#counsellors').innerHTML = PEOPLE.map(p =>
     '<li>' + ico('user') +
@@ -1864,7 +2308,7 @@ function paintConvs() {
          go and find the student on another tab to fix it is how a message sits
          for three days. */
       '<td class="cvwho" data-lb="Counsellor">' +
-        assignCell(c.id, c.counsellor ? c.counsellor.id : null) + '</td>' +
+        assignCell(c.id, c.counsellor ? c.counsellor.id : null, c.name) + '</td>' +
       /* A student nobody has written to has no "last said", and printing an
          empty cell reads as a loading bug. Say the thing instead — it is the
          most actionable row on this screen. */

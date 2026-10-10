@@ -189,6 +189,8 @@ BODY = """
 
 SCRIPT = r"""
 let LEADS = [], SUM = {}, PEOPLE = [], STATUSES = [], REASONS = [], openId = null;
+/* Who is looking: merging two leads is an administrator's call (F6). */
+let ROLE = '';
 
 const SOURCE_LABEL = {
   website: 'Website', blog: 'Blog', chat: 'Chat box', facebook: 'Facebook',
@@ -407,11 +409,18 @@ function paintLead(lead, notes) {
       + 'color:var(--navy-800)">' + esc(lead.note) + '</p>' : '')
 
     /* ---- what has been said ---- */
+    /* F8 (8 Oct): the count is the server's `followUps` — contact only (a
+       call, a WhatsApp, an email, a meeting). Notes to oneself, status
+       changes, "added by hand" and repeat enquiries are on the thread but are
+       not times anybody spoke to the person, so the thread's length is said
+       separately rather than counted as follow-ups. */
     + '<b style="display:block;font:700 12.4px/1 var(--sans);letter-spacing:.07em;'
       + 'text-transform:uppercase;color:var(--muted);margin-bottom:9px">'
-      + (notes.length ? notes.filter(n => n.kind !== 'change').length + ' follow-up'
-          + (notes.filter(n => n.kind !== 'change').length === 1 ? '' : 's')
-        : 'Nobody has spoken to them') + '</b>'
+      + (lead.followUps ? lead.followUps + ' follow-up' + (lead.followUps === 1 ? '' : 's')
+        : 'Nobody has spoken to them')
+      + (notes.length ? ' <span style="font-weight:600;letter-spacing:0;text-transform:none">\u00b7 '
+          + notes.length + ' note' + (notes.length === 1 ? '' : 's') + ' on the thread</span>' : '')
+      + '</b>'
     + '<div class="thread" id="thread">'
       + (notes.map(n =>
           '<div class="tnote ' + esc(n.kind) + '"><b>' + esc(KIND_LABEL[n.kind] || n.kind)
@@ -477,7 +486,14 @@ function paintLead(lead, notes) {
             + '</span>'
           : '<button type="button" class="btn btn-primary btn-sm" id="dWin">'
             + 'They said yes — make their login</button>')
-    + '</div></div>';
+    + '</div>'
+    /* F7: where the question is asked before anything is made. */
+    + '<div id="convAsk" hidden style="margin-top:12px;padding:12px 14px;border-radius:10px;'
+      + 'background:#fff8e6;border:1px solid #f1d9a0;font:600 12.6px/1.6 var(--sans);'
+      + 'color:var(--navy-900)"></div>'
+    /* F6: the same person, elsewhere in the book — filled in after a lookup. */
+    + '<div id="dupBox" hidden style="margin-top:12px"></div>'
+    + '</div>';
 
   $('#dStatus').onchange = () => {
     $('#whyWrap').hidden = $('#dStatus').value !== 'lost';
@@ -485,11 +501,115 @@ function paintLead(lead, notes) {
   $('#nGo').onclick = () => note(lead);
   $('#nBody').addEventListener('keydown', e => { if (e.key === 'Enter') note(lead); });
   $('#dSave').onclick = () => saveLead(lead);
-  if ($('#dWin')) $('#dWin').onclick = () => convert(lead);
+  if ($('#dWin')) $('#dWin').onclick = () => askConvert(lead);
   if ($('#dDel')) $('#dDel').onclick = () => removeLead(lead);
   const th = $('#thread');
   th.scrollTop = th.scrollHeight;
+  /* Is this person elsewhere in the book, or already a student? */
+  dupForLead(lead);
 }
+
+/* ------------------------------------------------- the same person twice (F6)
+ *
+ * GET /api/staff/lead-lookup?email=&phone= → { student, leads[], closed }.
+ * The same number on three open leads is three counsellors ringing one
+ * person. Asked when a lead is typed in by hand (on leaving the number or the
+ * email, and again on save) and when a lead is opened.
+ */
+async function lookup(email, phone) {
+  const e = String(email || '').trim();
+  const p = String(phone || '').replace(/\D/g, '');
+  if (!e && p.length < 10) return null;
+  try {
+    return await api('GET', '/api/staff/lead-lookup?email=' + encodeURIComponent(e)
+      + '&phone=' + encodeURIComponent(p));
+  } catch (err) { return null; }
+}
+
+const leadLine = l => '<li style="align-items:center;gap:8px"><span style="flex:1;min-width:0">'
+  + '<b>' + esc(l.name || 'no name') + '</b> <span style="color:var(--muted)">\u00b7 '
+  + esc(STATUS_LABEL[l.status] || l.status) + ' \u00b7 ' + (l.owner ? esc(l.owner) : 'nobody\u2019s yet')
+  + ' \u00b7 ' + fmtWhen(l.created_at) + '</span></span>'
+  + '<button type="button" class="btn btn-ghost btn-sm" data-golead="' + l.id + '">Open</button>';
+
+/* The warning under the Log-a-lead form. Saving is still allowed — the lead
+   is real even if the person is known — but it says so. */
+function paintDup(box, d, forId) {
+  if (!box) return;
+  const leads = (d && d.leads || []).filter(l => Number(l.id) !== Number(forId));
+  if (!d || (!d.student && !leads.length)) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML =
+    (d.student
+      ? '<div style="padding:10px 12px;border-radius:9px;background:#fff8e6;border:1px solid #f1d9a0;'
+        + 'font:600 12.4px/1.55 var(--sans);color:var(--navy-900);margin-bottom:8px">'
+        + 'This person is already a student: <b>' + esc(d.student.name) + '</b> '
+        + '<a href="counsellor.html?student=' + d.student.id + '" style="font-weight:700">\u2192 Open file</a>'
+        + (forId ? '' : '<span style="display:block;font-weight:400;margin-top:3px;color:var(--muted)">'
+          + 'You can still add the lead \u2014 it will be logged against a person who already has an account.</span>')
+        + '</div>'
+      : '')
+    + (leads.length
+      ? '<div style="padding:10px 12px;border-radius:9px;background:#fff8e6;border:1px solid #f1d9a0;'
+        + 'font:600 12.4px/1.55 var(--sans);color:var(--navy-900)">'
+        + leads.length + ' earlier open lead' + (leads.length === 1 ? '' : 's') + ' for this person'
+        + (d.closed ? ' <span style="font-weight:400;color:var(--muted)">(and ' + d.closed + ' closed)</span>' : '') + ':'
+        + '<ul class="doclist" style="margin:6px 0 0">' + leads.map(l => leadLine(l)
+          + (forId && ROLE === 'admin'
+            ? '<button type="button" class="btn btn-primary btn-sm" data-merge="' + l.id + '" data-into="' + forId
+              + '" data-mname="' + esc(l.name || l.email || l.phone || '#' + l.id) + '">Merge into this one</button>'
+            : '')
+          + '</li>').join('') + '</ul>'
+        + '<div id="mergeAsk" hidden style="margin-top:8px;padding:9px 11px;border-radius:8px;'
+          + 'background:var(--paper);border:1px solid var(--line)"></div>'
+        + '</div>'
+      : '');
+}
+
+async function dupForLead(lead) {
+  const box = $('#dupBox');
+  if (!box) return;
+  const d = await lookup(lead.email, lead.phone);
+  if (openId !== lead.id) return;
+  /* A converted lead IS the student — no need to say so twice. */
+  if (d && lead.status === 'converted') d.student = null;
+  paintDup(box, d, lead.id);
+}
+
+/* Folding a duplicate into the lead on screen: its notes move here, blanks
+   here are filled from it, and it is deleted. Asked inline first. */
+document.addEventListener('click', async e => {
+  const go = e.target.closest('[data-golead]');
+  if (go) { open_(Number(go.dataset.golead)); return; }
+  const m = e.target.closest('[data-merge]');
+  if (m) {
+    const ask = $('#mergeAsk');
+    if (!ask) return;
+    ask.hidden = false;
+    ask.innerHTML = 'Fold <b>' + esc(m.dataset.mname) + '</b> (#' + esc(m.dataset.merge) + ') into this lead? '
+      + 'Its follow-ups move here and that row is deleted. This cannot be undone.'
+      + '<div style="display:flex;gap:7px;margin-top:7px">'
+      + '<button type="button" class="btn btn-primary btn-sm" data-mergeyes="' + esc(m.dataset.merge)
+        + '" data-into="' + esc(m.dataset.into) + '">Merge</button>'
+      + '<button type="button" class="btn btn-ghost btn-sm" data-mergeno>Keep both</button></div>';
+    return;
+  }
+  if (e.target.closest('[data-mergeno]')) { const a = $('#mergeAsk'); if (a) a.hidden = true; return; }
+  const y = e.target.closest('[data-mergeyes]');
+  if (y) {
+    y.disabled = true;
+    y.textContent = 'Merging\u2026';
+    try {
+      const r = await api('POST', '/api/staff/lead/' + y.dataset.mergeyes + '/merge', { into: Number(y.dataset.into) });
+      await load();
+      paintLead(r.lead, r.notes);
+      toast('Merged \u2014 ' + (r.movedNotes || 0) + ' note' + (r.movedNotes === 1 ? '' : 's') + ' moved across');
+    } catch (err) {
+      const a = $('#mergeAsk');
+      if (a) a.innerHTML = '<span style="color:#b03a2e;font-weight:700">' + esc(err.message) + '</span>';
+    }
+  }
+});
 
 const say = m => {
   const el = $('#dErr');
@@ -545,6 +665,49 @@ async function removeLead(lead) {
   } catch (e) { say(e.message); }
 }
 
+/*
+ * F7 (8 Oct): converting is not a one-click thing any more.
+ *
+ * Two different things can happen, and the counsellor should know which
+ * before pressing: a new account is made and a password emailed (and shown
+ * here once), or the lead is tied to an account that already exists and no
+ * password is made at all. The lookup says which; the box says it in words,
+ * with Convert and Keep.
+ */
+async function askConvert(lead) {
+  say('');
+  const box = $('#convAsk');
+  if (!box) return convert(lead);
+  box.hidden = false;
+  box.innerHTML = 'Checking whether they already have an account\u2026';
+  const email = String(lead.email || '').trim();
+  const d = await lookup(email, lead.phone);
+  if (openId !== lead.id) return;
+  const has = d && d.student && (!email || String(d.student.email).toLowerCase() === email.toLowerCase());
+  const owner = PEOPLE.find(p => String(p.id) === String(lead.ownerId));
+  box.innerHTML = (!email
+      ? '<b>An account needs an email address</b> \u2014 that is what they sign in with. '
+        + 'Put one on the lead and save it first.'
+      : has
+        ? '<b>' + esc(lead.name || 'They') + ' already has an account</b> on <b>' + esc(d.student.email) + '</b>. '
+          + 'Converting ties this lead to that account \u2014 no new account, no new password, nothing emailed. '
+          + 'The lead is marked converted and this thread keeps what was said.'
+        : '<b>A student account will be made</b> for <b>' + esc(email) + '</b>. The sign-in details are '
+          + 'emailed to them and the first password is shown here once, for reading out on the phone. '
+          + (ROLE === 'counsellor' ? 'They will be on your list.'
+            : owner ? 'They will be on ' + esc(owner.name) + '\u2019s list.'
+            : 'Nobody is on this lead, so they arrive unassigned.'))
+    + '<div style="display:flex;gap:7px;margin-top:9px">'
+    + (email ? '<button type="button" class="btn btn-primary btn-sm" id="convYes">Convert</button>' : '')
+    + '<button type="button" class="btn btn-ghost btn-sm" id="convNo">Keep</button></div>';
+  $('#convNo').onclick = () => { box.hidden = true; };
+  if ($('#convYes')) $('#convYes').onclick = () => {
+    $('#convYes').disabled = true;
+    $('#convYes').textContent = 'Converting\u2026';
+    convert(lead);
+  };
+}
+
 async function convert(lead) {
   say('');
   try {
@@ -589,6 +752,8 @@ function addForm() {
       + '<div class="field"><label for="aMail">Email</label><input id="aMail" type="email">'
       + '</div>'
     + '</div>'
+    /* F6: is this person already here? Filled in on leaving either box. */
+    + '<div id="aDup" hidden style="margin:0 0 12px"></div>'
     + '<div class="two">'
       + '<div class="field"><label for="aSource">Where from</label><select id="aSource">'
         + ['whatsapp', 'phone', 'facebook', 'instagram', 'google', 'walk-in', 'referral',
@@ -604,8 +769,19 @@ function addForm() {
     + '<button type="button" class="btn btn-primary" id="aGo" style="width:100%">'
       + 'Add to the book</button>';
 
+  /* F6: on leaving the number or the email, say if they are known. */
+  const checkDup = async () => {
+    const d = await lookup($('#aMail').value, $('#aPhone').value);
+    paintDup($('#aDup'), d, null);
+    return d;
+  };
+  $('#aPhone').addEventListener('blur', checkDup);
+  $('#aMail').addEventListener('blur', checkDup);
+
   $('#aGo').onclick = async () => {
     say('');
+    /* And again on save — the warning stands, the lead is still written. */
+    await checkDup();
     try {
       const r = await api('POST', '/api/staff/leads', {
         name: $('#aName').value.trim(),
@@ -692,5 +868,5 @@ connectLive({ chat: () => load() });
    whatever was baked into its markup — and somebody whose password must be
    changed reaches a working screen instead of the screen that makes them
    change it. */
-staffBoot(async () => { await load(); });
+staffBoot(async me => { ROLE = (me && me.user && me.user.role) || ''; await load(); });
 """

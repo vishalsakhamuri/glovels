@@ -204,9 +204,13 @@
       return out.length ? out.join(', ') : 'No';
     };
     const feeOf = r => (r.feeModel || (r.isPublic ? 'package' : 'free')) === 'free' ? 'Free to apply' : 'With a package';
+    /* F9 (8 Oct): the home page's rule for a ₹0 total — a public programme
+       has no tuition fee; a private one at ₹0 is a fee nobody has written down. */
+    const cost = r => Number(r.totalInr) ? lakh(r.totalInr)
+      : (r.isPublic || (r.reqs && r.reqs.tuitionEurSem === 0) ? 'No tuition fee' : 'Fee to be confirmed');
     const item = (r, onList, canAdd) => '<li><div class="m"><b>' + esc(r.university)
       + (r.restricted ? ' <span class="tag">Restricted</span>' : '') + '</b>'
-      + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + lakh(r.totalInr)
+      + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + cost(r)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
       + (r.why && r.why.length ? '<small class="why">' + esc(r.why.join('; ')) + '</small>' : '')
       /* Patch 162: short of something stated — on the list, ranked lower, the
@@ -229,9 +233,13 @@
       const auto = (d.auto || []).map(a => '<div><b>' + esc(a.package || a.kind) + '</b> — '
         + (a.picks.length ? a.picks.length + ' of ' + a.count + ': ' + a.picks.map(p => esc(p.university)).join(', ') : 'nothing fits yet')
         + (a.note ? '<small>' + esc(a.note) + '</small>' : '') + '</div>').join('');
-      out.innerHTML = '<p class="sum">' + d.counts.looked + ' programmes in that field and level · <b>' + d.counts.fits + ' fit</b> · '
-        + d.counts.near + ' miss on one thing' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'
-        + (d.usable === false ? '<p class="why">The matcher needs a level and a field before it picks a paid list.</p>' : '')
+      /* F9 (8 Oct): a count of what "fits" means nothing until the student's
+         CGPA, level and field are known — say what is missing instead. */
+      const basics = d.usable !== false && String(((d.profile || {}).d_cgpa) || '').trim() !== '';
+      out.innerHTML = (basics
+          ? '<p class="sum">' + d.counts.looked + ' programmes in that field and level · <b>' + d.counts.fits + ' fit</b> · '
+            + d.counts.near + ' miss on one thing' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'
+          : '<p class="why">Add the student\'s CGPA, level and field to judge fit.</p>')
         + (auto ? '<div class="auto"><b style="display:block;margin-bottom:4px">What a package would deliver now'
           + (d.bought === false ? ' (not bought yet)' : '') + '</b>' + auto + '</div>' : '')
         + '<h4>Fits (' + d.fits.length + (d.counts.fits > d.fits.length ? ' of ' + d.counts.fits : '') + ')</h4>'
