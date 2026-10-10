@@ -27,6 +27,8 @@
  * screen without a developer.
  */
 
+const LOGOS = require('./logos.js');
+
 /** The address a university's name becomes. Identical in the finder script. */
 const slugOf = name => String(name || '').toLowerCase().normalize('NFKD')
   .replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')
@@ -61,11 +63,14 @@ function group(catalogue) {
     let u = by.get(slug);
     if (!u) {
       u = { slug, name: String(p.university).trim(), shortName: '', city: '', country: p.country || '',
-        isPublic: !!p.isPublic, feeModel: '', url: '', programmes: [] };
+        isPublic: !!p.isPublic, feeModel: '', url: '', logo: '', programmes: [] };
       by.set(slug, u);
     }
     if (!u.shortName && p.shortName) u.shortName = String(p.shortName).trim();
     if (!u.city && p.city) u.city = String(p.city).trim();
+    /* Its logo, when logos/ has one — '' otherwise, and the pages draw the
+       initials tile they always did (server/logos.js). */
+    if (!u.logo) u.logo = LOGOS.logoFor(u.name, u.shortName);
     if (/^https?:\/\//i.test(String(p.url || ''))) {
       /* The university's own site, from its course pages: the origin with
          the fewest dots — uni-heidelberg.de over mathinf.uni-heidelberg.de,
@@ -172,6 +177,9 @@ function fromRow(r) {
     /* What it asks for beyond a grade. One record, every field present,
        null where nobody has stated it — server/reqs.js owns the list. */
     reqs: REQS.parse(r.reqs),
+    /* The office's tags, as a list. Empty until imported; server/tags.js
+       derives a set from the other fields when it is. */
+    tags: String(r.tags || '').split(';').map(t => t.trim()).filter(Boolean),
   };
 }
 

@@ -56,6 +56,7 @@ const { makeContent } = require('./server/content.js');
 const PROSE = require('./server/prose.js');
 const SQUEEZE = require('./server/squeeze.js');
 const UNIS = require('./server/unis.js');
+const LOGOS = require('./server/logos.js');
 const DAAD = require('./server/daad.js');
 
 /* catalogue.json is now the SEED, not the source of truth. Once it is in the
@@ -965,6 +966,16 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
 .factbox>div{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .factbox span{display:block;font:600 11.2px/1.4 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .factbox b{display:block;margin-top:4px;font:700 15.5px/1.35 var(--sans);color:var(--navy-900)}
+.uni-head{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.uni-head h1{margin:0;flex:1 1 240px;min-width:0}
+.uni-logo{display:block;box-sizing:border-box;width:160px;height:72px;padding:8px 12px;object-fit:contain;background:#fff;border-radius:12px;border:1px solid rgba(255,255,255,.35);flex:none}
+@media (max-width:600px){.uni-logo{width:120px;height:56px;padding:6px 10px}}
+.ulist li a.haslogo{grid-template-columns:40px minmax(0,1fr) auto}
+.ulogo{width:40px;height:40px;border-radius:9px;display:grid;place-items:center;overflow:hidden;flex:none;box-sizing:border-box}
+.ulogo.img{background:#fff;border:1px solid var(--line);padding:3px}
+.ulogo.img img{display:block;width:100%;height:100%;object-fit:contain}
+.ulogo.ini{background:var(--navy-800);color:#fff;font:700 13px/1 var(--sans);letter-spacing:.02em}
+@media (max-width:600px){.ulist li a.haslogo{grid-template-columns:40px minmax(0,1fr)}.ulist li a.haslogo .n{grid-column:2}}
 .uni-cover{margin:0 0 24px}
 .uni-cover img{display:block;width:100%;aspect-ratio:16/8;object-fit:cover;border-radius:14px;border:1px solid var(--line);background:#f2f5f9}
 .progs{display:grid;gap:12px;margin:14px 0 8px}
@@ -1408,9 +1419,16 @@ function universityPage(u) {
     CRUMBS: '<a href="../index.html">Home</a> / <a href="../university">Universities</a> / ' + esc(called || u.name),
     BODY: body,
   }));
+  /* The logo beside the headline, on a white tile — the hero is navy — when
+     logos/ has one (server/logos.js). The <h1> itself is left exactly as it
+     was: the tests, and anything else that reads the headline, find it. */
+  const withLogo = u.logo
+    ? page.replace('<h1>' + esc(u.name) + '</h1>', '<div class="uni-head"><img class="uni-logo" src="' + esc(u.logo)
+      + '" alt="' + esc(u.name) + ' logo" width="160" height="72" decoding="async"><h1>' + esc(u.name) + '</h1></div>')
+    : page;
   /* The breadcrumb record beside the university's own, the stylesheet, and
      the apply sheet. */
-  return rootLinks(page.replace('</head>', UNI_CSS + '<script type="application/ld+json">'
+  return rootLinks(withLogo.replace('</head>', UNI_CSS + '<script type="application/ld+json">'
       + JSON.stringify(jsonld[1]).replace(/</g, '\\u003c') + '</script>\n</head>')
     .replace('</body>', UNI_JS + '</body>'));
 }
@@ -1495,6 +1513,15 @@ function packagesBlock(u, country) {
     + 'document.querySelectorAll("[data-upane]").forEach(function(p){p.hidden=p.dataset.upane!==b.dataset.utab;});};});</script>';
 }
 
+/* A 40px tile for a list row: the logo on white, or the initials on navy —
+   the same tile the finder draws. */
+function uniTile(u) {
+  if (u.logo) return '<span class="ulogo img"><img src="' + esc(u.logo) + '" alt="" loading="lazy" decoding="async" width="34" height="34"></span>';
+  const ini = String(u.shortName || u.name || '').replace(/[^A-Za-z ]/g, '').split(/\s+/)
+    .filter(w => w && !/^(of|the|and|for|in|de|der|die|und)$/i.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'U';
+  return '<span class="ulogo ini" aria-hidden="true">' + esc(ini) + '</span>';
+}
+
 function universitiesIndexPage() {
   const t = templates();
   if (!t) return null;
@@ -1515,7 +1542,7 @@ function universitiesIndexPage() {
       + ' <span style="font-size:14px;color:var(--muted);font-weight:400">· ' + list.length
       + ' universit' + (list.length === 1 ? 'y' : 'ies') + '</span></h2>'
       + '<ul class="ulist">' + list.map(u =>
-        '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.name) + '</b><small>'
+        '<li><a class="haslogo" href="university/' + esc(u.slug) + '">' + uniTile(u) + '<span><b>' + esc(u.name) + '</b><small>'
         + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
         + ' · ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
         + (u.feeModel === 'free' ? ' · free to apply through us' : '')
@@ -2098,122 +2125,22 @@ function acceptancePage(order, accepted) {
 }
 
 /*
- * /success-stories — every admission, on one page.
+ * /success-stories — one card per admission offer, one per visa or work-route
+ * outcome, from assets/success-stories.json (or the office's upload).
  *
- * The home page shows six on a rail. This is the rest, and it is the reason
- * the office was asked for the intake: a list of thirty admissions with the
- * university, the course and the term each one was for is the single most
- * useful page this site can offer somebody deciding whether to trust it.
+ * The page lives in server/stories.js: the data, the fixed card order the
+ * office signed off on (a port of the prototype's seeded spacing rule), the
+ * JSON-LD and the office's upload routes. Rendered HERE, on the server, for
+ * the same reason as before: a crawler — the AI crawlers in particular — does
+ * not run the page's scripts, and 109 real admissions in the HTML are what
+ * this page is for.
  *
- * Rendered HERE, from the database, rather than painted into a static file by
- * the browser. The home page can repaint itself because a visitor runs its
- * scripts; a crawler indexing the page — and the AI crawlers in particular —
- * often does not, and would find three shipped placeholders where thirty real
- * admissions are. The cards are built with the same fields and the same class
- * names the browser uses, so the two cannot drift.
- *
- * Initials only. That is the whole privacy position on this page: a student
- * gave us their admission letter, not permission to publish their name.
+ * First names only, as the students chose them, and nothing the public
+ * export does not carry: no surname, no grade, no score.
  */
+const STORIES = require('./server/stories.js');
 function successStoriesPage() {
-  const t = templates();
-  if (!t) return null;
-  const rows = (content.get('testimonials') || []).filter(x => x && (x.quote || x.name));
-
-  const card = s =>
-    '<article class="card card-hover card-stack tcard"><div class="card-body">'
-    + '<div class="trow">'
-    + (s.route ? '<span class="route">' + esc(s.route) + '</span>' : '')
-    + (s.intake ? '<span class="intake">' + esc(s.intake) + '</span>' : '')
-    + (s.verified
-        ? '<span class="vadm"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg>'
-          + 'Verified admission</span>'
-        : '')
-    + '</div><blockquote>' + esc(s.quote) + '</blockquote></div>'
-    + '<div class="card-foot who"><span class="av">'
-    + esc(String(s.name || '?').trim().charAt(0).toUpperCase()) + '</span><span><b>'
-    + esc(s.name) + '</b><span>' + esc(s.where) + '</span></span></div></article>';
-
-  /*
-   * The cards' own styling, inline.
-   *
-   * This template is the one the legal pages and the blog use, and it carries
-   * a prose stylesheet — 70 characters to a line and a gold rule down the side
-   * of every blockquote. A story card dropped into it came out as a column of
-   * run-together text with the route, the intake and "Verified admission"
-   * printed as one sentence, because none of the home page's card rules exist
-   * here. They are declared once, below, and the grid breaks out of the prose
-   * column because thirty cards in a 70ch measure is one card wide.
-   */
-  const STYLE = '<style>'
-    + '#page{max-width:none}'
-    + '.sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:0 0 26px}'
-    + '@media (max-width:980px){.sgrid{grid-template-columns:repeat(2,1fr)}}'
-    + '@media (max-width:640px){.sgrid{grid-template-columns:1fr}}'
-    + '.sgrid .tcard{display:flex;flex-direction:column;padding:18px 20px 0;'
-    + 'background:var(--paper,#fff);border:1px solid var(--line,#e4e8ee);border-radius:16px}'
-    + '.sgrid .card-body{flex:1}'
-    + '.sgrid .trow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px}'
-    + '.sgrid .route{font:700 11.6px/1 var(--sans);padding:6px 11px;border-radius:999px;'
-    + 'border:1px solid var(--line,#e4e8ee);background:var(--cream,#f6f4ee);color:var(--navy-800)}'
-    + '.sgrid .intake{font:700 11.2px/1 var(--sans);padding:6px 10px;border-radius:999px;'
-    + 'background:#eef3fb;color:var(--navy-700);border:1px solid #d5e0f0}'
-    + '.sgrid .vadm{display:inline-flex;align-items:center;gap:5px;font:800 9.4px/1 var(--sans);'
-    + 'letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:999px;'
-    + 'background:#eef8f2;color:#14603a;border:1px solid #bfe0cc}'
-    + '.sgrid .vadm .ico{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8}'
-    + '.sgrid blockquote{margin:0;padding:0;border:0;font-size:14.6px;line-height:1.5;'
-    + 'font-style:normal;color:var(--navy-800)}'
-    + '.sgrid .who{padding:13px 0 18px;margin-top:14px;border-top:1px solid var(--line,#e4e8ee);'
-    + 'display:flex;align-items:center;gap:10px}'
-    + '.sgrid .who .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;'
-    + 'flex:none;font:700 13px/1 var(--sans);color:#fff;'
-    + 'background:linear-gradient(160deg,var(--navy-600,#1c3d5e),var(--navy-800,#0f2740))}'
-    + '.sgrid .who b{font-size:13.4px;color:var(--navy-900)}'
-    + '.sgrid .who span span{display:block;font-size:11.8px;color:var(--muted)}'
-    + '</style>';
-
-  const body = rows.length
-    ? STYLE
-      + '<div class="sgrid">' + rows.map(card).join('') + '</div>'
-      + '<p style="font-size:13px;color:var(--muted);line-height:1.7">'
-      + 'Initials only — a student gives us their admission letter, not permission to '
-      + 'publish their name. Every card marked <b>Verified admission</b> has the offer '
-      + 'letter on file, and we will show it to the university that asks.</p>'
-    : '<p>The first admissions of this intake are being confirmed. '
-      + '<a href="contact-us.html">Ask us</a> what we have placed and where.</p>';
-
-  const verified = rows.filter(r => r.verified).length;
-
-  return fill(t.page, Object.assign(metaHoles({
-    title: 'Success stories — every admission we have placed',
-    desc: rows.length
-      ? rows.length + ' admissions to public and private universities abroad, with the '
-        + 'course and the intake each one was for. Initials only; offer letters on file.'
-      : 'Admissions Glovels has placed, with the course and the intake for each.',
-    canonical: absolute('/success-stories'),
-    keywords: 'study abroad success stories, admits, Germany admission, public university admission',
-    type: 'website',
-    jsonld: rows.length ? {
-      '@context': 'https://schema.org',
-      '@type': 'ItemList',
-      name: 'Glovels admissions',
-      numberOfItems: rows.length,
-      itemListElement: rows.map((s, i) => ({
-        '@type': 'ListItem',
-        position: i + 1,
-        name: s.quote,
-      })),
-    } : null,
-  }), {
-    CRUMBS: '<a href="index.html">Home</a> / Success stories',
-    H1: 'Every admission we have placed',
-    DATELINE: rows.length
-      ? rows.length + ' admission' + (rows.length === 1 ? '' : 's')
-        + (verified ? ' · ' + verified + ' with the offer letter on file' : '')
-      : 'Being confirmed',
-    BODY: body,
-  }));
+  return STORIES.render({ templates, fill, metaHoles, esc, absolute, logoFor: LOGOS.logoFor, db, content });
 }
 
 const NOINDEX = /<meta name="robots" content="noindex,nofollow"\s*\/?>/i;
@@ -2465,6 +2392,9 @@ const FIND_SRC = {
   /* reqs.js is CommonJS; wrapped so the browser gets window.REQS. */
   'reqs.js': () => '(function(){var module={exports:{}};\n' + fs.readFileSync(path.join(__dirname, 'server', 'reqs.js'), 'utf8') + '\nwindow.REQS=module.exports;})();',
   'find-page.js': () => FINDPAGE.FIND_PAGE_JS,
+  /* 10 Oct: the tag search — match()/tagsOf() for the browser's own rows;
+     the dictionary itself stays on the server behind /api/tags. */
+  'tags.js': () => fs.readFileSync(path.join(__dirname, 'server', 'tags.js'), 'utf8'),
 };
 
 const server = http.createServer(async (req, res) => {
@@ -2478,7 +2408,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, withSignedInNav(html), TYPES['.html'], { 'Cache-Control': 'no-cache' });
     }
   }
-  const findJs = /^\/js\/(find\.js|reqs\.js|find-page\.js)$/.exec(pathname);
+  const findJs = /^\/js\/(find\.js|reqs\.js|find-page\.js|tags\.js)$/.exec(pathname);
   if (findJs) return send(res, 200, FIND_SRC[findJs[1]](), TYPES['.js'], { 'Cache-Control': 'no-cache' });
 
   // The API first — it owns /api/* and the form endpoint.
@@ -2537,6 +2467,23 @@ const server = http.createServer(async (req, res) => {
     const f = IMAGES.fileFor(IMAGES_DIR, pic[1]);
     if (!f) return notFound(res);
     return send(res, 200, fs.readFileSync(f.path), f.mime,
+      { 'Cache-Control': 'public, max-age=31536000, immutable' });
+  }
+
+  /* University logos (server/logos.js). Only a file the index names is
+     served, by its bare name, so ../ cannot reach anything beside them; a
+     name changes when the file does, hence the year-long cache. The index
+     itself is at /logos/index.json for the scripts that draw a logo beside
+     a name the server did not — the counsellor's matcher list. */
+  if (pathname === '/logos/index.json') {
+    return send(res, 200, JSON.stringify(LOGOS.index()), TYPES['.json'], { 'Cache-Control': 'public, max-age=3600' });
+  }
+  if (pathname.startsWith('/logos/')) {
+    let name = '';
+    try { name = decodeURIComponent(pathname.slice(7)); } catch (e) { name = ''; }
+    const f = name ? LOGOS.pathFor(name) : null;
+    if (!f) return notFound(res);
+    return send(res, 200, fs.readFileSync(f), LOGOS.mimeOf(f),
       { 'Cache-Control': 'public, max-age=31536000, immutable' });
   }
 
@@ -2785,6 +2732,8 @@ const server = http.createServer(async (req, res) => {
        back as locked rows with stand-in ids, and the baked ones carried the
        real ids (patch 146). */
     if (slug === 'index' && path.dirname(file) === ROOT) html = withoutPublicSeed(html, file, ['"programs": [']);
+    /* The "Real journeys, real outcomes" rail's link, straight to /success-stories. */
+    if (slug === 'index' && path.dirname(file) === ROOT) html = STORIES.withHomeLink(html);
     if (slug.startsWith('study-in-')) {
       html = withDestinationUniversities(withLiveDestinationFacts(html, slug), slug);
     }

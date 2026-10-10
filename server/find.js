@@ -36,7 +36,17 @@
      us about themselves and is checked against each row's requirements. */
   const KEYS = ['country', 'level', 'field', 'apply', 'tuition', 'intake', 'moi', 'nogre', 'restricted',
     'cgpa', 'english', 'work', 'gre', 'greScore', 'greQuant', 'greVerbal', 'greAwa', 'german',
-    'bachelorYears', 'ects', 'topPercent', 'papers', 'q', 'sort', 'view'];
+    'bachelorYears', 'ects', 'topPercent', 'papers', 'tags', 'q', 'sort', 'view'];
+
+  /* 10 Oct: the tag search (server/tags.js) — required under Node, found on
+     window in the browser, and looked up when needed so the two scripts may
+     load in either order. Without it `tags` and `q` fall back to a plain
+     name search. */
+  const tagsModule = () => {
+    try { if (typeof module === 'object' && module.exports && typeof require === 'function') return require('./tags.js'); } catch (e) { /* no module */ }
+    try { return (typeof self !== 'undefined' ? self : this).TAGS || null; } catch (e) { return null; }
+  };
+  const tagList = v => String(v || '').split(';').map(t => t.trim()).filter(Boolean);
 
   const LEVELS = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma', foundation: 'Foundation / Pathway', phd: 'PhD' };
   const SORTS = { deadline: 'Deadline', cost: 'Total cost', fit: 'Fit', az: 'A – Z' };
@@ -49,7 +59,9 @@
       ? (k => { const m = new RegExp('(?:^|[?&])' + k + '=([^&]*)').exec(q); return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : ''; })
       : (q && typeof q.get === 'function' ? (k => q.get(k) || '') : (k => (q && q[k] != null) ? String(q[k]) : ''));
     const f = {};
-    KEYS.forEach(k => { const v = String(get(k) || '').trim(); if (v) f[k] = v.slice(0, 80); });
+    KEYS.forEach(k => { const v = String(get(k) || '').trim(); if (v) f[k] = v.slice(0, k === 'tags' ? 1200 : 80); });
+    /* The tag list, tidied: trimmed, no blanks, no repeats, 60 at most. */
+    if (f.tags) { const seen = new Set(); f.tags = tagList(f.tags).filter(t => { const k = t.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 60).join(';'); if (!f.tags) delete f.tags; }
     const alias = String(get('feeModel') || '').trim();
     if (!f.apply && (alias === 'free' || alias === 'package')) f.apply = alias;
     if (f.apply && f.apply !== 'free' && f.apply !== 'package') delete f.apply;
@@ -171,9 +183,15 @@
       if (f.restricted === 'open' && r) return false;
       if (f.restricted === 'restricted' && !r) return false;
     }
-    if (on('q')) {
-      const hay = (String(p.program || '') + ' ' + String(p.university || '') + ' ' + String(p.city || '') + ' ' + String(p.field || '')).toLowerCase();
-      if (!f.q.toLowerCase().split(/\s+/).every(w => hay.includes(w))) return false;
+    if (on('tags') || on('q')) {
+      const T = tagsModule();
+      if (T && typeof T.match === 'function') {
+        if (!T.match(p, on('tags') ? f.tags : '', on('q') ? f.q : '')) return false;
+      } else {
+        const hay = (String(p.program || '') + ' ' + String(p.university || '') + ' ' + String(p.city || '') + ' ' + String(p.field || '')).toLowerCase();
+        const want = (on('q') ? f.q : '') + ' ' + (on('tags') ? tagList(f.tags).join(' ') : '');
+        if (!want.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w))) return false;
+      }
     }
     return true;
   }
@@ -282,6 +300,9 @@
       case 'topPercent': return v === '100' ? 'Below top 50%' : 'Top ' + v + '%';
       case 'papers': return v === 'yes' ? 'Published a paper' : 'No paper published';
       case 'q': return '“' + v + '”';
+      /* One chip per tag is drawn by the page (data-cleartag); this is the
+         one-line form for anything that wants the lot. */
+      case 'tags': return tagList(v).join(' · ');
       default: return null;
     }
   }
@@ -289,6 +310,81 @@
   const money = n => { n = Number(n || 0); if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2).replace(/\.?0+$/, '') + ' Cr'; if (n >= 1e5) return '₹' + (n / 1e5).toFixed(1).replace(/\.0$/, '') + ' L'; return '₹' + n.toLocaleString('en-IN'); };
   const dateOf = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const initials = s => String(s || '').replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(w => w && !/^(of|the|and|for|in|de|der|die|und)$/i.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'U';
+
+  /* ------------------------------------------------------------ the logos */
+
+  /* The logo for a university name — the browser's copy of server/logos.js,
+     simplified: exact name, alias, normalised name, then a token overlap of
+     at least 0.6 with a single best. It reads the index the page inlines
+     (window.FIND_LOGOS = { files, aliases }) or whatever is handed in; with
+     no index it answers '' and the initials tile is drawn. A row the server
+     named carries `logo` already and is not looked up. Keep the
+     normalisation in step with the server's. */
+  const LOGO_STOP = { university: 1, universitat: 1, univ: 1, uni: 1, of: 1, the: 1, and: 1, for: 1, in: 1, at: 1, applied: 1, sciences: 1, science: 1, arts: 1,
+    hochschule: 1, fachhochschule: 1, fh: 1, hs: 1, uas: 1, fur: 1, und: 1, der: 1, die: 1, des: 1, college: 1, school: 1, campus: 1, gmbh: 1, ag: 1, ev: 1, e: 1, v: 1 };
+  const LOGO_TECH = { technische: 1, technology: 1, technical: 1, tu: 1, th: 1 };
+  const LOGO_CITY = { munich: 'munchen', nuremberg: 'nurnberg', cologne: 'koln', hanover: 'hannover', brunswick: 'braunschweig', berliner: 'berlin', frankfurter: 'frankfurt', hamburger: 'hamburg' };
+  function logoTokens(name) {
+    let t = String(name || '').toLowerCase().replace(/ß/g, 'ss').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u');
+    t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ');
+    t = t.replace(/ue/g, 'u').replace(/oe/g, 'o').replace(/ae/g, 'a');
+    return t.split(' ').map(w => LOGO_TECH[w] ? 'tech' : (LOGO_CITY[w] || w)).filter(w => w && !LOGO_STOP[w]);
+  }
+  let logoIdx = null;   /* { src, exact, norm, entries, cache } */
+  function logoIndex(raw) {
+    const src = raw || (typeof self !== 'undefined' && self.FIND_LOGOS) || null;
+    if (!src || typeof src !== 'object') return null;
+    if (logoIdx && logoIdx.src === src) return logoIdx;
+    const exact = {}, norm = {}, entries = [];
+    const put = (name, file) => {
+      if (!file || !name) return;
+      if (!exact[name]) exact[name] = file;
+      const toks = logoTokens(name);
+      if (!toks.length) return;
+      const k = toks.join(' ');
+      if (!norm[k]) norm[k] = file;
+      entries.push({ file, toks });
+    };
+    Object.keys(src.files || {}).forEach(n => put(n, src.files[n]));
+    Object.keys(src.aliases || {}).forEach(f => (src.aliases[f] || []).forEach(a => put(a, f)));
+    logoIdx = { src, exact, norm, entries, cache: {} };
+    return logoIdx;
+  }
+  function logoFile(L, name) {
+    const n = String(name || '').trim();
+    if (!n) return '';
+    if (L.exact[n]) return L.exact[n];
+    const toks = logoTokens(n);
+    if (!toks.length) return '';
+    const k = toks.join(' ');
+    if (L.norm[k]) return L.norm[k];
+    let best = null, bestScore = 0, tie = false;
+    L.entries.forEach(e => {
+      let both = 0;
+      toks.forEach(t => { if (e.toks.indexOf(t) >= 0) both++; });
+      const sc = both / (toks.length + e.toks.length - both);
+      if (sc > bestScore) { best = e; bestScore = sc; tie = false; }
+      else if (sc === bestScore && best && e.file !== best.file) tie = true;
+    });
+    return best && bestScore >= 0.6 && !tie ? best.file : '';
+  }
+  /** '/logos/<file>' or ''. `index` is optional — the inlined one is used. */
+  function logoFor(name, shortName, index) {
+    const L = logoIndex(index);
+    if (!L) return '';
+    const ck = String(name || '') + '\u0000' + String(shortName || '');
+    if (L.cache[ck] !== undefined) return L.cache[ck];
+    const n = String(name || '');
+    const paren = /^([^()]+)\(([^()]+)\)\s*$/.exec(n);
+    const f = logoFile(L, n) || (paren ? logoFile(L, paren[1]) || logoFile(L, paren[2]) : '') || logoFile(L, shortName);
+    return (L.cache[ck] = f ? '/logos/' + encodeURIComponent(f) : '');
+  }
+  /* The tile at the left of a named row: the logo on white, or the initials. */
+  function logoTile(p) {
+    const src = p.logo || logoFor(p.university, p.shortName);
+    if (src) return '<div class="flogo img" aria-hidden="true"><img src="' + esc(src) + '" alt="" loading="lazy" decoding="async" width="44" height="44"></div>';
+    return '<div class="flogo" aria-hidden="true">' + esc(initials(p.shortName || p.university)) + '</div>';
+  }
   const filler = n => '█'.repeat(Math.max(6, Math.min(34, Number(n || 18))));
   /* The university's page address — the same arithmetic as unis.js slugOf. */
   const slugOf = name => String(name || '').toLowerCase().normalize('NFKD')
@@ -337,7 +433,7 @@
       : tuitionOf(p) === 0 ? '<div class="fcost">No tuition<small>semester fee only</small></div>'
       : '<div class="fcost">' + money(p.totalInr) + '<small>total, all years</small></div>';
     return '<article class="frow" data-id="' + esc(p.id) + '">'
-      + '<div class="flogo" aria-hidden="true">' + esc(initials(p.shortName || p.university)) + '</div>'
+      + logoTile(p)
       + '<div class="fmain"><h3 class="ftitle">' + esc(p.program) + '</h3>'
       + '<div class="fsub">' + uniHtml + (p.city ? ' · ' + esc(p.city) : '') + ' · ' + esc(c.name) + ' · ' + (p.isPublic ? 'Public' : 'Private') + ' university</div>'
       + '<div class="ftags">' + tags.join('') + '</div>' + verdictHtml + '</div>'
@@ -353,5 +449,5 @@
   }
 
   return { KEYS, LEVELS, SORTS, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml,
-    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num };
+    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num, logoFor, logoTokens, tagList };
 });

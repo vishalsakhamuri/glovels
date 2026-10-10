@@ -1,6 +1,7 @@
 'use strict';
 const GRADES = require('./grades.js');
 const REQS = require('./reqs.js');
+const TAGS = require('./tags.js');
 /**
  * Picking universities for somebody, without a person in the room.
  *
@@ -841,6 +842,8 @@ function promise(pkg) {
  *   opts.kind      'public' | 'private' | 'any'
  *   opts.field     a catalogue field, exact — overrides the profile's words
  *   opts.q         words in the programme or university name
+ *   opts.tags      chosen tags, ';'-joined — a row has to carry every one
+ *                  (server/tags.js match: stored tags, or derived ones)
  *   opts.ceiling   rupees, overrides the profile's budget (0 = no ceiling)
  *   opts.limit     how many of each list to return
  *
@@ -938,7 +941,10 @@ function screen(catalogue, profile, countries, opts) {
      with kind/field/q rather than in check(). */
   const feeWant = /^(free|package)$/.test(String(o.feeModel || '')) ? o.feeModel : '';
   const restrWant = /^(yes|no)$/.test(String(o.restricted || '')) ? o.restricted : '';
+  /* 10 Oct: the tag chips. */
+  const tagList = TAGS.parseList(o.tags);
   for (const p of catalogue || []) {
+    if (tagList.length && !TAGS.match(p, tagList, '')) continue;
     if (o.kind === 'public' && !p.isPublic) continue;
     if (o.kind === 'private' && p.isPublic) continue;
     const feeModel = p.feeModel || (p.isPublic ? 'package' : 'free');
@@ -996,7 +1002,9 @@ function screen(catalogue, profile, countries, opts) {
       level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),
       intakes: p.intakes || [], relevance: rel, why, ask, soft, score: score(p, w),
       /* Patch 153: what the row is, and on what condition it clears. */
-      feeModel, restricted, notes: vd.notes || [] };
+      feeModel, restricted, notes: vd.notes || [],
+      /* 10 Oct: the first few of its tags, for the screen. */
+      tags: TAGS.tagsOf(p).slice(0, 6) };
     if (!why.length) { out.fits.push(row); out.counts.fits++; }
     else if (why.length === 1) { out.near.push(row); out.counts.near++; }
   }

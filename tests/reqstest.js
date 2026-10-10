@@ -70,7 +70,10 @@ const R = require('../server/reqs.js');
   ok('the German sheet downloads', r.status === 200, r.status);
   const rows = S.readCsv(r.text);
   const H = rows[0];
-  ok('  · with one column per requirement, at the end', R.SHEET_HEADERS.every(h => H.includes(h)) && H.slice(-R.SHEET_HEADERS.length).join('|') === R.SHEET_HEADERS.join('|'), H.slice(-3).join('|'));
+  /* Patch 165: the tags column follows the requirements, so they are the
+     block just before the last column. */
+  ok('  · with one column per requirement, at the end (before tags)', R.SHEET_HEADERS.every(h => H.includes(h)) && H[H.length - 1] === 'tags'
+    && H.slice(-R.SHEET_HEADERS.length - 1, -1).join('|') === R.SHEET_HEADERS.join('|'), H.slice(-3).join('|'));
   const line = rows.find(x => String(x[H.indexOf('id')]) === String(id));
   ok('  · and the row carries what was saved', line && line[H.indexOf('ielts min')] === '6.5' && line[H.indexOf('german level')] === 'A2' && line[H.indexOf('papers required')] === 'no', line && line.slice(-R.SHEET_HEADERS.length).join('|'));
 

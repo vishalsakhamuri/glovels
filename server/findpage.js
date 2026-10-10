@@ -21,6 +21,8 @@
 
 const FIND = require('./find.js');
 const REQS = require('./reqs.js');
+const LOGOS = require('./logos.js');
+const TAGS = require('./tags.js');
 
 const esc = FIND.esc;
 
@@ -40,10 +42,16 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     let gate = 'gated';
     try { const f = content && content.get('finder'); if (f && f.gate) gate = f.gate; } catch (e) { /* strictest */ }
     return liveCatalogue().filter(p => !p.searchOnly && p.level && p.field).map(p => {
-      if (!p.isPublic || gate === 'open') return Object.assign({ uniSlug: slugOf(p.university) }, p);
-      if (gate === 'names') return Object.assign({ uniSlug: slugOf(p.university) }, p, { totalInr: 0, freeTuition: false, feeHidden: true });
+      /* A named row carries its logo (server/logos.js); a locked one never
+         does — the logo would name the university the row withholds. */
+      /* The tags too, the way /api/catalogue sends them (10 Oct): the row's
+         own on a named row, and on a locked one everything but the ones
+         that would name it — so the server's first page and the browser's
+         re-render answer ?tags= the same way. */
+      if (!p.isPublic || gate === 'open') return Object.assign({ uniSlug: slugOf(p.university), logo: LOGOS.logoFor(p.university, p.shortName) }, p, { tags: TAGS.tagsOf(p) });
+      if (gate === 'names') return Object.assign({ uniSlug: slugOf(p.university), logo: LOGOS.logoFor(p.university, p.shortName) }, p, { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) });
       return {
-        id: '', country: p.country, level: p.level, field: p.field, band: p.band, isPublic: true, fit: p.fit,
+        id: '', country: p.country, level: p.level, field: p.field, band: p.band, isPublic: true, fit: p.fit, tags: TAGS.publicTags(p),
         intakes: p.intakes, feeModel: p.feeModel, totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,
         minCgpa: p.minCgpa, germanGpa: p.germanGpa, reqs: p.reqs, uKey: p.uKey,
         nLen: String(p.program || '').length, uLen: String(p.shortName || p.university || '').length,
@@ -87,13 +95,25 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       + '<label class="fopt"><input type="checkbox" name="nogre" value="1"' + (f.nogre ? ' checked' : '') + '> <span>No GRE needed</span><em>' + R.facets.nogre + '</em></label>'
       + '<label class="fopt"><input type="checkbox" name="restricted" value="open"' + (f.restricted === 'open' ? ' checked' : '') + '> <span>Open admission only</span><em>' + R.facets.open + '</em></label>';
     return g('Destination', dest, true) + g('Level', level, true) + g('Field', field, !!f.field) + g('Your CGPA', cg, !!f.cgpa)
-      + g('Tuition', tu, !!f.tuition) + g('Intake', it, !!f.intake) + g('Applying', ap, !!f.apply) + g('Tests & admission', te, !!(f.moi || f.nogre || f.restricted));
+      + g('Tuition', tu, !!f.tuition) + g('Intake', it, !!f.intake) + g('Applying', ap, !!f.apply) + g('Tests & admission', te, !!(f.moi || f.nogre || f.restricted))
+      + '<details class="fg" id="ftagsGroup" open' + (FIND.tagList(f.tags).length ? '' : ' hidden') + '><summary>Tags</summary><div class="fgb" id="ftagsRail">' + tagsRailHtml(f) + '</div></details>';
+  }
+  /* 10 Oct: the chosen tags in the rail, each with its ×. */
+  function tagsRailHtml(f) {
+    const list = FIND.tagList(f.tags);
+    return list.length ? list.map(t => '<button type="button" class="ftagrow" data-cleartag="' + esc(t) + '"><span>' + esc(t) + '</span><b aria-hidden="true">×</b><span class="offscreen"> remove</span></button>').join('')
+      : '<div class="fmore-note">Type in the search box and pick a tag.</div>';
   }
 
   function chipsHtml(f, countries) {
     const chips = [];
     FIND.KEYS.forEach(k => {
       if (!f[k] || k === 'sort' || k === 'view') return;
+      /* 10 Oct: one chip per chosen tag, each with its own ×. */
+      if (k === 'tags') {
+        FIND.tagList(f.tags).forEach(t => chips.push('<button type="button" class="fchip ftagchip" data-cleartag="' + esc(t) + '">' + esc(t) + ' <b aria-hidden="true">×</b><span class="offscreen"> remove</span></button>'));
+        return;
+      }
       const l = FIND.chipLabel(k, f[k], countries);
       if (l) chips.push('<button type="button" class="fchip" data-clear="' + esc(k) + '">' + esc(l) + ' <b aria-hidden="true">×</b><span class="offscreen"> remove</span></button>');
     });
@@ -118,7 +138,8 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     const sort = '<label class="fsort">Sort <select id="fsort">' + Object.keys(FIND.SORTS).map(k => '<option value="' + k + '"' + ((f.sort || FIND.defaultSort(R.said)) === k ? ' selected' : '') + '>' + FIND.SORTS[k] + '</option>').join('') + '</select></label>';
     const view = '<div class="fview" role="group" aria-label="View"><button type="button" data-view="list" aria-pressed="' + (f.view !== 'uni') + '">List</button><button type="button" data-view="uni" aria-pressed="' + (f.view === 'uni') + '">By university</button></div>';
     return '<form id="ffilters" class="ffilters" action="/find-university" method="get">'
-      + '<div class="fsearch"><input type="search" name="q" value="' + esc(f.q || '') + '" placeholder="Programme, university or city" aria-label="Search programmes"><button type="submit" class="btn btn-green btn-sm">Search</button></div>'
+      + '<div class="fsearch" id="fsearchWrap"><input type="search" name="q" id="fq" value="' + esc(f.q || '') + '" placeholder="Programme, university, city — or a tag: No German Required, MOI Accepted, TU Munich" aria-label="Search programmes or tags" autocomplete="off" aria-autocomplete="list" aria-controls="fsug" aria-expanded="false"><button type="submit" class="btn btn-green btn-sm">Search</button>'
+      + '<div class="fsug" id="fsug" role="listbox" hidden></div></div>'
       + '<div class="fchips" id="fchips">' + chipsHtml(f, countries) + '</div>'
       + '<div class="flayout"><button type="button" class="btn btn-sm fsheet-btn" id="fsheetBtn" aria-controls="frail" aria-expanded="false">Filters<span id="fcount"></span></button>'
       + '<aside class="frail" id="frail"><div class="frail-head"><b>Filters</b><button type="button" class="flink" id="fsheetClose">Done</button></div>' + railHtml(f, R, countries) + '</aside>'
@@ -156,8 +177,12 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       CRUMBS: '<a href="index.html">Home</a> / Find University',
       BODY: bodyHtml(f, R, countries),
     }));
-    const boot = '<script>window.FIND_BOOT=' + JSON.stringify({ f, countries, page: PAGE }).replace(/</g, '\\u003c') + '</script>'
-      + '<script src="/js/find.js" defer></script><script src="/js/reqs.js" defer></script><script src="/js/find-page.js" defer></script>';
+    /* The logo index too, so the rows the browser fetches as a signed-in
+       visitor — named, but not by this render — get their logos from the
+       same matcher (find.js logoFor). */
+    const boot = '<script>window.FIND_BOOT=' + JSON.stringify({ f, countries, page: PAGE }).replace(/</g, '\\u003c') + ';'
+      + 'window.FIND_LOGOS=' + JSON.stringify(LOGOS.index()).replace(/</g, '\\u003c') + '</script>'
+      + '<script src="/js/tags.js" defer></script><script src="/js/find.js" defer></script><script src="/js/reqs.js" defer></script><script src="/js/find-page.js" defer></script>';
     return { html: page.replace('</head>', FIND_CSS + '</head>').replace('</body>', boot + '</body>'), indexable };
   }
 
@@ -169,6 +194,16 @@ const FIND_CSS = `<style>/* GLOVELS-FIND-CSS */
 .ffilters{display:block}
 .fsearch{display:flex;gap:8px;margin:0 0 12px}
 .fsearch input{flex:1;min-width:0;padding:10px 14px;border:1px solid var(--line);border-radius:10px;font:400 14.5px/1.3 var(--sans);background:var(--paper)}
+.fsearch{position:relative}
+.fsug{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(11,30,49,.18);max-height:380px;overflow-y:auto;padding:6px}
+.fsug h5{margin:8px 12px 4px;font:700 10.8px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fsug button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:0;border-radius:9px;background:none;text-align:left;font:600 13.4px/1.35 var(--sans);color:var(--navy-900);cursor:pointer}
+.fsug button:hover,.fsug button[aria-selected="true"]{background:#f0f5fb;outline:none}
+.fsug button em{font:400 11.6px/1.3 var(--sans);color:var(--muted);white-space:nowrap}
+.fsug .none{padding:12px;font:400 13px/1.5 var(--sans);color:var(--muted)}
+.ftagchip{background:#eef3fc;border-color:#b9cdf0;color:#0b3d91}
+.ftagrow{display:flex;width:100%;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border:0;background:none;font:600 13px/1.35 var(--sans);color:#0b3d91;cursor:pointer;text-align:left}
+.ftagrow b{color:var(--muted);font-weight:700}
 .fchips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;min-height:4px}
 .fchip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:99px;border:1px solid #bfe0cc;background:#eaf6ee;color:#14603a;font:600 12.5px/1.3 var(--sans);cursor:pointer}
 .fchip b{font-weight:700;opacity:.7}
@@ -207,6 +242,8 @@ const FIND_CSS = `<style>/* GLOVELS-FIND-CSS */
 .frow.locked{background:#fbfaf6}
 .flogo{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;background:var(--navy-800);color:#fff;font:700 17px/1 var(--sans);letter-spacing:.02em}
 .flogo.lock{background:#e9e4d6;font-size:24px}
+.flogo.img{background:#fff;border:1px solid var(--line);padding:4px;box-sizing:border-box}
+.flogo.img img{display:block;width:100%;height:100%;object-fit:contain}
 .ftitle{margin:0;font:700 17px/1.3 var(--sans);color:var(--navy-900)}
 .fsub{margin:3px 0 0;font:400 13.4px/1.45 var(--sans);color:var(--muted)}
 .fsub a{color:var(--navy-700);font-weight:600}
@@ -306,9 +343,17 @@ function render(){
 
 function chips(){
   var out = '';
-  F.KEYS.forEach(function(k){ if (!f[k] || k === 'sort' || k === 'view') return; var l = F.chipLabel(k, f[k], countries); if (l) out += '<button type="button" class="fchip" data-clear="' + esc(k) + '">' + esc(l) + ' <b aria-hidden="true">×</b></button>'; });
+  F.KEYS.forEach(function(k){
+    if (!f[k] || k === 'sort' || k === 'view') return;
+    if (k === 'tags') { F.tagList(f.tags).forEach(function(t){ out += '<button type="button" class="fchip ftagchip" data-cleartag="' + esc(t) + '">' + esc(t) + ' <b aria-hidden="true">×</b></button>'; }); return; }
+    var l = F.chipLabel(k, f[k], countries); if (l) out += '<button type="button" class="fchip" data-clear="' + esc(k) + '">' + esc(l) + ' <b aria-hidden="true">×</b></button>'; });
   if (out) out += '<button type="button" class="flink" data-clear="*">Clear all</button>';
   $('#fchips').innerHTML = out;
+  /* The rail's Tags group mirrors the chips. */
+  var tl = F.tagList(f.tags), rail = $('#ftagsRail'), grp = $('#ftagsGroup');
+  if (rail) rail.innerHTML = tl.length ? tl.map(function(t){ return '<button type="button" class="ftagrow" data-cleartag="' + esc(t) + '"><span>' + esc(t) + '</span><b aria-hidden="true">×</b></button>'; }).join('') : '<div class="fmore-note">Type in the search box and pick a tag.</div>';
+  if (grp) grp.hidden = !tl.length;
+  var qb = $('#fq'); if (qb && document.activeElement !== qb) qb.value = f.q || '';
   var n = Object.keys(f).filter(function(k){ return k !== 'sort' && k !== 'view'; }).length;
   $('#fcount').textContent = n ? ' (' + n + ')' : '';
 }
@@ -411,8 +456,9 @@ document.addEventListener('change', function(e){
 });
 document.addEventListener('input', function(e){ var i = e.target; if (i.id === 'fcgpa') { var o = i.nextElementSibling; if (o) o.textContent = 'CGPA ' + i.value; } });
 document.addEventListener('click', function(e){
-  var t = e.target.closest('[data-clear],[data-save],[data-cmp],[data-view],#fmore,#fshare,#fcmpGo,#fcmpClear,#fmodalClose,#fsheetBtn,#fsheetClose,#fmodal');
+  var t = e.target.closest('[data-cleartag],[data-clear],[data-save],[data-cmp],[data-view],#fmore,#fshare,#fcmpGo,#fcmpClear,#fmodalClose,#fsheetBtn,#fsheetClose,#fmodal');
   if (!t) return;
+  if (t.dataset.cleartag !== undefined) { e.preventDefault(); removeTag(t.dataset.cleartag); return; }
   if (t.dataset.clear) { e.preventDefault(); if (t.dataset.clear === '*') { var keepSort = f.sort, keepView = f.view; f = {}; if (keepSort) f.sort = keepSort; if (keepView) f.view = keepView; } else { delete f[t.dataset.clear]; if (t.dataset.clear === 'gre') ['greScore', 'greQuant', 'greVerbal', 'greAwa'].forEach(function(k){ delete f[k]; }); } shown = BOOT.page; render(); return; }
   if (t.dataset.save) { e.preventDefault(); save(t.dataset.save, t); return; }
   if (t.dataset.cmp) { e.preventDefault(); var id = String(t.dataset.cmp); if (compared.has(id)) compared.delete(id); else if (compared.size >= 3) { toast('Compare up to three at a time'); return; } else compared.add(id); t.setAttribute('aria-pressed', String(compared.has(id))); cmpBar(); return; }
@@ -427,7 +473,75 @@ document.addEventListener('click', function(e){
 });
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { if (!$('#fmodal').hidden) closeModal(); else $('#frail').classList.remove('open'); } });
 var sortEl = $('#fsort'); if (sortEl) sortEl.addEventListener('change', function(){ set('sort', sortEl.value === F.defaultSort(result && result.said) ? '' : sortEl.value); });
-var form = $('#ffilters'); if (form) form.addEventListener('submit', function(e){ e.preventDefault(); set('q', (form.q.value || '').trim()); });
+var form = $('#ffilters'); if (form) form.addEventListener('submit', function(e){
+  e.preventDefault();
+  /* Enter on a highlighted suggestion adds that tag; otherwise the words search names. */
+  var sel = $('#fsug button[aria-selected="true"]');
+  if (sel && !$('#fsug').hidden) { addTag(sel.dataset.tag); return; }
+  set('q', (form.q.value || '').trim()); hideSug();
+});
+
+/* ---- 10 Oct: the tag search. Suggestions from /api/tags as you type; a
+   pick adds a chip (f.tags, ';'-joined in the address); the arrow keys walk
+   the list, Escape closes it. ---- */
+function addTag(t){
+  t = String(t || '').trim(); if (!t) return;
+  var list = F.tagList(f.tags);
+  if (!list.some(function(x){ return x.toLowerCase() === t.toLowerCase(); })) list.push(t);
+  var qb = $('#fq'); if (qb) qb.value = '';
+  delete f.q;
+  hideSug();
+  set('tags', list.join(';'));
+  if (qb) qb.focus();
+}
+function removeTag(t){
+  var list = F.tagList(f.tags).filter(function(x){ return x.toLowerCase() !== String(t).toLowerCase(); });
+  set('tags', list.join(';'));
+}
+var sugTimer = null, sugLast = '';
+function hideSug(){ var s = $('#fsug'); if (s) { s.hidden = true; s.innerHTML = ''; } var qb = $('#fq'); if (qb) qb.setAttribute('aria-expanded', 'false'); }
+function drawSug(list){
+  var s = $('#fsug'); if (!s) return;
+  if (!list.length) { s.innerHTML = '<div class="none">No tag by that name — press Search to look through the names.</div>'; s.hidden = false; return; }
+  var by = {}, order = [];
+  list.forEach(function(x){ if (!by[x.type]) { by[x.type] = []; order.push(x.type); } by[x.type].push(x); });
+  s.innerHTML = order.map(function(t){ return '<h5>' + esc(t) + '</h5>' + by[t].map(function(x){ return '<button type="button" role="option" aria-selected="false" data-tag="' + esc(x.value) + '">' + esc(x.value) + '</button>'; }).join(''); }).join('');
+  s.hidden = false;
+  var qb = $('#fq'); if (qb) qb.setAttribute('aria-expanded', 'true');
+}
+function askSug(){
+  var qb = $('#fq'); if (!qb) return;
+  var q = qb.value.trim();
+  if (q.length < 2) { hideSug(); return; }
+  sugLast = q;
+  fetch('/api/tags?q=' + encodeURIComponent(q) + '&limit=24').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (!d || qb.value.trim() !== q) return;
+    drawSug(d.suggestions || []);
+  }).catch(function(){});
+}
+function moveSug(dir){
+  var items = $$('#fsug button'); if (!items.length) return;
+  var i = items.findIndex(function(b){ return b.getAttribute('aria-selected') === 'true'; });
+  items.forEach(function(b){ b.setAttribute('aria-selected', 'false'); });
+  i = i < 0 ? (dir > 0 ? 0 : items.length - 1) : (i + dir + items.length) % items.length;
+  items[i].setAttribute('aria-selected', 'true');
+  if (items[i].scrollIntoView) items[i].scrollIntoView({ block: 'nearest' });
+}
+var qbox = $('#fq');
+if (qbox) {
+  qbox.addEventListener('input', function(){ clearTimeout(sugTimer); sugTimer = setTimeout(askSug, 160); });
+  qbox.addEventListener('focus', function(){ if (qbox.value.trim().length >= 2) askSug(); });
+  qbox.addEventListener('keydown', function(e){
+    var s = $('#fsug');
+    if (e.key === 'Escape') { if (s && !s.hidden) { e.preventDefault(); e.stopPropagation(); hideSug(); } return; }
+    if (s && !s.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); moveSug(e.key === 'ArrowDown' ? 1 : -1); }
+  });
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest('#fsug button');
+  if (b) { e.preventDefault(); addTag(b.dataset.tag); return; }
+  if (!e.target.closest('#fsearchWrap')) hideSug();
+});
 
 /* The catalogue as THIS visitor may see it — names where a package covers them. */
 fetch('/api/auth/me', { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ me = j && (j.user || j.me || (j.id ? j : null)); }).catch(function(){});

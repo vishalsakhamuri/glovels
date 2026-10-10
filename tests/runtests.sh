@@ -187,6 +187,8 @@ run round152test.js 8099
 run findtest.js     8099
 # Patch 164: a completed file is read-only, a left one is shut.
 run round164test.js 8099
+# 10 Oct: the tag search — the dictionary, derived tags, the three boxes.
+run tagtest.js      8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

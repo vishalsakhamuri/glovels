@@ -46,6 +46,7 @@ const SQUEEZE = require('./squeeze.js');
 const UNIS = require('./unis.js');
 const DAAD = require('./daad.js');
 const REQS = require('./reqs.js');
+const TAGS = require('./tags.js');
 
 const DAY = 864e5;
 
@@ -3176,6 +3177,33 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   /* The home page reads this, so a university added on the operations screen
      shows up in the finder without anyone rebuilding the site. */
+  /* 10 Oct: suggestions for the tag search — what the home page, Find
+     University and the counsellor's boxes offer as somebody types. From the
+     dictionary (assets/tags-de.json); when nothing in it matches, programme
+     names from the catalogue, as type 'Programme', so a course the sheet
+     never tagged can still be reached. Names here are the public ones. */
+  route('GET', '/api/tags', async (req, res) => {
+    const qs = url.parse(req.url, true).query;
+    const q = String(qs.q || '').trim().slice(0, 80);
+    const limit = Math.max(1, Math.min(60, Number(qs.limit) || 24));
+    const types = String(qs.types || '').split(',').map(t => t.trim()).filter(Boolean);
+    if (q.length < 2) return json(res, 200, { suggestions: [] });
+    let suggestions = TAGS.suggest(q, { limit, types: types.length ? types : null });
+    if (!suggestions.length && (!types.length || types.includes('Programme'))) {
+      const seen = new Set();
+      const rows = (typeof db.searchRows === 'function' ? db.searchRows(q, 200).map(UNIS.fromRow) : cat().filter(p => TAGS.match(p, [], q)));
+      rows.forEach(p => {
+        const name = String(p.program || '').trim();
+        const k = TAGS.fold(name);
+        if (!name || !k || seen.has(k) || p.searchOnly) return;
+        seen.add(k);
+        suggestions.push({ value: name, type: 'Programme', count: 1 });
+      });
+      suggestions = suggestions.slice(0, limit);
+    }
+    return json(res, 200, { suggestions });
+  }, { open: true });
+
   route('GET', '/api/catalogue', async (req, res) => {
     /*
      * The home page reads this, so a university added on the operations screen
@@ -3270,11 +3298,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        page was BUILT with and later made search-only comes off the finder
        the way a hidden one does. */
     const programmes = cat().filter(p => !p.searchOnly).map(p => {
-      if (!p.isPublic) return p;                       // never gated
-      if (gate === 'open') return p;
+      /* 10 Oct: the tags the home page's tag search narrows on — the
+         office's where imported, derived from the row otherwise. A locked
+         row carries them too, less the ones that would name it. */
+      if (!p.isPublic) return Object.assign({}, p, { tags: TAGS.tagsOf(p) });   // never gated
+      if (gate === 'open') return Object.assign({}, p, { tags: TAGS.tagsOf(p) });
       if (gate === 'names') {
         /* The name, and enough to place it, but not what it costs. */
-        return Object.assign({}, p, { totalInr: 0, freeTuition: false, feeHidden: true });
+        return Object.assign({}, p, { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) });
       }
       const mayName = quota > 0 && mayShow(p);
       if (mayName) spent = named.size;
@@ -3284,8 +3315,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          locked, profile-matched row back into a name without a package. The
          stand-ins are keyed on a secret that lives only in this process, so
          they group rows by university for the counts and say nothing else. */
-      return mayName ? p : {
+      return mayName ? Object.assign({}, p, { tags: TAGS.tagsOf(p) }) : {
         id: OPAQUE('p', p.id), country: p.country, level: p.level, field: p.field,
+        /* What it is about — never who it is (tags.js publicTags). */
+        tags: TAGS.publicTags(p),
         band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
         /* Whether applying costs anything travels on a locked row, for the
            same reason the CGPA bar does: it is a fact about what this row
@@ -4360,7 +4393,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       ceiling: q.ceiling === undefined || q.ceiling === '' ? undefined : Number(q.ceiling) || 0,
       limit: Number(q.limit) || 100,
       ggpa: q.ggpa, tuitionMax: q.tuitionMax, spec: String(q.spec || '').slice(0, 80),
-      feeModel: String(q.feeModel || ''), restricted: String(q.restricted || '') };
+      feeModel: String(q.feeModel || ''), restricted: String(q.restricted || ''),
+      /* 10 Oct: chosen tags, ';'-joined — screen() keeps the rows that carry every one. */
+      tags: String(q.tags || '').slice(0, 2000) };
     const found = MATCHES.screen(cat, prof, countryMap(), opts);
     /* What the machine would deliver — the same call deliverMatches makes. */
     const auto = (owedParts || []).map(part => {
@@ -7792,6 +7827,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          leaves it out leaves the stored record alone (the store does that),
          so a screen that never heard of it cannot blank it. */
       reqs: b.reqs && typeof b.reqs === 'object' ? b.reqs : undefined,
+      /* The office's tags: a list or a ';'-joined string, at most 60 of
+         them, each at most 60 characters. Left out, the stored ones stay
+         (the store does that) — a sheet without the column must not wipe
+         what the last one wrote. */
+      tags: b.tags === undefined ? undefined : TAGS.parseList(b.tags),
       active: b.active !== false,
       /* Search only: a page and a search hit, but not a row in the finder.
          Like featured, not a property of the programme, so an edit that says
@@ -7844,9 +7884,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     });
     const bars = {};
     countries.forEach(c => { bars[c.code] = { pub: c.facts.minCgpaPublic, priv: c.facts.minCgpaPrivate }; });
-    const page = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
-      type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
-      status: qs.status == null ? '' : String(qs.status), page: qs.page, per: qs.per || 100 });
+    /* 10 Oct: chosen tags (?tags=a;b) narrow the page the way the home
+       page's chips do — every tag on the row, stored or derived. The
+       database does not know a derived tag, so the rows are read wide and
+       narrowed here, then paged. */
+    const tagList = TAGS.parseList(qs.tags);
+    let page;
+    if (tagList.length) {
+      const perN = Math.max(1, Math.min(2000, Number(qs.per) || 100)), pageN = Math.max(1, Number(qs.page) || 1);
+      const wide = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
+        type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
+        status: qs.status == null ? '' : String(qs.status), page: 1, per: 2000 });
+      const kept = wide.rows.filter(r => TAGS.match(UNIS.fromRow(r), tagList, ''));
+      page = { rows: kept.slice((pageN - 1) * perN, pageN * perN), total: kept.length, page: pageN, per: perN };
+    } else {
+      page = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
+        type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
+        status: qs.status == null ? '' : String(qs.status), page: qs.page, per: qs.per || 100 });
+    }
     return json(res, 200, {
       programmes: page.rows.map(r => ({
         id: r.id, program: r.program, university: r.university, city: r.city || '',
@@ -7861,6 +7916,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         updatedAt: r.updated_at, updatedBy: r.updated_by || '',
         featured: !!r.featured, featureSort: r.feature_sort || 0,
         intakes: (() => { try { return JSON.parse(r.intakes); } catch (e) { return []; } })(),
+        /* 10 Oct: stored tags as written; `tagsOf` is what the search sees
+           (derived when none are stored), the first few for the screen. */
+        tags: String(r.tags || '').split(';').map(t => t.trim()).filter(Boolean),
+        tagsShown: TAGS.tagsOf(UNIS.fromRow(r)).slice(0, 6),
       })),
       total: page.total, page: page.page, per: page.per,
       stats: db.catalogueStats(),
@@ -8421,6 +8480,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* What the programme asks for — nine columns, one owner. server/reqs.js
        names them, reads them back, and refuses what it cannot read. */
     ...REQS.SHEET_HEADERS.map(h => [h, 'reqs.' + h]),
+    /* 10 Oct: the office's tags, ';'-separated, from the dictionary. Blank
+       on a row keeps what is stored; a sheet without the column at all
+       changes nothing (see tagsOf in the importer). */
+    ['tags', 'tags'],
   ];
 
   const sheetRows = country => (country && typeof db.rowsAll === 'function' ? db.rowsAll(country) : db.programmes(true)).map(r => {
@@ -8457,6 +8520,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       !r.active ? 'no' : r.search_only ? 'search' : 'yes',
       r.featured ? 'yes' : 'no', r.feature_sort || '',
       ...REQS.toSheet(REQS.parse(r.reqs)),
+      String(r.tags || ''),
     ];
   });
 
@@ -8600,6 +8664,23 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        field so an unrecognised-column check does not complain about
        "IELTS" while accepting "ielts min". */
     REQS.FIELDS.forEach(f => REQS.headingsFor(f).forEach(h => { alias[h] = 'reqs.' + f.key; }));
+    /* 10 Oct: the tags column, under the names it arrives as. */
+    Object.assign(alias, { tags: 'tags', tag: 'tags', keywords: 'tags', labels: 'tags' });
+    /* The tags on one row. No column at all: undefined, and the store keeps
+       the row's. A blank cell in a sheet that has the column: ALSO keeps the
+       row's — the Germany sheet is the only place these are written and a
+       blank there is "not tagged yet", never "remove them". */
+    const anyTagColumn = Object.keys(objects[0] || {}).some(h => alias[String(h).toLowerCase().replace(/\s+/g, ' ').trim()] === 'tags');
+    const tagsOf = o => {
+      if (!anyTagColumn) return undefined;
+      for (const h of Object.keys(o)) {
+        if (alias[String(h).toLowerCase().replace(/\s+/g, ' ').trim()] === 'tags') {
+          const v = String(o[h] == null ? '' : o[h]).trim();
+          return v ? TAGS.parseList(v) : undefined;
+        }
+      }
+      return undefined;
+    };
     /* The requirements on one row, whatever the columns were called.
        A sheet that carries NONE of these columns — last month's export, or
        one destination's short list — leaves every stored requirement exactly
@@ -8641,6 +8722,58 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const missing = REQUIRED_COLUMNS
       .filter(([key]) => !seen.some(h => alias[h] === key))
       .map(([, label]) => label);
+
+    /* Patch 165: a TAGS-ONLY sheet — `id` and `tags`, and none of the data
+       columns (country, application, level, field). The office's Germany
+       workbook carries the tags, and the first time they come across the
+       sheet should not have to carry every other column back up with them:
+       a full-row sheet built from a stale export would quietly rewrite a
+       fee or a CGPA bar that somebody changed in between. So a sheet that
+       says ONLY "this row has these tags" is applied as only that. The
+       university and programme columns may ride along for the reader and
+       are ignored. The same two passes: a preview, then confirm. */
+    const hasId = seen.some(h => alias[h] === 'id');
+    const dataCols = ['country', 'feeModel', 'level', 'field'];
+    if (anyTagColumn && hasId && !dataCols.some(k => seen.some(h => alias[h] === k))) {
+      const plan = { create: [], update: [], unchanged: [], rejected: [], warned: 0,
+        unknownColumns: unknown, notes: ['This sheet carries only tags. Every other column of each programme is left exactly as it is.'], tagsOnly: true };
+      const seenIds = new Set();
+      objects.forEach((o, n) => {
+        const line = n + 2;
+        const g = key => { for (const h of Object.keys(o)) if (alias[h] === key) return o[h]; return ''; };
+        const id = String(g('id') || '').trim();
+        const tags = tagsOf(o);
+        const row = id ? db.programme(id) : null;
+        const what = row ? row.university + ' — ' + row.program
+          : String(g('university') || '') + ' — ' + String(g('program') || '');
+        if (!id) { plan.rejected.push({ line, what, why: ['a tags-only sheet needs the id of every row — a blank id cannot add a programme here'] }); return; }
+        if (!row) { plan.rejected.push({ line, what, why: [`there is no programme with id ${id}`] }); return; }
+        if (seenIds.has(id)) { plan.rejected.push({ line, what, why: [`id ${id} appears twice in this file`] }); return; }
+        seenIds.add(id);
+        if (tags === undefined) { plan.unchanged.push({ line, id, what, note: 'no tags on this line' }); return; }
+        const before = TAGS.parseList(String(row.tags || '')).join('; ');
+        const after = tags.join('; ');
+        if (before === after) plan.unchanged.push({ line, id, what });
+        else plan.update.push({ line, id, what, changed: ['tags'], tags, warn: [] });
+      });
+      const body = parsed.fields || {};
+      const counts = { create: 0, update: plan.update.length, unchanged: plan.unchanged.length,
+        rejected: plan.rejected.length, warned: 0 };
+      if (!YES(body.confirm)) {
+        return json(res, 200, { preview: true, tagsOnly: true, counts, plan,
+          note: 'Nothing has been changed. Send it again with confirm to apply.' });
+      }
+      if (plan.rejected.length && !YES(body.skipBad)) {
+        return json(res, 422, { error: plan.rejected.length + ' row(s) cannot be imported. Fix them, or confirm '
+          + 'again with "skip the bad rows".', plan });
+      }
+      let updated = 0;
+      plan.update.forEach(u => { db.setTags(u.id, u.tags, s.name); updated++; });
+      db.log(s.name, 'tags imported from a sheet', updated + ' updated, ' + plan.rejected.length + ' skipped');
+      return json(res, 200, { applied: true, tagsOnly: true, created: 0, updated,
+        skipped: plan.rejected.length, unchanged: plan.unchanged.length });
+    }
+
     if (missing.length) {
       return json(res, 422, {
         error: 'That file is not the current catalogue sheet. '
@@ -8757,6 +8890,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const draft = {
         id: String(g('id') || '').trim(),
         reqs: reqsOf(o),
+        tags: tagsOf(o),
         program: g('program'), university: g('university'),
         /* The name a counsellor says out loud. Blank is a real answer and
            means "use the full name" — every row outside Germany has one —
@@ -9005,6 +9139,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            carries the columns at all; a sheet without them is not saying
            anything about them and must not read as a change. */
         reqs: clean.reqs === undefined ? '' : JSON.stringify(REQS.parse(existing.reqs)),
+        /* And the tags — the first upload of that column is a sheet where
+           it is the only edit on every row. */
+        tags: clean.tags === undefined ? '' : String(existing.tags || ''),
       };
       const after = {
         program: clean.program, university: clean.university, city: clean.city,
@@ -9018,6 +9155,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         shortName: shortNameOf(clean.shortName),
         intakes: asIntakes(clean.intakes),
         reqs: clean.reqs === undefined ? '' : JSON.stringify(REQS.clean(clean.reqs).reqs),
+        tags: clean.tags === undefined ? '' : clean.tags.join(';'),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
       /* An unchanged row can still carry a warning, and used to swallow it.
@@ -9084,6 +9222,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const clean = cleanProgramme({
         id,
         reqs: reqsOf(o),
+        tags: tagsOf(o),
         program: g('program'), university: g('university'),
         /* Read here as well as in the plan above. The comment twenty lines
            down says why: a field the preview understands and the apply drops
@@ -10049,6 +10188,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       console.log('  re-banded', wrong.length, 'programme(s) whose band disagreed with the fee');
     }
   } catch (e) { console.error('  re-band at start failed', e && e.message); }
+
+  /* Patch 165: the success-stories data the office uploads (server/stories.js). */
+  require('./stories.js').installRoutes(route, { db, content, needs, json, readBody, log: console });
 
   return async function handle(req, res, pathname) {
     if (crossSite(req)) {

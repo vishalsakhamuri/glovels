@@ -611,7 +611,7 @@ function sqliteDriver(file) {
    /* The office's table walks the catalogue in name order, a page at a time;
       without this the first page is a sort of every row. */
    'CREATE INDEX IF NOT EXISTS idx_prog_order ON programmes(uni_slug, program)',
-   "CREATE VIRTUAL TABLE IF NOT EXISTS prog_fts USING fts5(id UNINDEXED, university, short_name, city, program, field, tokenize='unicode61 remove_diacritics 2')",
+   "CREATE VIRTUAL TABLE IF NOT EXISTS prog_fts USING fts5(id UNINDEXED, university, short_name, city, program, field, tags, tokenize='unicode61 remove_diacritics 2')",
    /* Ten thousand posts: the lists (the public index, the office's list, the
       sitemap) read a page of them without the bodies, so the word count a
       list prints is a column kept at save time rather than a body read. */
@@ -754,6 +754,12 @@ function sqliteDriver(file) {
       un-pay a part — the part WAS paid, on a date, by a method — so what came
       back is its own figure and "received" is the difference. */
    'ALTER TABLE orders ADD COLUMN refunded_paise INTEGER NOT NULL DEFAULT 0',
+   /* 10 Oct: the office's tags on a programme — "No German Required;
+      MOI Accepted; TU Munich; Data" — semicolon-separated values from the
+      tag dictionary (assets/tags-de.json, server/tags.js). Blank means
+      none imported yet, and server/tags.js derives a set from the row's own
+      fields so the tag search works before and without the import. */
+   "ALTER TABLE programmes ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -935,10 +941,20 @@ function open(dir) {
   const ftsPut = p => {
     if (db.kind !== 'sqlite') return;
     try {
-      db.run('INSERT INTO prog_fts (rowid, id, university, short_name, city, program, field) VALUES ((SELECT rowid FROM programmes WHERE id = ?), ?, ?, ?, ?, ?, ?)',
+      db.run('INSERT INTO prog_fts (rowid, id, university, short_name, city, program, field, tags) VALUES ((SELECT rowid FROM programmes WHERE id = ?), ?, ?, ?, ?, ?, ?, ?)',
         String(p.id), String(p.id), String(p.university || ''), cleanShortName(p.shortName), String(p.city || ''),
-        String(p.program || ''), String(p.field || ''));
+        String(p.program || ''), String(p.field || ''), tagsText(p.tags));
     } catch (e) { /* the index is a convenience; the table is the truth */ }
+  };
+  /* The tags column as stored: one string, values joined by ';'. An array or
+     a string is accepted; undefined is the caller saying nothing (see
+     saveProgramme, which then keeps what the row has). */
+  const tagsText = v => {
+    if (v == null) return '';
+    const list = Array.isArray(v) ? v : String(v).split(';');
+    const seen = new Set(), out = [];
+    list.forEach(t => { const s = String(t == null ? '' : t).trim().slice(0, 60); const k = s.toLowerCase(); if (s && !seen.has(k)) { seen.add(k); out.push(s); } });
+    return out.slice(0, 60).join(';');
   };
   /* The FTS5 query for what somebody typed: each word as a prefix. */
   const ftsMatch = q => {
@@ -964,13 +980,13 @@ function open(dir) {
        below so a rebuild (if one happens) already sees the blank. Idempotent:
        nothing matches on the second start. */
     try {
-      const bad = db.all("SELECT id, university, city, program, field FROM programmes WHERE short_name IN ('undefined', 'null', 'NaN', 'Undefined', 'NULL')");
+      const bad = db.all("SELECT id, university, city, program, field, tags FROM programmes WHERE short_name IN ('undefined', 'null', 'NaN', 'Undefined', 'NULL')");
       if (bad.length) {
         db.run('BEGIN');
         bad.forEach(r => {
           db.run("UPDATE programmes SET short_name = '' WHERE id = ?", r.id);
           ftsDrop(r.id);
-          ftsPut({ id: r.id, university: r.university, shortName: '', city: r.city, program: r.program, field: r.field });
+          ftsPut({ id: r.id, university: r.university, shortName: '', city: r.city, program: r.program, field: r.field, tags: r.tags });
         });
         db.run('COMMIT');
       }
@@ -982,17 +998,27 @@ function open(dir) {
         missing.forEach(r => db.run('UPDATE programmes SET uni_slug = ? WHERE id = ?', UNIS.slugOf(r.university), r.id));
         db.run('COMMIT');
       }
+      /* 10 Oct: the index gained a `tags` column. FTS5 cannot ALTER one in,
+         so an index without it is dropped and made again — once, on an old
+         database; the rebuild below then fills it. */
+      const ftsCols = db.all("PRAGMA table_info('prog_fts')").map(c => c.name);
+      let remade = false;
+      if (ftsCols.length && !ftsCols.includes('tags')) {
+        db.run('DROP TABLE IF EXISTS prog_fts');
+        db.run("CREATE VIRTUAL TABLE IF NOT EXISTS prog_fts USING fts5(id UNINDEXED, university, short_name, city, program, field, tags, tokenize='unicode61 remove_diacritics 2')");
+        remade = true;
+      }
       const n = (db.one('SELECT COUNT(*) AS n FROM programmes') || {}).n || 0;
       const f = (db.one('SELECT COUNT(*) AS n FROM prog_fts') || {}).n || 0;
       /* Rebuilt when the counts differ, or once when the index predates the
          rowid scheme (a flag in the content table says which). */
       const keyed = !!db.one('SELECT key FROM content WHERE key = ?', 'ftsRowidV2');
-      if (n !== f || !keyed) {
+      if (n !== f || !keyed || remade) {
         db.run('DELETE FROM prog_fts');
         db.run('BEGIN');
-        db.all('SELECT rowid AS rid, id, university, short_name, city, program, field FROM programmes').forEach(r =>
-          db.run('INSERT INTO prog_fts (rowid, id, university, short_name, city, program, field) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            r.rid, r.id, r.university || '', r.short_name || '', r.city || '', r.program || '', r.field || ''));
+        db.all('SELECT rowid AS rid, id, university, short_name, city, program, field, tags FROM programmes').forEach(r =>
+          db.run('INSERT INTO prog_fts (rowid, id, university, short_name, city, program, field, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            r.rid, r.id, r.university || '', r.short_name || '', r.city || '', r.program || '', r.field || '', r.tags || ''));
         db.run('INSERT OR REPLACE INTO content (key, value, who, updated_at) VALUES (?, ?, ?, ?)', 'ftsRowidV2', '{"done":true}', 'system', now());
         db.run('COMMIT');
       }
@@ -1657,7 +1683,7 @@ function open(dir) {
       if (!words.length) return [];
       if (db.kind !== 'sqlite') {
         return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && words.every(w =>
-          (r.university + ' ' + r.short_name + ' ' + r.city + ' ' + r.program + ' ' + r.field).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').includes(w)))
+          (r.university + ' ' + r.short_name + ' ' + r.city + ' ' + r.program + ' ' + r.field + ' ' + (r.tags || '')).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').includes(w)))
           .slice(0, limit || 200);
       }
       const match = ftsMatch(q);
@@ -1767,7 +1793,7 @@ function open(dir) {
           && (!type || (type === 'pub' ? !!r.is_public : type === 'pri' ? !r.is_public : feeOf(r) === type))
           && (!cg || barOf(r) == null || cg >= barOf(r))
           && (status === '' || status == null || (status === '1' ? (r.active && !r.search_only) : status === '2' ? (r.active && r.search_only) : !r.active))
-          && words.every(word => (r.university + ' ' + r.program + ' ' + (r.field || '') + ' ' + (r.city || '')).toLowerCase().includes(word)));
+          && words.every(word => (r.university + ' ' + r.program + ' ' + (r.field || '') + ' ' + (r.city || '') + ' ' + (r.tags || '')).toLowerCase().includes(word)));
         return { rows: rows.slice((pageN - 1) * perN, pageN * perN), total: rows.length, page: pageN, per: perN };
       }
       const total = (db.one('SELECT COUNT(*) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
@@ -1939,17 +1965,19 @@ function open(dir) {
          mention them keeps what the row already has — an edit of the title
          must not blank the IELTS bar, which is the exact fault a
          column-by-column save invites. */
-      const prior = db.one('SELECT reqs FROM programmes WHERE id = ?', String(p.id));
+      const prior = db.one('SELECT reqs, tags FROM programmes WHERE id = ?', String(p.id));
       const reqsText = p.reqs === undefined
         ? ((prior && prior.reqs) || '')
         : JSON.stringify(REQS.clean(p.reqs).reqs);
+      /* The tags, the same way: a caller that says nothing keeps the row's. */
+      const tagText = p.tags === undefined ? ((prior && prior.tags) || '') : tagsText(p.tags);
       catVersion++;
       ftsDrop(p.id);
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, short_name, city, country, level, field, band,
          is_public, fit, min_cgpa, total_inr, url, intakes, active, featured,
-         feature_sort, fee_model, german_gpa, search_only, uni_slug, reqs, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         feature_sort, fee_model, german_gpa, search_only, uni_slug, reqs, tags, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university,
         cleanShortName(p.shortName).slice(0, 40),
         p.city || '', p.country,
@@ -1957,8 +1985,8 @@ function open(dir) {
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
         p.featured ? 1 : 0, Number(p.featureSort || 0), fee, gg,
-        p.searchOnly ? 1 : 0, UNIS.slugOf(p.university), reqsText, now(), who || '');
-      ftsPut(p);
+        p.searchOnly ? 1 : 0, UNIS.slugOf(p.university), reqsText, tagText, now(), who || '');
+      ftsPut(Object.assign({}, p, { tags: tagText }));
       return this.programme(p.id);
     },
 
@@ -1970,6 +1998,19 @@ function open(dir) {
       catVersion++;
       db.run('UPDATE programmes SET fee_model = ? WHERE id = ?',
         /^(free|package)$/.test(String(fee)) ? String(fee) : '', String(id));
+    },
+    /* Patch 165: the tags alone — the tags-only sheet import. Nothing else
+       on the row is touched, and the search index is told. */
+    setTags(id, tags, who) {
+      const row = this.programme(id);
+      if (!row) return null;
+      catVersion++;
+      db.run('UPDATE programmes SET tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+        tagsText(tags), now(), who || '', String(id));
+      ftsDrop(id);
+      ftsPut({ id, university: row.university, shortName: row.short_name, city: row.city,
+        program: row.program, field: row.field, tags: tagsText(tags) });
+      return this.programme(id);
     },
     deleteProgramme: id => { catVersion++; ftsDrop(id); db.run('DELETE FROM programmes WHERE id = ?', String(id)); },
 

@@ -314,6 +314,17 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .fsres a small{display:block;font:400 12px/1.4 var(--sans);color:var(--muted)}
 .fsres a span.n{font:700 11.6px/1.3 var(--sans);color:var(--navy-700);white-space:nowrap}
 .fsres .none{padding:12px;font:400 13px/1.5 var(--sans);color:var(--muted)}
+.fsres button.fstag{display:flex;width:100%;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:0;border-radius:9px;
+  background:none;text-align:left;font:600 13.4px/1.35 var(--sans);color:var(--navy-900);cursor:pointer}
+.fsres button.fstag:hover,.fsres button.fstag:focus,.fsres button.fstag[aria-selected="true"]{background:#f0f5fb;outline:none}
+.fsres button.fstag em{font:400 11.6px/1.3 var(--sans);color:var(--muted);white-space:nowrap}
+.fsres .fsadd{font:400 12px/1.4 var(--sans);color:var(--muted);padding:2px 12px 6px}
+.ftagchips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.ftagchip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:99px;border:1px solid #b9cdf0;background:#eef3fc;color:#0b3d91;font:600 12.5px/1.3 var(--sans);cursor:pointer}
+.ftagchip.text{border-color:#e6d5a8;background:#fdf6e6;color:#5b4409}
+.ftagchip b{font-weight:700;opacity:.7}
+.ftagchip small{font:400 11px/1.3 var(--sans);opacity:.7}
+.ftagchips .hint{font:400 12px/1.4 var(--sans);color:var(--muted)}
 @media (max-width:640px){.fsearch input{font-size:13.2px;padding-left:38px}}
 .admits{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;
   padding-top:14px;border-top:1px solid var(--line)}
@@ -1360,9 +1371,10 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div class="fsearch" id="fSearchWrap">
       <label for="fSearch" class="offscreen">Search a university or programme by name</label>
       <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
-      <input id="fSearch" type="search" autocomplete="off" spellcheck="false"
-        placeholder="Or search by name — a university, a city, a programme: Heidelberg, Munich, Data Science…">
+      <input id="fSearch" type="search" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="fSearchRes" aria-expanded="false"
+        placeholder="Or search by name or tag — a university, a city, a programme, or “No German Required”, “MOI Accepted”, “TU Munich”…">
       <div class="fsres" id="fSearchRes" hidden role="listbox"></div>
+      <div class="ftagchips" id="fTagChips" hidden></div>
     </div>
       </div>
   <div class="rail" id="rail"><button class="rail-card" data-band="u10" data-railband="u10"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg></span><span class="rail-tx"><b>Under ₹10L</b><span>Public &amp; low-cost picks</span></span><span class="rail-n">132</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="u20" data-railband="u20"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg></span><span class="rail-tx"><b>Under ₹20L</b><span>Best-value programs</span></span><span class="rail-n">19</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="above20" data-railband="above20"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></span><span class="rail-tx"><b>₹20L+</b><span>Premium destinations</span></span><span class="rail-n">16</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="elite" data-railband="elite"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></span><span class="rail-tx"><b>Top-ranked</b><span>Top-ranked worldwide</span></span><span class="rail-n">4</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
@@ -1735,6 +1747,9 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 </footer>
 
 <button class="wa-launch" id="wa" aria-label="Chat with a counsellor"><svg class="ico" aria-hidden="true"><use href="#i-wa2"/></svg></button>
+<!-- 10 Oct: the tag search (server/tags.js). Opened from disk there is no
+     server to serve it, and the box falls back to the plain name search. -->
+<script src="/js/tags.js"></script>
 <script>
 /*
  * The sentence somebody ticks, composed the same way on both sides.
@@ -2340,6 +2355,48 @@ const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
    ones set aside. Read by the two boxes around the results. */
 let TURNED = [], NEEDED = new Map(), ASKED = 0;
 
+/* 10 Oct: the tag search. The chips under the search box — each a value
+   from the tag dictionary (with its type), or a free-text chip (type 'Text')
+   for words that matched no tag and search the names instead. Every chip
+   has to hold: they AND together. */
+let TAGCHIPS = [];
+const tagValues = () => TAGCHIPS.filter(c => c.type !== 'Text').map(c => c.value);
+const tagText = () => TAGCHIPS.filter(c => c.type === 'Text').map(c => c.value).join(' ');
+/* The row's tags: what /api/catalogue sent (stored or derived on the
+   server), or derived here for a row this page shipped with. */
+function tagHold(p){
+  if(!TAGCHIPS.length) return true;
+  if(!window.TAGS) {
+    /* No module (opened from disk): the words search the names. */
+    const hay = [p.program, p.university, p.shortName, p.city, p.field].map(x => String(x || '')).join(' ').toLowerCase();
+    return TAGCHIPS.every(c => String(c.value).toLowerCase().split(/\s+/).every(w => hay.includes(w)));
+  }
+  return TAGS.match(p, tagValues(), tagText());
+}
+function drawTagChips(){
+  const el = $('#fTagChips'); if(!el) return;
+  el.hidden = !TAGCHIPS.length;
+  el.innerHTML = TAGCHIPS.map((c, i) => '<button type="button" class="ftagchip' + (c.type === 'Text' ? ' text' : '') + '" data-tagchip="' + i + '" title="Remove">'
+    + esc(c.value) + (c.type && c.type !== 'Text' ? ' <small>' + esc(c.type) + '</small>' : c.type === 'Text' ? ' <small>in the name</small>' : '') + ' <b aria-hidden="true">×</b><span class="offscreen"> remove</span></button>').join('')
+    + (TAGCHIPS.length > 1 ? '<span class="hint">All of these</span>' : '');
+}
+function addTagChip(value, type){
+  const v = String(value || '').trim().slice(0, 60); if(!v) return;
+  if(TAGCHIPS.some(c => c.value.toLowerCase() === v.toLowerCase())) return;
+  TAGCHIPS.push({ value: v, type: String(type || '') });
+  drawTagChips();
+  touched = true; render();
+}
+function removeTagChip(i){
+  TAGCHIPS.splice(i, 1);
+  drawTagChips();
+  if(typeof render === 'function') render();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-tagchip]');
+  if(b){ e.preventDefault(); removeTagChip(Number(b.dataset.tagchip)); }
+});
+
 /* A control is shown only when a row in view states what it asks about —
    the rows under the destination, level and field, before the answers are
    applied. Otherwise it is a question nobody will read the answer to. */
@@ -2407,6 +2464,9 @@ function filtered(ignoreBands, collect){
     if(adm === 'open' && reqsOf(p).restricted === true) return false;
     if(adm === 'restricted' && reqsOf(p).restricted !== true) return false;
     if(fee && feeOf(p) !== fee) return false;
+    /* 10 Oct: the tag chips — every one on the row (stored or derived),
+       free-text ones in the names. */
+    if(!tagHold(p)) return false;
     /* What it asks for, against what they told us. A stated requirement they
        fall short of sets the row aside — counted, and named where the name
        is theirs to see — rather than shown as if it were open to them. A
@@ -2554,55 +2614,92 @@ function uniSlug(name){
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 }
 
-/* The name search. Asks the server after a pause, draws what comes back, and
-   every row is a link to the university's page. Escape or a click outside
-   closes it; the arrow keys walk it. */
+/* The search box (10 Oct: tags first). Asks the server after a pause for
+   two things at once — tag suggestions (/api/tags, grouped by type) and
+   universities and programmes by name (/api/universities/search, each a link
+   to the university's page). Picking a tag adds a chip under the box and
+   narrows the finder; Enter with nothing picked adds what was typed as a
+   free-text chip that searches the names. Escape or a click outside closes
+   it; the arrow keys walk it. */
 (function nameSearch(){
   const box = document.getElementById('fSearch'), out = document.getElementById('fSearchRes');
   if (!box || !out) return;
   let t = null, last = '';
-  const draw = d => {
-    const U = d.universities || [], P = d.programmes || [];
-    if (!U.length && !P.length) {
-      out.innerHTML = '<div class="none">Nothing by that name yet. Try the filters above, or '
+  const draw = (d, tags) => {
+    const U = d.universities || [], P = d.programmes || [], T = tags || [];
+    if (!U.length && !P.length && !T.length) {
+      out.innerHTML = '<div class="none">Nothing by that name yet — press Enter to search the names for it anyway, try the filters above, or '
         + '<a href="index.html#counsel" style="display:inline;padding:0">ask a counsellor</a>.</div>';
-      out.hidden = false; return;
+      out.hidden = false; box.setAttribute('aria-expanded', 'true'); return;
     }
-    out.innerHTML = (U.length ? '<h5>Universities</h5>' + U.map(u =>
+    const by = new Map();
+    T.forEach(x => { if (!by.has(x.type)) by.set(x.type, []); by.get(x.type).push(x); });
+    let tagHtml = '';
+    by.forEach((items, type) => {
+      tagHtml += '<h5>' + esc(type) + '</h5>' + items.map(x =>
+        '<button type="button" class="fstag" role="option" aria-selected="false" data-tag="' + esc(x.value) + '" data-type="' + esc(x.type) + '">' + esc(x.value)
+        + '<em>add</em></button>').join('');
+    });
+    if (tagHtml) tagHtml = '<div class="fsadd">Pick a tag to narrow the results below — pick several and all of them have to hold.</div>' + tagHtml;
+    out.innerHTML = tagHtml
+      + (U.length ? '<h5>Universities</h5>' + U.map(u =>
         '<a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
         + esc([u.city, u.countryName].filter(Boolean).join(', ')) + '</small></span>'
         + '<span class="n">' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's') + ' →</span></a>').join('') : '')
       + (P.length ? '<h5>Programmes</h5>' + P.map(p =>
         '<a href="' + esc(p.url) + '"><span><b>' + esc(p.program) + '</b><small>'
         + esc(p.university) + ' · ' + esc(p.countryName) + '</small></span><span class="n">Open →</span></a>').join('') : '');
-    out.hidden = false;
+    out.hidden = false; box.setAttribute('aria-expanded', 'true');
   };
   const ask = async () => {
     const q = box.value.trim();
-    if (q.length < 2) { out.hidden = true; return; }
+    if (q.length < 2) { out.hidden = true; box.setAttribute('aria-expanded', 'false'); return; }
     if (q === last) { out.hidden = false; return; }
     last = q;
     try {
-      const r = await fetch('/api/universities/search?q=' + encodeURIComponent(q));
+      const [r, rt] = await Promise.all([
+        fetch('/api/universities/search?q=' + encodeURIComponent(q)),
+        fetch('/api/tags?q=' + encodeURIComponent(q) + '&limit=18').catch(() => null),
+      ]);
       if (!r.ok) return;
       const d = await r.json();
-      if (box.value.trim() === q) draw(d);
+      let tags = [];
+      try { if (rt && rt.ok) tags = (await rt.json()).suggestions || []; } catch (e) { tags = []; }
+      if (box.value.trim() === q) draw(d, tags);
     } catch (e) { /* offline: the filters still work */ }
   };
+  const close = () => { out.hidden = true; box.setAttribute('aria-expanded', 'false'); };
+  const pick = b => { addTagChip(b.dataset.tag, b.dataset.type); box.value = ''; last = ''; close(); box.focus(); };
+  /* Enter: the highlighted tag; else the first tag offered; else a link; else
+     what was typed, as a free-text chip. */
+  const enter = () => {
+    const q = box.value.trim();
+    if (!out.hidden) {
+      const hi = out.querySelector('.fstag[aria-selected="true"]') || out.querySelector('.fstag');
+      if (hi) { pick(hi); return; }
+      /* A result link only — not the "ask a counsellor" link in the empty note. */
+      const a = out.querySelector(':scope > a'); if (a) { location.href = a.href; return; }
+    }
+    if (q) { addTagChip(q, 'Text'); box.value = ''; last = ''; close(); }
+  };
+  const items = () => [...out.querySelectorAll('.fstag, :scope > a')];
   box.addEventListener('input', () => { clearTimeout(t); t = setTimeout(ask, 180); });
   box.addEventListener('focus', () => { if (box.value.trim().length >= 2) ask(); });
   box.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { out.hidden = true; return; }
-    if (e.key === 'ArrowDown' && !out.hidden) { const a = out.querySelector('a'); if (a) { e.preventDefault(); a.focus(); } }
-    if (e.key === 'Enter' && !out.hidden) { const a = out.querySelector('a'); if (a) { e.preventDefault(); location.href = a.href; } }
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'ArrowDown' && !out.hidden) { const a = items()[0]; if (a) { e.preventDefault(); a.focus(); if (a.classList.contains('fstag')) a.setAttribute('aria-selected', 'true'); } }
+    if (e.key === 'Enter') { e.preventDefault(); enter(); }
   });
   out.addEventListener('keydown', e => {
-    const links = [...out.querySelectorAll('a')], i = links.indexOf(document.activeElement);
-    if (e.key === 'ArrowDown' && i < links.length - 1) { e.preventDefault(); links[i + 1].focus(); }
-    if (e.key === 'ArrowUp') { e.preventDefault(); (i > 0 ? links[i - 1] : box).focus(); }
-    if (e.key === 'Escape') { out.hidden = true; box.focus(); }
+    const list = items(), i = list.indexOf(document.activeElement);
+    list.forEach(x => x.setAttribute && x.classList.contains('fstag') && x.setAttribute('aria-selected', 'false'));
+    const sel = el => { el.focus(); if (el.classList.contains('fstag')) el.setAttribute('aria-selected', 'true'); };
+    if (e.key === 'ArrowDown' && i < list.length - 1) { e.preventDefault(); sel(list[i + 1]); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); if (i > 0) sel(list[i - 1]); else box.focus(); }
+    if (e.key === 'Escape') { close(); box.focus(); }
   });
-  document.addEventListener('click', e => { if (!e.target.closest('#fSearchWrap')) out.hidden = true; });
+  out.addEventListener('click', e => { const b = e.target.closest('.fstag'); if (b) { e.preventDefault(); pick(b); } });
+  document.addEventListener('click', e => { if (!e.target.closest('#fSearchWrap')) close(); });
 })();
 
 function nextOn(deadline){
@@ -2749,7 +2846,7 @@ function rowHtml(r){
   const dl = dlNow.at ? new Date(dlNow.at).toLocaleDateString('en-GB',
       {day:'numeric',month:'short',year:'numeric'}) : '';
   return `<div class="mrow" data-band="${r.band}">
-    <div class="mcc">${ctry.flag}</div>
+    <div class="mcc">${(() => { const lg = r.logo || (window.GLV_LOGO ? window.GLV_LOGO(r.university, r.shortName) : ''); return lg ? `<img src="${esc(lg)}" alt="" width="28" height="28" loading="lazy" decoding="async" style="width:28px;height:28px;object-fit:contain;background:#fff;border-radius:6px;padding:2px;box-sizing:border-box">` : ctry.flag; })()}</div>
     <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}${restrictTag(r)}${restrictLine(r)}</div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice">${feeUnknown(r)?'Fee to be confirmed':short(r.totalInr)}<small>${feeUnknown(r)?'':r.totalInr===0?'tuition':'total'}</small></div>
@@ -2767,6 +2864,22 @@ function rowHtml(r){
 /* "Chances unknown" until they have answered; "clears what it asks" once
    they have and it does; nothing on a row that states nothing, because a
    green chip on a programme we know nothing about would be a lie. */
+/* Patch 165: university logos on named rows (server/logos.js; the index is at
+   /logos/index.json, the matcher is find.js logoFor). Until it has arrived the
+   flag is drawn; once it lands the list is redrawn. */
+window.GLV_LOGO = null;
+(function(){
+  var s = document.createElement('script'); s.src = '/js/find.js'; s.async = true;
+  s.onload = function(){
+    fetch('/logos/index.json', { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(idx){ if (!idx || !window.FIND) return;
+        window.GLV_LOGO = function(name, short){ return window.FIND.logoFor(name, short, idx); };
+        if (typeof render === 'function' && typeof touched !== 'undefined') render(); })
+      .catch(function(){});
+  };
+  document.head.appendChild(s);
+})();
+
 function verdictChip(r){
   const need = r._need;
   /* Patch 162: short of something it asks — shown, ranked lower, said. */
@@ -2954,6 +3067,7 @@ function criteria(){
     /* A number box has no options; its value is the text. */
     if(el && el.value && boxOn(el)) bits.push('<span>'+lbl+' <b>'+esc(el.options ? el.options[el.selectedIndex].textContent.replace(/\s*\(\d+\)$/,'') : el.value)+'</b></span>');
   });
+  TAGCHIPS.forEach(c => bits.push('<span>' + (c.type === 'Text' ? 'Search' : 'Tag') + ' <b>' + esc(c.value) + '</b></span>'));
   return bits.join('');
 }
 
@@ -2983,6 +3097,8 @@ const pickBox = id => { const el = $(id); return el && boxOn(el) ? String(el.val
 function finderHref(){
   const q = new URLSearchParams();
   FILTER_BOXES.forEach(([k, id]) => { const v = pickBox(id); if (v) q.set(k, v); });
+  if (tagValues().length) q.set('tags', tagValues().join(';'));
+  if (tagText()) q.set('q', tagText());
   const qs = q.toString();
   return '/find-university' + (qs ? '?' + qs : '');
 }
@@ -3231,6 +3347,9 @@ async function asSend(e) {
   const filters = { summary: criteriaText() };
   FILTER_BOXES.forEach(([k, id]) => { const v = pick(id); if (v) filters[k] = v; });
   if (bands.size) filters.bands = [...bands].join(',');
+  /* 10 Oct: the tag chips, the way the address carries them. */
+  if (tagValues().length) filters.tags = tagValues().join(';');
+  if (tagText()) filters.q = tagText();
   /* Patch 154: what the finder read from their profile without a box being
      touched — bachelor's, CGPA, tests, German, work — so the counsellor sees the
      whole picture the matcher saw, not only the boxes. */
@@ -4200,6 +4319,7 @@ render();
         if (p.level) had.level = p.level;
         if (typeof p.isPublic === 'boolean') had.isPublic = p.isPublic;
         if (p.uKey) had.uKey = p.uKey;
+        if (Array.isArray(p.tags)) had.tags = p.tags;
         if (p.totalInr != null) {
           had.totalInr = p.totalInr;
           had.freeTuition = (p.totalInr || 0) === 0;
@@ -4236,6 +4356,8 @@ render();
       uLen: p.uLen != null ? p.uLen : String(p.university || '').length,
       freeTuition: (p.totalInr || 0) === 0, dummy: false,
       reqs: p.reqs && typeof p.reqs === 'object' ? p.reqs : null,
+      /* 10 Oct: the tags the search narrows on, as the server sent them. */
+      tags: Array.isArray(p.tags) ? p.tags : [],
     };
     /* A private university is not gated, so its row carries its own name, city
        and fee — a locked public row deliberately carries none of that. Adding a
@@ -4293,6 +4415,9 @@ render();
     if (live.reqs && typeof live.reqs === 'object'
         && JSON.stringify(live.reqs) !== JSON.stringify(row.reqs || null)) {
       row.reqs = live.reqs; bars++;
+    }
+    if (Array.isArray(live.tags) && JSON.stringify(live.tags) !== JSON.stringify(row.tags || [])) {
+      row.tags = live.tags; bars++;
     }
   });
   /* Every field and level the catalogue actually holds gets an option. The

@@ -1,0 +1,785 @@
+{
+ "files": {
+  "Aalen University": "Aalen_University__6a2816446fe8d.svg",
+  "Albstadt-Sigmaringen University": "Albstadt_Sigmaringen_University__69c3db75e4d18.svg",
+  "Anhalt University of Applied Sciences": "Anhalt_University_of_Applied_Sciences__67c1897ecbe13.png",
+  "Ansbach University of Applied Sciences": "Ansbach_University_of_Applied_Sciences__67dad9ebc475d.png",
+  "Aschaffenburg University of Applied Sciences": "Aschaffenburg_University_of_Applied_Sciences__67fd05084224f.png",
+  "Bauhaus-Universität Weimar": "Bauhaus_Universitaet_Weimar__67d18f228cd60.png",
+  "Bavarian University of Business and Technology (HDBW)": "Bavarian_University_of_Business_and_Technology_HDBW__6a743083c785a.jpeg",
+  "Berliner Hochschule für Technik": "Berliner_Hochschule_fuer_Technik__67beebf427994.png",
+  "Bielefeld University": "Bielefeld_University__67c0807cde0c9.png",
+  "Bingen University of Applied Sciences": "Bingen_University_of_Applied_Sciences__plain_67ebd16ebf787.svg",
+  "Bochum University of Applied Sciences": "Bochum_University_of_Applied_Sciences__html_692eab76a9895.svg",
+  "Brandenburg University of Technology Cottbus-Senftenberg": "Brandenburg_University_of_Technology_Cottbus_Senftenberg__69a55adb48a8b.png",
+  "Bremen University of Applied Sciences": "Bremen_University_of_Applied_Sciences__67c081b588732.png",
+  "Bremerhaven University of Applied Sciences": "Bremerhaven_University_of_Applied_Sciences__67dbddd117245.png",
+  "Catholic University of Eichstätt-Ingolstadt": "Catholic_University_of_Eichstaett_Ingolstadt__67c849c3b54f4.png",
+  "Charité - Universitätsmedizin Berlin": "Charité_Universitaetsmedizin_Berlin__67da8e56b0aea.png",
+  "Chemnitz University of Technology": "Chemnitz_University_of_Technology__67c572ab4734e.png",
+  "Coburg University of Applied Sciences and Arts": "Coburg_University_of_Applied_Sciences_and_Arts__67c81f496f317.png",
+  "Darmstadt University of Applied Sciences": "Darmstadt_University_of_Applied_Sciences__plain_67ebd107ad463.svg",
+  "Deggendorf Institute of Technology": "Deggendorf_Institute_of_Technology__69ba9dce40db9.svg",
+  "Dortmund University of Applied Sciences and Arts": "Dortmund_University_of_Applied_Sciences_and_Arts__69b186b9df8cb.svg",
+  "Dresden International University": "Dresden_International_University__69dcc9c961112.png",
+  "Dresden University of Technology": "Dresden_University_of_Technology__69a5a3d2767e8.svg",
+  "EBS Universität für Wirtschaft und Recht": "EBS_Universitaet_fuer_Wirtschaft_und_Recht__html_67ebd11c9c685.svg",
+  "Eberswalde University for Sustainable Development": "Eberswalde_University_for_Sustainable_Development__67c5c313ee02a.png",
+  "Esslingen University of Applied Sciences": "Esslingen_University_of_Applied_Sciences__html_67ebd0ea679c3.svg",
+  "Europa-Universität Flensburg": "Europa_Universitaet_Flensburg__67c817a508577.png",
+  "European University Viadrina": "European_University_Viadrina__6a28190e29ec8.svg",
+  "FAU Erlangen-Nürnberg": "FAU_Erlangen_Nuernberg__67d9588606249.png",
+  "FH Aachen University of Applied Sciences": "FH_Aachen_University_of_Applied_Sciences__69ae976565253.svg",
+  "FH Münster University of Applied Sciences": "FH_Muenster_University_of_Applied_Sciences__html_67ebd73b9d87e.svg",
+  "FH Westküste University of Applied Sciences": "FH_Westkueste_University_of_Applied_Sciences__69c0ff6f35963.png",
+  "Fachhochschule Wedel University of Applied Sciences": "Fachhochschule_Wedel_University_of_Applied_Sciences__html_68355cf574c7d.svg",
+  "Flensburg University of Applied Sciences": "Flensburg_University_of_Applied_Sciences__69b416a84347d.png",
+  "Folkwang University of the Arts": "Folkwang_University_of_the_Arts__67a61299c809c555446927.png",
+  "Frankfurt School of Finance & Management": "Frankfurt_School_of_Finance_Management__69299a1d7d5ee.png",
+  "Frankfurt University of Applied Sciences": "Frankfurt_University_of_Applied_Sciences__html_683559b8edcbc.svg",
+  "Freie Universität Berlin": "Freie_Universitaet_Berlin__67c0815b6e1fb.png",
+  "Friedensau Adventist University": "Friedensau_Adventist_University__67f6534f17ff9.png",
+  "Friedrich Schiller University Jena": "Friedrich_Schiller_University_Jena__67c5d93b57af4.png",
+  "Fulda University of Applied Sciences": "Fulda_University_of_Applied_Sciences__67d954f9ba8c7.svg",
+  "Furtwangen University": "Furtwangen_University__69ba9cb44a92c.svg",
+  "Goethe University Frankfurt": "Goethe_University_Frankfurt__67c82c70395e7.png",
+  "HHL Leipzig Graduate School of Management": "HHL_Leipzig_Graduate_School_of_Management__69dcca2064f9a.png",
+  "HTW Berlin University of Applied Sciences": "HTW_Berlin_University_of_Applied_Sciences__69aeb3d0df2fd.svg",
+  "HWR Berlin (Berlin School of Economics and Law)": "HWR_Berlin_Berlin_School_of_Economics_and_Law__67beecdf6cec4.png",
+  "HafenCity University Hamburg": "HafenCity_University_Hamburg__html_67ebd757ae74e.svg",
+  "Hamburg University of Applied Sciences": "Hamburg_University_of_Applied_Sciences__67c5cccacac98.png",
+  "Hamburg University of Technology": "Hamburg_University_of_Technology__623072d7ccb24433352034.png",
+  "Hamm-Lippstadt University of Applied Sciences": "Hamm_Lippstadt_University_of_Applied_Sciences__67e2b238c61d1.png",
+  "Harz University of Applied Sciences": "Harz_University_of_Applied_Sciences__69b918d0aa4a2.svg",
+  "Heidelberg University": "Heidelberg_University__67c818d916b12.png",
+  "Heilbronn University of Applied Sciences": "Heilbronn_University_of_Applied_Sciences__69aeb38d921b1.png",
+  "Heinrich Heine University Düsseldorf": "Heinrich_Heine_University_Duesseldorf__67c5b5aac0b68.png",
+  "Hertie School": "Hertie_School__plain_67ebd76cadcb4.svg",
+  "Hochschule Bielefeld – University of Applied Sciences and Arts (HSBI)": "Hochschule_Bielefeld_University_of_Applied_Sciences_and_Arts_HSBI__6a01d6c5d64c3.png",
+  "Hochschule Bonn-Rhein-Sieg": "Hochschule_Bonn_Rhein_Sieg__67d94cb0cf43c.png",
+  "Hochschule Fresenius - University of Applied Sciences": "Hochschule_Fresenius_University_of_Applied_Sciences__67d2efade6ed8.png",
+  "Hochschule Geisenheim University": "Hochschule_Geisenheim_University__67d980af7b11b.png",
+  "Hochschule München University of Applied Sciences": "Hochschule_Muenchen_University_of_Applied_Sciences__69bd4ae3d7a01.svg",
+  "Hochschule Wismar - University of Applied Sciences, Technology, Business and Design": "Hochschule_Wismar_University_of_Applied_Sciences_Technology_Business_and_Design__69aad9d0d789a.png",
+  "Hochschule für Technik und Wirtschaft Dresden – University of Applied Sciences": "Hochschule_fuer_Technik_und_Wirtschaft_Dresden_University_of_Applied_Sciences__67ecfc474877a.png",
+  "Hof University of Applied Sciences": "Hof_University_of_Applied_Sciences__67d19b60a8fc7.png",
+  "Humboldt-Universität zu Berlin": "Humboldt_Universitaet_zu_Berlin__html_690a01151f8a7.svg",
+  "International Psychoanalytic University Berlin": "International_Psychoanalytic_University_Berlin__html_67ebd79c8c8ab.svg",
+  "International School of Management (ISM)": "International_School_of_Management_ISM__69aeb43fdcebc.png",
+  "International University SDI München": "International_University_SDI_Muenchen__html_67ebd238360e3.svg",
+  "Jade University of Applied Sciences Wilhelmshaven/Oldenburg/Elsfleth": "Jade_University_of_Applied_Sciences_WilhelmshavenOldenburgElsfleth__6a17f70af0d61.png",
+  "Johannes Gutenberg University Mainz": "Johannes_Gutenberg_University_Mainz__67c85079c9c64.png",
+  "Julius-Maximilians-Universität Würzburg": "Julius_Maximilians_Universitaet_Wuerzburg__67d192f60e7fb.svg",
+  "Justus Liebig University Giessen": "Justus_Liebig_University_Giessen__67c9b0d07aeff.png",
+  "Kaiserslautern University of Applied Sciences": "Kaiserslautern_University_of_Applied_Sciences__6a2816c33c910.png",
+  "Karlsruhe Institute of Technology": "Karlsruhe_Institute_of_Technology__67c819a96de7e.png",
+  "Karlsruhe University of Applied Sciences": "Karlsruhe_University_of_Applied_Sciences__609103a4785d3603896495.png",
+  "Kempten University of Applied Sciences": "Kempten_University_of_Applied_Sciences__67d17ebfb4e08.png",
+  "Kiel University": "Kiel_University__67c18f092c6da.png",
+  "Kiel University of Applied Sciences": "Kiel_University_of_Applied_Sciences__plain_69119b547dffb.svg",
+  "Kühne Logistics University": "Kuehne_Logistics_University__plain_67ecf0270360e.svg",
+  "Landshut University of Applied Sciences": "Landshut_University_of_Applied_Sciences__69aad911710b7.svg",
+  "Leibniz University Hannover": "Leibniz_University_Hannover__html_67ebd6446b36d.svg",
+  "Leipzig University": "Leipzig_University__plain_67d956a2b5727.svg",
+  "Leuphana University Lüneburg": "Leuphana_University_Lueneburg__6a281b43041a4.jpeg",
+  "Ludwig-Maximilians-Universität München": "Ludwig_Maximilians_Universitaet_Muenchen__69b188d002b9d.svg",
+  "Ludwigshafen University of Business and Society": "Ludwigshafen_University_of_Business_and_Society__67c18f7163ccc.png",
+  "Magdeburg-Stendal University of Applied Sciences": "Magdeburg_Stendal_University_of_Applied_Sciences__69b17d279f8de.svg",
+  "Mainz University of Applied Sciences": "Mainz_University_of_Applied_Sciences__67ee2e34df382.png",
+  "Marburg University": "Marburg_University__69d79117b1a43.png",
+  "Max Planck Institute for Marine Microbiology": "Max_Planck_Institute_for_Marine_Microbiology__5eb00109593dd853701687.png",
+  "Max Planck Institute for the Science of Light": "Max_Planck_Institute_for_the_Science_of_Light__html_67ebd508497ab.svg",
+  "Max-Planck-Zentrum für Physik und Medizin": "Max_Planck_Zentrum_fuer_Physik_und_Medizin__html_682c3231c7c65.svg",
+  "Merseburg University of Applied Sciences": "Merseburg_University_of_Applied_Sciences__6a06d086f2eb3.jpeg",
+  "Merz Akademie, University of Applied Arts, Design and Media Stuttgart": "Merz_Akademie_University_of_Applied_Arts_Design_and_Media_Stuttgart__67f61a7b9f9ad.png",
+  "Neu-Ulm University of Applied Sciences": "Neu_Ulm_University_of_Applied_Sciences__plain_67d2f1f35b62a.svg",
+  "Neubrandenburg University of Applied Sciences": "Neubrandenburg_University_of_Applied_Sciences__67cff89be75ec.png",
+  "Nordhausen University of Applied Sciences": "Nordhausen_University_of_Applied_Sciences__html_67ebd416550d1.svg",
+  "Nürtingen-Geislingen University": "Nuertingen_Geislingen_University__69d791a948ac6.svg",
+  "OTH Regensburg": "OTH_Regensburg__67cff7999fe92.png",
+  "OWL University of Applied Sciences and Arts": "OWL_University_of_Applied_Sciences_and_Arts__65f9a36057ca3302828837.png",
+  "Offenburg University of Applied Sciences": "Offenburg_University_of_Applied_Sciences__6630baf451fe9443643871.png",
+  "Osnabrück University": "Osnabrueck_University__html_68356070648a7.svg",
+  "Osnabrück University of Applied Sciences": "Osnabrueck_University_of_Applied_Sciences__6a281bb20c00c.png",
+  "Ostbayerische Technische Hochschule Amberg-Weiden (OTH)": "Ostbayerische_Technische_Hochschule_Amberg_Weiden_OTH__67eb8c3e0c9c4.png",
+  "Ostfalia University of Applied Sciences - Hochschule Braunschweig/Wolfenbüttel": "Ostfalia_University_of_Applied_Sciences_Hochschule_BraunschweigWolfenbuettel__69b41b6d9672d.svg",
+  "Otto von Guericke University Magdeburg": "Otto_von_Guericke_University_Magdeburg__69b18bf8e30ee.svg",
+  "Paderborn University": "Paderborn_University__67d4292919c84.png",
+  "Pforzheim University": "Pforzheim_University__67c080c0d8999.png",
+  "RPTU University Kaiserslautern-Landau": "RPTU_University_Kaiserslautern_Landau__67c18edce2df8.png",
+  "RWTH Aachen University": "RWTH_Aachen_University__67ea87eb9727b.png",
+  "Reutlingen University": "Reutlingen_University__plain_67d969b00d22b.svg",
+  "Rhine-Waal University of Applied Sciences": "Rhine_Waal_University_of_Applied_Sciences__67d96f40c53b9.svg",
+  "Rosenheim Technical University of Applied Sciences": "Rosenheim_Technical_University_of_Applied_Sciences__67c9af8bdec3e.png",
+  "Ruhr-Universität Bochum": "Ruhr_Universitaet_Bochum__67c189e47dc68.png",
+  "SRH Distance Learning University": "SRH_Distance_Learning_University__69ae932b5490e.png",
+  "SRH University": "SRH_University__69ae9311f0100.png",
+  "Saarland University": "Saarland_University__67d18268ccff4.png",
+  "South Westphalia University of Applied Sciences": "South_Westphalia_University_of_Applied_Sciences__69b81ebcc3f9c.svg",
+  "Stralsund University of Applied Sciences": "Stralsund_University_of_Applied_Sciences__67eaa2a1d213c.png",
+  "Stuttgart Technical University of Applied Sciences": "Stuttgart_Technical_University_of_Applied_Sciences__69aae17fc8471.svg",
+  "TU Bergakademie Freiberg": "TU_Bergakademie_Freiberg__64621cc4a0272216973196.png",
+  "TU Dortmund University": "TU_Dortmund_University__69b9194f91399.svg",
+  "Technical University of Applied Sciences Augsburg": "Technical_University_of_Applied_Sciences_Augsburg__plain_67d951ca76a44.svg",
+  "Technical University of Applied Sciences Wildau": "Technical_University_of_Applied_Sciences_Wildau__66152a72efcfc065831826.png",
+  "Technical University of Applied Sciences Würzburg-Schweinfurt (THWS)": "Technical_University_of_Applied_Sciences_Wuerzburg_Schweinfurt_THWS__67cefdb457d30.png",
+  "Technical University of Darmstadt": "Technical_University_of_Darmstadt__html_67ebd62a53a58.svg",
+  "Technical University of Munich": "Technical_University_of_Munich__67d94a712a113.png",
+  "Technische Hochschule Ingolstadt": "Technische_Hochschule_Ingolstadt__69a54effd39fa.png",
+  "Technische Hochschule Köln - University of Applied Sciences": "Technische_Hochschule_Koeln_University_of_Applied_Sciences__html_67ebd6cd8582b.svg",
+  "Technische Hochschule Lübeck": "Technische_Hochschule_Luebeck__69c26b2bb9544.svg",
+  "Technische Hochschule Mittelhessen University of Applied Sciences": "Technische_Hochschule_Mittelhessen_University_of_Applied_Sciences__69aae6eb15ba7.svg",
+  "Technische Hochschule Nürnberg Georg Simon Ohm": "Technische_Hochschule_Nuernberg_Georg_Simon_Ohm__67d181c450928.png",
+  "Technische Universität Berlin": "Technische_Universitaet_Berlin__5f3f67950a04f959033360.png",
+  "Technische Universität Braunschweig": "Technische_Universitaet_Braunschweig__67bf251c2e86a.png",
+  "Technische Universität Ilmenau": "Technische_Universitaet_Ilmenau__67d956438b0c5.svg",
+  "Trier University": "Trier_University__plain_68355f6b8818b.svg",
+  "Trier University of Applied Sciences": "Trier_University_of_Applied_Sciences__plain_67ee32e1020e2.svg",
+  "Ulm University": "Ulm_University__67c18fe1ac2b1.png",
+  "Ulm University of Applied Sciences": "Ulm_University_of_Applied_Sciences__html_68355e200e16b.svg",
+  "University of Applied Sciences Emden/Leer": "University_of_Applied_Sciences_EmdenLeer__69b8209889223.svg",
+  "University of Applied Sciences Erfurt": "University_of_Applied_Sciences_Erfurt__6a0dac861cd03.png",
+  "University of Applied Sciences Jena": "University_of_Applied_Sciences_Jena__6a28195ba4ed1.png",
+  "University of Applied Sciences Koblenz": "University_of_Applied_Sciences_Koblenz__69b81ecb84149.svg",
+  "University of Applied Sciences Potsdam": "University_of_Applied_Sciences_Potsdam__69c0fee7e8d5d.png",
+  "University of Applied Sciences Ravensburg-Weingarten": "University_of_Applied_Sciences_Ravensburg_Weingarten__69b26bbfa7adc.svg",
+  "University of Augsburg": "University_of_Augsburg__67c191c6edd39.png",
+  "University of Bamberg": "University_of_Bamberg__69aeb317deab9.svg",
+  "University of Bayreuth": "University_of_Bayreuth__67bdc3c6a7429498152550.png",
+  "University of Bonn": "University_of_Bonn__67c18a1ed0b95.png",
+  "University of Bremen": "University_of_Bremen__69b127dddac07.png",
+  "University of Cologne": "University_of_Cologne__67ef85df2b692.png",
+  "University of Duisburg-Essen": "University_of_Duisburg_Essen__67e12f83b0352.svg",
+  "University of Education Schwäbisch Gmünd": "University_of_Education_Schwaebisch_Gmuend__67f8e48c6e4d2.png",
+  "University of Erfurt": "University_of_Erfurt__69aeb48815513.png",
+  "University of Fine Arts Hamburg": "University_of_Fine_Arts_Hamburg__69e7368f0db41.jpeg",
+  "University of Freiburg": "University_of_Freiburg__67dbec961f5cb.png",
+  "University of Greifswald": "University_of_Greifswald__67c5cb4e0c469.png",
+  "University of Göttingen": "University_of_Goettingen__626a4583d7c82316142727.png",
+  "University of Hamburg": "University_of_Hamburg__67c18bf3e4445.png",
+  "University of Hildesheim": "University_of_Hildesheim__6a281ae852e07.png",
+  "University of Hohenheim": "University_of_Hohenheim__67cff10f394d2.png",
+  "University of Kassel": "University_of_Kassel__67c597309683a.png",
+  "University of Koblenz": "University_of_Koblenz__67cfef42f2e12.png",
+  "University of Konstanz": "University_of_Konstanz__67c18f28cfb10.png",
+  "University of Mannheim": "University_of_Mannheim__html_67ebd72654748.svg",
+  "University of Münster": "University_of_Muenster__plain_67e12f9973bae.svg",
+  "University of Oldenburg": "University_of_Oldenburg__67cff830b7451.png",
+  "University of Passau": "University_of_Passau__67c9b0b32b562.png",
+  "University of Potsdam": "University_of_Potsdam__69ae9709822ed.svg",
+  "University of Regensburg": "University_of_Regensburg__67c18fad72284.png",
+  "University of Rostock": "University_of_Rostock__html_67d17db4afefb.svg",
+  "University of Siegen": "University_of_Siegen__67c18fc3d224f.png",
+  "University of Stuttgart": "University_of_Stuttgart__69b26cf5a0c88.svg",
+  "University of Tübingen": "University_of_Tuebingen__67d18909a58d6.svg",
+  "University of Veterinary Medicine Hannover": "University_of_Veterinary_Medicine_Hannover__html_67f8fb4f65b8b.svg",
+  "University of Wuppertal": "University_of_Wuppertal__69bc10ba6cdb6.svg",
+  "Universität zu Lübeck": "Universitaet_zu_Luebeck__69b1887a1e362.png",
+  "WHU - Otto Beisheim School of Management": "WHU_Otto_Beisheim_School_of_Management__67c18bc65ffc7.png",
+  "Weihenstephan-Triesdorf University of Applied Sciences": "Weihenstephan_Triesdorf_University_of_Applied_Sciences__67d2ef347ec2c.png",
+  "Westsächsische Hochschule Zwickau - University of Applied Sciences Zwickau": "Westsaechsische_Hochschule_Zwickau_University_of_Applied_Sciences_Zwickau__65fc263138fa9713572674.png",
+  "Witten/Herdecke University": "WittenHerdecke_University__67f3c98ceec4c.png",
+  "Worms University of Applied Sciences": "Worms_University_of_Applied_Sciences__67d98737b374e.png",
+  "accadis Hochschule Bad Homburg | University of Applied Sciences": "accadis_Hochschule_Bad_Homburg_University_of_Applied_Sciences__html_67ebd3f8c8435.svg",
+  "bbw Hochschule - University of Applied Sciences": "bbw_Hochschule_University_of_Applied_Sciences__67eaaad4428e0.png",
+  "htw saar - University of Applied Sciences": "htw_saar_University_of_Applied_Sciences__67e2b9bc4cb58.png",
+  "ifs Internationale Filmschule Köln": "ifs_Internationale_Filmschule_Koeln__67e52a7cba03b.png",
+  "BSP Business and Law School": "BSP_Business_and_Law_School__bsp_logo_business_and_law_2021.png",
+  "Detmold University of Music": "Detmold_University_of_Music__hochschule_fuer_musik_detmold_logo.svg",
+  "ESCP Berlin Campus": "ESCP_Berlin_Campus__escp_logo_cmjn.png",
+  "Film University Babelsberg Konrad Wolf": "Film_University_Babelsberg_Konrad_Wolf__logo_der_filmuniversitaet_babelsberg_konrad_wolf.png",
+  "Hochschule Düsseldorf": "Hochschule_Duesseldorf__hochschule_duesseldorf_logo.svg",
+  "Hochschule Niederrhein University of Applied Sciences": "Hochschule_Niederrhein_University_of_Applied_Sciences__hochschule_niederrhein.svg",
+  "IST University of Applied Sciences": "IST_University_of_Applied_Sciences__ist_hochschule_logo.svg",
+  "Media University of Applied Sciences": "Media_University_of_Applied_Sciences__hmkw_white.svg",
+  "Mittweida University of Applied Sciences": "Mittweida_University_of_Applied_Sciences__logo_hsmw.svg",
+  "RheinMain University of Applied Sciences": "RheinMain_University_of_Applied_Sciences__logo_hochschule_rheinmain.svg",
+  "University of Technology Nuremberg": "University_of_Technology_Nuremberg__utn_logo.jpg",
+  "Zeppelin University": "Zeppelin_University__logo_zeppelin_university___english.png",
+  "EBS University of Business and Law": "EBS_Universitaet_fuer_Wirtschaft_und_Recht__html_67ebd11c9c685.svg",
+  "Aalen University of Applied Sciences": "Aalen_University__6a2816446fe8d.svg",
+  "Deggendorf Institute of Technology (TH Deggendorf)": "Deggendorf_Institute_of_Technology__69ba9dce40db9.svg",
+  "European University Viadrina Frankfurt (Oder)": "European_University_Viadrina__6a28190e29ec8.svg",
+  "Friedrich-Alexander-Universität Erlangen-Nürnberg (FAU)": "FAU_Erlangen_Nuernberg__67d9588606249.png",
+  "HTW Dresden - University of Applied Sciences": "Hochschule_fuer_Technik_und_Wirtschaft_Dresden_University_of_Applied_Sciences__67ecfc474877a.png",
+  "Hochschule Bremen - City University of Applied Sciences": "Bremen_University_of_Applied_Sciences__67c081b588732.png",
+  "Hochschule Kaiserslautern - University of Applied Sciences": "Kaiserslautern_University_of_Applied_Sciences__6a2816c33c910.png",
+  "Hochschule Wismar - University of Applied Sciences": "Hochschule_Wismar_University_of_Applied_Sciences_Technology_Business_and_Design__69aad9d0d789a.png",
+  "Kiel University of Applied Sciences (FH Kiel)": "Kiel_University_of_Applied_Sciences__plain_69119b547dffb.svg",
+  "OTH Amberg-Weiden": "Ostbayerische_Technische_Hochschule_Amberg_Weiden_OTH__67eb8c3e0c9c4.png",
+  "TH Köln - University of Applied Sciences": "Technische_Hochschule_Koeln_University_of_Applied_Sciences__html_67ebd6cd8582b.svg",
+  "Technische Hochschule Ingolstadt (THI)": "Technische_Hochschule_Ingolstadt__69a54effd39fa.png",
+  "Technische Hochschule Mittelhessen (THM)": "Technische_Hochschule_Mittelhessen_University_of_Applied_Sciences__69aae6eb15ba7.svg",
+  "Technische Universität Dresden": "Dresden_University_of_Technology__69a5a3d2767e8.svg",
+  "Westsächsische Hochschule Zwickau (WHZ)": "Westsaechsische_Hochschule_Zwickau_University_of_Applied_Sciences_Zwickau__65fc263138fa9713572674.png"
+ },
+ "aliases": {
+  "RPTU_University_Kaiserslautern_Landau__67c18edce2df8.png": [
+   "RPTU Kaiserslautern-Landau"
+  ],
+  "Paderborn_University__67d4292919c84.png": [
+   "Uni Paderborn"
+  ],
+  "Julius_Maximilians_Universitaet_Wuerzburg__67d192f60e7fb.svg": [
+   "JMU Wuerzburg"
+  ],
+  "Chemnitz_University_of_Technology__67c572ab4734e.png": [
+   "TU Chemnitz"
+  ],
+  "Frankfurt_University_of_Applied_Sciences__html_683559b8edcbc.svg": [
+   "Frankfurt UAS"
+  ],
+  "University_of_Tuebingen__67d18909a58d6.svg": [
+   "Uni Tuebingen"
+  ],
+  "RWTH_Aachen_University__67ea87eb9727b.png": [
+   "RWTH Aachen"
+  ],
+  "Dresden_University_of_Technology__69a5a3d2767e8.svg": [
+   "TU Dresden"
+  ],
+  "Rosenheim_Technical_University_of_Applied_Sciences__67c9af8bdec3e.png": [
+   "TH Rosenheim"
+  ],
+  "Justus_Liebig_University_Giessen__67c9b0d07aeff.png": [
+   "JLU Giessen"
+  ],
+  "TU_Bergakademie_Freiberg__64621cc4a0272216973196.png": [
+   "TU Freiberg"
+  ],
+  "Dresden_International_University__69dcc9c961112.png": [
+   "DIU Dresden"
+  ],
+  "Leipzig_University__plain_67d956a2b5727.svg": [
+   "Uni Leipzig"
+  ],
+  "University_of_Hohenheim__67cff10f394d2.png": [
+   "Uni Hohenheim"
+  ],
+  "University_of_Bayreuth__67bdc3c6a7429498152550.png": [
+   "Uni Bayreuth"
+  ],
+  "University_of_Bonn__67c18a1ed0b95.png": [
+   "Uni Bonn"
+  ],
+  "Technical_University_of_Munich__67d94a712a113.png": [
+   "TU Munich"
+  ],
+  "University_of_Kassel__67c597309683a.png": [
+   "Uni Kassel"
+  ],
+  "University_of_Technology_Nuremberg__utn_logo.jpg": [
+   "TU Nuremberg"
+  ],
+  "Otto_von_Guericke_University_Magdeburg__69b18bf8e30ee.svg": [
+   "OVGU Magdeburg"
+  ],
+  "Technische_Hochschule_Ingolstadt__69a54effd39fa.png": [
+   "TH Ingolstadt"
+  ],
+  "Leibniz_University_Hannover__html_67ebd6446b36d.svg": [
+   "Uni Hannover"
+  ],
+  "Hof_University_of_Applied_Sciences__67d19b60a8fc7.png": [
+   "HS Hof"
+  ],
+  "University_of_Stuttgart__69b26cf5a0c88.svg": [
+   "Uni Stuttgart"
+  ],
+  "Coburg_University_of_Applied_Sciences_and_Arts__67c81f496f317.png": [
+   "HS Coburg"
+  ],
+  "University_of_Potsdam__69ae9709822ed.svg": [
+   "Uni Potsdam"
+  ],
+  "Deggendorf_Institute_of_Technology__69ba9dce40db9.svg": [
+   "TH Deggendorf"
+  ],
+  "Heilbronn_University_of_Applied_Sciences__69aeb38d921b1.png": [
+   "HS Heilbronn"
+  ],
+  "Ansbach_University_of_Applied_Sciences__67dad9ebc475d.png": [
+   "HS Ansbach"
+  ],
+  "University_of_Goettingen__626a4583d7c82316142727.png": [
+   "Uni Goettingen"
+  ],
+  "SRH_University__69ae9311f0100.png": [
+   "SRH University"
+  ],
+  "University_of_Bremen__69b127dddac07.png": [
+   "Uni Bremen"
+  ],
+  "University_of_Applied_Sciences_Jena__6a28195ba4ed1.png": [
+   "EAH Jena"
+  ],
+  "Mittweida_University_of_Applied_Sciences__logo_hsmw.svg": [
+   "HS Mittweida"
+  ],
+  "Marburg_University__69d79117b1a43.png": [
+   "Uni Marburg"
+  ],
+  "RheinMain_University_of_Applied_Sciences__logo_hochschule_rheinmain.svg": [
+   "HS RheinMain"
+  ],
+  "Hochschule_Wismar_University_of_Applied_Sciences_Technology_Business_and_Design__69aad9d0d789a.png": [
+   "HS Wismar"
+  ],
+  "Universitaet_zu_Luebeck__69b1887a1e362.png": [
+   "Uni Luebeck"
+  ],
+  "Brandenburg_University_of_Technology_Cottbus_Senftenberg__69a55adb48a8b.png": [
+   "BTU Cottbus"
+  ],
+  "FAU_Erlangen_Nuernberg__67d9588606249.png": [
+   "FAU Erlangen-Nuernberg"
+  ],
+  "Neu_Ulm_University_of_Applied_Sciences__plain_67d2f1f35b62a.svg": [
+   "HS Neu-Ulm"
+  ],
+  "Heinrich_Heine_University_Duesseldorf__67c5b5aac0b68.png": [
+   "HHU Duesseldorf"
+  ],
+  "Ostbayerische_Technische_Hochschule_Amberg_Weiden_OTH__67eb8c3e0c9c4.png": [
+   "OTH Amberg-Weiden"
+  ],
+  "Technische_Universitaet_Braunschweig__67bf251c2e86a.png": [
+   "TU Braunschweig"
+  ],
+  "Leuphana_University_Lueneburg__6a281b43041a4.jpeg": [
+   "Leuphana Lueneburg"
+  ],
+  "University_of_Hamburg__67c18bf3e4445.png": [
+   "Uni Hamburg"
+  ],
+  "Technische_Hochschule_Koeln_University_of_Applied_Sciences__html_67ebd6cd8582b.svg": [
+   "TH Cologne"
+  ],
+  "TU_Dortmund_University__69b9194f91399.svg": [
+   "TU Dortmund"
+  ],
+  "Ostfalia_University_of_Applied_Sciences_Hochschule_BraunschweigWolfenbuettel__69b41b6d9672d.svg": [
+   "Ostfalia Wolfenbuettel"
+  ],
+  "Esslingen_University_of_Applied_Sciences__html_67ebd0ea679c3.svg": [
+   "HS Esslingen"
+  ],
+  "Hochschule_Bonn_Rhein_Sieg__67d94cb0cf43c.png": [
+   "HS Bonn-Rhein-Sieg"
+  ],
+  "Kiel_University_of_Applied_Sciences__plain_69119b547dffb.svg": [
+   "HAW Kiel"
+  ],
+  "Bielefeld_University__67c0807cde0c9.png": [
+   "Uni Bielefeld"
+  ],
+  "HWR_Berlin_Berlin_School_of_Economics_and_Law__67beecdf6cec4.png": [
+   "HWR Berlin"
+  ],
+  "University_of_Freiburg__67dbec961f5cb.png": [
+   "Uni Freiburg"
+  ],
+  "Hochschule_Fresenius_University_of_Applied_Sciences__67d2efade6ed8.png": [
+   "HS Fresenius"
+  ],
+  "University_of_Koblenz__67cfef42f2e12.png": [
+   "Uni Koblenz"
+  ],
+  "Saarland_University__67d18268ccff4.png": [
+   "Uni Saarland"
+  ],
+  "Rhine_Waal_University_of_Applied_Sciences__67d96f40c53b9.svg": [
+   "HS Rhein-Waal"
+  ],
+  "University_of_Konstanz__67c18f28cfb10.png": [
+   "Uni Konstanz"
+  ],
+  "University_of_Regensburg__67c18fad72284.png": [
+   "Uni Regensburg"
+  ],
+  "University_of_Oldenburg__67cff830b7451.png": [
+   "Uni Oldenburg"
+  ],
+  "Osnabrueck_University__html_68356070648a7.svg": [
+   "Uni Osnabrueck"
+  ],
+  "Hamburg_University_of_Applied_Sciences__67c5cccacac98.png": [
+   "HAW Hamburg"
+  ],
+  "Technische_Hochschule_Luebeck__69c26b2bb9544.svg": [
+   "TH Luebeck"
+  ],
+  "Eberswalde_University_for_Sustainable_Development__67c5c313ee02a.png": [
+   "HNEE Eberswalde"
+  ],
+  "University_of_Cologne__67ef85df2b692.png": [
+   "Uni Cologne"
+  ],
+  "Technische_Universitaet_Berlin__5f3f67950a04f959033360.png": [
+   "TU Berlin"
+  ],
+  "University_of_Muenster__plain_67e12f9973bae.svg": [
+   "Uni Muenster"
+  ],
+  "Catholic_University_of_Eichstaett_Ingolstadt__67c849c3b54f4.png": [
+   "KU Eichstaett-Ingolstadt"
+  ],
+  "Furtwangen_University__69ba9cb44a92c.svg": [
+   "HFU Furtwangen"
+  ],
+  "bbw_Hochschule_University_of_Applied_Sciences__67eaaad4428e0.png": [
+   "bbw HS Berlin"
+  ],
+  "Westsaechsische_Hochschule_Zwickau_University_of_Applied_Sciences_Zwickau__65fc263138fa9713572674.png": [
+   "WHZ Zwickau"
+  ],
+  "University_of_Applied_Sciences_EmdenLeer__69b8209889223.svg": [
+   "HS Emden/Leer"
+  ],
+  "European_University_Viadrina__6a28190e29ec8.svg": [
+   "Viadrina Frankfurt (Oder)"
+  ],
+  "Hamburg_University_of_Technology__623072d7ccb24433352034.png": [
+   "TUHH Hamburg"
+  ],
+  "University_of_Siegen__67c18fc3d224f.png": [
+   "Uni Siegen"
+  ],
+  "Weihenstephan_Triesdorf_University_of_Applied_Sciences__67d2ef347ec2c.png": [
+   "HSWT Weihenstephan"
+  ],
+  "Technical_University_of_Darmstadt__html_67ebd62a53a58.svg": [
+   "TU Darmstadt"
+  ],
+  "Ruhr_Universitaet_Bochum__67c189e47dc68.png": [
+   "RUB Bochum"
+  ],
+  "Ulm_University__67c18fe1ac2b1.png": [
+   "Uni Ulm"
+  ],
+  "Technische_Hochschule_Nuernberg_Georg_Simon_Ohm__67d181c450928.png": [
+   "TH Nuremberg"
+  ],
+  "Karlsruhe_Institute_of_Technology__67c819a96de7e.png": [
+   "KIT Karlsruhe"
+  ],
+  "University_of_Rostock__html_67d17db4afefb.svg": [
+   "Uni Rostock"
+  ],
+  "Nordhausen_University_of_Applied_Sciences__html_67ebd416550d1.svg": [
+   "HS Nordhausen"
+  ],
+  "Bauhaus_Universitaet_Weimar__67d18f228cd60.png": [
+   "Bauhaus-Uni Weimar"
+  ],
+  "University_of_Wuppertal__69bc10ba6cdb6.svg": [
+   "Uni Wuppertal"
+  ],
+  "Technische_Hochschule_Mittelhessen_University_of_Applied_Sciences__69aae6eb15ba7.svg": [
+   "THM Giessen"
+  ],
+  "Anhalt_University_of_Applied_Sciences__67c1897ecbe13.png": [
+   "HS Anhalt"
+  ],
+  "Pforzheim_University__67c080c0d8999.png": [
+   "HS Pforzheim"
+  ],
+  "Bavarian_University_of_Business_and_Technology_HDBW__6a743083c785a.jpeg": [
+   "HDBW Munich"
+  ],
+  "Kiel_University__67c18f092c6da.png": [
+   "Uni Kiel"
+  ],
+  "University_of_Hildesheim__6a281ae852e07.png": [
+   "Uni Hildesheim"
+  ],
+  "Fulda_University_of_Applied_Sciences__67d954f9ba8c7.svg": [
+   "HS Fulda"
+  ],
+  "University_of_Augsburg__67c191c6edd39.png": [
+   "Uni Augsburg"
+  ],
+  "Technische_Universitaet_Ilmenau__67d956438b0c5.svg": [
+   "TU Ilmenau"
+  ],
+  "Osnabrueck_University_of_Applied_Sciences__6a281bb20c00c.png": [
+   "HS Osnabrueck"
+  ],
+  "Folkwang_University_of_the_Arts__67a61299c809c555446927.png": [
+   "Folkwang Uni Essen"
+  ],
+  "SRH_Distance_Learning_University__69ae932b5490e.png": [
+   "SRH Distance Learning"
+  ],
+  "Nuertingen_Geislingen_University__69d791a948ac6.svg": [
+   "HfWU Nuertingen"
+  ],
+  "International_University_SDI_Muenchen__html_67ebd238360e3.svg": [
+   "SDI Munich"
+  ],
+  "University_of_Bamberg__69aeb317deab9.svg": [
+   "Uni Bamberg"
+  ],
+  "EBS_Universitaet_fuer_Wirtschaft_und_Recht__html_67ebd11c9c685.svg": [
+   "EBS Oestrich-Winkel"
+  ],
+  "University_of_Greifswald__67c5cb4e0c469.png": [
+   "Uni Greifswald"
+  ],
+  "OTH_Regensburg__67cff7999fe92.png": [
+   "OTH Regensburg"
+  ],
+  "Kempten_University_of_Applied_Sciences__67d17ebfb4e08.png": [
+   "HS Kempten"
+  ],
+  "Technical_University_of_Applied_Sciences_Augsburg__plain_67d951ca76a44.svg": [
+   "TH Augsburg"
+  ],
+  "University_of_Applied_Sciences_Ravensburg_Weingarten__69b26bbfa7adc.svg": [
+   "RWU Ravensburg-Weingarten"
+  ],
+  "Darmstadt_University_of_Applied_Sciences__plain_67ebd107ad463.svg": [
+   "h_da Darmstadt"
+  ],
+  "Ludwig_Maximilians_Universitaet_Muenchen__69b188d002b9d.svg": [
+   "LMU Munich"
+  ],
+  "Bremerhaven_University_of_Applied_Sciences__67dbddd117245.png": [
+   "HS Bremerhaven"
+  ],
+  "Bremen_University_of_Applied_Sciences__67c081b588732.png": [
+   "HS Bremen"
+  ],
+  "Magdeburg_Stendal_University_of_Applied_Sciences__69b17d279f8de.svg": [
+   "HS Magdeburg-Stendal"
+  ],
+  "Worms_University_of_Applied_Sciences__67d98737b374e.png": [
+   "HS Worms"
+  ],
+  "Hochschule_Muenchen_University_of_Applied_Sciences__69bd4ae3d7a01.svg": [
+   "HS Munich"
+  ],
+  "International_Psychoanalytic_University_Berlin__html_67ebd79c8c8ab.svg": [
+   "IPU Berlin"
+  ],
+  "Reutlingen_University__plain_67d969b00d22b.svg": [
+   "HS Reutlingen"
+  ],
+  "Humboldt_Universitaet_zu_Berlin__html_690a01151f8a7.svg": [
+   "HU Berlin"
+  ],
+  "Aschaffenburg_University_of_Applied_Sciences__67fd05084224f.png": [
+   "TH Aschaffenburg"
+  ],
+  "Dortmund_University_of_Applied_Sciences_and_Arts__69b186b9df8cb.svg": [
+   "FH Dortmund"
+  ],
+  "Hertie_School__plain_67ebd76cadcb4.svg": [
+   "Hertie School Berlin"
+  ],
+  "Frankfurt_School_of_Finance_Management__69299a1d7d5ee.png": [
+   "Frankfurt School"
+  ],
+  "accadis_Hochschule_Bad_Homburg_University_of_Applied_Sciences__html_67ebd3f8c8435.svg": [
+   "accadis HS Bad Homburg"
+  ],
+  "Kaiserslautern_University_of_Applied_Sciences__6a2816c33c910.png": [
+   "HS Kaiserslautern"
+  ],
+  "Freie_Universitaet_Berlin__67c0815b6e1fb.png": [
+   "FU Berlin"
+  ],
+  "WHU_Otto_Beisheim_School_of_Management__67c18bc65ffc7.png": [
+   "WHU Vallendar"
+  ],
+  "HHL_Leipzig_Graduate_School_of_Management__69dcca2064f9a.png": [
+   "HHL Leipzig"
+  ],
+  "Neubrandenburg_University_of_Applied_Sciences__67cff89be75ec.png": [
+   "HS Neubrandenburg"
+  ],
+  "Karlsruhe_University_of_Applied_Sciences__609103a4785d3603896495.png": [
+   "HKA Karlsruhe"
+  ],
+  "Bochum_University_of_Applied_Sciences__html_692eab76a9895.svg": [
+   "HS Bochum"
+  ],
+  "Hochschule_fuer_Technik_und_Wirtschaft_Dresden_University_of_Applied_Sciences__67ecfc474877a.png": [
+   "HTW Dresden"
+  ],
+  "University_of_Erfurt__69aeb48815513.png": [
+   "Uni Erfurt"
+  ],
+  "Johannes_Gutenberg_University_Mainz__67c85079c9c64.png": [
+   "JGU Mainz"
+  ],
+  "Albstadt_Sigmaringen_University__69c3db75e4d18.svg": [
+   "HS Albstadt-Sigmaringen"
+  ],
+  "OWL_University_of_Applied_Sciences_and_Arts__65f9a36057ca3302828837.png": [
+   "TH OWL"
+  ],
+  "Ulm_University_of_Applied_Sciences__html_68355e200e16b.svg": [
+   "THU Ulm"
+  ],
+  "FH_Aachen_University_of_Applied_Sciences__69ae976565253.svg": [
+   "FH Aachen"
+  ],
+  "Stralsund_University_of_Applied_Sciences__67eaa2a1d213c.png": [
+   "HS Stralsund"
+  ],
+  "htw_saar_University_of_Applied_Sciences__67e2b9bc4cb58.png": [
+   "htw saar"
+  ],
+  "Jade_University_of_Applied_Sciences_WilhelmshavenOldenburgElsfleth__6a17f70af0d61.png": [
+   "Jade HS Wilhelmshaven"
+  ],
+  "Charité_Universitaetsmedizin_Berlin__67da8e56b0aea.png": [
+   "Charite Berlin"
+  ],
+  "Goethe_University_Frankfurt__67c82c70395e7.png": [
+   "Goethe Uni Frankfurt"
+  ],
+  "Max_Planck_Institute_for_the_Science_of_Light__html_67ebd508497ab.svg": [
+   "MPI Science of Light"
+  ],
+  "Max_Planck_Zentrum_fuer_Physik_und_Medizin__html_682c3231c7c65.svg": [
+   "MPZPM Erlangen"
+  ],
+  "Friedrich_Schiller_University_Jena__67c5d93b57af4.png": [
+   "FSU Jena"
+  ],
+  "Stuttgart_Technical_University_of_Applied_Sciences__69aae17fc8471.svg": [
+   "HFT Stuttgart"
+  ],
+  "FH_Westkueste_University_of_Applied_Sciences__69c0ff6f35963.png": [
+   "FH Westkueste"
+  ],
+  "Fachhochschule_Wedel_University_of_Applied_Sciences__html_68355cf574c7d.svg": [
+   "FH Wedel"
+  ],
+  "Technical_University_of_Applied_Sciences_Wildau__66152a72efcfc065831826.png": [
+   "TH Wildau"
+  ],
+  "Ludwigshafen_University_of_Business_and_Society__67c18f7163ccc.png": [
+   "HWG Ludwigshafen"
+  ],
+  "ifs_Internationale_Filmschule_Koeln__67e52a7cba03b.png": [
+   "ifs Cologne"
+  ],
+  "University_of_Applied_Sciences_Potsdam__69c0fee7e8d5d.png": [
+   "FH Potsdam"
+  ],
+  "Technical_University_of_Applied_Sciences_Wuerzburg_Schweinfurt_THWS__67cefdb457d30.png": [
+   "THWS Wuerzburg-Schweinfurt"
+  ],
+  "South_Westphalia_University_of_Applied_Sciences__69b81ebcc3f9c.svg": [
+   "FH Suedwestfalen"
+  ],
+  "WittenHerdecke_University__67f3c98ceec4c.png": [
+   "UW/H Witten-Herdecke"
+  ],
+  "University_of_Applied_Sciences_Koblenz__69b81ecb84149.svg": [
+   "HS Koblenz"
+  ],
+  "University_of_Mannheim__html_67ebd72654748.svg": [
+   "Uni Mannheim"
+  ],
+  "International_School_of_Management_ISM__69aeb43fdcebc.png": [
+   "ISM Dortmund"
+  ],
+  "FH_Muenster_University_of_Applied_Sciences__html_67ebd73b9d87e.svg": [
+   "FH Muenster"
+  ],
+  "HTW_Berlin_University_of_Applied_Sciences__69aeb3d0df2fd.svg": [
+   "HTW Berlin"
+  ],
+  "Trier_University__plain_68355f6b8818b.svg": [
+   "Uni Trier"
+  ],
+  "University_of_Duisburg_Essen__67e12f83b0352.svg": [
+   "Uni Duisburg-Essen"
+  ],
+  "University_of_Passau__67c9b0b32b562.png": [
+   "Uni Passau"
+  ],
+  "Friedensau_Adventist_University__67f6534f17ff9.png": [
+   "ThHF Friedensau"
+  ],
+  "Europa_Universitaet_Flensburg__67c817a508577.png": [
+   "EUF Flensburg"
+  ],
+  "Mainz_University_of_Applied_Sciences__67ee2e34df382.png": [
+   "HS Mainz"
+  ],
+  "Zeppelin_University__logo_zeppelin_university___english.png": [
+   "ZU Friedrichshafen"
+  ],
+  "Aalen_University__6a2816446fe8d.svg": [
+   "HS Aalen"
+  ],
+  "Heidelberg_University__67c818d916b12.png": [
+   "Uni Heidelberg"
+  ],
+  "Berliner_Hochschule_fuer_Technik__67beebf427994.png": [
+   "BHT Berlin"
+  ],
+  "Offenburg_University_of_Applied_Sciences__6630baf451fe9443643871.png": [
+   "HS Offenburg"
+  ],
+  "Bingen_University_of_Applied_Sciences__plain_67ebd16ebf787.svg": [
+   "TH Bingen"
+  ],
+  "HafenCity_University_Hamburg__html_67ebd757ae74e.svg": [
+   "HCU Hamburg"
+  ],
+  "Merseburg_University_of_Applied_Sciences__6a06d086f2eb3.jpeg": [
+   "HS Merseburg"
+  ],
+  "ESCP_Berlin_Campus__escp_logo_cmjn.png": [
+   "ESCP Berlin"
+  ],
+  "Hochschule_Bielefeld_University_of_Applied_Sciences_and_Arts_HSBI__6a01d6c5d64c3.png": [
+   "HSBI Bielefeld"
+  ],
+  "Max_Planck_Institute_for_Marine_Microbiology__5eb00109593dd853701687.png": [
+   "MPI Marine Microbiology"
+  ],
+  "Landshut_University_of_Applied_Sciences__69aad911710b7.svg": [
+   "HS Landshut"
+  ],
+  "Merz_Akademie_University_of_Applied_Arts_Design_and_Media_Stuttgart__67f61a7b9f9ad.png": [
+   "Merz Akademie Stuttgart"
+  ],
+  "University_of_Applied_Sciences_Erfurt__6a0dac861cd03.png": [
+   "FH Erfurt"
+  ],
+  "Hamm_Lippstadt_University_of_Applied_Sciences__67e2b238c61d1.png": [
+   "HSHL Hamm-Lippstadt"
+  ],
+  "Harz_University_of_Applied_Sciences__69b918d0aa4a2.svg": [
+   "HS Harz"
+  ],
+  "Hochschule_Geisenheim_University__67d980af7b11b.png": [
+   "HS Geisenheim"
+  ],
+  "Flensburg_University_of_Applied_Sciences__69b416a84347d.png": [
+   "HS Flensburg"
+  ],
+  "Trier_University_of_Applied_Sciences__plain_67ee32e1020e2.svg": [
+   "HS Trier"
+  ],
+  "University_of_Fine_Arts_Hamburg__69e7368f0db41.jpeg": [
+   "HFBK Hamburg"
+  ],
+  "University_of_Veterinary_Medicine_Hannover__html_67f8fb4f65b8b.svg": [
+   "TiHo Hannover"
+  ],
+  "Kuehne_Logistics_University__plain_67ecf0270360e.svg": [
+   "KLU Hamburg"
+  ],
+  "Detmold_University_of_Music__hochschule_fuer_musik_detmold_logo.svg": [
+   "HfM Detmold"
+  ]
+ }
+}

@@ -45,6 +45,83 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const lakh = n => n ? '₹' + (n / 100000).toFixed(n % 100000 ? 1 : 0) + 'L' : '₹0 tuition';
 
+  /* ------------------------------------------------------------ the logos */
+
+  /* The university's logo beside its name, from /logos/index.json — the
+     same index and the same simplified matcher the finder page uses
+     (server/find.js logoFor; the full one is server/logos.js). The rows the
+     matcher API returns carry no `logo`, so it is worked out here; the
+     index is fetched once, and until it has arrived the list is drawn
+     without logos and redrawn when it lands. Keep the normalisation in step
+     with the server's. */
+  const LOGO_STOP = { university: 1, universitat: 1, univ: 1, uni: 1, of: 1, the: 1, and: 1, for: 1, in: 1, at: 1, applied: 1, sciences: 1, science: 1, arts: 1,
+    hochschule: 1, fachhochschule: 1, fh: 1, hs: 1, uas: 1, fur: 1, und: 1, der: 1, die: 1, des: 1, college: 1, school: 1, campus: 1, gmbh: 1, ag: 1, ev: 1, e: 1, v: 1 };
+  const LOGO_TECH = { technische: 1, technology: 1, technical: 1, tu: 1, th: 1 };
+  const LOGO_CITY = { munich: 'munchen', nuremberg: 'nurnberg', cologne: 'koln', hanover: 'hannover', brunswick: 'braunschweig', berliner: 'berlin', frankfurter: 'frankfurt', hamburger: 'hamburg' };
+  function logoTokens(name) {
+    let t = String(name || '').toLowerCase().replace(/ß/g, 'ss').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u');
+    t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ');
+    t = t.replace(/ue/g, 'u').replace(/oe/g, 'o').replace(/ae/g, 'a');
+    return t.split(' ').map(w => LOGO_TECH[w] ? 'tech' : (LOGO_CITY[w] || w)).filter(w => w && !LOGO_STOP[w]);
+  }
+  let logoIdx = null, logoFetch = null;
+  function buildLogoIndex(src) {
+    const exact = {}, norm = {}, entries = [];
+    const put = (name, file) => {
+      if (!file || !name) return;
+      if (!exact[name]) exact[name] = file;
+      const toks = logoTokens(name);
+      if (!toks.length) return;
+      const k = toks.join(' ');
+      if (!norm[k]) norm[k] = file;
+      entries.push({ file, toks });
+    };
+    Object.keys(src.files || {}).forEach(n => put(n, src.files[n]));
+    Object.keys(src.aliases || {}).forEach(f => (src.aliases[f] || []).forEach(a => put(a, f)));
+    return { exact, norm, entries, cache: {} };
+  }
+  /* Resolves once the index is here; the caller redraws then. */
+  function loadLogos() {
+    if (logoFetch) return logoFetch;
+    logoFetch = (typeof fetch === 'function' ? fetch('/logos/index.json', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null) : Promise.resolve(null))
+      .then(j => { if (j && typeof j === 'object') logoIdx = buildLogoIndex(j); return logoIdx; })
+      .catch(() => null);
+    return logoFetch;
+  }
+  function logoFile(L, name) {
+    const n = String(name || '').trim();
+    if (!n) return '';
+    if (L.exact[n]) return L.exact[n];
+    const toks = logoTokens(n);
+    if (!toks.length) return '';
+    const k = toks.join(' ');
+    if (L.norm[k]) return L.norm[k];
+    let best = null, bestScore = 0, tie = false;
+    L.entries.forEach(e => {
+      let both = 0;
+      toks.forEach(t => { if (e.toks.indexOf(t) >= 0) both++; });
+      const sc = both / (toks.length + e.toks.length - both);
+      if (sc > bestScore) { best = e; bestScore = sc; tie = false; }
+      else if (sc === bestScore && best && e.file !== best.file) tie = true;
+    });
+    return best && bestScore >= 0.6 && !tie ? best.file : '';
+  }
+  /** '/logos/<file>' or '' — '' too until the index has loaded. */
+  function logoFor(name, shortName) {
+    const L = logoIdx;
+    if (!L) return '';
+    const ck = String(name || '') + '\u0000' + String(shortName || '');
+    if (L.cache[ck] !== undefined) return L.cache[ck];
+    const n = String(name || '');
+    const paren = /^([^()]+)\(([^()]+)\)\s*$/.exec(n);
+    const f = logoFile(L, n) || (paren ? logoFile(L, paren[1]) || logoFile(L, paren[2]) : '') || logoFile(L, shortName);
+    return (L.cache[ck] = f ? '/logos/' + encodeURIComponent(f) : '');
+  }
+  const logoTile = r => {
+    const src = r.logo || logoFor(r.university, r.shortName);
+    return src ? '<img class="ulogo" src="' + esc(src) + '" alt="" width="28" height="28" loading="lazy" decoding="async">' : '';
+  };
+
   /* This semester, next semester and the two after — the terms the finder offers. */
   function terms() {
     const t = new Date(); t.setHours(0, 0, 0, 0);
@@ -87,10 +164,21 @@
     + '.gf li .m{flex:1;min-width:0}.gf li b{display:block;font-size:13px}.gf small{display:block;color:var(--muted,#5d6b7a);font-size:11.8px}'
     + '.gf .why{color:#b42318;font-weight:600}.gf .soft{color:#8a6a1f;font-weight:600}.gf .ask{color:#8a6a1f}.gf .tag{display:inline-block;font:700 10.5px/1.5 var(--sans,system-ui);padding:0 7px;border-radius:999px;background:#eef2f6;margin-right:4px}'
     + '.gf .auto{background:#f5f8fb;border:1px solid var(--line,#e6e9ee);border-radius:10px;padding:10px 12px;margin-top:12px}'
-    + '.gf .sum{margin-top:10px;color:var(--muted,#5d6b7a);font-size:12.2px}';
+    + '.gf .sum{margin-top:10px;color:var(--muted,#5d6b7a);font-size:12.2px}'
+    + '.gf li .m b{display:flex;align-items:center;gap:8px}'
+    + '.gf .ulogo{width:28px;height:28px;flex:none;object-fit:contain;background:#fff;border:1px solid var(--line,#e6e9ee);border-radius:6px;padding:2px;box-sizing:border-box}'
+    /* 10 Oct: the tags box — suggestions under it, chips beside it, and the
+       first few of each row's tags in muted pills. */
+    + '.gf .gf-tags{position:relative;grid-column:1/-1}.gf .gf-sug{position:absolute;left:0;right:0;top:100%;z-index:30;background:#fff;border:1px solid #d8dde4;border-radius:10px;box-shadow:0 10px 30px rgba(11,30,49,.16);max-height:240px;overflow-y:auto;padding:4px}'
+    + '.gf .gf-sug h6{margin:6px 10px 2px;font:700 10.5px/1.3 var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#5d6b7a)}'
+    + '.gf .gf-sug button{display:flex;width:100%;justify-content:space-between;gap:10px;padding:7px 10px;border:0;border-radius:8px;background:none;text-align:left;font:600 12.6px/1.35 var(--sans,system-ui);color:inherit;cursor:pointer}'
+    + '.gf .gf-sug button:hover,.gf .gf-sug button[aria-selected="true"]{background:#f0f5fb}.gf .gf-sug button em{font:400 11px/1.3 var(--sans,system-ui);color:var(--muted,#5d6b7a);font-style:normal}'
+    + '.gf .gf-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.gf .gf-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:99px;border:1px solid #b9cdf0;background:#eef3fc;color:#0b3d91;font:600 11.8px/1.3 var(--sans,system-ui);cursor:pointer}'
+    + '.gf .gf-chip small{font-weight:400;opacity:.7}.gf .tagpill{display:inline-block;font:600 10.2px/1.5 var(--sans,system-ui);padding:0 6px;border-radius:999px;background:#f3f5f8;color:#5d6b7a;margin:2px 3px 0 0}';
 
   function mount(el, o) {
     if (!el) return;
+    loadLogos();   /* so it is there by the time the first list is drawn */
     if (!document.getElementById('gf-css')) {
       const st = document.createElement('style'); st.id = 'gf-css'; st.textContent = CSS; document.head.appendChild(st);
     }
@@ -113,6 +201,10 @@
       + '<div><label>Public or private</label>' + sel('gfKind', [['any', 'Both'], ['public', 'Public'], ['private', 'Private']], 'any') + '</div>'
       + '<div><label>Budget (total)</label>' + sel('gfBudget', [['', 'From their profile'], ['0', 'No ceiling'], ['1000000', 'Under ₹10L'], ['2000000', 'Under ₹20L'], ['4000000', 'Under ₹40L']], '') + '</div>'
       + '<div><label>Name contains</label><input id="gfQ" placeholder="TUM, Data, Berlin"></div>'
+      /* 10 Oct: the tag search — type, pick from the dictionary (/api/tags),
+         and every chip has to hold on a row (server/matches.js screen, opts.tags). */
+      + '<div class="gf-tags"><label>Tags (all of these)</label><input id="gfTagQ" placeholder="No German Required, MOI Accepted, TU Munich, Data Science…" autocomplete="off" aria-autocomplete="list" aria-expanded="false">'
+      + '<div class="gf-sug" id="gfTagSug" role="listbox" hidden></div><div class="gf-chips" id="gfTagChips"></div></div>'
       + '<div><label>Specialisation</label><input id="gfSpec" placeholder="Embedded Systems"></div>'
       + '<div><label>Tuition per semester</label>' + sel('gfTuition', [['', 'Any tuition'], ['0', 'No tuition fee'], ['500', 'Up to €500'], ['1500', 'Up to €1,500'], ['4000', 'Up to €4,000'], ['6000', 'Up to €6,000']], '') + '</div>'
       + '<div><label>CGPA · out of · pass</label><div class="gf-row"><input id="gfCgpa" value="' + esc(P.d_cgpa || '') + '" inputmode="decimal"><input id="gfMax" value="' + esc(P.d_max || '10') + '" inputmode="decimal"><input id="gfPass" value="' + esc(P.d_pass || '') + '" inputmode="decimal" placeholder="pass"></div></div>'
@@ -142,6 +234,44 @@
       + '<div id="gfOut"></div></div>';
 
     const v = id => (el.querySelector('#' + id) || {}).value || '';
+    /* The tag chips, and the suggestions box that fills them. */
+    const TAGS_CHOSEN = [];
+    const drawChips = () => {
+      const c = el.querySelector('#gfTagChips'); if (!c) return;
+      c.innerHTML = TAGS_CHOSEN.map((t, i) => '<button type="button" class="gf-chip" data-gftag="' + i + '" title="Remove">' + esc(t.value)
+        + (t.type ? ' <small>' + esc(t.type) + '</small>' : '') + ' <b aria-hidden="true">×</b></button>').join('');
+    };
+    const hideSug = () => { const s = el.querySelector('#gfTagSug'); if (s) { s.hidden = true; s.innerHTML = ''; } const q = el.querySelector('#gfTagQ'); if (q) q.setAttribute('aria-expanded', 'false'); };
+    const addTag = (value, type) => {
+      const t = String(value || '').trim(); if (!t) return;
+      if (!TAGS_CHOSEN.some(x => x.value.toLowerCase() === t.toLowerCase())) TAGS_CHOSEN.push({ value: t, type: type || '' });
+      drawChips(); hideSug();
+      const q = el.querySelector('#gfTagQ'); if (q) { q.value = ''; q.focus(); }
+      go();
+    };
+    let sugTimer = null;
+    const askSug = async () => {
+      const q = el.querySelector('#gfTagQ'), s = el.querySelector('#gfTagSug'); if (!q || !s) return;
+      const term = q.value.trim();
+      if (term.length < 2) { hideSug(); return; }
+      let list = [];
+      try { const r = await fetch('/api/tags?q=' + encodeURIComponent(term) + '&limit=18', { credentials: 'same-origin' }); list = r.ok ? ((await r.json()).suggestions || []) : []; } catch (e) { list = []; }
+      if (q.value.trim() !== term) return;
+      if (!list.length) { hideSug(); return; }
+      const by = new Map();
+      list.forEach(x => { if (!by.has(x.type)) by.set(x.type, []); by.get(x.type).push(x); });
+      let h = '';
+      by.forEach((items, type) => { h += '<h6>' + esc(type) + '</h6>' + items.map(x => '<button type="button" role="option" aria-selected="false" data-gfsug="' + esc(x.value) + '" data-gfsugtype="' + esc(x.type) + '">' + esc(x.value) + (x.count > 1 ? '<em>' + x.count + ' programmes</em>' : '') + '</button>').join(''); });
+      s.innerHTML = h; s.hidden = false; q.setAttribute('aria-expanded', 'true');
+    };
+    const moveSug = dir => {
+      const items = [...el.querySelectorAll('#gfTagSug button')]; if (!items.length) return;
+      let i = items.findIndex(b => b.getAttribute('aria-selected') === 'true');
+      items.forEach(b => b.setAttribute('aria-selected', 'false'));
+      i = i < 0 ? (dir > 0 ? 0 : items.length - 1) : (i + dir + items.length) % items.length;
+      items[i].setAttribute('aria-selected', 'true');
+      if (items[i].scrollIntoView) items[i].scrollIntoView({ block: 'nearest' });
+    };
     const filters = () => {
       const f = {
         g_country: v('gfCountry'), g_level: v('gfLevel'), g_field: v('gfWords'), g_field2: '',
@@ -172,6 +302,7 @@
       f.g_restricted = rs === 'open' ? 'no' : '';
       f.restricted = rs === 'open' ? 'no' : rs === 'restricted' ? 'yes' : '';
       f.feeModel = v('gfFee');
+      if (TAGS_CHOSEN.length) f.tags = TAGS_CHOSEN.map(t => t.value).join(';');
       f.limit = 500;
       return f;
     };
@@ -208,8 +339,8 @@
        has no tuition fee; a private one at ₹0 is a fee nobody has written down. */
     const cost = r => Number(r.totalInr) ? lakh(r.totalInr)
       : (r.isPublic || (r.reqs && r.reqs.tuitionEurSem === 0) ? 'No tuition fee' : 'Fee to be confirmed');
-    const item = (r, onList, canAdd) => '<li><div class="m"><b>' + esc(r.university)
-      + (r.restricted ? ' <span class="tag">Restricted</span>' : '') + '</b>'
+    const item = (r, onList, canAdd) => '<li><div class="m"><b>' + logoTile(r) + '<span>' + esc(r.university)
+      + (r.restricted ? ' <span class="tag">Restricted</span>' : '') + '</span></b>'
       + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + cost(r)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
       + (r.why && r.why.length ? '<small class="why">' + esc(r.why.join('; ')) + '</small>' : '')
@@ -219,6 +350,7 @@
       + (r.ask && r.ask.length ? '<small class="ask">Not known yet: ' + esc(r.ask.join(', ')) + '</small>' : '')
       + (r.notes && r.notes.length ? '<small>' + esc(r.notes.join(' · ')) + '</small>' : '')
       + '<small>Restrictions: ' + esc(restrictions(r)) + '</small>'
+      + (r.tags && r.tags.length ? '<small>' + r.tags.map(t => '<span class="tagpill">' + esc(t) + '</span>').join('') + '</small>' : '')
       + '</div>' + (onList.has(String(r.id)) ? '<span class="tag">on their list</span>'
         : canAdd ? '<button type="button" class="btn btn-ghost btn-sm" data-gfadd="' + esc(r.id) + '">Add</button>' : '')
       + '</li>';
@@ -236,7 +368,7 @@
       /* F9 (8 Oct): a count of what "fits" means nothing until the student's
          CGPA, level and field are known — say what is missing instead. */
       const basics = d.usable !== false && String(((d.profile || {}).d_cgpa) || '').trim() !== '';
-      out.innerHTML = (basics
+      const draw = () => { out.innerHTML = (basics
           ? '<p class="sum">' + d.counts.looked + ' programmes in that field and level · <b>' + d.counts.fits + ' fit</b> · '
             + d.counts.near + ' miss on one thing' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'
           : '<p class="why">Add the student\'s CGPA, level and field to judge fit.</p>')
@@ -245,10 +377,19 @@
         + '<h4>Fits (' + d.fits.length + (d.counts.fits > d.fits.length ? ' of ' + d.counts.fits : '') + ')</h4>'
         + (d.fits.length ? '<ul>' + d.fits.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">Nothing fits every answer.</p>')
         + '<h4>Misses on one thing (' + d.near.length + ')</h4>'
-        + (d.near.length ? '<ul>' + d.near.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">None.</p>');
+        + (d.near.length ? '<ul>' + d.near.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">None.</p>'); };
+      draw();
+      /* The logos, once the index is here — the first run draws without
+         them and redraws; after that it is already loaded. */
+      if (!logoIdx) loadLogos().then(L => { if (L && out.isConnected) draw(); });
     }
     el.addEventListener('click', async e => {
       if (e.target.closest('#gfGo')) { go(); return; }
+      const sug = e.target.closest('[data-gfsug]');
+      if (sug) { e.preventDefault(); addTag(sug.dataset.gfsug, sug.dataset.gfsugtype); return; }
+      const chip = e.target.closest('[data-gftag]');
+      if (chip) { e.preventDefault(); TAGS_CHOSEN.splice(Number(chip.dataset.gftag), 1); drawChips(); go(); return; }
+      if (!e.target.closest('.gf-tags')) hideSug();
       const add = e.target.closest('[data-gfadd]');
       if (add && o.onAdd) {
         add.disabled = true;
@@ -256,7 +397,22 @@
         catch (err) { add.disabled = false; add.insertAdjacentHTML('afterend', '<small class="why">' + esc(err.message || 'Could not add it.') + '</small>'); }
       }
     });
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('input')) { e.preventDefault(); go(); } });
+    el.addEventListener('input', e => { if (e.target.id === 'gfTagQ') { clearTimeout(sugTimer); sugTimer = setTimeout(askSug, 160); } });
+    el.addEventListener('keydown', e => {
+      if (e.target.id === 'gfTagQ') {
+        const s = el.querySelector('#gfTagSug');
+        if (e.key === 'Escape') { if (s && !s.hidden) { e.preventDefault(); e.stopPropagation(); hideSug(); } return; }
+        if (s && !s.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); moveSug(e.key === 'ArrowDown' ? 1 : -1); return; }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const hi = s && !s.hidden ? (s.querySelector('button[aria-selected="true"]') || s.querySelector('button')) : null;
+          if (hi) addTag(hi.dataset.gfsug, hi.dataset.gfsugtype);
+          else if (e.target.value.trim()) addTag(e.target.value.trim(), '');
+          return;
+        }
+      }
+      if (e.key === 'Enter' && e.target.closest('input')) { e.preventDefault(); go(); }
+    });
     if (o.autorun) go();
   }
   window.GlovelsFit = { mount };

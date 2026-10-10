@@ -644,9 +644,19 @@ function paintRecord(r) {
           'background:var(--paper);border:1px solid var(--line)"></div>' +
         '<div id="uniAdd" hidden style="margin:0 0 12px;padding:12px 14px;border-radius:11px;' +
           'background:var(--paper);border:1px solid var(--line)">' +
-          '<input id="uniQ" placeholder="Search the catalogue — university, course or country" ' +
+          '<div style="position:relative">' +
+          '<input id="uniQ" placeholder="Search the catalogue — university, course, country or a tag: No German Required, TU Munich" ' +
+            'autocomplete="off" aria-autocomplete="list" aria-controls="uniSug" aria-expanded="false" ' +
             'style="width:100%;padding:9px 11px;font:400 13px/1.4 var(--sans);' +
             'border:1.5px solid #d8dde4;border-radius:9px">' +
+          /* 10 Oct: tag suggestions as they type (/api/tags); a pick becomes a
+             chip and the search narrows to rows carrying every chip. */
+          /* In the flow, not floating over the hits: the counsellor reads the
+             suggestions and the hits together and nothing hides a button. */
+          '<div id="uniSug" role="listbox" hidden style="margin-top:6px;' +
+            'background:#f7f9fb;border:1px solid var(--line);border-radius:10px;' +
+            'max-height:200px;overflow-y:auto;padding:4px"></div></div>' +
+          '<div id="uniTags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>' +
           '<div id="uniHits" style="margin-top:9px;max-height:260px;overflow-y:auto"></div></div>' +
         /* Two lists, matching what the student sees.
          *
@@ -868,20 +878,92 @@ function caseCgpa() {
 }
 
 let uniTimer = null;
+/* 10 Oct: the tag chips on the add-a-university search. Chosen from the
+   suggestions under the box; every chip has to hold on a row (the server
+   checks the stored tags, or the ones it derives when none are stored). */
+let UNI_TAGS = [];
+function drawUniTags() {
+  const el = $('#uniTags'); if (!el) return;
+  el.innerHTML = UNI_TAGS.map((t, i) => '<button type="button" data-unitag="' + i + '" title="Remove" ' +
+    'style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;border:1px solid #b9cdf0;' +
+    'background:#eef3fc;color:#0b3d91;font:600 12px/1.3 var(--sans);cursor:pointer">' + esc(t.value) +
+    (t.type ? ' <small style="font-weight:400;opacity:.7">' + esc(t.type) + '</small>' : '') + ' <b aria-hidden="true">\u00d7</b></button>').join('');
+}
+function addUniTag(value, type) {
+  const v = String(value || '').trim(); if (!v) return;
+  if (!UNI_TAGS.some(t => t.value.toLowerCase() === v.toLowerCase())) UNI_TAGS.push({ value: v, type: type || '' });
+  drawUniTags();
+  const q = $('#uniQ'); if (q) { q.value = ''; q.focus(); }
+  hideUniSug();
+  searchUnis('');
+}
+function hideUniSug() {
+  const s = $('#uniSug'); if (s) { s.hidden = true; s.innerHTML = ''; }
+  const q = $('#uniQ'); if (q) q.setAttribute('aria-expanded', 'false');
+}
+let uniSugTimer = null;
+async function suggestUniTags(q) {
+  const s = $('#uniSug'); if (!s) return;
+  const term = q.trim();
+  if (term.length < 2) { hideUniSug(); return; }
+  let list = [];
+  try { list = (await api('GET', '/api/tags?q=' + encodeURIComponent(term) + '&limit=18')).suggestions || []; } catch (e) { list = []; }
+  if (!$('#uniQ') || $('#uniQ').value.trim() !== term) return;
+  if (!list.length) { hideUniSug(); return; }
+  const by = new Map();
+  list.forEach(x => { if (!by.has(x.type)) by.set(x.type, []); by.get(x.type).push(x); });
+  let h = '';
+  by.forEach((items, type) => {
+    h += '<div style="margin:6px 10px 2px;font:700 10.5px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">' + esc(type) + '</div>' +
+      items.map(x => '<button type="button" role="option" aria-selected="false" data-unisug="' + esc(x.value) + '" data-unisugtype="' + esc(x.type) + '" ' +
+        'style="display:flex;width:100%;justify-content:space-between;gap:10px;padding:7px 10px;border:0;border-radius:8px;background:none;text-align:left;' +
+        'font:600 12.8px/1.35 var(--sans);color:var(--navy-900);cursor:pointer">' + esc(x.value) +
+        (x.count > 1 ? '<em style="font:400 11px/1.3 var(--sans);color:var(--muted)">' + x.count + ' programmes</em>' : '') + '</button>').join('');
+  });
+  s.innerHTML = h; s.hidden = false;
+  $('#uniQ').setAttribute('aria-expanded', 'true');
+}
+function moveUniSug(dir) {
+  const items = [...document.querySelectorAll('#uniSug button')]; if (!items.length) return;
+  let i = items.findIndex(b => b.getAttribute('aria-selected') === 'true');
+  items.forEach(b => { b.setAttribute('aria-selected', 'false'); b.style.background = ''; });
+  i = i < 0 ? (dir > 0 ? 0 : items.length - 1) : (i + dir + items.length) % items.length;
+  items[i].setAttribute('aria-selected', 'true'); items[i].style.background = '#f0f5fb';
+  if (items[i].scrollIntoView) items[i].scrollIntoView({ block: 'nearest' });
+}
+document.addEventListener('keydown', e => {
+  if (!e.target || e.target.id !== 'uniQ') return;
+  const s = $('#uniSug');
+  if (e.key === 'Escape') { if (s && !s.hidden) { e.preventDefault(); hideUniSug(); } return; }
+  if (s && !s.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); moveUniSug(e.key === 'ArrowDown' ? 1 : -1); return; }
+  if (e.key === 'Enter') {
+    const hi = s && !s.hidden ? (s.querySelector('button[aria-selected="true"]') || s.querySelector('button')) : null;
+    if (hi) { e.preventDefault(); addUniTag(hi.dataset.unisug, hi.dataset.unisugtype); }
+  }
+});
+document.addEventListener('click', e => {
+  const sug = e.target.closest('[data-unisug]');
+  if (sug) { e.preventDefault(); addUniTag(sug.dataset.unisug, sug.dataset.unisugtype); return; }
+  const chip = e.target.closest('[data-unitag]');
+  if (chip) { e.preventDefault(); UNI_TAGS.splice(Number(chip.dataset.unitag), 1); drawUniTags(); searchUnis(($('#uniQ') || {}).value || ''); return; }
+  if (!e.target.closest('#uniAdd')) hideUniSug();
+});
+
 async function searchUnis(q) {
   const box = $('#uniHits');
   const term = q.trim().toLowerCase();
-  if (term.length < 2) {
+  const tags = UNI_TAGS.map(t => t.value).join(';');
+  if (term.length < 2 && !tags) {
     box.innerHTML = '<p style="margin:0;font-size:12.2px;color:var(--muted)">' +
-      'Type two letters or more.</p>';
+      'Type two letters or more, or pick a tag.</p>';
     return;
   }
   await catalogue();
   const on = new Set(((CASE && CASE.shortlist) || []).map(x => String(x.id)));
   let hits = [];
   try {
-    const d = await api('GET', '/api/staff/catalogue?q=' + encodeURIComponent(term)
-      + '&per=24&status=');
+    const d = await api('GET', '/api/staff/catalogue?q=' + encodeURIComponent(term.length >= 2 ? term : '')
+      + '&tags=' + encodeURIComponent(tags) + '&per=24&status=');
     hits = (d.programmes || []).filter(p => p.active !== false);
   } catch (e) { hits = []; }
   if ($('#uniQ') && $('#uniQ').value.trim().toLowerCase() !== term) return;
@@ -909,7 +991,9 @@ async function searchUnis(q) {
         '<li><div style="flex:1;min-width:0"><b style="display:block">' +
         esc(uniName(p)) + '</b><span style="display:block;font-size:11.8px;' +
         'color:var(--muted)">' + esc(p.name || p.program || '') + ' \u00b7 ' +
-        esc(p.country || '') + ' \u00b7 ' + money(p) + '</span>' + short(p) + '</div>' +
+        esc(p.country || '') + ' \u00b7 ' + money(p) + '</span>' + short(p) +
+        ((p.tagsShown || []).length ? '<span style="display:block;font-size:11px;color:var(--muted);margin-top:2px">' +
+          p.tagsShown.map(t => esc(t)).join(' \u00b7 ') + '</span>' : '') + '</div>' +
         (on.has(String(p.id))
           ? '<span class="st ok">on their list</span>'
           : '<button type="button" class="btn btn-primary btn-sm" data-uniadd="' +
@@ -921,6 +1005,8 @@ document.addEventListener('input', e => {
   if (e.target && e.target.id === 'uniQ') {
     clearTimeout(uniTimer);
     uniTimer = setTimeout(() => searchUnis(e.target.value), 220);
+    clearTimeout(uniSugTimer);
+    uniSugTimer = setTimeout(() => suggestUniTags(e.target.value), 160);
   }
 });
 

@@ -1233,6 +1233,8 @@ select.assign.none:hover{border-color:#a5342b}
         Mobile app</button>
       <button class="otab" role="tab" data-o="traffic" aria-selected="false">
         Traffic</button>
+      <button class="otab" role="tab" data-o="stories" aria-selected="false">
+        Success stories <span class="n" id="ssTabN">0</span></button>
     </div>
 
     <div class="opane active" id="o-students">
@@ -1569,6 +1571,50 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
     </div>
     </div><!-- /o-app -->
+
+    <!-- The success-stories page. One card per admission offer and one per
+         visa or work-route outcome, all of it from the public JSON the office
+         exports from its success-stories sheet. Replacing the file here
+         replaces the page; the file shipped with the site stays as the
+         fallback. Nothing a person could type into a form — the sheet is the
+         place to edit a story, and the export is the only way on to the page,
+         so a surname or a score cannot be added here by accident. -->
+    <div class="opane" id="o-stories">
+    <div class="p-sec">
+      <div class="p-sec-head"><h2 id="storiesCard">Success stories</h2>
+        <span style="flex:1"></span>
+        <a class="btn btn-ghost btn-sm" href="/success-stories" target="_blank" rel="noopener">Open the page</a>
+      </div>
+      <div class="p-card">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:15px">On the page now</h3>
+          <span class="st" id="ssSource">checking&hellip;</span>
+        </div>
+        <p style="margin:10px 0 0;font-size:12.6px;line-height:1.65;color:var(--navy-800)" id="ssCounts"></p>
+        <p style="margin:12px 0 8px;font-size:11.8px;color:var(--muted);line-height:1.6">
+          Export the <b>public</b> JSON from the success-stories sheet
+          (<code>Glovels_Success_Stories_&hellip;_public.json</code> &mdash; the one with only
+          <code>admits</code> and <code>routes</code>) and upload it here, or paste its text.
+          Every row needs an intake, a display name and a university (admits) or a route
+          (visa and work outcomes). <b>Replace all</b> swaps the whole page for the file; the
+          card order is worked out on the server, so nothing else needs doing. New
+          universities get their logo by name from the logo index &mdash; a name it does not
+          know shows initials until the logo is added.</p>
+        <div class="field" style="margin-bottom:10px"><label for="ssFile">Upload the public JSON</label>
+          <input type="file" id="ssFile" accept=".json,application/json"></div>
+        <div class="field" style="margin-bottom:10px"><label for="ssText">&hellip;or paste it</label>
+          <textarea id="ssText" rows="5" placeholder='{"admits": [ ... ], "routes": [ ... ]}'
+            style="width:100%;padding:9px 11px;font:400 12.4px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+            border:1.5px solid #d8dde4;border-radius:11px;resize:vertical"></textarea></div>
+        <p class="ferr" id="ssErr" hidden></p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary btn-sm" id="ssReplace">Replace all</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="ssRestore" hidden>Back to the shipped file</button>
+          <span id="ssResult" style="font:600 12.4px/1.5 var(--sans);color:var(--navy-800)"></span>
+        </div>
+      </div>
+    </div>
+    </div><!-- /o-stories -->
 
     <!-- How the site is found. Counted by the server from the pages it
          serves — not by a tag a blocker can strip — so the answer to "is
@@ -2399,7 +2445,7 @@ document.addEventListener('click', e => {
    be scrolled to, so it would have done nothing at all. */
 const TAB_OF = { everyStudent: 'students', everyOrder: 'orders',
   theMoney: 'money', mailCard: 'email', everyChat: 'chats', appCard: 'app',
-  trafficCard: 'traffic', gaCard: 'traffic' };
+  trafficCard: 'traffic', gaCard: 'traffic', storiesCard: 'stories' };
 function tabForHash() {
   const h = (location.hash || '').replace(/^#/, '');
   if (!h) return '';
@@ -3936,6 +3982,75 @@ $('#appSave').addEventListener('click', async () => {
 });
 
 paintApp();
+
+/* --------------------------------------------------------- success stories */
+/* Admin only, like everything on this screen; the server asks for the
+   `content` permission on both routes, so a counsellor who reaches the tab
+   sees the refusal rather than the page's data. */
+const ssSay = c => c.admits + ' admission offer' + (c.admits === 1 ? '' : 's') + ' from '
+  + c.students + ' student' + (c.students === 1 ? '' : 's') + ' at ' + c.universities
+  + ' universit' + (c.universities === 1 ? 'y' : 'ies') + ', and ' + c.routes
+  + ' visa / work-route approval' + (c.routes === 1 ? '' : 's') + '.';
+async function paintStories() {
+  const src = $('#ssSource'), counts = $('#ssCounts'), tab = $('#ssTabN');
+  if (!src) return;
+  try {
+    const d = await api('GET', '/api/staff/success-stories');
+    src.className = 'st ' + (d.source === 'upload' ? 'ok' : d.source === 'file' ? 'wait' : 'none');
+    src.textContent = d.source === 'upload'
+      ? 'uploaded' + (d.who ? ' by ' + d.who : '') + (d.updated ? ' · ' + new Date(d.updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+      : d.source === 'file' ? 'the file shipped with the site' : 'nothing — the page is empty';
+    counts.textContent = ssSay(d.counts);
+    if (tab) tab.textContent = d.counts.admits;
+    $('#ssRestore').hidden = d.source !== 'upload';
+  } catch (e) {
+    src.className = 'st none';
+    src.textContent = e.message || 'could not load';
+    counts.textContent = '';
+  }
+}
+async function ssSend(body, label) {
+  const btn = $('#ssReplace'), err = $('#ssErr'), out = $('#ssResult');
+  err.hidden = true; out.textContent = '';
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = label || 'Replacing…';
+  try {
+    const r = await api('POST', '/api/staff/success-stories', body);
+    out.textContent = 'Done — ' + ssSay(r.counts);
+    $('#ssText').value = '';
+    $('#ssFile').value = '';
+    await paintStories();
+    toast(r.source === 'upload' ? 'Success stories replaced — the page shows the new file now.'
+      : 'Back to the file shipped with the site.');
+  } catch (e) {
+    err.textContent = e.message || 'That did not save.';
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+}
+$('#ssReplace').addEventListener('click', async () => {
+  const err = $('#ssErr');
+  err.hidden = true;
+  let text = $('#ssText').value.trim();
+  const f = $('#ssFile').files && $('#ssFile').files[0];
+  if (f) { try { text = await f.text(); } catch (e) { text = ''; } }
+  if (!text) { err.textContent = 'Choose the public JSON file, or paste its text.'; err.hidden = false; return; }
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch (e) { err.textContent = 'That is not valid JSON — export the public file again and upload the whole file.'; err.hidden = false; return; }
+  const n = parsed && Array.isArray(parsed.admits) ? parsed.admits.length : 0;
+  if (!confirm('Replace every success story on the site with this file (' + n + ' admits, '
+    + (parsed && Array.isArray(parsed.routes) ? parsed.routes.length : 0) + ' visa / work routes)?')) return;
+  await ssSend(parsed);
+});
+$('#ssRestore').addEventListener('click', async () => {
+  if (!confirm('Drop the uploaded file and show the one shipped with the site?')) return;
+  await ssSend({ restore: true }, 'Restoring…');
+});
+paintStories();
 
 paintMail();
 
