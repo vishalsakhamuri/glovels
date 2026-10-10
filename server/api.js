@@ -1273,6 +1273,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     '/api/auth/change', '/api/auth/logout', '/api/auth/me', '/api/account',
   ]);
 
+  /* Patch 164 (Q1): what a COMPLETED student may still write. Their file is
+     finished, so the profile, shortlist, applications, documents and orders
+     are read-only — but they can still talk to their counsellor, sign out,
+     change their password, and leave. Everything GET stays open. */
+  const COMPLETED_MAY_WRITE = [/^\/api\/auth\//, /^\/api\/account$/, /^\/api\/messages/, /^\/api\/chat/, /^\/api\/push/, /^\/api\/read/];
+
   /* ---------------------------------------------------------------- auth */
 
   route('POST', '/api/auth/signup', async (req, res) => {
@@ -1353,7 +1359,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * hits this is that the work finished months ago and they have come back
      * with a question — not that they are unwelcome. The password was right;
      * pretending it was not would send them round the reset loop for ever. */
-    if (s.role === 'student' && (s.status || 'active') !== 'active') {
+    /* Patch 164 (Q1): a file closed as COMPLETED still opens — the student
+       may need their documents, visa letters and messages before travel —
+       read-only (see READ_ONLY_WHEN_COMPLETED). Only a file closed as LEFT
+       is shut. */
+    if (s.role === 'student' && (s.status || 'active') === 'left') {
       return json(res, 403, {
         error: 'Your Glovels file has been closed, so this account no longer opens. '
              + 'If you need anything, write to us and we will reopen it.',
@@ -5489,9 +5499,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       }
       const was = st.status || 'active';
       const now = db.setStudentStatus(id, b.status, b.note);
-      /* Closing signs them out. Leaving the sessions alive would mean an account
-         that cannot sign in but is still signed in, which is not closed. */
-      if (now !== 'active' && was === 'active') db.dropSessions(id);
+      /* Leaving signs them out — an account that cannot sign in but is still
+         signed in is not closed. Completed keeps its sessions: the file is
+         read-only from here (patch 164), not shut. */
+      if (now === 'left' && was !== 'left') db.dropSessions(id);
       db.log(s.name, now === 'active' ? 'file reopened' : 'file closed \u2014 ' + now,
         st.name + (b.note ? ' \u2014 ' + String(b.note).slice(0, 120) : ''));
       return json(res, 200, { id, status: now, note: b.note || '' });
@@ -10094,6 +10105,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           json(res, 403, {
             error: 'Choose your own password before you go any further.',
             mustChange: true,
+          });
+          return true;
+        }
+        if (s.role === 'student' && (s.status || 'active') === 'completed' && req.method !== 'GET'
+            && !COMPLETED_MAY_WRITE.some(re => re.test(pathname))) {
+          json(res, 403, {
+            error: 'Your file is complete, so this is read-only now. Your documents, letters and messages stay here for you; message your counsellor if something needs changing.',
+            completed: true,
           });
           return true;
         }

@@ -185,6 +185,8 @@ run round151test.js 8099
 run round152test.js 8099
 # Patch 159: /find-university — filters in the address, sort, compare, save.
 run findtest.js     8099
+# Patch 164: a completed file is read-only, a left one is shut.
+run round164test.js 8099
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

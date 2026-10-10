@@ -2538,8 +2538,8 @@ document.addEventListener('change', async e => {
   const row = sel.closest('tr');
   const who = (row.querySelector('td b') || {}).textContent || 'this student';
   const words = to === 'completed'
-    ? 'Close ' + who + '\u2019s file as completed?\n\nThey will be signed out and will '
-      + 'not be able to sign in again. Anything still owed stays owed.'
+    ? 'Close ' + who + '\u2019s file as completed?\n\nThey keep read-only access \u2014 their '
+      + 'documents, letters and messages \u2014 but nothing on the file changes any more. Anything still owed stays owed.'
     : to === 'left'
       ? 'Close ' + who + '\u2019s file as left part-way?\n\nThey will be signed out, and '
         + 'anything still owed moves from "still to collect" into "lost to drop-off".'

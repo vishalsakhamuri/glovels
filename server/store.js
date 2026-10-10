@@ -1085,7 +1085,9 @@ function open(dir) {
          the moment of closing, but a cookie can outlive a restore from backup or
          a race with a request already in flight — and "closed" has to mean
          closed on every path, not on the one we remembered to change. */
-      if (who && who.role === 'student' && (who.status || 'active') !== 'active') {
+      /* Patch 164: completed is read-only, not closed — only a file closed as
+         LEFT ends the session here. */
+      if (who && who.role === 'student' && (who.status || 'active') === 'left') {
         this.dropSession(token);
         return null;
       }
