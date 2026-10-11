@@ -469,6 +469,12 @@ function sqliteDriver(file) {
    /* Patch 162: the matcher's order. Picks share one added_at, so without
       this the "best three" came back in whatever order SQLite felt like. */
    "ALTER TABLE shortlist ADD COLUMN rank INTEGER NOT NULL DEFAULT 0",
+   /* 11 Oct (round 165): what kind of row the office took off — 'matched'
+      frees a place in the package that a hand-added row then fills (a swap);
+      an 'office' or 'student' row taken off frees nothing. Rows dismissed
+      before this column existed were the machine's: that is what the table
+      was made for (patch 143). */
+   "ALTER TABLE shortlist_dismissed ADD COLUMN was TEXT NOT NULL DEFAULT 'matched'",
    /* One row per device a member of staff has allowed notifications on. The
       endpoint is the identity — a browser that rotates a subscription gives us
       a new endpoint, and the old one starts returning 410, which is how dead
@@ -877,6 +883,7 @@ function jsonDriver(file) {
       // INSERT OR REPLACE / ON CONFLICT: drop any row with the same key first
       if (/or\s+replace|on\s+conflict/i.test(s)) {
         const keys = {profiles: ['student_id'], shortlist: ['student_id', 'prog_id'],
+          shortlist_dismissed: ['student_id', 'prog_id'],
           applications: ['student_id', 'prog_id'], saved_scholarships: ['student_id', 'sch_id'],
           password_resets: ['token'], programmes: ['id'], countries: ['code'],
           content: ['key']}[table];
@@ -918,6 +925,16 @@ function jsonDriver(file) {
 }
 
 /* ------------------------------------------------------------------ facade */
+
+/* The student's list in the order it is shown (round 165): the matcher's rank
+   first (1 before 2; a row without one — 0 — after every row with one), then
+   when the row arrived, then the row itself. */
+function rankOrder(rows) {
+  const key = r => (Number(r.rank) > 0 ? Number(r.rank) : Infinity);
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => (key(a.r) - key(b.r))
+    || String(a.r.added_at || '').localeCompare(String(b.r.added_at || ''))
+    || (a.i - b.i)).map(x => x.r);
+}
 
 function open(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -1142,24 +1159,40 @@ function open(dir) {
        on the student's list", and a held row is precisely not on it yet —
        the dashboard, the tasks, the partner's book, the counts all go on
        seeing exactly what they saw. The held rows have their own reader. */
-    getShortlist: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc, rank asc, rowid asc', Number(id))
-      .filter(r => String(r.added_by) !== 'held'),
+    /* 11 Oct (round 165): the order IS the matcher's rank (shortlist.rank,
+       patch 162) — a released held pick keeps the place it was picked at, a
+       counsellor's add sits where the matcher ranks it (or after the machine's
+       picks when it fits nothing). added_at only breaks ties; rows that never
+       got a rank (the student's own marks, rows from before patch 162) come
+       last, oldest first. Sorted here rather than in SQL so both drivers
+       agree. */
+    getShortlist: id => rankOrder(db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY rowid asc', Number(id))
+      .filter(r => String(r.added_by) !== 'held')),
     /* Patch 153: the machine's picks a counsellor has yet to release. */
-    getHeld: id => db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY added_at asc', Number(id))
-      .filter(r => String(r.added_by) === 'held'),
+    getHeld: id => rankOrder(db.all('SELECT * FROM shortlist WHERE student_id = ? ORDER BY rowid asc', Number(id))
+      .filter(r => String(r.added_by) === 'held')),
+    /* The matcher's rank on one row — a counsellor's add, re-ranked on a
+       profile save; the rows the machine writes carry theirs already. */
+    setShortlistRank: (studentId, progId, rank) =>
+      db.run('UPDATE shortlist SET rank = ? WHERE student_id = ? AND prog_id = ?',
+        Number(rank || 0), Number(studentId), String(progId)),
     /* A held pick. Never over a row that is already on the list: a university
        the counsellor agreed, the machine delivered or the student marked is
        on the list, and holding it would take it away. */
-    addHeld(studentId, p, reason) {
-      const existing = db.all('SELECT added_by FROM shortlist WHERE student_id = ? AND prog_id = ?',
+    addHeld(studentId, p, reason, rank) {
+      const existing = db.all('SELECT added_by, added_at FROM shortlist WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(p.id))[0];
       if (existing && String(existing.added_by) !== 'held') return false;
+      /* The rank travels with the hold (round 165), so the pick goes on the
+         student's list at the place it was picked at when it is released. A
+         row already held keeps its first held-at time. */
       db.run(`INSERT OR REPLACE INTO shortlist
-        (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by, hold_reason)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by, hold_reason, rank)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(studentId), String(p.id), p.program || '', p.university || '', p.city || '',
         p.country || '', Number(p.totalInr || 0), p.isPublic ? 1 : 0, p.url || '',
-        JSON.stringify(p.intakes || []), Number(p.fit || 0), now(), 'held', String(reason || '').slice(0, 400));
+        JSON.stringify(p.intakes || []), Number(p.fit || 0), (existing && existing.added_at) || now(), 'held',
+        String(reason || '').slice(0, 400), Number(rank || 0));
       return true;
     },
     /* The counsellor has looked: it becomes a machine pick the student can
@@ -1168,8 +1201,10 @@ function open(dir) {
       const row = db.all('SELECT * FROM shortlist WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(progId))[0];
       if (!row || String(row.added_by) !== 'held') return null;
-      db.run('UPDATE shortlist SET added_by = ?, hold_reason = ?, added_at = ? WHERE student_id = ? AND prog_id = ?',
-        'matched', '', now(), Number(studentId), String(progId));
+      /* Not added_at: the order is the rank, and stamping "now" here put a
+         released #1 at the bottom of the student's list (round 165). */
+      db.run('UPDATE shortlist SET added_by = ?, hold_reason = ? WHERE student_id = ? AND prog_id = ?',
+        'matched', '', Number(studentId), String(progId));
       return db.all('SELECT * FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId))[0] || null;
     },
     /**
@@ -1189,30 +1224,39 @@ function open(dir) {
      */
     addShortlist(studentId, p, by, rank) {
       const existing = db.all(
-        'SELECT added_by FROM shortlist WHERE student_id = ? AND prog_id = ?',
+        'SELECT added_by, added_at, rank FROM shortlist WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(p.id))[0];
       const RANK = { student: 1, matched: 2, office: 3 };
       const want = RANK[by] ? by : 'office';
       const prior = existing && existing.added_by;
       const owner = prior && (RANK[prior] || 0) > RANK[want] ? prior : want;
+      /* A row already on the list (not held) keeps when it arrived — the
+         machine rewriting its picks on every profile save is not a new
+         arrival — and keeps its rank when this write brings none. */
+      const kept = existing && String(prior) !== 'held' ? existing : null;
       db.run(`INSERT OR REPLACE INTO shortlist
         (student_id, prog_id, program, university, city, country, total_inr, is_public, url, intakes, fit, added_at, added_by, rank)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(studentId), String(p.id), p.program || '', p.university || '', p.city || '',
         p.country || '', Number(p.totalInr || 0), p.isPublic ? 1 : 0, p.url || '',
-        JSON.stringify(p.intakes || []), Number(p.fit || 0), now(), owner, Number(rank || 0));
+        JSON.stringify(p.intakes || []), Number(p.fit || 0), (kept && kept.added_at) || now(), owner,
+        Number(rank || (kept && kept.rank) || 0));
     },
     removeShortlist: (studentId, progId) =>
       db.run('DELETE FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
     /* "Not this one", remembered — see shortlist_dismissed. Adding it back by
        hand clears it. */
-    dismissShortlist: (studentId, progId) =>
-      db.run('INSERT OR REPLACE INTO shortlist_dismissed (student_id, prog_id, at) VALUES (?, ?, ?)',
-        Number(studentId), String(progId), now()),
+    dismissShortlist: (studentId, progId, was) =>
+      db.run('INSERT OR REPLACE INTO shortlist_dismissed (student_id, prog_id, at, was) VALUES (?, ?, ?, ?)',
+        Number(studentId), String(progId), now(), String(was || 'matched')),
     undismissShortlist: (studentId, progId) =>
       db.run('DELETE FROM shortlist_dismissed WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
     dismissedFor: studentId =>
       db.all('SELECT prog_id FROM shortlist_dismissed WHERE student_id = ?', Number(studentId)).map(r => String(r.prog_id)),
+    /* The same with what each row was when it went (round 165). */
+    dismissedRows: studentId =>
+      db.all('SELECT prog_id, was, at FROM shortlist_dismissed WHERE student_id = ?', Number(studentId))
+        .map(r => ({ progId: String(r.prog_id), was: String(r.was || 'matched'), at: r.at })),
 
     /* Every programme id any student has shortlisted or applied to, as one set.
        Deleting one of these blanks out that student's shortlist card and their
@@ -1784,7 +1828,11 @@ function open(dir) {
       /* The words go to the full-text index, not to LIKE over a million rows. */
       const match = ftsMatch(q);
       if (match) { w.push('rowid IN (SELECT rowid FROM prog_fts WHERE prog_fts MATCH ?)'); a.push(match); }
-      const perN = Math.max(1, Math.min(2000, Number(per) || 100));
+      /* per: 'all' — every matching row, unpaged (round 165): the tag filter
+         runs on the rows after this query, so it needs the whole set, not
+         the first 2,000 of it. */
+      const every = per === 'all';
+      const perN = every ? 0 : Math.max(1, Math.min(2000, Number(per) || 100));
       const pageN = Math.max(1, Number(page) || 1);
       if (db.kind !== 'sqlite') {
         const rows = db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '').filter(r =>
@@ -1794,7 +1842,12 @@ function open(dir) {
           && (!cg || barOf(r) == null || cg >= barOf(r))
           && (status === '' || status == null || (status === '1' ? (r.active && !r.search_only) : status === '2' ? (r.active && r.search_only) : !r.active))
           && words.every(word => (r.university + ' ' + r.program + ' ' + (r.field || '') + ' ' + (r.city || '') + ' ' + (r.tags || '')).toLowerCase().includes(word)));
+        if (every) return { rows, total: rows.length, page: 1, per: rows.length };
         return { rows: rows.slice((pageN - 1) * perN, pageN * perN), total: rows.length, page: pageN, per: perN };
+      }
+      if (every) {
+        const rows = db.all('SELECT * FROM programmes WHERE ' + w.join(' AND ') + ' ORDER BY uni_slug ASC, program ASC', ...a);
+        return { rows, total: rows.length, page: 1, per: rows.length };
       }
       const total = (db.one('SELECT COUNT(*) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
       const rows = db.all('SELECT * FROM programmes WHERE ' + w.join(' AND ') + ' ORDER BY uni_slug ASC, program ASC LIMIT ? OFFSET ?', ...a, perN, (pageN - 1) * perN);

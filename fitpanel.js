@@ -166,6 +166,7 @@
     + '.gf .auto{background:#f5f8fb;border:1px solid var(--line,#e6e9ee);border-radius:10px;padding:10px 12px;margin-top:12px}'
     + '.gf .sum{margin-top:10px;color:var(--muted,#5d6b7a);font-size:12.2px}'
     + '.gf li .m b{display:flex;align-items:center;gap:8px}'
+    + '.gf li .rk{flex:none;min-width:2.4em;padding-top:5px;font:700 11.5px/1.3 var(--sans,system-ui);color:var(--muted,#5d6b7a);font-variant-numeric:tabular-nums}'
     + '.gf .ulogo{width:28px;height:28px;flex:none;object-fit:contain;background:#fff;border:1px solid var(--line,#e6e9ee);border-radius:6px;padding:2px;box-sizing:border-box}'
     /* 10 Oct: the tags box — suggestions under it, chips beside it, and the
        first few of each row's tags in muted pills. */
@@ -339,7 +340,13 @@
        has no tuition fee; a private one at ₹0 is a fee nobody has written down. */
     const cost = r => Number(r.totalInr) ? lakh(r.totalInr)
       : (r.isPublic || (r.reqs && r.reqs.tuitionEurSem === 0) ? 'No tuition fee' : 'Fee to be confirmed');
-    const item = (r, onList, canAdd) => '<li><div class="m"><b>' + logoTile(r) + '<span>' + esc(r.university)
+    /* Round 165: the rank, per university — the first programme of the first
+       university is #1, a second programme at the same university shares its
+       number, the next university is #2. With the kind filter on the package's
+       kind, the student's #1 is this #1: the same one-per-university order
+       the package delivers. */
+    const item = (r, onList, canAdd, rk) => '<li>' + (rk ? '<span class="rk" title="Rank for this profile">#' + rk + '</span> ' : '')
+      + '<div class="m"><b>' + logoTile(r) + '<span>' + esc(r.university)
       + (r.restricted ? ' <span class="tag">Restricted</span>' : '') + '</span></b>'
       + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + cost(r)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
@@ -375,7 +382,10 @@
         + (auto ? '<div class="auto"><b style="display:block;margin-bottom:4px">What a package would deliver now'
           + (d.bought === false ? ' (not bought yet)' : '') + '</b>' + auto + '</div>' : '')
         + '<h4>Fits (' + d.fits.length + (d.counts.fits > d.fits.length ? ' of ' + d.counts.fits : '') + ')</h4>'
-        + (d.fits.length ? '<ul>' + d.fits.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">Nothing fits every answer.</p>')
+        + (d.fits.length ? '<ul>' + (() => { const seen = new Map(); return d.fits.map(r => {
+            const k = String(r.university || r.id).toLowerCase();
+            if (!seen.has(k)) seen.set(k, seen.size + 1);
+            return item(r, onList, canAdd, seen.get(k)); }).join(''); })() + '</ul>' : '<p class="sum">Nothing fits every answer.</p>')
         + '<h4>Misses on one thing (' + d.near.length + ')</h4>'
         + (d.near.length ? '<ul>' + d.near.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">None.</p>'); };
       draw();

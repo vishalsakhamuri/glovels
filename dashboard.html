@@ -539,6 +539,9 @@ ol.prog li span{display:block;font:400 12px/1.5 var(--sans);color:var(--muted,#5
 /* The pill keeps its own line: "Matched · Public" broken across two lines
    mid-word is the thing this table exists to stop. */
 .sl-tbl .sl-tag{margin:0;white-space:nowrap}
+.sl-tbl .sl-logo{width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:8px;
+  background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px;box-sizing:border-box}
+.sl-tbl .sl-uni{vertical-align:middle}
 .sl-tbl td:nth-child(6){white-space:nowrap}
 /* On a phone every row becomes its own little card and each cell carries the
    column name it lost. */
@@ -1439,12 +1442,18 @@ function card(p, i){
   const where = [p.city, c.name].filter(Boolean).join(', ');
   const cell = (label, html, cls) =>
     '<td data-l="' + label + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + html + '</td>';
+  /* Round 165: the university's logo before its name where /logos/index.json
+     has one (the same matcher the finder and the counsellor's panel use —
+     find.js logoFor, via window.GLV_LOGO); the flag stays in its own column
+     and stands in when there is no logo. */
+  const lg = window.GLV_LOGO ? window.GLV_LOGO(p.university, p.shortName) : '';
   return '<tr>'
     + cell('#', '<span class="sl-n">' + (i + 1) + '</span>', 'sl-num')
     + cell('Country', '<span class="sl-flag">' + c.flag + '</span>'
         + '<span class="sl-cc">' + esc(p.country || '') + '</span>', 'sl-ctry')
     + cell('Program', '<b>' + esc(p.program) + '</b>', 'sl-prog')
-    + cell('University', esc(p.university))
+    + cell('University', (lg ? '<img class="sl-logo" src="' + esc(lg) + '" alt="" width="24" height="24" loading="lazy" decoding="async">' : '')
+        + '<span class="sl-uni">' + esc(p.university) + '</span>', 'sl-u')
     + cell('Location', where ? esc(where) : '<span class="sl-none">\u2014</span>', 'sl-where')
     + cell('Match', '<span class="sl-tag">' + ico('check') + 'Matched \u00b7 '
         + (p.isPublic ? 'Public' : 'Private') + '</span>')
@@ -1520,7 +1529,7 @@ if(paid && order.grossPaise){
     + 'to ' + esc(order.email || 'you') + '. Demo order — no payment was taken.</p></div>';
 }
 
-$('#slWrap').innerHTML = shown.length
+const drawShortlist = () => { $('#slWrap').innerHTML = shown.length
   ? '<div class="sl-scroll"><table class="tbl sl-tbl"><thead><tr>'
       + SL_HEAD.map(h => '<th>' + h + '</th>').join('')
       + '</tr></thead><tbody>'
@@ -1543,7 +1552,21 @@ $('#slWrap').innerHTML = shown.length
     + '<p>They agree it with you before anything is submitted. If you already have '
     + 'universities in mind, mark them on My Programs and your counsellor will see them.</p>'
     + '<a class="btn btn-primary" href="universities.html">My universities ' + ico('arrow')
-    + '</a></div>' + heldNote;
+    + '</a></div>' + heldNote; };
+drawShortlist();
+/* Round 165: the logos, once the index is here — the first draw shows the
+   names alone and the table is drawn again with the logos when it lands. */
+if (shown.length && !window.GLV_LOGO) (function () {
+  const s = document.createElement('script'); s.src = '/js/find.js'; s.async = true;
+  s.onload = function () {
+    fetch('/logos/index.json', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (idx) { if (!idx || !window.FIND) return;
+        window.GLV_LOGO = function (name, short) { return window.FIND.logoFor(name, short, idx); };
+        drawShortlist(); })
+      .catch(function () {});
+  };
+  document.head.appendChild(s);
+})();
 
 /* The counsellor card from the prototype. The name is a placeholder until a
    counsellor is actually assigned, and it is labelled as such rather than

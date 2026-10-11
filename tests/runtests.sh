@@ -189,6 +189,11 @@ run findtest.js     8099
 run round164test.js 8099
 # 10 Oct: the tag search — the dictionary, derived tags, the three boxes.
 run tagtest.js      8099
+# 11 Oct: the ranking rule on the real German catalogue — the SET (country,
+# level, field, CGPA), the best 3/5/10 by package, secondary filters that rank
+# and never drop, the counsellor's full list and swap. Loads the German sheets
+# itself on a fresh database (R165_SHEETS, or the defaults in the file).
+run round165test.js 8097
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

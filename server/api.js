@@ -916,6 +916,33 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     };
   }
 
+  /* The matcher's rank for a row the office put on the list (round 165): its
+     university's place in the strict ranking of its kind for this profile —
+     the same one-per-university order the machine's own picks are numbered
+     in — or, when the matcher would not pick it, after everything the
+     machine delivers. `after` is how many the machine picked this time. */
+  function rankOfficeRows(studentId, profile, catalogue, dismissed, after) {
+    const rows = db.getShortlist(studentId).filter(r => r.added_by === 'office');
+    if (!rows.length) return;
+    const skip = new Set((dismissed || []).map(String));
+    const cat = (catalogue || []).filter(p => !skip.has(String(p.id)));
+    const strict = {};
+    const rankIn = (kind, row) => {
+      if (!strict[kind]) {
+        try { strict[kind] = MATCHES.pick(cat, profile, 10000, kind, [], countryMap()); } catch (e) { strict[kind] = []; }
+      }
+      const keys = MATCHES.uniKeys({ id: row.prog_id, university: row.university, city: row.city, isPublic: !!row.is_public });
+      const i = strict[kind].findIndex(p => String(p.id) === String(row.prog_id) || MATCHES.uniKeys(p).some(k => keys.includes(k)));
+      return i < 0 ? 0 : i + 1;
+    };
+    let tail = Number(after) || 0;
+    rows.forEach(r => {
+      const rk = rankIn(r.is_public ? 'public' : 'private', r);
+      const want = rk || (++tail);
+      if (Number(r.rank) !== want) db.setShortlistRank(studentId, r.prog_id, want);
+    });
+  }
+
   /**
    * Pick them, and put them on the shortlist.
    *
@@ -949,23 +976,50 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const have = new Set(before.map(r => String(r.prog_id)));
     const applied = new Set(db.getApplications(student.id)
       .filter(a => Number(a.stage || 0) > 0 || a.outcome).map(a => String(a.prog_id)));
-    const dismissed = typeof db.dismissedFor === 'function' ? db.dismissedFor(student.id) : [];
+    const dismissedRows = typeof db.dismissedRows === 'function' ? db.dismissedRows(student.id)
+      : (typeof db.dismissedFor === 'function' ? db.dismissedFor(student.id) : []).map(id => ({ progId: id, was: 'matched' }));
+    const dismissed = dismissedRows.map(d => d.progId);
     const catalogue = rowsFor(profile);
-    /* Earlier picks the student has already seen are preferred when they
-       still fit — a re-pick tops a list up, it does not reshuffle it. */
-    const prefer = before.filter(r => r.added_by === 'matched').map(r => String(r.prog_id));
+    /*
+     * ROUND 165 — THE RULE, AS VISHAL STATED IT.
+     *
+     * Country, level, field and CGPA decide the SET; everything else only
+     * ranks; the student sees the best N for the package. So a re-pick is
+     * made FROM SCRATCH against the profile as it is now: the machine's
+     * earlier picks are not preferred (the old +25 kept picks made for a
+     * CGPA of 6.0 on the list after the student corrected it to 8.2). What
+     * stays regardless: a pick an application has started on (progress is
+     * a fact the matcher does not get to undo), a counsellor's row and the
+     * student's own.
+     *
+     * And the package is a FLOOR, not a cap: the machine always delivers its
+     * N, and a counsellor's add sits on top. The one exception is a swap —
+     * the counsellor took one of the machine's picks off (dismissed, it
+     * stays off) and put another on: that add fills the place the removed
+     * pick left, so the student still sees N, not N + 1. Adds beyond the
+     * number of machine picks taken off are extras.
+     */
+    const kindOf = r => (r.is_public ? 'public' : 'private');
+    const kindOfProg = id => { const p = lookup(id); return p ? (p.isPublic ? 'public' : 'private') : ''; };
     const picks = [];
     const notes = [];
     const made = { relaxed: [], short: 0, cgpaHeld: 0 };
     (owed.parts || [{ count: owed.count, kind: owed.kind }]).forEach(part => {
-      /* Whatever is already on the list by somebody's hand counts towards this
-         kind's number — a counsellor who added two public universities has
-         delivered two of the three. */
-      const byHand = before.filter(r => r.added_by !== 'matched'
-        && (part.kind === 'public' ? !!r.is_public : !r.is_public)).map(r => String(r.prog_id));
-      const need = Math.max(0, part.count - new Set(byHand).size);
-      const one = MATCHES.plan(catalogue.filter(p => !byHand.includes(String(p.id))),
-        profile, need, part.kind, countryMap(), { prefer, exclude: dismissed });
+      const ofKind = r => part.kind === 'any' || kindOf(r) === part.kind;
+      const mine = before.filter(r => r.added_by === 'matched' && ofKind(r));
+      /* The machine's picks already under way: kept, and part of its N. */
+      const progress = mine.filter(r => applied.has(String(r.prog_id))).map(r => String(r.prog_id));
+      /* The office's and the student's rows: not the machine's to pick
+         again, and only a swap-in counts towards N. */
+      const byHand = before.filter(r => r.added_by !== 'matched' && ofKind(r)).map(r => String(r.prog_id));
+      const office = before.filter(r => r.added_by === 'office' && ofKind(r)).length;
+      const freed = dismissedRows.filter(d => (d.was === 'matched' || d.was === 'held')
+        && (part.kind === 'any' || kindOfProg(d.progId) === part.kind || kindOfProg(d.progId) === '')).length;
+      const swapped = Math.min(office, freed);
+      const need = Math.max(0, part.count - progress.length - swapped);
+      const taken = new Set(byHand.concat(progress));
+      const one = MATCHES.plan(catalogue.filter(p => !taken.has(String(p.id))),
+        profile, need, part.kind, countryMap(), { exclude: dismissed });
       one.items.forEach(p => picks.push(p));
       if (one.note) notes.push(one.note);
       one.relaxed.forEach(r => { if (!made.relaxed.includes(r)) made.relaxed.push(r); });
@@ -995,13 +1049,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const id = String(p.id);
       const reasons = have.has(id) ? [] : MATCHES.holdReasons(p, profile);
       if (reasons.length) {
-        db.addHeld(student.id, p, reasons.join('; '));
+        db.addHeld(student.id, p, reasons.join('; '), rank + 1);
         heldNow.push(p);
         return;
       }
       if (!have.has(id)) out.added++;
       db.addShortlist(student.id, p, 'matched', rank + 1);
     });
+    /* The counsellor's rows take the matcher's rank for this profile too, so
+       the student's list reads in one order — a hand-added university the
+       matcher ranks third sits third. One the matcher would not pick at all
+       sits after the machine's picks (round 165). */
+    if (typeof db.setShortlistRank === 'function') {
+      try { rankOfficeRows(student.id, profile, catalogue, dismissed, picks.length); } catch (e) { /* the order stands */ }
+    }
     /* A re-pick REPLACES the machine's earlier picks, it does not pile on
        them. Rows a counsellor or the student put there are theirs and stay —
        and so does any machine pick an application has already started on:
@@ -4334,6 +4395,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const already = db.getShortlist(id).some(x => String(x.prog_id) === String(p.id));
       db.addShortlist(id, p, 'office');
       if (typeof db.undismissShortlist === 'function') db.undismissShortlist(id, p.id);
+      /* Where it sits on the student's list: the matcher's rank for their
+         profile, or after the machine's picks (round 165). */
+      try {
+        const prof = db.getProfile(id);
+        rankOfficeRows(id, prof, rowsFor(prof), typeof db.dismissedFor === 'function' ? db.dismissedFor(id) : [],
+          db.getShortlist(id).filter(x => x.added_by === 'matched').length);
+      } catch (e) { /* the row is on the list; the order is cosmetic */ }
       if (!already) {
         db.log(s.name, 'added a university', st.name + ' — ' + (p.university || p.id));
         /* "University application submission, every uni has a date" — so the
@@ -4459,7 +4527,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       db.removeApplication(id, progId);
       /* And the machine is told: a re-pick on the student's next profile save
          put a removed university straight back. */
-      if (typeof db.dismissShortlist === 'function') db.dismissShortlist(id, progId);
+      if (typeof db.dismissShortlist === 'function') db.dismissShortlist(id, progId, row ? row.added_by : (heldRow ? 'held' : 'matched'));
       if (row) {
         db.log(s.name, 'removed a university', st.name + ' — ' + (row.university || progId));
         db.addMessage(id, 'them', 'I have taken ' + progSaid(row)
@@ -7887,14 +7955,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* 10 Oct: chosen tags (?tags=a;b) narrow the page the way the home
        page's chips do — every tag on the row, stored or derived. The
        database does not know a derived tag, so the rows are read wide and
-       narrowed here, then paged. */
+       narrowed here, then paged. Round 165: the WHOLE matching set, not the
+       first 2,000 of it — on 2,400 rows the tail was never looked at and
+       the count was short by 370. Deriving tags costs ~0.06 ms a row, so
+       the full German catalogue is under a quarter of a second. */
     const tagList = TAGS.parseList(qs.tags);
     let page;
     if (tagList.length) {
       const perN = Math.max(1, Math.min(2000, Number(qs.per) || 100)), pageN = Math.max(1, Number(qs.page) || 1);
       const wide = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
         type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
-        status: qs.status == null ? '' : String(qs.status), page: 1, per: 2000 });
+        status: qs.status == null ? '' : String(qs.status), page: 1, per: 'all' });
       const kept = wide.rows.filter(r => TAGS.match(UNIS.fromRow(r), tagList, ''));
       page = { rows: kept.slice((pageN - 1) * perN, pageN * perN), total: kept.length, page: pageN, per: perN };
     } else {
@@ -7940,10 +8011,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       try { facts = JSON.parse(c.facts || '{}') || {}; } catch (e) {}
       bars[c.code] = { pub: facts.minCgpaPublic, priv: facts.minCgpaPrivate };
     });
+    /* Round 165: with a tags filter the whole matching set is read and
+       narrowed, as the list is, then capped — so "select all" on a tag
+       covers the rows the screen counts, not the first 2,000 before the
+       tag was looked at. */
+    const tagList = TAGS.parseList(qs.tags);
     const page = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
       type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
-      status: qs.status == null ? '' : String(qs.status), page: 1, per: 2000 });
-    return json(res, 200, { ids: page.rows.map(r => r.id), total: page.total });
+      status: qs.status == null ? '' : String(qs.status), page: 1, per: tagList.length ? 'all' : 2000 });
+    const rows = tagList.length ? page.rows.filter(r => TAGS.match(UNIS.fromRow(r), tagList, '')) : page.rows;
+    return json(res, 200, { ids: rows.slice(0, 2000).map(r => r.id), total: tagList.length ? rows.length : page.total });
   }));
 
   /* ------------------------------------------------- search by name */
