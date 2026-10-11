@@ -388,9 +388,19 @@ function score(p, w) {
 
   /* Free tuition still counts — it is what this business finds — but only a
      fee that is actually known to be nothing. A private programme at ₹0 is a
-     fee nobody has entered, not a free degree. */
+     fee nobody has entered, not a free degree.
+
+     Patch 168 (Vishal, 11 Oct): "at the same level of fit a free public
+     programme ranks above a paid private one — but we show the mix". So this
+     is a weight, not a filter: 40 — what the field's words in the title
+     (up to +24) plus three cleared requirements (+5 each) are worth — so a
+     ₹25 L private programme does not sit above a free public one of the same
+     relevance and tier on wording and a longer requirements list. A private
+     programme with a clearly better fit (the office's fit number, an open
+     deadline, the right intake) still ranks above a free one, and the list
+     stays mixed. */
   const fee = Number(p.totalInr) || 0;
-  if (fee === 0 && p.isPublic) n += 8;
+  if (fee === 0 && p.isPublic) n += 40;
   else if (fee > 0 && w.ceiling && fee <= w.ceiling * 0.6) n += 4;
 
   /* An intake they can actually apply for. */

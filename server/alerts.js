@@ -213,6 +213,14 @@ function waitingSince(msgs) {
  * `now` is passed in rather than read, so a test can ask what this looks like
  * next Tuesday without waiting until Tuesday.
  */
+/* Patch 168: what the package still owes, worked out by the API (it owns the
+   entitlement and the matcher) and handed in here, so the bell can say
+   "2 of 10 places open on Priya's package" without this module re-reading
+   orders. `places(student)` → [{kind, count, got, held, open, package}] or
+   null when nothing was bought / the profile cannot be matched yet. */
+let hooks = {};
+function configure(h) { hooks = Object.assign({}, hooks, h || {}); }
+
 function all(db, now) {
   const T = now ? new Date(now).getTime() : Date.now();
   const out = [];
@@ -223,6 +231,30 @@ function all(db, now) {
 
   for (const st of students) {
     const owner = st.counsellor_id ? Number(st.counsellor_id) : null;
+
+    /* ---- places on a bought package the machine could not fill ----
+       Vishal, 11 Oct: "show what we have; the remaining the counsellor will
+       assign". The student is told the places stay open; this is the other
+       half — the counsellor is told to fill them, and told about the picks
+       held for her confirmation. */
+    if (typeof hooks.places === 'function') {
+      let parts = null;
+      try { parts = hooks.places(st); } catch (e) { parts = null; }
+      (parts || []).forEach(part => {
+        if (!part || (!part.open && !part.held)) return;
+        const bits = [];
+        if (part.open) bits.push(part.open + ' of ' + part.count + ' place(s) open — only ' + part.got
+          + (part.held ? ' + ' + part.held + ' held' : '') + ' fit from the catalogue; pick the rest with them');
+        if (part.held) bits.push(part.held + ' pick(s) held for your confirmation');
+        add({
+          kind: 'places', urgency: part.open ? 'soon' : 'watch', who: owner,
+          title: st.name + '’s ' + (part.package || (part.kind + ' package')) + ': '
+            + (part.open ? part.open + ' place(s) to fill' : part.held + ' held pick(s) to confirm'),
+          detail: bits.join(' · '),
+          subject: { studentId: st.id }, at: st.created_at,
+        });
+      });
+    }
 
     /* ---- nobody is looking after them ---- */
     if (!owner) {
@@ -547,7 +579,7 @@ const counts = list => list.reduce((m, a) => {
 }, { now: 0, soon: 0, watch: 0, total: 0 });
 
 module.exports = {
-  all, forStaff, forStudent, counts, visibleTo,
+  all, forStaff, forStudent, counts, visibleTo, configure,
   missingFrom, missingDocs, waitingSince, stagesFor,
   PROFILE_MUST, DOCS_MUST, STAGES,
 };

@@ -916,6 +916,22 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     };
   }
 
+  /* Patch 168: what each bought package still owes, for the office bell
+     (server/alerts.js). Null until the profile can be matched at all — an
+     empty profile is "waiting on six questions", not a counsellor's task. */
+  ALERTS.configure({ places: st => {
+    const owed = matchEntitlement(st);
+    if (!owed.count) return null;
+    if (!MATCHES.usable(db.getProfile(st.id))) return null;
+    const list = db.getShortlist(st.id), held = db.getHeld(st.id);
+    return (owed.parts || [owed]).map(part => {
+      const ofKind = r => { const p = db.programme(String(r.prog_id)); return !!p && (part.kind === 'public' ? !!p.is_public : !p.is_public); };
+      const got = list.filter(r => r.added_by === 'matched' && ofKind(r)).length;
+      const h = held.filter(ofKind).length;
+      return { kind: part.kind, count: part.count, got, held: h, open: Math.max(0, part.count - got - h), package: part.package };
+    });
+  } });
+
   /* The matcher's rank for a row the office put on the list (round 165): its
      university's place in the strict ranking of its kind for this profile —
      the same one-per-university order the machine's own picks are numbered
