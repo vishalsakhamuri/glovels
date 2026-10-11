@@ -160,7 +160,7 @@
     + '.gf input,.gf select{width:100%;padding:7px 9px;font:400 12.6px/1.3 var(--sans,system-ui);border:1.5px solid #d8dde4;border-radius:8px;background:#fff;box-sizing:border-box}'
     + '.gf .gf-row{display:flex;gap:6px}.gf .gf-row>*{flex:1;min-width:0}'
     + '.gf h4{margin:16px 0 6px;font-size:13.4px}.gf ul{list-style:none;margin:0;padding:0}'
-    + '.gf li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line,#e6e9ee)}'
+    + '.gf li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line,#e6e9ee);content-visibility:auto;contain-intrinsic-size:auto 86px}'
     + '.gf li .m{flex:1;min-width:0}.gf li b{display:block;font-size:13px}.gf small{display:block;color:var(--muted,#5d6b7a);font-size:11.8px}'
     + '.gf .why{color:#b42318;font-weight:600}.gf .soft{color:#8a6a1f;font-weight:600}.gf .ask{color:#8a6a1f}.gf .tag{display:inline-block;font:700 10.5px/1.5 var(--sans,system-ui);padding:0 7px;border-radius:999px;background:#eef2f6;margin-right:4px}'
     + '.gf .auto{background:#f5f8fb;border:1px solid var(--line,#e6e9ee);border-radius:10px;padding:10px 12px;margin-top:12px}'
@@ -304,7 +304,9 @@
       f.restricted = rs === 'open' ? 'no' : rs === 'restricted' ? 'yes' : '';
       f.feeModel = v('gfFee');
       if (TAGS_CHOSEN.length) f.tags = TAGS_CHOSEN.map(t => t.value).join(';');
-      f.limit = 500;
+      /* Round 166: every fit — the biggest field has 900-odd rows; the server
+         caps staff at 2,000. */
+      f.limit = 2000;
       return f;
     };
     /* The GRE section row has nothing to say until there is a GRE score. */
@@ -375,6 +377,11 @@
       /* F9 (8 Oct): a count of what "fits" means nothing until the student's
          CGPA, level and field are known — say what is missing instead. */
       const basics = d.usable !== false && String(((d.profile || {}).d_cgpa) || '').trim() !== '';
+      /* Round 166: the whole set draws — the counsellor's rule is that she
+         sees ALL of it in rank order (round 165 checks the row count), and
+         the biggest field is 900-odd rows. Logos load lazily and the rows
+         carry content-visibility:auto, so the browser lays out only what is
+         on screen; 900 rows cost about what 60 did. */
       const draw = () => { out.innerHTML = (basics
           ? '<p class="sum">' + d.counts.looked + ' programmes in that field and level · <b>' + d.counts.fits + ' fit</b> · '
             + d.counts.near + ' miss on one thing' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'

@@ -194,6 +194,10 @@ run tagtest.js      8099
 # and never drop, the counsellor's full list and swap. Loads the German sheets
 # itself on a fresh database (R165_SHEETS, or the defaults in the file).
 run round165test.js 8097
+# 11 Oct: the same rule swept across every field of the German catalogue at
+# four CGPAs, API-level — set, order, picks, secondary filters, CGPA subset —
+# and 24 students buying the three packages across eight fields.
+run round166test.js 8097
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

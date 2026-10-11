@@ -2,6 +2,7 @@
 const GRADES = require('./grades.js');
 const REQS = require('./reqs.js');
 const TAGS = require('./tags.js');
+const UNIS = require('./unis.js');
 /**
  * Picking universities for somebody, without a person in the room.
  *
@@ -578,6 +579,41 @@ const nextTerm = t => t.season === 'winter'
   ? { season: 'summer', year: t.year + 1, start: new Date(t.year + 1, 3, 1) }
   : { season: 'winter', year: t.year, start: new Date(t.year, 9, 1) };
 
+/*
+ * THE ONE ORDER (round 166).
+ *
+ * What a row's stated requirements say about this student, as the two lists
+ * the counsellor's screen shows on it: `soft` — a stated requirement they are
+ * known to fall short of, or a bachelor's in the wrong subject (the row stays,
+ * ranked lower); `ask` — something the row states that the student has not
+ * answered yet, or dates it has not published. The clear-cut rows come first,
+ * then the ones with a question, then the ones with a shortfall.
+ *
+ * pick() used to sort by score alone, while screen() sorted by relevance,
+ * then this tier, then score. So the counsellor saw Coburg, BHT Berlin and
+ * Darmstadt (clear, 208) at the top of an MBA student's list and the package
+ * sold them Furtwangen (asks 24 months' work experience the student does not
+ * have, 218) at #3. Vishal's rule is that her first N ARE the student's N —
+ * one comparator, used by both.
+ */
+function judge(p, w) {
+  const ask = [], soft = [];
+  let unknownDates = false;
+  if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) ask.push('their bachelor’s');
+  if (w.term && termStatus(p, w.term) === 'unknown') { ask.push('dates not published'); unknownDates = true; }
+  const vd = REQS.check(p.reqs || {}, w.answers || {});
+  vd.fails.forEach(f => soft.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
+  vd.unknown.forEach(k => ask.push(ASK_SAID[k] || k));
+  if (!subjectFits(p, w)) soft.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
+  return { ask, soft, notes: vd.notes || [], unknownDates };
+}
+const tierOf = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
+/* Rows carrying relevance, ask, soft, score, totalInr and id. Closest subject
+   first, then clear < ask < soft, then score, then fee, then id, so two runs
+   over the same catalogue agree. */
+const byRank = (a, b) => b.relevance - a.relevance || tierOf(a) - tierOf(b) || b.score - a.score
+  || (Number(a.totalInr || 0) - Number(b.totalInr || 0)) || String(a.id).localeCompare(String(b.id));
+
 function pick(catalogue, profile, count, kind, drop, countries, prefer) {
   const w = wants(profile);
   const want = Math.max(0, Number(count) || 0);
@@ -628,15 +664,13 @@ function pick(catalogue, profile, count, kind, drop, countries, prefer) {
 
   const over = p => (w.ceiling ? Math.max(0, Number(p.totalInr || 0) - w.ceiling) : 0);
   const ranked = eligible
-    .map(p => ({ p, s: score(p, w) + (keep.has(String(p.id)) ? 25 : 0) }))
+    .map(p => { const j = judge(p, w); return { p, id: p.id, totalInr: p.totalInr, relevance: w.field ? relevance(p, w) : 1,
+      ask: j.ask, soft: j.soft, score: score(p, w) + (keep.has(String(p.id)) ? 25 : 0) }; })
     /* With the budget relaxed, the closest to it comes first — somebody who
        said "under ₹10 lakhs" and was shown a ₹39 lakh programme at the top of
-       their list has been shown the wrong thing first. Then by score, then
-       fee, then id, so two runs over the same catalogue agree. */
-    .sort((a, b) => (off.has('budget') ? over(a.p) - over(b.p) : 0)
-      || b.s - a.s
-      || (Number(a.p.totalInr || 0) - Number(b.p.totalInr || 0))
-      || String(a.p.id).localeCompare(String(b.p.id)));
+       their list has been shown the wrong thing first. Then the one order
+       the counsellor's screen is in (byRank). */
+    .sort((a, b) => (off.has('budget') ? over(a.p) - over(b.p) : 0) || byRank(a, b));
 
   /* One per university. By name, simplified, as well as by key: "TU
      Dortmund" and "TU Dortmund University" are one university, and so are
@@ -652,20 +686,25 @@ function pick(catalogue, profile, count, kind, drop, countries, prefer) {
   return out;
 }
 
-/* The ways one university's name is written in the catalogue, reduced to the
-   same key. Deliberately conservative: city plus kind of school, so two
-   different universities in one city are only merged when they are the same
-   kind (a TU and an HS in Dortmund stay two). */
+/* The key that says "the same university" when a shortlist is counted one
+   per university: the university's page address (unis.js slugOf, the same
+   arithmetic /university/<slug> is built with), so a name written with or
+   without its accents or an ampersand is one university.
+
+   Patch 150 added a second key — city plus kind of school — meant to fold
+   "TU Dortmund" and "TU Dortmund University" together. It folded different
+   universities instead: the University of Hamburg, TU Hamburg and HafenCity
+   became one, Humboldt and FU Berlin one, Leibniz Hannover and the vet
+   school one — so a package that could have named both named one. Any row
+   that carries a university name is keyed by that name alone; the city is
+   only a key for a row with no name at all (an office row whose university
+   was never written down). */
 function uniKeys(p) {
-  const raw = String(p.university || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
-  const keys = [p.uKey || raw || p.id];
-  const kind = /applied|fachhochschule|\bfh\b|hochschule|\bhs\b|\bth\b|\bhaw\b/.test(raw) ? 'has'
-    : /technical|technische|\btu\b/.test(raw) ? 'tu' : /universit/.test(raw) ? 'uni' : '';
+  const name = String(p.university || '').trim();
+  if (name) return [UNIS.slugOf(name) || name.toLowerCase()];
+  if (p.uKey) return [String(p.uKey)];
   const city = String(p.city || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  const cityInName = city && raw.includes(city.split(/[\s,/]/)[0]);
-  if (kind && cityInName && p.isPublic) keys.push('c:' + city.split(/[\s,/]/)[0] + ':' + kind);
-  return keys;
+  return [city ? 'c:' + city.split(/[\s,/]/)[0] + ':' + (p.isPublic ? 'public' : 'private') : String(p.id)];
 }
 
 /*
@@ -700,8 +739,20 @@ function uniKeys(p) {
  * Coming up short in the right country beats being full of the wrong one. The
  * note says which, and now that packages are scoped to a destination the
  * student is steered to the set that can actually serve them.
+ *
+ * `level` has gone the same way (round 166). Vishal's rule since patch 161 is
+ * that country + level + field + CGPA decide the SET and everything else only
+ * ranks; the counsellor's screen (screen()) shows every programme at the
+ * student's level — exact field first, then the related fields — and her
+ * first N are the student's N. With `level` on this list ahead of `field`,
+ * a master's student whose exact field ran short was sold MBAs that are not
+ * on her screen at all, while the related master's programmes she could see
+ * were passed over. So the field widens to its neighbours (what the screen
+ * already shows) and the level never bends on its own: a list that comes up
+ * short says so, and the counsellor adds an MBA by hand if she means to.
+ * LEVEL_NEAR stays for pick() callers that ask for it explicitly.
  */
-const RELAX = ['term', 'budget', 'level', 'field'];
+const RELAX = ['term', 'budget', 'field'];
 
 const RELAX_SAID = {
   budget: 'above the budget you gave',
@@ -972,48 +1023,41 @@ function screen(catalogue, profile, countries, opts) {
     const rel = o.field ? 3 : relevance(p, w);
     if (!o.field && w.field && rel < 2) continue;
     out.counts.looked++;
-    const why = [], ask = [];
-    if (!visaFriendly(p)) why.push('part-time / online / executive — a student visa does not cover it');
-    /* Patch 149: in the staff screen an unanswered bachelor's is a question,
-       not a miss — otherwise an empty profile shows every master's as missed.
-       (Package delivery, plan(), still refuses to pick without it.) */
-    if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) ask.push('their bachelor’s');
-    if (ceiling && Number(p.totalInr || 0) > ceiling) why.push('over budget (₹' + Math.round(Number(p.totalInr) / 100000) + 'L)');
+    const why = [];
+    if (!visaFriendly(p)) why.push('part-time / online / executive \u2014 a student visa does not cover it');
+    if (ceiling && Number(p.totalInr || 0) > ceiling) why.push('over budget (\u20b9' + Math.round(Number(p.totalInr) / 100000) + 'L)');
     if (ceiling && !p.isPublic && !Number(p.totalInr || 0)) why.push('fee not entered');
-    if (w.term) {
-      const st = termStatus(p, w.term);
-      if (st === 'closed') why.push('deadline for ' + w.term.season + ' ' + w.term.year + ' has passed');
-      if (st === 'unknown') { ask.push('dates not published'); out.counts.unknownDates++; }
-    }
+    if (w.term && termStatus(p, w.term) === 'closed') why.push('deadline for ' + w.term.season + ' ' + w.term.year + ' has passed');
     if (p.germanGpa != null && w.german != null) {
       if (w.german > Number(p.germanGpa)) why.push('asks German ' + Number(p.germanGpa).toFixed(1) + ', they have ' + w.german.toFixed(1));
     } else {
       const bar = barOf(p, countries);
       if (w.cgpa && bar != null && w.cgpa < bar) why.push('asks ' + bar + '+ CGPA, they have ' + w.cgpa);
     }
-    /* Patch 162: a shortfall on what the row states ranks it lower — it is
-       said on the row (`soft`), it is not a reason to leave it out. */
-    const vd = REQS.check(p.reqs || {}, w.answers || {});
-    const soft = [];
-    vd.fails.forEach(f => soft.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
-    vd.unknown.forEach(k => ask.push(ASK_SAID[k] || k));
-    if (!subjectFits(p, w)) soft.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
+    /* Patch 149: in the staff screen an unanswered bachelor's is a question,
+       not a miss. Patch 162: a shortfall on what the row states ranks it
+       lower — said on the row (`soft`), not a reason to leave it out. Both
+       come from judge(), the same reading pick() ranks by (round 166). */
+    const { ask, soft, notes, unknownDates } = judge(p, w);
+    if (unknownDates) out.counts.unknownDates++;
     const row = { id: p.id, program: p.program, university: p.university, city: p.city || '', country: p.country,
       level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),
       intakes: p.intakes || [], relevance: rel, why, ask, soft, score: score(p, w),
       /* Patch 153: what the row is, and on what condition it clears. */
-      feeModel, restricted, notes: vd.notes || [],
+      feeModel, restricted, notes,
       /* 10 Oct: the first few of its tags, for the screen. */
       tags: TAGS.tagsOf(p).slice(0, 6) };
     if (!why.length) { out.fits.push(row); out.counts.fits++; }
     else if (why.length === 1) { out.near.push(row); out.counts.near++; }
   }
-  /* Closest subject first — a Biotechnology student sees Biology before a
-     Mathematics programme that only shares the Natural Sciences shelf. */
-  const tierOf = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
-  const byScore = (a, b) => b.relevance - a.relevance || tierOf(a) - tierOf(b) || b.score - a.score || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
-  out.fits.sort(byScore); out.near.sort(byScore);
-  const lim = Math.max(1, Math.min(500, Number(o.limit) || 100));
+  /* The one order (byRank): closest subject first — a Biotechnology student
+     sees Biology before a Mathematics programme that only shares the Natural
+     Sciences shelf — then clear < ask < soft, then score. */
+  out.fits.sort(byRank); out.near.sort(byRank);
+  /* Staff see everything: the biggest field (Biotechnology, 900-odd fits)
+     was cut at 500 and the counsellor could not reach the rest. 2,000 is
+     above any field in the catalogue; the public finder has its own limits. */
+  const lim = Math.max(1, Math.min(2000, Number(o.limit) || 100));
   out.fits = out.fits.slice(0, lim); out.near = out.near.slice(0, lim);
   return out;
 }
