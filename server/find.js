@@ -314,7 +314,10 @@
        still ranks below every row they clear (patch 162). */
     if (!f.sort && !f.apply) {
       const tiers = [0, 1, 2].map(t => sorted.filter(p => (p._tier || 0) === t));
-      sorted = tiers.reduce((all, t) => all.concat(mix(t)), []);
+      /* Patch 170: inside a tier, a restricted programme ranks below the open
+         ones (restriction is for ranking — Vishal, 12 Oct). */
+      const isR = p => reqsOf(p).restricted === true || p.restricted === true;
+      sorted = tiers.reduce((all, t) => all.concat(mix(t.filter(p => !isR(p))), mix(t.filter(isR))), []);
     }
     const unis = new Set(sorted.map(p => p.uKey || p.university || p.id)).size;
     const facet = (key, valueOf) => {
@@ -479,7 +482,7 @@
     if (tuitionOf(p) === 0) tags.push('<span class="ft t0">No tuition</span>');
     tags.push(fee === 'free' ? '<span class="ft tfree">Free to apply</span>' : '<span class="ft tpkg">With a package</span>');
     if (reqsOf(p).moiAccepted === true) tags.push('<span class="ft">MOI accepted</span>');
-    if (reqsOf(p).restricted === true || p.restricted === true) tags.push('<span class="ft trest">Restricted admission</span>');
+    /* Patch 170: restriction ranks, it is not shown on the public row. */
     /* Round 169 (WEB-02/12): no "Fit %" badge on a public page. The number
        was a stored 80 on every row, not a score of anything the visitor said. */
     let verdictHtml = '';

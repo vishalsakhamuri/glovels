@@ -47,17 +47,14 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   r = await req('s', 'GET', '/api/catalogue');
   const cat = (r.body || {}).programmes || [];
   /* A real public id: since patch 146 a locked row in /api/catalogue carries
-     a stand-in id, so it is read from a university page's Apply button — the
-     way somebody trying the back door would. */
+     a stand-in id, and since patch 170 a German public university's page
+     carries none either — so it is taken from the office's catalogue, as
+     somebody who had learnt one some other way would hold it. */
   let pub = null;
   {
-    const lr = await req('x', 'GET', '/api/universities/filter?country=DE');
-    const pu = ((lr.body || {}).universities || []).find(u => u.isPublic);
-    if (pu) {
-      const html = await (await fetch(BASE + pu.url)).text();
-      const m = /data-apply="([^"]+)"/.exec(html);
-      if (m) pub = { id: m[1], isPublic: true };
-    }
+    const sc = await req('a', 'GET', '/api/staff/catalogue?per=1000');
+    const p0 = (((sc.body || {}).programmes) || []).find(p => p.isPublic && p.active);
+    if (p0) pub = { id: p0.id, isPublic: true };
   }
   const priv = cat.find(p => !p.isPublic);
   if (!pub || !priv) {

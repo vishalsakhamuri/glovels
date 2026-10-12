@@ -55,6 +55,13 @@ async function req(who, method, p, body) {
   const better = Object.assign({}, paid, { id: 'p2', fit: 95 });
   const s2 = M.screen([Object.assign({}, free, { fit: 50 }), better], prof, { DE: { code: 'DE', name: 'Germany' } }, { limit: 10 });
   ok('scorer: a private programme with a clearly better fit still ranks above a free one', s2.fits[0].id === 'p2', J(s2.fits.map(x => [x.id, x.score])));
+  /* Patch 170: "any restriction should be for ranking" — with everything else
+     equal, a restricted programme ranks below an open one, for a student who
+     did not rule restricted out (the default). */
+  const open = Object.assign({}, free, { id: 'zz-open' });
+  const restr = Object.assign({}, free, { id: 'aa-restr', university: 'U3', reqs: { restricted: true } });
+  const s3 = M.screen([restr, open], prof, { DE: { code: 'DE', name: 'Germany' } }, { limit: 10 });
+  ok('scorer: a restricted programme ranks below an open one of the same fit (and stays in the list)', s3.fits.map(x => x.id).join() === 'zz-open,aa-restr', J(s3.fits.map(x => [x.id, x.score])));
 })();
 
 (async () => {

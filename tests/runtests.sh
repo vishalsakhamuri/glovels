@@ -202,6 +202,7 @@ run round168test.js 8097
 run round169webtest.js 8101
 run round169stafftest.js 8102
 run round169studenttest.js 8103
+run round170test.js 8105 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

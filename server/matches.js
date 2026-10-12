@@ -413,6 +413,12 @@ function score(p, w) {
   /* A programme whose stated requirements they are known to clear is a
      better pick than one where we cannot yet tell. */
   n += shortfall(p, w).n;
+  /* Patch 170 (Vishal, 12 Oct): "any restriction should be for ranking the
+     unis". A restricted (NC / ranked, limited places) programme stays in the
+     set but ranks below an open one of the same relevance and tier — 30, the
+     same weight as free tuition. A student who ruled restricted out
+     altogether already gets it as a shortfall (reqs.check). */
+  if (w.restrictedOk !== false && (p.reqs || {}).restricted === true) n -= 30;
   /* A known, open deadline for their term beats "no dates published". */
   if (w.term) n += termStatus(p, w.term) === 'open' ? 12 : 0;
 

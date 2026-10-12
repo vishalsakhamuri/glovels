@@ -64,15 +64,28 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('and breadcrumbs for Google', /"@type":"BreadcrumbList"/.test(html)
     && /"name":"Universities","item":"https:\/\/glovels\.example\/university"/.test(html));
   const progs = staffCat.programmes.filter(p => p.university === 'University of Stuttgart' && p.active);
-  check('every programme at the university is on the page', progs.every(p => html.includes('data-apply="' + p.id + '"')),
+  /* Patch 170: Stuttgart is a German PUBLIC university — "for German
+     universities it's a package for students". Signed out, its programme
+     list is locked the way the finder locks a public row: every row there,
+     no name, no fee, no date, no id, no course link — Unlock instead. */
+  check('signed out, every programme is a locked row', (html.match(/class="prog locked/g) || []).length === progs.length
+    && progs.every(p => !html.includes('data-apply="' + p.id + '"')) && progs.every(p => !html.includes('>' + p.program + '<')),
     progs.length + ' programmes');
-  check('with the total cost', /₹6\.6 lakh total/.test(html));
+  check('  · each with Unlock to the packages, and the line that says why', (html.match(/data-unlock>Unlock</g) || []).length === progs.length
+    && /Programme names at German public universities are part of our packages\./.test(html));
+  check('  · no fee, deadline or course link in the HTML', !/₹6\.6 lakh total/.test(html) && !/apply by \d/.test(html)
+    && !/<a class="course" href=/.test(html));
+  /* The office sees the page the way an entitled student does: the full list. */
+  const shtml = await (await staff.request.get(BASE + '/university/' + slug)).text();
+  check('every programme at the university is on the page (staff, or a package that covers it)', progs.every(p => shtml.includes('data-apply="' + p.id + '"')),
+    progs.length + ' programmes');
+  check('with the total cost', /₹6\.6 lakh total/.test(shtml));
   check('the intake deadline, dated in the future', (() => {
-    const m = /apply by (\d{1,2} \w{3} \d{4})/.exec(html);
+    const m = /apply by (\d{1,2} \w{3} \d{4})/.exec(shtml);
     return m && new Date(m[1]) >= new Date(new Date().toDateString());
-  })(), (/apply by ([^;<]+)/.exec(html) || [])[1]);
-  check('the course page link, outbound and nofollow', /<a class="course" href="https:\/\/[^"]+" target="_blank" rel="noopener nofollow">/.test(html));
-  check('an Apply button per programme', (html.match(/data-apply="/g) || []).length === progs.length);
+  })(), (/apply by ([^;<]+)/.exec(shtml) || [])[1]);
+  check('the course page link, outbound and nofollow', /<a class="course" href="https:\/\/[^"]+" target="_blank" rel="noopener nofollow">/.test(shtml));
+  check('an Apply button per programme', (shtml.match(/data-apply="/g) || []).length === progs.length);
   check('the other universities in the country', /<h2>Other universities in Germany<\/h2>/.test(html)
     && /href="tu-munich"/.test(html));
   check('a link back to the list', /href="\/university">All universities/.test(html));
@@ -181,14 +194,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
 
   /* ------------------------------------------------------- applying */
   await page.goto(BASE + '/university/' + slug);
-  const btn = page.locator('[data-apply]').first();
-  await btn.click();
-  await page.waitForSelector('#apSheet.on', { timeout: 4000 }).catch(() => {});
-  /* Stuttgart is a with-a-package university: signed out, Apply shows the
-     packages on the page, as the home page does for a locked row. */
-  check('Apply, signed out, at a with-a-package university shows the packages instead of a form',
-    await page.locator('#apSheet.on').count() === 0 && await page.locator('#apNeed').count() === 1
-    && /applied to through a package/.test(await page.textContent('#apNeed')));
+  /* Patch 170: Stuttgart is a German public university — signed out there is
+     no Apply on a row, only Unlock, and it goes to the packages. */
+  check('signed out, at a German public university, the rows offer Unlock and no Apply',
+    await page.locator('[data-apply]').count() === 0 && await page.locator('a[data-unlock]').count() > 0
+    && await page.locator('a[data-unlock]').first().getAttribute('href') === '/#packages');
   /* A free-to-apply university asks for the three details. */
   await page.goto(BASE + freeU.url);
   await page.locator('[data-apply]').first().click();
@@ -215,6 +225,13 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const sp = await student.newPage();
   await sp.goto(BASE + '/university/' + slug);
   const before = sp.url();
+  /* Patch 170: the demo student's package may not cover Stuttgart — then the
+     page is locked for them as for anybody (round170test covers both). */
+  const locked170 = await sp.locator('[data-apply]').count() === 0;
+  if (locked170) {
+    check('a signed-in student whose package does not reveal it sees the locked list',
+      await sp.locator('a[data-unlock]').count() > 0);
+  } else {
   await sp.locator('[data-apply]').first().click();
   await sp.waitForTimeout(1500);
   const after = sp.url();
@@ -224,6 +241,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     /On your list|Added to your list/.test(btnText) || (needBox === 1 && /needs a package/.test(await sp.textContent('#apNeed'))),
     btnText + ' · ' + after);
   check('and stays on the page rather than being sent away', after === before);
+  }
 
   /* ------------------------------------- what the office writes about it */
   r = await staff.request.get(BASE + '/api/staff/universities?per=500');
@@ -460,10 +478,14 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   html = await (await guest.request.get(BASE + '/university/tu-munich')).text();
   const nTum = staffCat.programmes.filter(p => p.university === 'TU Munich' && p.active).length;
   check('a long list shows six and folds the rest', nTum > 6
-    && (html.match(/<article class="prog"/g) || []).length === 6
-    && (html.match(/<article class="prog folded" id="[^"]+" hidden>/g) || []).length === nTum - 6
+    && (html.match(/<article class="prog(?: locked)?"/g) || []).length === 6
+    && (html.match(/<article class="prog(?: locked)? folded" id="[^"]+" hidden>/g) || []).length === nTum - 6
     && html.includes('Show all ' + nTum + ' programmes'));
-  check('every programme is still in the HTML for Google', (html.match(/data-apply="/g) || []).length === nTum);
+  /* Patch 170: TU Munich is German public — signed out, every row is in the
+     HTML but locked (no name); staff, or a covering package, get the names. */
+  check('every programme is still in the HTML for Google (locked rows for a German public university)',
+    (html.match(/class="prog locked/g) || []).length === nTum && !/data-apply="/.test(html));
+  check('  · and named, with Apply, for staff', ((await (await staff.request.get(BASE + '/university/tu-munich')).text()).match(/data-apply="/g) || []).length === nTum);
   check('a short list has no button', !/id="progMore"/.test(await (await guest.request.get(BASE + '/university/' + slug)).text()));
   const fp = await guest.newPage();
   await fp.goto(BASE + '/university/tu-munich');

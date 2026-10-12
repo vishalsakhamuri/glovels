@@ -8325,6 +8325,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         url: '/university/' + u.slug }));
     const programmes = [];
     for (const u of unis) {
+      /* Patch 170: a German public university's programme names are part of
+         the packages — its university page withholds them, so this answer
+         (public, cached, anyone's) does too. The university itself is still
+         found above. */
+      if (u.isPublic && String(u.country || '').toUpperCase() === 'DE') continue;
       for (const p of u.programmes) {
         const inName = hits(norm(p.program));
         if (inName || hits(norm(p.program + ' ' + p.field))) {

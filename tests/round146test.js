@@ -36,7 +36,10 @@ const get = async p => { const r = await fetch(BASE + p); return { status: r.sta
   if (pu) {
     const page = await get(pu.url);
     const ids = [...page.text.matchAll(/data-apply="([^"]+)"/g)].map(m => m[1]);
-    ok('  · and their pages still list their programmes', ids.length > 0);
+    /* Patch 170: a German public university's page lists its programmes as
+       locked rows — no name, no id — until a package covers it. */
+    ok('  · and their pages still list their programmes (locked, with no id, for a German public one)',
+      (page.text.match(/class="prog locked/g) || []).length > 0 && ids.length === 0);
     const lockedIds = new Set(locked.map(p => p.id));
     ok('  · but no id on a university page matches a locked finder row', !ids.some(id => lockedIds.has(id)));
     ok('  · nor any id baked into the portal pages', ![...baked].some(id => lockedIds.has(id)));

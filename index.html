@@ -274,8 +274,6 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .mverdict.unknown{background:var(--cream);color:var(--muted);border:1px dashed #cfd6de}
 .mverdict.short{background:#fdf6e6;color:#8a6a1f;border:1px solid #e6d5a8}
 .masks{font-size:11.6px;color:var(--muted);margin-top:3px;white-space:normal;line-height:1.45}
-.mrestr{font-size:11.4px;color:var(--muted);margin-top:3px;white-space:normal;line-height:1.45}
-.mrestr b{font-weight:700;color:inherit}
 .mtag{display:inline-block;margin:4px 6px 0 0;padding:2px 8px;border-radius:999px;background:#fbf3e0;color:#8a6a1f;
   font:700 10.6px/1.5 var(--sans);letter-spacing:.2px;vertical-align:middle}
 .need{display:flex;align-items:center;gap:18px;background:#fff;border:1.5px solid #c9a24b;border-radius:14px;
@@ -2560,7 +2558,7 @@ const season = r => deadlineOf(r).at ? 0 : (r.intakes || []).some(i => i && i.de
 /* Patch 162: what they clear comes first, what we cannot tell next, what
    they fall short of last — then the fit, the deadline and the price. */
 const tier = r => (r._short && r._short.length) ? 2 : (r._need && r._need.length) ? 1 : 0;
-const rowOrder = (a,b) => (tier(a) - tier(b)) || ((b.fit||0) - (a.fit||0)) || (season(a) - season(b)) || cheap(a,b)
+const rowOrder = (a,b) => (tier(a) - tier(b)) || ((isRestricted(a)?1:0) - (isRestricted(b)?1:0)) || ((b.fit||0) - (a.fit||0)) || (season(a) - season(b)) || cheap(a,b)
   || String(a.id||'').localeCompare(String(b.id||''));
 function visibleRows(list){
   const pub = list.filter(p => p.isPublic).sort(rowOrder);
@@ -2833,7 +2831,7 @@ function rowHtml(r){
   if(r.locked) return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${ctry.flag}</div>
     <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
-      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>${verdictChip(r)}${restrictTag(r)}${restrictLine(r)}
+      <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>${verdictChip(r)}${restrictTag(r)}
       <span class="offscreen">A university in
         ${esc(ctry.name)} that matches you. The name and the fee are unlocked by a
         package.</span></div>
@@ -2864,7 +2862,7 @@ function rowHtml(r){
       {day:'numeric',month:'short',year:'numeric'}) : '';
   return `<div class="mrow" data-band="${r.band}">
     <div class="mcc">${(() => { const lg = r.logo || (window.GLV_LOGO ? window.GLV_LOGO(r.university, r.shortName) : ''); return lg ? `<img src="${esc(lg)}" alt="" width="28" height="28" loading="lazy" decoding="async" style="width:28px;height:28px;object-fit:contain;background:#fff;border-radius:6px;padding:2px;box-sizing:border-box">` : ctry.flag; })()}</div>
-    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}${restrictTag(r)}${restrictLine(r)}</div>
+    <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}${restrictTag(r)}</div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice">${feeUnknown(r)?'Fee to be confirmed':short(r.totalInr)}<small>${feeUnknown(r)?'':r.totalInr===0?'tuition':'total'}</small></div>
     <div class="mact"><button class="mreq" data-req="${cc}">Requirements</button>
@@ -2921,24 +2919,15 @@ function verdictChip(r){
    requirement anyone fails, so it is not in the chip; it is a tag. */
 const isRestricted = r => r.locked ? r.restricted === true : reqsOf(r).restricted === true;
 function restrictTag(r){
-  return isRestricted(r) ? `<span class="mtag" title="Places are limited and applicants are ranked (NC, aptitude test or interview)">Restricted admission</span>` : '';
+  /* Patch 170: restriction is for ranking only (Vishal, 12 Oct) — no tag on
+     the public card; restricted rows sit lower in rowOrder instead. */
+  return '';
 }
 
-/* The "Restrictions" line (patch 153, section K): one muted line on every
-   card, on the open and the locked row alike. "No" when nothing stands
-   between this student and an application; otherwise the special
-   conditions in plain words, the same words the counsellor's screen uses. */
-function restrictLine(r){
-  const q = r.locked ? {} : reqsOf(r), notes = r._notes || [], need = r._need || [], bits = [];
-  if(isRestricted(r)) bits.push('restricted admission (ranked, limited places)');
-  if(notes.includes('moi')) bits.push('English accepted via MOI letter');
-  need.forEach(k => {
-    if(k === 'greSections') bits.push('GRE section scores needed');
-    else if(k === 'topPercent') bits.push('class rank' + (num(q.topPercent) != null ? ' top ' + q.topPercent + '%' : '') + ' required');
-    else bits.push('tell us your ' + (REQ_LABEL[k] || k) + ' to confirm');
-  });
-  return `<div class="mrestr"><b>Restrictions:</b> ${bits.length ? esc(bits.join(' \u00b7 ')) : 'No'}</div>`;
-}
+/* The "Restrictions" line (patch 153, section K) is gone (patch 170).
+   The owner, 12 Oct: "Any restriction should be for ranking the unis."
+   A restriction moves a row down the list (held / asks / soft); it is not
+   printed on the public card. The counsellor's fit panel keeps the line. */
 
 /* The box above the results: what they have not told us, and why it costs
    them. Not a form — a list of the questions still open, each a button that

@@ -1073,6 +1073,13 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
 .apsheet .said{font:600 12.6px/1.5 var(--sans);margin-top:10px}
 .apsheet .said.bad{color:#7a2118}.apsheet .said.ok{color:#14603a}
 .progmore{margin:14px 0 30px;text-align:center}
+/* Patch 170: a German public university's locked programme rows. */
+.prog .masked{filter:blur(5px);color:var(--muted);user-select:none;letter-spacing:-.02em}
+.prog.locked h3 .masked{color:var(--navy-800)}
+.prog .lockword{font:700 11.4px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.prog .offscreen{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.uni-locknote{padding:13px 16px;border-radius:12px;background:#fdf6e6;border:1px solid #e6d5a8;color:var(--navy-800)}
+.uni-locknote a{font-weight:700}
 .progmore .btn{min-width:240px;justify-content:center}
 /* The name search on the /university list — the finder's, with its own home. */
 .usearch{position:relative;margin:0 0 22px}
@@ -1279,7 +1286,68 @@ function universityOf(slug) {
   return u;
 }
 
-function universityPage(u) {
+/*
+ * PATCH 170. "For German universities it's a package for students."
+ *
+ * At a German PUBLIC university the programme list is what a package buys,
+ * so the page is locked the way Find University locks a public row: the
+ * university itself (name, logo, city, about, official site) is shown — the
+ * page is about it — but no programme name, fee or deadline leaves this
+ * process. Private German universities and every other country: unchanged.
+ *
+ * Who sees the names, decided here from the database, never from the browser:
+ *   - the office's finder gate: 'open' shows everything, 'names' the names
+ *     but not the fees (the same two settings /api/catalogue honours);
+ *   - staff (they hold the catalogue anyway);
+ *   - a student with this university on their own shortlist (a counsellor
+ *     put it there — it is theirs);
+ *   - a student whose PAID entitlement reveals it: the biggest public_unis
+ *     quota across their earned orders ('paid', 'owing', 'part'), spent on
+ *     their shortlisted public universities first and then in catalogue
+ *     order — exactly the walk /api/catalogue does (server/api.js), so a
+ *     university the finder names for them is named here too, and one it
+ *     withholds stays withheld.
+ */
+const EARNED_ORDER = new Set(['paid', 'owing', 'part']);
+function isLockedKind(u) { return !!u && !!u.isPublic && String(u.country || '').toUpperCase() === 'DE'; }
+function uniAccess(u, req) {
+  const all = { names: true, fees: true };
+  if (!isLockedKind(u)) return all;
+  let gate = 'gated';
+  try { const f = content.get('finder'); if (f && f.gate) gate = f.gate; } catch (e) { /* strictest */ }
+  if (gate === 'open') return all;
+  const names = gate === 'names' ? { names: true, fees: false } : null;
+  const who = req ? whoIsIt(req) : null;
+  if (!who) return names || { names: false, fees: false };
+  if (who.role && who.role !== 'student') return all;
+  let shortlist = [];
+  try { shortlist = db.getShortlist(who.id) || []; } catch (e) { shortlist = []; }
+  const ids = new Set(u.programmes.map(p => String(p.id)));
+  if (shortlist.some(r => ids.has(String(r.prog_id)))) return all;
+  let quota = 0;
+  try {
+    quota = (db.ordersFor(who.id) || []).filter(o => EARNED_ORDER.has(o.status))
+      .reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
+  } catch (e) { quota = 0; }
+  if (!quota) return names || { names: false, fees: false };
+  const key = UNIS.uKeyOf(u.name);
+  const cat = liveCatalogue();
+  const named = new Set();
+  const mine = new Set(shortlist.filter(r => r.is_public).map(r => String(r.prog_id)));
+  if (mine.size) {
+    for (const p of cat) {
+      if (named.size >= quota) break;
+      if (p.isPublic && mine.has(String(p.id))) named.add(p.uKey);
+    }
+  }
+  for (const p of cat) {
+    if (named.has(key) || named.size >= quota) break;
+    if (p.isPublic && !p.searchOnly) named.add(p.uKey);
+  }
+  return named.has(key) ? all : (names || { names: false, fees: false });
+}
+
+function universityPage(u, req) {
   const t = templates();
   if (!t) return null;
   const countries = liveCountries();
@@ -1355,8 +1423,30 @@ function universityPage(u) {
      and a link to #<programme> lands on it whether it was among the first
      or not (the script opens the list when the address names one). */
   const PROG_FIRST = 6;
+  const access = uniAccess(u, req);
   const ordered = u.programmes.slice().sort((a, b) => (!!a.searchOnly - !!b.searchOnly));
+  /* Patch 170: a locked row — level, field and what it asks for (CGPA,
+     German grade: requirements, not identities, as on the finder's locked
+     row); the name, fee and deadlines blurred placeholders; no id, no course
+     link, no Apply — Unlock, to the packages, as the finder's does. */
+  const blur = n => '█'.repeat(Math.max(6, Math.min(48, Number(n) || 18)));
+  const lockedRow = (p, i) => {
+    const folded = i >= PROG_FIRST;
+    return '<article class="prog locked' + (folded ? ' folded' : '') + '" id="prog-' + (i + 1) + '"' + (folded ? ' hidden' : '') + '>'
+      + '<div><h3><span class="masked" aria-hidden="true">' + blur(String(p.program || '').length) + '</span>'
+      + '<span class="offscreen">A programme at a German public university. Its name, fee and deadlines are part of our packages.</span></h3>'
+      + '<p class="meta"><b>' + esc(UNIS.levelOf(p.level)) + '</b>'
+      + (p.field ? ' · ' + esc(p.field) : '')
+      + ' · <span class="masked" aria-hidden="true">████████</span>'
+      + ' · <span class="masked" aria-hidden="true">██████████████</span>'
+      + (p.minCgpa != null ? ' · CGPA ' + esc(Number(p.minCgpa).toFixed(1)) + '+' : '')
+      + (p.germanGpa != null ? ' · German grade up to ' + esc(Number(p.germanGpa).toFixed(1)) : '')
+      + '</p></div>'
+      + '<div class="act"><span class="lockword">Locked</span>'
+      + '<a class="btn btn-sm btn-navy" href="index.html#packages" data-unlock>Unlock</a></div></article>';
+  };
   const progs = ordered.map((p, i) => {
+    if (!access.names) return lockedRow(p, i);
     const folded = i >= PROG_FIRST;
     const dl = (p.intakes || []).filter(i => i && i.deadline)
       .map(i => ({ season: i.season, at: UNIS.nextOn(i.deadline) })).filter(i => i.at)
@@ -1369,7 +1459,7 @@ function universityPage(u) {
       + '<div><h3>' + esc(p.program) + '</h3><p class="meta">'
       + '<b>' + esc(UNIS.levelOf(p.level)) + '</b>'
       + (p.field ? ' · ' + esc(p.field) : '')
-      + ' · <b>' + (fee ? esc(UNIS.money(fee)) + ' total' : 'No tuition') + '</b>'
+      + (access.fees ? ' · <b>' + (fee ? esc(UNIS.money(fee)) + ' total' : 'No tuition') + '</b>' : ' · <b>Fee with a package</b>')
       + (dl.length ? ' · ' + dl.map(d => esc(SEASON(d.season)) + ' intake, apply by '
         + esc(dateShort(d.at))).join('; ') : '')
       + (p.minCgpa != null ? ' · CGPA ' + esc(Number(p.minCgpa).toFixed(1)) + '+' : '')
@@ -1419,9 +1509,14 @@ function universityPage(u) {
           + 'university\'s own words.</div>'
         : '')
     + '<h2 id="programmes">Programmes at ' + esc(called || u.name) + '</h2>'
-    + '<p>Every programme below is one we have placed students in or checked ourselves. '
-      + 'Fees are the total for the whole course, in rupees at today\'s rate; deadlines are the '
-      + 'university\'s and come round every year.</p>'
+    + (access.names
+      ? '<p>Every programme below is one we have placed students in or checked ourselves. '
+        + 'Fees are the total for the whole course, in rupees at today\'s rate; deadlines are the '
+        + 'university\'s and come round every year.</p>'
+      : '<p class="uni-locknote"><b>Programme names at German public universities are part of our packages.</b> '
+        + 'We track ' + n + ' programme' + (n === 1 ? '' : 's') + ' here'
+        + (u.fields.length ? ' in ' + esc(u.fields.join(', ')) : '')
+        + '. <a href="index.html#packages">See the packages</a> — the names, fees and deadlines open with one.</p>')
     + '<div class="progs" id="progs">' + progs + '</div>'
     + (n > PROG_FIRST ? '<p class="progmore"><button type="button" class="btn btn-ghost" id="progMore" aria-expanded="false" aria-controls="progs">'
       + 'Show all ' + n + ' programmes</button></p>' : '')
@@ -2745,7 +2840,7 @@ const server = http.createServer(async (req, res) => {
     }
     const u = universityOf(uniUrl[1]);
     if (!u) return notFound(res);
-    const page = universityPage(u);
+    const page = universityPage(u, req);
     /* A page the office took off search keeps its noindex whatever the site
        setting says — forIndexing would put it back. */
     if (page) return send(res, 200, externalizeScripts(u.extras.hidden ? page : forIndexing(page, 'university-' + u.slug), 'university__' + u.slug), TYPES['.html']);
