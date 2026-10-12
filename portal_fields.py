@@ -640,7 +640,7 @@ const MAX_UPLOAD_MB = 10;
  * is too big, and an iPhone photographing pages produces HEIC. */
 const UPLOAD_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'doc', 'docx'];
 const UPLOAD_ACCEPT = UPLOAD_EXT.map(e => '.' + e).join(',');
-const UPLOAD_SAYS = 'PDF, a photo (JPG, PNG or HEIC) or Word';
+const UPLOAD_SAYS = 'PDF, JPG, PNG, HEIC or Word';
 const notOurType = name => {
   const ext = String(name || '').toLowerCase().split('.').pop();
   return UPLOAD_EXT.includes(ext) ? null

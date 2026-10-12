@@ -50,8 +50,15 @@ const stamp = Date.now();
     headers: { 'x-forwarded-for': '203.0.113.55' },
   });
 
-  const people = await (await staff.request.get(BASE + '/api/staff/overview')).json();
-  const counsellor = (people.counsellors || [])[0];
+  /* 12 Oct (ADM-08): the dropdowns offer active counsellors only — not the
+     administrator — so the counsellor to hand work to comes from that list. */
+  /* A counsellor of its own, so the files here (auto-assigned to the seeded
+     one) really do move when they are handed to it. */
+  await staff.request.post(BASE + '/api/staff/people', { data: { name: 'Assign Target ' + stamp,
+    email: 'at' + stamp + '@glovels.com', password: 'at-' + stamp + '-pw-long', role: 'counsellor' } });
+  const people = await (await staff.request.get(BASE + '/api/staff/counsellors')).json();
+  const counsellor = (people.counsellors || []).find(c => c.name === 'Assign Target ' + stamp)
+    || (people.counsellors || [])[0];
   check('there is a counsellor to hand work to', !!counsellor,
     counsellor ? counsellor.name : 'none in the overview');
   if (!counsellor) { report(); return; }
@@ -165,6 +172,9 @@ const stamp = Date.now();
 
   if (ownSel) {
     await ownSel.selectOption(String(counsellor.id));
+    /* CNS-03: the choice asks first — Move / Keep — before anything is sent. */
+    await lead.waitForSelector('.lead-ask [data-lmove]');
+    await lead.click('.lead-ask [data-lmove]');
     await lead.waitForTimeout(600);
     const leads = await (await staff.request.get(BASE + '/api/staff/leads')).json();
     const mine = (leads.leads || []).find(l => l.name === 'Asker ' + stamp);

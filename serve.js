@@ -303,6 +303,8 @@ const chipAsks = seed.chipsAskWhatItWas({ db, content: content.shipped() });
    seeded before the real ones went into content.json. */
 const placeholders = seed.placeholdersOut({ db, content: content.shipped() });
 const openedServices = seed.openOnRequestServices({ db });
+/* Round 169: three services move from Most Booked to a More Services tab. */
+seed.moreServicesTab({ db });
 /* What applying to each university costs the student through us. Read off
    public-versus-private for the rows already on the shelf — we are partnered
    with the private places, so those are free to apply to, and the public names
@@ -409,7 +411,7 @@ function send(res, code, body, type, extra) {
   if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
     const u = url.parse(res.req.url, true);
     traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
-    if (typeof body === 'string') body = withAnalytics(withSocials(body, u.pathname));
+    if (typeof body === 'string') body = withPublicChrome(withAnalytics(withSocials(body, u.pathname)));
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -441,7 +443,15 @@ function send(res, code, body, type, extra) {
 
 function notFound(res) {
   const p = path.join(ROOT, '404.html');
-  if (fs.existsSync(p)) return send(res, 404, fs.readFileSync(p), TYPES['.html']);
+  /* Round 169 (WEB-09): every link absolute. The page is served at whatever
+     address missed — /post/old-article, /university/x/y — and a relative
+     "about-us.html" there resolved to /post/about-us.html: another 404. */
+  if (fs.existsSync(p)) {
+    const html = withPublicChrome(fs.readFileSync(p, 'utf8')
+      .replace(/(href|src)="(?![/#]|[a-z]+:)([^"]*)"/gi, (m, a, v) => a + '="/' + (v === 'index.html' ? '' : v) + '"')
+      .replace(/href="\/index\.html#/g, 'href="/#'));
+    return send(res, 404, html, TYPES['.html']);
+  }
   send(res, 404, 'Not found');
 }
 
@@ -714,12 +724,27 @@ function ogTags(image, alt) {
     + '<meta name="twitter:image" content="' + esc(src) + '">\n';
 }
 
+/* Round 169 (WEB-20.3): what search engines show — a title of 65 characters
+   at most and a description of 160 — cut on a word, with an ellipsis, rather
+   than mid-word by Google. The " | Glovels" suffix is dropped before the
+   title itself is cut. */
+function clipWords(s, n) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (s.length <= n) return s;
+  let cut = s.slice(0, n - 1);
+  if (/\S/.test(s.charAt(n - 1))) cut = cut.replace(/\s+\S*$/, '');
+  return cut.replace(/[\s,;:.–—-]+$/, '') + '…';
+}
+function headTitle(title) {
+  const t = String(title == null ? '' : title).replace(/\s+/g, ' ').trim();
+  return t.length + ' | Glovels'.length <= 65 ? t + ' | Glovels' : clipWords(t, 65);
+}
 function metaHoles({ title, desc, canonical, keywords, image, imageAlt, type, jsonld,
   indexable, article }) {
   return {
-    HEAD_TITLE: esc(title) + ' | Glovels',
-    OG_TITLE: esc(title),
-    DESC: esc(desc),
+    HEAD_TITLE: esc(headTitle(title)),
+    OG_TITLE: esc(clipWords(title, 65)),
+    DESC: esc(clipWords(desc, 160)),
     CANONICAL: esc(canonical),
     KEYWORDS: keywords ? '<meta name="keywords" content="' + esc(keywords) + '">\n' : '',
     /* A draft being previewed must never be indexed, whatever the site
@@ -757,6 +782,19 @@ const relatedOf = post => String(post.related || '')
    nobody has touched since it went up. */
 const sameDay = (a, b) => shownDate(a) === shownDate(b);
 
+function displayAuthor(a) {
+  const s = String(a == null ? '' : a).trim();
+  if (!s) return '';
+  const handle = /^[a-z0-9._-]+$/.test(s);
+  if (!handle) return s;
+  try {
+    const staff = ['admin', 'counsellor', 'editor'].flatMap(r => (db.staffByRole ? db.staffByRole(r) : []) || []);
+    const who = staff.find(x => x && (String(x.email || '').split('@')[0].toLowerCase() === s
+      || String(x.name || '').trim().toLowerCase() === s));
+    if (who && who.name && !/^[a-z0-9._-]+$/.test(String(who.name).trim())) return String(who.name).trim();
+  } catch (e) { /* no staff list: the team */ }
+  return 'Glovels Editorial Team';
+}
 function postPage(post, isDraft) {
   const t = templates();
   if (!t) return null;
@@ -773,6 +811,10 @@ function postPage(post, isDraft) {
 
   const published = post.published_at || post.created_at;
   const modified = post.updated_at || published;
+  /* Round 169 (WEB-20.7): "By maurya2pi" — the Wix member handle the old
+     posts came in with. A handle is shown as the account's own name when a
+     member of staff goes by it, and as the team otherwise. */
+  post = Object.assign({}, post, { author: displayAuthor(post.author) });
 
   /* Who wrote it, when it went up, and when it was last put right. All three
      were asked for, and the third is the one that matters to a reader deciding
@@ -1211,6 +1253,8 @@ const UNI_JS = `<div class="apsheet" id="apSheet" role="dialog" aria-modal="true
     var email = document.getElementById('apEmail').value.trim();
     var phone = document.getElementById('apPhone').value.trim();
     if (!name || !email || !phone) return say('All three are needed to call you back.', 'bad');
+    /* Round 169 (WEB-15): the contact form's rule. */
+    if (!/[A-Za-z\\u00C0-\\u024F\\u0900-\\u097F]/.test(name)) return say('A name needs at least one letter.', 'bad');
     var go = document.getElementById('apGo'); go.disabled = true;
     post({ id: cur.dataset.apply, name: name, email: email, phone: phone, consent: 'apply' })
       .then(function(d){
@@ -1253,7 +1297,11 @@ function universityPage(u) {
   const feeLine = u.feeMin == null ? 'Fees to be confirmed'
     : u.feeMin === 0 && u.feeMax === 0 ? 'No tuition — public university'
     : u.feeMin === u.feeMax ? UNIS.money(u.feeMin)
-    : (u.feeMin === 0 ? '₹0 to ' : UNIS.money(u.feeMin) + ' to ') + UNIS.money(u.feeMax);
+    /* Round 169 (WEB-14): never "₹0 to ₹38.5 lakh" — a tuition-free
+       programme still has a semester fee and living costs, so the free end
+       is said in words. */
+    : u.feeMin === 0 ? 'No tuition fee on some programmes; others up to ' + UNIS.money(u.feeMax)
+    : UNIS.money(u.feeMin) + ' to ' + UNIS.money(u.feeMax);
 
   const title = x.metaTitle
     || (called ? called + ' (' + u.name + ')' : u.name) + ' — courses, fees & deadlines';
@@ -1353,7 +1401,10 @@ function universityPage(u) {
     + '<span class="pill">' + esc(c.flag ? c.flag + ' ' : '') + esc(c.name) + '</span>'
     + (u.city ? '<span class="pill">' + esc(u.city) + '</span>' : '')
     + '<span class="pill">' + n + ' programme' + (n === 1 ? '' : 's') + '</span>'
-    + (u.url ? '<a class="pill" href="' + esc(u.url) + '" target="_blank" rel="noopener nofollow">Official site ↗</a>' : '')
+    /* Round 169 (WEB-05): the office's address for the university when set
+       (University pages → Official website), otherwise the domain most of
+       its course pages sit on; no chip when neither exists. */
+    + ((x.website || u.url) ? '<a class="pill" href="' + esc(x.website || u.url) + '" target="_blank" rel="noopener nofollow">Official site ↗</a>' : '')
     + (daad ? '<a class="pill daad" href="' + esc(daad) + '" target="_blank" rel="noopener">DAAD listing ↗</a>' : '')
     + '</div>'
     + (PROSE.safeImg(x.cover) ? '<figure class="uni-cover"><img src="' + esc(x.cover) + '" alt="' + esc(u.name) + '" decoding="async"></figure>' : '')
@@ -1824,6 +1875,41 @@ function withLiveDestinationFacts(html, slug) {
     html = html.replace(/<b>[\d,]+ universit(y|ies)<\/b>/g,
       '<b>' + unis.toLocaleString('en-IN') + ' universit' + (unis === 1 ? 'y' : 'ies') + '</b>');
   }
+  return destinationWords(html, code, progs);
+}
+
+/*
+ * Round 169 (WEB-08): the sentences on a destination page come from the
+ * counts. "11,140 programmes, 0 at public universities" followed by "Public
+ * universities here charge a fraction of private tuition"; "1 programmes";
+ * "₹1,200,000" where every other screen says "₹12 lakh".
+ */
+function destinationWords(html, code, progs) {
+  let pubN = 0;
+  try { pubN = Number(db.countProgrammes({ country: code, isPublic: true }) || 0); } catch (e) { pubN = 0; }
+  if (!pubN) {
+    try { pubN = (db.rowsForCountries ? db.rowsForCountries([code]) : []).filter(r => r.is_public && r.active && !r.search_only).length; } catch (e) { pubN = 0; }
+  }
+  const n1 = (n, one, many) => n.toLocaleString('en-IN') + ' ' + (n === 1 ? one : many);
+  html = html.replace(/(<h1>Study in [^<]*<\/h1><p>)([\d,]+) programmes?, [\d,]+ at public universit(?:y|ies)\./, (m, a, baked) => {
+    const n = progs || Number(String(baked).replace(/,/g, '')) || 0;
+    return a + n1(n, 'programme', 'programmes') + (pubN ? ', ' + n1(pubN, 'at a public university', 'at public universities') : '') + '.';
+  });
+  /* No public programme here: no sentence about what public universities charge. */
+  if (!pubN) html = html.replace(/(<p class="lead">)Public universities here [^.]*\.\s*/g, '$1');
+  html = html.replace(/<b>1 programmes<\/b>/g, '<b>1 programme</b>').replace(/<b>1 universities<\/b>/g, '<b>1 university</b>');
+  /* Money in lakh and crore, as everywhere else — the page body only, from
+     the title band to the footer; scripts and structured data are left be. */
+  const from = html.indexOf('<section class="page-hero"'), to = html.lastIndexOf('<footer');
+  if (from >= 0 && to > from) {
+    const mid = html.slice(from, to).replace(/₹(\d{1,3}(?:,\d{3})+)(?![\d,])/g, (m, v) => {
+      /* Ten lakh and up, in round lakh, as words (₹12 lakh); anything else
+         in Indian grouping (₹1,10,000 a month). */
+      const n = Number(v.replace(/,/g, ''));
+      return n >= 1000000 && n % 100000 === 0 ? UNIS.money(n) : '₹' + n.toLocaleString('en-IN');
+    });
+    html = html.slice(0, from) + mid + html.slice(to);
+  }
   return html;
 }
 
@@ -1938,8 +2024,8 @@ const UFILTER_JS = `<script>(function(){
   var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var money = function (v) { v = Number(v) || 0; if (!v) return '\u20b90';
-    if (v >= 1e7) return '\u20b9' + (v / 1e7).toFixed(v % 1e7 ? 1 : 0) + ' crore';
-    if (v >= 1e5) return '\u20b9' + (v / 1e5).toFixed(v % 1e5 ? 1 : 0) + ' lakh';
+    if (v >= 1e7) return '\u20b9' + (v / 1e7).toFixed(v % 1e7 ? 1 : 0).replace(/\\.0$/, '') + ' crore';
+    if (v >= 1e5) return '\u20b9' + (v / 1e5).toFixed(v % 1e5 ? 1 : 0).replace(/\\.0$/, '') + ' lakh';
     return '\u20b9' + v.toLocaleString('en-IN'); };
   var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
   var state = function () { return { q: val('ufQ'), level: val('ufLevel'), field: val('ufField'), cgpa: val('ufCgpa'),
@@ -2328,6 +2414,70 @@ function socialLinks() {
   let f = null;
   try { f = content.get('finder'); } catch (e) { f = null; }
   return ((f && f.social) || []).filter(x => x && x.show && x.url);
+}
+
+/*
+ * Round 169 — the public chrome every page shares, added in one place:
+ *
+ *   the header (owner, 10 Oct): "Find University" moves beside Contact as a
+ *     button, and "About Us" leaves the header (the page and the footer link
+ *     stay). Every static page, template and generated page carries the same
+ *     header markup, so it is rewritten here rather than in fifty files.
+ *   a skip-to-content link (WEB-20.8), aimed at the page's <main>.
+ *   the office phone in the footer (WEB-20.10), from Finder & contact.
+ *   the WhatsApp corner hides while a dialog is open (WEB-20.9).
+ */
+const CHROME_CSS = '<style data-chrome>'
+  + '.skip-link{position:absolute;left:12px;top:-80px;z-index:10001;background:#0b1f3a;color:#fff;padding:11px 16px;'
+  + 'border-radius:9px;font:700 14px/1 system-ui,sans-serif;text-decoration:none}.skip-link:focus{top:12px;outline:3px solid #c9a24b}'
+  + 'nav.menu>a.nav-find{background:#0d2338;color:#fff;padding:10px 17px;border-radius:999px;'
+  + 'box-shadow:0 6px 16px rgba(13,35,56,.22);font-weight:700}'
+  + 'nav.menu>a.nav-find::after{display:none}nav.menu>a.nav-find:hover{background:#13385c;color:#fff}'
+  + '.mobile-menu>a.nav-find{display:block;margin:12px 0 4px;padding:14px 16px;border:0;border-radius:12px;'
+  + 'background:#0d2338;color:#fff;text-align:center;font-weight:700}'
+  + 'html:has(.modal.on) .gv-corner,html:has(.modal.on) .wa-launch,html:has(.apsheet.on) .gv-corner,'
+  + 'html:has(.apsheet.on) .wa-launch,html:has(.fmodal:not([hidden])) .gv-corner,html:has(.fmodal:not([hidden])) .wa-launch,'
+  + 'html:has(.mobile-menu.open) .gv-corner,html:has(.mobile-menu.open) .wa-launch,'
+  + 'html.glv-modal .gv-corner,html.glv-modal .wa-launch{display:none !important}'
+  /* WEB-13: navy on gold everywhere, as the home page button — white on the
+     gold gradient is well under 4.5 : 1. */
+  + '.btn-gold,.btn-gold:hover,.btn-gold:focus{color:#0b1f3a}'
+  + '</style>';
+function prettyPhone(p) {
+  const d = String(p || '').replace(/[^0-9]/g, '');
+  const ten = d.length === 12 && d.startsWith('91') ? d.slice(2) : d.length === 10 ? d : '';
+  return ten ? '+91 ' + ten.slice(0, 5) + ' ' + ten.slice(5) : String(p || '');
+}
+function withHeaderNav(html) {
+  if (html.indexOf('class="nav-find"') >= 0) return html;
+  /* Three spellings of every link: `x.html` at the root, `../x.html` under
+     /post/, `/x` on a university page after rootLinks. */
+  html = html.replace(/<a href="\/find-university">Find University<\/a><a href="(?:\.\.\/|\/)?about-us(?:\.html)?">About Us<\/a>/g, '');
+  return html.replace(/(<a href="(?:\.\.\/|\/)?contact-us(?:\.html)?">Contact<\/a>)(<\/nav>|\s*<a href="(?:\.\.\/|\/)?login(?:\.html)?">Sign in<\/a>)/g,
+    '$1<a class="nav-find" href="/find-university">Find University</a>$2');
+}
+function withPublicChrome(html) {
+  if (html.indexOf('<style data-chrome>') >= 0 || html.indexOf('<header class="site"') < 0) return html;
+  html = withHeaderNav(html);
+  /* Skip link → the page's main landmark. */
+  html = withMain(html);
+  if (!/id="main"/.test(html)) html = html.replace(/<main(?=[\s>])/, '<main id="main" tabindex="-1"');
+  if (/id="main"/.test(html)) html = html.replace(/(<body[^>]*>)/, '$1<a class="skip-link" href="#main">Skip to content</a>');
+  /* The phone, beside the email in the footer. */
+  if (!/<footer class="site"[\s\S]*href="tel:/.test(html)) {
+    let phone = '';
+    try { phone = String(((content.get('finder') || {}).contact || {}).phone || ''); } catch (e) { phone = ''; }
+    phone = phone || '+917839399999';
+    const tel = phone.replace(/[^0-9+]/g, '');
+    const row = '<div class="office"><b>Phone</b><a href="tel:' + tel + '" style="color:#c8d6e4">' + prettyPhone(phone) + '</a></div>';
+    const fi = html.lastIndexOf('<footer class="site"');
+    const m = fi >= 0 ? /<div class="office"><b>Email<\/b>[\s\S]*?<\/div>/.exec(html.slice(fi)) : null;
+    if (m) {
+      const at = fi + m.index + m[0].length;
+      html = html.slice(0, at) + '\n      ' + row + html.slice(at);
+    }
+  }
+  return html.replace('</head>', CHROME_CSS + '</head>');
 }
 function socialsHtml(links) {
   if (!links.length) return '';
@@ -2733,7 +2883,7 @@ const server = http.createServer(async (req, res) => {
        real ids (patch 146). */
     if (slug === 'index' && path.dirname(file) === ROOT) html = withoutPublicSeed(html, file, ['"programs": [']);
     /* The "Real journeys, real outcomes" rail's link, straight to /success-stories. */
-    if (slug === 'index' && path.dirname(file) === ROOT) html = STORIES.withHomeLink(html);
+    if (slug === 'index' && path.dirname(file) === ROOT) html = STORIES.withHomeLink(html, { db, content });
     if (slug.startsWith('study-in-')) {
       html = withDestinationUniversities(withLiveDestinationFacts(html, slug), slug);
     }

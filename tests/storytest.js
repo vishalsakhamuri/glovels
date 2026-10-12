@@ -79,7 +79,9 @@ const cards = page => page.$$eval('#admit-stories .ss-admit, #visa-work-stories 
 
   /* -------------------------------------------------------------- the head */
   check('the title from the brief',
-    raw.includes('<title>Success stories — ' + N_ADMITS + ' admits, Opportunity Card &amp; visa approvals | Glovels</title>'));
+    /* Round 169 (WEB-20.3): a title over 65 characters with " | Glovels"
+       drops the suffix rather than being cut by Google. */
+    raw.includes('<title>Success stories — ' + N_ADMITS + ' admits, Opportunity Card &amp; visa approvals</title>'));
   check('the description counts students, offers and universities',
     /<meta name="description" content="\d+ students, \d+ admission offers at \d+ universities/.test(raw));
   check('a canonical on /success-stories', /<link rel="canonical" href="[^"]+\/success-stories">/.test(raw));

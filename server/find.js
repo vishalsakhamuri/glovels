@@ -47,6 +47,13 @@
     try { return (typeof self !== 'undefined' ? self : this).TAGS || null; } catch (e) { return null; }
   };
   const tagList = v => String(v || '').split(';').map(t => t.trim()).filter(Boolean);
+  /* Set for the length of one run(): the universities the search box names. */
+  let uniKeys = null;
+  /* Round 169 (WEB-06): the MOI box and the typed "MOI Accepted" tag read the
+     same thing — the requirement, or the office's own tag on the row
+     (tags.js FEATURES). */
+  const moiOk = p => !!(p && ((p.reqs && p.reqs.moiAccepted === true)
+    || (Array.isArray(p.tags) && p.tags.some(t => String(t || '').trim().toLowerCase() === 'moi accepted'))));
 
   const LEVELS = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma', foundation: 'Foundation / Pathway', phd: 'PhD' };
   const SORTS = { deadline: 'Deadline', cost: 'Total cost', fit: 'Fit', az: 'A – Z' };
@@ -158,7 +165,7 @@
   const tuitionOf = p => { const t = reqsOf(p).tuitionEurSem; return (t === null || t === undefined || t === '') ? null : num(t); };
   /* Does the row ask for anything at all? A green chip on a programme that
      states nothing would be a lie — the home page draws the same line. */
-  const statesAny = p => num(p.minCgpa) != null || Object.keys(reqsOf(p)).some(k => { const v = reqsOf(p)[k]; return k !== 'tuitionEurSem' && k !== 'specialisation' && v !== null && v !== undefined && v !== '' && v !== false; });
+  const statesAny = p => num(p.minCgpa) != null || num(p.germanGpa) != null || Object.keys(reqsOf(p)).some(k => { const v = reqsOf(p)[k]; return k !== 'tuitionEurSem' && k !== 'specialisation' && v !== null && v !== undefined && v !== '' && v !== false; });
   /* "Fee to be confirmed" where nothing is stated, the way the home page says it. */
   const feeUnknown = p => !locked(p) && !Number(p.totalInr || 0) && tuitionOf(p) == null && !p.freeTuition;
 
@@ -176,7 +183,7 @@
       else if (cap != null && t != null && t > cap) return false;
     }
     if (on('intake')) { const t = termByKey(f.intake); if (t && !openFor(p, t)) return false; }
-    if (on('moi') && reqsOf(p).moiAccepted !== true) return false;
+    if (on('moi') && !moiOk(p)) return false;
     if (on('nogre') && reqsOf(p).greRequired === true) return false;
     if (on('restricted')) {
       const r = reqsOf(p).restricted === true || p.restricted === true;
@@ -184,6 +191,15 @@
       if (f.restricted === 'restricted' && !r) return false;
     }
     if (on('tags') || on('q')) {
+      /* Round 169 (WEB-06): a university or a city typed in the box. The
+         server works out which universities the words name — by name, short
+         name, alias or city, the same way for a locked row as a named one —
+         and hands over their keys (`uniKeys`); a locked row never carries its
+         name, so the browser could not have matched it. */
+      if (on('q') && uniKeys && p.uKey && uniKeys.has(String(p.uKey))) {
+        const T0 = tagsModule();
+        return !(on('tags') && T0 && typeof T0.match === 'function' && !T0.match(p, f.tags, ''));
+      }
       const T = tagsModule();
       if (T && typeof T.match === 'function') {
         if (!T.match(p, on('tags') ? f.tags : '', on('q') ? f.q : '')) return false;
@@ -198,16 +214,65 @@
 
   /* The verdict on one row against what the visitor said: fails / unknown /
      notes from reqs.check(), plus the CGPA bar the row itself sets. */
-  function verdict(p, s, REQS) {
+  /* The CGPA bar a row sets: its own, else the destination's for its kind —
+     the home page's and the counsellor matcher's rule (matches.js barOf), so
+     the three screens turn the same rows away. */
+  function barOf(p, countries) {
+    const own = num(p.minCgpa);
+    if (own != null) return own;
+    const c = (countries || {})[String(p.country || '').toUpperCase()] || {};
+    return num(p.isPublic ? c.minCgpaPublic : c.minCgpaPrivate);
+  }
+  /* Round 169 (WEB-02): a row that states a GERMAN grade (1.0 best, 4.0 pass)
+   * and no CGPA. Its grade is the modified Bavarian formula the counsellor
+   * matcher uses (matches.js germanOf), which needs the student's pass mark —
+   * and the finder only has a CGPA out of ten. So no pass mark is invented:
+   * the grade is worked out at both ends of the pass marks Indian universities
+   * use (4 to 6 out of 10). Worse than the bar even at the kindest pass mark,
+   * the row is turned away; within it even at the strictest, it is cleared;
+   * in between, nobody can say, and the row says so. */
+  const PASS_KIND = 4, PASS_STRICT = 6;
+  const germanFrom = (cg, pass) => (cg < pass ? null : Math.floor((1 + 3 * (10 - cg) / (10 - pass)) * 10) / 10);
+  function verdict(p, s, REQS, countries) {
     const r = reqsOf(p);
     const v = REQS ? REQS.check(r, s) : { fails: [], unknown: [], notes: [], ok: true };
-    const bar = num(p.minCgpa);
-    if (bar != null) {
+    const gg = num(p.germanGpa);
+    if (gg != null && num(p.minCgpa) == null) {
       if (s.cgpa == null) v.unknown = v.unknown.concat(['cgpa']);
-      else if (s.cgpa < bar) v.fails = [{ key: 'cgpa', label: 'CGPA', want: String(bar), have: String(s.cgpa) }].concat(v.fails);
+      else {
+        const kind = germanFrom(s.cgpa, PASS_KIND), strict = germanFrom(s.cgpa, PASS_STRICT);
+        if (kind == null || kind > gg) v.fails = [{ key: 'cgpa', label: 'German grade', want: gg.toFixed(1), have: 'CGPA ' + s.cgpa }].concat(v.fails);
+        else if (strict == null || strict > gg) v.unknown = v.unknown.concat(['germanGrade']);
+      }
+    } else {
+      const bar = barOf(p, countries);
+      if (bar != null) {
+        if (s.cgpa == null) v.unknown = v.unknown.concat(['cgpa']);
+        else if (s.cgpa < bar) v.fails = [{ key: 'cgpa', label: 'CGPA', want: String(bar), have: String(s.cgpa) }].concat(v.fails);
+      }
     }
     v.ok = v.fails.length === 0 && v.unknown.length === 0;
     return v;
+  }
+
+  /* Round 169 (owner, 10 Oct): with no fee filter and no sort chosen, the
+     first screen is a MIX — seven private rows to three public, every
+     destination. Each kind keeps its own order; past the first screen the
+     rest follow in the order they had. */
+  const MIX_SLOTS = 40;
+  function mix(rows) {
+    const priv = [], pub = [];
+    rows.forEach(p => (p.isPublic ? pub : priv).push(p));
+    if (!priv.length || !pub.length) return rows;
+    const out = [], used = new Set();
+    let i = 0, j = 0;
+    for (let slot = 0; slot < MIX_SLOTS && (i < priv.length || j < pub.length); slot++) {
+      const wantPub = slot % 10 === 2 || slot % 10 === 5 || slot % 10 === 8;
+      const take = (wantPub && j < pub.length) || i >= priv.length ? pub[j++] : priv[i++];
+      out.push(take); used.add(take);
+    }
+    rows.forEach(p => { if (!used.has(p)) out.push(p); });
+    return out;
   }
 
   /* Patch 161 (D4): with nothing said about themselves a visitor sees no
@@ -227,20 +292,30 @@
   /* Everything the page needs for one address: the rows that match, the
      verdict on each, the counts, and the facets. `REQS` is the checker from
      reqs.js; without it the profile answers are shown but not checked. */
-  function run(rows, f, REQS) {
+  /* `opts`: { countries, uniKeys } — the destinations' CGPA bars, and the
+     universities the server matched the search box to (WEB-06). */
+  function run(rows, f, REQS, opts) {
+    const o = opts || {};
+    uniKeys = o.uniKeys ? new Set([...o.uniKeys].map(String)) : null;
     const s = student(f);
     const said = saidAnything(s);
     const kept = rows.filter(p => keep(p, f));
     const out = [];
     let turned = 0;
     kept.forEach(p => {
-      const v = said ? verdict(p, s, REQS) : { fails: [], unknown: [], notes: [], ok: false };
+      const v = said ? verdict(p, s, REQS, o.countries) : { fails: [], unknown: [], notes: [], ok: false };
       /* Patch 162: a shortfall ranks the row lower; it does not drop it. The
          CGPA bar is the exception — the one requirement that turns a row away. */
       if (said && v.fails.some(x => x.key === 'cgpa')) { turned++; return; }
       out.push(Object.assign({}, p, { _v: v, _tier: v.fails.length ? 2 : v.unknown.length ? 1 : 0, _locked: locked(p), _fee: feeOf(p), _dl: nextDeadline(p) }));
     });
-    const sorted = said ? sortRows(out, f.sort, said).sort((a, b) => a._tier - b._tier) : sortRows(out, f.sort, said);
+    let sorted = said ? sortRows(out, f.sort, said).sort((a, b) => a._tier - b._tier) : sortRows(out, f.sort, said);
+    /* The mix works inside each tier, so a row the visitor falls short of
+       still ranks below every row they clear (patch 162). */
+    if (!f.sort && !f.apply) {
+      const tiers = [0, 1, 2].map(t => sorted.filter(p => (p._tier || 0) === t));
+      sorted = tiers.reduce((all, t) => all.concat(mix(t)), []);
+    }
     const unis = new Set(sorted.map(p => p.uKey || p.university || p.id)).size;
     const facet = (key, valueOf) => {
       const c = {};
@@ -253,7 +328,7 @@
       field: facet('field', p => p.field),
       apply: facet('apply', p => feeOf(p)),
       tuition0: rows.filter(p => keep(p, f, 'tuition') && tuitionOf(p) === 0).length,
-      moi: rows.filter(p => keep(p, f, 'moi') && reqsOf(p).moiAccepted === true).length,
+      moi: rows.filter(p => keep(p, f, 'moi') && moiOk(p)).length,
       nogre: rows.filter(p => keep(p, f, 'nogre') && reqsOf(p).greRequired !== true).length,
       open: rows.filter(p => keep(p, f, 'restricted') && !(reqsOf(p).restricted === true || p.restricted === true)).length,
       intake: {},
@@ -391,7 +466,7 @@
     .replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 
-  const REQ_WORDS = { english: 'English score', gre: 'GRE', greSections: 'GRE sections', germanLevel: 'German level', bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'publications', ects: 'ECTS credits', topPercent: 'class rank', cgpa: 'CGPA' };
+  const REQ_WORDS = { english: 'English score', gre: 'GRE', greSections: 'GRE sections', germanLevel: 'German level', bachelorYears: 'bachelor’s length', workExpMonths: 'work experience', papers: 'publications', ects: 'ECTS credits', topPercent: 'class rank', cgpa: 'CGPA', germanGrade: 'German grade (your university’s pass mark)' };
 
   /* One result row. `ctx`: { countries, saved:Set, compared:Set, signedIn } */
   function rowHtml(p, ctx) {
@@ -405,7 +480,8 @@
     tags.push(fee === 'free' ? '<span class="ft tfree">Free to apply</span>' : '<span class="ft tpkg">With a package</span>');
     if (reqsOf(p).moiAccepted === true) tags.push('<span class="ft">MOI accepted</span>');
     if (reqsOf(p).restricted === true || p.restricted === true) tags.push('<span class="ft trest">Restricted admission</span>');
-    if (p.fit && ctx && ctx.said) tags.push('<span class="ft tfit">Fit ' + Number(p.fit) + '%</span>');
+    /* Round 169 (WEB-02/12): no "Fit %" badge on a public page. The number
+       was a stored 80 on every row, not a score of anything the visitor said. */
     let verdictHtml = '';
     if (v.fails && v.fails.length) verdictHtml = '<span class="fv short" title="' + esc(v.fails.map(x => (x.label || x.key) + ': asks ' + x.want + ', you said ' + x.have).join('; ')) + '">Lower priority \u00b7 ' + esc(v.fails.length === 1 ? (v.fails[0].label || v.fails[0].key) + ' asks ' + v.fails[0].want : v.fails.length + ' things it asks') + '</span>';
     else if (v.unknown && v.unknown.length) verdictHtml = '<span class="fv unknown">Chances unknown · tell us your ' + esc(REQ_WORDS[v.unknown[0]] || v.unknown[0]) + '</span>';
@@ -443,6 +519,12 @@
   }
 
   function emptyHtml(f) {
+    /* Round 169 (WEB-20.5): when the words typed are what emptied the list,
+       say that — CGPA advice is no help to a search that matched nothing. */
+    if (has(f.q) || has(f.tags)) {
+      return '<div class="fempty"><b>Nothing matches that search — try fewer words.</b> Or remove a tag'
+        + ' — or <a href="index.html#counsel">ask a counsellor</a>; we place students at universities this list does not show.</div>';
+    }
     return '<div class="fempty"><b>Not seeing what you expected?</b> Widen the CGPA range'
       + (f.tuition === '0' ? ', remove “No tuition”' : '') + (f.apply ? ', show both free and package rows' : '')
       + ' — or <a href="index.html#counsel">ask a counsellor</a> to check your profile against the full list.</div>';

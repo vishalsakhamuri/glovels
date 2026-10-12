@@ -105,13 +105,24 @@ function draft(bank, input, pass) {
    * the draft anyway.
    */
   const given = (input.details && typeof input.details === 'object') ? input.details : {};
+  /* Round 169 (WEB-18): "In concrete terms: my final-year project — Built a
+     fraud-detection model…" read as two templates stitched together. The
+     paragraph before this one already names what was ticked ("What shaped me
+     most were my final-year project…"), so the detail goes in on its own,
+     as a clause: first letter lower-cased (unless it opens on an acronym or
+     on "I"), no full stop of its own — the sentence around it has one. */
+  const asClause = s => {
+    let t = s.replace(/[\s.;!]+$/, '');
+    const first = (t.match(/^\S+/) || [''])[0];
+    const keep = first === 'I' || /^I['’]/.test(first) || (first.length > 1 && first === first.toUpperCase() && /[A-Z]/.test(first))
+      || /^[A-Z][a-z]*[A-Z]/.test(first);
+    if (!keep) t = t.charAt(0).toLowerCase() + t.slice(1);
+    return t;
+  };
   const details = picked
     .map(c => {
       const said = clean(given[c.key], 300);
-      /* An em dash, not a comma. The details are joined into one sentence with
-         "a, b and c", and a comma between the phrase and its detail then reads
-         as another item in that list. */
-      return said ? (c.phrase || c.label) + ' — ' + said : '';
+      return said ? asClause(said) : '';
     })
     .filter(Boolean);
 
@@ -134,6 +145,10 @@ function draft(bank, input, pass) {
     /* Round 30 Sep (issue 18): "the this programme" when the box was blank,
        and "Each of those…" after a single strength. */
     if (s) s = s.replace(/\b([Tt])he this programme\b/g, (m, t0) => (t0 === 'T' ? 'This' : 'this') + ' programme');
+    /* Round 169 (WEB-18): the detail is a clause now ("built a model…"), and
+       "is built a model" is not English — a colon takes either shape. */
+    if (s && vals.details) s = s.replace(/\bThe detail behind that is (?=\S)/, 'The detail behind that: ')
+      .replace(/\bWhat I am referring to is (?=\S)/, 'What I am referring to: ');
     if (s && signals.length === 1) {
       /* Patch 160 (D7): one ticked quality is "the quality ... is", not
          "the qualities ... are". */

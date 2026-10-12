@@ -456,6 +456,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   padding:6px 9px;border-radius:8px;text-decoration:none;
   border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
 .p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+/* Patch 169 (STU-09.3): the name gets the whole row in the sidebar ("Sudh…"
+   was the name squeezed beside Sign out); Sign out goes under it. */
+@media (min-width:901px){ .p-who{flex-wrap:wrap;row-gap:8px} .p-who > b{flex:1 1 100%} }
 .p-out .ico{width:13px;height:13px}
 .plan-badge .p-out{margin-left:auto;align-self:flex-start}
 .plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -1233,7 +1236,7 @@ async function boot(run) {
   if (avatar && USER.name) avatar.textContent = USER.name.trim().slice(0, 1).toUpperCase();
   /* Their own name beside the way out, at the top of the sidebar. */
   const who = $('#whoName');
-  if (who) who.textContent = USER.name || USER.email || 'Signed in';
+  if (who) { who.textContent = USER.name || USER.email || 'Signed in'; who.title = who.textContent; }
   const out = $('#signOut');
   if (out) {
     out.onclick = async e => {
@@ -1353,8 +1356,11 @@ function svcCard(s) {
     + '<div class="sl-go" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px">'
       + (bought
           ? '<a class="btn btn-ghost btn-sm" href="messages.html">Ask about it</a>'
-          : '<a class="btn btn-primary btn-sm" href="index.html#service-' + esc(s.id) + '">'
-            + 'Book this ' + ico('arrow') + '</a>'
+          /* Patch 169 (STU-07): booked HERE, as the signed-in student — not on
+             the public home page basket, which asked for their name, mobile
+             and email again and made an order with no account behind it. */
+          : '<button type="button" class="btn btn-primary btn-sm" data-svcbook="' + esc(s.id) + '">'
+            + 'Book this ' + ico('arrow') + '</button>'
             + '<button type="button" class="btn btn-ghost btn-sm" data-svcask="' + esc(s.id)
             + '">Ask my counsellor</button>')
     + '</div></article>';
@@ -1400,9 +1406,145 @@ async function svcLoad() {
   }
 }
 
+/*
+ * Patch 169 (STU-07): THE CHECKOUT, INSIDE THE PORTAL.
+ *
+ * "Book this" sent a signed-in student to the public home page basket, which
+ * asked "Where should we send it?" for a name, mobile and email the account
+ * already holds — and the order it made was attached to nobody. Here the
+ * three come from the account and are locked (the server uses the account's
+ * own details for a signed-in student whatever is sent), the order lands on
+ * this student's file, and they never leave the portal.
+ */
+const SVC_ACCEPT = 'I have read and accept the Terms of Service, the Refund '
+  + '& Cancellation policy and the Privacy policy.';
+function svcCheckout(s) {
+  const U = (typeof USER !== 'undefined' && USER) || {};
+  const levels = s.levels || [];
+  let lvl = levels.length ? levels[0].code : '';
+  const priceOf = () => {
+    if (levels.length) { const l = levels.find(x => x.code === lvl) || levels[0]; return Number(l.priceInr || 0); }
+    return s.isFree ? 0 : Number(s.priceInr || 0);
+  };
+  const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+  let box = document.getElementById('svcCo');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'svcCo';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', 'svcCoT');
+    box.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(9,22,40,.48);'
+      + 'display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;overflow:auto';
+    document.body.appendChild(box);
+  }
+  const close = () => { box.remove(); };
+  const lockField = (id, label, val) =>
+    '<div style="margin:0 0 9px"><label for="' + id + '" style="display:block;font:700 11.6px/1.4 var(--sans);'
+    + 'color:var(--navy-800);margin-bottom:4px">' + label + '</label>'
+    + '<input id="' + id + '" value="' + esc(val || '') + '" readonly aria-readonly="true" '
+    + 'style="width:100%;box-sizing:border-box;padding:9px 11px;border:1.5px solid #d8dde4;'
+    + 'border-radius:10px;background:#f4f6f9;color:var(--navy-900);font:600 13px/1.4 var(--sans)"></div>';
+  const draw = () => {
+    const gross = priceOf();
+    const tax = Math.round(gross - gross / 1.18);
+    const needPhone = !String(U.phone || '').trim();
+    box.innerHTML = '<div class="svc-co-sheet" style="background:var(--paper,#fff);border-radius:16px;'
+      + 'width:min(480px,100%);box-shadow:0 20px 60px rgba(9,22,40,.3);padding:20px 20px 18px;box-sizing:border-box">'
+      + '<div style="display:flex;align-items:flex-start;gap:10px"><h3 id="svcCoT" style="margin:0;flex:1;'
+      + 'font-size:17px;color:var(--navy-900)">Book ' + esc(s.name) + '</h3>'
+      + '<button type="button" data-svcco-x aria-label="Close" style="border:0;background:none;'
+      + 'font-size:18px;cursor:pointer;color:var(--muted)">✕</button></div>'
+      + (levels.length ? '<div style="margin:12px 0 0"><label for="svcCoLvl" style="display:block;'
+          + 'font:700 11.6px/1.4 var(--sans);color:var(--navy-800);margin-bottom:4px">Level</label>'
+          + '<select id="svcCoLvl" style="width:100%;padding:9px 11px;border:1.5px solid #d8dde4;border-radius:10px">'
+          + levels.map(l => '<option value="' + esc(l.code) + '"' + (l.code === lvl ? ' selected' : '') + '>'
+              + esc(l.code) + ' · ' + inr(l.priceInr) + '</option>').join('') + '</select></div>' : '')
+      + '<div style="margin:14px 0;padding:11px 13px;border:1px solid var(--line,#e3e7ec);border-radius:12px;font-size:12.8px">'
+      + '<div style="display:flex;justify-content:space-between"><span>' + esc(s.name) + (lvl ? ' · ' + esc(lvl) : '')
+        + '</span><b>' + inr(gross) + '</b></div>'
+      + '<div style="display:flex;justify-content:space-between;color:var(--muted)"><span>Taxable value</span><span>'
+        + inr(gross - tax) + '</span></div>'
+      + '<div style="display:flex;justify-content:space-between;color:var(--muted)"><span>GST @ 18%</span><span>'
+        + inr(tax) + '</span></div></div>'
+      + '<p style="margin:0 0 8px;font:700 12.4px/1.5 var(--sans);color:var(--navy-900)">Booked on your account</p>'
+      + lockField('svcCoName', 'Name', U.name)
+      + (needPhone
+          ? '<div style="margin:0 0 9px"><label for="svcCoPhone" style="display:block;font:700 11.6px/1.4 var(--sans);'
+            + 'color:var(--navy-800);margin-bottom:4px">Mobile number *</label><input id="svcCoPhone" inputmode="tel" '
+            + 'placeholder="98765 43210" style="width:100%;box-sizing:border-box;padding:9px 11px;border:1.5px solid #d8dde4;'
+            + 'border-radius:10px"></div>'
+          : lockField('svcCoPhone', 'Mobile', U.phone))
+      + lockField('svcCoMail', 'Email', U.email)
+      + '<p style="margin:0 0 10px;font-size:11.6px;color:var(--muted);line-height:1.5">These come from your '
+      + 'account. To change them, edit My Profile.</p>'
+      + '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12.2px;line-height:1.5">'
+      + '<input type="checkbox" id="svcCoOk" style="margin-top:3px"><span>' + esc(SVC_ACCEPT) + '</span></label>'
+      + '<p id="svcCoErr" role="alert" style="margin:8px 0 0;font:600 12.2px/1.5 var(--sans);color:#7a2118"></p>'
+      + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">'
+      + '<button type="button" class="btn btn-ghost" data-svcco-x>Cancel</button>'
+      + '<button type="button" class="btn btn-primary" id="svcCoPay">Confirm — ' + inr(gross) + '</button></div>'
+      + '</div>';
+    const sel = box.querySelector('#svcCoLvl');
+    if (sel) sel.onchange = () => { lvl = sel.value; draw(); };
+    box.querySelectorAll('[data-svcco-x]').forEach(b => { b.onclick = close; });
+    box.onclick = ev => { if (ev.target === box) close(); };
+    box.querySelector('#svcCoPay').onclick = pay;
+    const f = box.querySelector('#svcCoOk'); if (f) f.focus();
+  };
+  async function pay() {
+    const err = box.querySelector('#svcCoErr');
+    const phone = (box.querySelector('#svcCoPhone') || {}).value || '';
+    if (!box.querySelector('#svcCoOk').checked) { err.textContent = 'Please accept the terms shown before booking.'; return; }
+    if (!String(U.phone || '').trim() && !/^[6-9][0-9]{9}$/.test(phone.replace(/[^0-9]/g, '').slice(-10))) {
+      err.textContent = 'A 10-digit Indian mobile, please.'; return;
+    }
+    const btn = box.querySelector('#svcCoPay');
+    btn.disabled = true; btn.textContent = 'Booking…';
+    try {
+      const r = await fetch('/api/orders', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          services: [{ id: s.id, level: lvl }],
+          name: U.name || '', email: U.email || '', phone: U.phone || phone,
+          acceptedTerms: true, payIn: 'full', from: 'portal',
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'That did not go through.');
+      if (d.razorpay && window.__glovelsCollect) await window.__glovelsCollect(d);
+      BOUGHT.add(String(s.id));
+      svcPaint();
+      box.innerHTML = '<div class="svc-co-sheet" id="svcCoDone" style="background:var(--paper,#fff);border-radius:16px;'
+        + 'width:min(480px,100%);padding:22px 20px;box-sizing:border-box">'
+        + '<h3 style="margin:0 0 8px;font-size:17px;color:var(--navy-900)">Booked — ' + esc(d.reference || '') + '</h3>'
+        + '<p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:var(--navy-800)">' + esc(s.name)
+        + ' is on your account. It is on your dashboard with the reference above, and your counsellor '
+        + 'will be in touch about it.' + (d.razorpay && !window.__glovelsCollect
+          ? ' Payment is collected from your dashboard.' : '') + '</p>'
+        + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+        + '<a class="btn btn-ghost" href="dashboard.html">Go to my dashboard</a>'
+        + '<button type="button" class="btn btn-primary" data-svcco-x>Done</button></div></div>';
+      box.querySelectorAll('[data-svcco-x]').forEach(b => { b.onclick = close; });
+    } catch (e2) {
+      btn.disabled = false; btn.textContent = 'Confirm — ' + inr(priceOf());
+      err.textContent = e2.message;
+    }
+  }
+  draw();
+}
+
 document.addEventListener('click', async e => {
   const tab = e.target.closest('[data-svccat]');
   if (tab) { svcCat = tab.dataset.svccat; svcPaint(); return; }
+
+  const book = e.target.closest('[data-svcbook]');
+  if (book) {
+    const s = SVC.find(x => String(x.id) === book.dataset.svcbook);
+    if (s) svcCheckout(s);
+    return;
+  }
 
   /* "Ask my counsellor" writes into the thread they already have. A separate
      enquiry form would arrive as a stranger, in a different screen, from

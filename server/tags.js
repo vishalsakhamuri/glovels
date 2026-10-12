@@ -250,15 +250,43 @@
       if (rank) ranked.push({ e, rank });
     }
     ranked.sort((a, b) => b.rank - a.rank || b.e.count - a.e.count || a.e.value.localeCompare(b.e.value));
-    const per = {}, out = [];
+    const per = {}, out = [], took = new Set();
     for (const { e } of ranked) {
+      /* CNS-04: one university, one suggestion. Its other names ride along
+         as `aliases` instead of being listed beside it with the same count. */
+      const grp = e.type === 'University' ? ALIAS.get(e.k) : null;
+      const value = grp ? grp[0] : e.value;
+      const key = e.type + '\u0000' + fold(value);
+      if (took.has(key)) continue;
+      took.add(key);
       per[e.type] = (per[e.type] || 0) + 1;
       if (per[e.type] > perType) continue;
-      out.push({ value: e.value, type: e.type, count: e.count });
+      const one = { value, type: e.type, count: e.count };
+      if (grp) {
+        one.aliases = grp.slice(1);
+        one.count = Math.max(e.count, ...grp.map(n => (BY_KEY.get(fold(n)) || { count: 0 }).count));
+      }
+      out.push(one);
       if (out.length >= limit) break;
     }
     return out;
   }
+
+  /* CNS-04: universities known by more than one name. `groups` is a list of
+     name lists, the canonical name FIRST. Every name in a group maps to the
+     whole group. Set by the server from the logo index (server/api.js). */
+  let ALIAS = new Map();
+  function setAliases(groups) {
+    ALIAS = new Map();
+    (groups || []).forEach(g => {
+      const names = (g || []).map(n => String(n || '').trim()).filter(Boolean);
+      if (names.length < 2) return;
+      names.forEach(n => ALIAS.set(fold(n), names));
+    });
+    return ALIAS.size;
+  }
+  /** The group a name belongs to (canonical first), or null. */
+  const aliasesOf = v => ALIAS.get(fold(v)) || null;
 
   /** A flat suggestion list as [{ type, items }] in dictionary type order. */
   function group(list) {
@@ -278,7 +306,11 @@
     const k = fold(tag);
     if (!k) return true;
     if (tagKeys.has(k) || tagKeys.has(foldUe(tag))) return true;
-    return hay.includes(' ' + k + ' ');
+    if (hay.includes(' ' + k + ' ')) return true;
+    /* CNS-04: a university chosen by one of its names matches a row filed
+       under another ("HS Bremen" / "Bremen University of Applied Sciences"). */
+    const grp = ALIAS.get(k);
+    return !!grp && grp.some(n => { const a = fold(n); return a !== k && (tagKeys.has(a) || hay.includes(' ' + a + ' ')); });
   }
 
   /**
@@ -286,9 +318,39 @@
    * text hits a tag or the programme's, university's or city's name.
    * `tags` is a list or a ';'-joined string; `text` is what was typed.
    */
+  /* Round 169 (WEB-06): a tag that IS a filter answers the way the filter
+     does. "MOI Accepted" typed gave 429 rows and the MOI box 711 — the box
+     reads the requirement, the words read the imported tags, and an imported
+     row's tags need not say MOI. Longest phrase first. */
+  const reqsOfRow = p => (p && p.reqs && typeof p.reqs === 'object') ? p.reqs : {};
+  /* MOI: what the requirement says, or the office's own tag on the row —
+     find.js's MOI box reads the same pair (moiOk). */
+  const moiOk = p => reqsOfRow(p).moiAccepted === true
+    || (Array.isArray(p && p.tags) && p.tags.some(t => fold(t) === 'moi accepted'));
+  const FEATURES = [
+    ['moi accepted', moiOk],
+    ['public university', p => !!p.isPublic],
+    ['private university', p => !p.isPublic],
+    ['restricted admission', p => reqsOfRow(p).restricted === true || p.restricted === true],
+    ['moi', moiOk],
+  ];
+  const featureOf = t => { const k = fold(t); const f = FEATURES.find(x => x[0] === k); return f ? f[1] : null; };
+
   function match(p, tags, text) {
-    const list = (Array.isArray(tags) ? tags : String(tags || '').split(';')).map(t => String(t == null ? '' : t).trim()).filter(Boolean);
-    const q = words(text);
+    let list = (Array.isArray(tags) ? tags : String(tags || '').split(';')).map(t => String(t == null ? '' : t).trim()).filter(Boolean);
+    let q = words(text);
+    if (!list.length && !q.length) return true;
+    for (const t of list) { const test = featureOf(t); if (test && !test(p)) return false; }
+    list = list.filter(t => !featureOf(t));
+    if (q.length) {
+      let joined = ' ' + q.join(' ') + ' ';
+      for (const [k, test] of FEATURES) {
+        if (!joined.includes(' ' + k + ' ')) continue;
+        if (!test(p)) return false;
+        joined = joined.split(' ' + k + ' ').join(' ');
+      }
+      q = joined.split(' ').filter(Boolean);
+    }
     if (!list.length && !q.length) return true;
     const own = tagsOf(p);
     const tagKeys = new Set();
@@ -333,5 +395,5 @@
     return out.slice(0, 60);
   }
 
-  return { TYPES, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, publicTags, suggest, group, match, score, parseList, fold };
+  return { TYPES, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, publicTags, suggest, group, match, score, parseList, fold, setAliases, aliasesOf };
 });

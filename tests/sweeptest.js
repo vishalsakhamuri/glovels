@@ -111,8 +111,10 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   const file = flat(await cou.p.textContent('#pane'));
   check('counsellor · the student’s documents are on the file',
     (await cou.p.$$('#docs li')).length >= 1);
-  check('counsellor · with a way to verify each one',
-    (await cou.p.$$('[data-verify]')).length >= 1);
+  /* Round 169 (CNS-07.4): a file the slot does not take (a Word file in the
+     passport slot) shows a disabled Accept with the reason instead. */
+  check('counsellor · with a way to verify each one (or the reason it cannot be accepted)',
+    (await cou.p.$$('[data-verify]')).length + (await cou.p.$$('#docs button[disabled][title]')).length >= 1);
   check('counsellor · the agreed shortlist is separate from what the student likes',
     /interested in/i.test(file) || (await cou.p.$$('#uniList li')).length >= 1);
   check('counsellor · they cannot reset a password',
@@ -164,8 +166,10 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   check('admin · the roster lists students', (await adm.p.$$('[data-assign]')).length >= 1);
   check('admin · with a counsellor dropdown on each',
     (await adm.p.$$('[data-assign] option')).length >= 2);
-  check('admin · and an administrator among the people who can be assigned',
-    /Glovels Admin/.test(await adm.p.textContent('[data-assign]')),
+  /* Round 169 (ADM-08.2): the dropdowns list active counsellors only — an
+     administrator is no longer offered (unless already the owner). */
+  check('admin · the assign list offers counsellors, not the administrator',
+    !/Glovels Admin/.test(await adm.p.textContent('[data-assign]')) || (await adm.p.$$('[data-assign] option[selected]')).length > 0,
     flat(await adm.p.textContent('[data-assign]')).slice(0, 70));
   check('admin · a way to reset a student’s password',
     (await adm.p.$$('[data-pwreset]')).length >= 1);

@@ -60,7 +60,7 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   const steps=await sp.$$eval('#progList li',l=>l.length);
   ok('  · as a list of steps', steps>0, steps);
   const ptxt=await sp.$eval('#progSec',e=>e.textContent);
-  ok('  · with target dates', /aiming for \d{4}-\d{2}/.test(ptxt)||/Done/.test(ptxt), ptxt.slice(0,200));
+  ok('  · with target dates', /aiming for \d{1,2} [A-Z][a-z]{2} \d{4}/.test(ptxt)||/Done/.test(ptxt), ptxt.slice(0,200));
   ok('  · and nothing about the counsellor or being late',
     !/UI Counsellor|overdue|past its date|late/i.test(ptxt), ptxt.slice(0,200));
   const w=await sp.$eval('#progFill',e=>e.style.width);

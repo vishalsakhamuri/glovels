@@ -92,7 +92,10 @@ try { chromium = require('playwright').chromium; } catch (e) { /* node-only run 
   let r = await j('/api/tags?q=data');
   check('/api/tags: "data" suggests Data Science first', r.status === 200 && r.body.suggestions[0].value === 'Data Science' && r.body.suggestions[0].type === 'Bachelor', JSON.stringify(r.body.suggestions.slice(0, 2)));
   r = await j('/api/tags?q=tu%20munich');
-  check('/api/tags: "tu munich" is the university', r.body.suggestions.length === 1 && r.body.suggestions[0].value === 'TU Munich', JSON.stringify(r.body.suggestions));
+  /* Round 169 (CNS-04): a university's names are merged — the suggestion is the
+     full name and carries "TU Munich" as an alias. */
+  check('/api/tags: "tu munich" is the university', r.body.suggestions.length === 1 && r.body.suggestions[0].type === 'University'
+    && (r.body.suggestions[0].value === 'TU Munich' || (r.body.suggestions[0].aliases || []).includes('TU Munich')), JSON.stringify(r.body.suggestions));
   r = await j('/api/tags?q=no%20german');
   check('/api/tags: "no german" is the language tag', r.body.suggestions[0].value === 'No German Required');
   r = await j('/api/tags?q=x');
@@ -225,11 +228,11 @@ try { chromium = require('playwright').chromium; } catch (e) { /* node-only run 
   await page.keyboard.press('Enter');
   await page.waitForTimeout(600);
   const chips = await page.$$eval('#fTagChips .ftagchip', b => b.map(x => x.textContent));
-  check('home: Enter adds the first suggestion as a second chip', chips.length === 2 && chips.some(t => /TU Munich/.test(t)), chips.join(' | '));
+  check('home: Enter adds the first suggestion as a second chip', chips.length === 2 && chips.some(t => /TU Munich|Technical University of Munich/.test(t)), chips.join(' | '));
   const n = await shown();
   check('home: two chips narrow the list', n < totalBefore, n + ' of ' + totalBefore);
   const href = await page.getAttribute('#rFind', 'href');
-  check('home: More universities carries tags=a;b', /tags=No\+German\+Required%3BTU\+Munich|tags=No%20German%20Required%3BTU%20Munich/.test(href), href);
+  check('home: More universities carries tags=a;b', /tags=No(\+|%20)German(\+|%20)Required%3B(TU|Technical(\+|%20)University(\+|%20)of)(\+|%20)Munich/.test(href), href);
   await page.click('#fTagChips .ftagchip >> nth=1');
   await page.waitForTimeout(400);
   check('home: × removes a chip', (await page.$$('#fTagChips .ftagchip')).length === 1);

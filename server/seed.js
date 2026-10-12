@@ -1197,7 +1197,39 @@ function renameEntryOffers({ db }) {
   return n;
 }
 
+/*
+ * Round 169 (owner, 10 Oct): "Move Academic CV & Resume, Book Counselling and
+ * APS, Attestation & Translation to More Services." Most Booked keeps the six
+ * that sell; the three go under a new "More Services" tab. Once, and only for
+ * a service still filed under Most Booked — a service the office has since
+ * re-filed keeps where they put it.
+ */
+const MORE_TAB = { key: 'more', label: 'More Services', icon: 'plus', colour: '#3d4f66' };
+const MORE_IDS = ['cv', 'counsel', 'aps'];
+function moreServicesTab({ db }) {
+  if (db.content('moreServicesTabV1')) return 0;
+  db.setContent('moreServicesTabV1', { done: true }, 'system');
+  const live = db.content('services');
+  if (!live || !Array.isArray(live.items)) return 0;
+  const tabs = Array.isArray(live.tabs) ? live.tabs.slice() : [];
+  if (!tabs.some(t => t && t.key === 'more')) {
+    const at = tabs.findIndex(t => t && t.key === 'top');
+    tabs.splice(at < 0 ? tabs.length : at + 1, 0, MORE_TAB);
+  }
+  let n = 0;
+  const items = live.items.map(x => {
+    const cats = Array.isArray(x.cats) ? x.cats : [];
+    if (!MORE_IDS.includes(String(x.id)) || !cats.includes('top')) return x;
+    n++;
+    return Object.assign({}, x, { cats: cats.filter(c => c !== 'top').concat(cats.includes('more') ? [] : ['more']) });
+  });
+  db.setContent('services', { tabs, items }, 'system');
+  if (n) db.log('system', 'services moved', n + ' moved from Most Booked to More Services');
+  return n;
+}
+
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, addMissingCountries,
+  moreServicesTab,
   addMissingServices,
   addEntryTiers,
   moveEntryTiersToServices,

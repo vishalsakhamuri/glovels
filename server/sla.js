@@ -61,7 +61,8 @@ function plan(db, now) {
   const students = new Map((db.allStudents() || []).map(s => [Number(s.id), s]));
 
   const late = [];
-  (db.allTasks() || []).forEach(row => {
+  /* CNS-01: a step the applications have overtaken is not chased. */
+  TASKS.effectiveAll(db, db.allTasks() || [], T).forEach(row => {
     if (TASKS.CLOSED.has(String(row.status))) return;
     if (row.breached_at) return;                      // already said once
     if (!row.due_at) return;

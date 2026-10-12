@@ -6,14 +6,15 @@ BODY = """
     <div class="tabs" style="margin-bottom:18px">
       <button class="tab" role="tab" aria-selected="true" data-pane="mine">
         <svg class="ico" aria-hidden="true"><use href="#i-star"/></svg> My shortlist
-        <span class="n" id="nMine">0</span></button>
+        <span class="n" id="nMine">…</span></button>
       <button class="tab" role="tab" aria-selected="false" data-pane="browse">
         <svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Browse programmes
-        <span class="n" id="nAll">0</span></button>
+        <span class="n" id="nAll">…</span></button>
     </div>
 
     <section class="pane active" id="pane-mine">
-      <div id="mineWrap"></div>
+      <!-- Patch 169 (STU-09.4): a loading state, not "0 / 0", until the list arrives. -->
+      <div id="mineWrap"><p class="sl-loading" id="slLoading" role="status" style="margin:8px 0;font-size:13px;color:var(--muted)">Loading your programmes…</p></div>
     </section>
 
     <section class="pane" id="pane-browse">
@@ -396,9 +397,13 @@ function paintMine() {
     const p = byId[i] || (row ? Object.assign({ uni: row.university }, row) : null);
     return p && row && row.withdrawn ? Object.assign({}, p, { withdrawn: true }) : p;
   }).filter(Boolean);
-  const mine  = items.filter(p => ownerOf(p.id) === 'student');
-  const auto  = items.filter(p => ownerOf(p.id) === 'matched');
-  const ours  = items.filter(p => ownerOf(p.id) === 'office');
+  /* Patch 169 (STU-03): a programme the office has withdrawn is not
+     "Matched to your profile" — it has its own group at the end, here and on
+     the dashboard, so nobody applies to it without asking first. */
+  const gone  = items.filter(p => p.withdrawn);
+  const mine  = items.filter(p => !p.withdrawn && ownerOf(p.id) === 'student');
+  const auto  = items.filter(p => !p.withdrawn && ownerOf(p.id) === 'matched');
+  const ours  = items.filter(p => !p.withdrawn && ownerOf(p.id) === 'office');
   /* Counted from what is actually drawn. A student who marked universities
      before this was switched off still HAS them — the rows are there and the
      office can still see them — and a tab reading 9 above a screen showing 6
@@ -488,6 +493,12 @@ function paintMine() {
     html += '</div>';
   }
 
+  if (gone.length) {
+    html += '<div style="margin-top:30px" id="goneGroup">' + head('No longer offered',
+      'The university has stopped offering ' + (gone.length === 1 ? 'this programme' : 'these programmes')
+      + ' since ' + (gone.length === 1 ? 'it was' : 'they were') + ' put on your list. '
+      + 'Check with your counsellor before applying.') + grid(gone, false) + '</div>';
+  }
   $('#mineWrap').innerHTML = html;
 }
 

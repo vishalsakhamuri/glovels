@@ -49,6 +49,9 @@ CSS = """
   padding:6px 9px;border-radius:8px;text-decoration:none;
   border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
 .p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+/* Patch 169 (STU-09.3): the name gets the whole row in the sidebar ("Sudh…"
+   was the name squeezed beside Sign out); Sign out goes under it. */
+@media (min-width:901px){ .p-who{flex-wrap:wrap;row-gap:8px} .p-who > b{flex:1 1 100%} }
 .p-out .ico{width:13px;height:13px}
 .plan-badge .p-out{margin-left:auto;align-self:flex-start}
 .plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}

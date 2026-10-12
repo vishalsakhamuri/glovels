@@ -2171,6 +2171,17 @@ async function save(status, p) {
      never be seen. The server is the one rule, and its answer is shown
      beside the saved message below. */
   const data = Object.assign(body(), { status });
+  /* ADM-08: checked here before anything is sent — a headline always, and a
+     body for a new post or one being published. */
+  const missing = !data.title ? ['pTitle', 'A post needs a headline.']
+    : (!p.id || status === 'published') && !String(data.body || '').trim()
+      ? ['pBody', 'A post needs a body — write at least a few lines before saving it.'] : null;
+  if (missing) {
+    err.textContent = missing[1];
+    err.style.display = 'block';
+    $('#' + missing[0]).focus();
+    return;
+  }
   const btn = status === 'published' ? $('#pPub') : $('#pSave');
   const was = btn.textContent;
   btn.disabled = true;

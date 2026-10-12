@@ -456,6 +456,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   padding:6px 9px;border-radius:8px;text-decoration:none;
   border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
 .p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+/* Patch 169 (STU-09.3): the name gets the whole row in the sidebar ("Sudh…"
+   was the name squeezed beside Sign out); Sign out goes under it. */
+@media (min-width:901px){ .p-who{flex-wrap:wrap;row-gap:8px} .p-who > b{flex:1 1 100%} }
 .p-out .ico{width:13px;height:13px}
 .plan-badge .p-out{margin-left:auto;align-self:flex-start}
 .plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -943,8 +946,8 @@ select.assign.none:hover{border-color:#a5342b}
         <span class="pill" id="pcPill" style="margin-left:auto">0% complete</span>
       </div>
       <div class="bar" style="margin-bottom:9px"><span id="pcBar" style="width:0%"></span></div>
-      <p style="margin:0;font-size:12.6px;color:var(--muted);line-height:1.55">Your counsellor
-        starts the shortlist once this reaches 100%. Everything here is reused across your
+      <p style="margin:0;font-size:12.6px;color:var(--muted);line-height:1.55"><span id="pcLead">Your counsellor
+        starts the shortlist once this reaches 100%.</span> Everything here is reused across your
         applications, your SOP brief, the LOR emails to your recommenders and the visa checklist —
         so it is asked once, not eleven times.</p>
     </div>
@@ -1325,7 +1328,7 @@ async function boot(run) {
   if (avatar && USER.name) avatar.textContent = USER.name.trim().slice(0, 1).toUpperCase();
   /* Their own name beside the way out, at the top of the sidebar. */
   const who = $('#whoName');
-  if (who) who.textContent = USER.name || USER.email || 'Signed in';
+  if (who) { who.textContent = USER.name || USER.email || 'Signed in'; who.title = who.textContent; }
   const out = $('#signOut');
   if (out) {
     out.onclick = async e => {
@@ -2403,6 +2406,17 @@ function paint() {
   const p = overall();
   $('#pcBar').style.width = p + '%';
   $('#pcPill').textContent = p + '% complete';
+  /* Patch 169 (STU-09.1): a student with a shortlist already has one — the
+     "starts the shortlist at 100%" line read as a contradiction beside 18
+     universities. */
+  const lead = $('#pcLead');
+  if (lead) {
+    const n = (typeof SHORT_ROWS !== 'undefined' && SHORT_ROWS) ? SHORT_ROWS.length : 0;
+    lead.textContent = n
+      ? 'Your shortlist is under way (' + n + ' programme' + (n === 1 ? '' : 's') + '). Keep this up to date — your counsellor uses it for every application.'
+      : (p >= 100 ? 'Your profile is complete — your counsellor can start your shortlist.'
+        : 'Your counsellor starts the shortlist once this reaches 100%.');
+  }
   drawNav();
 }
 

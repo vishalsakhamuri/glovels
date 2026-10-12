@@ -44,7 +44,7 @@ BODY = """
            number and the list of types are written by the script from the one
            constant each, so the screen and the server can never disagree about
            them again. -->
-      <p class="doclimit" id="docLimit">PDF, a photo or Word. One file per
+      <p class="doclimit" id="docLimit">PDF, JPG, PNG, HEIC or Word. One file per
         document, up to <b>10 MB</b> each.</p>
       <div class="sl-grid" id="docGrid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))"></div>
 
@@ -106,12 +106,7 @@ BODY = """
 
     <div class="warnbox" style="background:#fdf6e6;border:1px solid #e6d5a8;color:#5b4409;
       border-radius:12px;padding:13px 15px;font-size:12.8px;line-height:1.55;display:flex;gap:9px">
-      <svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span>Your files are stored on the
-      Glovels server, not in your browser. Nothing is uploaded
-      anywhere on the internet — they are written to <code>data/uploads/</code> beside the server,
-      under your own account, and can only be read back by you while signed in. On the live portal
-      the same endpoint reads from encrypted storage and only your assigned counsellor can open
-      them.</span>
+      <svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span id="docSafe">Your files are stored securely and only you and your counsellor can open them.</span>
     </div>
 """
 
@@ -251,8 +246,11 @@ function card(d) {
              this only stops somebody pressing a button that would fail. */
           (f.by === 'staff'
             ? '<span class="dsize" style="font-style:italic">from your counsellor</span>'
-            : '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" ' +
-              'aria-label="Remove ' + esc(f.file) + '">Remove</button>') +
+            /* Patch 169 (STU-05): an accepted document is the verified copy —
+               no delete; the server refuses it too (409). */
+            : st === S.OK && d.id !== 'other' ? ''
+            : '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" data-name="' + esc(f.file) + '" ' +
+              'aria-label="Remove this file: ' + esc(f.file) + '">Remove this file</button>') +
           '</li>').join('') + '</ul>'
       : '') +
     /* Reachable by keyboard, and announced as what it is.
@@ -278,10 +276,14 @@ function card(d) {
        leaves the rest, so a slot holding three of their marksheets and one of
        ours still has a working Remove. It is hidden only when there is nothing
        of theirs in it to remove. */
-    (rec && (rec.files || []).some(f => f.by !== 'staff')
+    (st === S.OK && rec && d.id !== 'other'
+      ? '<p class="dlocked" style="margin:9px 0 0;font-size:12.2px;color:var(--muted)">Accepted. ' +
+        '<a href="messages.html" style="color:var(--blue-deep);font-weight:600">Ask your counsellor to replace this</a> ' +
+        'if it needs to change.</p>'
+      : rec && (rec.files || []).some(f => f.by !== 'staff')
       ? '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + d.id +
-        '" style="margin-top:9px">Remove' +
-        ((rec.files || []).some(f => f.by === 'staff') ? ' my files' : '') + '</button>'
+        '" data-name="' + esc(d.name) + '" style="margin-top:9px">Clear this document' +
+        ((rec.files || []).some(f => f.by === 'staff') ? ' (my files)' : '') + '</button>'
       : '') +
     (d.need ? '' : '<span class="sl-chip" style="width:fit-content">If available</span>') +
     '</div>';
@@ -449,23 +451,51 @@ $('#docGrid').addEventListener('click', e => {
   /* ONE FILE out of a set, leaving the rest. Ahead of the whole-slot remove
      below, and ahead of the drop card it sits inside — a press on Remove must
      not also open the file chooser. */
-  const one = e.target.closest('[data-dropfile]');
-  if (one) {
-    e.preventDefault();
-    e.stopPropagation();
-    api('DELETE', '/api/documents/file/' + encodeURIComponent(one.dataset.dropfile))
-      .then(r => { DB.docs = r.docs; paint(); toast('Removed that file.'); })
-      .catch(() => toast('Could not remove that file.'));
+  /* Patch 169 (STU-05): nothing is deleted on the first press. The button
+     turns into an inline question — "Remove … ? Yes, remove / Keep it" —
+     the same style as the other confirmations on the portal. */
+  const no = e.target.closest('[data-cfno]');
+  if (no) {
+    e.preventDefault(); e.stopPropagation();
+    const box = no.closest('.dconfirm');
+    if (box && box.previousElementSibling) box.previousElementSibling.hidden = false;
+    if (box) box.remove();
     return;
   }
-  const rm = e.target.closest('[data-rm]');
-  if (rm) {
-    const key = rm.dataset.rm;
-    delete DB.docs[key];
-    paint();
-    api('DELETE', '/api/documents/' + encodeURIComponent(key))
-      .then(r => { DB.docs = r.docs; paint(); toast('Removed.'); })
-      .catch(() => toast('Could not remove that file.'));
+  const yes = e.target.closest('[data-cfyes]');
+  if (yes) {
+    e.preventDefault(); e.stopPropagation();
+    yes.disabled = true;
+    const fileId = yes.dataset.file, key = yes.dataset.key;
+    const done = r => { DB.docs = r.docs; paint(); toast(fileId ? 'Removed that file.' : 'Cleared.'); };
+    const fail = err => { paint(); toast((err && err.message) || 'Could not remove that file.'); };
+    if (fileId) {
+      api('DELETE', '/api/documents/file/' + encodeURIComponent(fileId)).then(done).catch(fail);
+    } else if (key) {
+      api('DELETE', '/api/documents/' + encodeURIComponent(key)).then(done).catch(fail);
+    }
+    return;
+  }
+  const one = e.target.closest('[data-dropfile]');
+  const rm = one ? null : e.target.closest('[data-rm]');
+  if (one || rm) {
+    e.preventDefault();
+    e.stopPropagation();
+    const btn = one || rm;
+    if (btn.nextElementSibling && btn.nextElementSibling.classList.contains('dconfirm')) return;
+    const box = document.createElement('span');
+    box.className = 'dconfirm';
+    box.setAttribute('role', 'group');
+    box.style.cssText = 'display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font:600 12px/1.4 var(--sans);color:#7a2118';
+    const what = btn.dataset.name || 'this';
+    box.innerHTML = (one ? 'Remove “' + esc(what) + '”?' : 'Clear every file you added to ' + esc(what) + '?') +
+      ' <button type="button" class="btn btn-sm" data-cfyes ' +
+        (one ? 'data-file="' + esc(one.dataset.dropfile) + '"' : 'data-key="' + esc(rm.dataset.rm) + '"') +
+        ' style="background:#b42318;color:#fff;border-color:#b42318">' + (one ? 'Yes, remove' : 'Yes, clear') + '</button>' +
+      ' <button type="button" class="btn btn-ghost btn-sm" data-cfno>Keep it</button>';
+    btn.hidden = true;
+    btn.insertAdjacentElement('afterend', box);
+    const k = box.querySelector('[data-cfno]'); if (k) k.focus();
     return;
   }
   const dz = e.target.closest('[data-drop]');

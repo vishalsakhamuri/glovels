@@ -456,6 +456,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   padding:6px 9px;border-radius:8px;text-decoration:none;
   border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
 .p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+/* Patch 169 (STU-09.3): the name gets the whole row in the sidebar ("Sudh…"
+   was the name squeezed beside Sign out); Sign out goes under it. */
+@media (min-width:901px){ .p-who{flex-wrap:wrap;row-gap:8px} .p-who > b{flex:1 1 100%} }
 .p-out .ico{width:13px;height:13px}
 .plan-badge .p-out{margin-left:auto;align-self:flex-start}
 .plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -1249,7 +1252,7 @@ async function boot(run) {
   if (avatar && USER.name) avatar.textContent = USER.name.trim().slice(0, 1).toUpperCase();
   /* Their own name beside the way out, at the top of the sidebar. */
   const who = $('#whoName');
-  if (who) who.textContent = USER.name || USER.email || 'Signed in';
+  if (who) { who.textContent = USER.name || USER.email || 'Signed in'; who.title = who.textContent; }
   const out = $('#signOut');
   if (out) {
     out.onclick = async e => {

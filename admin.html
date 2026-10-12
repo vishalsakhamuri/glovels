@@ -2356,7 +2356,11 @@ function row(s) {
             return '<option value="' + r[0] + '"' +
               ((s.status || 'active') === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
           }).join('') +
-      '</select></td>' +
+      '</select>' +
+      /* Patch 169 (B2B-03): the partner agency closed this file on their side. */
+      (s.agencyClosed ? ' <span class="st none agency-closed" style="margin-left:6px" ' +
+        'title="The partner agency closed this file on their side">Closed by the agency</span>' : '') +
+      '</td>' +
     '</tr>';
 }
 
@@ -2927,7 +2931,10 @@ function paintOrders() {
               esc(o.studentRole || 'staff') + ' account</span>'
             : '<a class="btn btn-ghost btn-sm" href="counsellor.html?student=' + o.studentId +
               '">' + esc(o.studentName || 'Open') + '</a>')
-        : '<span class="st wait">no account yet</span>') + '</td>' +
+        : '<span class="st wait">no account yet</span>' +
+          /* ADM-06: link it by hand, found by the student's email or mobile. */
+          '<button type="button" class="btn btn-ghost btn-sm" data-olink="' + esc(o.reference) +
+            '" style="display:block;margin-top:5px">Link to a student</button>') + '</td>' +
       /* Who is doing this one. An order is the moment somebody has paid and is
          waiting to be dealt with, so it is the row where the question gets
          asked — and until this cell existed the answer had to be set two
@@ -3141,11 +3148,29 @@ function openPay(kind, ref, part) {
 /* First press asks, second press sends. The question is written inline, in
    the sheet, with the figures that are about to be written — not a browser
    confirm() that stops the page and cannot be styled or read back. */
+/* ADM-04: the minus sign is kept, so "-100" is refused rather than read as
+   100; only commas, spaces and the rupee sign are dropped. */
+function payAmountOf() {
+  const raw = String($('#payAmount').value).replace(/[,\s₹]/g, '');
+  return raw === '' ? NaN : Number(raw);
+}
+function payProblem(k, amount, day) {
+  if (!(amount > 0)) return 'An amount in rupees, more than zero.';
+  if (day > todayStr()) return 'The date cannot be in the future.';
+  const o = PAY.o || {};
+  const cap = k === 'refund' ? Number(o.receivedPaise || 0) : k === 'part' ? null : Number(o.outstandingPaise || 0);
+  if (cap != null && cap > 0 && Math.round(amount * 100) > cap) {
+    return (k === 'refund' ? 'Only ' + inrPaise(cap) + ' has been received on this order.'
+      : 'Only ' + inrPaise(cap) + ' is outstanding on this order.');
+  }
+  return '';
+}
 function payAsk() {
   const k = PAY.kind;
-  const amount = Number(String($('#payAmount').value).replace(/[^\d.]/g, ''));
-  if (!(amount > 0)) { paySay('An amount in rupees, more than zero.'); $('#payAmount').focus(); return; }
+  const amount = payAmountOf();
   const day = $('#payDate').value || todayStr();
+  const bad = payProblem(k, amount, day);
+  if (bad) { paySay(bad); $(bad.indexOf('date') >= 0 ? '#payDate' : '#payAmount').focus(); return; }
   const method = METHOD_LABEL[$('#payMethod').value] || 'Other';
   const ref = $('#payRef').value.trim();
   paySay('');
@@ -3166,7 +3191,7 @@ function payAsk() {
 async function paySend() {
   const k = PAY.kind;
   const body = {
-    amount: Number(String($('#payAmount').value).replace(/[^\d.]/g, '')),
+    amount: payAmountOf(),
     date: $('#payDate').value || todayStr(),
     method: $('#payMethod').value,
     reference: $('#payRef').value.trim(),
@@ -3214,6 +3239,52 @@ async function paySend() {
   await loadOrders();
   await paintMoney();
 }
+
+/* ADM-06: an order with no student, linked by hand. The cell turns into a
+   small search (email or mobile); each match has its own Link button. */
+document.addEventListener('click', async e => {
+  const open = e.target.closest('[data-olink]');
+  if (open) {
+    const ref = open.dataset.olink;
+    const cell = open.closest('td');
+    cell.innerHTML = '<div class="olink" data-ref="' + esc(ref) + '" style="min-width:210px">' +
+      '<input type="search" class="olink-q" placeholder="Student email or mobile" ' +
+        'style="width:100%;font-size:12.4px;padding:6px 8px">' +
+      '<div style="display:flex;gap:6px;margin-top:6px">' +
+        '<button type="button" class="btn btn-primary btn-sm" data-olfind>Find</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-olcancel>Cancel</button></div>' +
+      '<div class="olink-out" style="font-size:12px;margin-top:6px"></div></div>';
+    cell.querySelector('.olink-q').focus();
+    return;
+  }
+  const box = e.target.closest('.olink');
+  if (!box) return;
+  const ref = box.dataset.ref;
+  const out = box.querySelector('.olink-out');
+  if (e.target.closest('[data-olcancel]')) { paintOrders(); return; }
+  if (e.target.closest('[data-olfind]')) {
+    const q = box.querySelector('.olink-q').value.trim();
+    if (q.length < 3) { out.textContent = 'Type at least three letters of the email, or the mobile.'; return; }
+    out.textContent = 'Looking…';
+    try {
+      const r = await api('GET', '/api/staff/order/' + encodeURIComponent(ref) + '/link?q=' + encodeURIComponent(q));
+      out.innerHTML = (r.students || []).length
+        ? r.students.map(p => '<div style="display:flex;gap:6px;align-items:center;margin-top:4px">' +
+            '<span style="flex:1"><b>' + esc(p.name) + '</b><br>' + esc(p.email) + (p.phone ? ' · ' + esc(p.phone) : '') + '</span>' +
+            '<button type="button" class="btn btn-primary btn-sm" data-oldo="' + p.id + '">Link</button></div>').join('')
+        : 'No student account matches that.';
+    } catch (err) { out.textContent = err.message || 'That search did not work.'; }
+    return;
+  }
+  const go = e.target.closest('[data-oldo]');
+  if (go) {
+    go.disabled = true; go.textContent = 'Linking…';
+    try {
+      await api('POST', '/api/staff/order/' + encodeURIComponent(ref) + '/link', { studentId: Number(go.dataset.oldo) });
+      await loadOrders();
+    } catch (err) { out.textContent = err.message || 'That did not save.'; }
+  }
+});
 
 document.addEventListener('click', e => {
   const pay = e.target.closest('[data-pay]');
@@ -4645,6 +4716,13 @@ $('#rkSave').addEventListener('click', async () => {
 
 function tkOpen() { if (!tkPainted) { tkPainted = true; loadTasks(); } }
 if ($('#o-tasks') && $('#o-tasks').classList.contains('active')) tkOpen();
+/* ADM-08: the Tasks badge is filled with the page, not when the tab is first
+   opened — it read "Tasks 0" until then. Same figure paintTasks() writes. */
+else api('GET', '/api/staff/tasks?state=live').then(d => {
+  const tab = $('.otab[data-o="tasks"] .n');
+  const c = (d && d.counts) || {};
+  if (tab && !tkPainted) tab.textContent = c.late || c.open || 0;
+}).catch(() => {});
 
 
 /* Opened by double-clicking rather than through start.command. The portal has

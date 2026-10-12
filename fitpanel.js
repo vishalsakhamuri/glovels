@@ -376,7 +376,15 @@
         + (a.note ? '<small>' + esc(a.note) + '</small>' : '') + '</div>').join('');
       /* F9 (8 Oct): a count of what "fits" means nothing until the student's
          CGPA, level and field are known — say what is missing instead. */
-      const basics = d.usable !== false && String(((d.profile || {}).d_cgpa) || '').trim() !== '';
+      /* CNS-02 (12 Oct): judged on what is in the FORM — the values this
+         search ran with — not on the saved profile. A CGPA, level and field
+         typed here (the Field dropdown counts) are enough; the warning names
+         only what is still missing. */
+      const fv = filters();
+      const has = x => String(x == null ? '' : x).trim() !== '';
+      const missing = [has(fv.d_cgpa) ? '' : 'CGPA', has(fv.g_level) ? '' : 'level',
+        has(fv.g_field) || has(fv.field) ? '' : 'field'].filter(Boolean);
+      const basics = !missing.length;
       /* Round 166: the whole set draws — the counsellor's rule is that she
          sees ALL of it in rank order (round 165 checks the row count), and
          the biggest field is 900-odd rows. Logos load lazily and the rows
@@ -385,7 +393,7 @@
       const draw = () => { out.innerHTML = (basics
           ? '<p class="sum">' + d.counts.looked + ' programmes in that field and level · <b>' + d.counts.fits + ' fit</b> · '
             + d.counts.near + ' miss on one thing' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'
-          : '<p class="why">Add the student\'s CGPA, level and field to judge fit.</p>')
+          : '<p class="why">Add the student\'s ' + missing.join(', ').replace(/, ([^,]*)$/, ' and $1') + ' to judge fit.</p>')
         + (auto ? '<div class="auto"><b style="display:block;margin-bottom:4px">What a package would deliver now'
           + (d.bought === false ? ' (not bought yet)' : '') + '</b>' + auto + '</div>' : '')
         + '<h4>Fits (' + d.fits.length + (d.counts.fits > d.fits.length ? ' of ' + d.counts.fits : '') + ')</h4>'

@@ -490,6 +490,8 @@ function render(deps) {
     keywords: 'study abroad success stories, Germany admits, Opportunity Card success, Chancenkarte approved, '
       + 'EU Blue Card Germany, UK India Young Professionals Scheme visa, public university admission',
     type: 'website',
+    /* Round 169 (WEB-20.3): a preview card when the page is shared. */
+    image: deps.defaultOg || '/og/glovels.png', imageAlt: 'Glovels — student success stories',
     indexable: true,
   });
   holes.JSONLD = jsonld;
@@ -509,8 +511,17 @@ function render(deps) {
  * Pointed straight there, so the one link on the home page that matters for
  * this page costs no redirect.
  */
-function withHomeLink(html) {
-  return String(html).replace(/(id="storyMore"[^>]*>\s*<a\s+href=")success-stories\.html(")/, '$1' + SITE_PATH + '$2');
+function withHomeLink(html, deps) {
+  let out = String(html).replace(/(id="storyMore"[^>]*>\s*<a\s+href=")success-stories\.html(")/, '$1' + SITE_PATH + '$2');
+  /* Round 169 (WEB-17): "See all 9 admissions" counted the testimonials on
+     the home page; the page it opens says 109. The number is the stories
+     page's own — the admits it lists — and the home script leaves it be. */
+  if (deps) {
+    let n = 0;
+    try { n = load(deps).admits.length; } catch (e) { n = 0; }
+    if (n) out = out.replace(/<b data-count>\d*<\/b>/, '<b data-count data-src="stories">' + n + '</b>');
+  }
+  return out;
 }
 
 /* ----------------------------------------------------------- the office */

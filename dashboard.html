@@ -411,6 +411,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   padding:6px 9px;border-radius:8px;text-decoration:none;
   border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
 .p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+/* Patch 169 (STU-09.3): the name gets the whole row in the sidebar ("Sudh…"
+   was the name squeezed beside Sign out); Sign out goes under it. */
+@media (min-width:901px){ .p-who{flex-wrap:wrap;row-gap:8px} .p-who > b{flex:1 1 100%} }
 .p-out .ico{width:13px;height:13px}
 .plan-badge .p-out{margin-left:auto;align-self:flex-start}
 .plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -539,8 +542,16 @@ ol.prog li span{display:block;font:400 12px/1.5 var(--sans);color:var(--muted,#5
 /* The pill keeps its own line: "Matched · Public" broken across two lines
    mid-word is the thing this table exists to stop. */
 .sl-tbl .sl-tag{margin:0;white-space:nowrap}
-.sl-tbl .sl-logo{width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:8px;
-  background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px;box-sizing:border-box}
+/* Patch 169 (STU-09.5): the logos are wordmarks — 480px wide and 60 tall —
+   and a 24px square with 2px of padding shrank them to an 18px strip that
+   read as a blank tile. Their own shape now, on a line above the name. */
+.sl-tbl .sl-logo{display:block;height:30px;width:auto;max-width:120px;object-fit:contain;
+  object-position:left center;margin:0 0 6px;background:transparent;border:0;padding:0}
+.prog-sub{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:3px}
+.prog-sub li{font-size:12px;color:var(--muted);padding-left:14px;position:relative}
+.prog-sub li::before{content:'';position:absolute;left:2px;top:6px;width:6px;height:6px;border-radius:50%;background:#cfd6df}
+.prog-sub li.done::before{background:#1f8a4c}
+.prog-sub li.doing::before{background:#1a4fb4}
 .sl-tbl .sl-uni{vertical-align:middle}
 .sl-tbl td:nth-child(6){white-space:nowrap}
 /* On a phone every row becomes its own little card and each cell carries the
@@ -1067,7 +1078,7 @@ select.assign.none:hover{border-color:#a5342b}
       <div id="boughtWrap"></div>
     </section>
 
-    <div class="p-cols">
+    <div class="p-cols" id="trackCols">
       <div class="p-card">
         <h3><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Application tracker <span class="pill" id="trackPill"></span></h3>
         <div class="bar"><span id="trackBar" style="width:0%"></span></div>
@@ -1452,10 +1463,12 @@ function card(p, i){
     + cell('Country', '<span class="sl-flag">' + c.flag + '</span>'
         + '<span class="sl-cc">' + esc(p.country || '') + '</span>', 'sl-ctry')
     + cell('Program', '<b>' + esc(p.program) + '</b>', 'sl-prog')
-    + cell('University', (lg ? '<img class="sl-logo" src="' + esc(lg) + '" alt="" width="24" height="24" loading="lazy" decoding="async">' : '')
+    + cell('University', (lg ? '<img class="sl-logo" src="' + esc(lg) + '" alt="" height="30" loading="lazy" decoding="async" onerror="this.remove()">' : '')
         + '<span class="sl-uni">' + esc(p.university) + '</span>', 'sl-u')
     + cell('Location', where ? esc(where) : '<span class="sl-none">\u2014</span>', 'sl-where')
-    + cell('Match', '<span class="sl-tag">' + ico('check') + 'Matched \u00b7 '
+    + cell('Match', p.withdrawn
+        ? '<span class="sl-tag sl-tag-gone" style="background:#fff4ed;color:#9a3412;border-color:#f3c9a8">No longer offered</span>'
+        : '<span class="sl-tag">' + ico('check') + 'Matched \u00b7 '
         + (p.isPublic ? 'Public' : 'Private') + '</span>')
     + cell('Tuition', '<b>' + money(p) + '</b>', 'sl-fee')
     + cell('Application deadline', dateOf(p)
@@ -1529,12 +1542,25 @@ if(paid && order.grossPaise){
     + 'to ' + esc(order.email || 'you') + '. Demo order — no payment was taken.</p></div>';
 }
 
+/* Patch 169 (STU-03): withdrawn programmes in their own group, as on My
+   Programs — never under "Matched". */
+const shownLive = shown.filter(p => !p.withdrawn);
+const shownGone = shown.filter(p => p.withdrawn);
+const goneTable = () => shownGone.length
+  ? '<h3 class="sl-gone-h" id="slGone" style="margin:22px 0 4px;font-size:15px;color:var(--navy-900)">No longer offered</h3>'
+    + '<p style="margin:0 0 10px;font-size:12.6px;color:var(--muted)">The university has stopped offering '
+    + (shownGone.length === 1 ? 'this programme' : 'these programmes')
+    + '. Check with your counsellor before applying.</p>'
+    + '<div class="sl-scroll"><table class="tbl sl-tbl sl-gone"><thead><tr>'
+    + SL_HEAD.map(h => '<th>' + h + '</th>').join('')
+    + '</tr></thead><tbody>' + shownGone.map((p, i) => card(p, i)).join('') + '</tbody></table></div>'
+  : '';
 const drawShortlist = () => { $('#slWrap').innerHTML = shown.length
-  ? '<div class="sl-scroll"><table class="tbl sl-tbl"><thead><tr>'
+  ? (shownLive.length ? '<div class="sl-scroll"><table class="tbl sl-tbl"><thead><tr>'
       + SL_HEAD.map(h => '<th>' + h + '</th>').join('')
       + '</tr></thead><tbody>'
-      + shown.map((p, i) => card(p, i)).join('')
-      + '</tbody></table></div>' + pending + heldNote
+      + shownLive.map((p, i) => card(p, i)).join('')
+      + '</tbody></table></div>' : '') + goneTable() + pending + heldNote
     + (order.demo
         ? '<p style="font-size:12.4px;color:var(--muted);margin:12px 0 0">'
           + 'The demo student\'s worked example. Pay with <b>' + DEMO_EMAIL + '</b> on the '
@@ -1619,7 +1645,7 @@ if (shown.length && !window.GLV_LOGO) (function () {
    a student lands on — was the one place that showed a dash where their name
    belongs. */
 const whoEl = $('#whoName');
-if (whoEl) whoEl.textContent = user.name || order.name || user.email || 'Signed in';
+if (whoEl) { whoEl.textContent = user.name || order.name || user.email || 'Signed in'; whoEl.title = whoEl.textContent; }
 $('#avatar').textContent = (first || 'G').slice(0, 1).toUpperCase()
   + ((user.name || order.name || '').split(' ')[1] || '').slice(0, 1).toUpperCase();
 
@@ -1701,6 +1727,43 @@ $('#nextUp').innerHTML =
  * what is next, and when each one is aimed at.
  */
 (function () {
+  /* Patch 169 (STU-02): ONE progress model — the server's `journey`, six
+     stages decided by the applications first and the office's tasks second.
+     "0 of 9 done" beside "Step 6 of 9", and the Application tracker and Your
+     journey cards below each counting their own way, are gone: the step
+     number, the count, the bar and the list all come from one object, and
+     the count is always one less than the step. */
+  const J = (window.__GLOVELS || {}).journey;
+  const sec0 = document.getElementById('progSec');
+  if (sec0 && J && J.stages && J.stages.length) {
+    sec0.hidden = false;
+    const old = document.getElementById('trackCols');
+    if (old) old.hidden = true;
+    const s4 = document.getElementById('steps4');
+    if (s4) s4.hidden = true;
+    const head = document.getElementById('progPhase');
+    head.hidden = false;
+    head.innerHTML = '<b>' + esc(J.label) + '</b><span>' + (J.finished
+      ? 'Everything we agreed to do is finished.'
+      : 'Step ' + J.step + ' of ' + J.of + ' · ' + esc(J.stages[J.step - 1].detail)) + '</span>';
+    document.getElementById('progFill').style.width = J.percent + '%';
+    document.getElementById('progCount').textContent = J.done + ' of ' + J.of + ' done';
+    const WORD = { done: ['done', 'Done'], doing: ['doing', 'In hand now'], next: ['next', 'To come'] };
+    document.getElementById('progList').innerHTML = J.stages.map(function (x) {
+      const w = WORD[x.state] || WORD.next;
+      const when = x.state === 'done' ? (x.on ? ' · ' + esc(x.on) : '')
+        : x.confirm ? ' · your counsellor will confirm the date'
+        : x.by ? ' · aiming for ' + esc(x.by) : '';
+      const sub = x.state !== 'done' && x.items && x.items.length > 1
+        ? '<ul class="prog-sub">' + x.items.map(function (it) {
+            return '<li class="' + it.state + '">' + esc(it.title) + '</li>'; }).join('') + '</ul>'
+        : '';
+      return '<li class="' + w[0] + '" data-stage="' + x.key + '"><span class="dot" aria-hidden="true"></span>' +
+        '<div><b>' + esc(x.label) + '</b>' +
+        '<span>' + w[1] + ' · ' + esc(x.detail) + when + '</span>' + sub + '</div></li>';
+    }).join('');
+    return;
+  }
   const P = (window.__GLOVELS || {}).progress;
   const sec = document.getElementById('progSec');
   if (!sec || !P || !P.total) return;
@@ -1778,7 +1841,7 @@ $('#journey').innerHTML = JOURNEY.map(([_, t, sub], i) =>
   + '<span class="dot">' + (i === 0 && paid ? ico('check') : '') + '</span>'
   + '<span><b>' + t + '</b>' + sub + '</span></li>').join('');
 
-const dl = shown.filter(p => dateOf(p))
+const dl = shown.filter(p => !p.withdrawn && dateOf(p))
   /* By the date shown, not the raw sheet date (patch 145). */
   .sort((a, b) => dateAt(a) - dateAt(b))
   .slice(0, 5);
@@ -2577,17 +2640,28 @@ if ('serviceWorker' in navigator) {
   function draw(st) {
   var docs = st.docs || {};
   var need = 0, ready = 0;
+  /* Patch 169 (STU-09.2): the server's readiness — the same statuses and the
+     same words as the Documents screen. This read 'no' for a document sent
+     back, which the store has never written ('rescan' is), so a passport the
+     counsellor had asked to be re-sent showed here as "Not uploaded". */
+  var R = st.readiness;
+  if (R && R.docs) {
+    DOCS = R.docs.map(function (d) { return { id: d.key, name: d.name, need: 1 }; });
+    docs = {};
+    R.docs.forEach(function (d) { if (d.status !== 'none') docs[d.key] = { status: d.status }; });
+  }
 
   var rows = DOCS.map(function (d) {
     var have = docs[d.id];
     var status = have ? have.status : '';
+    if (status === 'no') status = 'rescan';
     if (d.need) { need++; if (status === 'ok') ready++; }
     var cls = status === 'ok' ? 'ok'
       : status === 'wait' ? 'wait'
-      : status === 'no' ? 'bad' : 'none';
-    var word = status === 'ok' ? 'Verified'
+      : status === 'rescan' ? 'bad' : 'none';
+    var word = status === 'ok' ? 'Accepted'
       : status === 'wait' ? 'In review'
-      : status === 'no' ? 'Sent back' : 'Not uploaded';
+      : status === 'rescan' ? 'Send a scanned copy' : 'Not uploaded';
     return '<li><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg>'
       + '<span class="dname">' + esc(d.name) + '</span>'
       + '<span class="st ' + cls + '">' + word + '</span></li>';

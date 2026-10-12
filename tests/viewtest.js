@@ -217,18 +217,19 @@ const toCsv = rows => rows.map(r => r.map(c => {
     ok((await rm.textContent()).trim() === 'Remove', 'reading Remove to start with');
     await rm.click();
     await page.waitForTimeout(400);
-    const asked = (await rm.textContent()).trim();
-    ok(/\?$/.test(asked), 'one press asks rather than removes — ' + asked);
-    ok(asked.length > 'Remove?'.length,
-      'and names what would go — ' + asked);
+    /* CNS-06 (12 Oct): the question is written out under the row, with its
+       own Remove / Keep — not in a tooltip a touch screen never shows. */
+    const asked = ((await page.textContent('.unidrop-ask').catch(() => '')) || '').trim();
+    ok(/also deletes the application/.test(asked), 'one press asks rather than removes — ' + asked);
+    ok(/Remove\s+\S/.test(asked), 'and names what would go — ' + asked);
     /* NOTHING HAPPENED YET. This is the whole finding. */
     const still = await (await stu.request.get(BASE + '/api/state')).json();
     ok((still.shortlist || []).some(x => String(x.id) === String(prog.id)),
       'and the programme is still on their list after that first press');
 
-    await rm.click();
+    await page.click('.unidrop-ask [data-unidropyes]');
     await page.waitForTimeout(1400);
-    const gone = await (await stu.request.get(BASE + '/api/state')).json();
+    const gone =await (await stu.request.get(BASE + '/api/state')).json();
     ok(!(gone.shortlist || []).some(x => String(x.id) === String(prog.id)),
       'the second press removes it');
     /* The reason it needed asking: the application goes too. */

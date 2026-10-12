@@ -569,6 +569,12 @@
     "label": "Most Booked"
    },
    {
+    "key": "more",
+    "colour": "#3d4f66",
+    "icon": "plus",
+    "label": "More Services"
+   },
+   {
     "key": "consult",
     "colour": "#123a7b",
     "icon": "chat",
@@ -662,7 +668,7 @@
     "desc": "A 1-on-1 session with a counsellor — profile review, a country and course shortlist, a realistic budget and a clear next step. No obligation.",
     "meta": "45 minutes · call within 24 hours",
     "cats": [
-     "top"
+     "more"
     ],
     "posTop": 4,
     "isFree": true,
@@ -731,7 +737,7 @@
     "desc": "A university-format academic CV plus a job-ready resume, both tuned to your target country.",
     "meta": "3–4 days",
     "cats": [
-     "top"
+     "more"
     ],
     "posTop": 3,
     "isFree": false,
@@ -754,7 +760,7 @@
     "desc": "APS certificate, document attestation, notary and certified translations handled end-to-end.",
     "meta": "2–4 weeks",
     "cats": [
-     "top"
+     "more"
     ],
     "posTop": 7,
     "isFree": false,

@@ -594,7 +594,8 @@ async function staffBoot(run) {{
        website, not to be handed somebody's phone number. */
     leads: me.user.role !== 'editor',
     admin: me.user.role === 'admin',
-    catalogue: perms.indexOf('catalogue') >= 0,
+    /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
+    catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',
     home: perms.indexOf('content') >= 0,
     'blog-admin': perms.indexOf('content') >= 0,
   }};
@@ -997,7 +998,7 @@ async function boot(run) {{
   if (avatar && USER.name) avatar.textContent = USER.name.trim().slice(0, 1).toUpperCase();
   /* Their own name beside the way out, at the top of the sidebar. */
   const who = $('#whoName');
-  if (who) who.textContent = USER.name || USER.email || 'Signed in';
+  if (who) {{ who.textContent = USER.name || USER.email || 'Signed in'; who.title = who.textContent; }}
   const out = $('#signOut');
   if (out) {{
     out.onclick = async e => {{

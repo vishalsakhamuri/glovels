@@ -456,6 +456,9 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   padding:6px 9px;border-radius:8px;text-decoration:none;
   border:1px solid rgba(255,255,255,.18);transition:color .12s, background .12s}
 .p-out:hover{color:#fff;background:rgba(255,255,255,.12)}
+/* Patch 169 (STU-09.3): the name gets the whole row in the sidebar ("Sudh…"
+   was the name squeezed beside Sign out); Sign out goes under it. */
+@media (min-width:901px){ .p-who{flex-wrap:wrap;row-gap:8px} .p-who > b{flex:1 1 100%} }
 .p-out .ico{width:13px;height:13px}
 .plan-badge .p-out{margin-left:auto;align-self:flex-start}
 .plan-badge{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -1250,7 +1253,7 @@ async function boot(run) {
   if (avatar && USER.name) avatar.textContent = USER.name.trim().slice(0, 1).toUpperCase();
   /* Their own name beside the way out, at the top of the sidebar. */
   const who = $('#whoName');
-  if (who) who.textContent = USER.name || USER.email || 'Signed in';
+  if (who) { who.textContent = USER.name || USER.email || 'Signed in'; who.title = who.textContent; }
   const out = $('#signOut');
   if (out) {
     out.onclick = async e => {
@@ -1401,7 +1404,25 @@ const SCHOLARSHIPS = [
 ];
 
 DB.saved = DB.saved || [];      /* saved against the account, on the server */
-const P = DB.profile || {};
+const P = Object.assign({}, DB.profile || {});
+/* Patch 169 (STU-09.10): the profile fields the matcher reads are g_country
+   and g_level, and those are what this reads. A student whose shortlist is
+   German master's programmes but who never filled the two answers in (an
+   agency file, or a list the office built) read "Destination — not set"
+   above eighteen German master's programmes; the list itself says where and
+   what, so it stands in until the profile does. */
+(function () {
+  const rows = (typeof SHORT_ROWS !== 'undefined' && SHORT_ROWS) || [];
+  const N = {DE:'Germany',GB:'United Kingdom',CA:'Canada',IE:'Ireland',PL:'Poland',ES:'Spain',IT:'Italy',FR:'France'};
+  if (!String(P.g_country || '').trim() && rows.length) {
+    const cs = [...new Set(rows.map(r => N[r.country] || '').filter(Boolean))];
+    if (cs.length) P.g_country = cs.join(', ');
+  }
+  if (!String(P.g_level || '').trim() && rows.length) {
+    const m = rows.filter(r => /\b(m\.?\s?sc|master|m\.?\s?eng|mba|m\.?\s?a)\b/i.test(String(r.program || ''))).length;
+    if (m * 2 >= rows.length) P.g_level = "Master's";
+  }
+})();
 const cgpa = cgpaTenOf(P);
 const cmap = {Germany:'DE','United Kingdom':'GB',Canada:'CA',Ireland:'IE',Poland:'PL',Spain:'ES',Italy:'IT'};
 /* Several destinations are allowed now, so a scholarship in any of them

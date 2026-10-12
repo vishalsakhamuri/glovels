@@ -283,6 +283,16 @@ function bubble(m) {
  * `download` rather than a plain link: the response comes back as an
  * attachment either way, and saying so on the anchor stops a browser opening a
  * PDF in a tab the counsellor then has to find their way back from. */
+/* CNS-07 (4): the kinds each slot takes — kept in step with slotRefuses()
+   and FILE_KINDS in server/api.js. '' when this file is fine. */
+const DOC_WORD_SLOTS = ['sop', 'lor', 'visa-cover', 'visa-form', 'cv', 'work', 'finance', 'other'];
+function docNotTaken(d) {
+  const ext = String((d && d.file) || '').toLowerCase().split('.').pop();
+  if (!d || !d.file) return '';
+  if (!/^(pdf|jpe?g|png|heic|heif|docx?)$/.test(ext)) return 'Not a PDF, photo or Word file — ask for a scan.';
+  if (/^docx?$/.test(ext) && DOC_WORD_SLOTS.indexOf(String(d.key)) < 0) return 'A Word file — this has to be a scan or photo.';
+  return '';
+}
 function docRow(d) {
   const L = {ok: 'Accepted', wait: 'In review', rescan: 'Waiting for a scan',
              none: 'Not uploaded'};
@@ -303,7 +313,13 @@ function docRow(d) {
     (d.status === 'ok'
       ? '<button type="button" class="btn btn-ghost btn-sm" data-unverify="' + esc(d.key) +
         '" style="margin-left:8px">Query</button>'
-      : '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
+      : docNotTaken(d)
+        /* CNS-07 (4): a file this slot does not take cannot be accepted —
+           the server refuses it too; the button says why instead. */
+        ? '<button type="button" class="btn btn-green btn-sm" disabled style="margin-left:8px" title="' +
+          esc(docNotTaken(d)) + '">Accept</button><span style="font-size:11px;color:#b42318">' +
+          esc(docNotTaken(d)) + '</span>'
+        : '<button type="button" class="btn btn-green btn-sm" data-verify="' + esc(d.key) +
         '" style="margin-left:8px">Accept</button>') +
     (d.status === 'rescan' ? ''
       : '<button type="button" class="btn btn-ghost btn-sm" data-rescan="' + esc(d.key) +
@@ -472,7 +488,13 @@ function paintRecord(r) {
         '<div><b>' + Object.keys(r.apps).length + '</b><span>Applications</span></div>' +
         /* The student reads this same count on their Documents screen, and
            a file sent back is named on both. */
-        '<div><b>' + r.docs.filter(d => d.status === 'ok').length + '/' + r.docs.length + '</b><span>Docs verified'
+        /* Patch 169 (STU-09.2): the server's readiness figure — required
+           documents verified out of the ten asked for, the number the
+           student's own ring shows. */
+        (r.readiness
+          ? '<div><b>' + r.readiness.ok + '/' + r.readiness.of + '</b><span>Required docs verified'
+            + (r.readiness.okExtra ? ' (+' + r.readiness.okExtra + ' optional)' : '')
+          : '<div><b>' + r.docs.filter(d => d.status === 'ok').length + '/' + r.docs.length + '</b><span>Docs verified')
           + (r.docs.filter(d => d.status === 'rescan').length ? ' \u00b7 ' + r.docs.filter(d => d.status === 'rescan').length + ' sent back' : '')
           + '</span></div>' +
         '<div><b>' + filled + '</b><span>Profile fields</span></div>' +
@@ -523,7 +545,7 @@ function paintRecord(r) {
         '<div id="typing" style="font:400 11.6px/1.6 var(--sans);color:var(--muted);height:18px"></div>' +
         '<form id="reply" style="display:flex;gap:9px;align-items:flex-end;border-top:1px solid var(--line);' +
           'padding-top:12px">' +
-          '<textarea id="rbox" rows="1" placeholder="Reply to ' + esc(r.student.name.split(" ")[0]) + '…" style="flex:1;' +
+          '<textarea id="rbox" rows="1" maxlength="5000" placeholder="Reply to ' + esc(r.student.name.split(" ")[0]) + '…" style="flex:1;' +
             'resize:none;max-height:130px;padding:11px 12px;font:400 13.4px/1.5 var(--sans);' +
             'color:var(--navy-900);border:1.5px solid #d8dde4;border-radius:12px"></textarea>' +
           '<button type="button" class="btn btn-ghost btn-sm" id="rclip" ' +
@@ -784,9 +806,14 @@ function paintRecord(r) {
                   : '<span style="font-size:11.8px;color:var(--muted)">waiting on a ' +
                     'university deadline</span>') + '</td>' +
                 '<td><span class="st ' + st[0] + '" style="text-transform:none;letter-spacing:0">' +
-                  esc(st[1]) + '</span></td>' +
+                  esc(st[1]) + '</span>' +
+                  /* CNS-01: finished because the applications are past it. */
+                  (t.derived ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
+                    esc(t.why || 'Done because the applications are past this stage') + '</span>' : '') +
+                  (t.status === 'blocked' && t.note ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
+                    esc(t.note) + '</span>' : '') + '</td>' +
                 '<td style="text-align:right;white-space:nowrap">' +
-                  (t.status === 'done'
+                  (t.derived ? '' : t.status === 'done'
                     ? '<button type="button" class="lnk" data-task-open="' + t.id + '">reopen</button>'
                     : '<button type="button" class="lnk" data-task-done="' + t.id + '">done</button>' +
                       ' · <button type="button" class="lnk" data-task-stuck="' + t.id +
@@ -867,10 +894,11 @@ async function catalogue() {
    otherwise the destination's rule for that kind of university. Null means
    nobody has written a rule down — say nothing rather than invent one. */
 function barOf(p) {
-  if (p.minCgpa != null && p.minCgpa !== '') return Number(p.minCgpa);
+  /* CNS-02/04: a bar of 0 is no bar — "No minimum stated", never "Asks for 0+". */
+  if (p.minCgpa != null && p.minCgpa !== '' && Number(p.minCgpa) > 0) return Number(p.minCgpa);
   const f = CFACTS[p.country] || {};
   const own = p.isPublic ? f.minCgpaPublic : f.minCgpaPrivate;
-  return own == null ? null : Number(own);
+  return own == null || own === '' || !(Number(own) > 0) ? null : Number(own);
 }
 /* The student's own, off the record already open on this screen. */
 function caseCgpa() {
@@ -918,6 +946,8 @@ async function suggestUniTags(q) {
       items.map(x => '<button type="button" role="option" aria-selected="false" data-unisug="' + esc(x.value) + '" data-unisugtype="' + esc(x.type) + '" ' +
         'style="display:flex;width:100%;justify-content:space-between;gap:10px;padding:7px 10px;border:0;border-radius:8px;background:none;text-align:left;' +
         'font:600 12.8px/1.35 var(--sans);color:var(--navy-900);cursor:pointer">' + esc(x.value) +
+        /* CNS-04: its other names, on the one line. */
+        ((x.aliases || []).length ? ' <small style="font-weight:400;color:var(--muted)">also ' + esc(x.aliases.join(', ')) + '</small>' : '') +
         (x.count > 1 ? '<em style="font:400 11px/1.3 var(--sans);color:var(--muted)">' + x.count + ' programmes</em>' : '') + '</button>').join('');
   });
   s.innerHTML = h; s.hidden = false;
@@ -989,7 +1019,8 @@ async function searchUnis(q) {
   box.innerHTML = hits.length
     ? '<ul class="doclist" style="margin:0">' + hits.map(p =>
         '<li><div style="flex:1;min-width:0"><b style="display:block">' +
-        esc(uniName(p)) + '</b><span style="display:block;font-size:11.8px;' +
+        /* CNS-04: one name per university, whichever one the row was filed under. */
+        esc(String(p.shortName || '').trim() || p.universityAs || uniName(p)) + '</b><span style="display:block;font-size:11.8px;' +
         'color:var(--muted)">' + esc(p.name || p.program || '') + ' \u00b7 ' +
         esc(p.country || '') + ' \u00b7 ' + money(p) + '</span>' + short(p) +
         ((p.tagsShown || []).length ? '<span style="display:block;font-size:11px;color:var(--muted);margin-top:2px">' +
@@ -1152,8 +1183,24 @@ document.addEventListener('click', async e => {
     return;
   }
 
-  const drop = e.target.closest('[data-unidrop]');
+  /* CNS-06: the confirmation is written out under the row — "Remove X — this
+     also deletes the application. [Remove] [Keep]" — not hidden in a tooltip
+     a touch screen never shows. */
+  const keepDrop = e.target.closest('[data-unidropkeep]');
+  if (keepDrop) {
+    const a = keepDrop.closest('.unidrop-ask');
+    const b = a && a.parentElement.querySelector('[data-unidrop]');
+    if (b) b.dataset.sure = '';
+    if (a) a.remove();
+    return;
+  }
+  const yesDrop = e.target.closest('[data-unidropyes]');
+  const drop = yesDrop
+    ? (yesDrop.closest('.unidrop-ask') || {}).parentElement.querySelector('[data-unidrop]')
+    : e.target.closest('[data-unidrop]');
   if (drop) {
+    if (yesDrop) { yesDrop.disabled = true; yesDrop.closest('.unidrop-ask').remove(); }
+    else if (drop.dataset.sure === '1') return;   /* the question is on screen */
     /* ASK FIRST. "With just one click we are able to remove the program from
        the list. Add a warning message or confirmation screen."
      *
@@ -1170,26 +1217,25 @@ document.addEventListener('click', async e => {
      * agreeing a shortlist of ten is still ten presses and not ten dialogs —
      * which was the real point of the original note. */
     if (drop.dataset.sure !== '1') {
-      $$('[data-unidrop]').forEach(b => {
-        if (b === drop) return;
-        b.dataset.sure = '';
-        b.textContent = b.dataset.unilabel || 'Remove';
-        b.style.cssText = '';
-      });
+      $$('.unidrop-ask').forEach(x => x.remove());
+      $$('[data-unidrop]').forEach(b => { b.dataset.sure = ''; });
       drop.dataset.sure = '1';
-      /* Inline rather than a class: there is no danger button in the portal
-         sheet, and one control on one screen does not earn a global style. */
-      drop.style.cssText = 'border-color:#c0392b;color:#7a2118;background:#fdf3f2;'
-        + 'font-weight:700';
-      drop.textContent = (drop.dataset.unilabel || 'Remove') + ' ' + (drop.dataset.uniname || 'it') + '?';
-      drop.title = 'This also deletes the application — the stage, the decision '
-        + 'and everything recorded against it. Press again to remove.';
-      clearTimeout(dropTimer);
-      dropTimer = setTimeout(() => {
-        drop.dataset.sure = '';
-        drop.textContent = drop.dataset.unilabel || 'Remove';
-        drop.style.cssText = '';
-      }, 5000);
+      const label = drop.dataset.unilabel || 'Remove';
+      const ask = document.createElement('div');
+      ask.className = 'unidrop-ask';
+      ask.setAttribute('role', 'alert');
+      ask.style.cssText = 'flex-basis:100%;width:100%;margin-top:8px;padding:9px 11px;border-radius:9px;'
+        + 'background:#fdf3f2;border:1px solid #f0c4be;font:600 12.4px/1.5 var(--sans);color:#7a2118;'
+        + 'white-space:normal;text-align:left';
+      ask.innerHTML = esc(label) + ' <b>' + esc(drop.dataset.uniname || 'it') + '</b>' +
+        (drop.dataset.unilabel ? '? It stays off their list.'
+          : ' — this also deletes the application: the stage, the decision and everything recorded against it.') +
+        '<div style="display:flex;gap:6px;margin-top:7px">' +
+        '<button type="button" class="btn btn-primary btn-sm" data-unidropyes>' + esc(label) + '</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-unidropkeep>Keep</button></div>';
+      const host = drop.closest('li') || drop.parentElement;
+      host.style.flexWrap = 'wrap';
+      host.appendChild(ask);
       return;
     }
     clearTimeout(dropTimer);
@@ -1391,6 +1437,11 @@ async function sendFile(f) {
 
 async function sendReply(body) {
   const th = $('#thread');
+  /* CNS-07 (3): 5,000 characters, the server's limit too. */
+  if (String(body || '').length > 5000) {
+    toast('A message can be 5,000 characters at most — this one is ' + String(body).length.toLocaleString('en-IN') + '.', 'bad');
+    return;
+  }
   try {
     const r = await api('POST', '/api/staff/student/' + openId + '/message', { body });
     th.insertAdjacentHTML('beforeend', bubble(r.msg));
@@ -1463,15 +1514,25 @@ function orderCard(o) {
     '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' +
       '<b style="font-size:13.4px">' + esc(o.reference) + '</b>' +
       '<span style="font-size:12.6px;color:var(--navy-800)">' + esc(row.package || o.package || '') +
-        (row.kind === 'services' && (row.items || []).length
-          ? ' <span style="color:var(--muted)">\u00b7 ' + (row.items || []).map(x => esc(x.name || x.id)).join(', ') + '</span>' : '') +
+        /* CNS-07 (6): the items only when they say something the name does
+           not \u2014 "Student Visa: End-to-End \u00b7 Student Visa: End-to-End" read
+           as two of the same thing. */
+        (() => {
+          const label = String(row.package || o.package || '').trim().toLowerCase();
+          const names = (row.items || []).map(x => String(x.name || x.id || '').trim())
+            .filter(n => n && n.toLowerCase() !== label);
+          return row.kind === 'services' && names.length && names.join(', ').toLowerCase() !== label
+            ? ' <span style="color:var(--muted)">\u00b7 ' + names.map(esc).join(', ') + '</span>' : '';
+        })() +
       '</span>' +
       '<span class="st ' + st[0] + '" style="text-transform:none;letter-spacing:0">' + esc(st[1]) + '</span>' +
       '<b style="margin-left:auto;font-size:13.4px">' + inrPaise(row.grossPaise || o.grossPaise) + '</b>' +
     '</div>' +
     '<div style="margin-top:4px;font-size:12px;color:var(--muted)">' +
       inrPaise(received) + ' received' +
-      (outstanding ? ' \u00b7 ' + inrPaise(outstanding) + ' to collect' : row.status === 'refunded' ? '' : ' \u00b7 nothing left to collect') +
+      (outstanding ? ' \u00b7 ' + inrPaise(outstanding) + ' to collect' : row.status === 'refunded' ? ''
+        /* CNS-07 (6): a \u20b90 order never had anything to collect. */
+        : !Number(row.grossPaise || o.grossPaise || 0) ? ' \u00b7 Nothing to pay' : ' \u00b7 nothing left to collect') +
       (refunded ? ' \u00b7 ' + inrPaise(refunded) + ' refunded' : '') +
       (!d ? ' \u00b7 reading the ledger\u2026' : d.error ? ' \u00b7 <span style="color:#b03a2e">' + esc(d.error) + '</span>' : '') +
     '</div>' +
@@ -1586,11 +1647,29 @@ function openPay(kind, ref, part) {
 }
 
 /* First press asks, inline and with the figures; the second sends. */
+/* ADM-04: the minus sign is kept, so "-100" is refused rather than read as
+   100; only commas, spaces and the rupee sign are dropped. */
+function payAmountOf() {
+  const raw = String($('#payAmount').value).replace(/[,\s₹]/g, '');
+  return raw === '' ? NaN : Number(raw);
+}
+function payProblem(k, amount, day) {
+  if (!(amount > 0)) return 'An amount in rupees, more than zero.';
+  if (day > todayStr()) return 'The date cannot be in the future.';
+  const o = PAY.o || {};
+  const cap = k === 'refund' ? Number(o.receivedPaise || 0) : k === 'part' ? null : Number(o.outstandingPaise || 0);
+  if (cap != null && cap > 0 && Math.round(amount * 100) > cap) {
+    return (k === 'refund' ? 'Only ' + inrPaise(cap) + ' has been received on this order.'
+      : 'Only ' + inrPaise(cap) + ' is outstanding on this order.');
+  }
+  return '';
+}
 function payAsk() {
   const k = PAY.kind;
-  const amount = Number(String($('#payAmount').value).replace(/[^\d.]/g, ''));
-  if (!(amount > 0)) { paySay('An amount in rupees, more than zero.'); $('#payAmount').focus(); return; }
+  const amount = payAmountOf();
   const day = $('#payDate').value || todayStr();
+  const bad = payProblem(k, amount, day);
+  if (bad) { paySay(bad); $(bad.indexOf('date') >= 0 ? '#payDate' : '#payAmount').focus(); return; }
   const method = METHOD_LABEL[$('#payMethod').value] || 'Other';
   const ref = $('#payRef').value.trim();
   paySay('');
@@ -1610,7 +1689,7 @@ function payAsk() {
 async function paySend() {
   const k = PAY.kind;
   const body = {
-    amount: Number(String($('#payAmount').value).replace(/[^\d.]/g, '')),
+    amount: payAmountOf(),
     date: $('#payDate').value || todayStr(),
     method: $('#payMethod').value,
     reference: $('#payRef').value.trim(),
@@ -1816,8 +1895,28 @@ document.addEventListener('click', async e => {
   if (t) {
     $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
     $$('#pane .pane').forEach(x => x.classList.toggle('active', x.id === 't-' + t.dataset.t));
+    /* CNS-07 (2): a new tab starts at its top. Keeping the old scroll left a
+       short tab (Tasks) blank until the counsellor scrolled up. */
+    const pn = $('#pane'); if (pn) pn.scrollTop = 0;
+    const bar = t.closest('.tabs');
+    if (bar && bar.getBoundingClientRect().top < 0) bar.scrollIntoView({ block: 'start' });
     return;
   }
+  /* CNS-07 (1): "stuck" opens a note field under the task, not a prompt(). */
+  const sv = e.target.closest('[data-stuck-save]');
+  if (sv) {
+    const row = sv.closest('tr');
+    const inp = row && row.querySelector('input');
+    const why = inp ? inp.value.trim() : '';
+    if (!why) { if (inp) inp.focus(); return; }
+    sv.disabled = true;
+    try {
+      await api('PUT', '/api/staff/task/' + sv.dataset.stuckSave, { status: 'blocked', note: why.slice(0, 400) });
+      if (openId) open(openId);
+    } catch (err) { sv.disabled = false; toast(err.message || 'That did not save.'); }
+    return;
+  }
+  if (e.target.closest('[data-stuck-cancel]')) { const r0 = e.target.closest('tr'); if (r0) r0.remove(); return; }
   /* Done, reopened, or stuck and why. Three clicks, because a task screen
      that takes a form to answer is a task screen that stays out of date. */
   const td = e.target.closest('[data-task-done]') || e.target.closest('[data-task-open]')
@@ -1830,9 +1929,20 @@ document.addEventListener('click', async e => {
       try {
         if (body) await api('PUT', '/api/staff/task/' + id, body);
         else {
-          const why = prompt('What is holding this up? The office sees this.');
-          if (why == null || !why.trim()) return;
-          await api('PUT', '/api/staff/task/' + id, { status: 'blocked', note: why.trim() });
+          /* CNS-07 (1): an inline note field under the row, not prompt(). */
+          const tr = td.closest('tr');
+          if (!tr) return;
+          const nx = tr.nextElementSibling;
+          if (nx && nx.classList.contains('stuckrow')) { const i0 = nx.querySelector('input'); if (i0) i0.focus(); return; }
+          tr.insertAdjacentHTML('afterend', '<tr class="stuckrow"><td colspan="4" style="background:#fdf6f0">' +
+            '<label style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">' +
+              'What is holding this up? The office sees this.</label>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+              '<input type="text" maxlength="400" class="stucknote" style="flex:1;min-width:200px;font-size:13px;padding:7px 9px">' +
+              '<button type="button" class="btn btn-primary btn-sm" data-stuck-save="' + id + '">Save</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" data-stuck-cancel>Cancel</button></div></td></tr>');
+          tr.nextElementSibling.querySelector('input').focus();
+          return;
         }
         if (openId) open(openId);
       } catch (err) { toast(err.message || 'That did not save.'); }

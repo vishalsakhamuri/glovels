@@ -69,7 +69,7 @@ BODY = """
           color:var(--muted)"></div>
         <form id="composer" style="border-top:1px solid var(--line);padding:13px 14px;display:flex;
           gap:9px;align-items:flex-end">
-          <textarea id="box" rows="1" placeholder="Ask your counsellor anything…" style="flex:1;
+          <textarea id="box" rows="1" maxlength="5000" placeholder="Ask your counsellor anything…" style="flex:1;
             resize:none;max-height:120px;padding:11px 12px;font:400 13.4px/1.5 var(--sans);
             color:var(--navy-900);border:1.5px solid #d8dde4;border-radius:12px"></textarea>
           <button type="button" class="btn btn-ghost btn-sm" id="clip" title="Attach a file">
@@ -340,7 +340,13 @@ if (ONLINE) {
     el._h = setTimeout(() => { el.textContent = ''; }, 2500);
   });
 
-  api('POST', '/api/messages/read').catch(() => {});
+  /* Patch 169 (STU-09.6): and the menu badge is told. The badge script read
+     /api/state at the same moment as this POST, got the count from BEFORE
+     the read, and "9+" sat on Messages while the student read them. */
+  api('POST', '/api/messages/read')
+    .then(() => dispatchEvent(new CustomEvent('glovels:unread', {detail: {unread: 0}})))
+    .catch(() => {});
+  setTimeout(() => dispatchEvent(new CustomEvent('glovels:unread', {detail: {unread: 0}})), 1500);
 } else {
   const dot = $('#liveDot');
   if (dot) { dot.textContent = 'offline'; dot.className = 'sla late'; }

@@ -127,7 +127,8 @@ const seen = (p, s) => p.isVisible(s).catch(() => false);
   await page.waitForTimeout(2600);
   const done = await read();
   const pass2 = (done || { rows: [] }).rows.find(r => r.name === 'Passport');
-  ok(pass2 && pass2.state === 'Verified',
+  /* Patch 169 (STU-09.2): the Documents screen's word, on both screens. */
+  ok(pass2 && pass2.state === 'Accepted',
     'and the card says so — ' + JSON.stringify(pass2));
   ok(done && done.pct !== '0%' && done.pct !== '',
     'and the ring moves off zero — ' + (done || {}).pct);

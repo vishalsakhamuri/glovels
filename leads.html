@@ -1436,7 +1436,8 @@ async function staffBoot(run) {
        website, not to be handed somebody's phone number. */
     leads: me.user.role !== 'editor',
     admin: me.user.role === 'admin',
-    catalogue: perms.indexOf('catalogue') >= 0,
+    /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
+    catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',
     home: perms.indexOf('content') >= 0,
     'blog-admin': perms.indexOf('content') >= 0,
   };
@@ -1735,15 +1736,27 @@ function shown() {
   });
 }
 
+/* CNS-03: the list is active counsellors only (the server sends no
+   administrator and no test account) — plus whoever owns this lead now, so a
+   lead on an administrator still shows its owner and is not silently
+   unassigned by the next save. */
+function ownersFor(l) {
+  const list = PEOPLE.slice();
+  if (l && l.ownerId != null && l.ownerId !== '' && !list.some(p => String(p.id) === String(l.ownerId))) {
+    list.push({ id: l.ownerId, name: l.owner || 'Somebody who has left' });
+  }
+  return list;
+}
 function ownerCell(l) {
   const has = l.ownerId != null && l.ownerId !== '';
   const opts = ['<option value="">— nobody yet —</option>'].concat(
-    PEOPLE.map(p => '<option value="' + p.id + '"' +
+    ownersFor(l).map(p => '<option value="' + p.id + '"' +
       (String(p.id) === String(l.ownerId) ? ' selected' : '') +
       '>' + esc(p.name) + '</option>')
   ).join('');
-  return '<select class="assign' + (has ? '' : ' none') + '" data-own="' + l.id + '">' +
-    opts + '</select>';
+  return '<span class="ownwrap" style="display:inline-block">' +
+    '<select class="assign' + (has ? '' : ' none') + '" data-own="' + l.id + '" data-was="' +
+    (has ? esc(String(l.ownerId)) : '') + '">' + opts + '</select></span>';
 }
 
 async function setOwner(id, value) {
@@ -1872,6 +1885,9 @@ function paintLead(lead, notes) {
         + esc(SOURCE_LABEL[lead.source] || lead.source) + '</span>'
       + (lead.campaign ? '<span class="src">' + esc(lead.campaign) + '</span>' : '')
       + (lead.page ? '<span class="src">' + esc(lead.page) + '</span>' : '')
+      /* ADM-07: stored as a code (DE), shown by name. */
+      + (lead.destination ? '<span class="src" data-dest="' + esc(lead.destination) + '">'
+        + esc(lead.destinationName || lead.destination) + '</span>' : '')
       + '</div>'
     + (lead.note ? '<p style="margin:0 0 14px;font-size:13px;line-height:1.65;'
       + 'color:var(--navy-800)">' + esc(lead.note) + '</p>' : '')
@@ -1916,7 +1932,7 @@ function paintLead(lead, notes) {
         + '</select></div>'
       + '<div class="field"><label for="dOwner">Whose it is</label>'
         + '<select id="dOwner"><option value="">Nobody</option>'
-        + PEOPLE.map(p => opt(p.id, p.name, String(p.id) === String(lead.ownerId))).join('')
+        + ownersFor(lead).map(p => opt(p.id, p.name, String(p.id) === String(lead.ownerId))).join('')
         + '</select></div>'
     + '</div>'
     + '<div class="field" id="whyWrap" ' + (lead.status === 'lost' ? '' : 'hidden') + '>'
@@ -2291,7 +2307,7 @@ document.addEventListener('click', e => {
   /* The owner select lives inside a row whose job is to open the lead. Without
      this, choosing a name would also swap the panel out from under the hand
      that was choosing it. */
-  if (e.target.closest('[data-own]')) return;
+  if (e.target.closest('[data-own]') || e.target.closest('.lead-ask')) return;
 
   const t2 = e.target.closest('[data-tile]');
   if (t2) {
@@ -2325,7 +2341,39 @@ document.addEventListener('input', e => {
 
 document.addEventListener('change', e => {
   const sel = e.target.closest('[data-own]');
-  if (sel) setOwner(Number(sel.dataset.own), sel.value);
+  if (!sel) return;
+  /* CNS-03: choosing a name asks first, under the select — the F5 pattern
+     the student dropdown uses. Nothing is sent until Move is pressed. */
+  const wrap = sel.closest('.ownwrap') || sel.parentElement;
+  const old = wrap.querySelector('.lead-ask');
+  if (old) old.remove();
+  const was = sel.dataset.was || '';
+  if (String(was) === String(sel.value)) return;
+  const l = LEADS.find(x => x.id === Number(sel.dataset.own)) || {};
+  const nameOf = v => { const p = ownersFor(l).find(x => String(x.id) === String(v)); return p ? p.name : 'nobody'; };
+  const box = document.createElement('div');
+  box.className = 'lead-ask';
+  box.style.cssText = 'margin-top:6px;padding:8px 10px;border-radius:9px;background:#fff8e6;' +
+    'border:1px solid #f1d9a0;font:600 12px/1.5 var(--sans);color:var(--navy-900);' +
+    'white-space:normal;max-width:260px';
+  box.innerHTML = (was
+      ? 'Move <b>' + esc(l.name || 'this lead') + '</b> from ' + esc(nameOf(was)) + ' to <b>' + esc(nameOf(sel.value)) + '</b>?'
+      : 'Give <b>' + esc(l.name || 'this lead') + '</b> to <b>' + esc(nameOf(sel.value)) + '</b>?') +
+    '<div style="display:flex;gap:6px;margin-top:6px">' +
+    '<button type="button" class="btn btn-primary btn-sm" data-lmove>Move</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-lkeep>Keep</button></div>';
+  wrap.appendChild(box);
+});
+document.addEventListener('click', e => {
+  const keep = e.target.closest('[data-lkeep]');
+  const move = e.target.closest('[data-lmove]');
+  if (!keep && !move) return;
+  const box = (keep || move).closest('.lead-ask');
+  const sel = box && box.parentElement.querySelector('[data-own]');
+  if (!sel) return;
+  if (keep) { sel.value = sel.dataset.was || ''; box.remove(); return; }
+  move.disabled = true; move.textContent = 'Moving…';
+  setOwner(Number(sel.dataset.own), sel.value);
 });
 
 /* A lead arriving while somebody is looking at the book should appear in it. */

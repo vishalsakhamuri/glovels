@@ -229,7 +229,7 @@ BODY = """
           <input id="aEmail" type="email" placeholder="priya@example.com"
             inputmode="email"></div>
         <div class="field" style="margin-bottom:10px">
-          <label for="aPhone">Mobile (optional)</label>
+          <label for="aPhone">Mobile (optional — 10 digits, +91 allowed)</label>
           <input id="aPhone" placeholder="9876543210" inputmode="tel"></div>
         <div class="field" style="margin-bottom:12px">
           <label for="aCountry">Where they want to go (optional)</label>
@@ -269,7 +269,7 @@ Rahul Verma, rahul@example.com, 9876543211, United Kingdom, Master’s"
         <button class="sheet-close" data-close aria-label="Close">✕</button>
         <h3 id="logoTitle">Your logo</h3>
         <p class="lead">It sits at the top of your sidebar, in place of ours.
-          PNG or JPG, up to 300KB.</p>
+          PNG, JPG or WebP, up to 300KB.</p>
         <div id="logoNow" style="margin-bottom:11px"></div>
         <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp"
           style="font:400 12.4px/1.5 var(--sans)">
@@ -588,7 +588,11 @@ function docCards(s, list, note) {
          "Statement of Purpose" tells an agency to go and find one, when in
          fact a counsellor is writing it — so the card says so, and offers a
          download the moment it lands. */
-      const ours = !!d.ours;
+      /* Patch 169 (B2B-04): "we write this — Being written" only when there
+         is a package to write it under and the file is open. A closed file
+         with no package says "Not included". */
+      const ours = !!d.ours && !((s.status === 'closed' || s.closed) && !s.package);
+      const notIncl = !!d.ours && !ours && !got;
       const cls = state === 'ok' ? 'ok'
         : state === 'wait' ? 'wait'
         : ours ? 'mine' : (d.need ? 'need' : '');
@@ -601,7 +605,7 @@ function docCards(s, list, note) {
         + '<span class="blocks">' + esc(d.blocks) + '</span>'
         + '<div class="foot">'
         + '<span class="st ' + (state === 'ok' ? 'ok' : state === 'wait' ? 'wait' : 'none')
-          + '">' + (ours && !got ? 'Being written' : DOC_STATE[state]) + '</span>'
+          + '">' + (notIncl ? 'Not included' : ours && !got ? 'Being written' : DOC_STATE[state]) + '</span>'
         + (got ? '<a class="btn btn-ghost btn-sm" href="/api/partner/student/' + s.id
             + '/document/' + encodeURIComponent(d.id) + '/file">Download</a>' : '')
         /* An agency may still send their own draft of an SOP — plenty arrive
@@ -664,6 +668,17 @@ function paintOne() {
     'The visa file. These come after an offer, and the order matters: nothing else moves '
     + 'until the offer letter and the proof of funds are in.');
   $('#p-unis').innerHTML = unisPane(s);
+  /* Patch 169 (B2B-02): a closed file says so, above everything, and its
+     details are read-only — the server refuses a save on it too (409). */
+  if (s.status === 'closed' || s.closed) {
+    $('#oneHead').insertAdjacentHTML('afterbegin',
+      '<div class="warnbox pclosed" id="closedBanner" role="status" style="margin:0 0 12px;'
+      + 'border-color:#d6c3a5;background:#fbf6ee;color:#5b4409"><b>Closed.</b> This file is closed'
+      + (s.closedAt ? ' since ' + esc(String(s.closedAt).slice(0, 10)) : '')
+      + '. Its details are read-only — reopen it from Closed files to make changes.</div>');
+    $$('#p-details input, #p-details select, #p-details textarea').forEach(el => { el.disabled = true; });
+    const sv = $('#saveProfile'); if (sv) sv.hidden = true;
+  }
 }
 
 async function openStudent(id) {
@@ -727,11 +742,46 @@ function report(r) {
   said(html);
 }
 
-async function addStudents(list, btn) {
+/* Patch 169 (B2B-01): the same checks the server makes, before anything is
+   sent — a name with a letter in it, a real email, and a ten-digit Indian
+   mobile (+91 allowed). `needPhone` is the single Add form, where the mobile
+   is asked for; a pasted sheet may leave it out. */
+function rowProblem(row, needPhone) {
+  const name = String(row.name || '').trim();
+  const email = String(row.email || '').trim();
+  const phone = String(row.phone || '').trim();
+  if (!name) return 'no name';
+  if (!/\p{L}/u.test(name)) return 'a name needs at least one letter';
+  if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) return 'that is not an email address';
+  if (!phone && needPhone) return 'a mobile number, please — ten digits, starting 6 to 9';
+  if (phone) {
+    const d = phone.replace(/\D+/g, '');
+    const ten = d.length === 12 && d.startsWith('91') ? d.slice(2) : d.length === 11 && d.startsWith('0') ? d.slice(1) : d;
+    if (!/^\+?[\d\s()-]+$/.test(phone) || !/^[6-9]\d{9}$/.test(ten)) {
+      return 'the mobile has to be ten digits, starting 6 to 9 (+91 allowed)';
+    }
+  }
+  return '';
+}
+
+async function addStudents(list, btn, needPhone) {
+  /* Rows that fail here are reported with their reason and not sent; the
+     server's own refusals are numbered back to the rows as pasted. */
+  const local = [], send = [], at = [];
+  list.forEach((row, i) => {
+    const why = rowProblem(row, needPhone);
+    if (why) local.push({ at: 'Row ' + (i + 1), who: String(row.name || '').trim(), why });
+    else { send.push(row); at.push(i + 1); }
+  });
+  if (!send.length) { report({ added: [], rejected: local }); return { added: [], rejected: local }; }
   const was = btn.textContent;
   btn.disabled = true; btn.textContent = 'Adding…';
   try {
-    const r = await api('POST', '/api/partner/students', { students: list });
+    const r = await api('POST', '/api/partner/students', { students: send });
+    r.rejected = local.concat((r.rejected || []).map(x => {
+      const n = Number(String(x.at || '').replace(/\D+/g, ''));
+      return Object.assign({}, x, { at: n && at[n - 1] ? 'Row ' + at[n - 1] : x.at });
+    }));
     report(r);
     if (r.added.length) await refreshList();
     return r;
@@ -755,7 +805,10 @@ function parseSheet(text) {
     .map(l => {
       const c = l.split(/\t|,/).map(x => x.trim());
       return { name: c[0], email: c[1], phone: c[2], destination: c[3], level: c[4] };
-    });
+    })
+    /* Patch 169 (B2B-01): a row of empty cells (",,," or tabs) is skipped,
+       not sent as a student with no name. */
+    .filter(r => [r.name, r.email, r.phone, r.destination, r.level].some(x => String(x || '').trim()));
 }
 
 /* ---------------------------------------------------------------- team */
@@ -788,7 +841,9 @@ function showLogo(url) {
      page carries no mark of ours (white label, complete), so without this an
      agency that had not uploaded one yet saw an empty white box. */
   const corner = document.querySelector('.p-logo');
-  if (corner) corner.hidden = !url;
+  /* Patch 169 (B2B-04 / Oct-10 #8): with no logo of theirs, ours shows —
+     the dialog promises theirs goes "in place of ours". */
+  if (corner) corner.hidden = false;
   if (url) {
     img.src = url; img.hidden = false;
     img.style.cssText = 'max-width:132px;max-height:52px;display:block';
@@ -896,14 +951,27 @@ async function saveLogo(url) {
       return;
     }
 
-    const rm = e.target.closest('[data-rm]');
+    /* Patch 169 (B2B-04): Remove asks inline, in the same style as Close
+       file — not with a browser confirm(). */
+    const rmAsk = e.target.closest('[data-rm]:not([data-sure])');
+    if (rmAsk) {
+      e.stopPropagation();
+      const who = STUDENTS.find(x => String(x.id) === String(rmAsk.dataset.rm));
+      const cell = rmAsk.closest('td') || rmAsk.parentNode;
+      cell.innerHTML =
+        '<span class="pask" role="group" aria-label="Remove this student?">'
+        + '<span>Remove ' + esc(who ? who.name : 'this student') + ' completely? '
+        + 'This cannot be undone — closing the file keeps the record.</span>'
+        + '<button type="button" class="btn btn-primary btn-sm pact" data-rm="' + esc(rmAsk.dataset.rm)
+          + '" data-sure="1" style="background:#b42318;border-color:#b42318">Remove</button>'
+        + '<button type="button" class="btn btn-ghost btn-sm pact" data-keep-file="' + esc(rmAsk.dataset.rm)
+          + '">Keep</button></span>';
+      const k = cell.querySelector('[data-keep-file]'); if (k) k.focus();
+      return;
+    }
+    const rm = e.target.closest('[data-rm][data-sure]');
     if (rm) {
       e.stopPropagation();
-      const who = STUDENTS.find(x => String(x.id) === String(rm.dataset.rm));
-      if (!confirm('Remove ' + (who ? who.name : 'this student')
-        + ' completely? This cannot be undone.\n\nIf they have simply finished, '
-        + 'close the file instead — that keeps the record and still takes them '
-        + 'off your list.')) return;
       try {
         await api('DELETE', '/api/partner/student/' + rm.dataset.rm);
         await refreshList();
@@ -1006,7 +1074,12 @@ async function saveLogo(url) {
 
     const drop = e.target.closest('[data-drop]');
     if (drop) {
-      if (!confirm('Remove this colleague? They lose access immediately.')) return;
+      /* Patch 169 (B2B-04): asked inline — the first press arms it. */
+      if (!drop.dataset.sure) {
+        drop.dataset.sure = '1';
+        drop.textContent = 'Remove? They lose access now — press again';
+        return;
+      }
       try {
         await api('DELETE', '/api/partner/team/' + drop.dataset.drop);
         await loadTeam();
@@ -1056,7 +1129,7 @@ async function saveLogo(url) {
       name: $('#aName').value, email: $('#aEmail').value, phone: $('#aPhone').value,
       destination: $('#aCountry').value,
     };
-    addStudents([one], $('#addOne')).then(r => {
+    addStudents([one], $('#addOne'), false).then(r => {
       if (!r || !r.added || !r.added.length) return;   /* the box says what went wrong */
       ['#aName', '#aEmail', '#aPhone'].forEach(id => { $(id).value = ''; });
       /* Out of the way, and back to the list — the details go in by pressing

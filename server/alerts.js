@@ -51,6 +51,20 @@ const inr = paise => '₹' + Number(Math.round((paise || 0) / 100)).toLocaleStri
    of IST midnight, which is the middle of the evening in UTC. days.js is
    where this application decides what day it is; this file now asks it. */
 const daysBetween = (a, b) => DAYS.daysBetweenDays(DAYS.istDay(b), DAYS.istDay(a));
+/* CNS-05: dates in an alert read "26 Aug 2026", never "2026-08-26". */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const humanDay = v => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || ''));
+  return m ? Number(m[3]) + ' ' + MONTHS[Number(m[2]) - 1] + ' ' + m[1] : String(v || '');
+};
+/* CNS-05: one person, however many enquiry rows — the last ten digits of the
+   phone, else the email. */
+const personKey = e => {
+  const d = String(e.phone || '').replace(/\D/g, '').slice(-10);
+  if (d.length === 10) return 'p:' + d;
+  const m = String(e.email || '').trim().toLowerCase();
+  return m ? 'e:' + m : 'id:' + e.id;
+};
 
 /* What a student has to have. Kept in step with the profile screen's own
    section list and the documents screen's — both are authored as data there,
@@ -321,7 +335,7 @@ function all(db, now) {
             : (row.university || 'A university') + ' closes in ' + next.in + ' day'
               + (next.in === 1 ? '' : 's') + ' for ' + st.name,
         detail: (row.program ? row.program + ' — ' : '')
-          + 'deadline ' + String(next.d).slice(0, 10)
+          + 'deadline ' + humanDay(next.d)
           + '. The application has not been submitted.',
         subject: { studentId: st.id, progId: row.prog_id }, at: next.d,
       });
@@ -382,7 +396,11 @@ function all(db, now) {
        out afresh, which is why it belongs in this file and not in the row. */
     let late = [];
     try {
-      late = (db.tasksFor(st.id) || [])
+      /* CNS-01: after the derived completions — the same rows, and so the
+         same count, as the file header and its Tasks tab. Required here,
+         not at the top: tasks.js requires this file. */
+      const TASKS_ = require('./tasks.js');
+      late = TASKS_.effectiveTasks(db, st, db.tasksFor(st.id) || [], T)
         .filter(t => !TASK_CLOSED.has(String(t.status)) && t.due_at)
         /* Whole calendar days in India, the same arithmetic the sweep uses.
            These were two different calculations and they disagreed: the 9am
@@ -417,7 +435,7 @@ function all(db, now) {
           title: st.name + ' — ' + items.length + ' task'
             + (items.length === 1 ? '' : 's') + ' past the agreed date',
           detail: '“' + String(worst.t.title || '').slice(0, 80) + '” was due '
-            + String(worst.t.due_at).slice(0, 10) + ', ' + worst.over + ' day'
+            + humanDay(worst.t.due_at) + ', ' + worst.over + ' day'
             + (worst.over === 1 ? '' : 's') + ' ago'
             + (items.length > 1 ? ' — and ' + (items.length - 1) + ' more.' : '.'),
           subject: { studentId: st.id, taskId: worst.t.id }, at: worst.t.due_at,
@@ -453,7 +471,7 @@ function all(db, now) {
         + inr(late.reduce((n, p) => n + Number(p.paise || 0), 0))
         + ' overdue on ' + o.reference,
       detail: late.map(p => p.label + ' (' + inr(p.paise) + ', due '
-        + String(lateFrom(p)).slice(0, 10) + ')').join(' · '),
+        + humanDay(lateFrom(p)) + ')').join(' · '),
       subject: { studentId: o.student_id || null, reference: o.reference },
       at: lateFrom(late[0]),
     });
@@ -464,6 +482,16 @@ function all(db, now) {
      meeting. A note somebody typed to themselves is not a call made, and a
      lead with three such notes and no call is still a lead nobody has rung. */
   const noteCounts = db.leadNoteCounts();
+  /* CNS-05: one alert per PERSON (and owner). The same student enquiring
+     eight times — before duplicates were filed on one lead — was eight
+     "has been waiting 50 days" alerts. Each lead's alert is collected here
+     and only the most urgent one per person goes out, saying how many more. */
+  const byPerson = new Map();
+  const leadAdd = (e, a) => {
+    const k = personKey(e) + '|' + (a.who == null ? '' : a.who);
+    if (!byPerson.has(k)) byPerson.set(k, []);
+    byPerson.get(k).push(a);
+  };
   for (const e of db.allEnquiries()) {
     if (e.status === 'converted' || e.status === 'lost') continue;
     const owner = e.owner_id ? Number(e.owner_id) : null;
@@ -477,14 +505,14 @@ function all(db, now) {
       const madeAt = String(e.created_at || '').slice(0, 10);
       const yearBefore = madeAt ? (Number(madeAt.slice(0, 4)) - 1) + madeAt.slice(4) : '';
       if (yearBefore && String(e.next_at).slice(0, 10) < yearBefore) {
-        add({
+        leadAdd(e, {
           kind: 'followup', urgency: 'soon', who: owner,
           title: 'Follow-up date for ' + (e.name || 'a lead') + ' looks mistyped — set a new one',
-          detail: 'Stored as ' + String(e.next_at).slice(0, 10) + '.',
+          detail: 'Stored as ' + humanDay(e.next_at) + '.',
           subject: { leadId: e.id }, at: '',
         });
       } else if (due <= 0) {
-        add({
+        leadAdd(e, {
           kind: 'followup', urgency: due <= -2 ? 'now' : 'soon', who: owner,
           title: 'Follow up with ' + (e.name || 'a lead')
             + (due < 0 ? ' — ' + -due + ' day(s) late' : ' — today'),
@@ -499,7 +527,7 @@ function all(db, now) {
     if (!touched) {
       const age = daysBetween(T, e.created_at);
       if (age >= 1) {
-        add({
+        leadAdd(e, {
           kind: 'cold', urgency: age >= 3 ? 'now' : 'soon', who: owner,
           title: (e.name || 'A lead') + ' has been waiting ' + age + ' day'
             + (age === 1 ? '' : 's') + ' and nobody has called',
@@ -509,6 +537,20 @@ function all(db, now) {
       }
     }
   }
+  const URG = { now: 0, soon: 1, watch: 2 };
+  byPerson.forEach(list => {
+    /* Most urgent first; among equals the oldest — the longest wait is the
+       one to name. */
+    list.sort((a, b) => (URG[a.urgency] - URG[b.urgency]) || String(a.at).localeCompare(String(b.at)));
+    const one = list[0];
+    const ids = [...new Set(list.map(a => a.subject.leadId))];
+    if (ids.length > 1) {
+      one.detail = one.detail + ' · ' + (ids.length - 1) + ' more enquir'
+        + (ids.length - 1 === 1 ? 'y' : 'ies') + ' from the same person';
+      one.subject.leadIds = ids;
+    }
+    add(one);
+  });
 
   const RANK = { now: 0, soon: 1, watch: 2 };
   out.sort((a, b) => (RANK[a.urgency] - RANK[b.urgency])

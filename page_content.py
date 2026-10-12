@@ -2051,10 +2051,10 @@ PAGES["refer"] = {
                 "cap on how many people you can refer.",
             ],
             "ul": [
-                "<b>Register</b> — sign up and get your own referral link",
-                "<b>Share it</b> — with friends, classmates, colleagues or family",
-                "<b>They buy</b> — your referral signs up through your link and "
-                "completes a purchase",
+                "<b>Tell us who you referred</b> — their name and number in the "
+                "form below, with yours",
+                "<b>We call them</b> — a counsellor gets in touch and mentions you",
+                "<b>They buy</b> — your referral completes a purchase",
                 "<b>You get paid</b> — once the purchase is verified, the cashback is "
                 "credited automatically. Nothing to chase",
             ],
@@ -2085,8 +2085,8 @@ PAGES["refer"] = {
         {
             "h": "The rules, in full",
             "ul": [
-                "Your referral must sign up through your link before they pay — a "
-                "referral claimed afterwards cannot be verified and will not be paid",
+                "Tell us about your referral before they pay — a referral claimed "
+                "afterwards cannot be verified and will not be paid",
                 "You cannot refer yourself, or somebody in your own household paying "
                 "for you",
                 "One reward per referred person, on their first paid service",

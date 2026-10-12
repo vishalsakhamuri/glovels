@@ -50,6 +50,27 @@ const LEVELS = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma
   pathway: 'Foundation / pathway', phd: 'PhD' };
 const levelOf = l => LEVELS[String(l || '').toLowerCase()] || (l ? String(l) : "Master's");
 
+/* Round 169 (WEB-05). The part of a host name a university registers:
+   rwth-aachen.de from www.rwth-aachen.de, lancaster.ac.uk from
+   www.lancaster.ac.uk. */
+const TWO_LEVEL = new Set(['ac.uk', 'co.uk', 'org.uk', 'ac.in', 'edu.in', 'co.in', 'edu.au', 'com.au', 'ac.nz', 'co.nz',
+  'edu.sg', 'com.sg', 'ac.jp', 'co.jp', 'ac.at', 'edu.pl', 'com.pl', 'edu.es', 'ac.cy', 'edu.mt', 'ac.ie']);
+function registrableDomain(host) {
+  const parts = String(host || '').toLowerCase().replace(/\.$/, '').split('.').filter(Boolean);
+  if (parts.length < 2) return '';
+  const last2 = parts.slice(-2).join('.');
+  return TWO_LEVEL.has(last2) && parts.length >= 3 ? parts.slice(-3).join('.') : last2;
+}
+/* Sites that carry other people's programmes — joint-degree, portal and
+   partner sites a course link may point at, never a university's own home. */
+const AGGREGATORS = new Set(['daad.de', 'mastersportal.com', 'studyportals.com', 'uni-assist.de', 'hochschulkompass.de',
+  'study-in-germany.de', 'studycheck.de', 'university-in-germany.com', 'femp.org', 'tubadvancedmasters.de', 'mastermercuri.eu',
+  'coopdesignresearch.de', 'mba-renewables.de', 'graduatecenter.org', 'europeannewschool.eu', 'multicom-em.eu',
+  'master-emmah.eu', 'vinifera-euromaster.eu', 'hipercoach.net', '3dmm2o.de', 'ec-nantes.fr', 'master-asc.eu',
+  'master-international-law-erasmusmundus.eu', 'lmu-klinikum.de', 'mba-ibc.com',
+  'international-academy-for-german-engineering.de', 'goethe-business-school.de', 'eacea.ec.europa.eu', 'europa.eu',
+  'google.com', 'bit.ly', 'linkedin.com', 'facebook.com', 'youtube.com']);
+
 /**
  * The catalogue as universities. Rows the office has switched off are already
  * absent from the catalogue handed in. Sorted by name within country.
@@ -72,13 +93,20 @@ function group(catalogue) {
        initials tile they always did (server/logos.js). */
     if (!u.logo) u.logo = LOGOS.logoFor(u.name, u.shortName);
     if (/^https?:\/\//i.test(String(p.url || ''))) {
-      /* The university's own site, from its course pages: the origin with
-         the fewest dots — uni-heidelberg.de over mathinf.uni-heidelberg.de,
-         which is where the course page happened to be. */
+      /* Round 169 (WEB-05): counted, not first-come. The university's own
+         site is the registrable domain MOST of its course pages sit on —
+         RWTH's first programme link was femp.org, a joint programme's site,
+         and "fewest dots" chose it over www.rwth-aachen.de. */
       try {
         const o = new URL(p.url);
-        const dots = h => (h.match(/\./g) || []).length;
-        if (!u.url || dots(o.hostname) < dots(new URL(u.url).hostname)) u.url = o.origin;
+        const d = registrableDomain(o.hostname);
+        if (d && !AGGREGATORS.has(d)) {
+          u._sites = u._sites || new Map();
+          const s = u._sites.get(d) || { n: 0, origins: new Map() };
+          s.n++;
+          s.origins.set(o.origin, (s.origins.get(o.origin) || 0) + 1);
+          u._sites.set(d, s);
+        }
       } catch (e) { /* leave it */ }
     }
     const fm = p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel
@@ -88,6 +116,33 @@ function group(catalogue) {
   }
   const out = [...by.values()];
   for (const u of out) {
+    /* The most common domain; on a tie, the one whose name shares a word with
+       the university's. Within it, the plainest address — www.x.de over
+       mathinf.x.de — as the home page. */
+    if (u._sites) {
+      /* A domain that carries the university's own name (or its initials —
+         kit.edu, fau.eu, hhu.de) beats a busier one that does not: Bremen
+         UAS lists more courses on a joint-degree site than on hs-bremen.de. */
+      const words = String(u.name + ' ' + u.shortName).replace(/\([^)]*\)/g, ' ').normalize('NFKD').replace(/[̀-ͯ]/g, '')
+        .split(/[^A-Za-z0-9]+/).filter(Boolean);
+      const nameToks = new Set(words.map(w => w.toLowerCase()).filter(w => w.length > 2));
+      const sig = words.filter(w => !/^(of|the|and|for|in|at|de|der|die|des|fur|und|am)$/i.test(w));
+      if (sig.length >= 2) {
+        nameToks.add(sig.map(w => w[0]).join('').toLowerCase());
+        nameToks.add(sig.slice(0, -1).map(w => w[0]).join('').toLowerCase());
+      }
+      /* koeln = köln: umlauts typed out, folded both sides. */
+      const ue = w => w.replace(/ue/g, 'u').replace(/oe/g, 'o').replace(/ae/g, 'a');
+      [...nameToks].forEach(w => nameToks.add(ue(w)));
+      const looksLike = d => d.split(/[.-]/).some(w => nameToks.has(w) || nameToks.has(ue(w))) ? 1 : 0;
+      const [dom, s] = [...u._sites.entries()].sort((a, b) => looksLike(b[0]) - looksLike(a[0]) || b[1].n - a[1].n || a[0].localeCompare(b[0]))[0];
+      const plain = h => { const host = new URL(h).hostname; return host === dom || host === 'www.' + dom ? 0 : (host.match(/\./g) || []).length; };
+      const origin = [...s.origins.keys()].sort((a, b) => plain(a) - plain(b) || a.localeCompare(b))[0];
+      const host = new URL(origin).hostname;
+      /* The home page, not a department's: www.kit.edu, not www.agw.kit.edu. */
+      u.url = host === dom || host === 'www.' + dom ? origin : new URL(origin).protocol + '//www.' + dom;
+      delete u._sites;
+    }
     /* The main campus, not the first row's city (patch 145): TUM showed as
        "Public university in Straubing", WHU as Düsseldorf, TH Köln as
        Gummersbach. A city named in the university's own name wins; otherwise
@@ -138,6 +193,10 @@ function cleanExtras(v) {
     metaDesc: str(o.metaDesc, 320),
     /* The DAAD institution number, or a daad.de address. See daad.js. */
     daad: str(o.daad, 300),
+    /* Round 169 (WEB-05): the university's own home page, when the office
+       has set it — otherwise the page works it out from the course links
+       (group(), above). Only an http(s) address. */
+    website: /^https?:\/\/[^\s/]+\.[^\s]+$/i.test(str(o.website, 300)) ? str(o.website, 300) : '',
     /* The office can take one page off search without taking the university
        off the finder — a page with nothing written on it yet, say. */
     hidden: !!o.hidden,
@@ -147,8 +206,9 @@ function cleanExtras(v) {
 const money = n => {
   const v = Number(n) || 0;
   if (!v) return '₹0';
-  if (v >= 1e7) return '₹' + (v / 1e7).toFixed(v % 1e7 ? 1 : 0) + ' crore';
-  if (v >= 1e5) return '₹' + (v / 1e5).toFixed(v % 1e5 ? 1 : 0) + ' lakh';
+  /* Round 169: ₹13,99,950 is "₹14 lakh", not "₹14.0 lakh". */
+  if (v >= 1e7) return '₹' + (v / 1e7).toFixed(v % 1e7 ? 1 : 0).replace(/\.0$/, '') + ' crore';
+  if (v >= 1e5) return '₹' + (v / 1e5).toFixed(v % 1e5 ? 1 : 0).replace(/\.0$/, '') + ' lakh';
   return '₹' + v.toLocaleString('en-IN');
 };
 
@@ -160,9 +220,15 @@ const money = n => {
 const crypto = require('crypto');
 const REQS = require('./reqs.js');
 const uKeyOf = name => 'u' + crypto.createHash('sha1').update(String(name || '').trim().toLowerCase()).digest('hex').slice(0, 8);
+/* CNS-07 (7): "MEngEngineering and Sustainable…" came in from the sheet with
+   the degree glued to the name. A degree abbreviation at the START of a word,
+   run straight into a capitalised word, gets its space back. "(MScIH)" — no
+   lowercase after the capitals — is left as it is. */
+const spaceDegree = s => String(s == null ? '' : s)
+  .replace(/(^|[\s(/,-])(MEng|MSc|MBA|MA|MS|MEd|MFA|MPH|LLM|BSc|BEng|BA|BBA|PhD)(?=[A-Z][a-z])/g, '$1$2 ');
 function fromRow(r) {
   return {
-    id: r.id, program: r.program, university: r.university, city: r.city || '',
+    id: r.id, program: spaceDegree(r.program), university: r.university, city: r.city || '',
     country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
     isPublic: !!r.is_public, fit: r.fit || null, totalInr: r.total_inr || 0,
     feeModel: r.fee_model === 'free' || r.fee_model === 'package' ? r.fee_model : (r.is_public ? 'package' : 'free'),
@@ -183,4 +249,4 @@ function fromRow(r) {
   };
 }
 
-module.exports = { slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf };
+module.exports = { slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf, spaceDegree };

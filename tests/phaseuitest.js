@@ -62,7 +62,7 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   await sp.goto(BASE+'/dashboard',{waitUntil:'domcontentloaded'}); await sp.waitForTimeout(2500);
   ok('the student is told where they are', await sp.$eval('#progPhase',e=>!e.hidden));
   const stxt=await sp.$eval('#progPhase',e=>e.textContent.replace(/\s+/g,' ').trim());
-  ok('  · as a phase and a step number', /Applying/.test(stxt) && /Step \d+ of 9/.test(stxt), stxt);
+  ok('  · as a phase and a step number', /Applying/.test(stxt) && /Step \d+ of 6/.test(stxt), stxt);   /* patch 169: one six-stage model */
   ok('  · with nothing about lateness or counsellors', !/late|behind|overdue|Ph Counsellor/i.test(stxt), stxt);
   await sp.setViewportSize({width:390,height:900}); await sp.waitForTimeout(500);
   ok('  · no sideways scroll on a phone', await sp.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1));

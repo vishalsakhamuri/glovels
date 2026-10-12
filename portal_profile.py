@@ -14,8 +14,8 @@ BODY = """
         <span class="pill" id="pcPill" style="margin-left:auto">0% complete</span>
       </div>
       <div class="bar" style="margin-bottom:9px"><span id="pcBar" style="width:0%"></span></div>
-      <p style="margin:0;font-size:12.6px;color:var(--muted);line-height:1.55">Your counsellor
-        starts the shortlist once this reaches 100%. Everything here is reused across your
+      <p style="margin:0;font-size:12.6px;color:var(--muted);line-height:1.55"><span id="pcLead">Your counsellor
+        starts the shortlist once this reaches 100%.</span> Everything here is reused across your
         applications, your SOP brief, the LOR emails to your recommenders and the visa checklist —
         so it is asked once, not eleven times.</p>
     </div>
@@ -586,6 +586,17 @@ function paint() {
   const p = overall();
   $('#pcBar').style.width = p + '%';
   $('#pcPill').textContent = p + '% complete';
+  /* Patch 169 (STU-09.1): a student with a shortlist already has one — the
+     "starts the shortlist at 100%" line read as a contradiction beside 18
+     universities. */
+  const lead = $('#pcLead');
+  if (lead) {
+    const n = (typeof SHORT_ROWS !== 'undefined' && SHORT_ROWS) ? SHORT_ROWS.length : 0;
+    lead.textContent = n
+      ? 'Your shortlist is under way (' + n + ' programme' + (n === 1 ? '' : 's') + '). Keep this up to date — your counsellor uses it for every application.'
+      : (p >= 100 ? 'Your profile is complete — your counsellor can start your shortlist.'
+        : 'Your counsellor starts the shortlist once this reaches 100%.');
+  }
   drawNav();
 }
 

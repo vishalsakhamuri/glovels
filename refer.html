@@ -403,14 +403,14 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <!-- GLOVELS-PAGE-COPY -->
   <h2>Refer somebody, get paid</h2>
   <p>If you know somebody planning to study, work or travel abroad, send them to us. When they buy a service, you get cashback. There is no cap on how many people you can refer.</p>
-  <ul><li><b>Register</b> — sign up and get your own referral link</li><li><b>Share it</b> — with friends, classmates, colleagues or family</li><li><b>They buy</b> — your referral signs up through your link and completes a purchase</li><li><b>You get paid</b> — once the purchase is verified, the cashback is credited automatically. Nothing to chase</li></ul>
+  <ul><li><b>Tell us who you referred</b> — their name and number in the form below, with yours</li><li><b>We call them</b> — a counsellor gets in touch and mentions you</li><li><b>They buy</b> — your referral completes a purchase</li><li><b>You get paid</b> — once the purchase is verified, the cashback is credited automatically. Nothing to chase</li></ul>
   <h2>What you earn</h2>
   <ul><li>Service value ₹15,000 – ₹29,999 — <b>₹2,000</b></li><li>Service value ₹30,000 – ₹49,999 — <b>₹2,500</b></li><li>Service value ₹50,000 and above — <b>ask us</b>; we agree the amount before your referral pays, in writing</li></ul>
   <div class="pagenote">Only confirmed and paid purchases qualify. If a service is refunded or cancelled, the reward is reversed with it.</div>
   <h2>What counts</h2>
   <ul><li><b>Visas</b> — tourist and visit, business, student, work, dependent, job seeker</li><li><b>Test preparation</b> — IELTS, TOEFL, PTE, GRE, GMAT and German</li><li><b>Migration</b> — Canada PR, Australia PR, UK skilled migration, German work pathways</li><li><b>Specialist routes</b> — digital nomad visas, investor and entrepreneur applications</li></ul>
   <h2>The rules, in full</h2>
-  <ul><li>Your referral must sign up through your link before they pay — a referral claimed afterwards cannot be verified and will not be paid</li><li>You cannot refer yourself, or somebody in your own household paying for you</li><li>One reward per referred person, on their first paid service</li><li>Rewards are paid within 30 days of the purchase being verified</li><li>Cancelled or refunded purchases reverse the reward</li><li>We may vary or end the programme, but never for a referral already registered and paid</li></ul>
+  <ul><li>Tell us about your referral before they pay — a referral claimed afterwards cannot be verified and will not be paid</li><li>You cannot refer yourself, or somebody in your own household paying for you</li><li>One reward per referred person, on their first paid service</li><li>Rewards are paid within 30 days of the purchase being verified</li><li>Cancelled or refunded purchases reverse the reward</li><li>We may vary or end the programme, but never for a referral already registered and paid</li></ul>
   <h2>Questions we are actually asked</h2>
   <div class="pfaq">
   <details><summary>When do I get paid?</summary><p>Within 30 days of your referral's purchase being verified.</p></details>
@@ -419,7 +419,95 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <details><summary>What if my referral cancels?</summary><p>The reward is reversed, because it is paid on a completed purchase.</p></details>
   <details><summary>What about services over ₹50,000?</summary><p>Ask us before your referral pays. We agree the amount in writing rather than leaving it to a table that stops at ₹49,999.</p></details>
   </div>
-  <!-- /GLOVELS-PAGE-COPY --></div></section>
+  <!-- /GLOVELS-PAGE-COPY -->
+  <!-- Round 169 (WEB-10): there is no personal referral address yet, so the
+       page asks for the referral itself. It goes to the Leads screen through the contact
+       form's own endpoint and checks, filed under source "referral", with
+       who referred them in the note. -->
+  <h2 id="tell">Tell us who you referred</h2>
+  <p>Their details, and yours so we know who to thank. A counsellor calls them within one working day and says you sent them.</p>
+  <form id="rfForm" class="rf-form" novalidate>
+    <fieldset><legend>Your friend</legend>
+      <div class="rf-row">
+        <label for="rfName">Their name<input id="rfName" autocomplete="off" required></label>
+        <label for="rfPhone">Their mobile<input id="rfPhone" type="tel" inputmode="numeric" placeholder="98xxxxxxxx" autocomplete="off" required></label>
+      </div>
+      <label for="rfMail">Their email<input id="rfMail" type="email" autocomplete="off" required></label>
+    </fieldset>
+    <fieldset><legend>You</legend>
+      <div class="rf-row">
+        <label for="rfMyName">Your name<input id="rfMyName" autocomplete="name" required></label>
+        <label for="rfMyPhone">Your mobile<input id="rfMyPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98xxxxxxxx" required></label>
+      </div>
+    </fieldset>
+    <input id="rfTrap" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
+    <label class="rf-ok" for="rfOk"><input type="checkbox" id="rfOk"> <span>My friend knows I am passing on their details, and agrees that Glovels may contact them.</span></label>
+    <p class="rf-err" id="rfErr" role="alert" hidden></p>
+    <div class="rf-acts"><button type="submit" class="btn btn-green" id="rfGo">Send my referral</button>
+      <a class="btn btn-ghost" href="login.html?signup=1">Create a free account</a></div>
+  </form>
+  </div></section>
+<style>
+.rf-form{display:grid;gap:14px;max-width:640px;margin:16px 0 0}
+.rf-form fieldset{border:1px solid var(--line);border-radius:12px;padding:12px 14px 14px;margin:0;display:grid;gap:12px}
+.rf-form legend{font:700 12.4px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 6px}
+.rf-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.rf-row{grid-template-columns:1fr}}
+.rf-form label{display:grid;gap:6px;font:600 12.6px/1.4 var(--sans);color:var(--navy-800)}
+.rf-form input:not([type=checkbox]){width:100%;padding:11px 13px;font:400 14px/1.5 var(--sans);border:1px solid var(--line);border-radius:10px;background:#fff;box-sizing:border-box}
+.rf-form input.bad{border-color:#c0392b;background:#fdf3f2}
+.rf-form .rf-ok{display:flex;gap:8px;align-items:flex-start;font:400 12.8px/1.5 var(--sans)}
+.rf-err{margin:0;color:#7a2118;font:600 13px/1.55 var(--sans)}
+.rf-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.rf-sent{padding:15px 17px;border-radius:12px;background:#eaf6ee;border:1px solid #bfe0cc;color:#14603a;font:400 14px/1.6 var(--sans)}
+</style>
+<script>
+(function () {
+  var form = document.getElementById('rfForm');
+  if (!form) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var err = $('rfErr');
+  var letter = /[A-Za-zÀ-ɏऀ-ॿ]/;
+  var mobile = function (v) { return /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10)); };
+  var checks = [
+    ['rfName', function (v) { return v.length > 1 && letter.test(v); }, function (v) { return v.length > 1 ? 'Your friend’s name needs at least one letter.' : 'Tell us your friend’s name.'; }],
+    ['rfPhone', mobile, 'Your friend’s 10-digit Indian mobile, please.'],
+    ['rfMail', function (v) { return /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v); }, 'Your friend’s email, please.'],
+    ['rfMyName', function (v) { return v.length > 1 && letter.test(v); }, function (v) { return v.length > 1 ? 'Your name needs at least one letter.' : 'Tell us your name.'; }],
+    ['rfMyPhone', mobile, 'Your 10-digit Indian mobile, please.']
+  ];
+  form.addEventListener('input', function (e) { if (e.target.classList) e.target.classList.remove('bad'); err.hidden = true; });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.hidden = true;
+    var bad = null, first = null;
+    checks.forEach(function (c) {
+      var el = $(c[0]), v = el.value.trim(), ok = c[1](v);
+      el.classList.toggle('bad', !ok);
+      if (!ok && !bad) { bad = typeof c[2] === 'function' ? c[2](v) : c[2]; first = el; }
+    });
+    if (!bad && $('rfPhone').value.replace(/[^0-9]/g, '').slice(-10) === $('rfMyPhone').value.replace(/[^0-9]/g, '').slice(-10)) { bad = 'That is your own number — a referral is somebody else.'; first = $('rfPhone'); }
+    if (!bad && !$('rfOk').checked) bad = 'Please tick the box to confirm your friend agrees to be contacted.';
+    if (bad) { err.textContent = bad; err.hidden = false; if (first) first.focus(); return; }
+    var btn = $('rfGo'); btn.disabled = true; btn.textContent = 'Sending…';
+    fetch('/send.php', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        name: $('rfName').value.trim(), phone: $('rfPhone').value.trim(), email: $('rfMail').value.trim(),
+        source: 'referral', consent: 'yes', consentWording: $('rfOk').parentNode.textContent.replace(/\s+/g, ' ').trim(),
+        note: 'Referred by ' + $('rfMyName').value.trim() + ' (' + $('rfMyPhone').value.trim() + ')',
+        message: 'Referral from the Refer a friend page. Referrer: ' + $('rfMyName').value.trim() + ', ' + $('rfMyPhone').value.trim() + '.',
+        sourcePage: location.pathname, referrer: document.referrer || 'direct', website: $('rfTrap').value
+      }) })
+      .then(function (r) {
+        if (r.status === 422) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || 'Please check what you typed.'); });
+        if (!r.ok) throw new Error('That did not send. Please call us, or try again in a minute.');
+        if (window.glvTrack) glvTrack('generate_lead', { form: 'referral' });
+        form.outerHTML = '<div class="rf-sent" id="rfSent"><b>Thank you — we have your referral.</b> A counsellor will call them within one working day. Keep an eye on your phone: we confirm with you when they buy.</div>';
+      })
+      .catch(function (x) { btn.disabled = false; btn.textContent = 'Send my referral'; err.textContent = x.message; err.hidden = false; });
+  });
+}());
+</script>
 
 <div class="cta-band"><div class="wrap">
   <h2>Not sure where you stand?</h2>

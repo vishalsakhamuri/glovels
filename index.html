@@ -551,12 +551,17 @@ section[id]{scroll-margin-top:92px}
 .demo-note .ico{font-size:16px;flex:none;margin-top:1px}
 .rmore{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px}
 .rmore .hint{font-size:12.4px;color:var(--muted)}
-.rmore .rmore-find{margin-left:auto;font-size:15px;padding:13px 26px;background:var(--green);
-  border-color:var(--green);color:#fff;box-shadow:0 10px 24px rgba(31,122,77,.28)}
-.rmore .rmore-find:hover{background:var(--green-deep);border-color:var(--green-deep)}
-.rmore-note{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45}
+/* Round 169: "More universities" is THE next step after fifteen rows — a
+   primary button of its own, centred under the list, full width on a phone. */
+.rmore-cta{display:flex;flex-direction:column;align-items:center;gap:6px;margin:18px 0 8px;
+  padding:18px 14px;border-radius:var(--r);background:linear-gradient(180deg,#fbf6ea,#fff);
+  border:1px solid var(--gold-soft)}
+.rmore-cta .rmore-find{font-size:17px;font-weight:800;padding:16px 40px;min-width:min(420px,100%);
+  justify-content:center;color:#0b1f3a;box-shadow:0 12px 28px rgba(185,143,52,.35)}
+.rmore-cta .rmore-find:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.rmore-note{margin:4px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45;text-align:center}
 @media (max-width:640px){
-  .rmore .rmore-find{order:-1;width:100%;margin-left:0}
+  .rmore-cta .rmore-find{width:100%;min-width:0;padding:15px 18px}
   .rmore .hint{width:100%}
 }
 .rfoot{margin-top:14px;padding-top:13px;border-top:1px dashed var(--line);font-size:12.8px;
@@ -1411,13 +1416,15 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     </div>
     <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>
     <div id="rTurned" hidden></div>
+    <div class="rmore-cta">
+      <a class="btn btn-gold rmore-find" id="rFind" href="/find-university">More universities <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      <p class="rmore-note">Opens Find University with your filters applied — all results, sort, compare and save.</p>
+    </div>
     <div class="rmore">
       <span class="hint" id="rHint"></span>
       <button class="btn btn-ghost btn-sm" data-show-packages>See our packages
         <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-      <a class="btn btn-green rmore-find" id="rFind" href="/find-university">More universities <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
     </div>
-    <p class="rmore-note">Opens Find University with your filters applied — all results, sort, compare and save.</p>
     <div class="rfoot">
       <span>Universities we are partnered with are <b>free to apply to</b> — nothing to buy first. The rest open with a package.</span>
     </div>
@@ -1542,7 +1549,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <div class="ai-step"><span>3</span><b>A human finishes it</b>
         <p>Your writer rewrites it with you — a raw AI draft costs you the application.</p></div>
     </div>
-    <div class="tabs" role="tablist"><button class="tab" data-cat="top" role="tab" aria-selected="true" style="--tabc:#8a6a1f"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span>Most Booked</span><span class="n">9</span></button><button class="tab" data-cat="consult" role="tab" aria-selected="false" style="--tabc:#123a7b"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Consultation</span><span class="n">8</span></button><button class="tab" data-cat="test" role="tab" aria-selected="false" style="--tabc:#5b3fa8"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>Test Prep</span><span class="n">6</span></button><button class="tab" data-cat="lang" role="tab" aria-selected="false" style="--tabc:#1a6a52"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>Language</span><span class="n">2</span></button><button class="tab" data-cat="post" role="tab" aria-selected="false" style="--tabc:#0e5f73"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg><span>Loan / financial services</span><span class="n">4</span></button><button class="tab" data-cat="migrate" role="tab" aria-selected="false" style="--tabc:#7a3f2b"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span>Work &amp; migrate</span><span class="n">0</span></button></div>
+    <div class="tabs" role="tablist"><button class="tab" data-cat="top" role="tab" aria-selected="true" style="--tabc:#8a6a1f"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span>Most Booked</span><span class="n">9</span></button><button class="tab" data-cat="more" role="tab" aria-selected="false" style="--tabc:#3d4f66"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span>More Services</span><span class="n">3</span></button><button class="tab" data-cat="consult" role="tab" aria-selected="false" style="--tabc:#123a7b"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Consultation</span><span class="n">8</span></button><button class="tab" data-cat="test" role="tab" aria-selected="false" style="--tabc:#5b3fa8"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>Test Prep</span><span class="n">6</span></button><button class="tab" data-cat="lang" role="tab" aria-selected="false" style="--tabc:#1a6a52"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>Language</span><span class="n">2</span></button><button class="tab" data-cat="post" role="tab" aria-selected="false" style="--tabc:#0e5f73"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg><span>Loan / financial services</span><span class="n">4</span></button><button class="tab" data-cat="migrate" role="tab" aria-selected="false" style="--tabc:#7a3f2b"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span>Work &amp; migrate</span><span class="n">0</span></button></div>
     <div class="svc-grid" id="svcGrid"></div>
     <div id="planBar">
       <div><div class="pt" id="planTotal">₹0</div>
@@ -1612,7 +1619,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
               <svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Message my counsellor</a>
           </div>
           <div class="dgrid">
-            <article class="dcard"><span class="dflag">🇬🇧</span><h4>Foundation Year — Business</h4><div class="duni">Arden University · Coventry</div><span class="dfit">Matched · 80% fit</span><div class="dmeta">Tuition: <b>₹275,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag">🇵🇱</span><h4>MSc Computer Science</h4><div class="duni">Vistula University · Warsaw</div><span class="dfit">Matched · 80% fit</span><div class="dmeta">Tuition: <b>₹899,800</b> · Private</div><div class="dmeta">Deadline: <b>1 Mar 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag">🇩🇪</span><h4>B.Sc. Computer Science</h4><div class="duni">IU International University · Berlin</div><span class="dfit">Matched · 80% fit</span><div class="dmeta">Tuition: <b>₹990,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article>
+            <article class="dcard"><span class="dflag">🇬🇧</span><h4>Foundation Year — Business</h4><div class="duni">Arden University · Coventry</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹275,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag">🇵🇱</span><h4>MSc Computer Science</h4><div class="duni">Vistula University · Warsaw</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹899,800</b> · Private</div><div class="dmeta">Deadline: <b>1 Mar 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag">🇩🇪</span><h4>B.Sc. Computer Science</h4><div class="duni">IU International University · Berlin</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹990,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article>
             <article class="dcard pending"><span class="dico"><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg></span><b>7 more of your 10</b><p>Your package covers 10 universities. 7 are ready to open.</p><span class="dchip">View all <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></span></article>
           </div>
           <div class="dlower">
@@ -1785,6 +1792,14 @@ const PART_PHASES_SERVICES = [
   { label: 'When the first drafts are with you', percent: 30 },
   { label: 'On delivery', percent: 30 },
 ];
+/* Round 169 (WEB-11): a job route has no applications to a university and
+   no offer letter — its milestones are the filing and the visa. The same
+   words server/plans.js stores. */
+const PART_PHASES_WORK = [
+  { label: 'To start', percent: 40 },
+  { label: 'When your documents are filed', percent: 30 },
+  { label: 'When your visa is in hand', percent: 30 },
+];
 
 function canSplit(inr){
   const g = Number(inr || 0);
@@ -1819,7 +1834,7 @@ function amountsFor(gross, rows){
 function partsFor(inr, kind){
   if(!canSplit(inr)) return null;
   const gross = Math.round(inr);
-  const phases = kind === 'services' ? PART_PHASES_SERVICES : PART_PHASES;
+  const phases = kind === 'services' ? PART_PHASES_SERVICES : kind === 'work' ? PART_PHASES_WORK : PART_PHASES;
   for(let n = Math.min(PART_MAX, phases.length); n >= 2; n--){
     const rows = phases.slice(0, n);
     const amounts = amountsFor(gross, rows);
@@ -2534,6 +2549,8 @@ function filtered(ignoreBands, collect){
    then open-this-season, then cheapest, then the id so the order is the
    same on every render. Relevance to the field is already the filter. */
 const ORDER = {u10:0,u20:1,above20:2,elite:3};
+/* How many rows the home list shows (round 169, owner's instruction). */
+const HOME_ROWS = 15;
 const cheap = (a,b) => (a.totalInr!==undefined && b.totalInr!==undefined)
   ? (a.totalInr - b.totalInr)
   : ((ORDER[a.band]||0) - (ORDER[b.band]||0));
@@ -3181,7 +3198,10 @@ function render(){
 
   paintRail();
 
-  const shownRows = resTab === 'pub' ? pubAll : privAll;
+  /* Round 169 (owner, 10 Oct): the home page shows fifteen rows, no more.
+     The rest are one press away — "More universities" opens Find University
+     with the same filters. */
+  const shownRows = (resTab === 'pub' ? pubAll : privAll).slice(0, HOME_ROWS);
   const anyOpen = shownRows.some(r => !r.locked);
   let markup = shownRows.length ? shownRows.map(rowHtml).join('')
     /* NOTHING AT ALL, ON EITHER TAB.
@@ -3792,7 +3812,7 @@ document.addEventListener('click', e => {
             + nf.format(partsFor(gross)[0].inr) + ' today</i></span></label>'
           + '</div>'
           + '<div class="paysched" id="paySched" hidden><b>How it is split</b><ul>'
-          + partsFor(gross).map(p => '<li><span>' + esc(p.label) + '</span><b>₹'
+          + partsFor(gross, buying && buying.tab === 'work' ? 'work' : '').map(p => '<li><span>' + esc(p.label) + '</span><b>₹'
               + nf.format(p.inr) + '</b></li>').join('')
           + '</ul><small>Nothing is charged automatically. We ask for each part when '
           + 'the work it pays for is done, and it is on your dashboard the whole '
@@ -4172,6 +4192,8 @@ function askToApply(id, uni, prog){
     const email = $('#apMail').value.trim();
     const phone = $('#apPhone').value.trim().replace(/\D/g, '').slice(-10);
     if (!name) return say('Tell us your name.');
+    /* Round 169 (WEB-15): the contact form's rule — a name has a letter in it. */
+    if (!/[A-Za-zÀ-ɏऀ-ॿ]/.test(name)) return say('A name needs at least one letter.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
     if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
     const btn = $('#apGo');
@@ -4503,7 +4525,7 @@ window.__glovelsSetBadges = function (words) {
     if (BADGE[k] !== undefined && words[k]) BADGE[k] = words[k];
   });
 };
-const ICONS = {top:'star',consult:'chat',test:'book',lang:'globe',post:'bank'};
+const ICONS = {top:'star',more:'file',consult:'chat',test:'book',lang:'globe',post:'bank'};
 let cat = 'top';
 const chosen = new Set(), levelOf = {};
 
@@ -5773,9 +5795,12 @@ shortOnPhones('faqList', 4, 'questions', 'details.faq');
 
     var more = document.getElementById('storyMore');
     if (more) {
-      more.hidden = rows.length <= HOME;
       var n = more.querySelector('[data-count]');
-      if (n) n.textContent = rows.length;
+      /* Round 169 (WEB-17): the server writes the stories page's own count
+         (data-src="stories"); that number is the truth, and the link stays. */
+      var fromStories = n && n.getAttribute('data-src') === 'stories';
+      more.hidden = !fromStories && rows.length <= HOME;
+      if (n && !fromStories) n.textContent = rows.length;
     }
     /* The track was built for three fixed cards; six need the arrows and the
        dots re-derived from what is actually in it. */

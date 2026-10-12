@@ -23,6 +23,7 @@ const FIND = require('./find.js');
 const REQS = require('./reqs.js');
 const LOGOS = require('./logos.js');
 const TAGS = require('./tags.js');
+const UNISEARCH = require('./unisearch.js');
 
 const esc = FIND.esc;
 
@@ -31,6 +32,25 @@ const esc = FIND.esc;
 const CANON_KEYS = ['country', 'level', 'field'];
 
 const PAGE = 40;
+
+/* Round 169 (WEB-20.6): the home page's Field options, read from the page
+   itself so the two lists cannot drift — 41 here and 47 there was two lists. */
+const fsMod = require('fs');
+const pathMod = require('path');
+let heroCache = { mtime: -1, list: [] };
+function heroFields() {
+  const file = pathMod.join(__dirname, '..', 'index.html');
+  try {
+    const st = fsMod.statSync(file);
+    if (st.mtimeMs === heroCache.mtime) return heroCache.list;
+    const html = fsMod.readFileSync(file, 'utf8');
+    const m = /<select id="fField">([\s\S]*?)<\/select>/.exec(html);
+    const un = s => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    const list = m ? [...m[1].matchAll(/<option value="([^"]+)"/g)].map(x => un(x[1])) : [];
+    heroCache = { mtime: st.mtimeMs, list };
+    return list;
+  } catch (e) { return heroCache.list; }
+}
 
 function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg, content, slugOf }) {
 
@@ -76,10 +96,14 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     const lv = Object.keys(R.facets.level).sort();
     const level = '<label class="fopt"><input type="radio" name="level" value=""' + (!f.level ? ' checked' : '') + '> <span>Any level</span></label>'
       + lv.map(l => opt(l, FIND.LEVELS[l] || l, R.facets.level[l], { name: 'level', value: String(f.level || '').toLowerCase() })).join('');
-    const fs = Object.keys(R.facets.field).sort((a, b) => R.facets.field[b] - R.facets.field[a]);
+    /* Round 169 (WEB-20.6): the same fields as the home page's Field box, in
+       its order — the hero's list is the one source — then any field the
+       catalogue holds that the list does not, as the hero adds them. */
+    const hero = heroFields();
+    const extra = Object.keys(R.facets.field).filter(x => !hero.includes(x)).sort();
+    const fs = hero.concat(extra);
     const field = '<label class="fopt"><input type="radio" name="field" value=""' + (!f.field ? ' checked' : '') + '> <span>Any field</span></label>'
-      + fs.slice(0, 40).map(x => opt(x, x.replace(/&amp;/g, '&'), R.facets.field[x], { name: 'field', value: f.field })).join('')
-      + (fs.length > 40 ? '<div class="fmore-note">' + (fs.length - 40) + ' more fields in the search box above</div>' : '');
+      + fs.map(x => opt(x, x.replace(/&amp;/g, '&'), R.facets.field[x] || 0, { name: 'field', value: f.field })).join('');
     const cg = '<div class="fcg"><input type="range" id="fcgpa" name="cgpa" min="5" max="10" step="0.1" value="' + esc(f.cgpa || '10') + '" aria-label="Your CGPA">'
       + '<output for="fcgpa">' + (f.cgpa ? 'CGPA ' + esc(f.cgpa) : 'Not told us yet') + '</output>'
       + (f.cgpa ? '<button type="button" class="flink" data-clear="cgpa">clear</button>' : '') + '</div>';
@@ -148,7 +172,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       + '<div class="ftools">' + sort + view + '<button type="button" class="btn btn-sm" id="fshare">Share this search</button></div></div>'
       + profileStrip(R)
       + '<div id="flist" class="flist" data-total="' + R.total + '">' + list + '</div>'
-      + (R.total > PAGE ? '<div class="fpage"><button type="button" class="btn btn-sm" id="fmore">Show ' + Math.min(PAGE, R.total - PAGE) + ' more</button><span>' + PAGE + ' of ' + R.total.toLocaleString('en-IN') + '</span></div>' : '')
+      + (R.total > PAGE ? '<div class="fpage"><button type="button" class="btn btn-sm" id="fmore">Show ' + Math.min(PAGE, R.total - PAGE) + ' more</button></div>' : '')
       + '</div></div></form>'
       + '<div class="fcmp" id="fcmp" hidden><span id="fcmpText">Comparing 0 programmes</span><button type="button" class="btn btn-green btn-sm" id="fcmpGo">Compare side by side →</button><button type="button" class="flink" id="fcmpClear">Clear</button></div>'
       + '<div class="fmodal" id="fmodal" hidden><div class="fmodal-in" role="dialog" aria-modal="true" aria-labelledby="fmodalH"><div class="fmodal-head"><h2 id="fmodalH">Side by side</h2><button type="button" class="flink" id="fmodalClose">Close</button></div><div id="fmodalBody"></div></div></div>';
@@ -160,7 +184,10 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     const f = FIND.parse(query || '');
     const countries = liveCountries();
     const rows = publicRows();
-    const R = FIND.run(rows, f, REQS);
+    /* Round 169: the destinations' CGPA bars, and the universities the search
+       box names (WEB-06) — a locked row has no name to match the words on. */
+    const uniKeys = f.q ? UNISEARCH.match(liveCatalogue().filter(p => !p.searchOnly), f.q) : null;
+    const R = FIND.run(rows, f, REQS, { countries, uniKeys });
     const name = FIND.title(f, countries, null);
     const title = FIND.title(f, countries, R.total);
     const indexable = Object.keys(f).every(k => CANON_KEYS.includes(k)) && R.total > 0;
@@ -274,6 +301,8 @@ const FIND_CSS = `<style>/* GLOVELS-FIND-CSS */
 .funi{margin:0 0 6px;font:700 15px/1.3 var(--sans);color:var(--navy-900);padding:10px 0 0}
 .fcmp{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:12px 18px;background:var(--navy-900);color:#fff;font:600 14px/1.3 var(--sans);box-shadow:0 -8px 30px rgba(0,0,0,.25)}
 .fcmp .flink{color:#c8d6e4}
+.fsharebox{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#f6f9fc;font:600 13px/1.3 var(--sans);color:var(--navy-800)}
+.fsharebox input{flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:400 13px/1.3 var(--sans)}
 .fmodal{position:fixed;inset:0;z-index:50;background:rgba(11,30,49,.6);display:grid;place-items:center;padding:16px}
 .fmodal-in{background:var(--paper);border-radius:16px;max-width:1000px;width:100%;max-height:90vh;overflow:auto;padding:18px 20px}
 .fmodal-head{display:flex;justify-content:space-between;align-items:center;margin:0 0 12px}
@@ -308,6 +337,17 @@ var countries = BOOT.countries || {};
 var f = BOOT.f || {};
 var rows = null, result = null, shown = BOOT.page || 40, me = null;
 var saved = new Set(), compared = new Set();
+/* Round 169 (WEB-06): the universities the search box names, from the server. */
+var uniKeys = null, uniFor = null, uniAsking = null;
+function askUnis(q){
+  if (uniAsking === q) return;
+  uniAsking = q;
+  fetch('/api/find/unis?q=' + encodeURIComponent(q), { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (uniAsking !== q) return;
+    uniAsking = null; uniFor = q; uniKeys = (d && d.keys) || [];
+    if ((f.q || '') === q) render();
+  }).catch(function(){ uniAsking = null; uniFor = q; uniKeys = []; if ((f.q || '') === q) render(); });
+}
 try { (JSON.parse(localStorage.getItem('glv-saved') || '[]') || []).forEach(function(id){ saved.add(String(id)); }); } catch (e) {}
 
 function url(){ return '/find-university' + F.toQuery(f); }
@@ -318,7 +358,10 @@ function ctx(){ return { countries: countries, said: result && result.said, save
 
 function render(){
   if (!rows) return;
-  result = F.run(rows, f, R);
+  /* A search waits for the server's answer on which universities it names,
+     rather than drawing a list without them and then redrawing it. */
+  if (f.q && uniFor !== f.q) { askUnis(f.q); if (result || document.querySelector('#flist .frow')) return; }
+  result = F.run(rows, f, R, { countries: countries, uniKeys: uniFor === (f.q || '') ? uniKeys : null });
   var list = $('#flist'), out = '';
   var slice = result.rows.slice(0, shown);
   if (!slice.length) out = F.emptyHtml(f);
@@ -333,7 +376,7 @@ function render(){
   var pg = $('.fpage');
   if (result.total > shown) {
     if (!pg) { pg = document.createElement('div'); pg.className = 'fpage'; list.after(pg); }
-    pg.innerHTML = '<button type="button" class="btn btn-sm" id="fmore">Show ' + Math.min(BOOT.page, result.total - shown) + ' more</button><span>' + shown + ' of ' + result.total.toLocaleString('en-IN') + '</span>';
+    pg.innerHTML = '<button type="button" class="btn btn-sm" id="fmore">Show ' + Math.min(BOOT.page, result.total - shown) + ' more</button>';
   } else if (pg) pg.remove();
   chips(); counts(); profile(); cmpBar();
   document.title = F.title(f, countries, result.total) + ' | Glovels';
@@ -433,12 +476,24 @@ function compareNow(){
     ['Type', function(p){ return p.isPublic ? 'Public' : 'Private'; }], ['Applying', function(p){ return F.feeOf(p) === 'free' ? 'Free to apply' : 'With a package'; }], ['Cost', fee], ['Tuition / semester', function(p){ var t = F.tuitionOf(p); return t == null ? '—' : t === 0 ? 'None' : '€' + t; }],
     ['Next deadline', dl], ['CGPA asked', function(p){ return val(p.minCgpa); }], ['IELTS', function(p){ return val(rq(p).ieltsMin); }], ['TOEFL', function(p){ return val(rq(p).toeflMin); }], ['MOI letter', function(p){ return yn(rq(p).moiAccepted); }],
     ['GRE', function(p){ return rq(p).greRequired === true ? 'Required' + (rq(p).greMin ? ' (' + rq(p).greMin + ')' : '') : rq(p).greRequired === false ? 'Not needed' : '—'; }], ['German', function(p){ return val(rq(p).germanLevel); }], ['Bachelor’s', function(p){ return val(rq(p).bachelorYears, '-year'); }],
-    ['Work experience', function(p){ return rq(p).workExpRequired === true ? (rq(p).workExpMonths ? rq(p).workExpMonths + ' months' : 'Yes') : rq(p).workExpRequired === false ? 'No' : '—'; }], ['Restricted admission', function(p){ return yn(rq(p).restricted); }], ['Fit', function(p){ return p.fit ? p.fit + '%' : '—'; }]];
+    ['Work experience', function(p){ return rq(p).workExpRequired === true ? (rq(p).workExpMonths ? rq(p).workExpMonths + ' months' : 'Yes') : rq(p).workExpRequired === false ? 'No' : '—'; }], ['Restricted admission', function(p){ return yn(rq(p).restricted); }]];
   var h = '<table class="fcmpt"><thead><tr><th></th>' + ps.map(function(p){ return '<th>' + name(p) + '</th>'; }).join('') + '</tr></thead><tbody>'
     + lines.map(function(l){ return '<tr><td>' + l[0] + '</td>' + ps.map(function(p){ return '<td>' + l[1](p) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
   $('#fmodalBody').innerHTML = h; $('#fmodal').hidden = false; document.body.style.overflow = 'hidden';
 }
 function closeModal(){ $('#fmodal').hidden = true; document.body.style.overflow = ''; }
+/* Round 169 (WEB-20.4): the clipboard refused — the link in a box under the
+   button, selected, instead of the browser's own prompt box. */
+function shareBox(link){
+  var box = $('#fshareBox');
+  if (!box) {
+    box = document.createElement('div'); box.id = 'fshareBox'; box.className = 'fsharebox';
+    box.innerHTML = '<label for="fshareLink">Copy this link</label><input id="fshareLink" readonly><button type="button" class="flink" id="fshareShut">Close</button>';
+    var head = $('.fhead'); (head || document.body).after(box);
+    box.querySelector('#fshareShut').addEventListener('click', function(){ box.remove(); });
+  }
+  var i = box.querySelector('input'); i.value = link; i.focus(); i.select();
+}
 
 var toastAt = 0;
 function toast(msg){
@@ -464,7 +519,7 @@ document.addEventListener('click', function(e){
   if (t.dataset.cmp) { e.preventDefault(); var id = String(t.dataset.cmp); if (compared.has(id)) compared.delete(id); else if (compared.size >= 3) { toast('Compare up to three at a time'); return; } else compared.add(id); t.setAttribute('aria-pressed', String(compared.has(id))); cmpBar(); return; }
   if (t.dataset.view) { e.preventDefault(); set('view', t.dataset.view === 'list' ? '' : t.dataset.view); return; }
   if (t.id === 'fmore') { e.preventDefault(); shown += BOOT.page; render(); return; }
-  if (t.id === 'fshare') { e.preventDefault(); var link = location.origin + url(); (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function(){ toast('Link copied — anyone who opens it sees this search'); }, function(){ prompt('Copy this link', link); }); return; }
+  if (t.id === 'fshare') { e.preventDefault(); var link = location.origin + url(); (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function(){ toast('Link copied — anyone who opens it sees this search'); }, function(){ shareBox(link); }); return; }
   if (t.id === 'fcmpGo') { e.preventDefault(); compareNow(); return; }
   if (t.id === 'fcmpClear') { e.preventDefault(); compared.clear(); $$('[data-cmp]').forEach(function(b){ b.setAttribute('aria-pressed', 'false'); }); cmpBar(); return; }
   if (t.id === 'fmodalClose' || (t.id === 'fmodal' && e.target === t)) { e.preventDefault(); closeModal(); return; }

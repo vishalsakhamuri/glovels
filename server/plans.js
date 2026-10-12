@@ -63,13 +63,22 @@ const SERVICE_PLAN = [
   { label: 'On delivery', percent: 30, dueDays: 45 },
 ];
 
+/* Round 169 (WEB-11): a Work Abroad package files documents and waits on a
+   visa — "when your applications go in / when your offer is in hand" is
+   study wording on a job route. Same percentages, its own milestones. */
+const WORK_PLAN = [
+  { label: 'To start', percent: 40, dueDays: 0 },
+  { label: 'When your documents are filed', percent: 30, dueDays: 30 },
+  { label: 'When your visa is in hand', percent: 30, dueDays: 90 },
+];
+
 const clampPct = n => Math.max(1, Math.min(100, Math.round(Number(n) || 0)));
 
 /** The phases for a package, as authored or as defaulted. */
 function phasesFor(pkg) {
   const own = pkg && Array.isArray(pkg.plan) ? pkg.plan : null;
   /* No package means a basket of services. */
-  const base = pkg ? DEFAULT_PLAN : SERVICE_PLAN;
+  const base = pkg ? (String(pkg.tab || '') === 'work' ? WORK_PLAN : DEFAULT_PLAN) : SERVICE_PLAN;
   const rows = (own && own.length ? own : base)
     .slice(0, 6)
     .map((r, i) => ({
@@ -231,6 +240,6 @@ function teaser(grossPaise, pkg, inr) {
 }
 
 module.exports = {
-  THRESHOLD_PAISE, MIN_PART_PAISE, MAX_PARTS, DEFAULT_PLAN, SERVICE_PLAN, GRACE_DAYS,
+  THRESHOLD_PAISE, MIN_PART_PAISE, MAX_PARTS, DEFAULT_PLAN, SERVICE_PLAN, WORK_PLAN, GRACE_DAYS,
   allowed, split, phasesFor, outstanding, collected, nextDue, overdue, teaser, paidOn,
 };

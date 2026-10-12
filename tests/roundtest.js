@@ -133,7 +133,9 @@ const toCsv = rows => rows.map(r => r.map(c => {
      rather than a check. HEIC is on the list because the card tells them to
      photograph the pages and an iPhone photographing pages produces HEIC. */
   for (const [ext, buf] of Object.entries(REAL)) {
-    const r = await send('scan-' + S + '.' + ext, 'application/octet-stream', buf);
+    /* Round 169 (CNS-07.4): a Word file goes in a slot that takes Word (the
+       CV); a marksheet slot takes scans and photos only. */
+    const r = await send('scan-' + S + '.' + ext, 'application/octet-stream', buf, ext === 'docx' ? 'cv' : undefined);
     ok(r.ok(), 'a real .' + ext + ' is accepted — ' + r.status()
       + ' ' + (r.ok() ? '' : ((await r.json()).error || '')));
   }

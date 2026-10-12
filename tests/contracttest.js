@@ -51,6 +51,10 @@ const stamp = Date.now();
 
   /* ------------------------------------------- a package that promises more */
   const email = 'buyer' + stamp + '@example.com';
+  /* Round 169 (ADM-06): an order placed while signed in goes on that
+     account. The first order above signed this browser in as Plain Buyer;
+     this is a different buyer, so they start signed out. */
+  await guest.clearCookies();
   const placed = await guest.request.post(BASE + '/api/orders', {
     data: { packageId: 'pkg-boarding', name: 'Guarantee Buyer', email, phone: '9876543212',
       acceptedTerms: true,

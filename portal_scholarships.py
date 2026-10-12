@@ -108,7 +108,25 @@ const SCHOLARSHIPS = [
 ];
 
 DB.saved = DB.saved || [];      /* saved against the account, on the server */
-const P = DB.profile || {};
+const P = Object.assign({}, DB.profile || {});
+/* Patch 169 (STU-09.10): the profile fields the matcher reads are g_country
+   and g_level, and those are what this reads. A student whose shortlist is
+   German master's programmes but who never filled the two answers in (an
+   agency file, or a list the office built) read "Destination — not set"
+   above eighteen German master's programmes; the list itself says where and
+   what, so it stands in until the profile does. */
+(function () {
+  const rows = (typeof SHORT_ROWS !== 'undefined' && SHORT_ROWS) || [];
+  const N = {DE:'Germany',GB:'United Kingdom',CA:'Canada',IE:'Ireland',PL:'Poland',ES:'Spain',IT:'Italy',FR:'France'};
+  if (!String(P.g_country || '').trim() && rows.length) {
+    const cs = [...new Set(rows.map(r => N[r.country] || '').filter(Boolean))];
+    if (cs.length) P.g_country = cs.join(', ');
+  }
+  if (!String(P.g_level || '').trim() && rows.length) {
+    const m = rows.filter(r => /\b(m\.?\s?sc|master|m\.?\s?eng|mba|m\.?\s?a)\b/i.test(String(r.program || ''))).length;
+    if (m * 2 >= rows.length) P.g_level = "Master's";
+  }
+})();
 const cgpa = cgpaTenOf(P);
 const cmap = {Germany:'DE','United Kingdom':'GB',Canada:'CA',Ireland:'IE',Poland:'PL',Spain:'ES',Italy:'IT'};
 /* Several destinations are allowed now, so a scholarship in any of them

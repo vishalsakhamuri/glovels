@@ -80,8 +80,11 @@ const stamp = Date.now();
   check('the partner screen never says our name', !hit, hit && hit[0]);
   check('the browser tab does not either', !/Glovels/i.test(await page.title()),
     await page.title());
-  check('there is no mark in the sidebar',
-    (await page.$$('.p-logo .logo-img')).length === 0);
+  /* Patch 169 (B2B-04 / 10 Oct #8): the decision changed — with no logo of
+     their own, the sidebar shows ours ("in place of ours", says the dialog). */
+  check('with no logo of their own, the sidebar shows the Glovels mark',
+    await page.$eval('.p-logo', el => !el.hidden && !!el.querySelector('.logo-img')
+      && getComputedStyle(el.querySelector('.logo-img')).display !== 'none'));
 
   /* The public chat widget was reaching this page because the set that lists
      signed-in screens never grew when the page was added. A B2B portal

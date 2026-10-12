@@ -24,6 +24,36 @@
 
 const UNIS = require('./unis.js');
 const REQS = require('./reqs.js');
+const COUNTRIES = require('./countries.js');
+
+/* A staff account made for testing: its name or the part of its email before
+   the @ starts with test / qwe / asdf / dummy / demo. Real counsellors are
+   never named like that; the testers' throwaway accounts always are. */
+function isTestAccount(p) {
+  const re = /^(test|qwe|asdf?|dummy|demo)/i;
+  return re.test(String(p.name || '').trim()) || re.test(String(p.email || '').split('@')[0]);
+}
+
+/* ADM-07: a lead's destination is an ISO code — "DE" — whatever the form
+   sent: "Germany", "🇩🇪 Germany", "de" or the flag alone. Something that is
+   not a country ("Not sure yet") is kept as typed. */
+function destCode(v) {
+  const raw = String(v == null ? '' : v).trim();
+  if (!raw) return '';
+  /* A flag is two regional-indicator letters; read it back as its code. */
+  const flags = [...raw].filter(ch => { const c = ch.codePointAt(0); return c >= 0x1F1E6 && c <= 0x1F1FF; });
+  const words = raw.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').replace(/[^\p{L}\p{M} .,'’()-]/gu, '').trim();
+  if (words) {
+    if (/^[A-Za-z]{2}$/.test(words) && COUNTRIES.byCode(words)) return words.toUpperCase();
+    const n = COUNTRIES.byName(words);
+    if (n) return n.code;
+  }
+  if (flags.length === 2) {
+    const code = flags.map(ch => String.fromCharCode(ch.codePointAt(0) - 0x1F1E6 + 65)).join('');
+    if (COUNTRIES.byCode(code)) return code;
+  }
+  return raw.slice(0, 80);
+}
 
 /* The two task states that owe nobody anything. Kept in step with
    tasks.CLOSED, and duplicated rather than imported because tasks.js is a
@@ -2337,8 +2367,14 @@ function open(dir) {
     /* 8 Oct (F5): the ones a student can be GIVEN to today. A counsellor whose
        file was closed (status completed/left) still resolves by id — their
        name stays on old rows — but is not offered in the dropdown. */
+    /* 12 Oct (ADM-08, CNS-03): counsellors only — the administrator is not
+       somebody a student or a lead is handed to — and not the test accounts
+       ("qwe", "Test 13", "Testq") the testers made, which are still active.
+       A file or lead already on an administrator or a test account keeps that
+       owner: every assignment screen adds the current owner to its list. */
     activeCaseworkers() {
-      return this.caseworkers().filter(c => (c.status || 'active') === 'active');
+      return this.caseworkers().filter(c => c.role === 'counsellor'
+        && (c.status || 'active') === 'active' && !isTestAccount(c));
     },
     staffByRole: r => db.all('SELECT * FROM students WHERE role = ?', r),
     allStudents: () => db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student'),
@@ -2499,7 +2535,7 @@ function open(dir) {
                 referrer, note, source, campaign, status, owner_id, lost_reason, next_at,
                 student_id, updated_at, created_at, consent_at, consent_wording)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        e.name, e.phone, e.email, e.destination || '', e.consent || '',
+        e.name, e.phone, e.email, destCode(e.destination), e.consent || '',
         e.sourcePage || '', e.referrer || '', e.note || '',
         e.source || 'website', e.campaign || '', e.status || 'new',
         e.ownerId == null ? null : Number(e.ownerId), '', e.nextAt || '',
@@ -2557,7 +2593,7 @@ function open(dir) {
          the one the counsellor already has is not overwritten. */
       db.run(`UPDATE enquiries SET returns = returns + 1, updated_at = ?,
                 destination = CASE WHEN COALESCE(destination, '') = '' THEN ? ELSE destination END
-              WHERE id = ?`, t, String(e.destination || ''), Number(open.id));
+              WHERE id = ?`, t, destCode(e.destination), Number(open.id));
       return Object.assign(db.one('SELECT * FROM enquiries WHERE id = ?', Number(open.id)) || open, { attached: true });
     },
     allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
@@ -2569,7 +2605,7 @@ function open(dir) {
         e.source || '', e.campaign || '', e.ownerId == null ? null : Number(e.ownerId),
         e.status || 'new', e.lostReason || '', e.nextAt || '',
         e.studentId == null ? null : Number(e.studentId), e.note || '',
-        e.destination || '', now(), Number(id));
+        destCode(e.destination), now(), Number(id));
       return db.one('SELECT * FROM enquiries WHERE id = ?', Number(id));
     },
     leadNotes: id => db.all('SELECT * FROM lead_notes WHERE lead_id = ? ORDER BY id asc',
@@ -2935,7 +2971,17 @@ function open(dir) {
         + ' → ' + (target ? (made ? 'new student ' : 'student ') + target.email : 'no student (' + (email || 'no email') + ' is a staff address)'));
     });
   } catch (e) { /* an old database with no orders table */ }
+
+  /* ADM-07: leads written before destinations were stored as codes —
+     "Germany", "🇩🇪 Germany" — are put right once, at start. Idempotent. */
+  try {
+    db.all('SELECT id, destination FROM enquiries WHERE id > ?', 0).forEach(r => {
+      const was = String(r.destination || '');
+      const code = destCode(was);
+      if (code !== was) db.run('UPDATE enquiries SET destination = ? WHERE id = ?', code, Number(r.id));
+    });
+  } catch (e) { /* an old database with no enquiries table */ }
   return store;
 }
 
-module.exports = { open, CONTACT_KINDS };
+module.exports = { open, CONTACT_KINDS, destCode };

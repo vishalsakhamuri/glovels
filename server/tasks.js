@@ -633,7 +633,18 @@ function phaseOf(db, student, now) {
   const st = typeof student === 'object' ? student : db.studentById(Number(student));
   if (!st) return null;
   const base = taskPhaseOf(db, st, T);
-  return base ? liftByApplications(db, st, base, T) : base;
+  const out = base ? liftByApplications(db, st, base, T) : base;
+  /* CNS-01: ONE late count. The header used to say "1 past its date" (the
+     current phase's late work), the Tasks tab "7" and the bell "7 tasks
+     past" — three numbers for one file. It is now every open task past its
+     date, after the derived completions, which is what the tab and the bell
+     count too. */
+  if (out && !out.finished) {
+    out.phaseLate = out.late || 0;
+    out.late = lateCount(db, st, T);
+    if (out.late) out.waiting = false;
+  }
+  return out;
 }
 
 /*
@@ -692,7 +703,7 @@ function liftByApplications(db, st, base, T) {
 }
 
 function taskPhaseOf(db, st, T) {
-  const rows = (db.tasksFor(st.id) || []).filter(t => String(t.status) !== 'dropped');
+  const rows = effectiveTasks(db, st, null, T).filter(t => String(t.status) !== 'dropped');
   const phaseKey = t => {
     const tpl = TEMPLATES.find(x => x.key === t.task_key);
     if (tpl) return tpl.phase;
@@ -799,7 +810,7 @@ function funnel(db, now, only) {
 
 /** One student's progress, in the shape the student's own screen shows. */
 function progressOf(db, studentId, now) {
-  const rows = (db.tasksFor(Number(studentId)) || [])
+  const rows = effectiveTasks(db, Number(studentId), null, now)
     .filter(r => String(r.status) !== 'dropped');
   const byKey = new Map(TEMPLATES.map((t, i) => [t.key, i]));
   rows.sort((a, b) => (byKey.get(a.task_key) ?? 999) - (byKey.get(b.task_key) ?? 999)
@@ -824,6 +835,8 @@ function progressOf(db, studentId, now) {
          anybody is late: that is the office's business, not theirs. */
       by: r.due_at || '',
       on: String(r.status) === 'done' ? String(r.done_at || '').slice(0, 10) : '',
+      /* CNS-01: finished because the applications are past it, not ticked. */
+      derived: !!r.derived,
     })),
   };
 }
@@ -867,7 +880,10 @@ function activityOf(db, staffId, days, now) {
   const finishedOnTime = t => !t.due_at || !t.done_at
     || onDay(t.done_at) <= String(t.due_at).slice(0, 10);
   const onTime = done.filter(finishedOnTime);
-  const open = mine.filter(t => !CLOSED.has(String(t.status)));
+  /* CNS-01: work the applications have already overtaken is not owed — but
+     it is not credited as "finished" this week either (done counts the
+     stored rows above), because nobody did it on this screen. */
+  const open = effectiveAll(db, mine, T).filter(t => !CLOSED.has(String(t.status)));
   const late = open.filter(t => isLate(t, T));
   /* Went past its date DURING the window — the ones that slipped on their
      watch this week, as distinct from the backlog they inherited. */
@@ -949,7 +965,142 @@ function holdReview(db, student, count, now) {
   });
 }
 
+/*
+ * CNS-01 (12 Oct): TASKS THE APPLICATIONS HAVE OVERTAKEN ARE DONE.
+ *
+ * A student with seven applications filed and two offers in hand had a Tasks
+ * tab reading "Not started" on everything — "Welcome call and file opened"
+ * 47 days late, "Shortlist confirmed" 35 — because nobody had gone back to
+ * tick them. The applications are the evidence those steps happened.
+ *
+ * DERIVED, NOT WRITTEN. The stored row is left exactly as it is; every reader
+ * that counts or shows tasks goes through effectiveTasks(), which reports an
+ * overtaken task as done (`derived: true`, `derivedWhy`). So the counsellor's
+ * on-time record is not credited with work nobody ticked, and if the
+ * application is withdrawn the task is owed again on the next read.
+ *
+ * What counts as overtaken, once at least one application on a programme
+ * still on the list is submitted (stage "sent" or a decision recorded):
+ *   - every step in a phase before Applying (welcome, profile, shortlist,
+ *     SOP, LOR), and "Application documents assembled";
+ *   - "Application submitted — <that programme>", for each programme whose
+ *     own application is submitted (the others stay owed);
+ *   - "Offer letter received", once an offer is in.
+ * Visa work, bought services and hand-written tasks are never derived.
+ */
+const DERIVED_WHY = 'Done because the applications are past this stage';
+
+function evidenceOf(db, st) {
+  let apps = [];
+  try { apps = db.getApplications(st.id) || []; } catch (e) { apps = []; }
+  let listed = null;
+  try { listed = new Set((db.getShortlist(st.id) || []).map(r => String(r.prog_id))); } catch (e) { listed = null; }
+  const live = apps.filter(a => !listed || listed.has(String(a.prog_id)));
+  const SENT = APPS.STAGES.findIndex(x => x.k === 'sent');
+  const sent = new Map();
+  live.forEach(a => {
+    if (Number(a.stage || 0) >= SENT || String(a.outcome || '')) sent.set(String(a.prog_id), String(a.updated_at || ''));
+  });
+  const offers = live.filter(a => APPS.hadOffer(a.outcome));
+  return {
+    sent, offers: offers.length,
+    firstSent: [...sent.values()].filter(Boolean).sort()[0] || '',
+    firstOffer: offers.map(a => String(a.updated_at || '')).filter(Boolean).sort()[0] || '',
+  };
+}
+
+/** One student's task rows as every screen should count them. `rows`
+    defaults to the stored list; pass the rows you already have to avoid a
+    second read. Returns copies — the stored rows are never touched. */
+function effectiveTasks(db, student, rows, now) {
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st) return rows || [];
+  const list = rows || db.tasksFor(Number(st.id)) || [];
+  let ev;
+  try { ev = evidenceOf(db, st); } catch (e) { return list; }
+  if (!ev.sent.size) return list;
+  const applyingAt = PHASE_AT.get('applying');
+  return list.map(r => {
+    if (CLOSED.has(String(r.status))) return r;
+    const tpl = TEMPLATES.find(x => x.key === r.task_key);
+    if (!tpl) return r;
+    let at;
+    if (tpl.per === 'uni') {
+      if (!ev.sent.has(String(r.prog_id))) return r;
+      at = ev.sent.get(String(r.prog_id)) || ev.firstSent;
+    } else if (tpl.key === 'offer') {
+      if (!ev.offers) return r;
+      at = ev.firstOffer || ev.firstSent;
+    } else if (PHASE_AT.get(tpl.phase) < applyingAt || tpl.key === 'appdocs') {
+      at = ev.firstSent;
+    } else return r;
+    return Object.assign({}, r, {
+      status: 'done', done_at: r.done_at || at || r.updated_at || r.created_at,
+      derived: true, derivedWhy: DERIVED_WHY, storedStatus: r.status,
+    });
+  });
+}
+
+/** effectiveTasks over rows from many students (the board, the sweep). */
+function effectiveAll(db, rows, now) {
+  const by = new Map();
+  (rows || []).forEach(r => {
+    const k = Number(r.student_id);
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(r);
+  });
+  const fixed = new Map();
+  by.forEach((list, sid) => {
+    let out = list;
+    try { out = effectiveTasks(db, sid, list, now); } catch (e) { out = list; }
+    out.forEach(r => fixed.set(Number(r.id), r));
+  });
+  return (rows || []).map(r => fixed.get(Number(r.id)) || r);
+}
+
+/** THE late count for a file: open tasks past their date, after the
+    derived completions. Header, Tasks tab and the bell all read this. */
+function lateCount(db, student, now) {
+  const T = now ? new Date(now).getTime() : Date.now();
+  return effectiveTasks(db, student, null, T).filter(t => isLate(t, T)).length;
+}
+
+/**
+ * CNS-01 / STU-02: one student's progress in one shape, for any screen.
+ *
+ *   TASKS.progress(db, student, now?) → {
+ *     stage:     { key, label, short }   where the file is (phaseOf, lifted by
+ *                                        the applications),
+ *     stepIndex: 0-based index of that stage in `steps`,
+ *     steps:     [{ key, label, short, state: 'done'|'current'|'next' }],
+ *     done, total   tasks finished / owed (dropped excluded, derived counted done),
+ *     late:      the one late count (lateCount),
+ *     tasks:     progressOf(...).steps — the task list in the student's shape,
+ *     finished:  true when everything is done
+ *   }
+ * `student` is a row or an id. Never throws for a missing student: null.
+ */
+function progress(db, student, now) {
+  const T = now ? new Date(now).getTime() : Date.now();
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st) return null;
+  const ph = phaseOf(db, st, T) || { key: 'enrolled', label: 'Enrolled', index: 0 };
+  const p = progressOf(db, st.id, T);
+  const at = Number.isFinite(Number(ph.index)) ? Number(ph.index) : (PHASE_AT.get(ph.key) || 0);
+  return {
+    stage: { key: ph.key, label: ph.label, short: ph.short || ph.label },
+    stepIndex: at,
+    steps: PHASES.map((x, i) => ({ key: x.key, label: x.label, short: x.short,
+      state: ph.finished || i < at ? 'done' : i === at ? 'current' : 'next' })),
+    done: p.done, total: p.total,
+    late: ph.finished ? 0 : lateCount(db, st, T),
+    tasks: p.steps,
+    finished: !!ph.finished,
+  };
+}
+
 module.exports = {
+  effectiveTasks, effectiveAll, lateCount, progress, DERIVED_WHY,
   TEMPLATES, STATUSES, CLOSED,
   PHASES, rules, saveRules, ruleSettings, serviceSlaOf, syncTasks, syncAll,
   lateness, isLate, ownerOf,

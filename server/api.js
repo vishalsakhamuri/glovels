@@ -47,6 +47,42 @@ const UNIS = require('./unis.js');
 const DAAD = require('./daad.js');
 const REQS = require('./reqs.js');
 const TAGS = require('./tags.js');
+/* CNS-04 (12 Oct): ONE UNIVERSITY, ONE NAME IN A SEARCH.
+ * The tag dictionary holds a university under its full name AND its short
+ * one — "Bremen University of Applied Sciences" and "HS Bremen", 14
+ * programmes each — and + Add a university listed both. Two names that the
+ * logo index files under the same logo, and that the dictionary counts on
+ * the same number of rows, are one university: the longest name leads and the
+ * others become its aliases (suggestions carry them; a tag chosen by any of
+ * them matches rows filed under the others). */
+function uniAliasGroups() {
+  const LOGOS_ = require('./logos.js');
+  const by = new Map();
+  TAGS.dictionary().filter(e => e.type === 'University').forEach(e => {
+    const f = LOGOS_.logoFor(e.value, '');
+    if (!f) return;
+    if (!by.has(f)) by.set(f, []);
+    by.get(f).push(e);
+  });
+  return [...by.values()]
+    .filter(g => g.length > 1 && g.every(e => e.count === g[0].count))
+    .map(g => g.map(e => e.value).sort((a, b) => b.length - a.length || a.localeCompare(b)));
+}
+try { TAGS.setAliases(uniAliasGroups()); } catch (e) { /* no logo index: names stay separate */ }
+/* The leading name of a university's alias group; "X (Y)" is tried as X and
+   as Y. A name in no group is its own. */
+function uniCanonical(name) {
+  const n = String(name || '').trim();
+  const g = TAGS.aliasesOf(n);
+  if (g) return g[0];
+  const m = /^([^()]+?)\s*\(([^()]+)\)\s*$/.exec(n);
+  const g2 = m && (TAGS.aliasesOf(m[1]) || TAGS.aliasesOf(m[2]));
+  return g2 ? g2[0] : n;
+}
+/* CNS-07 (3): the longest message either side of a conversation may send. */
+const MSG_MAX = 5000;
+const msgTooLong = n => 'A message can be 5,000 characters at most — this one is '
+  + Number(n).toLocaleString('en-IN') + '. Split it in two, or attach it as a document.';
 
 const DAY = 864e5;
 
@@ -72,6 +108,8 @@ const FALLBACK_PACKAGES = {
  * screens that show them offer a download rather than an upload box.
  */
 const DOCSLOTS = require('./docs.js');
+/* Patch 169: the student's one progress model and the one readiness count. */
+const JOURNEY = require('./journey.js');
 /* What Glovels writes. The wider list of everything a counsellor may upload —
    including the student's own documents, arriving by email or WhatsApp — is in
    docs.js, checked against the screens at build time. */
@@ -564,6 +602,22 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   ];
   const FILE_LIST = 'PDF, a photo (JPG, PNG or HEIC) or Word';
 
+  /* CNS-07 (4): WHAT EACH SLOT TAKES. Every slot takes a PDF or a photo
+     (JPG, PNG, HEIC); Word only where the document is something WRITTEN — the
+     SOP, the letters, the CV, a work letter, a sponsor's letter, the visa
+     form and cover letter, "other". A passport, a marksheet or a certificate
+     is a scan of a paper document, and a .docx in the Passport slot is not
+     one. Kinds outside the list (.txt, .html) are already refused by
+     wrongType(). */
+  const WORD_SLOTS = new Set(['sop', 'lor', 'visa-cover', 'visa-form', 'cv', 'work', 'finance', 'other']);
+  function slotRefuses(key, name) {
+    const ext = String(name || '').toLowerCase().split('.').pop();
+    if (!/^(doc|docx)$/.test(ext)) return null;
+    if (WORD_SLOTS.has(String(key))) return null;
+    return '"' + String(name || 'That file').slice(0, 60) + '" is a Word file, and the '
+      + DOCSLOTS.nameOf(key) + ' has to be a scan or a photo — PDF, JPG, PNG or HEIC.';
+  }
+
   /** null when the file is one we take, or the sentence saying why not. */
   function wrongType(name, buf) {
     const ext = String(name || '').toLowerCase().split('.').pop();
@@ -713,9 +767,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       counsellor: c ? { name: c.name, id: c.id } : null,
       unread: db.unreadForStudent(s.id),
       profile: db.getProfile(s.id),
-      shortlist: db.getShortlist(s.id).map(r => ({
+      /* Patch 169 (STU-03): the facts on a shortlist row come from the LIVE
+         catalogue record when there is one — the same record My Programs
+         reads — not from the copy taken the day it was added. The dashboard
+         said 1 Nov where My Programs said 15 Nov for one programme. A
+         withdrawn programme has no live record and keeps its copy. */
+      shortlist: db.getShortlist(s.id).map(r0 => { let L = null;
+        try { L = lookup(r0.prog_id); } catch (e) { L = null; }
+        const r = L ? Object.assign({}, r0, { program: L.program || r0.program,
+          university: L.university || r0.university, city: L.city || r0.city,
+          country: L.country || r0.country, total_inr: L.totalInr, is_public: L.isPublic ? 1 : 0,
+          url: L.url || r0.url, intakes: JSON.stringify(L.intakes || []), short_name: L.shortName || '' }) : r0;
+        return r; }).map(r => ({
         id: r.prog_id, program: r.program, university: r.university, city: r.city,
         country: r.country, totalInr: r.total_inr, isPublic: !!r.is_public, url: r.url,
+        shortName: r.short_name || '',
         fit: r.fit || null,
         /* 'office' or 'student'. Two lists on the screen, and the screen must
            not have to guess which is which. */
@@ -758,6 +824,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           return p;
         } catch (e) { return null; }
       })(),
+      /* Patch 169 (STU-02): the ONE progress model the dashboard draws —
+         six stages decided by the applications first and the tasks second.
+         See server/journey.js. */
+      journey: (() => { try { return JOURNEY.of(db, s); } catch (e) { return null; } })(),
+      /* Patch 169 (STU-09.2): the one readiness count — dashboard, Documents
+         and the counsellor's tile all read this. */
+      readiness: (() => { try { return JOURNEY.readiness(db, s.id); } catch (e) { return null; } })(),
       /* What was bought that the machine delivers, and whether it has been.
          The dashboard needs to say one of three things — it is on your
          shortlist, it is waiting on six questions, or you have not bought one
@@ -1370,6 +1443,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const pw = String(b.password || '');
 
     if (!name) return json(res, 422, { error: 'Tell us your name' });
+    /* Round 169 (WEB-15): the contact form's rule — "12345" is not a name. */
+    if (name.length > 100) return json(res, 422, { error: 'That name is too long — 100 characters at most.', fields: [{ field: 'name', why: 'too long' }] });
+    if (!/\p{L}/u.test(name)) return json(res, 422, { error: 'A name needs at least one letter.', fields: [{ field: 'name', why: 'no letter' }] });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
     if (phone && !validPhone(phone)) return json(res, 422, { error: 'A 10-digit Indian mobile, please' });
     if (pw.length < 8) return json(res, 422, { error: 'Use at least 8 characters' });
@@ -1458,9 +1534,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   }, { open: true });
 
   route('POST', '/api/auth/logout', async (req, res) => {
-    db.dropSession(cookies(req).glovels_session);
+    /* No session cookie at all (a second press, an expired tab) was a 500. */
+    const sid = cookies(req).glovels_session;
+    if (sid) db.dropSession(sid);
+    /* Round 169 (W17 / STU-08): every sign-out button on every screen ends on
+       login.html. This marks that it was a sign-out, and the sign-in page then
+       clears every glovels_* and glv-* key the browser holds — the order, the
+       shortlist, the profile — so the next person at this computer inherits
+       nothing. Readable by the page on purpose; it says nothing but "signed out". */
     return json(res, 200, { ok: true },
-      { 'Set-Cookie': 'glovels_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' });
+      { 'Set-Cookie': ['glovels_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
+        'glv_out=1; Path=/; SameSite=Lax; Max-Age=600'] });
   }, { open: true });
 
   /* A student's password needs 8 characters and a member of staff's needs 10 —
@@ -1733,6 +1817,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
     }
     if (floodedBy(clientIp(req), 'apply', 8, 60 * 60 * 1000)) return slowDown(res);
+    /* Round 169 (WEB-15): the contact form's name rule. */
+    if (name.length > 100) return json(res, 422, { error: 'That name is too long — 100 characters at most.' });
+    if (!/\p{L}/u.test(name)) return json(res, 422, { error: 'A name needs at least one letter.' });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
     if (!validPhone(phone)) return json(res, 422, { error: 'That does not look like an Indian mobile number' });
 
@@ -1744,7 +1831,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       consent: b.consent || '',
       note: 'Wants to apply: ' + where,
       source: from.source, campaign: from.campaign,
-      sourcePage: b.sourcePage || '/', referrer: b.referrer || '',
+      sourcePage: pageOf(req, b) || '/', referrer: String(b.referrer || '').slice(0, 300),
     };
     /* Filed on this person's open lead if they have one (2 Oct). */
     db.fileEnquiry(record);
@@ -1846,6 +1933,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         slots: DOCSLOTS.ALL,
       });
     }
+    const slotBad = slotRefuses(key, parsed.file.filename);
+    if (slotBad) return json(res, 415, { error: slotBad });
 
     const dir = path.join(uploadDir, String(s.id));
     fs.mkdirSync(dir, { recursive: true });
@@ -1896,6 +1985,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        student's file finds nothing rather than deleting it. */
     if (!rec) return json(res, 404, { error: 'Not found' });
     if (notTheirs(rec)) return refuseAppFile(res);
+    /* Patch 169 (STU-05): an ACCEPTED document is the counsellor's verified
+       copy. A student cannot delete it — they ask for it to be replaced. */
+    /* Not the catch-all "Other documents" slot: it holds anything, its status
+       is set by whatever the office last added, and a student's own spare
+       files in it stay theirs to take off. */
+    if (String(s.role || 'student') === 'student' && String(rec.status) === 'ok'
+        && String(rec.doc_key) !== 'other' && DOCSLOTS.known(rec.doc_key) && !DOCSLOTS.APP_FILE.test(String(rec.doc_key))) {
+      return json(res, 409, { error: 'This document has been accepted by your counsellor. Ask your counsellor to replace it.', accepted: true });
+    }
     try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
     db.removeDocFile(s.id, rec.id);
     return json(res, 200, { docs: stateFor(s).docs });
@@ -1915,6 +2013,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const mine = all.filter(r => !notTheirs(r));
     if (!mine.length) {
       return all.length ? refuseAppFile(res) : json(res, 404, { error: 'Not found' });
+    }
+    /* Patch 169 (STU-05): not on an accepted document — see the file route. */
+    if (String(s.role || 'student') === 'student' && all.some(r => String(r.status) === 'ok')
+        && String(key) !== 'other' && DOCSLOTS.known(key) && !DOCSLOTS.APP_FILE.test(String(key))) {
+      return json(res, 409, { error: 'This document has been accepted by your counsellor. Ask your counsellor to replace it.', accepted: true });
     }
     for (const rec of mine) {
       try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
@@ -1999,7 +2102,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('POST', '/api/messages', async (req, res, s) => {
     const b = await readJson(req);
     /* Only spaces is nothing to send (round 30 Sep) — it showed as an empty bubble. */
-    const body = String(b.body || '').trim() ? String(b.body).slice(0, 4000) : '';
+    /* CNS-07 (3): 5,000 characters, refused rather than cut — the box says
+       the same, and a message cut silently is a message half-sent. */
+    if (String(b.body || '').length > MSG_MAX) return json(res, 422, { error: msgTooLong(String(b.body).length) });
+    const body = String(b.body || '').trim() ? String(b.body).slice(0, MSG_MAX) : '';
     const file = String(b.file || '').slice(0, 200);
     if (!body && !file) return json(res, 422, { error: 'Nothing to send' });
 
@@ -2361,12 +2467,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (basket.error) return json(res, basket.code, { error: basket.error });
     const { pkg, items, gross, label } = basket;
 
-    const name = String(b.name || '').trim();
-    const email = String(b.email || '').trim().toLowerCase();
-    const phone = String(b.phone || '').trim();
+    /* ADM-06 / STU-07: a signed-in STUDENT buys as themselves. The order
+       carries the account's name, email and mobile — whatever the form sent —
+       so it is linked to the account and reads the same on every screen. A
+       mobile the form sends is used only when the account has none. */
+    const acct = (() => { const w = me(req); return w && w.role === 'student' ? w : null; })();
+    const acctPhone = acct && validPhone(String(acct.phone || '').trim()) ? String(acct.phone).trim() : '';
+    const name = acct && String(acct.name || '').trim() ? String(acct.name).trim() : String(b.name || '').trim();
+    const email = acct ? String(acct.email || '').trim().toLowerCase() : String(b.email || '').trim().toLowerCase();
+    const phone = acctPhone || String(b.phone || '').trim();
     if (!name) return json(res, 422, { error: 'Tell us your name' });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
-    if (!validPhone(phone)) return json(res, 422, { error: 'A 10-digit Indian mobile, please' });
+    if (!validPhone(phone) && !(acct && !phone)) return json(res, 422, { error: 'A 10-digit Indian mobile, please' });
 
     /* Ten an hour. Somebody genuinely buying a package and then three services
        makes four in a minute; a script making orders forever creates accounts
@@ -2837,6 +2949,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return { source: 'website', campaign };
   }
 
+  /* ADM-07: the page every lead came from. The form says so when it can
+     (`sourcePage` or `page`); when it does not — the contact page did not —
+     the browser's Referer header names the page the form was sent from. */
+  function pageOf(req, b) {
+    const said = String(b.sourcePage || b.page || '').trim();
+    if (said) return said.slice(0, 200);
+    const ref = String(req.headers.referer || '');
+    try { const u = new URL(ref); return (u.pathname + u.search).slice(0, 200); } catch (e) { return ''; }
+  }
 
   /* `shape`, when given, rewrites the body before it is validated — the way
      /api/assist turns a finder's filter set into an enquiry (patch 153). One
@@ -2881,7 +3002,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       destination: b.destination, consent: 'yes', consentAt: new Date().toISOString(), consentWording,
       note: about && said && said !== about ? about + ' — “' + said + '”' : (about || said),
       source: from.source, campaign: from.campaign,
-      sourcePage: b.sourcePage, referrer: b.referrer,
+      sourcePage: pageOf(req, b), referrer: String(b.referrer || '').slice(0, 300),
     };
     /* 2 Oct: a second enquiry from a number or email that already has an
        open lead is filed on that lead as a note, not as a ninth row. The
@@ -3279,6 +3400,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       suggestions = suggestions.slice(0, limit);
     }
     return json(res, 200, { suggestions });
+  }, { open: true });
+
+  /* Round 169 (WEB-06): the universities a Find University search names —
+     by name, short name, alias or city (server/unisearch.js). Both keys of
+     each: the real one a named row carries and the stand-in a locked row
+     carries, so the browser can keep the rows without ever being told the
+     name behind a locked one. */
+  route('GET', '/api/find/unis', async (req, res) => {
+    const q = String(url.parse(req.url, true).query.q || '').trim().slice(0, 80);
+    if (q.length < 2) return json(res, 200, { keys: [] });
+    const real = require('./unisearch.js').match(cat().filter(p => !p.searchOnly), q);
+    return json(res, 200, { keys: real.concat(real.map(k => OPAQUE('u', k))) });
   }, { open: true });
 
   route('GET', '/api/catalogue', async (req, res) => {
@@ -3917,6 +4050,29 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (b && b.profile != null && (typeof b.profile !== 'object' || Array.isArray(b.profile))) {
         return json(res, 422, { error: 'That is not a profile.' });
       }
+      /* Patch 169 (B2B-02): a file the agency closed is read-only. */
+      if (Number(st.partner_closed)) {
+        return json(res, 409, { error: 'This file is closed. Reopen it to change their details.', closed: true });
+      }
+      /* Patch 169 (B2B-02): the first name is required. The student's own
+         rule refuses only CLEARING one; a save that sends it blank on a record
+         that never had one went through with a 200. */
+      {
+        const sentP = (b && b.profile) || {};
+        if (Object.prototype.hasOwnProperty.call(sentP, 'firstName') && !String(sentP.firstName == null ? '' : sentP.firstName).trim()) {
+          /* An agency that added the student with one full name never filled
+             a separate first name: take it from that name rather than refuse
+             their first save. Only a record with no name at all is refused. */
+          const parts = String(st.name || '').trim().split(/\s+/).filter(Boolean);
+          if (parts.length && /\p{L}/u.test(parts[0])) {
+            sentP.firstName = parts[0];
+            if (!String(sentP.lastName || '').trim() && parts.length > 1) sentP.lastName = parts.slice(1).join(' ');
+          } else {
+            return json(res, 422, { error: 'First name is required',
+              fields: [{ field: 'firstName', why: 'First name is required' }] });
+          }
+        }
+      }
       const { merged: prof, wrong } = mergeProfile(st.id, (b && b.profile) || {});
       /* Same bounds as the student's own save. An agency typing a CGPA of 47.9
          into a student's record corrupts that student's matching exactly as
@@ -3964,6 +4120,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!parsed) return undefined;
       const key = String(parsed.fields.key || '').replace(/[^a-z0-9_-]/gi, '');
       if (!key) return json(res, 400, { error: 'Missing file or key' });
+      const slotBad = slotRefuses(key, parsed.file.filename);
+      if (slotBad) return json(res, 415, { error: slotBad });
 
       const dir = path.join(uploadDir, String(st.id));
       fs.mkdirSync(dir, { recursive: true });
@@ -4173,8 +4331,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         : String(row.phone || '').trim().slice(0, 24);
 
       if (!name) return rejected.push({ at, why: 'no name' });
-      if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) {
+      /* Patch 169 (B2B-01): a name has a letter in it — "12345" is not one.
+         The same checks as Admin → Leads, row by row. */
+      if (!/\p{L}/u.test(name)) return rejected.push({ at, who: name, why: 'a name needs at least one letter' });
+      if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email) || (typeof validEmail === 'function' && !validEmail(email))) {
         return rejected.push({ at, who: name, why: 'that is not an email address' });
+      }
+      if (String(row.phone || '').trim() && !/^\+?[\d\s()-]+$/.test(String(row.phone).trim())) {
+        return rejected.push({ at, who: name, why: 'the mobile has to be ten digits, starting 6 to 9 (+91 allowed)' });
       }
       /* Round 30 Sep (issue 9): "zzzzz" and destination "ZZ" were accepted here
          while the student-details form refused them. The same rules now. */
@@ -4292,6 +4456,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            control from this, and a control that cannot see the current value
            shows every file as open. */
         status: st.status || 'active',
+        /* Patch 169 (B2B-03): the agency closed this file on their side. The
+           office's own status is separate (and may still be "on the books"),
+           so Admin says it in words rather than the two disagreeing. */
+        agencyClosed: !!Number(st.partner_closed),
         closedAt: st.closed_at || '',
         closeNote: st.close_note || '',
         counsellor: c ? { id: c.id, name: c.name } : null,
@@ -4343,6 +4511,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         key: d.doc_key, file: d.filename, status: d.status, at: d.uploaded_at,
         bytes: d.bytes,
       })),
+      /* Patch 169 (STU-09.2): the student's own readiness figure, so the
+         tile and their Documents screen say the same "N of 10". */
+      readiness: (() => { try { return JOURNEY.readiness(db, id); } catch (e) { return null; } })(),
       orders: stateFor(st).orders,
       /* 8 Oct (F4): the main package and the add-ons, for the file header. */
       package: packageOf(db.ordersFor(id)),
@@ -4360,11 +4531,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const now = Date.now();
         let rows = [];
         try { rows = TASKS.syncTasks(db, st, now); } catch (e) { rows = db.tasksFor(id); }
+        /* CNS-01: steps the applications have overtaken read as done. */
+        try { rows = TASKS.effectiveTasks(db, st, rows, now); } catch (e) { /* as stored */ }
         return rows.filter(t => String(t.status) !== 'dropped').map(t => ({
           id: t.id, title: t.title, due: t.due_at || '', basis: t.due_basis,
           status: t.status, note: t.note || '',
           over: TASKS.lateness(t, now),
           done: t.done_at ? String(t.done_at).slice(0, 10) : '',
+          derived: !!t.derived, why: t.derivedWhy || '',
         }));
       })(),
       /* The drafts the student wrote in the studio. The counsellor is the one
@@ -4660,7 +4834,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const id = Number(m[1]);
     if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
     const b = await readJson(req);
-    const body = String(b.body || '').trim().slice(0, 4000);
+    /* CNS-07 (3): the same 5,000 as the student's box. */
+    if (String(b.body || '').length > MSG_MAX) return json(res, 422, { error: msgTooLong(String(b.body).length) });
+    const body = String(b.body || '').trim().slice(0, MSG_MAX);
     if (!body) return json(res, 422, { error: 'Nothing to send' });
 
     /* The one message on the whole thread that a person actually typed, and
@@ -4797,6 +4973,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
       const parsed = await oneFile(req, res);
       if (!parsed) return true;
+      const slotBad = slotRefuses(key, parsed.file.filename);
+      if (slotBad) { json(res, 415, { error: slotBad }); return true; }
 
       const dir = path.join(uploadDir, String(id));
       fs.mkdirSync(dir, { recursive: true });
@@ -4980,11 +5158,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const bad = files.find(d => {
           const ext = String(d.filename || '').toLowerCase().split('.').pop();
           if (!FILE_KINDS.some(k => k.ext.includes(ext))) return true;
-          return ID_SLOTS.test(String(m[2])) && /^(doc|docx)$/.test(ext);
+          /* CNS-07 (4): the same per-slot rule the uploads now keep. */
+          return !!slotRefuses(m[2], d.filename) || (ID_SLOTS.test(String(m[2])) && /^(doc|docx)$/.test(ext));
         });
         if (bad) {
+          const ext0 = String(bad.filename || '').toLowerCase().split('.').pop();
           return json(res, 422, { error: '"' + String(bad.filename).slice(0, 60) + '" cannot be accepted here — '
-            + (ID_SLOTS.test(String(m[2])) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).' : 'Glovels takes ' + FILE_LIST + '.')
+            + (/^(doc|docx)$/.test(ext0) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).' : 'Glovels takes ' + FILE_LIST + '.')
             + ' Ask the student for a scanned copy.' });
         }
       }
@@ -5736,6 +5916,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return new Date().toISOString().slice(0, 10);
   };
   const rupeesToPaise = v => Math.round((Number(v) || 0) * 100);
+  /* ADM-04: money cannot be dated in the future. "Today" is India's today —
+     the office is there — so a payment taken at 1am IST is not refused. */
+  const futureDay = d => {
+    const raw = String(d || '').trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
+    const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+    return raw > today;
+  };
 
   const paymentShape = p => ({
     id: p.id, reference: p.order_ref, paise: Number(p.paise || 0),
@@ -5946,8 +6134,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const b = await readJson(req);
     const paise = rupeesToPaise(b.amount);
     if (!(paise > 0)) return json(res, 422, { error: 'An amount in rupees, more than zero.' });
+    if (futureDay(b.date)) return json(res, 422, { error: 'The date cannot be in the future.' });
     const owed = MONEY.figures(order).outstandingPaise;
     if (owed <= 0) return json(res, 409, { error: 'It is all paid.' });
+    if (paise > owed) return json(res, 422, { error: 'Only ' + inrOf(owed) + ' is outstanding on that order.' });
     const done = takePayment(order, {
       paise, day: cleanDay(b.date), method: cleanMethod(b.method),
       reference: String(b.reference || '').trim().slice(0, 80),
@@ -5973,7 +6163,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const part = plan.find(x => Number(x.n) === Number(n));
     if (!part) return json(res, 404, { error: 'No such part' });
     if (part.status === 'paid') return json(res, 409, { error: 'That part is already paid.' });
-    const owedOnPart = Number(part.paise || 0) - PLANS.paidOn(part);
+    if (futureDay(b.date)) return json(res, 422, { error: 'The date cannot be in the future.' });
+    const owedOnPart =Number(part.paise || 0) - PLANS.paidOn(part);
     const done = takePayment(order, {
       paise: owedOnPart, day: cleanDay(b.date), method: cleanMethod(b.method),
       reference: String(b.reference || b.note || '').trim().slice(0, 80),
@@ -5997,6 +6188,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const b = await readJson(req);
     const paise = rupeesToPaise(b.amount);
     if (!(paise > 0)) return json(res, 422, { error: 'An amount in rupees, more than zero.' });
+    if (futureDay(b.date)) return json(res, 422, { error: 'The date cannot be in the future.' });
     const held = MONEY.collected(order);
     if (held <= 0) return json(res, 409, { error: 'Nothing has been received on that order, so there is nothing to refund.' });
     if (paise > held) {
@@ -6009,6 +6201,47 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     });
     return json(res, 200, { order: orderRow(done.order), payment: paymentShape(done.payment),
       refundedPaise: done.refunded, fullyRefunded: done.fullyBack });
+  }));
+
+  /*
+   * ADM-06: link an order that has no student to one, by hand.
+   *
+   * GET  /api/staff/order/:ref/link?q=<email or mobile>  → { students:[{id,name,email,phone}] }
+   * POST /api/staff/order/:ref/link {studentId}          → { order }
+   *
+   * Administrators only, and only an order with no student on it — moving an
+   * order between two students is a different (and rarer) decision.
+   */
+  const linkSearch = q => {
+    const raw = String(q || '').trim().toLowerCase();
+    if (raw.length < 3) return [];
+    const digits = tenDigits(raw);
+    return db.allAccounts().filter(p => p.role === 'student').filter(p => {
+      if (String(p.email || '').toLowerCase().includes(raw)) return true;
+      return digits && digits.length >= 6 && tenDigits(p.phone || '').includes(digits);
+    }).slice(0, 10).map(p => ({ id: p.id, name: p.name, email: p.email, phone: p.phone || '' }));
+  };
+  route('GET', /^\/api\/staff\/order\/(GLV-\d+)\/link(?:\?.*)?$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can link an order' });
+    const order = db.orderByReference(m[1]);
+    if (!order) return json(res, 404, { error: 'No such order' });
+    const q = new URL(req.url, 'http://x').searchParams.get('q') || '';
+    return json(res, 200, { students: linkSearch(q) });
+  }));
+  route('POST', /^\/api\/staff\/order\/(GLV-\d+)\/link$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can link an order' });
+    const order = db.orderByReference(m[1]);
+    if (!order) return json(res, 404, { error: 'No such order' });
+    const b = await readJson(req);
+    const st = db.studentById(Number(b.studentId));
+    if (!st || st.role !== 'student') return json(res, 422, { error: 'Choose a student account.' });
+    if (order.student_id && Number(order.student_id) !== Number(st.id)) {
+      const cur = db.studentById(Number(order.student_id));
+      if (cur && cur.role === 'student') return json(res, 409, { error: 'That order already belongs to ' + cur.name + '.' });
+    }
+    db.setOrderStudent(order.reference, st.id);
+    db.log(s.name, 'linked an order to a student', order.reference + ' → ' + st.email);
+    return json(res, 200, { order: orderRow(db.orderByReference(order.reference)) });
   }));
 
   /*
@@ -6314,6 +6547,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       done: t.done_at ? String(t.done_at).slice(0, 10) : '',
       doneBy: t.done_by ? ((db.studentById(t.done_by) || {}).name || '') : '',
       told: !!t.breached_at,
+      /* CNS-01: done because the applications are past it, not ticked. */
+      derived: !!t.derived, why: t.derivedWhy || '',
     };
   };
 
@@ -6325,6 +6560,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   function scoreboard(rows, now) {
     const by = new Map();
     rows.forEach(t => {
+      /* CNS-01: a step the applications overtook is neither owed by anybody
+         nor credited to anybody — nobody ticked it. */
+      if (t.derived) return;
       const id = TASKS.ownerOf(db, t);
       const k = id == null ? 'none' : String(id);
       if (!by.has(k)) {
@@ -6357,7 +6595,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('GET', '/api/staff/tasks', caseworkOnly(async (req, res, s) => {
     const q = new URL(req.url, 'http://x').searchParams;
     const now = Date.now();
-    let rows = db.allTasks();
+    /* CNS-01: counted after the derived completions, like every other screen. */
+    const every = TASKS.effectiveAll(db, db.allTasks(), now);
+    let rows = every;
     if (s.role !== 'admin') {
       /* Theirs by assignment of the student, not only by the owner column: a
          file handed to them last week still carries last month's owner on its
@@ -6401,8 +6641,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* The scoreboard is over everything the reader may see, not over the
          filtered page — a percentage that changes when you click a filter is
          a percentage nobody trusts. */
-      people: scoreboard(s.role === 'admin' ? db.allTasks()
-        : db.allTasks().filter(t => db.canSee(s, Number(t.student_id))), now),
+      people: scoreboard(s.role === 'admin' ? every
+        : every.filter(t => db.canSee(s, Number(t.student_id))), now),
       counts: {
         /* Late means PAST the day, not on it. */
         late: shaped.filter(t => t.over != null && t.over > 0).length,
@@ -6420,6 +6660,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       let rows = [];
       try { rows = TASKS.syncTasks(db, db.studentById(id), now); }
       catch (e) { rows = db.tasksFor(id); }
+      try { rows = TASKS.effectiveTasks(db, id, rows, now); } catch (e) { /* as stored */ }
       return json(res, 200, { tasks: rows.map(t => taskShape(t, now)) });
     }));
 
@@ -7175,7 +7416,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, {
       enquiries: db.allEnquiries().filter(mine).slice(0, 200).map(e => ({
         id: e.id, name: e.name, phone: e.phone, email: e.email,
-        destination: e.destination || '', how: e.consent === 'chat' ? 'chat' : 'form',
+        destination: e.destination || '', destinationName: destName(e.destination),
+        how: e.consent === 'chat' ? 'chat' : 'form',
         note: e.note || '', source: e.source || 'website', status: e.status || 'new',
         page: e.source_page || '', at: e.created_at,
         consent: e.consent || '', consentAt: e.consent_at || '', consentWording: e.consent_wording || '',
@@ -7208,12 +7450,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   const LOST_REASONS = ['budget', 'went-elsewhere', 'deferred', 'not-eligible',
     'no-response', 'changed-plan', 'other'];
 
+  const destName = v => { const c = ISO_COUNTRIES.byCode(v); return c && /^[A-Z]{2}$/.test(String(v || '')) ? c.name : String(v || ''); };
   const leadShape = (e, counts, people) => {
     const owner = e.owner_id ? people.get(Number(e.owner_id)) : null;
     const c = counts[String(e.id)] || { n: 0, last: '', lastWho: '' };
     return {
       id: e.id, name: e.name, phone: e.phone, email: e.email,
       destination: e.destination || '',
+      /* ADM-07: stored as a code, shown as a name. */
+      destinationName: destName(e.destination),
       source: e.source || 'website', campaign: e.campaign || '',
       how: e.consent === 'chat' ? 'chat' : 'form',
       note: e.note || '',
@@ -7849,7 +8094,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const country = String(b.country || '').toUpperCase().slice(0, 2);
     const out = {
       id: String(b.id || '').trim() || ('own-' + crypto.randomBytes(5).toString('hex')),
-      program: t('program', FIELD_LIMITS.program),
+      /* CNS-07 (7): "MEngEngineering and…" — a degree glued to the name it
+         precedes. A space goes back between them (MEng, MSc, MBA, MA, BSc…
+         followed by a capitalised word); "(MScIH)" is left alone. */
+      program: UNIS.spaceDegree(t('program', FIELD_LIMITS.program)),
       university: t('university', FIELD_LIMITS.university),
       /* WHAT THE UNIVERSITY IS ACTUALLY CALLED.
        *
@@ -8007,6 +8255,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            (derived when none are stored), the first few for the screen. */
         tags: String(r.tags || '').split(';').map(t => t.trim()).filter(Boolean),
         tagsShown: TAGS.tagsOf(UNIS.fromRow(r)).slice(0, 6),
+        /* CNS-04: the one name this university goes by in a list, whichever
+           of its names the row was filed under ("HS Bremen" → "Bremen
+           University of Applied Sciences"). */
+        universityAs: uniCanonical(r.university),
       })),
       total: page.total, page: page.page, per: page.per,
       stats: db.catalogueStats(),
@@ -8192,13 +8444,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       country: u.country, programmes: u.programmes.length },
       extras: UNIS.cleanExtras(db.content('university:' + u.slug)),
       /* The link the page will print — typed, or shipped for German universities. */
-      daadUrl: DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad) });
+      daadUrl: DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad),
+      /* Round 169 (WEB-05): the site the page works out from the course links,
+         shown beside the Official website box so the office sees what an
+         empty box means. */
+      derivedWebsite: u.url || '' });
   }));
 
   route('PUT', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, needs('catalogue', async (req, res, s, m) => {
     const u = uniOf(m[1]);
     if (!u) return json(res, 404, { error: 'No university at that address' });
-    const x = UNIS.cleanExtras(await readJson(req));
+    const rawX = await readJson(req);
+    const x = UNIS.cleanExtras(rawX);
+    if (rawX && String(rawX.website || '').trim() && !x.website) {
+      return json(res, 422, { error: 'The official website has to be a web address starting https:// — for example https://www.rwth-aachen.de' });
+    }
     if (x.cover && !PROSE.safeImg(x.cover)) {
       return json(res, 422, { error: 'The cover has to be a picture address — upload one, or paste a link ending in .jpg or .png.' });
     }
@@ -9945,7 +10205,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        downloaded whole. */
     const qs = url.parse(req.url, true).query;
     const pg = db.livePostsPage(qs.page, qs.per || 50);
-    return json(res, 200, { posts: pg.rows.map(p => postShape(p, false)),
+    /* Round 169 (WEB-20.2): who last edited a post is the office's business —
+       a staff name is not published. */
+    return json(res, 200, { posts: pg.rows.map(p => { const o = postShape(p, false); delete o.updatedBy; return o; }),
       total: pg.total, page: pg.page, per: pg.per });
   }, { open: true });
 
@@ -9959,7 +10221,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!p || (p.status !== 'published' && !mayPreview)) {
       return json(res, 404, { error: 'No such post' });
     }
-    return json(res, 200, { post: postShape(p, true), draft: p.status !== 'published' });
+    const shaped = postShape(p, true);
+    if (!mayPreview) delete shaped.updatedBy;
+    return json(res, 200, { post: shaped, draft: p.status !== 'published' });
   }, { open: true, soft: true });
 
   /* ---- and the side that writes them ---- */

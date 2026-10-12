@@ -4,6 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sign in | Glovels</title>
+<meta name="description" content="Sign in to your Glovels student portal, or create a free account — your shortlist, documents, applications and counsellor in one place." />
+<meta property="og:title" content="Sign in | Glovels" />
+<meta property="og:description" content="Your Glovels student portal — shortlist, documents, applications and your counsellor in one place." />
+<meta property="og:image" content="https://glovels.com/og/glovels.png" />
+<meta name="twitter:card" content="summary_large_image" />
 <meta name="robots" content="noindex,nofollow" />
 <link rel="icon" href="favicon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -187,23 +192,23 @@
 
       <form id="authForm" novalidate>
         <div class="field signup-only">
-          <label>Your name</label>
+          <label for="lName">Your name</label>
           <input type="text" id="lName" autocomplete="name" placeholder="Vishal Sakhamuri" />
-          <span class="err">Tell us your name</span>
+          <span class="err" id="lNameErr">Tell us your name</span>
         </div>
         <div class="field">
-          <label>Email address</label>
+          <label for="lEmail">Email address</label>
           <input type="email" id="lEmail" autocomplete="email" placeholder="you@email.com" />
           <span class="err">A valid email, please</span>
         </div>
         <div class="field signup-only">
-          <label>Mobile number</label>
+          <label for="lPhone">Mobile number</label>
           <input type="tel" id="lPhone" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" />
           <span class="err">A 10-digit Indian mobile, please</span>
         </div>
         <div class="field">
           <div class="pw-row">
-            <label style="margin:0">Password</label>
+            <label for="lPass" style="margin:0">Password</label>
             <a href="#" class="signin-only" onclick="forgotPassword();return false">Forgot password?</a>
           </div>
           <!-- minlength so the browser says it while they are still typing.
@@ -227,6 +232,27 @@
 </div>
 
 <script>
+/* Round 169 (W17 / STU-08): nothing about the last person stays in this
+   browser. The server marks a sign-out with a short-lived glv_out cookie and
+   every sign-out button ends here; this clears every glovels_*, glv-* (and
+   the portal's gv-*) key from local and session storage. Signing in as a
+   different person clears them too (in the submit handler below). */
+function clearGlovelsStorage() {
+  [window.localStorage, window.sessionStorage].forEach(function (st) {
+    try {
+      Object.keys(st).filter(function (k) { return /^(glovels_|glovels$|glv-|glv_|gv-)/.test(k); })
+        .forEach(function (k) { st.removeItem(k); });
+    } catch (e) { /* storage blocked: nothing to clear */ }
+  });
+}
+(function () {
+  try {
+    if (/(?:^|;\s*)glv_out=1/.test(document.cookie)) {
+      clearGlovelsStorage();
+      document.cookie = 'glv_out=; Path=/; Max-Age=0; SameSite=Lax';
+    }
+  } catch (e) {}
+})();
 async function forgotPassword(){
   /* Asks the server for a reset link. The reply is deliberately the same whether
      or not the account exists \u2014 a different answer turns this box into a way to
@@ -446,7 +472,22 @@ function switchTab(which){
   document.getElementById('foot-note').innerHTML = signup
     ? 'Already have an account? <a href="#" onclick="switchTab(\'signin\');return false">Sign in</a>'
     : 'New to Glovels? <a href="#" onclick="switchTab(\'signup\');return false">Create an account</a>';
+  /* Round 169 (WEB-16): a new tab starts clean — no error from the other one. */
+  document.querySelectorAll('#authForm .field.bad').forEach(f => f.classList.remove('bad'));
+  const te = document.getElementById('termsErr'); if (te) te.style.display = 'none';
+  const ae = document.getElementById('authErr'); if (ae) { ae.textContent = ''; ae.style.display = 'none'; }
 }
+/* Round 169 (WEB-16): an error goes the moment the field is touched. */
+(function () {
+  const form = document.getElementById('authForm');
+  if (!form) return;
+  form.addEventListener('input', e => {
+    const f = e.target && e.target.closest && e.target.closest('.field');
+    if (f) f.classList.remove('bad');
+  });
+  const t = document.getElementById('terms');
+  if (t) t.addEventListener('change', () => { if (t.checked) { const te = document.getElementById('termsErr'); if (te) te.style.display = 'none'; } });
+})();
 switchTab('signin');
 
 /* Arriving from a checkout: open the sign-up tab with the email the order was
@@ -500,7 +541,10 @@ $('#authForm').addEventListener('submit', async e => {
   const checks = [['#lEmail', v => /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v)],
                   ['#lPass',  v => v.length >= 8]];
   if (signup) {
-    checks.unshift(['#lName', v => !!v.trim()]);
+    /* Round 169 (WEB-15): the contact form's rule — a name has a letter in it. */
+    const nm = $('#lName') ? $('#lName').value.trim() : '';
+    if ($('#lNameErr')) $('#lNameErr').textContent = nm ? 'A name needs at least one letter' : 'Tell us your name';
+    checks.unshift(['#lName', v => /[A-Za-zÀ-ɏऀ-ॿ]/.test(v.trim())]);
     checks.push(['#lPhone', v => /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10))]);
   }
   checks.forEach(([sel, test]) => {
@@ -545,6 +589,18 @@ $('#authForm').addEventListener('submit', async e => {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || 'That did not work. Please try again.');
+
+    /* Round 169 (STU-08): somebody else was signed in on this browser last —
+       their order, shortlist and profile copy go before this person's load. */
+    try {
+      const prev = JSON.parse(localStorage.getItem('glovels_user') || 'null');
+      const nowEmail = String((data.user && data.user.email) || payload.email || '').toLowerCase();
+      if (prev && prev.email && nowEmail && String(prev.email).toLowerCase() !== nowEmail) {
+        const keep = sessionStorage.getItem('glovels_pending_shortlist');
+        clearGlovelsStorage();
+        if (keep) sessionStorage.setItem('glovels_pending_shortlist', keep);
+      }
+    } catch (e2) { /* storage blocked */ }
 
     /* An order paid for before signing up is claimed by this email at sign-up,
        so a student who paid as a guest does not land in an empty dashboard. */

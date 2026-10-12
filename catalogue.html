@@ -1584,7 +1584,8 @@ async function staffBoot(run) {
        website, not to be handed somebody's phone number. */
     leads: me.user.role !== 'editor',
     admin: me.user.role === 'admin',
-    catalogue: perms.indexOf('catalogue') >= 0,
+    /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
+    catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',
     home: perms.indexOf('content') >= 0,
     'blog-admin': perms.indexOf('content') >= 0,
   };
@@ -2605,6 +2606,13 @@ async function openUni(slug) {
       : '<p style="margin:6px 0 0;font-size:11.6px;color:var(--muted)">No DAAD link on this page — '
       + 'the DAAD lists German universities only.</p>') + '</div>'
 
+    + '<div class="field"><label for="uWebsite">Official website '
+    + '<small style="font-weight:400;color:var(--muted)">— the university’s own home page, for the '
+    + '“Official site” chip. Empty uses the address most of its course pages sit on'
+    + (r.derivedWebsite ? ': <a href="' + esc(r.derivedWebsite) + '" target="_blank" rel="noopener">' + esc(r.derivedWebsite) + '</a>' : ' (none found — no chip until one is typed)')
+    + '.</small></label>'
+    + '<input id="uWebsite" type="url" value="' + esc(x.website || '') + '" placeholder="https://www.example.de"></div>'
+
     + '<label style="display:flex;gap:8px;align-items:center;font:400 13px/1.5 var(--sans);margin:4px 0 16px">'
     + '<input type="checkbox" id="uHidden" style="width:auto"' + (x.hidden ? ' checked' : '') + '> '
     + 'Keep this page out of search engines and off the list (the page still opens by its address)</label>'
@@ -2621,7 +2629,7 @@ async function openUni(slug) {
     uniCount('cMetaDesc', $('#uMetaDesc').value.trim().length, 165, 0);
   };
   counts();
-  ['uAbout', 'uCover', 'uMetaTitle', 'uMetaDesc', 'uDaad'].forEach(id =>
+  ['uAbout', 'uCover', 'uMetaTitle', 'uMetaDesc', 'uDaad', 'uWebsite'].forEach(id =>
     $('#' + id).addEventListener('input', () => { uniDirty = true; counts(); }));
   $('#uHidden').addEventListener('change', () => { uniDirty = true; });
   $('#uCover').addEventListener('input', () => { $('#uCoverPrev').innerHTML = thumb($('#uCover').value.trim()); });
@@ -2648,7 +2656,7 @@ async function openUni(slug) {
       await api('PUT', '/api/staff/university/' + slug, {
         about: $('#uAbout').value, cover: $('#uCover').value.trim(),
         metaTitle: $('#uMetaTitle').value.trim(), metaDesc: $('#uMetaDesc').value.trim(),
-        daad: $('#uDaad').value.trim(),
+        daad: $('#uDaad').value.trim(), website: $('#uWebsite').value.trim(),
         hidden: $('#uHidden').checked,
       });
       uniDirty = false;
@@ -2925,6 +2933,13 @@ document.addEventListener('click', async e => {
     };
     text('fProgram', 'The programme name', 140);
     text('fUni', 'The university name', 140);
+    /* ADM-08: the two names a programme cannot be saved without, checked
+       here before the server is asked. */
+    [['fProgram', 'The programme needs a name.'], ['fUni', 'The programme needs a university.']].forEach(([id, why]) => {
+      const el = $('#' + id); if (!el || el.value.trim()) return;
+      bad.push(why); el.setAttribute('aria-invalid', 'true'); el.style.borderColor = '#c0392b';
+      if (bad.length === 1) el.focus();
+    });
     text('fCity', 'The city', 80);
     if (bad.length) {
       $('#pmErr').textContent = 'Not saved. ' + bad.join(' ');
