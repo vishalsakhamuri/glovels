@@ -244,6 +244,15 @@ const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toI
   const cold = list2.filter(x => /Repeat Person/.test(x.title || '') && String(x.title).includes(st));
   ok('CNS-05: three leads from one person are ONE alert', cold.length === 1, J(cold.map(x => x.title)));
   ok('CNS-05: which says how many more', cold[0] && /2 more enquiries from the same person/.test(cold[0].detail || ''), J(cold[0] && cold[0].detail));
+  /* 12 Oct live check: the same email (one typed with a capital) with three
+     different phone numbers is still one person. */
+  for (let i = 0; i < 3; i++) {
+    await req('a', 'POST', '/api/staff/leads', { name: 'Same Mail ' + st, phone: '90001' + String(10000 + i * 111 + Math.floor(Math.random() * 99)), email: (i === 0 ? 'Sm' : 'sm') + st + '@example.com', source: 'phone' });
+  }
+  DB().prepare("UPDATE enquiries SET created_at = ? WHERE name = ?").run(new Date(Date.now() - 5 * 864e5).toISOString(), 'Same Mail ' + st);
+  const al3 = (await req('a', 'GET', '/api/staff/alerts')).body;
+  const cold3 = (al3.alerts || []).filter(x => /Same Mail/.test(x.title || '') && String(x.title).includes(st));
+  ok('CNS-05: one email with three phone numbers is ONE alert', cold3.length === 1, J(cold3.map(x => x.title + ' · ' + x.detail)));
 
   /* ---------- CNS-07 (3): 5,000 characters ---------- */
   r = await req('a', 'POST', '/api/staff/student/' + sid + '/message', { body: 'x'.repeat(5001) });

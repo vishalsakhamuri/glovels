@@ -487,12 +487,31 @@ function all(db, now) {
      "has been waiting 50 days" alerts. Each lead's alert is collected here
      and only the most urgent one per person goes out, saying how many more. */
   const byPerson = new Map();
+  /* 12 Oct live check: the same person enquiring with one email and three
+     phone numbers (or the email typed once with a capital) was still three
+     alerts — the key was the phone first, else the email. Leads are now
+     joined when they share EITHER the phone (last ten digits) or the email
+     (lower-cased), transitively. */
+  const enquiries = db.allEnquiries();
+  const parent = new Map();
+  const find = x => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  const join = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+  enquiries.forEach(e => {
+    const me = 'id:' + e.id; parent.set(me, me);
+    const d = String(e.phone || '').replace(/\D/g, '').slice(-10);
+    const m = String(e.email || '').trim().toLowerCase();
+    [d.length === 10 ? 'p:' + d : '', m ? 'e:' + m : ''].filter(Boolean).forEach(k => {
+      if (!parent.has(k)) parent.set(k, k);
+      join(me, k);
+    });
+  });
+  const personOf = e => (parent.has('id:' + e.id) ? find('id:' + e.id) : personKey(e));
   const leadAdd = (e, a) => {
-    const k = personKey(e) + '|' + (a.who == null ? '' : a.who);
+    const k = personOf(e) + '|' + (a.who == null ? '' : a.who);
     if (!byPerson.has(k)) byPerson.set(k, []);
     byPerson.get(k).push(a);
   };
-  for (const e of db.allEnquiries()) {
+  for (const e of enquiries) {
     if (e.status === 'converted' || e.status === 'lost') continue;
     const owner = e.owner_id ? Number(e.owner_id) : null;
     const touched = (noteCounts[String(e.id)] || { n: 0 }).n;
