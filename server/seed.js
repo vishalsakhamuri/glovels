@@ -745,6 +745,45 @@ function fillEmptyPosts({ db, root }) {
   return n;
 }
 
+/*
+ * Round 172: the links to nowhere, taken out of every post. Once.
+ *
+ * The low-CGPA post's "Official programme pages" list came across from Wix
+ * with each "M.Sc" as a link of its own — to http://M.Sc — because Wix's
+ * editor links anything shaped like a domain. The renderer no longer prints
+ * such a link (prose.realUrl), so the page is right from this boot; this
+ * cleans the stored text as well, so the writer who opens the post does not
+ * find twenty-three links they never wrote, and joins a degree back onto the
+ * programme link it was cut off from ("M.Sc" + "Data Science" → one link).
+ *
+ * Keyed in the content table, so it reads every post exactly once; a body
+ * that changes is written back through setPostBody, which does not stamp
+ * updated_at — a dead link removed is not an edit to announce. Logs the
+ * count per post, and the total.
+ */
+const BLOG_LINK_REPAIR = 'repair:blog-msc-links';
+
+function repairBlogLinks({ db }) {
+  if (db.content(BLOG_LINK_REPAIR)) return 0;
+  const PROSE = require('./prose.js');
+  const rows = typeof db.allPosts === 'function' ? db.allPosts() : [];
+  let posts = 0, links = 0;
+  const detail = {};
+  rows.forEach(p => {
+    if (!String(p.body || '').trim()) return;
+    const r = PROSE.cleanLinks(p.body);
+    if (!r.fixed || r.body === p.body) return;
+    db.setPostBody(p.id, r.body);
+    posts++; links += r.fixed;
+    detail[p.slug] = r.fixed;
+    db.log('system', 'dead links taken out of a post',
+      r.fixed + ' link(s) with no real address became words in /post/' + p.slug);
+  });
+  db.setContent(BLOG_LINK_REPAIR, { done: true, posts, links, detail, at: new Date().toISOString() }, 'system');
+  if (links) db.log('system', 'blog links repaired', links + ' link(s) in ' + posts + ' post(s)');
+  return links;
+}
+
 function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
   if (db.studentByEmail(DEMO_EMAIL)) return null;
   /* A shared test link overrides this, so the three demo accounts are not
@@ -1228,8 +1267,35 @@ function moreServicesTab({ db }) {
   return n;
 }
 
+/*
+ * Round 15 Oct (item 4): "Display Academic CV & Resume, Book Counselling,
+ * APS, Attestation & Translation in Popular Services." The three go back
+ * into Most Booked and STAY in More Services too — a service may carry two
+ * tabs. Runs once, after moreServicesTab, so the two never fight: a later
+ * re-filing by the office is left alone.
+ */
+function mostBookedAgain({ db }) {
+  if (db.content('mostBookedAgainV1')) return 0;
+  db.setContent('mostBookedAgainV1', { done: true }, 'system');
+  const live = db.content('services');
+  if (!live || !Array.isArray(live.items)) return 0;
+  let n = 0;
+  const items = live.items.map(x => {
+    const cats = Array.isArray(x.cats) ? x.cats : [];
+    if (!MORE_IDS.includes(String(x.id)) || cats.includes('top')) return x;
+    n++;
+    return Object.assign({}, x, { cats: ['top'].concat(cats.includes('more') ? cats : cats.concat(['more'])) });
+  });
+  if (n) {
+    db.setContent('services', Object.assign({}, live, { items }), 'system');
+    db.log('system', 'services moved', n + ' back in Most Booked (and still in More Services)');
+  }
+  return n;
+}
+
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, addMissingCountries,
   moreServicesTab,
+  mostBookedAgain,
   addMissingServices,
   addEntryTiers,
   moveEntryTiersToServices,
@@ -1245,4 +1311,5 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, add
   packagesBelongToADestination,
   openOnRequestServices,
   fillEmptyPosts,
+  repairBlogLinks,
   DEMO_EMAIL, DEMO_PASSWORD };

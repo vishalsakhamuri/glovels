@@ -1203,6 +1203,9 @@ async function __dashBoot(main) {
 function __dashTodo(s) {
   const t = s && s.todo;
   if (!t) return;
+  /* N17-09: an enrolled or finished file is not chased for "4 things still
+     needed… a visa cannot be applied for". */
+  if (s.journey && (s.journey.finished || s.journey.enrolment)) return;
   const gaps = t.profileMissing || [], docs = t.documentsMissing || [];
   if (!gaps.length && !docs.length) return;
   const main = document.querySelector('.p-main') || document.body;
@@ -1458,9 +1461,15 @@ function card(p, i){
      find.js logoFor, via window.GLV_LOGO); the flag stays in its own column
      and stands in when there is no logo. */
   const lg = window.GLV_LOGO ? window.GLV_LOGO(p.university, p.shortName) : '';
+  /* Round 15 Oct (1): the flag as an SVG picture (/flags/<cc>.svg) — the
+     emoji one is two letters on Windows. */
+  const cc2 = String(p.country || '').toLowerCase();
+  const flag = /^[a-z]{2}$/.test(cc2)
+    ? '<img class="flagimg" src="/flags/' + cc2 + '.svg" alt="' + esc(c.name || p.country) + '" width="24" height="18" loading="lazy" decoding="async" style="border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.16);object-fit:cover;vertical-align:middle;background:#fff">'
+    : c.flag;
   return '<tr>'
     + cell('#', '<span class="sl-n">' + (i + 1) + '</span>', 'sl-num')
-    + cell('Country', '<span class="sl-flag">' + c.flag + '</span>'
+    + cell('Country', '<span class="sl-flag">' + flag + '</span>'
         + '<span class="sl-cc">' + esc(p.country || '') + '</span>', 'sl-ctry')
     + cell('Program', '<b>' + esc(p.program) + '</b>', 'sl-prog')
     + cell('University', (lg ? '<img class="sl-logo" src="' + esc(lg) + '" alt="" height="30" loading="lazy" decoding="async" onerror="this.remove()">' : '')
@@ -1473,8 +1482,18 @@ function card(p, i){
     + cell('Tuition', '<b>' + money(p) + '</b>', 'sl-fee')
     + cell('Application deadline', dateOf(p)
         ? esc(dateOf(p)) : '<span class="sl-none">\u2014</span>', 'sl-when')
-    + cell('Action', '<a class="sl-go" href="applications.html">Continue application '
-        + ico('arrow') + '</a>', 'sl-act')
+    /* N17-09: once the university has answered — or the course is gone — the
+       row says so. "Continue application" sat on the programme they had
+       enrolled at, on a rejection and on courses no longer offered. */
+    + cell('Action', (() => {
+        const a = (((window.__GLOVELS || {}).apps) || {})[p.id] || {};
+        const OUT = { enrolled: 'Enrolled', offer: 'Offer', rejected: 'Not successful',
+          relinquished: 'Offer not taken', waitlist: 'Waitlisted', deferred: 'Deferred' };
+        const said = OUT[String(a.outcome || '')] || (p.withdrawn ? 'No longer offered' : '');
+        return said
+          ? '<a class="sl-go sl-out" href="applications.html">' + esc(said) + '</a>'
+          : '<a class="sl-go" href="applications.html">Continue application ' + ico('arrow') + '</a>';
+      })(), 'sl-act')
     + '</tr>';
 }
 const SL_HEAD = ['#', 'Country', 'Program', 'University', 'Location', 'Match',
@@ -1712,11 +1731,25 @@ const next = (__m && __m.delivered > 0)
      'Eleven short sections. It is what we use to write your SOP, brief your '
      + 'recommenders and build your visa checklist — so it is only asked once.',
      'Start my profile', 'profile.html', 'user'];
+/* N17-09: past the shortlist, the next step is the journey's own — the same
+   phase the counsellor works from — and an enrolment is said first, plainly. */
+const __J = (window.__GLOVELS || {}).journey || null;
+if (__J && __J.next && (__J.finished || __J.enrolment || __J.step >= 4)) {
+  next[0] = esc(__J.next.title); next[1] = esc(__J.next.body);
+  next[2] = esc(__J.next.cta); next[3] = __J.next.href; next[4] = 'cap';
+}
 $('#nextUp').innerHTML =
-    '<div class="nextup">' + ico(next[4])
+    (__J && __J.enrolment
+      ? '<div class="nextup" id="enrolBanner" style="border-color:#bfe3cc;background:#effaf3">' + ico('check')
+        + '<div><b>' + esc(__J.enrolment.text) + '</b><span>'
+        + (__J.visa && __J.visa.travelDate ? 'Travelling ' + esc(__J.visa.travelDate) + '.'
+          : 'Congratulations — your counsellor takes you through what comes next.') + '</span></div></div>'
+      : '')
+  + (__J && __J.finished && __J.enrolment ? ''
+    : '<div class="nextup">' + ico(next[4])
   + '<div><b>Next: ' + next[0] + '</b><span>' + next[1] + '</span></div>'
   + '<a class="btn btn-primary" href="' + next[3] + '"'
-  + '>' + next[2] + '</a></div>';
+  + '>' + next[2] + '</a></div>');
 
 /* ---- where their application has got to ----
  *

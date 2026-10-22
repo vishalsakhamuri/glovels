@@ -32,9 +32,10 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('and it says the applying is free',
     /free/i.test(await firstBtn.textContent() || ''),
     (await firstBtn.textContent() || '').trim());
-  check('the footnote says so too',
-    /free to apply/i.test(await page.textContent('.rfoot')),
-    (await page.textContent('.rfoot') || '').trim());
+  /* 15 Oct item 2: the "free to apply" footnote under the rows was removed;
+     the badge on each row says it instead. */
+  check('the footnote is gone (15 Oct item 2)',
+    await page.locator('.rfoot').count() === 0);
 
   /* The old behaviour: pressing it opened the packages section. */
   await firstBtn.click();

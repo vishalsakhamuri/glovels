@@ -207,7 +207,7 @@ function card(s) {
   const left = dleft(s);
   const tone = v.ok === true ? 'badge-start' : v.ok === false ? 'badge-value' : 'badge-fast';
   return '<article class="sl">' +
-    '<span class="sl-flag">' + ((COUNTRIES[s.country] || {}).flag || '🌍') + '</span>' +
+    '<span class="sl-flag">' + (/^[a-z]{2}$/i.test(String(s.country || '')) ? '<img class="flagimg" src="/flags/' + String(s.country).toLowerCase() + '.svg" alt="" width="24" height="18" loading="lazy" style="border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.16);object-fit:cover;vertical-align:middle;background:#fff">' : ((COUNTRIES[s.country] || {}).flag || '🌍')) + '</span>' +
     '<h3>' + esc(s.name) + '</h3>' +
     '<div class="uni">' + esc(s.body) + '</div>' +
     /* No badge at all when there is nothing to judge on. A row of twelve

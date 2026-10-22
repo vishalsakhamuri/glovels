@@ -244,14 +244,36 @@ function all(db, now) {
   const byId = new Map(students.map(s => [Number(s.id), s]));
 
   for (const st of students) {
-    const owner = st.counsellor_id ? Number(st.counsellor_id) : null;
+    /* Patch 172 (15 Oct, item 10): a file held by a closed or test account is
+       nobody's — it raises the unassigned alert rather than going quiet. */
+    const live0 = db.liveCounsellorOf ? db.liveCounsellorOf(st) : (st.counsellor_id ? { id: st.counsellor_id } : null);
+    const owner = live0 ? Number(live0.id) : null;
+
+    /* N17-08 (16 Oct): A FILE THAT HAS GOT THERE IS NOT CHASED. A student
+       marked enrolled and Departed still had "closes in 16 days", three "no
+       longer offered" and "file is 4 item(s) short" in the bell. Enrolled at
+       a programme still on the list → no deadline, withdrawn, file-short or
+       places alerts; journey finished → no task or unassigned ones either.
+       A message waiting for a reply and money owed are still raised.
+       Required here, not at the top: tasks.js requires this file. Finished
+       needs a granted visa and a travel date, so phaseOf runs only then. */
+    let enrolledFile = false, finishedFile = false;
+    try {
+      const listed = new Set((db.getShortlist(st.id) || []).map(r => String(r.prog_id)));
+      enrolledFile = (db.getApplications(st.id) || [])
+        .some(a => String(a.outcome || '') === 'enrolled' && listed.has(String(a.prog_id)));
+      const TASKS_ = require('./tasks.js');
+      const v = TASKS_.visaOf(db, st.id);
+      if (v.decision === 'granted' && v.travelDate) finishedFile = !!(TASKS_.phaseOf(db, st, T) || {}).finished;
+    } catch (e) { enrolledFile = false; finishedFile = false; }
+    const quiet = enrolledFile || finishedFile;
 
     /* ---- places on a bought package the machine could not fill ----
        Vishal, 11 Oct: "show what we have; the remaining the counsellor will
        assign". The student is told the places stay open; this is the other
        half — the counsellor is told to fill them, and told about the picks
        held for her confirmation. */
-    if (typeof hooks.places === 'function') {
+    if (!quiet && typeof hooks.places === 'function') {
       let parts = null;
       try { parts = hooks.places(st); } catch (e) { parts = null; }
       (parts || []).forEach(part => {
@@ -271,7 +293,7 @@ function all(db, now) {
     }
 
     /* ---- nobody is looking after them ---- */
-    if (!owner) {
+    if (!owner && !finishedFile) {
       add({
         kind: 'unassigned', urgency: 'soon', who: null,
         title: st.name + ' has no counsellor',
@@ -291,7 +313,7 @@ function all(db, now) {
       /* Round 30 Sep (issue 19): a programme the office has taken off the
          site, still on a student's list with nothing applied. The counsellor
          is the one to replace it — tell them. */
-      if (!(Number(app.stage) >= 2 || app.outcome)) {
+      if (!quiet && !(Number(app.stage) >= 2 || app.outcome)) {
         let gone = false;
         try { const pr = typeof db.programme === 'function' ? db.programme(String(row.prog_id)) : null; gone = !!(pr && !pr.active); } catch (e) {}
         if (gone) {
@@ -322,7 +344,7 @@ function all(db, now) {
         })
         .filter(x => x.in != null && x.in >= -1)
         .sort((a, b) => a.in - b.in)[0];
-      if (!next || next.in > 45) continue;
+      if (!next || next.in > 45 || quiet) continue;
 
       add({
         kind: 'deadline',
@@ -374,7 +396,7 @@ function all(db, now) {
          profile because they made an account yesterday. */
       const engaged = owner || db.ordersFor(st.id).some(o => o.status === 'paid' || o.status === 'owing');
       const old = daysBetween(T, st.created_at) >= 3;
-      if (engaged && old) {
+      if (engaged && old && !quiet) {
         add({
           kind: 'profile', urgency: docGaps.length > 4 ? 'soon' : 'watch', who: owner,
           title: st.name + '’s file is ' + (gaps.length + docGaps.length)
@@ -411,7 +433,7 @@ function all(db, now) {
         .filter(x => x.over != null && x.over > 0)
         .sort((a, b) => b.over - a.over);
     } catch (e) { late = []; }
-    if (late.length) {
+    if (late.length && !finishedFile) {
       /* Grouped by whoever OWES each task, not by whoever holds the student.
          A file handed over last week still carries the previous counsellor on
          its older tasks, and lumping them under the new one both blames the

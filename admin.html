@@ -4330,7 +4330,10 @@ function paintTasks() {
         esc(st[1]) + '</span></td>' +
       '<td style="text-align:right;white-space:nowrap">' +
         (t.status === 'done' ? ''
-          : '<button type="button" class="lnk" data-tkdone="' + t.id + '">mark done</button> · ') +
+          : '<button type="button" class="lnk" data-tkdone="' + t.id + '"' +
+            /* N17-01: a step the file cannot back up says why, and waits. */
+            (t.lock ? ' disabled title="' + esc(t.lock) + '" style="opacity:.45;cursor:not-allowed"' : '') +
+            '>mark done</button> · ') +
         '<button type="button" class="lnk" data-tkchase="' + t.studentId +
           '" data-tkid="' + t.id + '" data-tkstudent="' + esc(t.student) +
           '" data-tktitle="' + esc(t.title) + '" data-tkover="' + (t.over == null ? '' : t.over) +

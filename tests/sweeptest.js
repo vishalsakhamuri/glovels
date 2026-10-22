@@ -114,7 +114,8 @@ const flat = s => String(s || '').replace(/\s+/g, ' ').trim();
   /* Round 169 (CNS-07.4): a file the slot does not take (a Word file in the
      passport slot) shows a disabled Accept with the reason instead. */
   check('counsellor · with a way to verify each one (or the reason it cannot be accepted)',
-    (await cou.p.$$('[data-verify]')).length + (await cou.p.$$('#docs button[disabled][title]')).length >= 1);
+    /* Patch 172 (N17-02): Accept / Query are per FILE now (data-fverdict). */
+    (await cou.p.$$('[data-verify], [data-fverdict]')).length + (await cou.p.$$('#docs button[disabled][title]')).length >= 1);
   check('counsellor · the agreed shortlist is separate from what the student likes',
     /interested in/i.test(file) || (await cou.p.$$('#uniList li')).length >= 1);
   check('counsellor · they cannot reset a password',

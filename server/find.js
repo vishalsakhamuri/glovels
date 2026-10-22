@@ -302,11 +302,23 @@
     const kept = rows.filter(p => keep(p, f));
     const out = [];
     let turned = 0;
+    /* Round 15 Oct (11): the rows the CGPA bar turns away, remembered, so the
+       facet counts below drop them too and add up to the results. */
+    const cgpaOut = new Map();
+    const turnedAway = p => {
+      if (!said) return false;
+      if (cgpaOut.has(p)) return cgpaOut.get(p);
+      const t = verdict(p, s, REQS, o.countries).fails.some(x => x.key === 'cgpa');
+      cgpaOut.set(p, t);
+      return t;
+    };
     kept.forEach(p => {
       const v = said ? verdict(p, s, REQS, o.countries) : { fails: [], unknown: [], notes: [], ok: false };
       /* Patch 162: a shortfall ranks the row lower; it does not drop it. The
          CGPA bar is the exception — the one requirement that turns a row away. */
-      if (said && v.fails.some(x => x.key === 'cgpa')) { turned++; return; }
+      const away = said && v.fails.some(x => x.key === 'cgpa');
+      if (said) cgpaOut.set(p, away);
+      if (away) { turned++; return; }
       out.push(Object.assign({}, p, { _v: v, _tier: v.fails.length ? 2 : v.unknown.length ? 1 : 0, _locked: locked(p), _fee: feeOf(p), _dl: nextDeadline(p) }));
     });
     let sorted = said ? sortRows(out, f.sort, said).sort((a, b) => a._tier - b._tier) : sortRows(out, f.sort, said);
@@ -320,9 +332,11 @@
       sorted = tiers.reduce((all, t) => all.concat(mix(t.filter(p => !isR(p))), mix(t.filter(isR))), []);
     }
     const unis = new Set(sorted.map(p => p.uKey || p.university || p.id)).size;
+    /* Every other active filter, the CGPA bar included — all but the facet's own key. */
+    const kf = (p, key) => keep(p, f, key) && !turnedAway(p);
     const facet = (key, valueOf) => {
       const c = {};
-      rows.forEach(p => { if (!keep(p, f, key)) return; const v = valueOf(p); if (v) c[v] = (c[v] || 0) + 1; });
+      rows.forEach(p => { if (!kf(p, key)) return; const v = valueOf(p); if (v) c[v] = (c[v] || 0) + 1; });
       return c;
     };
     const facets = {
@@ -330,13 +344,13 @@
       level: facet('level', p => String(p.level || '').toLowerCase()),
       field: facet('field', p => p.field),
       apply: facet('apply', p => feeOf(p)),
-      tuition0: rows.filter(p => keep(p, f, 'tuition') && tuitionOf(p) === 0).length,
-      moi: rows.filter(p => keep(p, f, 'moi') && moiOk(p)).length,
-      nogre: rows.filter(p => keep(p, f, 'nogre') && reqsOf(p).greRequired !== true).length,
-      open: rows.filter(p => keep(p, f, 'restricted') && !(reqsOf(p).restricted === true || p.restricted === true)).length,
+      tuition0: rows.filter(p => kf(p, 'tuition') && tuitionOf(p) === 0).length,
+      moi: rows.filter(p => kf(p, 'moi') && moiOk(p)).length,
+      nogre: rows.filter(p => kf(p, 'nogre') && reqsOf(p).greRequired !== true).length,
+      open: rows.filter(p => kf(p, 'restricted') && !(reqsOf(p).restricted === true || p.restricted === true)).length,
       intake: {},
     };
-    upcomingTerms(4).forEach(t => { const n = rows.filter(p => keep(p, f, 'intake') && openFor(p, t)).length; if (n) facets.intake[t.key] = n; });
+    upcomingTerms(4).forEach(t => { const n = rows.filter(p => kf(p, 'intake') && openFor(p, t)).length; if (n) facets.intake[t.key] = n; });
     return { rows: sorted, total: sorted.length, unis, turned, said, student: s, facets };
   }
 
@@ -463,6 +477,15 @@
     if (src) return '<div class="flogo img" aria-hidden="true"><img src="' + esc(src) + '" alt="" loading="lazy" decoding="async" width="44" height="44"></div>';
     return '<div class="flogo" aria-hidden="true">' + esc(initials(p.shortName || p.university)) + '</div>';
   }
+  /* Round 15 Oct (1): a country as its SVG flag (/flags/<cc>.svg, vendored
+     from flag-icons). The emoji flag is two letters on Windows. */
+  function flagImg(code, name, w) {
+    const cc = String(code || '').toLowerCase();
+    if (!/^[a-z]{2}$/.test(cc)) return '';
+    w = w || 24;
+    return '<img class="flagimg" src="/flags/' + cc + '.svg" alt="' + esc(name || cc.toUpperCase()) + '" width="' + w + '" height="' + Math.round(w * 3 / 4)
+      + '" loading="lazy" decoding="async" style="border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.16);object-fit:cover;vertical-align:middle;background:#fff">';
+  }
   const filler = n => '█'.repeat(Math.max(6, Math.min(34, Number(n || 18))));
   /* The university's page address — the same arithmetic as unis.js slugOf. */
   const slugOf = name => String(name || '').toLowerCase().normalize('NFKD')
@@ -497,7 +520,7 @@
       + '<button type="button" class="fi" data-cmp="' + esc(p.id) + '" aria-pressed="' + (cmp ? 'true' : 'false') + '" title="Compare">⇄</button>';
     if (p._locked || locked(p)) {
       return '<article class="frow locked" data-id="' + esc(p.id) + '">'
-        + '<div class="flogo lock" aria-hidden="true">' + esc(c.flag) + '</div>'
+        + '<div class="flogo lock" aria-hidden="true">' + (flagImg(p.country, c.name, 30) || esc(c.flag)) + '</div>'
         + '<div class="fmain"><h3 class="ftitle masked" aria-hidden="true">' + filler(p.nLen) + '</h3>'
         + '<div class="fsub"><span class="masked" aria-hidden="true">' + filler(p.uLen) + '</span> · ' + esc(c.name) + ' · Public university</div>'
         + '<span class="offscreen">A public university in ' + esc(c.name) + ' that matches these filters. The name and the fee are unlocked by a package.</span>'
@@ -534,5 +557,5 @@
   }
 
   return { KEYS, LEVELS, SORTS, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml,
-    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num, logoFor, logoTokens, tagList };
+    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num, logoFor, logoTokens, tagList, flagImg };
 });

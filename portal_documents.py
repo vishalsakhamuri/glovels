@@ -249,6 +249,10 @@ function card(d) {
             /* Patch 169 (STU-05): an accepted document is the verified copy —
                no delete; the server refuses it too (409). */
             : st === S.OK && d.id !== 'other' ? ''
+            /* Patch 172 (N17-02): the file the counsellor accepted stays the
+               verified copy even after a newer one is added (409 too). */
+            : f.verdict === 'ok' && d.id !== 'other'
+            ? '<span class="dsize" style="font-style:italic">accepted copy</span>'
             : '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" data-name="' + esc(f.file) + '" ' +
               'aria-label="Remove this file: ' + esc(f.file) + '">Remove this file</button>') +
           '</li>').join('') + '</ul>'
@@ -281,6 +285,7 @@ function card(d) {
         '<a href="messages.html" style="color:var(--blue-deep);font-weight:600">Ask your counsellor to replace this</a> ' +
         'if it needs to change.</p>'
       : rec && (rec.files || []).some(f => f.by !== 'staff')
+        && (d.id === 'other' || !(rec.files || []).some(f => f.verdict === 'ok'))
       ? '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + d.id +
         '" data-name="' + esc(d.name) + '" style="margin-top:9px">Clear this document' +
         ((rec.files || []).some(f => f.by === 'staff') ? ' (my files)' : '') + '</button>'

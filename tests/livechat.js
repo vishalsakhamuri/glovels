@@ -80,8 +80,9 @@ async function signIn(ctx, email, expect) {
   console.log('\n=== the counsellor verifies a document; the student sees the change ===');
   await kavya.locator('.tab[data-t="file"]').click();
   await kavya.waitForTimeout(700);
-  const v = kavya.locator('[data-verify]').first();
-  console.log('  documents awaiting review:', await kavya.locator('[data-verify]').count());
+  /* Patch 172 (N17-02): Accept is per file now (data-fverdict="ok"). */
+  const v = kavya.locator('[data-fverdict="ok"]').first();
+  console.log('  documents awaiting review:', await kavya.locator('[data-fverdict="ok"]').count());
   if (await v.count()) {
     await v.click();
     await wait(1500);

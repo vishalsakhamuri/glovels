@@ -273,8 +273,9 @@ const nProg = h => Number((summary(h).match(/^([\d,]+)/) || ['', '0'])[1].replac
   const svc = (await req('anon', 'GET', '/api/content')).body.services || {};
   const sItems = svc.items || svc || [];
   const byId = id => (Array.isArray(sItems) ? sItems : []).find(s => s.id === id) || {};
-  ok('CV, Book Counselling and APS are under More Services, not Most Booked',
-    ['cv', 'counsel', 'aps'].every(id => (byId(id).cats || []).includes('more') && !(byId(id).cats || []).includes('top')),
+  /* 15 Oct report (item 4): they are back in Most Booked as well — round172webtest. */
+  ok('CV, Book Counselling and APS are under More Services (and, since 15 Oct, Most Booked too)',
+    ['cv', 'counsel', 'aps'].every(id => (byId(id).cats || []).includes('more') && (byId(id).cats || []).includes('top')),
     J(['cv', 'counsel', 'aps'].map(id => byId(id).cats)));
   ok('the rest of Most Booked is untouched', ['sop', 'lor', 'visa'].every(id => (byId(id).cats || []).includes('top')));
 
@@ -298,7 +299,7 @@ const nProg = h => Number((summary(h).match(/^([\d,]+)/) || ['', '0'])[1].replac
     await pg.click('[data-cat="top"]');
     await pg.waitForTimeout(300);
     const topCards = await pg.$$eval('#svcGrid > *', els => els.map(e => e.textContent).join(' | '));
-    ok('and Most Booked no longer does', !/Academic CV|APS, Attestation|Book Counselling/.test(topCards));
+    ok('and Most Booked shows them again (15 Oct, item 4)', /Academic CV/.test(topCards) && /APS, Attestation/.test(topCards) && /Book Counselling/.test(topCards));
     /* Item 1: fifteen rows, both before and after the filters are touched. */
     const rowsUntouched = await pg.$$eval('#rowsIn .mrow', els => els.length);
     ok('the home list shows at most 15 rows', rowsUntouched > 0 && rowsUntouched <= 15, rowsUntouched);

@@ -37,6 +37,7 @@
 
 const path = require('path');
 const IMAGES = require('./images.js');
+const PROSE = require('./prose.js');
 
 const DEFAULT_BASE = 'https://www.glovels.com';
 const CDN = 'https://static.wixstatic.com/media/';
@@ -202,7 +203,12 @@ function inlineOf(node, ctx) {
     const href = (node.attrs.href || '').trim();
     const words = inner.trim();
     if (!words) return '';
-    if (!/^https?:\/\//i.test(href) && !/^mailto:/i.test(href)) return words;
+    /* Round 172: Wix auto-links anything shaped like a domain, and "M.Sc" is
+       shaped like one — twenty-three programme titles came across as a dead
+       link to http://M.Sc beside the real one. An address with no real host
+       is words, not a link (prose.realUrl: a known top-level domain, never a
+       degree). */
+    if (!/^mailto:/i.test(href) && !PROSE.realUrl(href)) return words;
     /* Links that pointed back at the old site point at the same address on
        this one — the slugs are kept, so /post/x is still /post/x. */
     const local = /^https?:\/\/(?:www\.)?glovels\.com(\/[^\s]*)?$/i.exec(href);

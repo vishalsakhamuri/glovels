@@ -367,6 +367,10 @@ const cleanShortName = v => {
    the prefix alone, because this file must not depend on that one to answer
    "is this a document?" — it is asked on every read of every document. */
 const isAppFile = key => String(key || '').startsWith('app:');
+/* Patch 172 (N17-02): a file a counsellor took out of its slot. The row and
+   the bytes stay (re-keyed `removed:<key>`) so the audit log entry points at
+   something; no reader of documents or app files sees it. */
+const isRemovedFile = key => String(key || '').startsWith('removed:');
 
 /* ------------------------------------------------------------------ sqlite */
 
@@ -627,6 +631,16 @@ function sqliteDriver(file) {
       * reads as the student's own, which is what almost all of them are and
       * the answer that takes nothing away from anybody. */
    "ALTER TABLE documents ADD COLUMN uploaded_by TEXT NOT NULL DEFAULT 'student'",
+   /* Patch 172 (N17-02): the counsellor's word on ONE FILE — '' (not looked
+      at on its own), 'ok' (accepted: this file is the verified copy) or
+      'rescan' (queried). The slot keeps its own status as before; this is what
+      lets an older file be opened, accepted or queried without the newest one
+      answering for it. */
+   "ALTER TABLE documents ADD COLUMN verdict TEXT NOT NULL DEFAULT ''",
+   /* Patch 172 (15 Oct, item 7): a lead an administrator took out of the book.
+      '' = in the book. Archived leads are hidden from every list and alert and
+      can be restored; only an archived lead can be deleted for good. */
+   "ALTER TABLE enquiries ADD COLUMN archived_at TEXT NOT NULL DEFAULT ''",
    "CREATE INDEX IF NOT EXISTS idx_students_partner ON students(partner_id)",
    "CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id)",
    /* The catalogue at the size it is going to be — "200k universities".
@@ -1426,14 +1440,27 @@ function open(dir) {
      */
     getDocuments: id => db.all(
       'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id))
-      .filter(d => !isAppFile(d.doc_key)),
+      .filter(d => !isAppFile(d.doc_key) && !isRemovedFile(d.doc_key)),
     /** The per-application files, which getDocuments deliberately leaves out. */
     getAppFiles: id => db.all(
       'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id))
       .filter(d => isAppFile(d.doc_key)),
     /** Both, for the one projection that draws every file a student has. */
     getAllFiles: id => db.all(
-      'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id)),
+      'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id))
+      .filter(d => !isRemovedFile(d.doc_key)),
+    /** Patch 172: the files a counsellor took out of a slot (kept, not shown). */
+    getRemovedFiles: id => db.all(
+      'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id))
+      .filter(d => isRemovedFile(d.doc_key)),
+    /** Patch 172 (N17-02): the counsellor's word on one file ('', 'ok', 'rescan'). */
+    setFileVerdict: (studentId, docId, verdict) =>
+      db.run('UPDATE documents SET verdict = ? WHERE student_id = ? AND id = ?',
+        String(verdict || ''), Number(studentId), Number(docId)),
+    /** Patch 172 (N17-02): take one file out of its slot without deleting it. */
+    moveDocFileOut: (studentId, docId, key) =>
+      db.run('UPDATE documents SET doc_key = ?, verdict = ? WHERE student_id = ? AND id = ?',
+        'removed:' + String(key), '', Number(studentId), Number(docId)),
     /* MANY FILES PER SLOT, ONE SLOT PER DOCUMENT.
      *
      * "Add multi doc upload option for English tests, semester mark sheets,
@@ -2301,8 +2328,13 @@ function open(dir) {
          driver's WHERE reader only sees `column = ?`, so a literal is a
          condition it silently drops — and "every counsellor" quietly became
          "everybody", including students. */
-      const staff = db.all('SELECT * FROM students WHERE role = ? ORDER BY id asc', 'counsellor')
-        .filter(c => (c.status || 'active') === 'active');
+      /* Patch 172 (15 Oct, item 10): the SAME list the assignment dropdowns
+         offer — active counsellors, never a closed or a test account. This
+         read role = 'counsellor' with status active and nothing else, so the
+         testers' "qwe" account (active, a test name) took the next paying
+         student on its turn of the round robin. None left: unassigned. */
+      const staff = this.activeCaseworkers().slice()
+        .sort((a, b) => Number(a.id) - Number(b.id));
       if (!staff.length) return null;
       const load = c => db.all(
         'SELECT * FROM students WHERE counsellor_id = ? AND role = ?', Number(c.id), 'student')
@@ -2375,6 +2407,19 @@ function open(dir) {
     activeCaseworkers() {
       return this.caseworkers().filter(c => c.role === 'counsellor'
         && (c.status || 'active') === 'active' && !isTestAccount(c));
+    },
+    /* Patch 172 (15 Oct, item 10): who is REALLY looking after a student, or
+       null. A file held by a closed account, a test account, an account that
+       is not staff any more or one that is gone reads as unassigned — counted
+       in the Unassigned tile and the unassigned alert — rather than looking
+       looked-after. Nothing is reassigned: the office picks them up. An
+       administrator the office put on a file is a real owner. */
+    liveCounsellorOf(st) {
+      if (!st || !st.counsellor_id) return null;
+      const c = this.studentById(st.counsellor_id);
+      if (!c || !['counsellor', 'admin'].includes(c.role)) return null;
+      if ((c.status || 'active') !== 'active' || isTestAccount(c)) return null;
+      return c;
     },
     staffByRole: r => db.all('SELECT * FROM students WHERE role = ?', r),
     allStudents: () => db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student'),
@@ -2577,7 +2622,9 @@ function open(dir) {
           + w.join(' OR ') + ') ORDER BY id desc', ...a);
         /* LIKE '%digits' can match a longer number ending the same way;
            the last-ten comparison is made again here, exactly. */
-        open = rows.find(r => (digits.length === 10 && String(r.phone || '').replace(/\D/g, '').slice(-10) === digits)
+        /* Patch 172: an archived lead is out of the book — a new enquiry from
+           that person is a new lead, not a note on a hidden one. */
+        open = rows.filter(r => !String(r.archived_at || '')).find(r => (digits.length === 10 && String(r.phone || '').replace(/\D/g, '').slice(-10) === digits)
           || (email && String(r.email || '').trim().toLowerCase() === email)) || null;
       }
       if (!open) return Object.assign(this.addEnquiry(e) || {}, { attached: false });
@@ -2596,7 +2643,17 @@ function open(dir) {
               WHERE id = ?`, t, destCode(e.destination), Number(open.id));
       return Object.assign(db.one('SELECT * FROM enquiries WHERE id = ?', Number(open.id)) || open, { attached: true });
     },
-    allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
+    /* Patch 172 (15 Oct, item 7): the BOOK — archived leads left out, so every
+       list, count, lookup and alert that reads this skips them without being
+       told. `allEnquiriesEver` is for the counts of what arrived (traffic),
+       `archivedEnquiries` for the Archived filter. */
+    allEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)
+      .filter(e => !String(e.archived_at || '')),
+    allEnquiriesEver: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
+    archivedEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)
+      .filter(e => !!String(e.archived_at || '')),
+    setLeadArchived: (id, on) => db.run('UPDATE enquiries SET archived_at = ?, updated_at = ? WHERE id = ?',
+      on ? now() : '', now(), Number(id)),
     enquiryById: id => db.one('SELECT * FROM enquiries WHERE id = ?', Number(id)),
     updateEnquiry(id, e) {
       db.run(`UPDATE enquiries SET source = ?, campaign = ?, owner_id = ?, status = ?,
@@ -2886,6 +2943,13 @@ function open(dir) {
       return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
     },
     deletePost: id => db.run('DELETE FROM posts WHERE id = ?', Number(id)),
+    /* Round 172: the body alone, for a start-up repair. Not updatePost — that
+       stamps updated_at, and a repair of a dead link is not an edit the page
+       should announce as "updated on". */
+    setPostBody(id, body) {
+      db.run('UPDATE posts SET body = ?, words = ? WHERE id = ?', String(body || ''), wordsOf(body), Number(id));
+      return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
+    },
 
     /* ---- traffic ---- */
     hit(h) {

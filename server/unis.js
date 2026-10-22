@@ -29,6 +29,30 @@
 
 const LOGOS = require('./logos.js');
 
+/* 22 Oct: the home pages the site ships with, for the universities whose
+   course links give nothing to go on (a university that is only on the site
+   through a partner's or a joint programme's pages) or give the wrong thing
+   (Reutlingen's links all sit on its business school's site). Looked up and
+   checked by hand; assets/university-websites.json, keyed by slug:
+     { "<slug>": { "url", "name", "source", "checked" } }
+   Consulted after the office's own address and before the course-link
+   heuristic in group(). A missing or unreadable file is an empty list. */
+const WEBSITES = (() => {
+  try { return JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'assets', 'university-websites.json'), 'utf8')) || {}; }
+  catch (e) { return {}; }
+})();
+/* Round 15 Oct (12): derivations known to be wrong, fixed in code — the
+   Film University Babelsberg's course links sit on uni-potsdam.de (a joint
+   programme), so the guess sent its page to the University of Potsdam. */
+const KNOWN_SITES = {
+  'film-university-babelsberg-konrad-wolf': 'https://www.filmuniversitaet.de',
+};
+const builtinWebsite = slug => {
+  const w = WEBSITES[slug];
+  if (w && /^https?:\/\//i.test(String(w.url || ''))) return String(w.url);
+  return KNOWN_SITES[slug] || '';
+};
+
 /** The address a university's name becomes. Identical in the finder script. */
 const slugOf = name => String(name || '').toLowerCase().normalize('NFKD')
   .replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')
@@ -143,6 +167,9 @@ function group(catalogue) {
       u.url = host === dom || host === 'www.' + dom ? origin : new URL(origin).protocol + '//www.' + dom;
       delete u._sites;
     }
+    /* 22 Oct: a shipped home page beats the guess from the course links;
+       the office's own address (serve.js, x.website) still beats both. */
+    if (builtinWebsite(u.slug)) u.url = builtinWebsite(u.slug);
     /* The main campus, not the first row's city (patch 145): TUM showed as
        "Public university in Straubing", WHU as Düsseldorf, TH Köln as
        Gummersbach. A city named in the university's own name wins; otherwise

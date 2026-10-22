@@ -49,6 +49,12 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   const ptxt=await cp.$eval('.phase',e=>e.textContent.replace(/\s+/g,' ').trim());
   ok('  · naming it and how long they have been there', /Enrolled|Profile|Shortlisting/.test(ptxt), ptxt);
   // push them into Applying so the "n of m" shows
+  /* Round 172 (N17-01): "documents collected" needs the ten required
+     documents verified before it can be ticked, so put them on the file. */
+  for(const k of ['passport','x','xii','degree','consol','english','cv','sop','lor','finance']){
+    await a.request.post(BASE+'/api/staff/student/'+sId+'/document/'+k+'/file',{multipart:{file:{name:k+'.pdf',mimeType:'application/pdf',buffer:Buffer.concat([Buffer.from('%PDF-1.4\n'),Buffer.alloc(300,0x41)])}}});
+    await a.request.post(BASE+'/api/staff/student/'+sId+'/document/'+k,{data:{status:'ok'}});
+  }
   const rec=await (await c.request.get(BASE+'/api/staff/student/'+sId)).json();
   for(const t of rec.tasks.filter(x=>/Welcome|Profile completed|Shortlist confirmed|Statement of Purpose|Letters of Rec/.test(x.title)))
     await c.request.put(BASE+'/api/staff/task/'+t.id,{data:{status:'done'}});

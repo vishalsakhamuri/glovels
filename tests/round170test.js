@@ -104,7 +104,7 @@ const has = (html, s) => html.includes(s) || html.includes(esc(s));
   ok('  · the count and the fields are said', new RegExp('We track ' + target.progs.length + ' programme').test(pub.text)
     && [...target.fields].filter(Boolean).every(f => has(pub.text, f)));
   ok('  · no programme id on an Apply button, no course link, no programme anchor', !/data-apply=/.test(pub.text) && !/Course page ↗/.test(pub.text) && !/data-prog=/.test(pub.text));
-  ok('  · the university itself is there: its name in the <h1>, its city, its official site chip', has(pub.text, '<h1>' + esc(target.name) + '</h1>') && /Public university/.test(pub.text));
+  ok('  · the university itself is there: its name in the <h1>, its city, its official site chip', has(pub.text.replace(/<\/?em>/g, ''), '<h1>' + esc(target.name) + '</h1>') /* 15 Oct banner: italic last word */ && /Public university/.test(pub.text));
   const title = (/<title>([^<]*)</.exec(pub.text) || [])[1] || '';
   const desc = (/<meta name="description" content="([^"]*)"/.exec(pub.text) || [])[1] || '';
   const ld = (pub.text.match(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g) || []).join('');

@@ -29,14 +29,20 @@ const TASKS = require('./tasks.js');
 const APPS = require('./apps.js');
 const MONEY = require('./money.js');
 
+/* N17-09 (16 Oct): the six stages are the counsellor's nine phases in the
+   student's words — the SAME computation (TASKS.phaseOf), folded. `phases`
+   is that fold. The first stage was called "Enrolled", which read as the
+   university enrolment on a file that had one; it is the file being opened. */
 const STAGES = [
-  { key: 'enrolled', label: 'Enrolled', phases: ['enrolled'] },
+  { key: 'enrolled', label: 'File opened', phases: ['enrolled'] },
   { key: 'profile', label: 'Profile and documents', phases: ['profile'] },
   { key: 'shortlist', label: 'Shortlist agreed', phases: ['shortlist'] },
   { key: 'applying', label: 'Applying', phases: ['writing', 'applying'] },
   { key: 'offers', label: 'Offers', phases: ['offers'] },
-  { key: 'visa', label: 'Visa and departure', phases: ['visa', 'departed'] },
+  { key: 'visa', label: 'Visa and departure', phases: ['visa', 'service', 'departed'] },
 ];
+const STAGE_OF = {};
+STAGES.forEach((x, i) => x.phases.forEach(p => { STAGE_OF[p] = i; }));
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** "2026-12-31" (or an ISO timestamp) → "31 Dec 2026". Blank stays blank. */
@@ -57,7 +63,16 @@ function of(db, st, now) {
   const today = (now ? new Date(now) : new Date()).toISOString().slice(0, 10);
 
   let tasks = [];
-  try { tasks = (db.tasksFor(s.id) || []).filter(t => String(t.status) !== 'dropped'); } catch (e) { tasks = []; }
+  /* As every screen counts them — steps the applications overtook read done. */
+  try { tasks = (TASKS.effectiveTasks(db, s, null, now) || []).filter(t => String(t.status) !== 'dropped'); } catch (e) { tasks = []; }
+  /* THE phase — the counsellor's. Everything below only words it. */
+  let ph = null;
+  try { ph = TASKS.phaseOf(db, s, now); } catch (e) { ph = null; }
+  const V = TASKS.visaOf(db, s.id);
+  let VR = { ok: 0, of: 6 };
+  try { VR = visaReadiness(db, s.id); } catch (e) { /* nothing verified */ }
+  let R = { ok: 0, of: 10 };
+  try { R = readiness(db, s.id); } catch (e) { /* nothing verified */ }
   let orders = [];
   try { orders = db.ordersFor(s.id) || []; } catch (e) { orders = []; }
   let list = [];
@@ -92,11 +107,13 @@ function of(db, st, now) {
     switch (st.key) {
       case 'enrolled':
         done = paid || allDone(rows) || filed;
-        detail = done ? 'Your package is active' : 'Choose a package to start';
+        detail = allDone(rows) || filed ? 'Your file is open with your counsellor'
+          : 'Your counsellor calls you to open your file';
         break;
       case 'profile':
         done = allDone(rows) || filed;
-        detail = done ? 'Your details and documents are in' : 'Your details and the documents we asked for';
+        detail = done ? 'Your details and documents are in'
+          : R.ok + ' of ' + R.of + ' documents verified';
         break;
       case 'shortlist':
         done = allDone(rows) || filed;
@@ -122,11 +139,21 @@ function of(db, st, now) {
         detail = bits.length ? bits.join(' · ') : 'After your applications are in';
         break;
       }
-      case 'visa':
-        done = allDone(rows);
+      case 'visa': {
+        done = allDone(rows) && V.decision === 'granted' && !!V.travelDate;
         moving = moving || enrolledAt > 0;
-        detail = done ? 'Visa done' : 'After you accept an offer';
+        /* N17-09: "Visa done" was said once the tasks were ticked — with only
+           the application filed. Granted is the only "done". */
+        const visaFiled = tasks.some(t => t.task_key === 'visa' && String(t.status) === 'done');
+        detail = V.decision === 'granted'
+          ? 'Visa granted' + (V.travelDate ? ' · travelling ' + day(V.travelDate) : ' · confirm your travel date')
+          : V.decision === 'refused' ? 'The visa was refused — your counsellor is preparing the next step'
+          : V.decision === 'more' ? 'The consulate asked for more documents'
+          : visaFiled ? 'Visa application filed — waiting for the decision'
+          : (ph && (ph.key === 'visa' || ph.key === 'service')) ? VR.ok + ' of ' + VR.of + ' visa documents verified'
+          : 'After you accept an offer';
         break;
+      }
     }
     const open = rows.filter(t => String(t.status) !== 'done');
     const nextDue = open.map(t => String(t.due_at || '').slice(0, 10)).filter(Boolean).sort()[0] || '';
@@ -149,10 +176,64 @@ function of(db, st, now) {
     };
   });
 
-  /* Monotone: the first stage not done is where they are. */
-  let at = raw.findIndex(x => !x.done);
-  const finished = at === -1;
-  if (finished) at = raw.length;
+  /* N17-09: WHERE THEY ARE is the counsellor's phase, folded into six — not a
+     second calculation. Monotone: everything before it is done. Without a
+     phase (never expected) the evidence-only reading stands in. */
+  let at, finished;
+  if (ph) {
+    finished = !!ph.finished;
+    at = finished ? raw.length : (STAGE_OF[ph.key] != null ? STAGE_OF[ph.key] : 0);
+  } else {
+    at = raw.findIndex(x => !x.done);
+    finished = at === -1;
+    if (finished) at = raw.length;
+  }
+
+  /* The enrolment, said plainly, wherever the journey is. */
+  const enr = live.find(a => String(a.outcome || '') === 'enrolled');
+  const enrRow = enr ? list.find(r => String(r.prog_id) === String(enr.prog_id)) || {} : null;
+  const enrolment = enr ? {
+    progId: String(enr.prog_id), university: enrRow.university || '', program: enrRow.program || '',
+    text: 'You are enrolled at ' + (enrRow.university || 'your university')
+      + (enrRow.program ? ' — ' + enrRow.program : ''),
+  } : null;
+
+  /* The next real step, from the phase. [title, body, link, button]. */
+  const pk = finished ? 'departed' : (ph ? ph.key : raw[Math.min(at, raw.length - 1)].key);
+  const N = {
+    enrolled: ['Your welcome call', 'Your counsellor calls you to open your file and agree what happens next.',
+      'messages.html', 'Message your counsellor'],
+    profile: ['Your documents — ' + R.ok + ' of ' + R.of + ' verified',
+      'Your counsellor checks each one. The shortlist is agreed once they are all in.',
+      'documents.html', 'Open my documents'],
+    shortlist: ['Agree your shortlist with your counsellor',
+      list.length ? plural(list.length, 'programme') + ' on your list so far.' : 'Your counsellor builds it with you.',
+      'universities.html', 'See my universities'],
+    writing: ['Your statement of purpose and recommendation letters',
+      'Written with you before the applications go in.', 'documents.html', 'Open my documents'],
+    applying: ['Your applications — ' + submitted.length + ' of ' + plural(live.length, 'application') + ' submitted',
+      'Your counsellor files them in deadline order and tells you as each one goes in.',
+      'applications.html', 'See my applications'],
+    offers: ['Waiting to hear from your universities',
+      [offers.length ? plural(offers.length, 'offer') : '', rejected ? rejected + ' not successful' : '',
+        waiting ? waiting + ' waiting to hear' : ''].filter(Boolean).join(' · ') || 'Decisions come in over the next weeks.',
+      'applications.html', 'See my applications'],
+    visa: V.decision === 'granted'
+      ? ['Your visa is granted', V.travelDate ? 'Travelling ' + day(V.travelDate) + '. Your counsellor runs the pre-departure briefing.'
+        : 'Tell your counsellor your travel date.', 'visa.html', 'Open my visa file']
+      : V.decision === 'refused'
+      ? ['Your visa application was refused', 'Your counsellor will go through the letter with you and the next step.', 'visa.html', 'Open my visa file']
+      : V.decision === 'more'
+      ? ['The consulate asked for more documents', 'Your counsellor will tell you exactly what to send.', 'visa.html', 'Open my visa file']
+      : ['Your visa file — ' + VR.ok + ' of ' + VR.of + ' visa documents verified',
+        'The visa application goes in once the file is complete.', 'visa.html', 'Open my visa file'],
+    service: ['The last services on your file', 'Your counsellor is finishing what you asked for.', 'services.html', 'See my services'],
+    departed: [enrolment ? enrolment.text : 'Everything on your file is finished',
+      V.travelDate ? 'Travelling ' + day(V.travelDate) + '. Safe travels.' : 'Safe travels.',
+      'applications.html', 'See my applications'],
+  };
+  const nx = N[pk] || N.enrolled;
+  const next = { key: pk, title: nx[0], body: nx[1], href: nx[2], cta: nx[3] };
   const stages = raw.map((x, i) => ({
     key: x.key, label: x.label, detail: x.detail, items: x.items,
     state: i < at ? 'done' : (i === at || x.moving) ? 'doing' : 'next',
@@ -169,7 +250,36 @@ function of(db, st, now) {
     finished,
     apps: { live: live.length, submitted: submitted.length, offers: offers.length,
       rejected, waiting },
+    /* N17-09: the counsellor's phase this was folded from, the enrolment,
+       the next real step, and the visa as the student may see it. */
+    phase: ph ? { key: ph.key, label: ph.label, index: ph.index, of: ph.of, finished: !!ph.finished } : null,
+    enrolment,
+    next,
+    visa: { decision: V.decision, travelDate: V.travelDate ? day(V.travelDate) : '' },
   };
+}
+
+/*
+ * THE VISA FILE'S READINESS (N17-05): the six visa documents every student is
+ * asked for (`need:1` in VISA_DOCS, portal_fields.py). "Visa documents ready"
+ * cannot be ticked until all six are accepted.
+ */
+const VISA_REQUIRED = [
+  ['visa-offer', 'Offer / admission letter'], ['visa-funds', 'Blocked account or proof of funds'],
+  ['visa-insurance', 'Travel and health insurance'], ['visa-form', 'Completed visa application form'],
+  ['visa-cover', 'Visa cover letter'], ['visa-appointment', 'Appointment confirmation'],
+];
+function visaReadiness(db, studentId) {
+  let rows = [];
+  try { rows = db.getDocuments(Number(studentId)) || []; } catch (e) { rows = []; }
+  const slot = {};
+  rows.forEach(d => { slot[d.doc_key] = String(d.status || 'wait'); });
+  const docs = VISA_REQUIRED.map(([key, name]) => {
+    const status = slot[key] && WORD[slot[key]] ? slot[key] : (slot[key] ? 'wait' : 'none');
+    return { key, name, status, word: WORD[status] };
+  });
+  const ok = docs.filter(d => d.status === 'ok').length;
+  return { ok, of: VISA_REQUIRED.length, docs };
 }
 
 /*
@@ -214,4 +324,4 @@ function readiness(db, studentId) {
   };
 }
 
-module.exports = { STAGES, of, day, readiness, REQUIRED, WORD };
+module.exports = { STAGES, of, day, readiness, REQUIRED, WORD, visaReadiness, VISA_REQUIRED };

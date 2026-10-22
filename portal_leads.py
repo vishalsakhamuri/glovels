@@ -261,7 +261,7 @@ function shown() {
   const t = TILES[tile];
   return LEADS.filter(l => {
     if (t && !t.test(l)) return false;
-    if (st && l.status !== st) return false;
+    if (st && st !== 'archived' && l.status !== st) return false;
     if (sr && l.source !== sr) return false;
     if (ow === 'none' && l.ownerId) return false;
     if (ow && ow !== 'none' && String(l.ownerId) !== ow) return false;
@@ -491,9 +491,17 @@ function paintLead(lead, notes) {
          account is the thing that exists now, and removing the enquiry behind
          it loses where they came from, which is the one number the marketing
          spend is judged on. */
-      + (lead.status === 'converted' ? ''
+      /* Patch 172 (15 Oct, item 7): an administrator's, and it ARCHIVES.
+         A counsellor has no remove at all (the server refuses it, 403). An
+         archived lead offers Restore, and "Delete for good" — the only hard
+         delete there is. */
+      + (lead.status === 'converted' || ROLE !== 'admin' ? ''
+          : lead.archivedAt
+          ? '<button type="button" class="btn btn-ghost btn-sm" id="dRestore">Restore</button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="dDel" data-good="1" '
+            + 'style="color:#b03a2e">Delete for good</button>'
           : '<button type="button" class="btn btn-ghost btn-sm" id="dDel" '
-            + 'style="color:#b03a2e">Delete</button>')
+            + 'style="color:#b03a2e">Archive</button>')
       + (lead.status === 'converted'
           ? '<span style="font:600 12.4px/2.2 var(--sans);color:#14603a">'
             + 'They have an account'
@@ -518,6 +526,7 @@ function paintLead(lead, notes) {
   $('#dSave').onclick = () => saveLead(lead);
   if ($('#dWin')) $('#dWin').onclick = () => askConvert(lead);
   if ($('#dDel')) $('#dDel').onclick = () => removeLead(lead);
+  if ($('#dRestore')) $('#dRestore').onclick = () => restoreLead(lead);
   const th = $('#thread');
   th.scrollTop = th.scrollHeight;
   /* Is this person elsewhere in the book, or already a student? */
@@ -668,15 +677,33 @@ async function saveLead(lead) {
 
 async function removeLead(lead) {
   say('');
-  if (!confirm('Delete ' + (lead.name || 'this enquiry') + '?\n\n'
-    + 'The follow-ups written against it go too, and this cannot be undone.')) return;
+  /* Patch 172 (item 7): Archive first; "Delete for good" only on an archived
+     lead, and it says what it does. */
+  const good = !!lead.archivedAt;
+  if (!confirm(good
+    ? 'Delete ' + (lead.name || 'this enquiry') + ' for good?\n\n'
+      + 'The follow-ups written against it go too, and this cannot be undone.'
+    : 'Archive ' + (lead.name || 'this enquiry') + '?\n\n'
+      + 'It leaves the book and its alerts. You can restore it from the Archived filter.')) return;
   try {
-    await api('DELETE', '/api/staff/lead/' + lead.id);
+    await api('DELETE', '/api/staff/lead/' + lead.id + (good ? '?for=good' : ''));
     openId = null;
     await load();
     $('#leadPane').innerHTML = '<p style="margin:0;color:var(--muted);font-size:12.8px">'
-      + 'Deleted. Pick another from the book.</p>';
-    toast('Deleted');
+      + (good ? 'Deleted for good.' : 'Archived — it is under the Archived filter.') + ' Pick another from the book.</p>';
+    toast(good ? 'Deleted for good' : 'Archived');
+  } catch (e) { say(e.message); }
+}
+
+async function restoreLead(lead) {
+  say('');
+  try {
+    await api('POST', '/api/staff/lead/' + lead.id + '/restore', {});
+    openId = null;
+    await load();
+    $('#leadPane').innerHTML = '<p style="margin:0;color:var(--muted);font-size:12.8px">'
+      + 'Restored to the book.</p>';
+    toast('Restored');
   } catch (e) { say(e.message); }
 }
 
@@ -819,15 +846,19 @@ async function open_(id) {
   paint();
 }
 
+/* Patch 172 (item 7): the administrator's Archived filter — the leads taken
+   out of the book, read from the server separately (?archived=1). */
+let ARCHIVED = false;
 async function load() {
-  const r = await api('GET', '/api/staff/leads');
+  const r = await api('GET', '/api/staff/leads' + (ARCHIVED && ROLE === 'admin' ? '?archived=1' : ''));
   LEADS = r.leads;
   SUM = r.summary;
   PEOPLE = r.counsellors;
   STATUSES = r.statuses;
   REASONS = r.reasons;
 
-  fill('#fStatus', STATUSES.map(v => ({ v, t: STATUS_LABEL[v] || v })));
+  fill('#fStatus', STATUSES.map(v => ({ v, t: STATUS_LABEL[v] || v }))
+    .concat(ROLE === 'admin' ? [{ v: 'archived', t: 'Archived (' + Number(r.archivedCount || 0) + ')' }] : []));
   fill('#fSource', [...new Set(LEADS.map(l => l.source))]
     .map(v => ({ v, t: SOURCE_LABEL[v] || v })));
   fill('#fOwner', PEOPLE.map(p => ({ v: String(p.id), t: p.name })));
@@ -864,7 +895,16 @@ document.addEventListener('click', e => {
    commonest way paging goes wrong. */
 ['#fStatus', '#fSource', '#fOwner'].forEach(s =>
   document.addEventListener('change', e => {
-    if (e.target.matches(s)) { PAGE_AT.lead = 0; paint(); }
+    if (e.target.matches(s)) {
+      PAGE_AT.lead = 0;
+      /* Patch 172: Archived is a different list, so it is fetched. */
+      if (s === '#fStatus' && (e.target.value === 'archived') !== ARCHIVED) {
+        ARCHIVED = e.target.value === 'archived';
+        load();
+        return;
+      }
+      paint();
+    }
   }));
 document.addEventListener('input', e => {
   if (e.target.id === 'fQ') { PAGE_AT.lead = 0; paint(); }

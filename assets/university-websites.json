@@ -1,0 +1,182 @@
+{
+  "humber-college": {
+    "url": "https://humber.ca",
+    "name": "Humber College",
+    "source": "web search + home page fetched and checked for the name; verified home page (site now calls itself Humber Polytechnic)",
+    "checked": "2026-10-22"
+  },
+  "arden-university-berlin": {
+    "url": "https://arden.ac.uk/where-to-study/locations/berlin",
+    "name": "Arden University Berlin",
+    "source": "web search + home page fetched and checked for the name; Arden University Berlin campus page on arden.ac.uk; course links sat on tubadvancedmasters.de (aggregator)",
+    "checked": "2026-10-22"
+  },
+  "berlin-school-of-business-and-innovation": {
+    "url": "https://www.berlinsbi.com",
+    "name": "Berlin School of Business and Innovation",
+    "source": "web search + home page fetched and checked for the name; verified home page (BSBI)",
+    "checked": "2026-10-22"
+  },
+  "constructor-university": {
+    "url": "https://constructor.university",
+    "name": "Constructor University",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "gisma-university-of-applied-sciences": {
+    "url": "https://www.gisma.com",
+    "name": "Gisma University of Applied Sciences",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "hochschule-dusseldorf": {
+    "url": "https://www.hs-duesseldorf.de",
+    "name": "Hochschule Düsseldorf",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "hochschule-geisenheim-university": {
+    "url": "https://www.hs-geisenheim.de",
+    "name": "Hochschule Geisenheim University",
+    "source": "web search + home page fetched and checked for the name; verified home page; course links sat on vinifera-euromaster.eu (joint programme)",
+    "checked": "2026-10-22"
+  },
+  "icn-business-school-germany": {
+    "url": "https://www.icn-artem.com/en/",
+    "name": "ICN Business School - Germany",
+    "source": "web search + home page fetched and checked for the name; ICN Business School (Nancy) home page, Berlin listed as a campus; no separate German site",
+    "checked": "2026-10-22"
+  },
+  "iu-international-university": {
+    "url": "https://www.iu.org",
+    "name": "IU International University",
+    "source": "web search + home page fetched and checked for the name; verified home page (international site)",
+    "checked": "2026-10-22"
+  },
+  "karlshochschule-international-university": {
+    "url": "https://karlshochschule.de",
+    "name": "Karlshochschule International University",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "lancaster-university-leipzig": {
+    "url": "https://www.lancasterleipzig.de",
+    "name": "Lancaster University Leipzig",
+    "source": "web search + home page fetched and checked for the name; verified home page of the Leipzig branch campus",
+    "checked": "2026-10-22"
+  },
+  "mediadesign-hochschule-university-of-applied-sciences": {
+    "url": "https://www.mediadesign.de",
+    "name": "Mediadesign Hochschule University of Applied Sciences",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "new-european-college": {
+    "url": "https://www.new-european-college.com",
+    "name": "New European College",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "schiller-international-university-germany": {
+    "url": "https://schiller.edu",
+    "name": "Schiller International University - Germany",
+    "source": "web search + home page fetched and checked for the name; Schiller International University home page, Heidelberg listed as a campus",
+    "checked": "2026-10-22"
+  },
+  "srh-berlin-university-of-applied-sciences": {
+    "url": "https://www.srh-university.de/en/",
+    "name": "SRH Berlin University of Applied Sciences",
+    "source": "web search + home page fetched and checked for the name; srh-berlin.de now 302s to srh-university.de (SRH Berlin became part of SRH University in 2024); Berlin is a campus there",
+    "checked": "2026-10-22"
+  },
+  "srh-international-college": {
+    "url": "https://www.srh-university.de/en/international-office/srh-international-college",
+    "name": "SRH International College",
+    "source": "web search + home page fetched and checked for the name; the college page on SRH University; it has no site of its own",
+    "checked": "2026-10-22"
+  },
+  "university-of-europe-for-applied-sciences": {
+    "url": "https://www.ue-germany.com",
+    "name": "University of Europe for Applied Sciences",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "eu-business-school": {
+    "url": "https://www.euruni.edu",
+    "name": "EU Business School",
+    "source": "web search + home page fetched and checked for the name; verified home page (Barcelona, Geneva, Munich, Digital)",
+    "checked": "2026-10-22"
+  },
+  "ie-university": {
+    "url": "https://www.ie.edu",
+    "name": "IE University",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "arden-university": {
+    "url": "https://arden.ac.uk",
+    "name": "Arden University",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "cranfield-university": {
+    "url": "https://www.cranfield.ac.uk",
+    "name": "Cranfield University",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "hult-international-business-school": {
+    "url": "https://www.hult.edu",
+    "name": "Hult International Business School",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "national-college-of-ireland": {
+    "url": "https://www.ncirl.ie",
+    "name": "National College of Ireland",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "domus-academy": {
+    "url": "https://www.domusacademy.com",
+    "name": "Domus Academy",
+    "source": "web search + home page fetched and checked for the name; verified home page",
+    "checked": "2026-10-22"
+  },
+  "kozminski-university": {
+    "url": "https://www.kozminski.edu.pl",
+    "name": "Kozminski University",
+    "source": "web search + home page fetched and checked for the name; verified home page (Akademia Leona Koźmińskiego)",
+    "checked": "2026-10-22"
+  },
+  "vistula-university": {
+    "url": "https://vistula.edu.pl",
+    "name": "Vistula University",
+    "source": "web search + home page fetched and checked for the name; verified home page (Akademia Finansów i Biznesu Vistula)",
+    "checked": "2026-10-22"
+  },
+  "albstadt-sigmaringen-university": {
+    "url": "https://www.hs-albsig.de",
+    "name": "Albstadt-Sigmaringen University",
+    "source": "web search + home page fetched and checked for the name; heuristic picked hs-albsig-international.de (the international sub-site); this is the main site",
+    "checked": "2026-10-22"
+  },
+  "max-planck-institute-for-marine-microbiology": {
+    "url": "https://www.mpi-bremen.de",
+    "name": "Max Planck Institute for Marine Microbiology",
+    "source": "web search + home page fetched and checked for the name; heuristic picked www.mpg.de (the Max Planck Society); this is the institute",
+    "checked": "2026-10-22"
+  },
+  "reutlingen-university": {
+    "url": "https://www.reutlingen-university.de",
+    "name": "Reutlingen University",
+    "source": "web search + home page fetched and checked for the name; heuristic picked esb-business-school.de (its business school); this is the university",
+    "checked": "2026-10-22"
+  },
+  "coventry-university": {
+    "url": "https://www.coventry.ac.uk",
+    "name": "Coventry University",
+    "source": "web search + home page fetched and checked for the name; verified home page; not in the catalogue today, shipped for when it is",
+    "checked": "2026-10-22"
+  }
+}

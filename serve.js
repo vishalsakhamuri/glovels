@@ -26,6 +26,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const HERO = require('./server/hero.js');
 const url = require('url');
 
 const ROOT = __dirname;
@@ -305,6 +306,8 @@ const placeholders = seed.placeholdersOut({ db, content: content.shipped() });
 const openedServices = seed.openOnRequestServices({ db });
 /* Round 169: three services move from Most Booked to a More Services tab. */
 seed.moreServicesTab({ db });
+/* Round 15 Oct (4): …and back into Most Booked as well, once. */
+seed.mostBookedAgain({ db });
 /* What applying to each university costs the student through us. Read off
    public-versus-private for the rows already on the shelf — we are partnered
    with the private places, so those are free to apply to, and the public names
@@ -320,6 +323,9 @@ const destPkgs = seed.packagesBelongToADestination({ db });
 /* Bodies for the six posts that shipped as empty drafts. Never overwrites one
    somebody has started, and leaves them as drafts to read before publishing. */
 const filledPosts = seed.fillEmptyPosts({ db, root: ROOT });
+/* Round 172: links to nowhere — [M.Sc](http://M.Sc), a Wix auto-link — taken
+   out of every stored post, once. The renderer refuses them regardless. */
+seed.repairBlogLinks({ db });
 
 /*
  * One email a morning, to the people who can do something about it.
@@ -411,7 +417,8 @@ function send(res, code, body, type, extra) {
   if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
     const u = url.parse(res.req.url, true);
     traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
-    if (typeof body === 'string') body = withPublicChrome(withAnalytics(withSocials(body, u.pathname)));
+    /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
+    if (typeof body === 'string') body = withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)));
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -447,7 +454,7 @@ function notFound(res) {
      address missed — /post/old-article, /university/x/y — and a relative
      "about-us.html" there resolved to /post/about-us.html: another 404. */
   if (fs.existsSync(p)) {
-    const html = withPublicChrome(fs.readFileSync(p, 'utf8')
+    const html = withPublicChrome(HERO.upgrade(fs.readFileSync(p, 'utf8'), '/404')
       .replace(/(href|src)="(?![/#]|[a-z]+:)([^"]*)"/gi, (m, a, v) => a + '="/' + (v === 'index.html' ? '' : v) + '"')
       .replace(/href="\/index\.html#/g, 'href="/#'));
     return send(res, 404, html, TYPES['.html']);
@@ -1076,6 +1083,13 @@ const UNI_CSS = `<style>/* GLOVELS-UNI-CSS */
 /* Patch 170: a German public university's locked programme rows. */
 .prog .masked{filter:blur(5px);color:var(--muted);user-select:none;letter-spacing:-.02em}
 .prog.locked h3 .masked{color:var(--navy-800)}
+/* Round 15 Oct (8): a run of 48 blocks has no place to break, and the 1fr
+   column grew to fit it — 564px on a 375px phone. The card and its text
+   column may shrink, and the placeholder is clipped to them. */
+.prog.locked{min-width:0;overflow:hidden;grid-template-columns:minmax(0,1fr) auto}
+.prog.locked>div{min-width:0}
+.prog.locked .masked{display:inline-block;max-width:100%;overflow:hidden;white-space:nowrap;vertical-align:bottom}
+@media (max-width:600px){.prog.locked{grid-template-columns:minmax(0,1fr)}.prog.locked .act{justify-content:flex-start}}
 .prog .lockword{font:700 11.4px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .prog .offscreen{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .uni-locknote{padding:13px 16px;border-radius:12px;background:#fdf6e6;border:1px solid #e6d5a8;color:var(--navy-800)}
@@ -1488,7 +1502,7 @@ function universityPage(u, req) {
   const body =
       '<div class="uni-lead">'
     + '<span class="pill ' + (u.isPublic ? 'pub' : 'priv') + '">' + (u.isPublic ? 'Public' : 'Private') + '</span>'
-    + '<span class="pill">' + esc(c.flag ? c.flag + ' ' : '') + esc(c.name) + '</span>'
+    + '<span class="pill">' + (require('./server/find.js').flagImg(u.country, c.name, 20) || esc(c.flag || '')) + ' ' + esc(c.name) + '</span>'
     + (u.city ? '<span class="pill">' + esc(u.city) + '</span>' : '')
     + '<span class="pill">' + n + ' programme' + (n === 1 ? '' : 's') + '</span>'
     /* Round 169 (WEB-05): the office's address for the university when set
@@ -1560,8 +1574,14 @@ function universityPage(u, req) {
     jsonld: jsonld[0],
   }), {
     H1: esc(u.name),
+    /* Round 15 Oct (6): no programme count in the banner (owner rule); the
+       chips say what kind of university and where. */
+    HERO: HERO.attrs({ eyebrow: 'Study in ' + c.name, chips: [
+      [u.isPublic ? 'Public' : 'Private', 'university'],
+      [u.city || c.name, u.city ? c.name : 'study abroad'],
+    ] }),
     DATELINE: esc((called ? called + ' · ' : '') + (u.isPublic ? 'Public university' : 'Private university')
-      + (u.city ? ' in ' + u.city : '') + ', ' + c.name + ' · ' + n + ' programme' + (n === 1 ? '' : 's')),
+      + (u.city ? ' in ' + u.city : '') + ', ' + c.name),
     CRUMBS: '<a href="../index.html">Home</a> / <a href="../university">Universities</a> / ' + esc(called || u.name),
     BODY: body,
   }));
@@ -1684,7 +1704,7 @@ function universitiesIndexPage() {
   const body = order.map(code => {
     const c = countries[code] || { name: code, flag: '' };
     const list = byCountry.get(code);
-    return '<h2 id="' + esc(UNIS.slugOf(c.name)) + '">' + esc(c.flag ? c.flag + ' ' : '') + esc(c.name)
+    return '<h2 id="' + esc(UNIS.slugOf(c.name)) + '">' + (require('./server/find.js').flagImg(code, c.name, 28) || esc(c.flag || '')) + ' ' + esc(c.name)
       + ' <span style="font-size:14px;color:var(--muted);font-weight:400">· ' + list.length
       + ' universit' + (list.length === 1 ? 'y' : 'ies') + '</span></h2>'
       + '<ul class="ulist">' + list.map(u =>
@@ -1847,6 +1867,8 @@ const NOLIST_JS = `<script>(function(){
     var phone = (document.getElementById('nlPhone').value || '').trim();
     var email = (document.getElementById('nlEmail').value || '').trim();
     if (!name) return show('Your name, so we know who we are calling.');
+    /* Round 15 Oct (9): the contact form's name rule. */
+    if (!/[A-Za-z\\u00C0-\\u024F\\u0900-\\u097F]/.test(name)) return show('A name needs at least one letter.');
     if (!/^[6-9]\\d{9}$/.test(phone.replace(/\\D/g, '').slice(-10))) {
       return show('A 10-digit Indian mobile, please.');
     }
@@ -1868,6 +1890,8 @@ const NOLIST_JS = `<script>(function(){
       })
     }).then(function(r){
       btn.disabled = false; btn.textContent = 'Send to a counsellor';
+      if (r.status >= 400 && r.status < 500) return r.json().catch(function(){ return {}; }).then(function(d){
+        show(d.error || 'That did not send. Try again, or call the office.'); });
       if (!r.ok) return show('That did not send. Try again, or call the office.');
       var box = document.querySelector('.nolist');
       if (box) box.innerHTML = '<p class="nl-lead"><b>Thank you \\u2014 a counsellor has this.</b> '
@@ -2197,8 +2221,10 @@ function studyPage(c) {
       description: desc, isPartOf: { '@type': 'WebSite', name: 'Glovels', url: absolute('/') } },
   }), {
     H1: 'Study in ' + esc(c.name),
-    DATELINE: esc((c.flag ? c.flag + ' ' : '') + c.name + (c.region ? ' · ' + c.region : '')
-      + (n ? ' · ' + n + ' universit' + (n === 1 ? 'y' : 'ies') + ' we track' : '')),
+    /* Round 15 Oct (1, 6): the flag as a picture in the banner's eyebrow
+       row, no university count (owner rule). */
+    HERO: HERO.attrs({ eyebrow: 'Study abroad', chips: [['Free', 'first counselling call'], ['1:1', 'shortlist & applications']] }),
+    DATELINE: esc(c.name + (c.region ? ' · ' + c.region : '')),
     CRUMBS: '<a href="index.html">Home</a> / Study Abroad / ' + esc(c.name),
     BODY: body,
   }));
@@ -2730,6 +2756,20 @@ const server = http.createServer(async (req, res) => {
     if (!f) return notFound(res);
     return send(res, 200, fs.readFileSync(f), LOGOS.mimeOf(f),
       { 'Cache-Control': 'public, max-age=31536000, immutable' });
+  }
+
+  /* Round 15 Oct (1): a country flag as a picture. The emoji flag is two
+     letters on Windows ("DE" in a box), so every badge draws one of these
+     instead (assets/flags, from flag-icons, MIT). Only a bare two-letter name
+     is looked up, so nothing beside the folder is reachable. */
+  {
+    const fm = /^\/flags\/([a-z]{2})\.svg$/.exec(pathname);
+    if (fm) {
+      const f = path.join(__dirname, 'assets', 'flags', fm[1] + '.svg');
+      if (!fs.existsSync(f)) return notFound(res);
+      return send(res, 200, fs.readFileSync(f), 'image/svg+xml',
+        { 'Cache-Control': 'public, max-age=2592000' });
+    }
   }
 
   if (pathname === '/robots.txt') return send(res, 200, robotsTxt(), TYPES['.txt']);

@@ -116,12 +116,16 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
     await req('a', 'PUT', '/api/staff/task/' + t.id, { status: 'done' });
   }
   ph = (await req('a', 'GET', '/api/staff/student/' + only.id)).body.phase;
+  /* Round 172 (N17-01): everybody has the core journey and the documents
+     step needs its documents verified, so the file is NOT done here. */
   ok('  · and is NOT called Departed while their purchase is still open',
-    ph && ph.key === 'service', ph && ph.key);
+    ph && ph.key !== 'departed' && !ph.finished, ph && ph.key);
   const svcT = only.tasks.find(t => t.key === 'svc:forex');
   await req('a', 'PUT', '/api/staff/task/' + svcT.id, { status: 'done' });
   ph = (await req('a', 'GET', '/api/staff/student/' + only.id)).body.phase;
-  ok('  · and only then is everything finished', ph && ph.key === 'departed', ph && ph.key);
+  /* Round 172 (N17-01): nor after it — Departed needs a granted visa and a
+     travel date on the file, whatever is ticked. */
+  ok('  · and even then not Departed without a visa and a travel date', ph && ph.key !== 'departed' && !ph.finished, ph && ph.key);
 
   /* ---- however many universities the package allows ---- */
   const cat = await req('a', 'GET', '/api/staff/catalogue?per=60');
@@ -233,8 +237,11 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   {
     const v = await buyer('visabuy', ['visa']);
     const visaRows = v.tasks.filter(t => /visa/i.test(t.key));
-    ok('buying the visa service gives its two steps and no twin',
-      visaRows.length === 2 && !v.tasks.some(t => t.key === 'svc:visa'),
+    /* Round 172 (N17-05): the visa journey has its decision step too
+       (visadocs, visa, visadecision), on every file — still no twin. */
+    ok('buying the visa service gives its visa steps and no twin',
+      ['visadocs', 'visa', 'visadecision'].every(k => visaRows.some(t => t.key === k))
+        && visaRows.length === 3 && !v.tasks.some(t => t.key === 'svc:visa'),
       visaRows.map(t => t.key).join(','));
   }
 

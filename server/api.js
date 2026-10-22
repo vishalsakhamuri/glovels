@@ -686,6 +686,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     };
   }
 
+  /* Patch 172 (N17-02): the counsellor's Documents list — one row per FILE,
+     oldest first, carrying the document it belongs to. */
+  function staffDocRows(id) {
+    return db.getDocuments(id).map(d => ({
+      id: d.id, key: d.doc_key, name: DOCSLOTS.nameOf(d.doc_key),
+      file: d.filename, status: d.status, at: d.uploaded_at, bytes: d.bytes,
+      by: String(d.uploaded_by || 'student'), verdict: String(d.verdict || ''),
+    }));
+  }
+
   function stateFor(s) {
     const orders = db.ordersFor(s.id);
     /* A SLOT HOLDS A SET, and still answers as one thing.
@@ -710,6 +720,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            office put there — and the route refuses it too, because a control
            absent from a page is not the same as a rule. */
         by: String(d.uploaded_by || 'student'),
+        /* Patch 172 (N17-02): the counsellor's word on THIS file — 'ok' is
+           the verified copy, which the student cannot remove. */
+        verdict: String(d.verdict || ''),
       };
       const slot = docs[d.doc_key] || (docs[d.doc_key] = { files: [] });
       slot.files.push(one);
@@ -1413,6 +1426,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     ROUTES.push({ method, pattern, handler,
       auth: !(opts && opts.open), soft: !!(opts && opts.soft) });
 
+  /* Patch 172 (15 Oct, item 10): on start, say how many students sit on a
+     closed or test account. They are NOT reassigned — every list and the
+     unassigned alert already treat them as unassigned (liveCounsellorOf), and
+     the office decides who takes them. */
+  try {
+    const stranded = db.allStudents().filter(st => st.counsellor_id && !db.liveCounsellorOf(st));
+    if (stranded.length) {
+      console.log('[assign] ' + stranded.length + ' student(s) held by a closed or test account — shown as Unassigned: '
+        + stranded.slice(0, 10).map(st => '#' + st.id).join(', '));
+    }
+  } catch (e) { /* a log line, nothing more */ }
+
   /* The four things an account with a temporary password may still do.
    *
    * Leaving is one of them. Making somebody set up an account they have
@@ -1952,7 +1977,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * `replace=yes` keeps the old behaviour for the screens that mean it — a
      * passport is one document and a second one is a correction, not a second
      * page. The card says which it is doing. */
-    if (/^(y|yes|1|true)$/i.test(String(parsed.fields.replace || ''))) {
+    /* Patch 172 (STU-05 kept): never over an ACCEPTED document — the verified
+       copy is the counsellor's to replace. The new file joins the set instead,
+       and the counsellor sees it arrive. */
+    const acceptedHere = db.docsInKey(s.id, key).some(r => String(r.status) === 'ok' || String(r.verdict || '') === 'ok')
+      && key !== 'other';
+    if (!acceptedHere && /^(y|yes|1|true)$/i.test(String(parsed.fields.replace || ''))) {
       /* Replacing removes the previous files rather than leaving them on disk:
          these are passport scans, not build artifacts. */
       for (const prev of db.docsInKey(s.id, key)) {
@@ -1970,6 +2000,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     db.addDocument(s.id, key, parsed.file.filename, stored, parsed.file.data.length,
       'student');
     db.setDocStatus(s.id, key, 'wait');
+    /* Patch 172 (N17-02): the counsellor's open Documents list refreshes
+       itself — the same live stream the messages use. */
+    try { live.toThreadStaff(s.id, s.counsellor_id, 'documents', { studentId: s.id, key }); } catch (e) { /* the poll catches it */ }
     return json(res, 200, { docs: stateFor(s).docs });
   });
 
@@ -1983,8 +2016,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const rec = db.docById(s.id, Number(m[1]));
     /* Resolved from the SESSION and the id together, so an id from another
        student's file finds nothing rather than deleting it. */
-    if (!rec) return json(res, 404, { error: 'Not found' });
+    /* Patch 172: a file the counsellor took out of the slot is not theirs to
+       reach any more (it is kept for the record). */
+    if (!rec || /^removed:/.test(String(rec.doc_key))) return json(res, 404, { error: 'Not found' });
     if (notTheirs(rec)) return refuseAppFile(res);
+    /* Patch 172 (N17-02): the file the counsellor accepted is the verified
+       copy, even after a newer file put the slot back in review. */
+    if (String(s.role || 'student') === 'student' && String(rec.verdict || '') === 'ok'
+        && String(rec.doc_key) !== 'other') {
+      return json(res, 409, { error: 'This file is the copy your counsellor accepted. Ask your counsellor to replace it.', accepted: true });
+    }
     /* Patch 169 (STU-05): an ACCEPTED document is the counsellor's verified
        copy. A student cannot delete it — they ask for it to be replaced. */
     /* Not the catch-all "Other documents" slot: it holds anything, its status
@@ -1996,11 +2037,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     }
     try { fs.unlinkSync(path.join(uploadDir, String(s.id), rec.stored_name)); } catch (e) {}
     db.removeDocFile(s.id, rec.id);
+    try { live.toThreadStaff(s.id, s.counsellor_id, 'documents', { studentId: s.id, key: rec.doc_key }); } catch (e) { /* the poll catches it */ }
     return json(res, 200, { docs: stateFor(s).docs });
   });
 
   route('DELETE', /^\/api\/documents\/(.+)$/, async (req, res, s, m) => {
     const key = decodeURIComponent(m[1]);
+    /* Patch 172: the files a counsellor took out are kept, not the student's to clear. */
+    if (/^removed:/.test(key)) return json(res, 404, { error: 'Not found' });
     /* CLEARING A SLOT CLEARS THE STUDENT'S OWN FILES IN IT, and leaves
        anything the office put there.
        *
@@ -2015,7 +2059,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       return all.length ? refuseAppFile(res) : json(res, 404, { error: 'Not found' });
     }
     /* Patch 169 (STU-05): not on an accepted document — see the file route. */
-    if (String(s.role || 'student') === 'student' && all.some(r => String(r.status) === 'ok')
+    if (String(s.role || 'student') === 'student' && all.some(r => String(r.status) === 'ok' || String(r.verdict || '') === 'ok')
         && String(key) !== 'other' && DOCSLOTS.known(key) && !DOCSLOTS.APP_FILE.test(String(key))) {
       return json(res, 409, { error: 'This document has been accepted by your counsellor. Ask your counsellor to replace it.', accepted: true });
     }
@@ -2051,7 +2095,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      because that pattern would otherwise swallow "file/12". */
   route('GET', /^\/api\/documents\/file\/(\d+)$/, async (req, res, s, m) => {
     const rec = db.docById(s.id, Number(m[1]));
-    if (!rec) return json(res, 404, { error: 'Not found' });
+    if (!rec || /^removed:/.test(String(rec.doc_key))) return json(res, 404, { error: 'Not found' });
+    const file = path.join(uploadDir, String(s.id), rec.stored_name);
+    if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': disposition(rec.filename),
+      'Cache-Control': 'no-store',
+    });
+    return fs.createReadStream(file).pipe(res);
+  });
+
+  /* Patch 172 (N17-02): one file of one document — /api/documents/<key>/file/<id>
+     serves THAT file, not the newest, and only when it is in that slot. */
+  route('GET', /^\/api\/documents\/([^/]+)\/file\/(\d+)$/, async (req, res, s, m) => {
+    let key = String(m[1]);
+    try { key = decodeURIComponent(key); } catch (e) { /* as sent */ }
+    const rec = db.docById(s.id, Number(m[2]));
+    if (!rec || String(rec.doc_key) !== key) return json(res, 404, { error: 'Not found' });
     const file = path.join(uploadDir, String(s.id), rec.stored_name);
     if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
     res.writeHead(200, {
@@ -2063,7 +2124,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   });
 
   route('GET', /^\/api\/documents\/(.+)\/file$/, async (req, res, s, m) => {
-    const rec = db.docByKey(s.id, decodeURIComponent(m[1]));
+    const rec = /^removed:/.test(decodeURIComponent(m[1])) ? null : db.docByKey(s.id, decodeURIComponent(m[1]));
     if (!rec) return json(res, 404, { error: 'Not found' });
     const file = path.join(uploadDir, String(s.id), rec.stored_name);
     if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
@@ -2977,7 +3038,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* Round 30 Sep (issues 4, 20): the tick box was only checked in the
        browser, and a 3,000-character name filled the Leads screen. */
     if (name.length > 100) return json(res, 422, { ok: false, error: 'That name is too long — 100 characters at most.' });
-    if (!/\p{L}/u.test(name) || !/^[\p{L}\p{M}\d .'’-]+$/u.test(name)) return json(res, 422, { ok: false, error: 'A name can only have letters, spaces and . - \u2019' });
+    /* Round 15 Oct (9): "12345" is told what is wrong with it, by field. */
+    if (!/\p{L}/u.test(name)) return json(res, 422, { ok: false, error: 'A name needs at least one letter.', fields: [{ field: 'name', why: 'no letter' }] });
+    if (!/^[\p{L}\p{M}\d .'’-]+$/u.test(name)) return json(res, 422, { ok: false, fields: [{ field: 'name', why: 'characters' }], error: 'A name can only have letters, spaces and . -\u2019' });
     if (String(b.consent || '').toLowerCase() !== 'yes') {
       return json(res, 422, { ok: false, error: 'Please tick the box to agree that Glovels may contact you.' });
     }
@@ -4111,6 +4174,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     partnerOnly(async (req, res, s, m) => {
       const st = theirStudent(s, m[1]);
       if (!st) return json(res, 404, { error: 'No such student' });
+      /* Patch 172 (15 Oct, item 13): a file the agency closed is read-only —
+         its documents as much as its details (patch 169, B2B-02). Nothing
+         is written; the body is drained so the answer arrives cleanly. */
+      if (Number(st.partner_closed)) {
+        try { await readBody(req, (MAX_UPLOAD_MB + 1) * 1024 * 1024); } catch (e) { /* refused anyway */ }
+        return json(res, 409, { error: 'This file is closed. Reopen it from Closed files to upload documents.', closed: true });
+      }
 
       /* Same limit as the student's own upload, and for the same reason: this
          file lands in the student's folder and their counsellor opens it, so
@@ -4146,6 +4216,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         'staff');
       db.log(s.email, 'partner uploaded a document',
         s.name + ' \u2192 ' + st.name + ' \u00b7 ' + key);
+      try { live.toThreadStaff(st.id, st.counsellor_id, 'documents', { studentId: st.id, key }); } catch (e) { /* the poll catches it */ }
 
       const docs = {};
       db.getDocuments(st.id).forEach(d => {
@@ -4448,10 +4519,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const last = db.lastMessage(st.id);
       const docs = db.getDocuments(st.id);
       const orders = db.ordersFor(st.id);
-      const c = st.counsellor_id ? db.studentById(st.counsellor_id) : null;
+      /* Patch 172 (15 Oct, item 10): a closed or test account holding the
+         file shows as Unassigned (and counts there); `heldBy` names it. */
+      const c = db.liveCounsellorOf(st);
+      const held = !c && st.counsellor_id ? db.studentById(st.counsellor_id) : null;
       return {
         id: st.id, name: st.name, email: st.email, phone: st.phone,
         joined: st.created_at,
+        heldBy: held ? { id: held.id, name: held.name, closed: true } : null,
         /* Where they are in their life with us. The roster draws the closing
            control from this, and a control that cannot see the current value
            shows every file as open. */
@@ -4507,10 +4582,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           .filter(a => listed.has(String(a.prog_id)) && String(a.internal_note || '').trim())
           .map(a => [a.prog_id, String(a.internal_note)]));
       })(),
-      docs: db.getDocuments(id).map(d => ({
-        key: d.doc_key, file: d.filename, status: d.status, at: d.uploaded_at,
-        bytes: d.bytes,
-      })),
+      /* Patch 172 (N17-02): each FILE with its own id (its own link, its own
+         Accept / Query), who sent it, its verdict, and the document's name —
+         the screen groups them one block per document. */
+      docs: staffDocRows(id),
       /* Patch 169 (STU-09.2): the student's own readiness figure, so the
          tile and their Documents screen say the same "N of 10". */
       readiness: (() => { try { return JOURNEY.readiness(db, id); } catch (e) { return null; } })(),
@@ -4539,8 +4614,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           over: TASKS.lateness(t, now),
           done: t.done_at ? String(t.done_at).slice(0, 10) : '',
           derived: !!t.derived, why: t.derivedWhy || '',
+          /* N17-01: the template key, and why "done" is refused right now. */
+          key: t.task_key,
+          lock: TASKS.CLOSED.has(String(t.status)) ? ''
+            : (() => { try { return TASKS.doneBlock(db, st, t); } catch (e) { return ''; } })(),
         }));
       })(),
+      /* N17-05: the visa decision and travel date, and the visa file's
+         readiness — the Tasks tab draws its "Visa decision" box from these. */
+      visa: (() => { try { return TASKS.visaOf(db, id); } catch (e) { return null; } })(),
+      visaReady: (() => { try { return JOURNEY.visaReadiness(db, id); } catch (e) { return null; } })(),
       /* The drafts the student wrote in the studio. The counsellor is the one
          being paid to rewrite them, so making them ask for a copy by email is
          a step that exists for no reason. */
@@ -4795,6 +4878,32 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         : String(b.note || '').replace(/\s+$/, '').slice(0, 600);
 
       const before = db.getApplications(id).find(a => String(a.prog_id) === progId);
+      /* N17-03 (16 Oct): AN OUTCOME IS WHAT THE UNIVERSITY SAID, so it can only
+         be recorded at "Decision". One wrong click on an application at
+         "Documents collected" told a student they had an offer that did not
+         exist. A stage correction that keeps an outcome already recorded is
+         allowed (and silent); a NEW outcome away from Decision is refused. */
+      const DECIDED = APPS.STAGES.findIndex(x => x.k === 'decided');
+      const wasOutcome = String((before || {}).outcome || '');
+      const outcomeChanged = outcome !== wasOutcome;
+      if (outcomeChanged && outcome && stage !== DECIDED) {
+        return json(res, 409, {
+          error: 'An outcome can only be recorded once the application is at “'
+            + APPS.STAGES[DECIDED].n + '”. Move the stage to ' + APPS.STAGES[DECIDED].n + ' first.',
+        });
+      }
+      /* …and a programme the office no longer offers needs it said twice. */
+      if (outcomeChanged && outcome && b.confirmWithdrawn !== true) {
+        let gone = false;
+        try { const pr = typeof db.programme === 'function' ? db.programme(progId) : null; gone = !!(pr && !pr.active); } catch (e) { gone = false; }
+        if (gone) {
+          return json(res, 409, {
+            needsConfirm: true,
+            error: progSaid(row) + ' is no longer offered. Confirm that the university really sent “'
+              + APPS.outcomeOf(outcome).n + '” before the student is told.',
+          });
+        }
+      }
       db.putApplication(id, progId, stage, outcome, note);
       /* Round 30 Sep (issue 3): the office-only note. Stored apart, never
          shown to the student and never messaged to them. */
@@ -4813,10 +4922,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* Only when it actually moved. A counsellor tidying up ten rows should
          not send a student ten messages saying nothing changed. */
       const moved = !before || before.stage !== stage || before.outcome !== outcome;
-      if (moved) {
-        db.log(s.name, 'moved an application', st.name + ' — ' + said);
-        db.addMessage(id, 'them', 'Update on your applications — ' + said + '.', '', s.name);
-      }
+      /* N17-04 (16 Oct): WHAT THE STUDENT IS TOLD. The outcome sentence goes
+         when the OUTCOME changes, and only then — each stage correction on an
+         application with an offer re-sent "an offer from …" (three in two
+         minutes). A stage move with no outcome on the file is said when it
+         goes forward, never for "Decision" with nothing decided (it told the
+         student nothing), and never for a correction backwards. */
+      const wasStage = before ? Number(before.stage || 0) : -1;
+      const tell = (outcomeChanged && outcome) ? said
+        : (!outcomeChanged && !outcome && stage > wasStage && stage !== DECIDED) ? said
+        : '';
+      if (moved) db.log(s.name, 'moved an application', st.name + ' — ' + said);
+      if (tell) db.addMessage(id, 'them', 'Update on your applications — ' + tell + '.', '', s.name);
       /* The note is its own event, with its own sentence. Folding it into the
          one above would send "Update on your applications — Filed" to somebody
          whose stage did not move and whose counsellor had just explained why
@@ -4827,7 +4944,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         db.addMessage(id, 'them', progSaid(row) + ' — ' + note, '', s.name);
       }
       if (moved || noted) live.toStudent(id, 'apps', {});
-      return json(res, 200, { apps: stateFor(st).apps, moved, noted });
+      return json(res, 200, { apps: stateFor(st).apps, moved, noted, told: !!tell });
     }));
 
   route('POST', /^\/api\/staff\/student\/(\d+)\/message$/, caseworkOnly(async (req, res, s, m) => {
@@ -5042,6 +5159,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length,
         'staff');
       db.setDocStatus(id, key, ours || perApp || spare ? 'ok' : 'wait');
+      /* Patch 172 (N17-02): REPLACE one file — `replaces=<fileId>` takes that
+         file out of the slot (kept, logged) once the new one is in. */
+      const replacesId = Number(parsed.fields.replaces || 0);
+      if (replacesId && !ours && !perApp) {
+        const old = db.docById(id, replacesId);
+        if (old && String(old.doc_key) === key) removeStaffFile(s, id, key, old, 'replaced a document file');
+      }
       db.log(s.name,
         perApp ? 'filed an application record'
           : ours ? 'delivered finished work' : 'uploaded a document for a student',
@@ -5097,6 +5221,146 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
       return fs.createReadStream(file).pipe(res);
     }));
+
+  /* ------------------------------------------------------------------
+   * Patch 172 (N17-02): ONE FILE OF ONE DOCUMENT, for the counsellor.
+   *
+   * "Both rows link to the same address, which always downloads the newest
+   * file: the older one cannot be opened at all. Accept on either row accepts
+   * the whole document. If any older file in the slot is a type the server
+   * refuses, Accept fails for the whole document."
+   *
+   * THE RULE, said once:
+   *   - Every file has its own address: /document/<key>/file/<fileId>.
+   *   - ACCEPT a file = the document is accepted, with THAT file as the
+   *     verified copy (verdict 'ok'; the slot's status 'ok'). Only that file's
+   *     type is checked — an older refused file does not block a valid newer
+   *     one. Older files can be accepted the same way.
+   *   - QUERY a file = verdict 'rescan'. If no other file in the document is
+   *     an accepted copy, the document goes to "Waiting for a scan" and the
+   *     student is told which file; if another file is the verified copy, the
+   *     document stays accepted.
+   *   - REMOVE a file = it leaves the slot (re-keyed `removed:<key>`, kept on
+   *     disk and in the table, logged) — not a hard delete. REPLACE is an
+   *     upload with `replaces=<fileId>`: the new file joins, the old one is
+   *     removed the same way.
+   *   - The student cannot remove a file with verdict 'ok' (STU-05).
+   * ------------------------------------------------------------------ */
+  const staffFileOf = (s, m) => {
+    const id = Number(m[1]);
+    if (!db.canSee(s, id)) return { err: [403, 'That student is not assigned to you'] };
+    let key = String(m[2]);
+    try { key = decodeURIComponent(key); } catch (e) { /* as sent */ }
+    const rec = db.docById(id, Number(m[3]));
+    if (!rec || String(rec.doc_key) !== key) return { err: [404, 'That file is not in this document'] };
+    return { id, key, rec };
+  };
+
+  route('GET', /^\/api\/staff\/student\/(\d+)\/document\/([^/]+)\/file\/(\d+)$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const f = staffFileOf(s, m);
+      if (f.err) return json(res, f.err[0], { error: f.err[1] });
+      const file = path.join(uploadDir, String(f.id), f.rec.stored_name);
+      if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': disposition(f.rec.filename),
+        'Cache-Control': 'no-store',
+      });
+      return fs.createReadStream(file).pipe(res);
+    }));
+
+  /* The Documents list alone, for the open tab to poll (~20 s) without
+     marking the conversation read the way opening the file does. */
+  route('GET', /^\/api\/staff\/student\/(\d+)\/documents$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const id = Number(m[1]);
+      if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+      const rows = staffDocRows(id);
+      return json(res, 200, { docs: rows,
+        sig: rows.map(d => d.id + ':' + d.status + ':' + d.verdict).join(',') });
+    }));
+
+  route('POST', /^\/api\/staff\/student\/(\d+)\/document\/([^/]+)\/file\/(\d+)\/verdict$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const f = staffFileOf(s, m);
+      if (f.err) return json(res, f.err[0], { error: f.err[1] });
+      const { id, key, rec } = f;
+      if (DOCSLOTS.APP_FILE.test(key)) return json(res, 422, { error: 'Application files are not accepted or queried.' });
+      const b = await readJson(req);
+      const verdict = b.status === 'ok' ? 'ok' : b.status === 'rescan' ? 'rescan' : '';
+      const files = db.docsInKey(id, key);
+      const prevSlot = String((files[files.length - 1] || {}).status || 'wait');
+      if (verdict === 'ok') {
+        /* THIS file only. */
+        const ext = String(rec.filename || '').toLowerCase().split('.').pop();
+        const ID_SLOTS = /^(passport|photo|aadhaar|pan)/i;
+        const bad = !FILE_KINDS.some(k => k.ext.includes(ext)) || !!slotRefuses(key, rec.filename)
+          || (ID_SLOTS.test(key) && /^(doc|docx)$/.test(ext));
+        if (bad) {
+          return json(res, 422, { error: '"' + String(rec.filename).slice(0, 60) + '" cannot be accepted here — '
+            + (/^(doc|docx)$/.test(ext) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).' : 'Glovels takes ' + FILE_LIST + '.')
+            + ' Remove it, or accept a valid file in this document.' });
+        }
+        db.setFileVerdict(id, rec.id, 'ok');
+        db.setDocStatus(id, key, 'ok');
+      } else {
+        db.setFileVerdict(id, rec.id, verdict);
+        const otherOk = files.some(x => Number(x.id) !== Number(rec.id) && String(x.verdict || '') === 'ok');
+        if (!otherOk) {
+          db.setDocStatus(id, key, verdict === 'rescan' ? 'rescan' : 'wait');
+        }
+      }
+      const now0 = db.docsInKey(id, key);
+      const slot = String((now0[now0.length - 1] || {}).status || 'wait');
+      const st = db.studentById(id);
+      db.log(s.name, verdict === 'ok' ? 'accepted a document file' : verdict === 'rescan' ? 'queried a document file' : 'put a document file back in review',
+        (st ? st.name : '#' + id) + ' · ' + key + ' · ' + rec.filename);
+      live.toStudent(id, 'documents', { key, status: slot });
+      /* Into "Waiting for a scan": the student is told, naming the file. */
+      if (slot === 'rescan' && prevSlot !== 'rescan' && !DOCSLOTS.ours(key)) {
+        const what = DOCSLOTS.nameOf(key);
+        const why = str(b.note, 400);
+        try {
+          db.addMessage(id, 'them',
+            'Your ' + what + ' needs another copy — "' + String(rec.filename).slice(0, 80) + '".'
+            + (why ? ' ' + why : ' The one on file is not clear enough to send on.')
+            + ' You can upload a new one on your Documents screen — the old one stays '
+            + 'until the new one arrives.', '', s.name);
+          pingThread(id);
+        } catch (e) { /* the status is set either way */ }
+        if (st && st.email) {
+          mail.send(Object.assign({ to: st.email },
+            EMAILS.documentRescan({ name: st.name, docName: what, note: why, siteUrl })))
+            .catch(() => {});
+        }
+      }
+      return json(res, 200, { ok: true, status: slot, verdict, fileId: rec.id, docs: staffDocRows(id) });
+    }));
+
+  route('DELETE', /^\/api\/staff\/student\/(\d+)\/document\/([^/]+)\/file\/(\d+)$/,
+    caseworkOnly(async (req, res, s, m) => {
+      const f = staffFileOf(s, m);
+      if (f.err) return json(res, f.err[0], { error: f.err[1] });
+      const { id, key, rec } = f;
+      removeStaffFile(s, id, key, rec, 'removed a document file');
+      return json(res, 200, { ok: true, removed: rec.id, docs: staffDocRows(id) });
+    }));
+
+  /* Out of the slot, kept, logged. If it was the only accepted copy and files
+     remain, the document goes back to review. */
+  function removeStaffFile(s, id, key, rec, what) {
+    const wasOk = String(rec.verdict || '') === 'ok';
+    db.moveDocFileOut(id, rec.id, key);
+    const left = db.docsInKey(id, key);
+    if (wasOk && left.length && !left.some(x => String(x.verdict || '') === 'ok')) {
+      db.setDocStatus(id, key, 'wait');
+    }
+    const st = db.studentById(id);
+    db.log(s.name, what, (st ? st.name : '#' + id) + ' · ' + key + ' · ' + rec.filename
+      + ' (file #' + rec.id + ', kept as removed)');
+    try { live.toStudent(id, 'documents', { key }); } catch (e) { /* not fatal */ }
+  }
 
   route('GET', /^\/api\/staff\/student\/(\d+)\/document\/(.+)\/file$/,
     caseworkOnly(async (req, res, s, m) => {
@@ -5169,6 +5433,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         }
       }
       db.setDocStatus(id, m[2], status);
+      /* Patch 172 (N17-02): the whole-document answer, said per file too —
+         accepting the document accepts every file in it (each was checked
+         above); anything else takes the accepted mark off them. */
+      for (const f0 of db.docsInKey(id, m[2])) {
+        if (status === 'ok') db.setFileVerdict(id, f0.id, 'ok');
+        else if (String(f0.verdict || '') === 'ok') db.setFileVerdict(id, f0.id, '');
+      }
       live.toStudent(id, 'documents', { key: m[2], status });
       /*
        * SENDING A DOCUMENT BACK IS SOMETHING THE STUDENT HAS TO BE TOLD.
@@ -5819,7 +6090,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const orders = db.allOrders();
     return json(res, 200, {
       students: students.length,
-      unassigned: students.filter(st => !st.counsellor_id).length,
+      /* Patch 172 (item 10): held by a closed or test account = unassigned. */
+      unassigned: students.filter(st => !db.liveCounsellorOf(st)).length,
       counsellors: counsellors.map(c => ({
         id: c.id, name: c.name, email: c.email,
         caseload: students.filter(st => Number(st.counsellor_id) === c.id).length,
@@ -5984,10 +6256,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       studentRole: who ? (who.role || 'student') : '',
       /* True only when the row can be opened as a student file. */
       isStudent,
-      counsellorId: isStudent ? (who.counsellor_id || null) : null,
-      counsellorName: isStudent && who.counsellor_id
-        ? ((db.studentById(who.counsellor_id) || {}).name || '')
-        : '',
+      /* Patch 172 (item 10): a closed or test account is not an owner. */
+      counsellorId: isStudent ? ((db.liveCounsellorOf(who) || {}).id || null) : null,
+      counsellorName: isStudent ? ((db.liveCounsellorOf(who) || {}).name || '') : '',
     };
   }
 
@@ -6549,6 +6820,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       told: !!t.breached_at,
       /* CNS-01: done because the applications are past it, not ticked. */
       derived: !!t.derived, why: t.derivedWhy || '',
+      /* N17-01: why "done" is refused right now ('' when it is not). */
+      lock: TASKS.CLOSED.has(String(t.status)) ? ''
+        : (() => { try { return TASKS.doneBlock(db, st, t); } catch (e) { return ''; } })(),
     };
   };
 
@@ -6707,6 +6981,37 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       return json(res, 200, { task: taskShape(t, Date.now()) });
     }));
 
+  /*
+   * N17-05 (16 Oct): THE VISA DECISION, and the travel date.
+   *
+   * There was no step for the result: after "Visa application filed" the
+   * journey went to Departed with nothing asking whether the visa came. The
+   * decision is granted / refused / more documents asked; granted and
+   * refused need the visa decision letter on file; a refusal re-opens the
+   * visa steps; Departed needs granted AND a travel date. The student hears
+   * once per decision — not on a repeat save, not on a travel-date change.
+   */
+  route('PUT', /^\/api\/staff\/student\/(\d+)\/visa$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    const st = db.studentById(id);
+    if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
+    if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+    const b = await readJson(req);
+    const out = TASKS.setVisa(db, st, { decision: b.decision, travelDate: b.travelDate },
+      { id: s.id, name: s.name });
+    if (out.status !== 200) return json(res, out.status, { error: out.error });
+    if (out.changed) {
+      db.log(s.name, 'recorded a visa decision', st.name + ' — ' + (out.visa.decision || 'cleared'));
+      db.addMessage(id, 'them', 'Update on your visa — ' + out.said + '.', '', s.name);
+      try { pingThread(id); } catch (e) { /* the message is on the file */ }
+    } else if (b.travelDate !== undefined) {
+      db.log(s.name, 'set a travel date', st.name + ' — ' + (out.visa.travelDate || 'cleared'));
+    }
+    let phase = null;
+    try { phase = TASKS.phaseOf(db, st); } catch (e) { phase = null; }
+    return json(res, 200, { visa: out.visa, changed: out.changed, phase });
+  }));
+
   /** Marking it done, moving the date, handing it on. */
   route('PUT', /^\/api\/staff\/task\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const t = db.getTask(Number(m[1]));
@@ -6720,6 +7025,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const want = str(b.status, 20);
       if (!want || !TASKS.STATUSES.includes(want)) {
         return json(res, 422, { error: 'That is not a state a task can be in' });
+      }
+      /* N17-01 / N17-05: a step the file cannot back up is not ticked —
+         "documents collected" at 0 of 10, "visa documents ready" with the
+         visa file unverified, the visa decision by hand. */
+      if (want === 'done' && String(t.status) !== 'done') {
+        let why = '';
+        try { why = TASKS.doneBlock(db, db.studentById(t.student_id), t); } catch (e) { why = ''; }
+        if (why) return json(res, 409, { error: why, locked: true });
       }
       patch.status = want;
       patch.by = s.id;
@@ -7122,7 +7435,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        admin is not a caseload, the row's dropdown can only offer counsellors,
        and an unassigned student is visible in the Unassigned counter, which is
        where somebody will pick them up. */
-    if (role === 'student' && s.role === 'counsellor') {
+    /* Patch 172 (item 10): not when the counsellor is a test account. */
+    if (role === 'student' && s.role === 'counsellor'
+        && db.activeCaseworkers().some(c => Number(c.id) === Number(s.id))) {
       try { db.assignCounsellor(person.id, s.id); } catch (e) { /* not fatal */ }
     }
 
@@ -7480,6 +7795,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       returning: Number(e.returns || 0) > 0, returns: Number(e.returns || 0),
       page: e.source_page || '', referrer: e.referrer || '',
       at: e.created_at, updatedAt: e.updated_at || e.created_at,
+      /* Patch 172 (item 7): when an administrator took it out of the book. */
+      archivedAt: String(e.archived_at || ''),
     };
   };
 
@@ -7490,7 +7807,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('GET', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
     const counts = db.leadNoteCounts();
     const people = peopleMap();
-    let rows = db.allEnquiries();
+    /* Patch 172 (item 7): ?archived=1 is the administrator's Archived filter —
+       the leads taken out of the book, each with Restore. Everybody else, and
+       the default, is the book without them. */
+    const wantArchived = s.role === 'admin'
+      && /^(1|yes|true)$/i.test(String(url.parse(req.url, true).query.archived || ''));
+    let rows = wantArchived ? db.archivedEnquiries() : db.allEnquiries();
     /* A counsellor sees the ones that are theirs and the ones nobody has
        taken. An administrator sees the book. */
     if (s.role !== 'admin') {
@@ -7517,6 +7839,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     });
 
     return json(res, 200, {
+      archivedView: wantArchived,
+      archivedCount: s.role === 'admin' ? db.archivedEnquiries().length : 0,
       leads: leads.slice(0, 500),
       /* The same list peopleMap() accepts as an owner. These disagreed: a lead
          could be owned by an administrator and the dropdown that assigns one
@@ -7543,6 +7867,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('GET', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const e = db.enquiryById(Number(m[1]));
     if (!e) return json(res, 404, { error: 'No such enquiry' });
+    /* Patch 172: an archived lead is out of the book for everybody but an
+       administrator. */
+    if (s.role !== 'admin' && String(e.archived_at || '')) return json(res, 404, { error: 'No such enquiry' });
     if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
       return json(res, 403, { error: 'That lead belongs to somebody else' });
     }
@@ -7772,20 +8099,55 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* A lead that should not be in the book: a duplicate, a test, somebody who
      typed nonsense into the form. Kept simple — there is nothing downstream of
      an enquiry that a deletion could orphan except its own notes. */
+  /* Patch 172 (15 Oct, item 7): DELETE IS AN ADMINISTRATOR'S, AND IT ARCHIVES.
+   *
+   * A counsellor could delete any unowned lead, and the tester's permission
+   * check deleted lead #1 for good — there was no undo. Now: a counsellor gets
+   * 403 on every lead. An administrator's DELETE archives (archived_at set,
+   * the lead leaves every list and alert, Restore brings it back). Only an
+   * ARCHIVED lead can be deleted for good, and only by asking for it in so
+   * many words: DELETE ...?for=good (or {forGood: true}). */
   route('DELETE', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const id = Number(m[1]);
     const lead = db.enquiryById(id);
     if (!lead) return json(res, 404, { error: 'No such enquiry' });
-    /* The same question the other four lead routes ask, and this one did not:
-       reading, editing, noting and converting somebody else's lead were all
-       refused, while deleting it — and its whole history of calls with it —
-       was allowed. Ids are small and sequential. */
-    if (s.role !== 'admin' && lead.owner_id && Number(lead.owner_id) !== Number(s.id)) {
-      return json(res, 403, { error: 'That lead belongs to somebody else' });
+    if (s.role !== 'admin') {
+      return json(res, 403, { error: 'Only an administrator can remove a lead. Mark it lost, or ask an administrator to archive it.' });
+    }
+    const q = url.parse(req.url, true).query;
+    let b = {};
+    try { b = (await readJson(req)) || {}; } catch (e) { b = {}; }
+    const forGood = /^(good|1|yes|true)$/i.test(String(q.for || q.forGood || '')) || b.forGood === true;
+    const label = (lead.name || lead.email || lead.phone) || ('#' + id);
+    if (!String(lead.archived_at || '')) {
+      if (forGood) {
+        return json(res, 409, { error: 'Archive the lead first. Only an archived lead can be deleted for good.' });
+      }
+      db.setLeadArchived(id, true);
+      db.addLeadNote(id, s.name, 'change', 'Archived — taken out of the book');
+      db.log(s.name, 'lead archived', label + ' (#' + id + ')');
+      return json(res, 200, { ok: true, archived: true });
+    }
+    if (!forGood) {
+      return json(res, 409, { error: 'This lead is already archived. Restore it, or choose "Delete for good".', archived: true });
     }
     db.deleteLead(id);
-    db.log(s.name, 'lead deleted', (lead && (lead.name || lead.email)) || ('#' + id));
-    return json(res, 200, { ok: true });
+    db.log(s.name, 'lead deleted for good', label + ' (#' + id + ', was archived)');
+    return json(res, 200, { ok: true, deleted: true });
+  }));
+
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/(archive|restore)$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    const lead = db.enquiryById(id);
+    if (!lead) return json(res, 404, { error: 'No such enquiry' });
+    if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can archive or restore a lead.' });
+    const on = m[2] === 'archive';
+    db.setLeadArchived(id, on);
+    db.addLeadNote(id, s.name, 'change', on ? 'Archived — taken out of the book' : 'Restored to the book');
+    db.log(s.name, on ? 'lead archived' : 'lead restored', ((lead.name || lead.email || lead.phone) || '') + ' (#' + id + ')');
+    const row = db.enquiryById(id);
+    return json(res, 200, { ok: true, archived: on,
+      lead: leadShape(row, db.leadNoteCounts(), peopleMap()) });
   }));
 
   route('POST', /^\/api\/staff\/lead\/(\d+)\/note$/, caseworkOnly(async (req, res, s, m) => {
@@ -7907,9 +8269,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     /* Whoever converted them looks after them, unless an administrator did it,
        in which case the lead's owner does. */
-    const owner = s.role === 'counsellor' ? s.id
-      : (e.owner_id && (db.studentById(e.owner_id) || {}).role === 'counsellor'
-          ? Number(e.owner_id) : null);
+    /* Patch 172 (15 Oct, item 10): only ever an ACTIVE counsellor — the lead's
+       owner carried over could be a closed or a test account ("qwe"), and the
+       converting counsellor could be a test account too. None: Unassigned. */
+    const assignable = id => !!id && db.activeCaseworkers().some(c => Number(c.id) === Number(id));
+    const owner = s.role === 'counsellor' && assignable(s.id) ? s.id
+      : (assignable(e.owner_id) ? Number(e.owner_id) : null);
     if (owner) { try { db.assignCounsellor(person.id, owner); } catch (err) { /* not fatal */ } }
 
     const row = db.updateEnquiry(e.id, {

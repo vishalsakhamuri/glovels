@@ -204,11 +204,17 @@ const stamp = Date.now();
   if (row) {
     await admin.request.post(BASE + '/api/staff/lead/' + row.id + '/note',
       { data: { kind: 'call', body: 'Rang, wrong number' } });
+    /* Patch 172 (15 Oct, item 7): an administrator's Delete ARCHIVES; only
+       an archived lead can be deleted for good (?for=good). */
     const del = await admin.request.delete(BASE + '/api/staff/lead/' + row.id);
-    check('a junk enquiry can be deleted', del.status() === 200, del.status());
+    check('a junk enquiry can be archived', del.status() === 200, del.status());
     const now = await (await admin.request.get(BASE + '/api/staff/leads')).json();
     check('and is gone from the book',
       !(now.leads || []).some(l => l.id === row.id), (now.leads || []).length + ' leads');
+    check('a second Delete without "for good" is refused',
+      (await admin.request.delete(BASE + '/api/staff/lead/' + row.id)).status() === 409);
+    check('"Delete for good" on the archived lead removes it',
+      (await admin.request.delete(BASE + '/api/staff/lead/' + row.id + '?for=good')).status() === 200);
     check('deleting one that is not there says so',
       (await admin.request.delete(BASE + '/api/staff/lead/' + row.id)).status() === 404);
   }
@@ -244,7 +250,8 @@ const stamp = Date.now();
   if (rows.length) {
     await rows[0].click();
     await page.waitForTimeout(900);
-    check('an open lead offers Delete', (await page.$$('#dDel')).length === 1);
+    check('an open lead offers Archive (patch 172)', (await page.$$('#dDel')).length === 1
+      && (await page.$eval('#dDel', b => b.textContent.trim())) === 'Archive');
     const beforeCount = (await (await admin.request.get(BASE + '/api/staff/leads')).json())
       .leads.length;
     await page.click('#dDel');

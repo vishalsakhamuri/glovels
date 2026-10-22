@@ -146,7 +146,8 @@ const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toI
   if (pA && pB) {
     await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: pA.id });
     await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: pB.id });
-    r = await req('a', 'PUT', '/api/staff/student/' + sid + '/application/' + encodeURIComponent(pA.id), { stage: 2, outcome: 'offer' });
+    /* Round 172 (N17-03): an outcome is only recorded at "Decision" (stage 4). */
+    r = await req('a', 'PUT', '/api/staff/student/' + sid + '/application/' + encodeURIComponent(pA.id), { stage: 4, outcome: 'offer' });
     ok('CNS-01: an application is filed with an offer', r.ok, r.status + ' ' + r.text.slice(0, 160));
     let file = (await req('a', 'GET', '/api/staff/student/' + sid)).body;
     const tasks = file.tasks || [];

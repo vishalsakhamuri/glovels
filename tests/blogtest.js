@@ -152,7 +152,7 @@ const stamp = Date.now();
   const attr = re => { const m = re.exec(html); return m ? m[1] : ''; };
 
   check('the page carries the headline as its h1',
-    has(new RegExp('<h1>' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</h1>')));
+    new RegExp('<h1>' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</h1>').test(html.replace(/<\/?em>/g, '')));  // 15 Oct banner: italic last word
   check('and the title tag Google prints',
     attr(/<title>([^<]*)<\/title>/).startsWith(title), attr(/<title>([^<]*)<\/title>/));
   check('with the description that was typed',

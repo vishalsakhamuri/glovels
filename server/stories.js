@@ -423,7 +423,8 @@ function render(deps) {
   const routeCard = r => {
     const d = routeOf(r);
     return '<article class="ss-card ss-route">'
-      + '<div class="ss-tile' + (d.tile === 'uk' ? ' uk' : '') + '"><b>' + (d.flag ? d.flag + ' ' : '') + esc(d.title) + '</b>'
+      /* Round 15 Oct (1): the flag as an SVG picture, not the emoji. */
+      + '<div class="ss-tile' + (d.tile === 'uk' ? ' uk' : '') + '"><b>' + (d.flag ? require('./find.js').flagImg(d.tile === 'uk' ? 'gb' : 'de', d.tile === 'uk' ? 'United Kingdom' : 'Germany', 20) + ' ' : '') + esc(d.title) + '</b>'
       + (d.sub ? '<span>' + esc(d.sub) + '</span>' : '') + '</div>'
       + '<div class="ss-meta"><span class="ss-who">' + esc(r['Display name']) + '</span>'
       + '<span class="ss-badge">' + esc(r.Intake) + '</span></div>'

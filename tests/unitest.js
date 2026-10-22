@@ -47,7 +47,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   r = await guest.request.get(BASE + '/university/' + slug);
   html = await r.text();
   check('a university page answers', r.status() === 200);
-  check('the headline is the university', /<h1>University of Stuttgart<\/h1>/.test(html));
+  check('the headline is the university', /<h1>University of Stuttgart<\/h1>/.test(html.replace(/<\/?em>/g, '')));  // 15 Oct banner: last word in italic
   check('the title is written for search and under 70 characters', (() => {
     const t = /<title>([^<]+)<\/title>/.exec(html);
     return t && /University of Stuttgart/.test(t[1]) && t[1].replace(/&amp;/g, '&').length <= 70;
@@ -274,7 +274,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('and clearing it goes back to the shipped one', /ins%5B%5D=248&amp;display=list/.test(html));
   r = await staff.request.put(BASE + '/api/staff/university/' + slug, { data: { hidden: true } });
   html = await (await guest.request.get(BASE + '/university/' + slug)).text();
-  check('taken off search: the page still opens', /<h1>University of Stuttgart<\/h1>/.test(html));
+  check('taken off search: the page still opens', /<h1>University of Stuttgart<\/h1>/.test(html.replace(/<\/?em>/g, '')));
   check('but noindex', /content="noindex,nofollow"/.test(html));
   const map2 = await (await guest.request.get(BASE + '/sitemap.xml')).text();
   check('and out of the sitemap', !map2.includes('/university/' + slug + '<'));
@@ -312,7 +312,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('and has a search box', /id="uSearch"/.test(html) && /api\/universities\/search/.test(await pageJs(html)));
   r = await guest.request.get(BASE + '/university/' + soSlug);
   html = await r.text();
-  check('its page is still there', r.status() === 200 && html.includes('<h1>' + soUni.replace(/&/g, '&amp;') + '</h1>'));
+  check('its page is still there', r.status() === 200 && html.replace(/<\/?em>/g, '').includes('<h1>' + soUni.replace(/&/g, '&amp;') + '</h1>'));
   check('and still indexable', /content="index,follow/.test(html));
   const mapSo = await (await guest.request.get(BASE + '/sitemap.xml')).text();
   check('and still in the sitemap', mapSo.includes('/university/' + soSlug + '</loc>'));
@@ -438,7 +438,7 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await hp.close();
   r = await guest.request.get(BASE + '/study-in-netherlands');
   html = await r.text();
-  check('it has a Study in page, written from the Destinations tab', r.status() === 200 && /<h1>Study in Netherlands<\/h1>/.test(html)
+  check('it has a Study in page, written from the Destinations tab', r.status() === 200 && /<h1>Study in Netherlands<\/h1>/.test(html.replace(/<\/?em>/g, ''))
     && /7\+ on 10/.test(html) && /₹12 lakh/.test(html) && /IELTS 6\.5/.test(html) && /16 hours a week/.test(html));
   check('with the university list, the filters and the search box', /href="university\/delft-university-of-technology"/.test(html)
     && /id="uFilter"/.test(html) && /data-country="NL"/.test(html) && /id="uSearch"/.test(html));

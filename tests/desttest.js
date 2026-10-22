@@ -39,7 +39,7 @@ const NEW = {
     const html = await r.text();
     const country = words[0];
     check(slug + ' answers', r.status() === 200);
-    check(slug + ': the headline is the country', html.includes('<h1>Study in ' + country + '</h1>'));
+    check(slug + ': the headline is the country', html.replace(/<\/?em>/g, '').includes('<h1>Study in ' + country + '</h1>') /* 15 Oct banner: last word in italic */);
     check(slug + ': the prose is on the page', words.slice(1).every(w => html.includes(w)), words.slice(1).join(', '));
     check(slug + ': a fact box with the country\'s own figures', /<div class="factbox">/.test(html)
       && /Living costs<\/span><b>₹[\d,]+ a month/.test(html));
@@ -62,7 +62,7 @@ const NEW = {
   let r = await guest.request.get(BASE + '/visa-processing');
   let html = await r.text();
   check('/visa-processing answers', r.status() === 200);
-  check('with the service on it', /<h1>Visa processing<\/h1>/.test(html) && /Student visas/.test(html)
+  check('with the service on it', /<h1>Visa processing<\/h1>/.test(html.replace(/<\/?em>/g, '')) && /Student visas/.test(html)
     && /"@type": ?"Service"/.test(html));
   check('and links to the pages it names', /href="work-opportunity-card\.html"/.test(html)
     && /href="migrate-canada-pr\.html"/.test(html));

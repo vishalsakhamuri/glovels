@@ -167,7 +167,9 @@ function block(id) {
   const s = stateOf(id);
   const dl = nextDeadline(p);
   const left = daysLeft(p);
-  const flag = (COUNTRIES[p.country] || {}).flag || '';
+  /* Round 15 Oct (1): the flag as an SVG picture — the emoji is two letters on Windows. */
+  const fcc = String(p.country || '').toLowerCase();
+  const flag = /^[a-z]{2}$/.test(fcc) ? '<img class="flagimg" src="/flags/' + fcc + '.svg" alt="" width="28" height="21" loading="lazy" style="border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.16);object-fit:cover;vertical-align:middle;background:#fff">' : ((COUNTRIES[p.country] || {}).flag || '');
   const cname = (COUNTRIES[p.country] || {}).name || p.country;
   const done = s.stage >= STAGES.length - 1 && s.outcome;
 

@@ -53,10 +53,15 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   const base = (r.body && r.body.tasks) || [];
   ok('a new file already has the tasks everyone owes', base.length >= 2,
     base.map(t => t.key).join(','));
-  ok('  · and every one of them has a date', base.every(t => /^\d{4}-\d{2}-\d{2}$/.test(t.due)),
+  /* Round 172 (N17-01): every file now carries the CORE journey whatever was
+     bought — the steps worked back from a university deadline wait for one
+     ("pending", no invented date); the service-promise steps are dated. */
+  ok('  · and every one of them has a date, or waits for a deadline',
+    base.every(t => /^\d{4}-\d{2}-\d{2}$/.test(t.due) || (t.basis === 'pending' && !t.due)),
     base.map(t => t.key + '=' + t.due).join(' '));
-  ok('  · with nobody holding a visa task they did not buy',
-    !base.some(t => t.key === 'visa' || t.key === 'submit'), base.map(t => t.key).join(','));
+  ok('  · the core journey is on the file, but no per-university submission they did not buy',
+    ['shortlist', 'appdocs', 'offer', 'visadocs', 'visa', 'visadecision', 'predeparture'].every(k => base.some(t => t.key === k))
+      && !base.some(t => t.key === 'submit'), base.map(t => t.key).join(','));
 
   /* ---- 2. dates: forwards from the start where there is no deadline ---- */
   const welcome = base.find(t => t.key === 'welcome');

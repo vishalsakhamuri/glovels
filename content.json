@@ -668,6 +668,7 @@
     "desc": "A 1-on-1 session with a counsellor — profile review, a country and course shortlist, a realistic budget and a clear next step. No obligation.",
     "meta": "45 minutes · call within 24 hours",
     "cats": [
+     "top",
      "more"
     ],
     "posTop": 4,
@@ -737,6 +738,7 @@
     "desc": "A university-format academic CV plus a job-ready resume, both tuned to your target country.",
     "meta": "3–4 days",
     "cats": [
+     "top",
      "more"
     ],
     "posTop": 3,
@@ -760,6 +762,7 @@
     "desc": "APS certificate, document attestation, notary and certified translations handled end-to-end.",
     "meta": "2–4 weeks",
     "cats": [
+     "top",
      "more"
     ],
     "posTop": 7,
@@ -3655,33 +3658,6 @@
    "kind": "text",
    "element": "button",
    "original": "See our packages",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "results|span|c5418858|0",
-   "section": "results",
-   "kind": "text",
-   "element": "span",
-   "original": "Universities we are partnered with are",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "results|b|adafd555|0",
-   "section": "results",
-   "kind": "text",
-   "element": "b",
-   "original": "free to apply to",
-   "note": "",
-   "sectionLabel": ""
-  },
-  {
-   "key": "results|span|d18aaecd|0",
-   "section": "results",
-   "kind": "text",
-   "element": "span",
-   "original": "— nothing to buy first. The rest open with a package.",
    "note": "",
    "sectionLabel": ""
   },

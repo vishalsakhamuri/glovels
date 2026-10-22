@@ -1500,7 +1500,8 @@ function germanLine(p) {
     + '</div>';
 }
 
-function flagOf(p) { return (COUNTRIES[p.country] || {}).flag || ''; }
+/* Round 15 Oct (1): the flag as an SVG picture — the emoji is two letters on Windows. */
+function flagOf(p) { var cc = String(p.country || '').toLowerCase(); return /^[a-z]{2}$/.test(cc) ? '<img class="flagimg" src="/flags/' + cc + '.svg" alt="' + esc(nameOf(p)) + '" width="24" height="18" loading="lazy" style="border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.16);object-fit:cover;vertical-align:middle;background:#fff">' : ((COUNTRIES[p.country] || {}).flag || ''); }
 function nameOf(p)  { return (COUNTRIES[p.country] || {}).name || p.country; }
 
 /* Whole calendar days from today to a deadline — never a time-of-day sum.

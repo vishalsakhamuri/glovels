@@ -203,6 +203,26 @@ run round169webtest.js 8101
 run round169stafftest.js 8102
 run round169studenttest.js 8103
 run round170test.js 8105 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.example
+# 15 Oct report, the website half: SVG flags, the home page's line, tab and
+# Most Booked, the Search button, the inside-page banner, university pages on
+# a phone, a name with no letter, facets after the CGPA, Babelsberg's site.
+run round172webtest.js 8111
+# 22 Oct (patch 172): N17-02 documents grouped per document, one link and one
+# Accept / Query / Remove / Replace per file; leads archive (admin only);
+# never auto-assign to a closed or test counsellor; closed partner files take
+# no uploads.
+run round172docstest.js 8113
+# 16 Oct (N17-01/03/04/05/08/09): the journey from what is on the file — core
+# steps for everyone, documents/visa gates, the visa decision, one message per
+# outcome, alerts quiet for an enrolled file, one journey on both screens.
+run round172journeytest.js 8112
+# 22 Oct: every university page has an Official site chip — the shipped
+# home pages (assets/university-websites.json) for the ones whose course
+# links give nothing, or the wrong thing. Loads the German sheets itself.
+run round172sitestest.js 8115
+# Round 172: "M.Sc" is a degree, not a link — renderer guard, Wix import guard,
+# and the one-time repair of every stored post.
+run round172blogtest.js 8114
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

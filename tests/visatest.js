@@ -63,7 +63,8 @@ const F='/tmp/visa-funds-'+stamp+'.pdf';
  check('the counsellor sees the visa file on their record',
    (await ops.textContent('#docs')).includes('visa-funds-'+stamp),
    (await ops.textContent('#docs')||'').replace(/\s+/g,' ').slice(0,90));
- const v=ops.locator('#docs li',{hasText:'visa-funds-'+stamp}).locator('[data-verify]');
+ /* Patch 172 (N17-02): Accept is per file now (data-fverdict="ok"). */
+ const v=ops.locator('#docs li.docfile',{hasText:'visa-funds-'+stamp}).locator('[data-fverdict="ok"]');
  check('with a way to verify it',await v.count()>=1);
  await v.first().click();
  await ops.waitForTimeout(2200);

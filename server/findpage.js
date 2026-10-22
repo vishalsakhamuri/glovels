@@ -24,6 +24,7 @@ const REQS = require('./reqs.js');
 const LOGOS = require('./logos.js');
 const TAGS = require('./tags.js');
 const UNISEARCH = require('./unisearch.js');
+const HERO = require('./hero.js');
 
 const esc = FIND.esc;
 
@@ -85,14 +86,15 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     return FIND.toQuery(c);
   }
 
-  const opt = (v, label, n, cur) => '<label class="fopt' + (n === 0 ? ' none' : '') + '"><input type="' + (cur.multi ? 'checkbox' : 'radio') + '" name="' + cur.name + '" value="' + esc(v) + '"' + (cur.value === v ? ' checked' : '') + '> <span>' + esc(label) + '</span><em>' + Number(n || 0).toLocaleString('en-IN') + '</em></label>';
+  const opt = (v, label, n, cur) => '<label class="fopt' + (n === 0 ? ' none' : '') + '"><input type="' + (cur.multi ? 'checkbox' : 'radio') + '" name="' + cur.name + '" value="' + esc(v) + '"' + (cur.value === v ? ' checked' : '') + '> <span>' + (cur.flag || '') + esc(label) + '</span><em>' + Number(n || 0).toLocaleString('en-IN') + '</em></label>';
 
   /* The rail, rendered once here and re-counted in the browser. */
   function railHtml(f, R, countries) {
     const g = (title, body, open) => '<details class="fg"' + (open ? ' open' : '') + '><summary>' + esc(title) + '</summary><div class="fgb">' + body + '</div></details>';
     const cs = Object.keys(R.facets.country).sort((a, b) => R.facets.country[b] - R.facets.country[a]);
     const dest = '<label class="fopt"><input type="radio" name="country" value=""' + (!f.country ? ' checked' : '') + '> <span>All destinations</span></label>'
-      + cs.map(c => opt(c, (countries[c] ? countries[c].flag + ' ' + countries[c].name : c), R.facets.country[c], { name: 'country', value: f.country })).join('');
+      + cs.map(c => opt(c, (countries[c] ? countries[c].name : c), R.facets.country[c],
+        { name: 'country', value: f.country, flag: FIND.flagImg(c, countries[c] ? countries[c].name : c, 20) + ' ' })).join('');
     const lv = Object.keys(R.facets.level).sort();
     const level = '<label class="fopt"><input type="radio" name="level" value=""' + (!f.level ? ' checked' : '') + '> <span>Any level</span></label>'
       + lv.map(l => opt(l, FIND.LEVELS[l] || l, R.facets.level[l], { name: 'level', value: String(f.level || '').toLowerCase() })).join('');
@@ -104,8 +106,11 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     const fs = hero.concat(extra);
     const field = '<label class="fopt"><input type="radio" name="field" value=""' + (!f.field ? ' checked' : '') + '> <span>Any field</span></label>'
       + fs.map(x => opt(x, x.replace(/&amp;/g, '&'), R.facets.field[x] || 0, { name: 'field', value: f.field })).join('');
-    const cg = '<div class="fcg"><input type="range" id="fcgpa" name="cgpa" min="5" max="10" step="0.1" value="' + esc(f.cgpa || '10') + '" aria-label="Your CGPA">'
+    /* Round 15 Oct (11): "not told" is its own state — the box below — and
+       10 on the slider means 10. Untold, the slider rests faded mid-scale. */
+    const cg = '<div class="fcg' + (f.cgpa ? '' : ' empty') + '"><input type="range" id="fcgpa" name="cgpa" min="5" max="10" step="0.1" value="' + esc(f.cgpa || '7.5') + '" aria-label="Your CGPA">'
       + '<output for="fcgpa">' + (f.cgpa ? 'CGPA ' + esc(f.cgpa) : 'Not told us yet') + '</output>'
+      + '<label class="fcgnone"><input type="checkbox" id="fcgnone"' + (f.cgpa ? '' : ' checked') + '> Not told us yet</label>'
       + (f.cgpa ? '<button type="button" class="flink" data-clear="cgpa">clear</button>' : '') + '</div>';
     const tu = [['', 'Any tuition', null], ['0', 'No tuition fee', R.facets.tuition0], ['500', 'Up to €500 / semester', null], ['1500', 'Up to €1,500', null], ['4000', 'Up to €4,000', null], ['6000', 'Up to €6,000', null]]
       .map(([v, l, n]) => '<label class="fopt"><input type="radio" name="tuition" value="' + v + '"' + ((f.tuition || '') === v ? ' checked' : '') + '> <span>' + l + '</span>' + (n != null ? '<em>' + n + '</em>' : '') + '</label>').join('');
@@ -200,6 +205,13 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       jsonld: { '@context': 'https://schema.org', '@type': 'SearchResultsPage', name: title, url: canonical },
     }), {
       H1: name,
+      /* Round 15 Oct (6): the banner's eyebrow and chips. Owner rule: no
+         programme or university counts in it — how many countries is fine. */
+      HERO: HERO.attrs({ eyebrow: 'Find university', chips: [
+        [(() => { const n = new Set(rows.map(p => p.country)).size; return n + ' countr' + (n === 1 ? 'y' : 'ies'); })(), 'to choose from'],
+        ['Public', 'and private universities'],
+        ['Free', 'to apply at partners'],
+      ] }),
       DATELINE: 'Every programme we track, filtered to what fits you. Change a filter and the address changes with it — bookmark it, share it, come back to it.',
       CRUMBS: '<a href="index.html">Home</a> / Find University',
       BODY: bodyHtml(f, R, countries),
@@ -251,6 +263,9 @@ const FIND_CSS = `<style>/* GLOVELS-FIND-CSS */
 .fcg{display:flex;flex-direction:column;gap:6px}
 .fcg input{width:100%}
 .fcg output{font:600 13px/1.3 var(--sans);color:var(--navy-800)}
+.fcg.empty input[type=range]{opacity:.45}
+.fcg.empty output{color:var(--muted)}
+.fcgnone{display:flex;align-items:center;gap:8px;font:400 13.2px/1.35 var(--sans);cursor:pointer}
 .fmore-note{font:400 12px/1.4 var(--sans);color:var(--muted);padding:4px 0}
 .fsheet-btn{display:none}
 .fhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin:0 0 10px}
@@ -380,7 +395,7 @@ function render(){
   } else if (pg) pg.remove();
   chips(); counts(); profile(); cmpBar();
   document.title = F.title(f, countries, result.total) + ' | Glovels';
-  var h1 = $('.page-hero h1'); if (h1) h1.textContent = F.title(f, countries, null);
+  var h1 = $('.page-hero h1'); if (h1) { var ht = F.title(f, countries, null); if (window.GLV_HERO_H1) h1.innerHTML = window.GLV_HERO_H1(ht); else h1.textContent = ht; }
   write();
 }
 
@@ -422,7 +437,8 @@ function counts(){
   /* The boxes mirror the address, so a chip removed un-ticks its box. */
   $$('#frail input[type=radio]').forEach(function(i){ i.checked = (f[i.name] || '') === i.value; });
   $$('#frail input[type=checkbox]').forEach(function(i){ i.checked = !!f[i.name]; });
-  var cg = $('#fcgpa'); if (cg) { cg.value = f.cgpa || '10'; var o = cg.nextElementSibling; if (o) o.textContent = f.cgpa ? 'CGPA ' + f.cgpa : 'Not told us yet'; }
+  var cg = $('#fcgpa'); if (cg) { cg.value = f.cgpa || '7.5'; var o = cg.nextElementSibling; if (o) o.textContent = f.cgpa ? 'CGPA ' + f.cgpa : 'Not told us yet'; if (cg.parentNode) cg.parentNode.classList.toggle('empty', !f.cgpa); }
+  var cgn = $('#fcgnone'); if (cgn) cgn.checked = !f.cgpa;
   var s = $('#fsort'); if (s) s.value = f.sort || F.defaultSort(result.said);
   $$('.fview button').forEach(function(b){ b.setAttribute('aria-pressed', String((f.view || 'list') === b.dataset.view)); });
 }
@@ -504,12 +520,16 @@ function toast(msg){
 function set(k, v){ if (v === '' || v == null || v === false) delete f[k]; else f[k] = String(v); shown = BOOT.page; render(); }
 
 document.addEventListener('change', function(e){
-  var i = e.target; if (!i.name || !i.closest('#frail')) return;
+  var i = e.target;
+  /* Round 15 Oct (11): ticking "Not told us yet" forgets the CGPA; unticking
+     it uses what the slider shows. */
+  if (i.id === 'fcgnone') { var sl = $('#fcgpa'); set('cgpa', i.checked ? '' : (sl ? sl.value : '')); return; }
+  if (!i.name || !i.closest('#frail')) return;
   if (i.type === 'radio') set(i.name, i.value);
   else if (i.type === 'checkbox') set(i.name, i.checked ? i.value : '');
-  else if (i.name === 'cgpa') set('cgpa', i.value === '10' ? '' : i.value);
+  else if (i.name === 'cgpa') set('cgpa', i.value);
 });
-document.addEventListener('input', function(e){ var i = e.target; if (i.id === 'fcgpa') { var o = i.nextElementSibling; if (o) o.textContent = 'CGPA ' + i.value; } });
+document.addEventListener('input', function(e){ var i = e.target; if (i.id === 'fcgpa') { var o = i.nextElementSibling; if (o) o.textContent = 'CGPA ' + i.value; if (i.parentNode) i.parentNode.classList.remove('empty'); var n = $('#fcgnone'); if (n) n.checked = false; } });
 document.addEventListener('click', function(e){
   var t = e.target.closest('[data-cleartag],[data-clear],[data-save],[data-cmp],[data-view],#fmore,#fshare,#fcmpGo,#fcmpClear,#fmodalClose,#fsheetBtn,#fsheetClose,#fmodal');
   if (!t) return;

@@ -293,6 +293,100 @@ function docNotTaken(d) {
   if (/^docx?$/.test(ext) && DOC_WORD_SLOTS.indexOf(String(d.key)) < 0) return 'A Word file — this has to be a scan or photo.';
   return '';
 }
+/* Patch 172 (N17-02): ONE BLOCK PER DOCUMENT, ONE ROW PER FILE.
+ *
+ * "Each file is shown as its own row with no document name ... Both rows link
+ * to the same address, which always downloads the newest file." Grouped by
+ * document now, the document's name as the heading; every file links to its
+ * own address (/document/<key>/file/<fileId>) and has its own Accept, Query,
+ * Replace and Remove. Accepting a file accepts the document with THAT file as
+ * the verified copy; querying one asks for another copy unless another file
+ * is the verified copy; an older file of a refused type no longer blocks
+ * accepting a valid one — it can be removed (kept on record, not deleted). */
+const FILE_VERDICT = { ok: 'Accepted · verified copy', rescan: 'Queried' };
+let DOCSIG = '';
+const docSig = rows => (rows || []).map(d => d.id + ':' + d.status + ':' + (d.verdict || '')).join(',');
+/* The name the checklist uses ("Passport"), else the server's ("passport"). */
+function docTitle(key, said) {
+  const all = (typeof DOCS !== 'undefined' ? DOCS : []).concat(typeof VISA_DOCS !== 'undefined' ? VISA_DOCS : []);
+  const hit = all.find(x => x && x.id === key);
+  const t = (hit && hit.name) || said || key;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+function docGroups(rows) {
+  const order = [], by = {};
+  (rows || []).forEach(d => {
+    if (!by[d.key]) { by[d.key] = []; order.push(d.key); }
+    by[d.key].push(d);
+  });
+  if (!order.length) return '<li><span>Nothing uploaded yet</span></li>';
+  const L = {ok: 'Accepted', wait: 'In review', rescan: 'Waiting for a scan', none: 'Not uploaded'};
+  return order.map(key => {
+    const files = by[key];
+    const st = files[files.length - 1].status;
+    /* Accepted before files had their own answer: every file in it counts. */
+    const legacyOk = st === 'ok' && !files.some(f => f.verdict);
+    return '<li class="docgroup" data-dockey="' + esc(key) + '" style="display:block;padding:10px 12px;' +
+        'border:1px solid var(--line);border-radius:12px">' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
+        '<b class="docname" style="font:700 13px/1.4 var(--sans);color:var(--navy-900)">' + esc(docTitle(key, files[0].name)) + '</b>' +
+        '<span class="st ' + esc(st) + '" style="margin-left:0">' + esc(L[st] || st) + '</span>' +
+        '<span style="font-size:11.4px;color:var(--muted)">' + files.length + ' file' + (files.length === 1 ? '' : 's') + '</span>' +
+      '</div>' +
+      '<ul class="docfiles" style="list-style:none;margin:0;padding:0;display:grid;gap:7px">' +
+      files.map(f => fileRow(f, legacyOk)).join('') + '</ul></li>';
+  }).join('');
+}
+function fileRow(f, legacyOk) {
+  const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/' +
+    encodeURIComponent(f.key) + '/file/' + encodeURIComponent(f.id);
+  const v = f.verdict || (legacyOk ? 'ok' : '');
+  const bad = docNotTaken(f);
+  const k = esc(f.key), id = esc(f.id);
+  return '<li class="docfile" data-fileid="' + id + '" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+    '<span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
+    '<span style="flex:1 1 160px;min-width:0"><a class="docfilelink" href="' + href + '" download ' +
+      'style="color:var(--blue-deep);font-weight:600;overflow-wrap:anywhere">' + esc(f.file) + '</a>' +
+      '<span style="display:block;font-size:11px;color:var(--muted)">' +
+        (f.by === 'staff' ? 'From the office' : 'From the student') +
+        (f.at ? ' · ' + esc(String(f.at).slice(0, 10)) : '') + '</span></span>' +
+    '<span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto">' +
+      (v ? '<span class="st ' + (v === 'ok' ? 'ok' : 'rescan') + '" style="margin-left:0">' + FILE_VERDICT[v] + '</span>' : '') +
+      (v === 'ok' ? ''
+        : bad
+          ? '<button type="button" class="btn btn-green btn-sm" disabled title="' + esc(bad) + '">Accept</button>' +
+            '<span style="font-size:11px;color:#b42318">' + esc(bad) + '</span>'
+          : '<button type="button" class="btn btn-green btn-sm" data-fverdict="ok" data-key="' + k +
+            '" data-fid="' + id + '">Accept</button>') +
+      (v === 'rescan' ? ''
+        : '<button type="button" class="btn btn-ghost btn-sm" data-fverdict="rescan" data-key="' + k +
+          '" data-fid="' + id + '" title="Ask for another copy of this file">Query</button>') +
+      '<label class="btn btn-ghost btn-sm" style="cursor:pointer" title="Upload a file in place of this one">Replace' +
+        '<input type="file" hidden data-freplace="' + id + '" data-key="' + k + '"></label>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-fremove="' + id + '" data-key="' + k +
+        '" data-name="' + esc(f.file) + '" style="color:#b03a2e">Remove</button>' +
+    '</span></li>';
+}
+function paintDocs(rows) {
+  const ul = $('#docs');
+  if (!ul) return;
+  ul.innerHTML = docGroups(rows);
+  DOCSIG = docSig(rows);
+}
+/* The list refreshes itself when the student (or their agency) sends a file:
+   the live stream says so at once, and every 20 seconds the open tab asks
+   anyway, in case the stream was down. */
+async function refreshDocs() {
+  if (!openId || !$('#docs')) return;
+  try {
+    const r = await api('GET', '/api/staff/student/' + openId + '/documents');
+    if (docSig(r.docs) !== DOCSIG) paintDocs(r.docs);
+  } catch (e) { /* the next tick tries again */ }
+}
+setInterval(() => {
+  if (document.visibilityState === 'visible') refreshDocs();
+}, 20000);
+
 function docRow(d) {
   const L = {ok: 'Accepted', wait: 'In review', rescan: 'Waiting for a scan',
              none: 'Not uploaded'};
@@ -348,7 +442,13 @@ function uniRow(p) {
     '<select data-stage="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
       'var(--sans);border:1.5px solid #d8dde4;border-radius:8px;background:var(--paper)">' +
       options + '</select>' +
-    '<select data-outcome="' + esc(p.id) + '" style="padding:6px 8px;font:600 12px/1.3 ' +
+    /* N17-03: an outcome is what the university said, so the box opens at
+       "Decision" and not before (the server refuses it too). */
+    '<select data-outcome="' + esc(p.id) + '"' +
+      (Number(a.stage || 0) === STAGES.findIndex(x => x.k === 'decided') ? ''
+        : ' disabled title="Move the stage to ' + esc((STAGES.find(x => x.k === 'decided') || {}).n || 'Decision') +
+          ' to record what the university said"') +
+      ' style="padding:6px 8px;font:600 12px/1.3 ' +
       'var(--sans);border:1.5px solid ' + (done === 'bad' ? '#e0b4ae' : '#d8dde4') +
       ';border-radius:8px;background:var(--paper)">' +
       /* Seven, not three. A waitlist and a deferral were both being recorded as
@@ -481,7 +581,9 @@ function paintRecord(r) {
           : (r.phase.days ? 'Here ' + r.phase.days + ' day' + (r.phase.days === 1 ? '' : 's') + '.'
              : 'Just arrived here.') +
             (r.phase.late ? ' ' + r.phase.late + ' past its date.'
-              : r.phase.waiting ? ' Nothing late, but nothing has moved.' : '')) +
+              : r.phase.waiting ? ' Nothing late, but nothing has moved.' : '') +
+            /* N17-01: what the FILE still lacks for this phase. */
+            (r.phase.waitingOn ? ' Waiting on: ' + esc(r.phase.waitingOn) + '.' : '')) +
         '</small></div>' : '') +
       '<div class="out tiles" style="--tiles:4;margin:0 0 16px">' +
         '<div><b>' + r.shortlist.length + '</b><span>Shortlisted</span></div>' +
@@ -572,8 +674,8 @@ function paintRecord(r) {
               '<span class="st none" style="margin-left:auto;max-width:60%;text-transform:none;' +
               'letter-spacing:0;font-weight:600">' + esc(v) + '</span></li>').join('') + '</ul></div>' +
           '<div><h3 style="font-size:14.5px;margin-bottom:10px">Documents</h3>' +
-            '<ul class="doclist" id="docs">' + (r.docs.length ? r.docs.map(docRow).join('')
-              : '<li><span>Nothing uploaded yet</span></li>') + '</ul>' +
+            /* Patch 172 (N17-02): grouped by document — see docGroups. */
+            '<ul class="doclist" id="docs">' + ((DOCSIG = docSig(r.docs)), docGroups(r.docs)) + '</ul>' +
             /*
              * Finished work, handed back.
              *
@@ -781,6 +883,28 @@ function paintRecord(r) {
          only two answers that mean anything — it is done, or it is stuck and
          here is why. */
       '<section class="pane" id="t-tasks">' +
+        /* N17-05: the visa result and the travel date. Granted and refused
+           need the visa decision letter on file; a refusal re-opens the visa
+           steps; Departed needs granted + a travel date. */
+        (() => {
+          const v = r.visa || {}, vr = r.visaReady || { ok: 0, of: 6 };
+          const opts = [['', 'No decision yet'], ['granted', 'Granted'], ['refused', 'Refused'],
+            ['more', 'More documents asked']];
+          return '<div class="p-card" id="visaDecision" style="padding:12px 14px;margin-bottom:12px">' +
+            '<b style="display:block;font-size:13px;margin-bottom:7px">Visa decision</b>' +
+            '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+              '<select id="vdDecision" aria-label="Visa decision" style="padding:6px 8px;font:600 12px/1.3 var(--sans);' +
+                'border:1.5px solid #d8dde4;border-radius:8px;background:var(--paper)">' +
+                opts.map(o => '<option value="' + o[0] + '"' + ((v.decision || '') === o[0] ? ' selected' : '') +
+                  '>' + o[1] + '</option>').join('') + '</select>' +
+              '<label style="font-size:12px;font-weight:700">Travel date ' +
+                '<input type="date" id="vdTravel" value="' + esc(v.travelDate || '') + '" style="font-size:12.5px;padding:5px 7px"></label>' +
+              '<button type="button" class="btn btn-primary btn-sm" id="vdSave">Save</button>' +
+            '</div>' +
+            '<span style="display:block;font-size:11.6px;color:var(--muted);margin-top:7px">' +
+              vr.ok + ' of ' + vr.of + ' visa documents verified · Granted and refused need the visa ' +
+              'decision letter on file · the student is told once per decision</span></div>';
+        })() +
         (!(r.tasks || []).length
           ? '<p style="font-size:13px;color:var(--muted)">Nothing is owed on this file yet. ' +
             'Steps appear as soon as a package is bought or a university is shortlisted.</p>'
@@ -811,11 +935,16 @@ function paintRecord(r) {
                   (t.derived ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
                     esc(t.why || 'Done because the applications are past this stage') + '</span>' : '') +
                   (t.status === 'blocked' && t.note ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
-                    esc(t.note) + '</span>' : '') + '</td>' +
+                    esc(t.note) + '</span>' : '') +
+                  /* N17-01 / N17-05: why "done" is refused right now. */
+                  (t.lock ? '<span style="display:block;font-size:11.2px;color:#8a5a00">' +
+                    esc(t.lock) + '</span>' : '') + '</td>' +
                 '<td style="text-align:right;white-space:nowrap">' +
                   (t.derived ? '' : t.status === 'done'
                     ? '<button type="button" class="lnk" data-task-open="' + t.id + '">reopen</button>'
-                    : '<button type="button" class="lnk" data-task-done="' + t.id + '">done</button>' +
+                    : '<button type="button" class="lnk" data-task-done="' + t.id + '"' +
+                      (t.lock ? ' disabled title="' + esc(t.lock) + '" style="opacity:.45;cursor:not-allowed"' : '') +
+                      '>done</button>' +
                       ' · <button type="button" class="lnk" data-task-stuck="' + t.id +
                       '">stuck</button>') + '</td></tr>';
             }).join('') +
@@ -1049,13 +1178,30 @@ document.addEventListener('change', async e => {
   const row = e.target.closest('li');
   const stage = Number((row.querySelector('[data-stage]') || {}).value || 0);
   const outcome = (row.querySelector('[data-outcome]') || {}).value || '';
+  const body = { stage, outcome };
+  /* N17-03: a decision is a message to the student — say so, and ask, before
+     it goes. A programme no longer offered needs it said twice. */
+  const was = String(((CASE && CASE.apps && CASE.apps[id]) || {}).outcome || '');
+  if (oc && outcome && outcome !== was) {
+    const p0 = ((CASE && CASE.shortlist) || []).find(x => String(x.id) === String(id)) || {};
+    const said = (OUTCOMES.find(o => o.k === outcome) || {}).n || outcome;
+    if (!confirm('Record “' + said + '” for ' + (p0.university || 'this application') +
+        (p0.program ? ' — ' + p0.program : '') + '?\n\nThe student is sent a message about it now.' +
+        (p0.withdrawn ? '\n\nThis programme is marked “No longer offered”. Only go ahead if the ' +
+          'university really sent this.' : ''))) {
+      oc.value = was;
+      return;
+    }
+    if (p0.withdrawn) body.confirmWithdrawn = true;
+  }
   try {
     const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +
-      encodeURIComponent(id), { stage, outcome });
-    if (r.moved) toast('The student has been told.');
+      encodeURIComponent(id), body);
+    if (r.told) toast('The student has been told.');
     await refreshCase();
   } catch (err) {
     alert(err.message || 'That did not save.');
+    try { await refreshCase(); } catch (e2) { /* the row stays as it was */ }
   }
 });
 
@@ -1256,6 +1402,29 @@ document.addEventListener('click', async e => {
       toast(err.message || 'That did not remove.', 'bad');
     }
   }
+});
+
+/* Patch 172 (N17-02): Replace one file — the new one joins the document and
+   the old one is taken out of it (kept on record). */
+document.addEventListener('change', async e => {
+  const inp = e.target && e.target.closest && e.target.closest('[data-freplace]');
+  if (!inp || !openId) return;
+  const f = inp.files && inp.files[0];
+  const key = inp.dataset.key, old = inp.dataset.freplace;
+  inp.value = '';
+  if (!f) return;
+  toast('Uploading ' + f.name + '…');
+  try {
+    const form = new FormData();
+    form.append('replaces', old);
+    form.append('file', f, f.name);
+    const r = await fetch('/api/staff/student/' + openId + '/document/' + encodeURIComponent(key) + '/file',
+      { method: 'POST', credentials: 'same-origin', body: form });
+    const d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(d.error || 'That did not go through.');
+    toast('Replaced. The old file is kept on record.');
+    refreshDocs();
+  } catch (err) { toast(err.message, 'bad'); }
 });
 
 document.addEventListener('change', e => {
@@ -1902,6 +2071,28 @@ document.addEventListener('click', async e => {
     if (bar && bar.getBoundingClientRect().top < 0) bar.scrollIntoView({ block: 'start' });
     return;
   }
+  /* N17-05: the visa decision and travel date. */
+  const vds = e.target.closest('#vdSave');
+  if (vds) {
+    const was = (CASE && CASE.visa) || {};
+    const dec = ($('#vdDecision') || {}).value || '';
+    const trv = ($('#vdTravel') || {}).value || '';
+    const body = {};
+    if (dec !== (was.decision || '')) body.decision = dec;
+    if (trv !== (was.travelDate || '')) body.travelDate = trv;
+    if (!Object.keys(body).length) { toast('Nothing has changed.'); return; }
+    if (body.decision !== undefined) {
+      const said = ($('#vdDecision').selectedOptions[0] || {}).textContent || dec;
+      if (!confirm('Record the visa decision “' + said + '”?\n\nThe student is sent a message about it now.')) return;
+    }
+    vds.disabled = true;
+    try {
+      const r0 = await api('PUT', '/api/staff/student/' + openId + '/visa', body);
+      toast(r0.changed ? 'Saved. The student has been told.' : 'Saved.');
+      if (openId) open(openId);
+    } catch (err) { vds.disabled = false; toast(err.message || 'That did not save.'); }
+    return;
+  }
   /* CNS-07 (1): "stuck" opens a note field under the task, not a prompt(). */
   const sv = e.target.closest('[data-stuck-save]');
   if (sv) {
@@ -1970,6 +2161,34 @@ document.addEventListener('click', async e => {
   const c = e.target.closest('[data-canned]');
   if (c) { $('#rbox').value = c.dataset.canned; $('#rbox').focus(); return; }
 
+  /* Patch 172 (N17-02): Accept / Query / Remove on ONE file. */
+  const fv = e.target.closest('[data-fverdict]');
+  if (fv && openId) {
+    fv.disabled = true;
+    try {
+      const out = await api('POST', '/api/staff/student/' + openId + '/document/' +
+        encodeURIComponent(fv.dataset.key) + '/file/' + encodeURIComponent(fv.dataset.fid) + '/verdict',
+        { status: fv.dataset.fverdict });
+      toast(fv.dataset.fverdict === 'ok' ? 'Accepted — this file is the verified copy.'
+        : out.status === 'rescan' ? 'Queried. They have been asked for another copy.'
+          : 'Queried. The document stays accepted with its verified copy.');
+      paintDocs(out.docs);
+    } catch (err) { fv.disabled = false; toast(err.message); }
+    return;
+  }
+  const fr = e.target.closest('[data-fremove]');
+  if (fr && openId) {
+    if (!confirm('Remove ' + (fr.dataset.name || 'this file') + ' from this document? '
+      + 'It is kept on record, not deleted, and the student no longer sees it.')) return;
+    try {
+      const out = await api('DELETE', '/api/staff/student/' + openId + '/document/' +
+        encodeURIComponent(fr.dataset.key) + '/file/' + encodeURIComponent(fr.dataset.fremove));
+      toast('Removed from the document. It is kept on record.');
+      paintDocs(out.docs);
+    } catch (err) { toast(err.message); }
+    return;
+  }
+
   const v = e.target.closest('[data-verify]') || e.target.closest('[data-unverify]')
     || e.target.closest('[data-rescan]');
   if (v && openId) {
@@ -2032,6 +2251,10 @@ staffBoot(async me => {
           th.scrollTop = th.scrollHeight;
         }
       }
+    },
+    /* Patch 172 (N17-02): a file arrived (or went) on a student's documents. */
+    documents(d) {
+      if (d && Number(d.studentId) === Number(openId)) refreshDocs();
     },
     typing(d) {
       if (d.studentId !== openId) return;

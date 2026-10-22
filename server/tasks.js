@@ -123,7 +123,14 @@ const TEMPLATES = [
     title: 'Welcome call and file opened' },
   { key: 'profile', order: 20, stage: 'always', phase: 'profile', per: 'student', due: { sla: 7 },
     title: 'Profile completed and documents collected' },
-  { key: 'shortlist', order: 30, stage: 'match', phase: 'shortlist', per: 'student', due: { sla: 14 },
+  /* N17-01 (16 Oct): `core` steps are on EVERY file, package or not. A
+     lead-converted student with no order had only the welcome call and the
+     documents step, and once both were ticked the journey had nothing left
+     and read "Departed" on day one. The core journey — shortlist, applying,
+     offers, visa, the decision, pre-departure — is the same for everybody;
+     what a package adds on top (SOP, LOR, one submission per university,
+     services) still comes from what was bought. */
+  { key: 'shortlist', order: 30, stage: 'match', core: true, phase: 'shortlist', per: 'student', due: { sla: 14 },
     title: 'Shortlist confirmed with the student' },
   /* `service` names the exact thing that was bought. The two used to share a
      'write' stage, so buying an SOP put an LOR on the file and buying a CV
@@ -135,23 +142,33 @@ const TEMPLATES = [
   { key: 'lor', order: 50, stage: 'apply', service: 'lor', phase: 'writing',
     per: 'student', due: { before: 30 },
     title: 'Letters of Recommendation collected' },
-  { key: 'appdocs', order: 60, stage: 'apply', phase: 'applying', per: 'student', due: { before: 21 },
+  { key: 'appdocs', order: 60, stage: 'apply', core: true, phase: 'applying', per: 'student', due: { before: 21 },
     title: 'Application documents assembled' },
   /* The one there is one of per university. */
   { key: 'submit', order: 70, stage: 'apply', phase: 'applying', per: 'uni', due: { before: 7 },
     title: 'Application submitted' },
-  { key: 'offer', order: 80, stage: 'apply', phase: 'offers', per: 'student', due: { before: -45 },
+  { key: 'offer', order: 80, stage: 'apply', core: true, phase: 'offers', per: 'student', due: { before: -45 },
     title: 'Offer letter received and recorded' },
   /* Both carry the service they track, so buying it is covered while EITHER
      is live. Neither did, so the visa service — a real, expensive purchase
      in the default configuration — got its two journey tasks AND a generic
      twin on top. */
-  { key: 'visadocs', order: 90, stage: 'visa', service: 'visa', phase: 'visa',
+  { key: 'visadocs', order: 90, stage: 'visa', service: 'visa', core: true, phase: 'visa',
     per: 'student', due: { before: -60 },
     title: 'Visa documents ready' },
-  { key: 'visa', order: 100, stage: 'visa', service: 'visa', phase: 'visa',
+  { key: 'visa', order: 100, stage: 'visa', service: 'visa', core: true, phase: 'visa',
     per: 'student', due: { before: -75 },
     title: 'Visa application filed' },
+  /* N17-05: the result. Closed by recording the decision (PUT
+     /api/staff/student/:id/visa), never by a tick — "granted" needs the visa
+     decision letter on file, and a refusal re-opens the two steps above. */
+  { key: 'visadecision', order: 105, stage: 'visa', core: true, phase: 'visa',
+    per: 'student', due: { before: -90 },
+    title: 'Visa decision recorded' },
+  /* Needs a granted visa and a travel date. Departed needs both too. */
+  { key: 'predeparture', order: 110, stage: 'visa', core: true, phase: 'visa',
+    per: 'student', due: { before: -100 },
+    title: 'Pre-departure briefing and travel date' },
 ];
 
 /* Statuses a task can be in. 'dropped' is the honest name for not-applicable:
@@ -422,7 +439,8 @@ function syncTasks(db, student, now) {
   const stages = ALERTS.stagesFor(db, st);
   const bought = servicesBought(db, st);
   const live = rules(db).filter(t => !t.off
-    && ((Array.isArray(t.stage) ? t.stage : [t.stage]).some(x => stages.has(x))
+    && (t.core
+        || (Array.isArray(t.stage) ? t.stage : [t.stage]).some(x => stages.has(x))
         /* …or they bought precisely this thing. */
         || (t.service && bought.has(t.service))));
 
@@ -737,15 +755,37 @@ function taskPhaseOf(db, st, T) {
       late: 0, waiting: false, blocking: [], finished: false };
   }
 
-  const at = present.find(p => rows.some(t => phaseKey(t) === p.key && !CLOSED.has(String(t.status))));
-  /* Everything they owe is finished. */
+  /*
+   * N17-01 (16 Oct): A PHASE IS FINISHED WHEN ITS TASKS ARE CLOSED *AND* THE
+   * FILE SAYS SO. "No open tasks left" alone put a student with no documents,
+   * no shortlist, no applications and no visa at "Departed". Each phase now
+   * also needs its evidence: the required documents verified, something on
+   * the shortlist, an application submitted, an offer in, the visa granted.
+   * And Departed needs a granted visa AND a travel date, whatever is ticked.
+   */
+  let F = null;
+  try { F = factsOf(db, st); } catch (e) { F = null; }
+  const gapOf = k => (F ? evidenceGap(F, k) : '');
+  let at = present.find(p => rows.some(t => phaseKey(t) === p.key && !CLOSED.has(String(t.status)))
+    || gapOf(p.key));
+  let waitingOn = at ? gapOf(at.key) : '';
+  if (!at) {
+    const gap = F ? departGap(F) : '';
+    if (gap) {
+      /* Everything ticked, but no granted visa or no travel date: the file is
+         at Visa, whatever the office bought. */
+      at = PHASES.find(p => p.key === 'visa');
+      waitingOn = gap;
+    }
+  }
+  /* Everything they owe is finished, and the visa and the flight are real. */
   if (!at) {
     const last = rows.map(t => t.done_at).filter(Boolean).sort();
     const since = last[last.length - 1] || st.created_at;
     return { key: 'departed', label: 'Departed', index: PHASES.length - 1, of: PHASES.length,
       done: rows.length, total: rows.length, since,
       days: DAYS.daysBetweenDays(DAYS.istDay(since), DAYS.istDay(T)) || 0,
-      late: 0, waiting: false, blocking: [], finished: true };
+      late: 0, waiting: false, blocking: [], finished: true, waitingOn: '' };
   }
 
   const mine = rows.filter(t => phaseKey(t) === at.key);
@@ -776,7 +816,190 @@ function taskPhaseOf(db, st, T) {
       .sort((a, b) => (b.over == null ? -1e9 : b.over) - (a.over == null ? -1e9 : a.over))
       .slice(0, 10),
     finished: false,
+    /* What the file itself is still missing for this phase ("3 of 10
+       required documents verified", "No application is marked Submitted
+       yet") — '' when only tasks are open. */
+    waitingOn,
   };
+}
+
+/*
+ * ======================= WHAT IS ON THE FILE (N17-01 / N17-05) ==========
+ *
+ * The facts the phase is checked against, read fresh: documents verified,
+ * the shortlist, the applications and their outcomes, the visa decision and
+ * the travel date. journey.js is required lazily — it requires this file.
+ */
+const JOURNEY_ = () => require('./journey.js');
+const VISA_KEY = sid => 'visa:' + Number(sid);
+const VISA_DECISIONS = ['', 'granted', 'refused', 'more'];
+const VISA_SAID = {
+  granted: 'your visa has been granted',
+  refused: 'your visa application was refused. Your counsellor will go through the letter with you and the next step',
+  more: 'the consulate has asked for more documents. Your counsellor will tell you exactly what to send',
+  '': 'the visa decision has been taken off your file while your counsellor checks it',
+};
+
+/** The visa decision and travel date on one file. Never throws. */
+function visaOf(db, sid) {
+  let v = null;
+  try { v = db.content(VISA_KEY(sid)); } catch (e) { v = null; }
+  v = v && typeof v === 'object' ? v : {};
+  return {
+    decision: VISA_DECISIONS.includes(String(v.decision || '')) ? String(v.decision || '') : '',
+    decidedAt: String(v.decidedAt || ''), by: String(v.by || ''),
+    travelDate: /^\d{4}-\d{2}-\d{2}$/.test(String(v.travelDate || '')) ? String(v.travelDate) : '',
+  };
+}
+
+function factsOf(db, st) {
+  const J = JOURNEY_();
+  let docs = { ok: 0, of: 10 }, visaDocs = { ok: 0, of: 6 };
+  try { docs = J.readiness(db, st.id); } catch (e) { /* counted as nothing verified */ }
+  try { visaDocs = J.visaReadiness(db, st.id); } catch (e) { /* likewise */ }
+  let list = [];
+  try { list = db.getShortlist(st.id) || []; } catch (e) { list = []; }
+  let apps = [];
+  try { apps = db.getApplications(st.id) || []; } catch (e) { apps = []; }
+  const listed = new Set(list.map(r => String(r.prog_id)));
+  const live = apps.filter(a => listed.has(String(a.prog_id)));
+  const SENT = APPS.STAGES.findIndex(x => x.k === 'sent');
+  const submitted = live.filter(a => Number(a.stage || 0) >= SENT || String(a.outcome || '')).length;
+  const offers = live.filter(a => APPS.hadOffer(a.outcome)).length;
+  const enrolled = live.filter(a => String(a.outcome || '') === 'enrolled').map(a => {
+    const row = list.find(r => String(r.prog_id) === String(a.prog_id)) || {};
+    return { progId: String(a.prog_id), university: row.university || '', program: row.program || '' };
+  });
+  return { docs, visaDocs, listed: list.length, submitted, offers, enrolled, visa: visaOf(db, st.id) };
+}
+
+/** '' when the file shows this phase is finished; otherwise what is missing. */
+function evidenceGap(F, key) {
+  switch (key) {
+    case 'profile':
+      return (F.docs.ok >= F.docs.of || F.submitted) ? ''
+        : F.docs.ok + ' of ' + F.docs.of + ' required documents verified';
+    case 'shortlist':
+      return F.listed || F.submitted ? '' : 'Nothing is on the shortlist yet';
+    case 'applying':
+      return F.submitted ? '' : 'No application is marked Submitted yet';
+    case 'offers':
+      return F.offers ? '' : 'No offer recorded yet';
+    case 'visa':
+      return visaGap(F.visa);
+    default: return '';
+  }
+}
+function visaGap(v) {
+  if (v.decision === 'granted') return '';
+  if (v.decision === 'refused') return 'The visa was refused — the visa steps are open again';
+  if (v.decision === 'more') return 'The consulate asked for more documents';
+  return 'Waiting for the visa decision';
+}
+/** Departed needs a granted visa and a travel date. */
+function departGap(F) {
+  const g = visaGap(F.visa);
+  if (g) return g;
+  return F.visa.travelDate ? '' : 'No travel date yet';
+}
+
+/**
+ * Why a task cannot be ticked done yet, or '' when it can. The server refuses
+ * with this sentence and the counsellor's screen disables the button with it.
+ */
+function doneBlock(db, student, t) {
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st || !t) return '';
+  const key = String(t.task_key || t.key || '');
+  const J = JOURNEY_();
+  if (key === 'profile') {
+    const R = J.readiness(db, st.id);
+    if (R.ok < R.of) {
+      return R.ok + ' of ' + R.of + ' required documents are verified. Accept the rest on '
+        + 'Their file → Documents before ticking this.';
+    }
+  }
+  if (key === 'visadocs') {
+    const V = J.visaReadiness(db, st.id);
+    if (V.ok < V.of) {
+      const miss = V.docs.filter(d => d.status !== 'ok').map(d => d.name);
+      return V.ok + ' of ' + V.of + ' visa documents are verified — still to verify: '
+        + miss.join(', ') + '.';
+    }
+  }
+  if (key === 'visadecision') {
+    if (visaOf(db, st.id).decision !== 'granted') {
+      return 'Record the decision under “Visa decision” (granted, refused or more documents '
+        + 'asked, with the decision letter). This step closes itself when the visa is granted.';
+    }
+  }
+  if (key === 'predeparture') {
+    const v = visaOf(db, st.id);
+    if (v.decision !== 'granted') return 'Pre-departure comes after a granted visa.';
+    if (!v.travelDate) return 'Add the travel date under “Visa decision” first.';
+  }
+  return '';
+}
+
+/**
+ * Record the visa decision and/or the travel date.
+ *   body: { decision?: ''|'granted'|'refused'|'more', travelDate?: 'YYYY-MM-DD'|'' }
+ * Returns { status, error?, visa, changed } — `changed` is true when the
+ * decision itself changed (the caller tells the student, once).
+ */
+function setVisa(db, student, body, who) {
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st) return { status: 404, error: 'No such student' };
+  const b = body || {};
+  const was = visaOf(db, st.id);
+  const next = Object.assign({}, was);
+  if (b.decision !== undefined) {
+    const d = String(b.decision || '');
+    if (!VISA_DECISIONS.includes(d)) {
+      return { status: 422, error: 'A visa decision is granted, refused or more documents asked.' };
+    }
+    if (d === 'granted' || d === 'refused') {
+      let letter = null;
+      try { letter = (db.getDocuments(st.id) || []).find(x => String(x.doc_key) === 'visa-decision'); } catch (e) { letter = null; }
+      if (!letter || String(letter.status || '') === 'rescan') {
+        return { status: 409, error: 'Upload the visa decision letter (Visa → “Visa decision letter”) '
+          + 'before recording a ' + (d === 'granted' ? 'grant' : 'refusal') + '.' };
+      }
+    }
+    next.decision = d;
+  }
+  if (b.travelDate !== undefined) {
+    const t = String(b.travelDate || '').trim();
+    if (t && !/^\d{4}-\d{2}-\d{2}$/.test(t)) return { status: 422, error: 'That is not a real date.' };
+    if (t && isNaN(Date.parse(t + 'T00:00:00Z'))) return { status: 422, error: 'That is not a real date.' };
+    next.travelDate = t;
+  }
+  const changed = next.decision !== was.decision;
+  if (changed) { next.decidedAt = new Date().toISOString(); next.by = String((who && who.name) || ''); }
+  db.setContent(VISA_KEY(st.id), next, String((who && who.name) || ''));
+
+  if (changed) {
+    try { syncTasks(db, st); } catch (e) { /* the record stands */ }
+    const rows = db.tasksFor(st.id) || [];
+    const one = k => rows.find(t => String(t.task_key) === k && String(t.status) !== 'dropped');
+    const reopen = keys => keys.forEach(k => {
+      const t = one(k);
+      if (t && String(t.status) !== 'open') db.updateTask(t.id, { status: 'open' });
+    });
+    const by = who && who.id != null ? Number(who.id) : null;
+    if (next.decision === 'granted') {
+      const t = one('visadecision');
+      if (t && String(t.status) !== 'done') db.updateTask(t.id, { status: 'done', by });
+    } else if (next.decision === 'refused') {
+      reopen(['visadocs', 'visa', 'visadecision', 'predeparture']);
+    } else if (next.decision === 'more') {
+      reopen(['visadocs', 'visadecision', 'predeparture']);
+    } else {
+      reopen(['visadecision', 'predeparture']);
+    }
+  }
+  return { status: 200, visa: visaOf(db, st.id), changed,
+    said: changed ? VISA_SAID[next.decision] : '' };
 }
 
 /**
@@ -1107,4 +1330,6 @@ module.exports = {
   progressOf, activityOf, phaseOf, funnel,
   nextDeadline, fileDeadline, dueFor,
   holdReview, HELD_KEY,
+  /* N17-01 / N17-05 */
+  visaOf, setVisa, doneBlock, factsOf, VISA_DECISIONS,
 };

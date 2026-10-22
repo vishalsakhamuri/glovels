@@ -324,6 +324,13 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .ftagchip small{font:400 11px/1.3 var(--sans);opacity:.7}
 .ftagchips .hint{font:400 12px/1.4 var(--sans);color:var(--muted)}
 @media (max-width:640px){.fsearch input{font-size:13.2px;padding-left:38px}}
+/* Round 15 Oct (5): a Search button inside the box, at its right. */
+.fsearch input#fSearch{padding-right:112px}
+.fsearch .fsgo{position:absolute;right:6px;top:20px;height:34px;padding:0 18px;border:0;border-radius:9px;
+  background:var(--navy-900);color:#fff;font:700 13.6px/1 var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.fsearch .fsgo:hover{background:var(--navy-700)}
+.fsearch .fsgo:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+@media (max-width:640px){.fsearch input#fSearch{padding-right:86px}.fsearch .fsgo{padding:0 12px;font-size:12.8px}}
 .admits{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;
   padding-top:14px;border-top:1px solid var(--line)}
 .admits b{font:800 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
@@ -1298,6 +1305,14 @@ body{overflow-x:clip}
 <meta property="og:image:alt" content="Glovels — public universities abroad, where tuition is Rs 0 to Rs 3 lakh">
 <meta name="twitter:image" content="https://www.glovels.com/og/glovels.png">
 <!-- /GLOVELS-OG-IMAGE -->
+<!-- GLOVELS-FLAGS (round 15 Oct, item 1): a country as its flag, drawn as an
+     SVG from /flags/<cc>.svg. The emoji flag is two letters on Windows. -->
+<style>.flagimg{display:inline-block;border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.16);object-fit:cover;vertical-align:middle;background:#fff}
+.mcc .flagimg{border-radius:5px}</style>
+<script>window.GLV_FLAG=function(cc,name,w){cc=String(cc||'').toLowerCase();w=w||24;
+if(!/^[a-z]{2}$/.test(cc))return '';var a=String(name||cc.toUpperCase()).replace(/[&<>"]/g,'');
+return '<img class="flagimg" src="/flags/'+cc+'.svg" alt="'+a+'" title="'+a+'" width="'+w+'" height="'+Math.round(w*3/4)+'" loading="lazy" decoding="async">';};</script>
+<!-- /GLOVELS-FLAGS -->
 </head>
 <body>
 <script>/* Opened from disk = somebody in the office reviewing it. Served
@@ -1376,6 +1391,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
       <input id="fSearch" type="search" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="fSearchRes" aria-expanded="false"
         placeholder="Or search by name or tag — a university, a city, a programme, or “No German Required”, “MOI Accepted”, “TU Munich”…">
+      <button type="button" class="fsgo" id="fSearchGo">Search</button>
       <div class="fsres" id="fSearchRes" hidden role="listbox"></div>
       <div class="ftagchips" id="fTagChips" hidden></div>
     </div>
@@ -1423,9 +1439,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <button class="btn btn-ghost btn-sm" data-show-packages>See our packages
         <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
     </div>
-    <div class="rfoot">
-      <span>Universities we are partnered with are <b>free to apply to</b> — nothing to buy first. The rest open with a package.</span>
-    </div>
+    <!-- Round 15 Oct (2): the "partnered … free to apply to" line is gone (owner). -->
   </div>
 </section>
 
@@ -1547,7 +1561,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <div class="ai-step"><span>3</span><b>A human finishes it</b>
         <p>Your writer rewrites it with you — a raw AI draft costs you the application.</p></div>
     </div>
-    <div class="tabs" role="tablist"><button class="tab" data-cat="top" role="tab" aria-selected="true" style="--tabc:#8a6a1f"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span>Most Booked</span><span class="n">9</span></button><button class="tab" data-cat="more" role="tab" aria-selected="false" style="--tabc:#3d4f66"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span>More Services</span><span class="n">3</span></button><button class="tab" data-cat="consult" role="tab" aria-selected="false" style="--tabc:#123a7b"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Consultation</span><span class="n">8</span></button><button class="tab" data-cat="test" role="tab" aria-selected="false" style="--tabc:#5b3fa8"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>Test Prep</span><span class="n">6</span></button><button class="tab" data-cat="lang" role="tab" aria-selected="false" style="--tabc:#1a6a52"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>Language</span><span class="n">2</span></button><button class="tab" data-cat="post" role="tab" aria-selected="false" style="--tabc:#0e5f73"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg><span>Loan / financial services</span><span class="n">4</span></button><button class="tab" data-cat="migrate" role="tab" aria-selected="false" style="--tabc:#7a3f2b"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span>Work &amp; migrate</span><span class="n">0</span></button></div>
+    <div class="tabs" role="tablist"><button class="tab" data-cat="top" role="tab" aria-selected="true" style="--tabc:#8a6a1f"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span>Most Booked</span><span class="n">9</span></button><button class="tab" data-cat="more" role="tab" aria-selected="false" style="--tabc:#3d4f66"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span>More Services</span><span class="n">3</span></button><button class="tab" data-cat="consult" role="tab" aria-selected="false" style="--tabc:#123a7b"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Consultation</span><span class="n">8</span></button><button class="tab" data-cat="test" role="tab" aria-selected="false" style="--tabc:#5b3fa8"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>Test Prep</span><span class="n">6</span></button><button class="tab" data-cat="lang" role="tab" aria-selected="false" style="--tabc:#1a6a52"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>Language</span><span class="n">2</span></button><button class="tab" data-cat="post" role="tab" aria-selected="false" style="--tabc:#0e5f73"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg><span>Loan / financial services</span><span class="n">4</span></button></div>
     <div class="svc-grid" id="svcGrid"></div>
     <div id="planBar">
       <div><div class="pt" id="planTotal">₹0</div>
@@ -1617,7 +1631,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
               <svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Message my counsellor</a>
           </div>
           <div class="dgrid">
-            <article class="dcard"><span class="dflag">🇬🇧</span><h4>Foundation Year — Business</h4><div class="duni">Arden University · Coventry</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹275,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag">🇵🇱</span><h4>MSc Computer Science</h4><div class="duni">Vistula University · Warsaw</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹899,800</b> · Private</div><div class="dmeta">Deadline: <b>1 Mar 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag">🇩🇪</span><h4>B.Sc. Computer Science</h4><div class="duni">IU International University · Berlin</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹990,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article>
+            <article class="dcard"><span class="dflag"><img class="flagimg" src="/flags/gb.svg" alt="United Kingdom" width="26" height="20" loading="lazy"></span><h4>Foundation Year — Business</h4><div class="duni">Arden University · Coventry</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹275,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag"><img class="flagimg" src="/flags/pl.svg" alt="Poland" width="26" height="20" loading="lazy"></span><h4>MSc Computer Science</h4><div class="duni">Vistula University · Warsaw</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹899,800</b> · Private</div><div class="dmeta">Deadline: <b>1 Mar 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="dcard"><span class="dflag"><img class="flagimg" src="/flags/de.svg" alt="Germany" width="26" height="20" loading="lazy"></span><h4>B.Sc. Computer Science</h4><div class="duni">IU International University · Berlin</div><span class="dfit">Matched to your profile</span><div class="dmeta">Tuition: <b>₹990,000</b> · Private</div><div class="dmeta">Deadline: <b>15 Jan 2027</b></div><a class="dgo" href="login.html">Continue application <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></article>
             <article class="dcard pending"><span class="dico"><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg></span><b>7 more of your 10</b><p>Your package covers 10 universities. 7 are ready to open.</p><span class="dchip">View all <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></span></article>
           </div>
           <div class="dlower">
@@ -2715,6 +2729,15 @@ function uniSlug(name){
   });
   out.addEventListener('click', e => { const b = e.target.closest('.fstag'); if (b) { e.preventDefault(); pick(b); } });
   document.addEventListener('click', e => { if (!e.target.closest('#fSearchWrap')) close(); });
+  /* Round 15 Oct (5): the Search button does exactly what Enter does. With
+     the suggestions not yet back it applies the typed words as they are. */
+  const go = document.getElementById('fSearchGo');
+  if (go) go.addEventListener('click', e => {
+    e.preventDefault();
+    clearTimeout(t);
+    if (!box.value.trim()) { box.focus(); return; }
+    enter();
+  });
 })();
 
 function nextOn(deadline){
@@ -2829,7 +2852,7 @@ function rowHtml(r){
   const type = `<div class="mtype ${feeOfRow === 'free' ? 'pub' : 'priv'}">`
     + `${feeOfRow === 'free' ? 'Free to apply' : 'With a package'}</div>`;
   if(r.locked) return `<div class="mrow" data-band="${r.band}">
-    <div class="mcc">${ctry.flag}</div>
+    <div class="mcc">${GLV_FLAG(cc, ctry.name, 30) || ctry.flag}</div>
     <div class="mname"><b class="masked" aria-hidden="true">${filler(r.nLen)}</b>
       <div class="msub masked" aria-hidden="true">${filler(r.uLen)}</div>${verdictChip(r)}${restrictTag(r)}
       <span class="offscreen">A university in
@@ -2861,7 +2884,7 @@ function rowHtml(r){
   const dl = dlNow.at ? new Date(dlNow.at).toLocaleDateString('en-GB',
       {day:'numeric',month:'short',year:'numeric'}) : '';
   return `<div class="mrow" data-band="${r.band}">
-    <div class="mcc">${(() => { const lg = r.logo || (window.GLV_LOGO ? window.GLV_LOGO(r.university, r.shortName) : ''); return lg ? `<img src="${esc(lg)}" alt="" width="28" height="28" loading="lazy" decoding="async" style="width:28px;height:28px;object-fit:contain;background:#fff;border-radius:6px;padding:2px;box-sizing:border-box">` : ctry.flag; })()}</div>
+    <div class="mcc">${(() => { const lg = r.logo || (window.GLV_LOGO ? window.GLV_LOGO(r.university, r.shortName) : ''); return lg ? `<img src="${esc(lg)}" alt="" width="28" height="28" loading="lazy" decoding="async" style="width:28px;height:28px;object-fit:contain;background:#fff;border-radius:6px;padding:2px;box-sizing:border-box">` : (GLV_FLAG(cc, ctry.name, 30) || ctry.flag); })()}</div>
     <div class="mname"><b>${esc(unent(r.program))}</b><div class="msub">${uniHtml}${r.city?' · '+esc(r.city):''}${uniSlug(unent(r.university))?` · <a class="umore" href="university/${uniSlug(unent(r.university))}">More details</a>`:''}</div>${asksLine(r)?`<div class="masks">${esc(asksLine(r))}</div>`:''}${verdictChip(r)}${restrictTag(r)}</div>
     <div class="mctry">${esc(ctry.name)}</div>${type}
     <div class="mprice">${feeUnknown(r)?'Fee to be confirmed':short(r.totalInr)}<small>${feeUnknown(r)?'':r.totalInr===0?'tuition':'total'}</small></div>
@@ -3343,6 +3366,8 @@ async function asSend(e) {
   const note = ($('#asNote').value || '').trim();
   if ($('#asHoney').value) return;          /* a bot filled the hidden field */
   if (!name) return show('Your name, so we know who we are calling.');
+  /* Round 15 Oct (9): the contact form's name rule. */
+  if (!/\p{L}/u.test(name)) return show('A name needs at least one letter.');
   if (!/^[6-9][0-9]{9}$/.test(phone.replace(/[^0-9]/g, '').slice(-10))) {
     return show('A 10-digit Indian mobile, please.');
   }
@@ -3385,7 +3410,12 @@ async function asSend(e) {
     });
   } catch (ex) { r = { ok: false }; }
   btn.disabled = false; btn.textContent = 'Ask our experts to review';
-  if (!r.ok) return show('That did not send. Try again, or call the office.');
+  if (!r.ok) {
+    /* Round 15 Oct (9): the server's reason when it refused, not a shrug. */
+    let why = null;
+    try { why = r.status >= 400 && r.status < 500 && r.json ? await r.json() : null; } catch (e2) { why = null; }
+    return show(why && why.error ? String(why.error) : 'That did not send. Try again, or call the office.');
+  }
   if (window.glvTrack) glvTrack('generate_lead', { form: 'assist' });
   const box = $('#rAssist');
   if (box) {
@@ -4483,7 +4513,9 @@ render();
         + Object.values(C)
             .filter(c => c.active !== false)
             .sort((a, b) => (counts[b.code] ? 1 : 0) - (counts[a.code] ? 1 : 0) || String(a.name).localeCompare(String(b.name)))
-            .map(c => '<option value="' + esc(c.code) + '">' + (c.flag || '') + ' '
+            /* Round 15 Oct (1): the name alone. An option cannot hold the SVG
+               flag, and the emoji one is "DE" on Windows. */
+            .map(c => '<option value="' + esc(c.code) + '">'
               + esc(c.name) + '</option>').join('');
       sel.value = keep;
     }
@@ -5248,7 +5280,7 @@ function card(p){
     : feeTbc(p) ? 'Fee to be confirmed' : esc(lakh(p.totalInr));
   const basis = p.locked || feeTbc(p) ? '' : (p.totalInr === 0 ? 'tuition' : 'total');
   return '<article class="ccard'+(p.locked?' clocked':'')+'" data-band="'+p.band+'">'
-    + '<div class="ctop"><div class="crow1"><span class="cflag">'+c.flag+'</span>'
+    + '<div class="ctop"><div class="crow1"><span class="cflag">'+(GLV_FLAG(p.country, c.name, 28) || c.flag)+'</span>'
     + '<span class="cband">'+esc(bandLabel(p.band))+'</span></div>'
     + '<h3>'+esc(p.program)+'</h3>'
     + '<div class="cuni">'+esc(p.university)+'</div>'
@@ -5325,16 +5357,18 @@ const PHONE = "+917839399999";
 $('#cForm').addEventListener('submit', async e => {
   e.preventDefault();
   let ok = true;
-  [['#cName','Tell us your name',v=>!!v],
+  /* Round 15 Oct (9): the contact form's name rule — "12345" is not a name. */
+  [['#cName', v => v ? 'A name needs at least one letter' : 'Tell us your name', v => !!v && /\p{L}/u.test(v)],
    ['#cPhone','A 10-digit Indian mobile, please',
      v=>/^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g,'').slice(-10))],
    ['#cMail','A valid email, please', v=>/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v)]]
   .forEach(([sel,msg,test]) => {
     const f = $(sel), bad = !test(f.value.trim());
     f.closest('.fld').classList.toggle('bad', bad);
-    f.closest('.fld').querySelector('.err').textContent = msg;
+    f.closest('.fld').querySelector('.err').textContent = typeof msg === 'function' ? msg(f.value.trim()) : msg;
     if(bad) ok = false;
   });
+  $('#cFail').style.display = 'none';
   const consent = $('#cOk').checked;
   $('#cOkErr').style.display = consent ? 'none' : 'block';
   if($('#cHoney').value) return;          /* a bot filled the hidden field */
@@ -5367,7 +5401,27 @@ $('#cForm').addEventListener('submit', async e => {
       headers: {'Content-Type':'application/json', 'Accept':'application/json'},
       body: JSON.stringify(payload)
     });
-    if(!r.ok) throw new Error('endpoint returned ' + r.status);
+    if(!r.ok){
+      /* Round 15 Oct (9): a refusal says why — beside the field it is about
+         when the server names one, otherwise above the button. */
+      let why = null;
+      try { why = await r.json(); } catch (e2) { why = null; }
+      if (why && why.error && r.status >= 400 && r.status < 500) {
+        btn.disabled = false; btn.textContent = 'Book Free Counselling';
+        const fieldSel = { name: '#cName', phone: '#cPhone', email: '#cMail' };
+        const fl = why.fields && why.fields[0] && fieldSel[why.fields[0].field];
+        if (fl) {
+          const fld = $(fl).closest('.fld');
+          fld.classList.add('bad'); fld.querySelector('.err').textContent = String(why.error).replace(/\.$/, '');
+          $(fl).focus();
+        } else {
+          $('#cFail').textContent = why.error;
+          $('#cFail').style.display = 'block';
+        }
+        return;
+      }
+      throw new Error('endpoint returned ' + r.status);
+    }
     if(window.glvTrack) glvTrack('generate_lead', { form: 'counselling' });
     $('#cForm').innerHTML =
       '<div class="sent">' + ico('check') + '<div><b>Request received</b>'

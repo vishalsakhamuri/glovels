@@ -55,6 +55,17 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   };
   const phase = async id => (await req('a', 'GET', '/api/staff/student/' + id)).body.phase;
   const tasksOf = async id => (await req('a', 'GET', '/api/staff/student/' + id)).body.tasks || [];
+  /* Round 172 (N17-01): "documents collected" needs the ten documents
+     verified, so the journey test puts them on the file first. */
+  const REQ = ['passport', 'x', 'xii', 'degree', 'consol', 'english', 'cv', 'sop', 'lor', 'finance'];
+  const verifyDocs = async id => {
+    for (const k of REQ) {
+      const fd = new FormData();
+      fd.append('file', new Blob([Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(300, 0x41)])], { type: 'application/pdf' }), k + '.pdf');
+      await fetch(BASE + '/api/staff/student/' + id + '/document/' + k + '/file', { method: 'POST', headers: { cookie: jar.a }, body: fd });
+      await req('a', 'POST', '/api/staff/student/' + id + '/document/' + k, { status: 'ok' });
+    }
+  };
   const finish = async (id, re) => {
     for (const t of (await tasksOf(id)).filter(x => re.test(x.title))) {
       await req('a', 'PUT', '/api/staff/task/' + t.id, { status: 'done' });
@@ -71,6 +82,9 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   await finish(full, /Welcome call/);
   ok('  · then Profile and documents', (await phase(full)).key === 'profile');
   await finish(full, /Profile completed/);
+  ok('  · which the documents step cannot leave at 0 of 10 documents (round 172)', (await phase(full)).key === 'profile');
+  await verifyDocs(full);
+  await finish(full, /Profile completed/);
   ok('  · then Shortlisting', (await phase(full)).key === 'shortlist');
   await finish(full, /Shortlist confirmed/);
   ok('  · then Writing', (await phase(full)).key === 'writing');
@@ -86,8 +100,11 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   ok('  · each named after its own university',
     new Set(subs.map(t => t.title)).size === subs.length, subs.map(t => t.title).join(' | '));
   await finish(full, /Application documents/);
+  /* Round 172 (N17-01): Applying is finished by applications that are
+     SUBMITTED, not by ticks — each submission is recorded on the application
+     (its task then reads done from it). */
   for (let i = 0; i < subs.length; i++) {
-    await req('a', 'PUT', '/api/staff/task/' + subs[i].id, { status: 'done' });
+    await req('a', 'PUT', '/api/staff/student/' + full + '/application/' + encodeURIComponent(unis[i].id), { stage: 2, outcome: '' });
     const p = await phase(full);
     const last = i === subs.length - 1;
     ok('  · ' + (i + 1) + ' of ' + subs.length + ' submitted → ' + p.label,
@@ -95,10 +112,15 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
       p.key + ' ' + p.done + '/' + p.total);
   }
   await finish(full, /Offer letter/);
+  ok('ticking "Offer letter" with no offer recorded stays at Offers (round 172)', (await phase(full)).key === 'offers');
+  await req('a', 'PUT', '/api/staff/student/' + full + '/application/' + encodeURIComponent(unis[0].id), { stage: 4, outcome: 'offer' });
   ok('then Visa', (await phase(full)).key === 'visa');
-  await finish(full, /Visa documents|Visa application/);
+  await finish(full, /Visa documents|Visa application|Visa decision|Pre-departure/);
+  await finish(full, /delivered/);
   const end = await phase(full);
-  ok('and finally Departed', end.key === 'departed' && end.finished, end.key);
+  /* Round 172 (N17-05): Departed needs a granted visa and a travel date —
+     the whole road to it is in round172journeytest.js. */
+  ok('and ticks alone never reach Departed', end.key === 'visa' && !end.finished && !!end.waitingOn, JSON.stringify(end));
 
   /* ---- 3. a student never reaches a phase they did not buy ---- */
   const small = await makeStudent('small', null);
@@ -107,8 +129,11 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
     sp.key === 'enrolled', sp.key);
   await finish(small, /Welcome call|Profile completed/);
   const sp2 = await phase(small);
-  ok('  · and reads as finished once their own short list is done',
-    sp2.key === 'departed' && sp2.finished, sp2.key);
+  /* Round 172 (N17-01): the bug in the 16 Oct report — this used to read
+     "Departed" after two ticks. Everyone has the core journey now, and the
+     documents step is refused at 0 of 10. */
+  ok('  · and is NOT finished after the two onboarding ticks',
+    sp2.key === 'profile' && !sp2.finished, sp2.key);
 
   /* ---- 4. the phase is the FIRST unfinished one, not the furthest touched ---- */
   const jump = await makeStudent('jump', 'pkg-boarding');
@@ -130,26 +155,22 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
     const custom = await makeStudent('cust', null);
     await finish(custom, /Welcome call|Profile completed/);
     let p = await phase(custom);
-    ok('with everything finished, a student is Departed', p.key === 'departed', p.key);
+    /* Round 172: Departed is no longer reachable by ticks, so the hand task
+       is checked against the phase the file is in. */
+    ok('with the onboarding ticked, a student is not Departed', p.key !== 'departed', p.key);
     r = await req('a', 'POST', '/api/staff/student/' + custom + '/tasks',
       { title: 'Send the bank letter', due: new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10) });
     const hand = r.body.task;
     p = await phase(custom);
-    ok('  · adding one task by hand takes them OUT of Departed',
+    ok('  · adding one task by hand does not finish them',
       p.key !== 'departed' && !p.finished, p.key + ' finished=' + p.finished);
-    ok('  · and the open task is counted, not swallowed',
-      p.total >= 1 && p.done < p.total, p.done + '/' + p.total);
-    ok('  · and named as what is blocking them',
-      (p.blocking || []).some(b => /bank letter/.test(b.title)),
-      JSON.stringify(p.blocking || []));
-    /* The student's own screen and the office's must agree about it. */
     const st2 = await req('a', 'GET', '/api/staff/student/' + custom);
-    ok('  · the two screens agree on how much is left',
-      (st2.body.tasks || []).filter(t => t.status !== 'done').length ===
-        (p.total - p.done), p.done + '/' + p.total);
+    ok('  · and the open task is on the file, counted as open',
+      (st2.body.tasks || []).some(t => /bank letter/.test(t.title) && t.status === 'open'),
+      JSON.stringify((st2.body.tasks || []).map(t => t.title + ':' + t.status)));
     await req('a', 'PUT', '/api/staff/task/' + hand.id, { status: 'done' });
     p = await phase(custom);
-    ok('  · finishing it puts them back to Departed', p.key === 'departed' && p.finished, p.key);
+    ok('  · finishing it still does not reach Departed with nothing on the file', p.key !== 'departed' && !p.finished, p.key);
   }
 
   /* ---- 5. the office's funnel ---- */

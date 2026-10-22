@@ -579,7 +579,13 @@ const DOC_STATE = { ok: 'Verified', wait: 'In review', none: 'Not uploaded' };
 
 function docCards(s, list, note) {
   const have = s.docs || {};
-  return '<p style="margin:0 0 15px;font-size:12.8px;color:var(--muted);line-height:1.65">'
+  /* Patch 172 (15 Oct, item 13): a closed file takes no uploads — every
+     Upload control is drawn disabled, and the server refuses one (409). */
+  const shut = s.status === 'closed' || !!s.closed;
+  return (shut ? '<p class="warnbox pclosed" id="docsClosed" role="status" style="margin:0 0 12px;'
+      + 'border-color:#d6c3a5;background:#fbf6ee;color:#5b4409"><b>This file is closed.</b> '
+      + 'Uploads are off — reopen it from Closed files to send documents.</p>' : '')
+    + '<p style="margin:0 0 15px;font-size:12.8px;color:var(--muted);line-height:1.65">'
     + note + '</p>'
     + '<div class="dcards">' + list.map(d => {
       const got = have[d.id];
@@ -611,10 +617,15 @@ function docCards(s, list, note) {
         /* An agency may still send their own draft of an SOP — plenty arrive
            with one. What they must not do is quietly overwrite the finished
            one, so once ours is there the box says what replacing means. */
-        + '<label class="dlab">' + ico('plus')
+        + (shut
+          ? '<label class="dlab" aria-disabled="true" title="This file is closed" '
+            + 'style="opacity:.45;cursor:not-allowed">' + ico('plus')
+            + (got ? 'Replace' : 'Upload')
+            + '<input type="file" disabled data-shut="1"></label>'
+          : '<label class="dlab">' + ico('plus')
           + (got ? (ours ? 'Send yours instead' : 'Replace') : 'Upload')
           + '<input type="file" accept="' + UPLOAD_ACCEPT + '" data-up="'
-            + esc(d.id) + '"></label>'
+            + esc(d.id) + '"></label>')
         + '</div>'
         + (got ? '<span style="display:block;margin-top:8px;font-size:11.4px;'
             + 'color:var(--muted)">' + esc(got.file) + '</span>' : '')
@@ -1092,6 +1103,8 @@ async function saveLogo(url) {
   document.addEventListener('change', async e => {
     const up = e.target.closest('[data-up]');
     if (!up || !OPEN) return;
+    /* Patch 172 (item 13): nothing goes up on a closed file. */
+    if (OPEN.status === 'closed' || OPEN.closed) return toast('This file is closed. Reopen it from Closed files to upload.');
     const f = up.files && up.files[0];
     if (!f) return;
     /* The SERVER's limit and the SERVER's list, not a friendlier pair.

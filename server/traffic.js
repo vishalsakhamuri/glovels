@@ -217,7 +217,9 @@ function open({ db, log = console }) {
 
     /* Enquiries and orders over the same days, by where the lead said it came
        from — the finder, the contact page, a blog post, the chat. */
-    const enquiries = db.allEnquiries().filter(e => String(e.created_at).slice(0, 10) >= since);
+    /* Everything that ARRIVED, archived or not (patch 172): taking a duplicate
+       out of the book does not mean the visit did not bring an enquiry. */
+    const enquiries = (db.allEnquiriesEver || db.allEnquiries)().filter(e => String(e.created_at).slice(0, 10) >= since);
     const enqBy = {}, enqByDay = {};
     enquiries.forEach(e => {
       const s = sourceOf(String(e.referrer || ''), {}, '');
