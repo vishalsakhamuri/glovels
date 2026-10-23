@@ -224,6 +224,7 @@ run round172sitestest.js 8115
 # and the one-time repair of every stored post.
 run round172blogtest.js 8114
 run round173test.js 8116
+run round174test.js 8117
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

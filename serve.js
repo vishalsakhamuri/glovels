@@ -2975,6 +2975,24 @@ const server = http.createServer(async (req, res) => {
     return send(res, 403, 'Forbidden');
   }
 
+  /* 23 Oct: the site's own source is not a page. /serve.js, /package.json,
+     /tests/* and the build scripts all answered 200. Folders that hold
+     tools, and every file at the top level except the pages, icons,
+     manifests and the two scripts the browser loads, now answer 404. */
+  {
+    const segs = pathname.split('/').filter(Boolean);
+    if (segs.some(s => s.startsWith('.'))
+        || /^(tests|__pycache__|node_modules|scripts)$/.test(segs[0] || '')) return notFound(res);
+    if (segs.length === 1) {
+      const name = segs[0];
+      const PUBLIC_TOP = /\.(html|ico|png|svg|jpg|jpeg|webp|webmanifest|txt|xml)$/i;
+      const PUBLIC_FILES = ['fitpanel.js', 'sw.js'];
+      const hasExt = /\.[a-z0-9]+$/i.test(name);
+      if (hasExt && !PUBLIC_TOP.test(name) && !PUBLIC_FILES.includes(name)) return notFound(res);
+      if (!hasExt && /^(Dockerfile|LICENSE|Makefile|Procfile)$/i.test(name)) return notFound(res);
+    }
+  }
+
   let file = resolveSafe(pathname);
   if (!file) return send(res, 403, 'Forbidden');
 

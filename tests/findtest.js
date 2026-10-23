@@ -86,7 +86,7 @@ check('locked row: GRE asked, chances unknown', hb.includes('Chances unknown'));
 const ha = F.rowHtml(r.rows.find(p => p.id === 'a'), ctx);
 check('named row: title, university link, apply free, clears via MOI/IELTS', ha.includes('MSc Computer Science') && ha.includes('/university/tu-test') && ha.includes('Apply free') && ha.includes('You clear what it asks'));
 check('row with nothing stated gets no green chip', !F.rowHtml(Object.assign({}, rows[2], { reqs: {}, minCgpa: null, _v: { fails: [], unknown: [], notes: [] } }), ctx).includes('clear what it asks'));
-check('title words', F.title(F.parse('?country=DE&level=master&field=Computer Science %26 IT'), ctx.countries, 12) === 'Master’s in Computer Science & IT in Germany — 12 programmes'.replace('’', "'"));
+check('title words', F.title(F.parse('?country=DE&level=master&field=Computer Science %26 IT'), ctx.countries, 12) === 'Master’s in Computer Science & IT in Germany'.replace('’', "'")); // 23 Oct: no count
 check('chip labels', F.chipLabel('english', 'ielts:6.5') === 'IELTS 6.5' && F.chipLabel('intake', 'winter-2027') === 'Winter 2027' && F.chipLabel('tuition', '0') === 'No tuition fee');
 
 /* -------------------------------------------------------------- server */
@@ -100,7 +100,7 @@ check('chip labels', F.chipLabel('english', 'ielts:6.5') === 'IELTS 6.5' && F.ch
   }
   const html = await (await fetch(BASE + '/find-university?country=DE&level=master')).text();
   check('page renders', html.includes('id="flist"') && html.includes('id="frail"'));
-  check('title carries the filters', /<title>Master's in Germany — [\d,]+ programmes \| Glovels<\/title>/.test(html));
+  check('title carries the filters', /<title>Master's in Germany \| Glovels<\/title>/.test(html));
   check('canonical keeps only country/level/field', html.includes('<link rel="canonical" href="') && /canonical" href="[^"]*find-university\?country=DE&amp;level=master"/.test(html));
   check('signed-out page names no public university', !/frow locked[\s\S]*?<h3 class="ftitle">[A-Za-z]/.test(html.split('frow locked')[1] || ''));
   check('scripts served', (await fetch(BASE + '/js/find.js')).ok && (await fetch(BASE + '/js/reqs.js')).ok && (await fetch(BASE + '/js/find-page.js')).ok);

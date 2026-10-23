@@ -364,7 +364,9 @@
     if (f.field) t += ' in ' + fieldShort(f.field);
     if (c) t += ' in ' + c;
     else if (!f.field && !lvl) t = 'Find your university';
-    if (n != null) t += ' — ' + n.toLocaleString('en-IN') + ' programme' + (n === 1 ? '' : 's');
+    /* 23 Oct: no count in the title — "numbers not required" covers the
+       browser tab too. n is still taken so callers need not change. */
+    void n;
     return t;
   }
   function chipLabel(k, v, countries) {
