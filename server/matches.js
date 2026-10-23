@@ -3,6 +3,7 @@ const GRADES = require('./grades.js');
 const REQS = require('./reqs.js');
 const TAGS = require('./tags.js');
 const UNIS = require('./unis.js');
+const ISO = require('./countries.js');
 /**
  * Picking universities for somebody, without a person in the room.
  *
@@ -84,7 +85,9 @@ function destinations(value) {
   const parts = String(value || '').split(',').map(s => s.trim()).filter(Boolean);
   if (!parts.length) return null;
   if (parts.some(s => /open to advice/i.test(s))) return null;
-  const codes = parts.map(s => COUNTRY_CODE[s.toLowerCase()]).filter(Boolean);
+  /* 23 Oct: any country the catalogue can hold, not only the dozen named
+     above — the counsellor's matcher now offers them all. */
+  const codes = parts.map(s => COUNTRY_CODE[s.toLowerCase()] || (ISO.byName(s) || {}).code).filter(Boolean);
   return codes.length ? codes : null;
 }
 

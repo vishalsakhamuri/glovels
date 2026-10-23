@@ -27,6 +27,28 @@
   /* The same field names the home page's dropdown offers (patch 153 added the
    * seventeen engineering, health, science and business ones), kept
    * alphabetical so a counsellor finds them where they expect. */
+  /* Countries the matcher offers. Starts with the ones we sell and grows to
+     whatever the catalogue holds once /api/staff/catalogue answers. */
+  let COUNTRIES = ['Germany', 'United Kingdom', 'Ireland', 'Canada', 'Italy', 'Poland', 'Spain', 'France', 'Netherlands', 'United States', 'Australia', 'New Zealand'];
+  let countriesLoaded = false;
+  function loadCountries() {
+    if (countriesLoaded) return Promise.resolve(COUNTRIES);
+    return fetch('/api/staff/catalogue?per=1', { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        const names = ((j && j.countries) || []).filter(c => c && c.name && c.active !== false).map(c => c.name);
+        if (names.length) { COUNTRIES = names; countriesLoaded = true; }
+        return COUNTRIES;
+      }).catch(() => COUNTRIES);
+  }
+  /* The profile's destination, if it is one country we list; a profile that
+     says "Germany, Canada" or "Open to advice" starts on Any country. */
+  function countryPick(v) {
+    const parts = String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+    if (parts.length !== 1) return '';
+    const hit = COUNTRIES.find(c => c.toLowerCase() === parts[0].toLowerCase());
+    return hit || '';
+  }
   const FIELDS = ['Aerospace & Robotics', 'Agriculture & Food Science', 'Animation, Film & Game Design',
     'Architecture, Urban Planning & Built Environment', 'Arts & Design', 'Biomedical Engineering',
     'Biotechnology & Bioinformatics', 'Business & Management', 'Chemical & Process Engineering',
@@ -193,8 +215,12 @@
     el.innerHTML = '<div class="gf">'
       + (o.note ? '<p style="margin:0 0 10px;color:var(--muted,#5d6b7a);font-size:12.4px">' + o.note + '</p>' : '')
       + '<div class="gf-grid">'
-      + '<div><label>Destination</label><input id="gfCountry" list="gfCountries" value="' + esc(P.g_country || 'Germany') + '">'
-      + '<datalist id="gfCountries">' + ['Germany', 'United Kingdom', 'Ireland', 'Canada', 'Italy', 'Poland', 'Spain', 'France', 'Netherlands', 'United States', 'Australia', 'New Zealand'].map(c => '<option value="' + c + '">').join('') + '</datalist></div>'
+      /* 23 Oct: a dropdown of every country in the catalogue, with "Any
+         country" first. The old datalist box was pre-filled with Germany,
+         and a datalist only suggests names that start with what is typed —
+         so the counsellor saw one option and thought Germany was all we
+         had. Filled in from the catalogue once it loads (loadCountries). */
+      + '<div><label>Destination</label>' + sel('gfCountry', [['', 'Any country']].concat(COUNTRIES.map(c => [c, c])), countryPick(P.g_country)) + '</div>'
       + '<div><label>Level</label>' + sel('gfLevel', [["Master's", "Master's"], ['MBA', 'MBA'], ["Bachelor's", "Bachelor's"], ['Foundation', 'Foundation']], lv) + '</div>'
       + '<div><label>Field (exact)</label>' + sel('gfField', [['', 'From their profile']].concat(FIELDS.map(f => [f, f])), '') + '</div>'
       + '<div><label>Their field, in words</label><input id="gfWords" value="' + esc([P.g_field, P.g_field2].filter(Boolean).join(', ')) + '" placeholder="Data Science, AI"></div>'
@@ -233,6 +259,15 @@
       + '<p style="margin:10px 0 0"><button type="button" class="btn btn-primary btn-sm" id="gfGo">Find what fits</button>'
       + ' <span style="font-size:11.8px;color:var(--muted,#5d6b7a)">Nothing here is saved to the student’s file.</span></p>'
       + '<div id="gfOut"></div></div>';
+
+    /* Grow the destination list to the whole catalogue, keeping the choice. */
+    if (!countriesLoaded) loadCountries().then(list => {
+      const c = el.querySelector('#gfCountry'); if (!c) return;
+      const keep = c.value;
+      c.innerHTML = [['', 'Any country']].concat(list.map(x => [x, x]))
+        .map(([val, t]) => '<option value="' + esc(val) + '"' + (val === keep ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+      if (!list.includes(keep)) c.value = countryPick(P.g_country);
+    });
 
     const v = id => (el.querySelector('#' + id) || {}).value || '';
     /* The tag chips, and the suggestions box that fills them. */
