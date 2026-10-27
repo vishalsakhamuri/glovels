@@ -71,7 +71,7 @@ function nextOn(deadline, today) {
 }
 
 const LEVELS = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma',
-  pathway: 'Foundation / pathway', phd: 'PhD' };
+  foundation: 'Foundation / pathway', pathway: 'Foundation / pathway', phd: 'PhD' };
 const levelOf = l => LEVELS[String(l || '').toLowerCase()] || (l ? String(l) : "Master's");
 
 /* Round 169 (WEB-05). The part of a host name a university registers:

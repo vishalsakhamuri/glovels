@@ -113,6 +113,11 @@ const PROFILE = { g_country: 'Germany', g_level: "Master's", g_field: 'Computer 
   await cp.evaluate((p) => {
     const box = document.querySelector('#fitBox');
     for (const [k, v] of Object.entries(p)) { const el = box.querySelector('[name="' + k + '"]'); if (el) { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); } }
+    /* Round 175: an empty profile gets "Tell us more first" and no rows — the
+       panel no longer defaults the level to Master's — so the student's level,
+       field and CGPA are typed in by id (the controls have ids, not names). */
+    const set = (id, v) => { const el = box.querySelector('#' + id); if (el) { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); } };
+    set('gfLevel', p.g_level); set('gfWords', p.g_field); set('gfCgpa', p.d_cgpa); set('gfMax', p.d_max);
     const go = [...box.querySelectorAll('button')].find(x => /find|run|search|show/i.test(x.textContent)); if (go) go.click();
   }, PROFILE);
   await cp.waitForTimeout(2500);

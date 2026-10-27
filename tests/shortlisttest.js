@@ -34,8 +34,10 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('there is a university not yet on their list', !!fresh, fresh && fresh.university);
 
   /* ------------------------------------------------------- adding one */
+  /* Round 175: a programme whose every deadline has passed is a 409 until
+     "Add anyway" (force) — the seeded rows' dates are last year's. */
   let r = await staff.request.post(BASE + '/api/staff/student/' + id + '/shortlist',
-    { data: { id: fresh.id } });
+    { data: { id: fresh.id, force: true } });
   check('a counsellor can put a university on the list', r.ok(), r.status());
 
   let after = await (await stu.request.get(BASE + '/api/state')).json();
@@ -129,6 +131,9 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
 
   /* --------------------------------------------------- and on the screen */
   const page = await staff.newPage();
+  /* Round 175: a programme whose deadlines have all passed asks "Add anyway?"
+     before it goes on — the first Berlin hit is one; answer yes. */
+  page.on('dialog', d => d.accept().catch(() => {}));
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
   await page.goto(BASE + '/counsellor', { waitUntil: 'domcontentloaded' });

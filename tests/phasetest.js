@@ -76,7 +76,9 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   const full = await makeStudent('full', 'pkg-boarding');
   const cat = await req('a', 'GET', '/api/staff/catalogue?per=40');
   const unis = (cat.body.programmes || []).slice(0, 3);
-  for (const u of unis) await req('a', 'POST', '/api/staff/student/' + full + '/shortlist', { id: u.id });
+  /* Round 175: the first catalogue rows' deadlines have passed — adding one
+     is a 409 until "Add anyway" (force), so say so. */
+  for (const u of unis) await req('a', 'POST', '/api/staff/student/' + full + '/shortlist', { id: u.id, force: true });
 
   ok('a fresh file is Enrolled', (await phase(full)).key === 'enrolled', (await phase(full)).key);
   await finish(full, /Welcome call/);
@@ -137,7 +139,7 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
 
   /* ---- 4. the phase is the FIRST unfinished one, not the furthest touched ---- */
   const jump = await makeStudent('jump', 'pkg-boarding');
-  for (const u of unis.slice(0, 1)) await req('a', 'POST', '/api/staff/student/' + jump + '/shortlist', { id: u.id });
+  for (const u of unis.slice(0, 1)) await req('a', 'POST', '/api/staff/student/' + jump + '/shortlist', { id: u.id, force: true });
   await finish(jump, /Application submitted/);
   const jp = await phase(jump);
   ok('submitting before agreeing a shortlist still reads as the earlier phase',

@@ -6,7 +6,9 @@ const check=(n,p,note)=>(p?ok:bad).push(n+(note?' — '+note:''));
 const stamp=Date.now();
 const F='/tmp/visa-funds-'+stamp+'.pdf';
 (async()=>{
- fs.writeFileSync(F, Buffer.from('%PDF-1.4 blocked account confirmation'));
+ /* Round 175: a PDF under 128 bytes is "not accepted" (server/filecheck.js),
+    so the fixture carries a body the size of a real one-line scan. */
+ fs.writeFileSync(F, Buffer.concat([Buffer.from('%PDF-1.4 blocked account confirmation\n'), Buffer.alloc(400, 0x41)]));
  const b=await chromium.launch();
  const stu=await b.newContext({viewport:{width:1440,height:1050}});
  await stu.request.post(BASE+'/api/auth/login',{data:{email:'student@glovels.com',password:'glovels123'}});

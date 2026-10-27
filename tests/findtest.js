@@ -50,7 +50,12 @@ check('no-tuition facet', r.facets.tuition0 === 1 && r.facets.moi === 1 && r.fac
 
 r = F.run(rows, F.parse('?country=DE&cgpa=7.5'), R);
 check('CGPA 7.5 turns down the 8.0 bar', r.total === 2 && r.turned === 1 && !r.rows.some(p => p.id === 'b'));
-check('said: verdicts on the rows (MOI row clears English on the letter)', r.said && r.rows.find(p => p.id === 'a')._v.ok === true && r.rows.find(p => p.id === 'a')._v.notes.includes('clears via MOI letter'));
+/* Round 175: the letter carries a student only when they say they have one
+   (english=moi); with no English answer at all, English is a question. */
+check('said: verdicts on the rows (MOI row: English is an open question until a letter or score is said)', r.said && r.rows.find(p => p.id === 'a')._v.unknown.includes('english') && r.rows.find(p => p.id === 'a')._v.notes.some(n => /MOI letter would clear/.test(n)));
+r = F.run(rows, F.parse('?country=DE&cgpa=7.5&english=moi'), R);
+check('  · with the letter said, the MOI row clears English on it', r.rows.find(p => p.id === 'a')._v.ok === true && r.rows.find(p => p.id === 'a')._v.notes.includes('clears via MOI letter'));
+r = F.run(rows, F.parse('?country=DE&cgpa=7.5'), R);
 r = F.run(rows, F.parse('?country=IE&cgpa=7.5'), R);
 check('said: an IELTS bar with no score is an open question', r.rows.find(p => p.id === 'd')._v.unknown.includes('english'));
 r = F.run(rows, F.parse('?country=DE&cgpa=7.5&english=ielts:6.5'), R);

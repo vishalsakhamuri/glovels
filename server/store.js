@@ -1453,7 +1453,13 @@ function open(dir) {
     getRemovedFiles: id => db.all(
       'SELECT * FROM documents WHERE student_id = ? ORDER BY id asc', Number(id))
       .filter(d => isRemovedFile(d.doc_key)),
-    /** Patch 172 (N17-02): the counsellor's word on one file ('', 'ok', 'rescan'). */
+    /** Round 175: every checklist file on every record — the file sweep
+        (server/filecheck.js) reads them all and marks the ones that fail
+        today's type and size checks. */
+    allDocFiles: () => db.all('SELECT * FROM documents ORDER BY id asc')
+      .filter(d => !isAppFile(d.doc_key) && !isRemovedFile(d.doc_key)),
+    /** Patch 172 (N17-02): the counsellor's word on one file ('', 'ok',
+        'rescan'; round 175 adds 'bad' — fails today's checks, set by the sweep). */
     setFileVerdict: (studentId, docId, verdict) =>
       db.run('UPDATE documents SET verdict = ? WHERE student_id = ? AND id = ?',
         String(verdict || ''), Number(studentId), Number(docId)),
@@ -1801,13 +1807,20 @@ function open(dir) {
      * number that cleared, universities on the site first. `bars` are the
      * country's CGPA rules for rows that state none.
      */
-    filterUniversities({ country, level, field, cgpa, ggpa, season, budget, free, q, bars, limit }) {
+    filterUniversities({ country, level, field, cgpa, cgpaAsGerman, ggpa, season, budget, free, q, bars, limit }) {
       const w = ['active = 1', 'country = ?']; const a = [country];
       if (level) { w.push("LOWER(COALESCE(NULLIF(level, ''), 'master')) = ?"); a.push(String(level).toLowerCase()); }
       if (field) { w.push('field = ?'); a.push(field); }
+      /* Round 175: a row with a German grade and no CGPA is held to that grade
+         (cgpaAsGerman: the student's CGPA converted, api.js); one with
+         neither to the destination's bar. */
+      const gFromC = Number(cgpaAsGerman) || 0;
       if (cgpa) {
-        w.push('((min_cgpa IS NOT NULL AND min_cgpa <= ?) OR (min_cgpa IS NULL AND ((is_public = 1 AND ? <= ?) OR (is_public = 0 AND ? <= ?))))');
-        a.push(cgpa, Number((bars || {}).pub) || 0, cgpa, Number((bars || {}).priv) || 0, cgpa);
+        w.push('((min_cgpa IS NOT NULL AND min_cgpa <= ?)'
+          + (gFromC ? ' OR (min_cgpa IS NULL AND german_gpa IS NOT NULL AND german_gpa >= ?)' : '')
+          + ' OR (min_cgpa IS NULL AND ' + (gFromC ? 'german_gpa IS NULL AND ' : '') + '((is_public = 1 AND ? <= ?) OR (is_public = 0 AND ? <= ?))))');
+        if (gFromC) a.push(cgpa, gFromC); else a.push(cgpa);
+        a.push(Number((bars || {}).pub) || 0, cgpa, Number((bars || {}).priv) || 0, cgpa);
       }
       if (ggpa) { w.push('(german_gpa IS NULL OR german_gpa >= ?)'); a.push(ggpa); }
       if (season) { w.push('intakes LIKE ?'); a.push('%"season":"' + season + '"%'); }
@@ -1822,7 +1835,9 @@ function open(dir) {
         const rows = db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.country === country);
         const ok = r => (!level || String(r.level || 'master').toLowerCase() === String(level).toLowerCase())
           && (!field || r.field === field)
-          && (!cgpa || (r.min_cgpa != null ? r.min_cgpa <= cgpa : ((r.is_public ? Number((bars || {}).pub) || 0 : Number((bars || {}).priv) || 0) <= cgpa)))
+          && (!cgpa || (r.min_cgpa != null ? r.min_cgpa <= cgpa
+            : (gFromC && r.german_gpa != null) ? r.german_gpa >= gFromC
+            : ((r.is_public ? Number((bars || {}).pub) || 0 : Number((bars || {}).priv) || 0) <= cgpa)))
           && (!ggpa || r.german_gpa == null || r.german_gpa >= ggpa)
           && (!season || String(r.intakes || '').includes('"season":"' + season + '"'))
           && (!budget || (r.total_inr || 0) <= budget) && (!free || r.fee_model === 'free')
@@ -2123,6 +2138,30 @@ function open(dir) {
       return this.programme(id);
     },
     deleteProgramme: id => { catVersion++; ftsDrop(id); db.run('DELETE FROM programmes WHERE id = ?', String(id)); },
+    /* 27 Oct: the one column, for the duplicate-retiring migration. */
+    setProgrammeActive(id, active, who) {
+      catVersion++;
+      db.run('UPDATE programmes SET active = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+        active ? 1 : 0, now(), who || '', String(id));
+    },
+    /* Every student record that points at `fromId` points at `toId` after
+       this — shortlists, dismissals and applications — so a row retired as a
+       duplicate takes nobody's shortlist with it. A student who already holds
+       the kept row keeps the one they have. */
+    repointProgramme(fromId, toId) {
+      const f = String(fromId), t = String(toId);
+      let moved = 0;
+      ['shortlist', 'shortlist_dismissed', 'applications'].forEach(tbl => {
+        const rows = db.all('SELECT student_id FROM ' + tbl + ' WHERE prog_id = ?', f);
+        rows.forEach(r => {
+          const has = db.one('SELECT 1 AS x FROM ' + tbl + ' WHERE student_id = ? AND prog_id = ?', r.student_id, t);
+          if (has) db.run('DELETE FROM ' + tbl + ' WHERE student_id = ? AND prog_id = ?', r.student_id, f);
+          else db.run('UPDATE ' + tbl + ' SET prog_id = ? WHERE student_id = ? AND prog_id = ?', t, r.student_id, f);
+          moved++;
+        });
+      });
+      return moved;
+    },
 
     countries(all) {
       const rows = db.all('SELECT * FROM countries WHERE code > ? ORDER BY sort asc', '');
@@ -2652,6 +2691,34 @@ function open(dir) {
     allEnquiriesEver: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0),
     archivedEnquiries: () => db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)
       .filter(e => !!String(e.archived_at || '')),
+    /* Round 175 (item 7): AN ENQUIRY FROM THE OFFICE ITSELF.
+     *
+     * The top cold-lead alert on the demo was "has been waiting 64 days and
+     * nobody has called … 13 more enquiries from the same person" — fourteen
+     * test enquiries from one team member's own number — and another alert
+     * was for a member of staff. An enquiry whose phone (last ten digits) or
+     * email belongs to a staff account, or to a test account, is INTERNAL:
+     * the alerts skip it, the leads book shows it with an "Internal" chip so
+     * the office can archive it. Computed, not stored, so a number added to
+     * a staff account later still catches the old rows.
+     *
+     * Returns a function (enquiry) => boolean, built once per call. */
+    internalEnquiryTest() {
+      const phones = new Set(), mails = new Set();
+      const tenOf = v => { const d = String(v || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? d : ''; };
+      db.all('SELECT name, email, phone, role FROM students WHERE id > ?', 0).forEach(p => {
+        const staff = ['counsellor', 'admin'].includes(String(p.role || ''));
+        if (!staff && !isTestAccount(p)) return;
+        const d = tenOf(p.phone); if (d) phones.add(d);
+        const m = String(p.email || '').trim().toLowerCase(); if (m) mails.add(m);
+      });
+      return e => {
+        if (!e) return false;
+        const d = tenOf(e.phone); if (d && phones.has(d)) return true;
+        const m = String(e.email || '').trim().toLowerCase();
+        return !!(m && mails.has(m));
+      };
+    },
     setLeadArchived: (id, on) => db.run('UPDATE enquiries SET archived_at = ?, updated_at = ? WHERE id = ?',
       on ? now() : '', now(), Number(id)),
     enquiryById: id => db.one('SELECT * FROM enquiries WHERE id = ?', Number(id)),

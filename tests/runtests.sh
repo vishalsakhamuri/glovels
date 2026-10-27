@@ -225,6 +225,15 @@ run round172sitestest.js 8115
 run round172blogtest.js 8114
 run round173test.js 8116
 run round174test.js 8117
+# Round 175 (items 4, 5, 7): closed deadlines ranked last and warned on
+# Add; a file's own state (never "verified" by its slot) and the file
+# sweep; Organisation tiles count active files; internal enquiries.
+run round175counseltest.js 8120
+run round175leaktest.js 8118
+# Round 175 (items 2, 6, 8): the country-page CGPA filter, the matcher's
+# impossible scores / MOI / levels / labels, the Foundation level filter.
+run round175rulestest.js 8119
+run round175dupestest.js 8122
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

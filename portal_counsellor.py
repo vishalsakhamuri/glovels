@@ -303,7 +303,7 @@ function docNotTaken(d) {
  * the verified copy; querying one asks for another copy unless another file
  * is the verified copy; an older file of a refused type no longer blocks
  * accepting a valid one — it can be removed (kept on record, not deleted). */
-const FILE_VERDICT = { ok: 'Accepted · verified copy', rescan: 'Queried' };
+const FILE_VERDICT = { ok: 'Verified copy', rescan: 'Scan asked' };
 let DOCSIG = '';
 const docSig = rows => (rows || []).map(d => d.id + ':' + d.status + ':' + (d.verdict || '')).join(',');
 /* The name the checklist uses ("Passport"), else the server's ("passport"). */
@@ -340,8 +340,11 @@ function docGroups(rows) {
 function fileRow(f, legacyOk) {
   const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/' +
     encodeURIComponent(f.key) + '/file/' + encodeURIComponent(f.id);
-  const v = f.verdict || (legacyOk ? 'ok' : '');
-  const bad = docNotTaken(f);
+  /* Round 175: the server says what THIS file is (f.state — 'bad' fails
+     today's checks, 'ok' verified copy, 'rescan', 'wait'); a bad file is
+     never shown as verified, whatever the document's status. */
+  const v = f.state === 'bad' ? '' : f.state === 'ok' || f.state === 'rescan' ? f.state : (f.verdict || (legacyOk ? 'ok' : ''));
+  const bad = f.state === 'bad' ? (f.stateSaid || 'Not accepted — not a PDF, photo or Word file') + (f.bad ? ' (' + f.bad + ')' : '') : docNotTaken(f);
   const k = esc(f.key), id = esc(f.id);
   return '<li class="docfile" data-fileid="' + id + '" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
     '<span style="color:var(--blue-deep);display:flex">' + ico('file') + '</span>' +
@@ -372,6 +375,22 @@ function paintDocs(rows) {
   if (!ul) return;
   ul.innerHTML = docGroups(rows);
   DOCSIG = docSig(rows);
+}
+/* Round 175 (item 4): one programme onto the open student's list. A
+   programme whose every published deadline has passed comes back 409
+   {closed, lastDeadline}; the counsellor is asked "Add anyway?" and a yes
+   sends it again with force (the student is then told the next intake is
+   not announced yet). A no throws, so the caller re-enables its button. */
+async function addToList(progId) {
+  try {
+    return await api('POST', '/api/staff/student/' + openId + '/shortlist', { id: progId });
+  } catch (err) {
+    if (!err || !err.closed) throw err;
+    if (!window.confirm(err.message || 'Every deadline for this programme has passed. Add anyway?')) {
+      const e2 = new Error('Not added.'); e2.cancelled = true; throw e2;
+    }
+    return api('POST', '/api/staff/student/' + openId + '/shortlist', { id: progId, force: true });
+  }
 }
 /* The list refreshes itself when the student (or their agency) sends a file:
    the live stream says so at once, and every 20 seconds the open tab asks
@@ -1255,8 +1274,10 @@ document.addEventListener('click', async e => {
         autorun: true,
         run: f => api('GET', '/api/staff/student/' + sid + '/fit?' + Object.keys(f)
           .filter(k => f[k] !== undefined).map(k => k + '=' + encodeURIComponent(f[k])).join('&')),
-        onAdd: async id => {
-          await api('POST', '/api/staff/student/' + sid + '/shortlist', { id });
+        onAdd: async (id, extra) => {
+          /* `extra` is { force: true } once the counsellor has answered "Add
+             anyway?" on a programme whose deadlines have all passed (round 175). */
+          await api('POST', '/api/staff/student/' + sid + '/shortlist', Object.assign({ id }, extra || {}));
           await refreshCase();
         },
       });
@@ -1280,8 +1301,7 @@ document.addEventListener('click', async e => {
     promote.disabled = true;
     promote.textContent = 'Adding\u2026';
     try {
-      await api('POST', '/api/staff/student/' + openId + '/shortlist',
-        { id: promote.dataset.promote });
+      await addToList(promote.dataset.promote);
       paintRecord(await api('GET', '/api/staff/student/' + openId));
       toast('Moved onto their shortlist.');
     } catch (err) {
@@ -1314,8 +1334,7 @@ document.addEventListener('click', async e => {
   if (add) {
     add.disabled = true;
     try {
-      await api('POST', '/api/staff/student/' + openId + '/shortlist',
-        { id: add.dataset.uniadd });
+      await addToList(add.dataset.uniadd);
       await refreshCase();
       /* The panel stays open — a counsellor agreeing a shortlist on a call is
          adding five, not one. */
@@ -1324,7 +1343,7 @@ document.addEventListener('click', async e => {
       toast('Added, and the student has been told.');
     } catch (err) {
       add.disabled = false;
-      alert(err.message || 'That did not add.');
+      if (!err.cancelled) alert(err.message || 'That did not add.');
     }
     return;
   }

@@ -488,7 +488,15 @@
     return '<img class="flagimg" src="/flags/' + cc + '.svg" alt="' + esc(name || cc.toUpperCase()) + '" width="' + w + '" height="' + Math.round(w * 3 / 4)
       + '" loading="lazy" decoding="async" style="border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.16);object-fit:cover;vertical-align:middle;background:#fff">';
   }
+  /* Round 175: the blur on a locked row is a FIXED width. It used to be the
+     length of the hidden name, and the length plus the public university
+     list was enough to name the university. Two widths, picked by the row's
+     stand-in id (a keyed hash that says nothing about the name), so a list
+     of locked rows does not look machine-stamped. */
   const filler = n => '█'.repeat(Math.max(6, Math.min(34, Number(n || 18))));
+  const pick = (p, a, b) => (/[0-7]$/.test(String(p && p.id || '')) ? a : b);
+  const nameBlur = p => filler(pick(p, 22, 26));
+  const uniBlur = p => filler(pick(p, 16, 14));
   /* The university's page address — the same arithmetic as unis.js slugOf. */
   const slugOf = name => String(name || '').toLowerCase().normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')
@@ -523,8 +531,8 @@
     if (p._locked || locked(p)) {
       return '<article class="frow locked" data-id="' + esc(p.id) + '">'
         + '<div class="flogo lock" aria-hidden="true">' + (flagImg(p.country, c.name, 30) || esc(c.flag)) + '</div>'
-        + '<div class="fmain"><h3 class="ftitle masked" aria-hidden="true">' + filler(p.nLen) + '</h3>'
-        + '<div class="fsub"><span class="masked" aria-hidden="true">' + filler(p.uLen) + '</span> · ' + esc(c.name) + ' · Public university</div>'
+        + '<div class="fmain"><h3 class="ftitle masked" aria-hidden="true">' + nameBlur(p) + '</h3>'
+        + '<div class="fsub"><span class="masked" aria-hidden="true">' + uniBlur(p) + '</span> · ' + esc(c.name) + ' · Public university</div>'
         + '<span class="offscreen">A public university in ' + esc(c.name) + ' that matches these filters. The name and the fee are unlocked by a package.</span>'
         + '<div class="ftags">' + tags.join('') + '</div>' + verdictHtml + '</div>'
         + '<div class="fside"><div class="fcost masked" aria-hidden="true">████</div><div class="fwhen">' + esc(when) + '</div>'

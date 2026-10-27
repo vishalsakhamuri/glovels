@@ -63,7 +63,9 @@ async function req(who, method, path, body) {
 
   r = await req('a', 'GET', '/api/catalogue');
   const prog = ((r.body || {}).programmes || [])[0];
-  r = await req('c', 'POST', '/api/staff/student/' + sId + '/shortlist', { id: prog.id });
+  /* Round 175: a programme whose every deadline has passed is a 409 until
+     "Add anyway" (force) — the seeded rows' dates are last year's. */
+  r = await req('c', 'POST', '/api/staff/student/' + sId + '/shortlist', { id: prog.id, force: true });
   ok('a counsellor can add a university to a student’s list', r.ok, r.status);
   r = await req('a', 'GET', '/api/staff/student/' + sId);
   const msgs = (r.body.msgs || r.body.messages || []);

@@ -1715,7 +1715,7 @@ const TILES = {
             say: 'Still open' },
   follow: { test: l => !!l.followUps, say: 'Followed up' },
   won:    { test: l => l.status === 'converted', say: 'Converted' },
-  cold:   { test: l => !l.followUps && l.status !== 'converted' && l.status !== 'lost'
+  cold:   { test: l => !l.internal && !l.followUps && l.status !== 'converted' && l.status !== 'lost'
                        && daysAgo(l.at) >= 1,
             say: 'Nobody has called' },
 };
@@ -1792,11 +1792,17 @@ function paint() {
   $('#leadRows').innerHTML = paged('lead', rows).map(l => {
     /* Nobody has said a word to them and they came in yesterday or before.
        This is the row that should catch somebody's eye. */
-    const cold = !l.followUps && l.status !== 'converted' && l.status !== 'lost'
+    const cold = !l.internal && !l.followUps && l.status !== 'converted' && l.status !== 'lost'
       && daysAgo(l.at) >= 1;
     return '<tr class="lrow' + (l.id === openId ? ' on' : '') + (cold ? ' cold' : '')
       + '" data-lead="' + l.id + '">'
       + '<td><b>' + esc(l.name || 'no name') + '</b>'
+        /* Round 175 (item 7): from a staff member's or a test account's own
+           number or email — the office testing its form. No alert is raised
+           for it; it stays here, marked, so it can be archived. */
+        + (l.internal ? ' <span class="sl-chip internal" title="From a staff or test account’s number or email" '
+          + 'style="font:700 9.6px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;'
+          + 'border-radius:999px;background:#eef2f6;color:#5d6b7a;vertical-align:middle">Internal</span>' : '')
         + (l.note ? '<span class="lnote">' + esc(l.note.slice(0, 160)) + '</span>' : '')
         + '<span style="display:block;font-size:11.6px;color:var(--muted)">'
         + esc(l.phone || l.email || 'nothing given') + '</span></td>'

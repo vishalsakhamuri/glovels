@@ -2232,19 +2232,20 @@ function verdict(reqs, s){
     const okI = wantI != null && haveI != null && haveI >= wantI;
     const okT = wantT != null && haveT != null && haveT >= wantT;
     const want = [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ');
+    const haveTxt = [haveI != null ? 'IELTS ' + haveI : null, haveT != null ? 'TOEFL ' + haveT : null].filter(Boolean).join(', ');
     if(okI || okT){}
-    /* Patch 153 (replacing the 149 block): where the programme ACCEPTS an
-       MOI letter, English can never fail — a short score or no score at
-       all clears on the letter, and the row says so. Where it does not, or
-       has not said, the letter on its own is a fail, as before. */
-    else if(r.moiAccepted === true) notes.push('moi');
-    else if(s.moi && haveI == null && haveT == null){
-      if(r.moiAccepted === false) fails.push({ key:'english', want: want + ' (MOI not accepted)', have:'MOI letter' });
-      else fails.push({ key:'english', want: want + ' (MOI not confirmed)', have:'MOI letter' });
+    /* Round 175 (replacing patch 153's rule, server/reqs.js check): the MOI
+       letter carries the student only when they HAVE one (s.moi). Where
+       accepted it clears and the row says so; refused or not stated, it is
+       a miss. Without a letter a short score is a miss as anywhere else. */
+    else if(s.moi){
+      if(r.moiAccepted === true) notes.push('moi');
+      else if(r.moiAccepted === false) fails.push({ key:'english', want: want + ' (MOI not accepted)', have: haveTxt ? haveTxt + ', MOI letter' : 'MOI letter' });
+      else fails.push({ key:'english', want: want + ' (MOI not confirmed)', have: haveTxt ? haveTxt + ', MOI letter' : 'MOI letter' });
     }
     else if(s.englishNone) fails.push({ key:'english', want, have:'not taken yet' });
     else if(haveI == null && haveT == null) unknown.push('english');
-    else fails.push({ key:'english', want, have:[haveI != null ? 'IELTS ' + haveI : null, haveT != null ? 'TOEFL ' + haveT : null].filter(Boolean).join(', ') });
+    else fails.push({ key:'english', want, have: haveTxt });
   }
   if(r.greRequired === true || num(r.greMin) != null){
     const want = num(r.greMin) != null ? 'GRE ' + r.greMin : 'a GRE score';
@@ -2594,9 +2595,11 @@ function visibleRows(list){
     ? {...p, ...revealed[p.id], locked:false}
     : {
     locked:true, isPublic:true, country:p.country, band:p.band, id:'locked-'+p.band,
-    /* lengths only — enough to size the blur so a long course name looks long.
-       No name, no university, no fee reaches the browser. */
-    nLen:p.nLen, uLen:p.uLen, fLen:(p.freeTuition?11:8), _need:p._need, _short:p._short, _asks:statesAny(reqsOf(p)),
+    /* Round 175: the blur is a FIXED width — two widths, picked by the row's
+       stand-in id so the list is not machine-stamped. The hidden name's
+       length no longer reaches the browser: with the public university list
+       it was enough to name the university. */
+    nLen:(/[0-7]$/.test(String(p.id||'')) ? 22 : 26), uLen:(/[0-7]$/.test(String(p.id||'')) ? 16 : 14), fLen:(p.freeTuition?11:8), _need:p._need, _short:p._short, _asks:statesAny(reqsOf(p)),
     /* The special conditions, not the name (patch 153): "restricted" and
        "clears via MOI" describe the route, and a counsellor says the same
        on the phone before a package is bought. */
@@ -2674,7 +2677,7 @@ function uniSlug(name){
       + (U.length ? '<h5>Universities</h5>' + U.map(u =>
         '<a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
         + esc([u.city, u.countryName].filter(Boolean).join(', ')) + '</small></span>'
-        + '<span class="n">' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's') + ' →</span></a>').join('') : '')
+        + '<span class="n">Open →</span></a>').join('') : '')
       + (P.length ? '<h5>Programmes</h5>' + P.map(p =>
         '<a href="' + esc(p.url) + '"><span><b>' + esc(p.program) + '</b><small>'
         + esc(p.university) + ' · ' + esc(p.countryName) + '</small></span><span class="n">Open →</span></a>').join('') : '');
@@ -4393,8 +4396,10 @@ render();
          (patch 143). */
       fit: p.fit || 75, uKey: p.uKey || ('live-' + p.id),
       intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],
-      nLen: p.nLen != null ? p.nLen : String(p.program || '').length,
-      uLen: p.uLen != null ? p.uLen : String(p.university || '').length,
+      /* Round 175: a locked row carries no nLen / uLen any more and the blur
+         is a fixed width; a named row's lengths are its own. */
+      nLen: String(p.program || '').length,
+      uLen: String(p.university || '').length,
       freeTuition: (p.totalInr || 0) === 0, dummy: false,
       reqs: p.reqs && typeof p.reqs === 'object' ? p.reqs : null,
       /* 10 Oct: the tags the search narrows on, as the server sent them. */

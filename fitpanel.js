@@ -155,6 +155,7 @@
     }
     return out;
   }
+  const dateSaid = s => { const d = new Date(String(s || '') + 'T00:00:00'); return isNaN(d) ? String(s || '') : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); };
   function nextDeadline(intakes, intakeText) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const m = /(summer|winter)\D{0,3}(\d{4})/i.exec(String(intakeText || ''));
@@ -187,6 +188,11 @@
     + '.gf .why{color:#b42318;font-weight:600}.gf .soft{color:#8a6a1f;font-weight:600}.gf .ask{color:#8a6a1f}.gf .tag{display:inline-block;font:700 10.5px/1.5 var(--sans,system-ui);padding:0 7px;border-radius:999px;background:#eef2f6;margin-right:4px}'
     + '.gf .auto{background:#f5f8fb;border:1px solid var(--line,#e6e9ee);border-radius:10px;padding:10px 12px;margin-top:12px}'
     + '.gf .sum{margin-top:10px;color:var(--muted,#5d6b7a);font-size:12.2px}'
+    /* Round 175: off-screen labels for the second and third box of a row,
+       and the red word under a box the server refused. */
+    + '.gf label.gf-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}'
+    + '.gf .gf-row{position:relative}.gf input[aria-invalid="true"],.gf select[aria-invalid="true"]{border-color:#b42318;background:#fff5f4}'
+    + '.gf .gf-err{display:block;color:#b42318;font:600 11px/1.3 var(--sans,system-ui);margin-top:3px}'
     + '.gf li .m b{display:flex;align-items:center;gap:8px}'
     + '.gf li .rk{flex:none;min-width:2.4em;padding-top:5px;font:700 11.5px/1.3 var(--sans,system-ui);color:var(--muted,#5d6b7a);font-variant-numeric:tabular-nums}'
     + '.gf .ulogo{width:28px;height:28px;flex:none;object-fit:contain;background:#fff;border:1px solid var(--line,#e6e9ee);border-radius:6px;padding:2px;box-sizing:border-box}'
@@ -208,7 +214,16 @@
     const P = Object.assign({}, o.profile || {});
     const sel = (id, opts, val) => '<select id="' + id + '">' + opts.map(([v, t]) =>
       '<option value="' + esc(v) + '"' + (String(v) === String(val || '') ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>';
-    const lv = /mba/i.test(P.g_level || '') ? "MBA" : /bachelor/i.test(P.g_level || '') ? "Bachelor's" : /found|pathway/i.test(P.g_level || '') ? 'Foundation' : "Master's";
+    /* Round 175: a profile with no level starts on "Not set", not on
+       Master's — the panel used to pick Master's for an empty file silently
+       and count 2,707 programmes as a fit for nobody in particular. */
+    const lv = /mba/i.test(P.g_level || '') ? "MBA" : /bachelor/i.test(P.g_level || '') ? "Bachelor's" : /found|pathway/i.test(P.g_level || '') ? 'Foundation'
+      : /diploma/i.test(P.g_level || '') ? 'Diploma' : /phd|doctor/i.test(P.g_level || '') ? 'PhD'
+      : /master/i.test(P.g_level || '') ? "Master's" : '';
+    /* Round 175 (item 6): whether they hold a Medium of Instruction letter —
+       the English answer says so when the letter IS their English answer;
+       this box says so beside a test score (IELTS 6 with a letter in hand). */
+    const moi = /medium of instruction|^moi/i.test(P.e_test || '') || /medium of instruction|^moi/i.test(P.e2_test || '') || /^yes/i.test(P.d_moi || '') ? 'yes' : /^no/i.test(P.d_moi || '') ? 'no' : '';
     const eng = /toefl/i.test(P.e_test || '') ? 'TOEFL' : /ielts/i.test(P.e_test || '') ? 'IELTS' : /medium of instruction|^moi/i.test(P.e_test || '') ? 'Medium of Instruction letter' : /not taken/i.test(P.e_test || '') ? 'Not taken yet' : '';
     const gre = /^gre$/i.test(P.a_test || '') ? 'GRE' : /^(not taken|not taken yet|not required)$/i.test(P.a_test || '') ? 'Not taken yet' : '';
     const intake = terms().find(t => t.toLowerCase() === String(P.g_intake || '').toLowerCase()) || '';
@@ -221,7 +236,9 @@
          so the counsellor saw one option and thought Germany was all we
          had. Filled in from the catalogue once it loads (loadCountries). */
       + '<div><label>Destination</label>' + sel('gfCountry', [['', 'Any country']].concat(COUNTRIES.map(c => [c, c])), countryPick(P.g_country)) + '</div>'
-      + '<div><label>Level</label>' + sel('gfLevel', [["Master's", "Master's"], ['MBA', 'MBA'], ["Bachelor's", "Bachelor's"], ['Foundation', 'Foundation']], lv) + '</div>'
+      /* Round 175 (item 6c): every level the catalogue holds (api.js
+         normLevel: master, mba, bachelor, foundation, diploma, phd). */
+      + '<div><label>Level</label>' + sel('gfLevel', [['', 'Not set'], ["Master's", "Master's"], ['MBA', 'MBA'], ["Bachelor's", "Bachelor's"], ['Foundation', 'Foundation / Pathway'], ['Diploma', 'Diploma / PG Diploma'], ['PhD', 'PhD / Doctorate']], lv) + '</div>'
       + '<div><label>Field (exact)</label>' + sel('gfField', [['', 'From their profile']].concat(FIELDS.map(f => [f, f])), '') + '</div>'
       + '<div><label>Their field, in words</label><input id="gfWords" value="' + esc([P.g_field, P.g_field2].filter(Boolean).join(', ')) + '" placeholder="Data Science, AI"></div>'
       + '<div><label>Intake</label>' + sel('gfIntake', [['', 'Any intake']].concat(terms().map((t, i) => [t, (i === 0 ? 'This semester — ' : i === 1 ? 'Next semester — ' : '') + t])), intake) + '</div>'
@@ -239,6 +256,7 @@
       + '<div><label>German grade (1.0 best)</label><input id="gfGgpa" inputmode="decimal" placeholder="worked out from CGPA"></div>'
       + '<div><label>Bachelor’s length</label>' + sel('gfDur', [['', 'Not said'], ['3 years', '3 years'], ['4 years', '4 years'], ['5 years', '5 years']], (/(\d)/.exec(P.d_dur || '') || [])[1] ? (/(\d)/.exec(P.d_dur)[1] + ' years') : '') + '</div>'
       + '<div><label>English test · score</label><div class="gf-row">' + sel('gfEng', [['', 'Not said'], ['IELTS', 'IELTS'], ['TOEFL', 'TOEFL'], ['Medium of Instruction letter', 'MOI letter'], ['Not taken yet', 'Not taken']], eng) + '<input id="gfEngS" value="' + esc(P.e_score || '') + '" inputmode="decimal"></div></div>'
+      + '<div><label>MOI letter (English-medium bachelor’s)</label>' + sel('gfMoi', [['', 'Not said'], ['yes', 'Yes — they have one'], ['no', 'No']], moi) + '</div>'
       + '<div><label>GRE · score</label><div class="gf-row">' + sel('gfGre', [['', 'Not said'], ['GRE', 'Taken'], ['Not taken yet', 'Not taken']], gre) + '<input id="gfGreS" value="' + esc(gre === 'GRE' ? (P.a_score || '') : '') + '" inputmode="numeric" placeholder="e.g. 315"></div></div>'
       /* Patch 153 — the home page's "More filters" controls, so the counsellor
        * can test exactly what a student would see. The GRE section row only
@@ -259,6 +277,24 @@
       + '<p style="margin:10px 0 0"><button type="button" class="btn btn-primary btn-sm" id="gfGo">Find what fits</button>'
       + ' <span style="font-size:11.8px;color:var(--muted,#5d6b7a)">Nothing here is saved to the student’s file.</span></p>'
       + '<div id="gfOut"></div></div>';
+
+    /* Round 175 (item 6d): every box has a label bound to it — a screen
+       reader read 28 unnamed fields. A row's heading ("CGPA · out of ·
+       pass") names its first box; the others get their own label from the
+       same heading, off-screen. */
+    el.querySelectorAll('.gf-grid > div').forEach(box => {
+      const lab = box.querySelector(':scope > label'); const ctrls = box.querySelectorAll('input, select');
+      if (!lab || !ctrls.length) return;
+      const parts = lab.textContent.split('·').map(s => s.trim());
+      ctrls.forEach((c, i) => {
+        if (!c.id) return;
+        if (i === 0) { lab.htmlFor = c.id; return; }
+        const own = document.createElement('label');
+        own.className = 'gf-sr'; own.htmlFor = c.id;
+        own.textContent = parts.length === ctrls.length ? parts[0].split(' ')[0] + ' ' + parts[i] : lab.textContent + ' ' + (c.placeholder || String(i + 1));
+        c.parentNode.insertBefore(own, c);
+      });
+    });
 
     /* Grow the destination list to the whole catalogue, keeping the choice. */
     if (!countriesLoaded) loadCountries().then(list => {
@@ -314,6 +350,7 @@
         g_intake: v('gfIntake'), field: v('gfField'), kind: v('gfKind'), q: v('gfQ'),
         d_cgpa: v('gfCgpa'), d_max: v('gfMax'), d_pass: v('gfPass'), d_course: v('gfBach'), d_dur: v('gfDur'),
         e_test: v('gfEng'), e_score: /medium of instruction|not taken/i.test(v('gfEng')) ? '' : v('gfEngS'), g_german: v('gfGer'),
+        d_moi: v('gfMoi'),
         a_test: v('gfGre'), a_score: v('gfGre') === 'GRE' ? v('gfGreS') : '',
       };
       if (v('gfBudget') !== '') f.ceiling = v('gfBudget');
@@ -361,7 +398,7 @@
       const out = [];
       if (r.restricted) out.push('restricted admission (ranked, limited places)');
       (r.notes || []).forEach(n => {
-        if (/moi/i.test(n)) out.push('English accepted via MOI letter');
+        if (/clears via moi/i.test(n)) out.push('English accepted via MOI letter');
         else if (!/restricted/i.test(n)) out.push(String(n));
       });
       const reqs = r.reqs || {};
@@ -388,6 +425,9 @@
       + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + cost(r)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
       + (r.why && r.why.length ? '<small class="why">' + esc(r.why.join('; ')) + '</small>' : '')
+      /* Round 175: every published deadline has passed — said before the
+         Add button asks "Add anyway?", and the row ranks after open ones. */
+      + (r.closed ? '<small class="soft">Every deadline has passed' + (r.lastDeadline ? ' (last ' + esc(dateSaid(r.lastDeadline)) + ')' : '') + ' — next intake not announced</small>' : '')
       /* Patch 162: short of something stated — on the list, ranked lower, the
          counsellor's call. */
       + (r.soft && r.soft.length ? '<small class="soft">Lower priority — ' + esc(r.soft.join('; ')) + '</small>' : '')
@@ -403,7 +443,31 @@
       const out = el.querySelector('#gfOut');
       out.innerHTML = '<p class="sum">Checking every programme against the same rules the paid shortlist uses…</p>';
       let d;
-      try { d = await o.run(filters()); } catch (e) { out.innerHTML = '<p class="why">' + esc(e.message || 'Could not run that.') + '</p>'; return; }
+      /* Round 175 (item 6a): the server refuses a score that cannot exist
+         (422 with fields:[{field, why}]) — the word goes under the box it
+         is about, and the box is marked, as well as the line in #gfOut. */
+      const FIELD_BOX = { d_cgpa: 'gfCgpa', d_max: 'gfMax', d_pass: 'gfPass', e_score: 'gfEngS', a_score: 'gfGreS',
+        a_quant: 'gfGreQ', a_verbal: 'gfGreV', a_awa: 'gfGreA', ggpa: 'gfGgpa', w_months: 'gfWork' };
+      el.querySelectorAll('.gf-err').forEach(x => x.remove());
+      el.querySelectorAll('[aria-invalid]').forEach(x => x.removeAttribute('aria-invalid'));
+      try { d = await o.run(filters()); } catch (e) {
+        out.innerHTML = '<p class="why">' + esc(e.message || 'Could not run that.') + '</p>';
+        (Array.isArray(e.fields) ? e.fields : []).forEach(f => {
+          const box = el.querySelector('#' + (FIELD_BOX[f.field] || '')); if (!box) return;
+          box.setAttribute('aria-invalid', 'true');
+          const row = box.closest('.gf-row') || box;
+          const m = document.createElement('small'); m.className = 'gf-err'; m.id = box.id + 'Err'; m.textContent = f.why;
+          box.setAttribute('aria-describedby', m.id);
+          row.parentNode.insertBefore(m, row.nextSibling);
+        });
+        return;
+      }
+      /* Round 175: the server declines to judge an empty profile — no level,
+         no field, no CGPA — rather than count the whole catalogue as a fit. */
+      if (Array.isArray(d.needs) && d.needs.length) {
+        out.innerHTML = '<p class="why" id="gfNeeds">Tell us more first — set at least the ' + esc(d.needs.join(' and ')) + '.</p>';
+        return;
+      }
       const onList = new Set((d.onList || []).map(String));
       const canAdd = typeof o.onAdd === 'function';
       const auto = (d.auto || []).map(a => '<div><b>' + esc(a.package || a.kind) + '</b> — '
@@ -454,7 +518,20 @@
       if (add && o.onAdd) {
         add.disabled = true;
         try { await o.onAdd(add.dataset.gfadd); add.outerHTML = '<span class="tag">on their list</span>'; }
-        catch (err) { add.disabled = false; add.insertAdjacentHTML('afterend', '<small class="why">' + esc(err.message || 'Could not add it.') + '</small>'); }
+        catch (err) {
+          /* Round 175: every deadline has passed (409, closed). Ask, and on
+             yes send it again with force — the student is then told the
+             next intake is not announced yet. */
+          if (err && err.closed) {
+            const sure = typeof o.confirm === 'function' ? await o.confirm(err.message) : window.confirm(err.message || 'Every deadline for this programme has passed. Add anyway?');
+            if (sure) {
+              try { await o.onAdd(add.dataset.gfadd, { force: true }); add.outerHTML = '<span class="tag">on their list</span>'; return; }
+              catch (e2) { add.disabled = false; add.insertAdjacentHTML('afterend', '<small class="why">' + esc(e2.message || 'Could not add it.') + '</small>'); return; }
+            }
+            add.disabled = false; return;
+          }
+          add.disabled = false; add.insertAdjacentHTML('afterend', '<small class="why">' + esc(err.message || 'Could not add it.') + '</small>');
+        }
       }
     });
     el.addEventListener('input', e => { if (e.target.id === 'gfTagQ') { clearTimeout(sugTimer); sugTimer = setTimeout(askSug, 160); } });

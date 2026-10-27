@@ -58,7 +58,10 @@ const COUNTRY_CODE = {
 /* The level answers, as the catalogue's level values. */
 const LEVEL = [
   [/master/i, 'master'], [/bachelor/i, 'bachelor'], [/mba/i, 'mba'],
-  [/foundation|pathway/i, 'pathway'], [/phd|doctor/i, 'phd'],
+  /* Round 175: the catalogue's value is 'foundation' (the import maps
+     pathway → foundation, api.js normLevel); 'pathway' matched no row, so
+     the matcher's "Foundation" found nothing. */
+  [/foundation|pathway/i, 'foundation'], [/phd|doctor/i, 'phd'],
   [/diploma/i, 'diploma'],
 ];
 
@@ -174,6 +177,10 @@ function answersOf(profile) {
     if (/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(sc)) a.englishNone = true;
     if (/medium of instruction|^moi\b/.test(t)) a.moi = true;
   });
+  /* Round 175 (item 6): the matcher's own "MOI letter: yes / no" (d_moi),
+     beside the English test — a counsellor testing IELTS 4 with a letter in
+     hand. "no" (or nothing) never clears anything. */
+  if (/^(yes|y|true|1)$/i.test(String(P.d_moi || '').trim())) a.moi = true;
   if (a.moi) a.englishNone = false;
   if (a.ielts != null || a.toefl != null) a.englishNone = false;
   [['a_test', 'a_score'], ['a2_test', 'a2_score']].forEach(([tk, sk]) => {
@@ -594,6 +601,61 @@ function shortfall(p, w) {
   return { n, fails: vd.fails, unknown: vd.unknown, notes: vd.notes || [], subject: subjectFits(p, w) };
 }
 
+/*
+ * THE NEXT DEADLINE (round 175, item 4).
+ *
+ * The catalogue writes each intake's deadline as a date — "2026-07-15" —
+ * and the public finder has always read it as an annual date, rolling it to
+ * next year once it has gone by (unis.js nextOn). The counsellor's screen
+ * did not: it ranked by score alone, so on 27 Oct 2026 the top suggestions
+ * were two programmes whose only deadlines were June and July 2026, and a
+ * programme whose every date had passed went on a student's list with no
+ * warning and "I have added … to your list".
+ *
+ * So one reading, used by the ranking, the add route and the fit panel:
+ *
+ *   next        the earliest deadline still ahead — a date written in the
+ *               future when there is one, otherwise the earliest rolled one
+ *   confirmed   true when that date is written in the catalogue, false when
+ *               it is last year's date assumed to come round again
+ *   closed      every written deadline has passed (the next one is an
+ *               assumption, or there is none) — the add route warns on this
+ *   last        the latest written deadline, for the warning
+ *   open        false only when the row has dates and none of them can roll
+ *               (unparseable) — those are left out of pick() and ranked last
+ *   rank        0 confirmed and 14+ days away, soonest first
+ *               1 confirmed but within 14 days — too late to apply
+ *               2 rolled to next year
+ *               3 no dates published (rolling admission, usually private)
+ *               4 closed and cannot roll
+ *
+ * A row with no dates at all is neither open nor closed: most private
+ * universities admit on a rolling basis and publish nothing.
+ */
+const SOON_DAYS = 14;
+function deadlineInfo(p, today) {
+  const t0 = today ? new Date(today) : new Date(); t0.setHours(0, 0, 0, 0);
+  const soon = new Date(t0); soon.setDate(soon.getDate() + SOON_DAYS);
+  let any = false, last = null, written = null, rolled = null;
+  for (const i of (p && p.intakes) || []) {
+    if (!i || !i.deadline) continue;
+    const d = new Date(String(i.deadline));
+    any = true;
+    if (isNaN(d)) continue;            /* a date nobody can read cannot roll */
+    const at = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    if (!last || at > last) last = at;
+    if (at >= t0) { if (!written || at < written) written = at; }
+    else { const r = UNIS.nextOn(i.deadline, t0); if (r && (!rolled || r < rolled)) rolled = r; }
+  }
+  const next = written || rolled || null;
+  const confirmed = !!written;
+  const closed = any && !confirmed;
+  const open = !any || !!next;
+  const rank = !any ? 3 : !next ? 4 : !confirmed ? 2 : next < soon ? 1 : 0;
+  return { any, next, confirmed, closed, last, open, rank };
+}
+const iso = d => d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) : null;
+
 const nextTerm = t => t.season === 'winter'
   ? { season: 'summer', year: t.year + 1, start: new Date(t.year + 1, 3, 1) }
   : { season: 'winter', year: t.year, start: new Date(t.year, 9, 1) };
@@ -627,10 +689,20 @@ function judge(p, w) {
   return { ask, soft, notes: vd.notes || [], unknownDates };
 }
 const tierOf = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
-/* Rows carrying relevance, ask, soft, score, totalInr and id. Closest subject
-   first, then clear < ask < soft, then score, then fee, then id, so two runs
-   over the same catalogue agree. */
-const byRank = (a, b) => b.relevance - a.relevance || tierOf(a) - tierOf(b) || b.score - a.score
+/* Rows carrying relevance, ask, soft, score, totalInr, id and `dl`
+   (deadlineInfo). Closest subject first, then clear < ask < soft, then the
+   deadline's standing (round 175: a confirmed open deadline 14+ days away,
+   then one inside 14 days, then a date rolled from last year, then no dates,
+   then closed for good), then score, then the sooner deadline, then fee,
+   then id, so two runs over the same catalogue agree. The deadline's
+   standing sits above the score because a programme nobody can apply to
+   this round is not a better suggestion for scoring higher; the date itself
+   sits below it so that, among open rows, the office's fit, the field's
+   words and free tuition still decide. */
+const dlOf = r => r.dl || (r.dl = deadlineInfo(r.p || r));
+const dlTime = r => { const d = dlOf(r); return d.next ? d.next.getTime() : Infinity; };
+const byRank = (a, b) => b.relevance - a.relevance || tierOf(a) - tierOf(b) || dlOf(a).rank - dlOf(b).rank
+  || b.score - a.score || dlTime(a) - dlTime(b)
   || (Number(a.totalInr || 0) - Number(b.totalInr || 0)) || String(a.id).localeCompare(String(b.id));
 
 function pick(catalogue, profile, count, kind, drop, countries, prefer) {
@@ -676,6 +748,10 @@ function pick(catalogue, profile, count, kind, drop, countries, prefer) {
       if (r < 2) return false;
       if (r < 3 && !off.has('field')) return false;
     }
+    /* Round 175: a row whose dates have all passed and cannot come round
+       again is never a pick, for anyone. (One whose date rolls to next year
+       stays, ranked below a confirmed open one — byRank.) */
+    if (!deadlineInfo(p).open) return false;
     /* Never relaxed: a paid shortlist must not name a programme the student
        would be turned down for on the first line of the form. */
     return clears(p, w, countries);
@@ -684,7 +760,7 @@ function pick(catalogue, profile, count, kind, drop, countries, prefer) {
   const over = p => (w.ceiling ? Math.max(0, Number(p.totalInr || 0) - w.ceiling) : 0);
   const ranked = eligible
     .map(p => { const j = judge(p, w); return { p, id: p.id, totalInr: p.totalInr, relevance: w.field ? relevance(p, w) : 1,
-      ask: j.ask, soft: j.soft, score: score(p, w) + (keep.has(String(p.id)) ? 25 : 0) }; })
+      ask: j.ask, soft: j.soft, score: score(p, w) + (keep.has(String(p.id)) ? 25 : 0), dl: deadlineInfo(p) }; })
     /* With the budget relaxed, the closest to it comes first — somebody who
        said "under ₹10 lakhs" and was shown a ₹39 lakh programme at the top of
        their list has been shown the wrong thing first. Then the one order
@@ -946,7 +1022,7 @@ function holdReasons(p, profile) {
   const vd = REQS.check((p && p.reqs) || {}, answersOf(profile));
   const out = [];
   (vd.notes || []).forEach(n => {
-    if (/moi/i.test(n)) out.push('Clears English only via MOI letter');
+    if (/clears via moi/i.test(n)) out.push('Clears English only via MOI letter');
     else if (/restricted/i.test(n)) out.push('Restricted admission \u2014 ranked, limited places');
     else out.push(n);
   });
@@ -1059,9 +1135,13 @@ function screen(catalogue, profile, countries, opts) {
        come from judge(), the same reading pick() ranks by (round 166). */
     const { ask, soft, notes, unknownDates } = judge(p, w);
     if (unknownDates) out.counts.unknownDates++;
+    /* Round 175: where its next deadline stands (deadlineInfo) — ranked on,
+       and said on the row so the screen can warn before an Add. */
+    const dl = deadlineInfo(p);
     const row = { id: p.id, program: p.program, university: p.university, city: p.city || '', country: p.country,
       level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),
-      intakes: p.intakes || [], relevance: rel, why, ask, soft, score: score(p, w),
+      intakes: p.intakes || [], relevance: rel, why, ask, soft, score: score(p, w), dl,
+      nextDeadline: iso(dl.next), deadlineConfirmed: dl.confirmed, closed: dl.closed, lastDeadline: iso(dl.last),
       /* Patch 153: what the row is, and on what condition it clears. */
       feeModel, restricted, notes,
       /* 10 Oct: the first few of its tags, for the screen. */
@@ -1078,7 +1158,8 @@ function screen(catalogue, profile, countries, opts) {
      above any field in the catalogue; the public finder has its own limits. */
   const lim = Math.max(1, Math.min(2000, Number(o.limit) || 100));
   out.fits = out.fits.slice(0, lim); out.near = out.near.slice(0, lim);
+  out.fits.concat(out.near).forEach(r => { delete r.dl; });   /* ranked on; not for the wire */
   return out;
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, shortfall, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen, holdReasons, partsFor, normField, ASK_SAID };
+module.exports = { pick, plan, promise, wants, usable, score, shortfall, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen, holdReasons, partsFor, normField, ASK_SAID, deadlineInfo, SOON_DAYS, isoDay: iso };

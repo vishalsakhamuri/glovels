@@ -1873,6 +1873,18 @@ staffBoot(async me => {
   $('#kUnassigned').textContent = ov.unassigned;
   $('#kDocs').textContent = ov.docsWaiting;
   $('#kEnq').textContent = ov.enquiries;
+  /* Round 175 (item 7): the tiles count active files; what is closed (or
+     the office's own test enquiries) is a small line under the label. */
+  const subLine = (id, label, extra) => {
+    const sp = $('#' + id).parentElement.querySelector('span');
+    if (!sp) return;
+    sp.innerHTML = label + (extra ? '<span class="ksub" style="display:block;font-weight:600;text-transform:none;letter-spacing:0;' +
+      'font-size:11.4px;opacity:.75;margin-top:3px">' + extra + '</span>' : '');
+  };
+  subLine('kStudents', 'Students', ov.studentsClosed ? '+' + ov.studentsClosed + ' closed' : '');
+  subLine('kUnassigned', 'Unassigned', ov.unassignedClosed ? '+' + ov.unassignedClosed + ' closed' : '');
+  subLine('kDocs', 'Docs to review', ov.docsWaitingClosed ? '+' + ov.docsWaitingClosed + ' on closed files' : '');
+  subLine('kEnq', 'Enquiries', ov.enquiriesInternal ? ov.enquiriesInternal + ' internal' : '');
   /* The count, with the money underneath it. "₹0" alone was what somebody saw
      after placing four orders — the total is zero because nothing has been
      charged yet, and the number of orders is the part they were looking for. */

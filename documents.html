@@ -1029,6 +1029,8 @@ select.assign.none:hover{border-color:#a5342b}
         color:var(--navy-800);min-width:0}
       .dfiles a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .dfiles .dsize{flex:none;font-size:11px;color:var(--muted)}
+      /* Round 175: the file's own state can be a sentence — it wraps on a phone. */
+      .dfiles li{flex-wrap:wrap}.dfiles .fstate{flex:1 1 100%;white-space:normal}
       .dfiles .ico{flex:none;color:var(--green-deep,#278a58)}
       .dfiles .dxf{flex:none;appearance:none;border:0;background:none;cursor:pointer;
         font:700 11px/1 var(--sans);color:var(--muted);text-decoration:underline;
@@ -1674,6 +1676,14 @@ function card(d) {
           '<a href="/api/documents/file/' + encodeURIComponent(f.id) + '" ' +
             'style="color:var(--blue-deep);font-weight:600">' + esc(f.file) + '</a>' +
           '<span class="dsize">' + esc(f.size) + '</span>' +
+          /* Round 175: what THIS file is, from the server (f.state) — a file
+             that fails today's checks says so in red, and is never "accepted"
+             because the document is. */
+          (f.state === 'bad'
+            ? '<span class="dsize fstate bad" style="color:#b42318;font-weight:600">' + esc(f.stateSaid || 'Not accepted — not a PDF, photo or Word file') + '</span>'
+            : f.state === 'ok' ? '<span class="dsize fstate ok" style="color:#1b7f4b;font-weight:600">' + esc(f.stateSaid || 'Verified copy') + '</span>'
+            : f.state === 'rescan' ? '<span class="dsize fstate rescan" style="color:#8a6a1f;font-weight:600">' + esc(f.stateSaid || 'Scan asked') + '</span>'
+            : '') +
           /* NO REMOVE ON A FILE THE OFFICE PUT HERE.
              "Disable in student view whichever the counsellor will attach."
              They can open it — that is why it is on their file — and their
@@ -1687,6 +1697,11 @@ function card(d) {
             ? '<span class="dsize" style="font-style:italic">from your counsellor</span>'
             /* Patch 169 (STU-05): an accepted document is the verified copy —
                no delete; the server refuses it too (409). */
+            /* Round 175: a file that fails today's checks can always go —
+               it is not the accepted copy, whatever the document says. */
+            : f.state === 'bad'
+            ? '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" data-name="' + esc(f.file) + '" ' +
+              'aria-label="Remove this file: ' + esc(f.file) + '">Remove this file</button>'
             : st === S.OK && d.id !== 'other' ? ''
             /* Patch 172 (N17-02): the file the counsellor accepted stays the
                verified copy even after a newer one is added (409 too). */

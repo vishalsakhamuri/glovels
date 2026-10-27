@@ -351,6 +351,9 @@ const api = async (method, path, body) => {{
        use. */
     if (data.mustChange) err.mustChange = true;
     if (Array.isArray(data.fields)) err.fields = data.fields;
+    /* Round 175: a programme whose deadlines have all passed — the fit
+       panel asks "Add anyway?" and re-sends with force. */
+    if (data.closed) {{ err.closed = true; err.lastDeadline = data.lastDeadline || null; }}
     throw err;
   }}
   return data;

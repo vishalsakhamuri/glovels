@@ -136,7 +136,9 @@ const VISA_REQ = ['visa-offer', 'visa-funds', 'visa-insurance', 'visa-form', 'vi
   /* Four programmes at four different universities, so each row reads apart. */
   const progs = [];
   cat.forEach(x => { if (x && x.id && x.university && progs.length < 4 && !progs.some(y => y.university === x.university)) progs.push(x); });
-  for (const u of progs.slice(0, 3)) await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: u.id });
+  /* Round 175: a programme whose every deadline has passed is a 409 until
+     "Add anyway" — these are the first rows of the catalogue, so say so. */
+  for (const u of progs.slice(0, 3)) await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: u.id, force: true });
   await tick(sid, /Shortlist confirmed/);
   await note();
   await tick(sid, /Statement of Purpose|Letters of Rec/);
@@ -198,7 +200,7 @@ const VISA_REQ = ['visa-offer', 'visa-funds', 'visa-insurance', 'visa-form', 'vi
   const live4 = cat.find(x => String(x.id) === String(P4.id));
   const put4 = await req('a', 'PUT', '/api/staff/programme', Object.assign({}, live4, { id: live4.id,
     intakes: [{ season: 'Winter', deadline: day(16) }] }));
-  await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: P4.id });
+  await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: P4.id, force: true });
   const mine = async () => ((await req('a', 'GET', '/api/staff/alerts')).body.alerts || [])
     .filter(x => x.subject && Number(x.subject.studentId) === Number(sid));
   let al = await mine();

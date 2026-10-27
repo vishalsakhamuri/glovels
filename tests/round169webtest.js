@@ -126,11 +126,19 @@ const nProg = h => Number((summary(h).match(/^([\d,]+)/) || ['', '0'])[1].replac
 
   /* ===================================================== WEB-06: the search */
   console.log('\n— WEB-06: names, aliases and cities, signed out');
+  /* Round 175 (deep test item 1): a visitor typing a public university's
+     name no longer lights up ITS locked rows — that was the way to tell
+     which hidden card was which. The keys that come back belong only to
+     universities the visitor sees named (private ones), and the real TUM /
+     Bremen rows stay off the page; a locked row that happens to carry a
+     matching public tag may still show, since it names nobody. */
+  const anonCat = (await req('anon', 'GET', '/api/catalogue')).body.programmes || [];
+  const namedKeys = new Set(anonCat.filter(p => p.university).map(p => String(p.uKey)));
   for (const q of ['TU Munich', 'TUM', 'TU München', 'Bremen']) {
     const keys = (await req('anon', 'GET', '/api/find/unis?q=' + encodeURIComponent(q))).body.keys || [];
     const h = await page('/find-university?q=' + encodeURIComponent(q));
     const locked = (h.match(/frow locked/g) || []).length;
-    ok('"' + q + '" names a university, and its public (locked) rows are found', keys.length >= 2 && locked >= (big ? 10 : 1), keys.length + ' keys, ' + locked + ' locked; ' + summary(h));
+    ok('"' + q + '": every key handed to a visitor belongs to a university shown by name (round 175)', keys.every(k => namedKeys.has(String(k))), keys.length + ' keys, ' + locked + ' locked; ' + summary(h));
     ok('"' + q + '": the locked rows still carry no name', !/frow locked[\s\S]{0,400}(Technical University of Munich|University of Bremen)/.test(h));
   }
   const moiBox = nProg(await page('/find-university?moi=1'));
@@ -390,7 +398,7 @@ const nProg = h => Number((summary(h).match(/^([\d,]+)/) || ['', '0'])[1].replac
     await fpg.waitForFunction(() => document.querySelectorAll('#flist .frow.locked').length > 0, null, { timeout: 15000 }).catch(() => {});
     await fpg.waitForTimeout(1500);
     const lockedLive = await fpg.$$eval('#flist .frow.locked', els => els.length);
-    ok('browser: "TU Munich" keeps the locked public rows after the live re-render', lockedLive >= 1, lockedLive);
+    ok('browser: "TU Munich" shows no locked row after the live re-render (round 175)', lockedLive === 0, lockedLive);
     await browser.close();
   } catch (e) {
     ok('the browser checks ran', false, e.stack);

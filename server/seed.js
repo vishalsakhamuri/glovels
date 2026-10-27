@@ -784,6 +784,69 @@ function repairBlogLinks({ db }) {
   return links;
 }
 
+/*
+ * 27 Oct (deep test, item 3): the German rows baked into the build before the
+ * office's sheets existed (ids `gated-*` and `9000x`) sit next to the same
+ * programme imported from the sheet (`own-*`), both live — 97 pairs on the
+ * audit. They are also where most of the past deadlines, missing cities and
+ * wrong fees come from. Where an ACTIVE office row names the same university
+ * and programme at the same level, the baked row is retired and anything a
+ * student held against it is moved to the office row. The office row is the
+ * one the office can edit, so it wins. Runs once (marker below); the office
+ * can re-activate a retired row from Admin → Catalogue if it was wrong.
+ */
+const SEED_DUPES = 'repair:seed-duplicates-v1';
+const BAKED_ID = /^(gated-|9000)/;
+const DEGREE_WORDS = /\b(?:m\.?\s?sc|m\.?\s?a|m\.?\s?eng|m\.?\s?ed|ll\.?\s?m|e?mba|b\.?\s?sc|b\.?\s?a|b\.?\s?eng|m\.?\s?s|hons|research master|master of (?:science|arts|engineering|business administration|education|laws)|bachelor of (?:science|arts|engineering|laws)|master|bachelor)\b\.?/g;
+const DEGREE_ONE = new RegExp(DEGREE_WORDS.source);
+function foldProgramme(s) {
+  return String(s || '').toLowerCase()
+    /* Brackets that only say what degree it is: "(Research Master)", "(M.Sc.)", "(Hons)". */
+    .replace(/\(([^)]*)\)/g, (m, inner) => DEGREE_ONE.test(inner) && inner.replace(DEGREE_WORDS, '').replace(/[^a-z0-9]/g, '') === '' ? ' ' : m)
+    .replace(DEGREE_WORDS, ' ')
+    .replace(/\b(?:in|of)\b/g, ' ')
+    .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '').trim();
+}
+/* The office writes "Aalen University" where the build wrote "HS Aalen":
+   the tag dictionary's university aliases (patch 165) join them. */
+function foldUniversity(name) {
+  const TAGS = require('./tags.js');
+  const n = String(name || '').trim();
+  let g = TAGS.aliasesOf(n);
+  if (!g) { const m = /^([^()]+?)\s*\(([^()]+)\)\s*$/.exec(n); g = m && (TAGS.aliasesOf(m[1]) || TAGS.aliasesOf(m[2])); }
+  return String(g ? g[0] : n).toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+const levelBucket = l => { const x = String(l || '').toLowerCase(); return x === 'mba' ? 'master' : x || 'master'; };
+function retireSeedDuplicates({ db, force }) {
+  if (!force && db.content(SEED_DUPES)) return 0;
+  const rows = db.programmes(true);
+  const office = new Map();
+  rows.forEach(r => {
+    if (BAKED_ID.test(String(r.id)) || !r.active) return;
+    const k = foldUniversity(r.university) + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
+    if (!office.has(k)) office.set(k, r);
+  });
+  let retired = 0, moved = 0;
+  const detail = [];
+  db.transaction(() => {
+    rows.forEach(r => {
+      if (!BAKED_ID.test(String(r.id)) || !r.active) return;
+      const k = foldUniversity(r.university) + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
+      const keep = office.get(k);
+      if (!keep) return;
+      moved += db.repointProgramme(r.id, keep.id);
+      db.setProgrammeActive(r.id, false, 'system');
+      retired++;
+      if (detail.length < 200) detail.push(r.id + ' → ' + keep.id + ' (' + r.university + ': ' + r.program + ')');
+    });
+  });
+  db.setContent(SEED_DUPES, { done: true, retired, moved, detail, at: new Date().toISOString() }, 'system');
+  if (retired) db.log('system', 'duplicate baked programmes retired',
+    retired + ' row(s) baked into the build were hidden because the office sheet has the same programme; '
+    + moved + ' shortlist/application record(s) moved to the sheet row');
+  return retired;
+}
+
 function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
   if (db.studentByEmail(DEMO_EMAIL)) return null;
   /* A shared test link overrides this, so the three demo accounts are not
@@ -1312,4 +1375,5 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, add
   openOnRequestServices,
   fillEmptyPosts,
   repairBlogLinks,
+  retireSeedDuplicates,
   DEMO_EMAIL, DEMO_PASSWORD };

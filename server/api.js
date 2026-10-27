@@ -21,6 +21,14 @@ const crypto = require('crypto');
 /* See the locked rows in /api/catalogue (patch 146). */
 const OPAQUE_KEY = crypto.randomBytes(24);
 const OPAQUE = (kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY).update(kind + ':' + String(v)).digest('hex').slice(0, 14);
+/* Round 175: the university key on a locked row is salted PER RESPONSE. A
+   key that held still across requests (and matched what /api/find/unis
+   handed back) let two responses be joined, and a joined key plus the
+   public university list named the hidden university. A fresh nonce per
+   /api/catalogue response keeps the grouping inside that one response —
+   "12 public universities" still counts — and says nothing outside it. */
+const OPAQUE_NONCE = () => crypto.randomBytes(12).toString('hex');
+const OPAQUE_SALTED = (nonce, kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY).update(nonce + ':' + kind + ':' + String(v)).digest('hex').slice(0, 14);
 const PAY = require('./pay.js');
 const fs = require('fs');
 const path = require('path');
@@ -108,6 +116,7 @@ const FALLBACK_PACKAGES = {
  * screens that show them offer a download rather than an upload box.
  */
 const DOCSLOTS = require('./docs.js');
+const FILECHECK = require('./filecheck.js');
 /* Patch 169: the student's one progress model and the one readiness count. */
 const JOURNEY = require('./journey.js');
 /* What Glovels writes. The wider list of everything a counsellor may upload —
@@ -583,24 +592,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * pages produces HEIC — telling somebody to take a photo and then refusing
    * the format their phone takes photos in is the same self-contradiction this
    * is fixing, one step along. */
-  const FILE_KINDS = [
-    { ext: ['pdf'], what: 'PDF', sig: b => b.slice(0, 5).toString('latin1') === '%PDF-' },
-    { ext: ['jpg', 'jpeg'], what: 'JPG', sig: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
-    { ext: ['png'], what: 'PNG',
-      sig: b => b.slice(0, 8).toString('hex') === '89504e470d0a1a0a' },
-    /* HEIC/HEIF: 'ftyp' at byte 4, then the brand. */
-    { ext: ['heic', 'heif'], what: 'HEIC',
-      sig: b => b.slice(4, 8).toString('latin1') === 'ftyp'
-        && /^(heic|heix|hevc|hevx|mif1|msf1)$/.test(b.slice(8, 12).toString('latin1')) },
-    /* .docx is a zip. Requiring the extension too is what stops a .zip of
-       anything walking in behind it. */
-    { ext: ['docx'], what: 'Word',
-      sig: b => b[0] === 0x50 && b[1] === 0x4b && (b[2] === 3 || b[2] === 5 || b[2] === 7) },
-    /* And the old binary Word, which is an OLE compound file. */
-    { ext: ['doc'], what: 'Word',
-      sig: b => b.slice(0, 8).toString('hex') === 'd0cf11e0a1b11ae1' },
-  ];
-  const FILE_LIST = 'PDF, a photo (JPG, PNG or HEIC) or Word';
+  /* Round 175: the kinds, the per-slot rule and the per-file judgement live
+     in server/filecheck.js, so the sweep that marks old files reads the same
+     rules as the upload and Accept routes. */
+  const FILE_KINDS = FILECHECK.FILE_KINDS;
+  const FILE_LIST = FILECHECK.FILE_LIST;
 
   /* CNS-07 (4): WHAT EACH SLOT TAKES. Every slot takes a PDF or a photo
      (JPG, PNG, HEIC); Word only where the document is something WRITTEN — the
@@ -609,14 +605,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      is a scan of a paper document, and a .docx in the Passport slot is not
      one. Kinds outside the list (.txt, .html) are already refused by
      wrongType(). */
-  const WORD_SLOTS = new Set(['sop', 'lor', 'visa-cover', 'visa-form', 'cv', 'work', 'finance', 'other']);
-  function slotRefuses(key, name) {
-    const ext = String(name || '').toLowerCase().split('.').pop();
-    if (!/^(doc|docx)$/.test(ext)) return null;
-    if (WORD_SLOTS.has(String(key))) return null;
-    return '"' + String(name || 'That file').slice(0, 60) + '" is a Word file, and the '
-      + DOCSLOTS.nameOf(key) + ' has to be a scan or a photo — PDF, JPG, PNG or HEIC.';
-  }
+  const WORD_SLOTS = FILECHECK.WORD_SLOTS;
+  const slotRefuses = FILECHECK.slotRefuses;
 
   /** null when the file is one we take, or the sentence saying why not. */
   function wrongType(name, buf) {
@@ -689,11 +679,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* Patch 172 (N17-02): the counsellor's Documents list — one row per FILE,
      oldest first, carrying the document it belongs to. */
   function staffDocRows(id) {
-    return db.getDocuments(id).map(d => ({
-      id: d.id, key: d.doc_key, name: DOCSLOTS.nameOf(d.doc_key),
-      file: d.filename, status: d.status, at: d.uploaded_at, bytes: d.bytes,
-      by: String(d.uploaded_by || 'student'), verdict: String(d.verdict || ''),
-    }));
+    const all = db.getDocuments(id);
+    /* Round 175: a file's own state (filecheck.stateOf) — a file that fails
+       today's checks is 'bad' whatever the slot's status says. */
+    const legacy = {};
+    all.forEach(d => { const k = String(d.doc_key); if (!(k in legacy)) legacy[k] = true; if (String(d.verdict || '')) legacy[k] = false; });
+    return all.map(d => {
+      const st = FILECHECK.stateOf(d.doc_key, d, legacy[String(d.doc_key)] && String(d.status) === 'ok');
+      return {
+        id: d.id, key: d.doc_key, name: DOCSLOTS.nameOf(d.doc_key),
+        file: d.filename, status: d.status, at: d.uploaded_at, bytes: d.bytes,
+        by: String(d.uploaded_by || 'student'), verdict: String(d.verdict || ''),
+        state: st.state, stateSaid: st.said, bad: st.why,
+      };
+    });
   }
 
   function stateFor(s) {
@@ -709,13 +708,23 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * Adding rather than replacing is what makes this safe to ship in one
      * patch: nothing that reads a slot as one document had to change. */
     const docs = {};
-    db.getDocuments(s.id).forEach(d => {
+    const allDocs = db.getDocuments(s.id);
+    /* Round 175: a slot accepted before files had their own answer — every
+       file that passes today's checks counts as the verified copy. */
+    const legacy = {};
+    allDocs.forEach(d => { const k = String(d.doc_key); if (!(k in legacy)) legacy[k] = true; if (String(d.verdict || '')) legacy[k] = false; });
+    allDocs.forEach(d => {
+      const fst = FILECHECK.stateOf(d.doc_key, d, legacy[String(d.doc_key)] && String(d.status) === 'ok');
       const one = {
         id: d.id,
         file: d.filename,
         bytes: d.bytes,
         size: sizeSaid(d.bytes),
         at: d.uploaded_at,
+        /* Round 175: this file's own state — 'bad' (fails today's type or
+           size checks: not accepted, can be removed), 'ok' (verified copy),
+           'rescan' (scan asked) or 'wait'. Never read off the slot. */
+        state: fst.state, stateSaid: fst.said,
         /* 'student' or 'staff'. The card hides its own Remove on a file the
            office put there — and the route refuses it too, because a control
            absent from a page is not the same as a rule. */
@@ -2031,7 +2040,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* Not the catch-all "Other documents" slot: it holds anything, its status
        is set by whatever the office last added, and a student's own spare
        files in it stay theirs to take off. */
-    if (String(s.role || 'student') === 'student' && String(rec.status) === 'ok'
+    /* Round 175: a file that fails today's checks is not the accepted copy,
+       whatever the slot says — the student may take it off. */
+    if (String(s.role || 'student') === 'student' && String(rec.status) === 'ok' && !FILECHECK.fails(rec.doc_key, rec)
         && String(rec.doc_key) !== 'other' && DOCSLOTS.known(rec.doc_key) && !DOCSLOTS.APP_FILE.test(String(rec.doc_key))) {
       return json(res, 409, { error: 'This document has been accepted by your counsellor. Ask your counsellor to replace it.', accepted: true });
     }
@@ -3470,11 +3481,61 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      each: the real one a named row carries and the stand-in a locked row
      carries, so the browser can keep the rows without ever being told the
      name behind a locked one. */
+  /*
+   * Round 175: what THIS viewer may be told about public universities — one
+   * answer, read by /api/catalogue and /api/find/unis alike, so the search
+   * box can never name a university the catalogue withholds.
+   *
+   *   gate   the office's setting (gated / names / open)
+   *   quota  public universities the viewer's biggest paid order reveals
+   *   named  the real uKeys of the public universities that order names,
+   *          spent first on the viewer's own shortlist, then in catalogue
+   *          order — the same walk /api/catalogue takes, so the two agree
+   *   mayName(p)  whether a public row comes back with its name
+   */
+  function entitlement(req) {
+    const me_ = me(req);
+    const me_orders = me_ ? db.ordersFor(me_.id) : [];
+    const earned = me_orders.filter(o => EARNED.has(o.status));
+    const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
+    let gate = 'gated';
+    try {
+      const f = content && content.get('finder');
+      if (f && f.gate) gate = f.gate;
+    } catch (e) { /* the strictest reading is the safe one */ }
+    const named = new Set();
+    if (me_ && quota) {
+      const mine = new Set(db.getShortlist(me_.id)
+        .filter(r => r.is_public).map(r => String(r.prog_id)));
+      if (mine.size) {
+        for (const p of cat()) {
+          if (named.size >= quota) break;
+          if (!p.isPublic || !mine.has(String(p.id))) continue;
+          named.add(p.uKey);
+        }
+      }
+      for (const p of cat()) {
+        if (p.searchOnly || !p.isPublic) continue;
+        if (named.has(p.uKey)) continue;
+        if (named.size >= quota) break;
+        named.add(p.uKey);
+      }
+    }
+    const mayName = p => !p.isPublic || gate === 'open' || gate === 'names' || named.has(p.uKey);
+    return { me: me_, gate, quota, named, mayName };
+  }
+
   route('GET', '/api/find/unis', async (req, res) => {
     const q = String(url.parse(req.url, true).query.q || '').trim().slice(0, 80);
     if (q.length < 2) return json(res, 200, { keys: [] });
-    const real = require('./unisearch.js').match(cat().filter(p => !p.searchOnly), q);
-    return json(res, 200, { keys: real.concat(real.map(k => OPAQUE('u', k))) });
+    /* Round 175: only the universities this viewer would see NAMED. A locked
+       row's key is salted per /api/catalogue response and never matches
+       anything handed out here, and a hidden university's real key is not
+       handed out either — so typing "Aalen" signed out lights up nothing. */
+    const ent = entitlement(req);
+    const rows = cat().filter(p => !p.searchOnly && ent.mayName(p));
+    const real = require('./unisearch.js').match(rows, q);
+    return json(res, 200, { keys: real });
   }, { open: true });
 
   route('GET', '/api/catalogue', async (req, res) => {
@@ -3495,7 +3556,6 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * It is the last piece of the old build to remove; this endpoint does not
      * widen the hole.
      */
-    const me_ = me(req);
     /*
      * The BIGGEST paid entitlement, not the most recent order.
      *
@@ -3509,10 +3569,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * counsellor collects and the office has decided the student may proceed.
      * `awaiting` does not: a gateway is mid-collection and has not confirmed.
      */
-    const me_orders = me_ ? db.ordersFor(me_.id) : [];
-    const earned = me_orders.filter(o => EARNED.has(o.status));
-    const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
+    /* Round 175: the quota, the gate and the universities it names are worked
+       out ONCE, in entitlement() above, and shared with /api/find/unis — so
+       the search box names exactly the universities this response names. */
+    const ent = entitlement(req);
+    const quota = ent.quota;
     let spent = 0;
+    /* Round 175: a fresh salt for the locked rows' university keys. */
+    const nonce = OPAQUE_NONCE();
 
     /*
      * How much of a public university a visitor who has not paid may see. Set
@@ -3524,18 +3588,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      *   names  the name, not the fee.
      *   open   everything, free to all.
      */
-    let gate = 'gated';
-    try {
-      const f = content && content.get('finder');
-      if (f && f.gate) gate = f.gate;
-    } catch (e) { /* the strictest reading is the safe one */ }
+    const gate = ent.gate;
 
     /* The quota counts UNIVERSITIES, because that is what the package says on
        the card: "Reveals 5 public universities". Counting programmes instead
        spends the allowance on five courses at three universities, which is a
        worse deal than the one that was sold. Every programme at an already
        revealed university is free. */
-    const named = new Set();
+    const named = ent.named;
 
     /* Spend the allowance on the universities they have already been given.
      *
@@ -3546,25 +3606,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * scroll order, and no way to tell which three they paid for.
      *
      * Their own shortlist comes first. Whatever is left of the quota is spent
-     * as it always was. */
-    if (me_ && quota) {
-      const mine = new Set(db.getShortlist(me_.id)
-        .filter(r => r.is_public).map(r => String(r.prog_id)));
-      if (mine.size) {
-        for (const p of cat()) {
-          if (named.size >= quota) break;
-          if (!p.isPublic || !mine.has(String(p.id))) continue;
-          named.add(p.uKey);
-        }
-      }
-    }
-
-    const mayShow = p => {
-      if (named.has(p.uKey)) return true;
-      if (named.size >= quota) return false;
-      named.add(p.uKey);
-      return true;
-    };
+     * as it always was. (Both walks live in entitlement() now — round 175.) */
+    const mayShow = p => named.has(p.uKey);
 
     /* Search-only rows are on their university's page and in the search
        box, not here. Their ids go in `inactive` below, so a row the home
@@ -3619,13 +3662,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         /* uKey groups programmes by university so the page can say "12 public
            universities" without naming one. featured/featureSort say where the
            row sits, not what it is. None of the three is the name. */
-        uKey: OPAQUE('u', p.uKey), featured: p.featured, featureSort: p.featureSort,
-        nLen: String(p.program || '').length,
-        /* The width of the blur on a locked row. It is what will be SHOWN
-           once it is unlocked, so a row with a short name blurs at the
-           short name's width — otherwise a locked German row reads as a
-           much longer name than the one that appears when it opens. */
-        uLen: String(p.shortName || p.university || '').length,
+        uKey: OPAQUE_SALTED(nonce, 'u', p.uKey), featured: p.featured, featureSort: p.featureSort,
+        /* Round 175: no nLen / uLen. The length of the hidden name was
+           enough, with the public university list, to pick the university
+           out — so the blur is drawn at a fixed width now (find.js filler). */
       };
     });
 
@@ -4666,6 +4706,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!p) return json(res, 404, { error: 'No such programme in the catalogue.' });
 
       const already = db.getShortlist(id).some(x => String(x.prog_id) === String(p.id));
+      /* Round 175 (item 4): a programme whose every published deadline has
+         passed is not added on a click. The screen is told (409, closed) and
+         asks "Add anyway?"; a second request with force:true goes through,
+         and the student is told that the next intake is not announced yet. */
+      const dl = MATCHES.deadlineInfo(p);
+      const lastSaid = dl.last ? dl.last.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      if (dl.closed && !already && b.force !== true) {
+        return json(res, 409, { closed: true, lastDeadline: MATCHES.isoDay(dl.last),
+          error: 'Every deadline for this programme has passed' + (lastSaid ? ' (last ' + lastSaid + ')' : '') + '. Add anyway?' });
+      }
       db.addShortlist(id, p, 'office');
       if (typeof db.undismissShortlist === 'function') db.undismissShortlist(id, p.id);
       /* Where it sits on the student's list: the matcher's rank for their
@@ -4702,10 +4752,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            as a notice from the building — which is exactly the complaint
            this whole column was added to answer, still true on the messages
            a counsellor actually causes. */
-        db.addMessage(id, 'them', 'I have added ' + progSaid(p) + ' to your list.', '', s.name);
+        db.addMessage(id, 'them', 'I have added ' + progSaid(p) + ' to your list.'
+          + (dl.closed ? ' Its next intake is not announced yet; your counsellor will confirm.' : ''), '', s.name);
         live.toStudent(id, 'shortlist', {});
       }
-      return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps });
+      return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps, closed: dl.closed });
     }));
 
   /* ------------------------------------------------ what fits, for staff
@@ -4724,7 +4775,54 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* Patch 153: the second English and aptitude tests, the GRE by section,
        the bachelor's in ECTS, class rank, and whether ranked admission is
        acceptable — every answer the home page's finder can now take. */
-    'e2_test', 'e2_score', 'a2_test', 'a2_score', 'a_quant', 'a_verbal', 'a_awa', 'd_ects', 'd_top', 'g_restricted', 'g_field3'];
+    'e2_test', 'e2_score', 'a2_test', 'a2_score', 'a_quant', 'a_verbal', 'a_awa', 'd_ects', 'd_top', 'g_restricted', 'g_field3',
+    /* Round 175 (item 6): "MOI letter: yes / no" beside the English test. */
+    'd_moi'];
+  /* Round 175 (item 6): a score that cannot exist is not "not given" — a
+     CGPA of 15, −3 or 'abc', or a maximum of 0, was accepted silently and
+     counted as no CGPA, which fitted MORE programmes than a real 7.5. Each
+     impossible value is named with its field, so the panel can say so
+     beside the box (422, {error, fields:[{field, why}]}). Blank is still
+     "not said". */
+  const fitErrors = q => {
+    const out = [];
+    const given = k => q[k] !== undefined && q[k] !== null && String(q[k]).trim() !== '';
+    const num = k => Number(String(q[k]).trim().replace(',', '.'));
+    const bad = (field, why) => out.push({ field, why });
+    const range = (k, lo, hi, what, field) => {
+      if (!given(k)) return null;
+      const n = num(k);
+      if (!Number.isFinite(n)) { bad(field || k, what + ' must be a number'); return null; }
+      if (n < lo || n > hi) { bad(field || k, what + ' must be between ' + lo + ' and ' + hi); return null; }
+      return n;
+    };
+    const max = given('d_max') ? num('d_max') : 10;
+    if (given('d_max') && !(Number.isFinite(max) && max > 0 && max <= 100)) bad('d_max', 'The CGPA scale (out of) must be a number above 0, at most 100');
+    if (given('d_cgpa')) {
+      const c = num('d_cgpa');
+      if (!Number.isFinite(c)) bad('d_cgpa', 'The CGPA must be a number');
+      else if (c <= 0) bad('d_cgpa', 'The CGPA must be above 0');
+      else if (Number.isFinite(max) && max > 0 && c > max) bad('d_cgpa', 'The CGPA cannot be more than its scale (' + max + ')');
+    }
+    if (given('d_pass')) {
+      const p = num('d_pass');
+      if (!Number.isFinite(p) || p < 0) bad('d_pass', 'The pass mark must be a number, 0 or more');
+      else if (Number.isFinite(max) && max > 0 && p >= max) bad('d_pass', 'The pass mark must be below the scale (' + max + ')');
+    }
+    const eng = String(q.e_test || '').toLowerCase();
+    if (/ielts/.test(eng)) range('e_score', 0, 9, 'An IELTS score');
+    else if (/toefl/.test(eng)) range('e_score', 0, 120, 'A TOEFL score');
+    else if (/pte/.test(eng)) range('e_score', 10, 90, 'A PTE score');
+    if (/^gre$/i.test(String(q.a_test || '').trim())) {
+      range('a_score', 260, 340, 'A GRE total');
+      range('a_quant', 130, 170, 'A GRE Quant score');
+      range('a_verbal', 130, 170, 'A GRE Verbal score');
+      range('a_awa', 0, 6, 'A GRE AWA score');
+    }
+    range('ggpa', 1, 4, 'A German grade (1.0 best, 4.0 pass)');
+    range('w_months', 0, 600, 'Work experience in months');
+    return out;
+  };
   const fitRun = (profile, q, owedParts) => {
     const prof = Object.assign({}, profile || {});
     FIT_KEYS.forEach(k => { if (q[k] !== undefined) prof[k] = String(q[k]); });
@@ -4737,6 +4835,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       feeModel: String(q.feeModel || ''), restricted: String(q.restricted || ''),
       /* 10 Oct: chosen tags, ';'-joined — screen() keeps the rows that carry every one. */
       tags: String(q.tags || '').slice(0, 2000) };
+    /* Round 175 (item 4c): an empty profile is not a profile. With neither
+       a level nor a field (words or the exact dropdown) and no CGPA, the
+       screen "fitted" 2,707 of 2,740 programmes to nobody in particular —
+       so nothing is counted; the answer names what is needed first. A tag
+       or name search with a CGPA still runs (the admin's catalogue test). */
+    {
+      const w0 = MATCHES.wants(prof);
+      const needs = [];
+      if (!w0.level) needs.push('level');
+      if (!w0.field && !opts.field) needs.push('field');
+      if (needs.length === 2 && !w0.cgpa) {
+        return { profile: prof, usable: false, needs, fits: [], near: [],
+          counts: { looked: 0, fits: 0, near: 0, unknownDates: 0 }, auto: [] };
+      }
+    }
     const found = MATCHES.screen(cat, prof, countryMap(), opts);
     /* What the machine would deliver — the same call deliverMatches makes. */
     const auto = (owedParts || []).map(part => {
@@ -4762,6 +4875,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const parts = owed.parts && owed.parts.length ? owed.parts
       : MATCHES.partsFor(content).map(p => Object.assign(p, {
           package: (p.kind === 'public' ? 'Public University Unlock' : 'Private shortlist of ' + p.count) + ' (not bought)' }));
+    const bad = fitErrors(q);
+    if (bad.length) return json(res, 422, { error: 'Some answers cannot be right: ' + bad.map(x => x.why).join('; ') + '.', fields: bad });
     const out = fitRun(db.getProfile(id), q, parts);
     out.bought = !!(owed.parts && owed.parts.length);
     out.onList = db.getShortlist(id).map(r => String(r.prog_id));
@@ -4774,6 +4889,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('POST', '/api/staff/fit', staffOnly(async (req, res) => {
     const b = await readJson(req);
     const q = Object.assign({}, b.filters || {});
+    const bad = fitErrors(q);
+    if (bad.length) return json(res, 422, { error: 'Some answers cannot be right: ' + bad.map(x => x.why).join('; ') + '.', fields: bad });
     const sold = MATCHES.partsFor(content);
     const parts = [{ kind: 'public', count: Number(b.publicCount) || sold[0].count, package: 'Public University Unlock' },
       { kind: 'private', count: Number(b.privateCount) || sold[1].count, package: 'Private shortlist of ' + (Number(b.privateCount) || sold[1].count) }];
@@ -5292,15 +5409,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const files = db.docsInKey(id, key);
       const prevSlot = String((files[files.length - 1] || {}).status || 'wait');
       if (verdict === 'ok') {
-        /* THIS file only. */
+        /* THIS file only. Round 175: the extension, the slot, the size and
+           the first bytes — a 31-byte .html, or a "PDF" that holds HTML, is
+           refused here the way the upload route would refuse it today. */
         const ext = String(rec.filename || '').toLowerCase().split('.').pop();
-        const ID_SLOTS = /^(passport|photo|aadhaar|pan)/i;
-        const bad = !FILE_KINDS.some(k => k.ext.includes(ext)) || !!slotRefuses(key, rec.filename)
-          || (ID_SLOTS.test(key) && /^(doc|docx)$/.test(ext));
-        if (bad) {
+        const why = FILECHECK.fails(key, rec, FILECHECK.headOf(uploadDir, id, rec));
+        if (why) {
+          if (String(rec.verdict || '') !== 'bad') db.setFileVerdict(id, rec.id, 'bad');
           return json(res, 422, { error: '"' + String(rec.filename).slice(0, 60) + '" cannot be accepted here — '
-            + (/^(doc|docx)$/.test(ext) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).' : 'Glovels takes ' + FILE_LIST + '.')
-            + ' Remove it, or accept a valid file in this document.' });
+            + (/^(doc|docx)$/.test(ext) && /Word file where/.test(why) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).'
+              : /small|inside|text or HTML/.test(why) ? 'it is ' + why + '.' : 'Glovels takes ' + FILE_LIST + '.')
+            + ' Remove it, or accept a valid file in this document.', why });
         }
         db.setFileVerdict(id, rec.id, 'ok');
         db.setDocStatus(id, key, 'ok');
@@ -5418,18 +5537,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          identity document (passport, photo) has to be a scan or a photo. */
       if (status === 'ok') {
         const files = (db.getDocuments(id) || []).filter(d => String(d.doc_key) === String(m[2]));
-        const ID_SLOTS = /^(passport|photo|aadhaar|pan)/i;
-        const bad = files.find(d => {
-          const ext = String(d.filename || '').toLowerCase().split('.').pop();
-          if (!FILE_KINDS.some(k => k.ext.includes(ext))) return true;
-          /* CNS-07 (4): the same per-slot rule the uploads now keep. */
-          return !!slotRefuses(m[2], d.filename) || (ID_SLOTS.test(String(m[2])) && /^(doc|docx)$/.test(ext));
-        });
+        /* Round 175: the same judgement as the per-file Accept — extension,
+           slot, size and first bytes (server/filecheck.js). Any file in the
+           slot that fails refuses the whole document, and is marked. */
+        let why0 = '';
+        const bad = files.find(d => { why0 = FILECHECK.fails(m[2], d, FILECHECK.headOf(uploadDir, id, d)) || ''; return !!why0; });
         if (bad) {
+          if (String(bad.verdict || '') !== 'bad') db.setFileVerdict(id, bad.id, 'bad');
           const ext0 = String(bad.filename || '').toLowerCase().split('.').pop();
           return json(res, 422, { error: '"' + String(bad.filename).slice(0, 60) + '" cannot be accepted here — '
-            + (/^(doc|docx)$/.test(ext0) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).' : 'Glovels takes ' + FILE_LIST + '.')
-            + ' Ask the student for a scanned copy.' });
+            + (/^(doc|docx)$/.test(ext0) && /Word file where/.test(why0) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).'
+              : /small|inside|text or HTML/.test(why0) ? 'it is ' + why0 + '.' : 'Glovels takes ' + FILE_LIST + '.')
+            + ' Ask the student for a scanned copy.', why: why0 });
         }
       }
       db.setDocStatus(id, m[2], status);
@@ -6080,26 +6199,41 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('GET', '/api/staff/overview', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
-    const students = db.allStudents();
+    const everyone = db.allStudents();
+    /* Round 175 (item 7): the tiles count ACTIVE files. "24 Students" was 20
+       active and 4 closed; "12 Unassigned" counted 2 closed files nobody is
+       meant to be assigned to; all 7 "Docs to review" were on closed files.
+       The closed ones are said beside each number, not mixed into it. */
+    const isClosed = st => String(st.status || 'active') !== 'active' || Number(st.partner_closed || 0) === 1;
+    const students = everyone.filter(st => !isClosed(st));
+    const closed = everyone.filter(isClosed);
     const counsellors = db.caseworkers();
     const docs = students.flatMap(st => db.getDocuments(st.id));
+    const closedDocs = closed.flatMap(st => db.getDocuments(st.id));
     /* Every order, not one per student. An order placed before the buyer made
        an account belongs to nobody yet, and walking the students to find the
        orders skipped exactly those — so the counter read zero to the person
        who had just placed four of them. */
     const orders = db.allOrders();
+    const book = leadBook(s);
+    const internal = db.internalEnquiryTest();
     return json(res, 200, {
       students: students.length,
+      studentsClosed: closed.length,
       /* Patch 172 (item 10): held by a closed or test account = unassigned. */
       unassigned: students.filter(st => !db.liveCounsellorOf(st)).length,
+      unassignedClosed: closed.filter(st => !db.liveCounsellorOf(st)).length,
       counsellors: counsellors.map(c => ({
         id: c.id, name: c.name, email: c.email,
         caseload: students.filter(st => Number(st.counsellor_id) === c.id).length,
       })),
-      enquiries: db.allEnquiries().length,
+      /* The same rows the leads book lists for this person (leadBook). */
+      enquiries: book.length,
+      enquiriesInternal: book.filter(internal).length,
       orders: orders.length,
       revenuePaise: orders.reduce((a, o) => a + (o.gross_paise || 0), 0),
       docsWaiting: docs.filter(d => d.status === 'wait').length,
+      docsWaitingClosed: closedDocs.filter(d => d.status === 'wait').length,
       online: live.counts(),
       channels: notify.status(),
     });
@@ -7766,7 +7900,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     'no-response', 'changed-plan', 'other'];
 
   const destName = v => { const c = ISO_COUNTRIES.byCode(v); return c && /^[A-Z]{2}$/.test(String(v || '')) ? c.name : String(v || ''); };
-  const leadShape = (e, counts, people) => {
+  const leadShape = (e, counts, people, internal) => {
     const owner = e.owner_id ? people.get(Number(e.owner_id)) : null;
     const c = counts[String(e.id)] || { n: 0, last: '', lastWho: '' };
     return {
@@ -7797,12 +7931,26 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       at: e.created_at, updatedAt: e.updated_at || e.created_at,
       /* Patch 172 (item 7): when an administrator took it out of the book. */
       archivedAt: String(e.archived_at || ''),
+      /* Round 175 (item 7): from a staff member's or a test account's own
+         number or email — shown with an "Internal" chip, raises no alert. */
+      internal: (internal || db.internalEnquiryTest())(e),
     };
   };
 
   /* Everybody who could own a lead, by id. Counsellors and administrators —
      a lead handed to a website editor is a lead nobody calls. */
   const peopleMap = () => new Map(db.caseworkers().map(p => [Number(p.id), p]));
+
+  /* Round 175 (item 7): THE BOOK, as one function — the rows the leads
+     screen lists for this person, and the number the Organisation tile
+     counts. A counsellor sees the ones that are theirs and the ones nobody
+     has taken; an administrator sees the book (archived left out). The two
+     numbers used to be computed in two places and disagreed. */
+  const leadBook = s => {
+    const rows = db.allEnquiries();
+    return s && s.role !== 'admin'
+      ? rows.filter(e => !e.owner_id || Number(e.owner_id) === Number(s.id)) : rows;
+  };
 
   route('GET', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
     const counts = db.leadNoteCounts();
@@ -7812,13 +7960,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        the default, is the book without them. */
     const wantArchived = s.role === 'admin'
       && /^(1|yes|true)$/i.test(String(url.parse(req.url, true).query.archived || ''));
-    let rows = wantArchived ? db.archivedEnquiries() : db.allEnquiries();
-    /* A counsellor sees the ones that are theirs and the ones nobody has
-       taken. An administrator sees the book. */
-    if (s.role !== 'admin') {
-      rows = rows.filter(e => !e.owner_id || Number(e.owner_id) === Number(s.id));
-    }
-    const leads = rows.map(e => leadShape(e, counts, people));
+    const rows = wantArchived ? db.archivedEnquiries() : leadBook(s);
+    const internal = db.internalEnquiryTest();
+    const leads = rows.map(e => leadShape(e, counts, people, internal));
 
     /* The summary the office asks for, counted here so every screen showing it
        shows the same numbers. */
@@ -7858,8 +8002,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         converted: won.length,
         /* Untouched, and old enough that it is a problem rather than a queue.
            This is the number that should make somebody uncomfortable. */
-        cold: leads.filter(l => l.status !== 'converted' && l.status !== 'lost'
+        cold: leads.filter(l => !l.internal && l.status !== 'converted' && l.status !== 'lost'
           && !l.followUps && Date.now() - new Date(l.at).getTime() > DAY).length,
+        /* Round 175: the office's own test enquiries, in the book with a chip. */
+        internal: leads.filter(l => l.internal).length,
       },
     });
   }));
@@ -8589,16 +8735,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        the count was short by 370. Deriving tags costs ~0.06 ms a row, so
        the full German catalogue is under a quarter of a second. */
     const tagList = TAGS.parseList(qs.tags);
+    /* Round 175 (item 8): the level the way the import stores it — the
+       screen sent "pathway" and the rows say "foundation" (normLevel), so
+       Foundation / Pathway listed nothing. Either spelling works now. */
+    const levelQ = String(qs.level || '').trim() ? (normLevel(qs.level) || String(qs.level).trim()) : '';
     let page;
     if (tagList.length) {
       const perN = Math.max(1, Math.min(2000, Number(qs.per) || 100)), pageN = Math.max(1, Number(qs.page) || 1);
-      const wide = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
+      const wide = db.programmesPage({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
         type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
         status: qs.status == null ? '' : String(qs.status), page: 1, per: 'all' });
       const kept = wide.rows.filter(r => TAGS.match(UNIS.fromRow(r), tagList, ''));
       page = { rows: kept.slice((pageN - 1) * perN, pageN * perN), total: kept.length, page: pageN, per: perN };
     } else {
-      page = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
+      page = db.programmesPage({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
         type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
         status: qs.status == null ? '' : String(qs.status), page: qs.page, per: qs.per || 100 });
     }
@@ -8629,7 +8779,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       stats: db.catalogueStats(),
       fields: db.fieldCounts(),
       countries,
-      audit: db.auditTrail(25).map(a => ({ who: a.who, what: a.what, detail: a.detail, at: a.created_at })),
+      /* Round 175 (item 8): the Catalogue screen's "Recent changes" are
+         changes to the CATALOGUE — programmes, destinations, university
+         pages, sheet and tag imports — not every event in the building
+         (Organisation keeps the whole trail). */
+      audit: db.auditTrail(400).filter(a => /programme|catalogue|destination|university page|tags imported/i.test(String(a.what || ''))).slice(0, 25)
+        .map(a => ({ who: a.who, what: a.what, detail: a.detail, at: a.created_at })),
     });
   }));
 
@@ -8686,7 +8841,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       .slice(0, 8)
       .map(u => ({ name: u.name, shortName: shortNameOf(u.shortName), slug: u.slug, city: u.city,
         country: u.country, countryName: (cm[u.country] || {}).name || u.country,
-        programmes: (typeof db.rowsForUniversity === 'function' ? db.rowsForUniversity(u.slug).length : u.programmes.length),
+        /* Round 175: no programme count. "Aalen University, 9 programmes"
+           plus the country and the hidden name's length picked 127 of the
+           168 locked universities out; numbers are not required here. */
         url: '/university/' + u.slug }));
     const programmes = [];
     for (const u of unis) {
@@ -8732,35 +8889,40 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!c) return json(res, 404, { error: 'No such destination.' });
     const level = String(q.level || '').toLowerCase().trim();
     const field = String(q.field || '').trim();
-    const cgpa = Number(q.cgpa) || 0;
-    const gg = Number(q.ggpa) || 0;
+    /* Round 175 (item 2): a CGPA is a number on the ten-point scale, nothing
+       else. 'abc', 11, -3 or 0 are not a looser bar — they are no answer, and
+       the page answers as if nothing had been chosen. The same for a German
+       grade (1.0 best … 4.0 pass). */
+    const inRange = (v, lo, hi) => { const n = Number(v); return String(v || '').trim() !== '' && Number.isFinite(n) && n > lo && n <= hi ? n : 0; };
+    const cgpa = inRange(q.cgpa, 0, 10);
+    const gg = inRange(q.ggpa, 0, 4);
     const season = /^(summer|winter)$/.test(String(q.intake || '')) ? String(q.intake) : '';
     const budget = Number(q.budget) || 0;       // total tuition, rupees; 0 = any
     const free = String(q.apply || '') === 'free';
     const words = String(q.q || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean).slice(0, 6);
-    const norm = v => String(v || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
     const hidden = slug => { try { return !!UNIS.cleanExtras(db.content('university:' + slug)).hidden; } catch (e) { return false; } };
 
-    const clears = (p, u) => {
-      if (level && String(p.level || 'master').toLowerCase() !== level) return false;
-      if (field && String(p.field || '') !== field) return false;
-      if (cgpa) {
-        const bar = p.minCgpa != null ? Number(p.minCgpa)
-          : Number(p.isPublic ? c.minCgpaPublic : c.minCgpaPrivate) || 0;
-        if (bar && cgpa < bar) return false;
-      }
-      if (gg && p.germanGpa != null && gg > Number(p.germanGpa)) return false;
-      if (season && !(p.intakes || []).some(i => i && String(i.season || '').toLowerCase() === season)) return false;
-      if (budget && Number(p.totalInr || 0) > budget) return false;
-      if (free && p.feeModel !== 'free') return false;
-      return true;
-    };
+    /* The bar a row that states none is held to: the destination's own, else
+       the finder's default (Organisation → Finder: cgpaFull / cgpaPartial) —
+       the home page's rule (index.html: minCgpaPublic ?? S.cgpaFull). With
+       Germany's bar blank on the live site every CGPA choice returned the
+       whole country, because a blank bar was read as a bar of zero. */
+    let fin = {};
+    try { fin = (content && content.get('finder')) || {}; } catch (e) { fin = {}; }
+    const barOr = (own, dflt) => { const n = Number(own); return Number.isFinite(n) && n > 0 ? n : (Number(dflt) || 0); };
+    const bars = { pub: barOr(c.minCgpaPublic, fin.cgpaFull), priv: barOr(c.minCgpaPrivate, fin.cgpaPartial) };
+    /* A row that states a GERMAN grade and no CGPA is judged the way the
+       /find-university finder judges it (find.js germanFrom, PASS_KIND): the
+       student's grade at the kindest pass mark Indian universities use; worse
+       than the row's grade even then, the row is out. */
+    const PASS_KIND = 4;
+    const cgpaAsGerman = cgpa ? (cgpa < PASS_KIND ? 99 : Math.floor((1 + 3 * (10 - cgpa) / (10 - PASS_KIND)) * 10) / 10) : 0;
 
     /* The database picks the universities (store.filterUniversities); the
        office's off-search pages are dropped after. */
     const found = typeof db.filterUniversities === 'function'
-      ? db.filterUniversities({ country: code, level, field, cgpa, ggpa: gg, season, budget, free, q: words,
-          bars: { pub: c.minCgpaPublic, priv: c.minCgpaPrivate }, limit: 60 })
+      ? db.filterUniversities({ country: code, level, field, cgpa, cgpaAsGerman, ggpa: gg, season, budget, free, q: words,
+          bars, limit: 60 })
       : Object.assign([], { total: 0 });
     const out = [];
     for (const f of found) {
@@ -10001,9 +10163,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     db.log(s.name, 'catalogue imported from a sheet',
       created + ' added, ' + updated + ' updated, ' + plan.rejected.length + ' skipped');
+    /* 27 Oct: a sheet row that names a programme the build baked in retires
+       the baked copy, so the two never sit on the site together. */
+    const retired = require('./seed.js').retireSeedDuplicates({ db, force: true });
 
     return json(res, 200, {
-      applied: true, created, updated,
+      applied: true, created, updated, retired,
       skipped: plan.rejected.length, unchanged: plan.unchanged.length,
     });
   }));

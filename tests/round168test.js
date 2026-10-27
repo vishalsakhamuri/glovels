@@ -87,7 +87,13 @@ async function req(who, method, p, body) {
   const PROF = { d_course: 'BBA', d_dur: '4 years', d_cgpa: '8', d_max: '10', d_pass: '4', e_test: 'IELTS', e_score: '6.5', a_test: 'Not taken yet', g_german: 'None yet', w_has: 'No', g_level: "Master's", g_field: 'Business & Management', g_country: 'Germany', b_total: 'Above ₹40 Lakhs' };
   r = await req('a', 'POST', '/api/staff/fit', { profile: PROF, filters: { limit: 2000, kind: 'any' } });
   const fits = r.body.fits || [];
-  const top = fits.filter(x => x.relevance === fits[0].relevance && !(x.soft || []).length && !(x.ask || []).length);
+  /* Round 175: the deadline's standing (confirmed open, inside 14 days,
+     rolled, no dates, cannot roll — matches.js deadlineInfo) ranks ABOVE the
+     score, so "the same tier" is the same relevance, clear, and the same
+     deadline standing — the largest such group, so the check has rows. */
+  const clear = fits.filter(x => x.relevance === fits[0].relevance && !(x.soft || []).length && !(x.ask || []).length);
+  const groups = {}; clear.forEach(x => { const k = M.deadlineInfo(x).rank; (groups[k] = groups[k] || []).push(x); });
+  const top = Object.values(groups).sort((a, b) => b.length - a.length)[0] || [];
   const pos = (pred) => { const xs = top.map((x, i) => pred(x) ? i : -1).filter(i => i >= 0); return xs.length ? xs[Math.floor(xs.length / 2)] : -1; };
   const medFree = pos(x => x.isPublic && !Number(x.totalInr || 0)), medPaid = pos(x => !x.isPublic && Number(x.totalInr || 0) > 0);
   const firstPaid = top.findIndex(x => !x.isPublic && Number(x.totalInr || 0) > 0);

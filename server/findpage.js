@@ -75,7 +75,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
         id: '', country: p.country, level: p.level, field: p.field, band: p.band, isPublic: true, fit: p.fit, tags: TAGS.publicTags(p),
         intakes: p.intakes, feeModel: p.feeModel, totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,
         minCgpa: p.minCgpa, germanGpa: p.germanGpa, reqs: p.reqs, uKey: p.uKey,
-        nLen: String(p.program || '').length, uLen: String(p.shortName || p.university || '').length,
+        /* Round 175: no nLen / uLen — the blur is a fixed width (find.js). */
       };
     });
   }
@@ -191,7 +191,11 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     const rows = publicRows();
     /* Round 169: the destinations' CGPA bars, and the universities the search
        box names (WEB-06) — a locked row has no name to match the words on. */
-    const uniKeys = f.q ? UNISEARCH.match(liveCatalogue().filter(p => !p.searchOnly), f.q) : null;
+    /* Round 175: only among the universities this (signed-out) page NAMES —
+       a locked row stays out of a search for its university's name, the
+       same as /api/find/unis answers a signed-out browser. */
+    const namedKeys = new Set(rows.filter(r => r.university).map(r => String(r.uKey)));
+    const uniKeys = f.q ? UNISEARCH.match(liveCatalogue().filter(p => !p.searchOnly && namedKeys.has(String(p.uKey))), f.q) : null;
     const R = FIND.run(rows, f, REQS, { countries, uniKeys });
     const name = FIND.title(f, countries, null);
     const title = FIND.title(f, countries, R.total);

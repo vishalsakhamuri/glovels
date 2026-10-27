@@ -211,13 +211,56 @@
   }
 
   /** tagsOf() less anything that would name the university — for a locked row. */
+  /*
+   * Round 175. The first cut only dropped a tag that WAS the title, the
+   * university or the city — and the office's first tag on every imported
+   * row is the title minus its degree ("Advanced Materials and
+   * Manufacturing" for "M.Sc. Advanced Materials and Manufacturing"), which
+   * is the title. What stays now is only a CATEGORY: a dictionary entry of a
+   * non-identity type (language, requirement, intake, deadline, degree,
+   * feature, a bachelor's subject, a programme phrase shared by several
+   * programmes), or the row's own field. Never:
+   *   (a) the title, (b) the title with its degree stripped, (c) any tag
+   *   longer than 18 characters that sits inside the title, (d) a word of the
+   *   title that is not in the dictionary, (e) the university, its short
+   *   name or its city, or (f) a 'Programme' entry the office's sheet gives
+   *   to fewer than three programmes — one or two is a name, not a subject.
+   * One exception to (b): a bare title that is itself a SUBJECT the sheet
+   * gives to many programmes — "Data Science", "Economics", "Mathematics"
+   * (a Bachelor entry, or a Programme entry carried by ten or more) — stays,
+   * because it is what the tag search is for and it singles out nothing.
+   * The same test softens (c): "Electrical Engineering" sits inside many a
+   * title and is a subject hundreds share, so it stays; "Advanced Materials
+   * and Manufacturing" (one programme) goes.
+   * The same test decides (g) every word or phrase taken FROM the title:
+   * "Mathematical" + "Economics" in title order is the title again, so a
+   * title word stays only when it is such a subject.
+   */
+  const SUBJECT_MIN = 10;
+  const isSubject = e => !!e && !IDENTITY.includes(e.type) && (e.type === 'Bachelor' || e.count >= SUBJECT_MIN);
+  const DEGREE_PREFIX = /^\s*(?:(?:M\.?\s?Sc\.?|B\.?\s?Sc\.?|M\.?\s?A\.?|B\.?\s?A\.?|M\.?\s?Eng\.?|B\.?\s?Eng\.?|MBA|LL\.?\s?M\.?|M\.?\s?Ed\.?|MFA|MPH|MS|PhD)\b\.?\s*(?:in\s+)?)+/i;
+  const DEGREE_SUFFIX = /\s*[(,\-–]\s*(?:M\.?\s?Sc\.?|B\.?\s?Sc\.?|M\.?\s?A\.?|B\.?\s?A\.?|M\.?\s?Eng\.?|MBA|LL\.?\s?M\.?)\.?\s*\)?\s*$/i;
+  const stripDegree = s => String(s || '').replace(DEGREE_PREFIX, '').replace(DEGREE_SUFFIX, '').trim();
   function publicTags(p) {
-    /* The exact title goes too: /api/catalogue withholds it on a locked row
-       (only its length travels), and a tag that IS the title would hand it
-       back. Its words and the dictionary phrases in it stay — "Data" says
-       what the row is about, not which university it is. */
-    const own = new Set([p.university, p.shortName, p.city, p.program].map(fold).filter(Boolean));
-    return tagsOf(p).filter(t => !IDENTITY.includes(typeOf(t)) && !own.has(fold(t)));
+    if (!p) return [];
+    const title = String(p.program || '');
+    const titleK = fold(title), bareK = fold(stripDegree(title));
+    const own = new Set([p.university, p.shortName, p.city].map(fold).filter(Boolean));
+    const field = fold(p.field);
+    return tagsOf(p).filter(t => {
+      const k = fold(t);
+      if (!k) return false;
+      if (own.has(k) || k === titleK) return false;                           // (a) (e)
+      if (k === field) return true;                                           // the row's own field
+      const e = lookup(t);
+      const type = e ? e.type : typeOf(t);
+      if (!type || IDENTITY.includes(type)) return false;                     // (d) (e)
+      if (k.length > 18 && titleK.includes(k) && !isSubject(e)) return false; // (c)
+      if (k === bareK && !isSubject(e)) return false;                         // (b)
+      if (e && e.type === 'Programme' && e.count < 3) return false;           // (f)
+      if ((' ' + titleK + ' ').includes(' ' + k + ' ') && !isSubject(e)) return false;   // (g)
+      return true;
+    });
   }
 
   /* ----------------------------------------------------------- suggest() */

@@ -100,8 +100,10 @@ const toCsv = rows => rows.map(r => r.map(c => {
   const cat = await (await admin.request.get(BASE + '/api/staff/catalogue?per=500')).json();
   const prog = (cat.programmes || cat.items || [])[0];
   ok(!!prog, 'there is a programme to put on their list');
+  /* Round 175: a programme whose every deadline has passed is a 409 until
+     "Add anyway" (force) — the seeded rows' dates are last year's. */
   const add = await admin.request.post(BASE + '/api/staff/student/' + SID + '/shortlist',
-    { data: { id: prog.id } });
+    { data: { id: prog.id, force: true } });
   ok(add.ok(), 'the office can add it — ' + add.status());
 
   /* ============================================ 1. the message names the course */

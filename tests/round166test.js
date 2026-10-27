@@ -86,8 +86,13 @@ const BUYERS = [
 const PKGS = [['pkg-three-public', 3], ['pkg-roadmap', 5], ['pkg-offer', 10]];
 
 const tier = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
-/* screen()'s own order, server/matches.js byScore. */
-const cmp = (a, b) => b.relevance - a.relevance || tier(a) - tier(b) || b.score - a.score || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
+/* screen()'s own order, server/matches.js byRank: relevance, tier, the
+   deadline's standing (round 175: confirmed open 14+ days away, inside 14
+   days, rolled from last year, no dates, cannot roll), score, the sooner
+   deadline, fee, id. */
+const dl = r => M.deadlineInfo(r);
+const dlTime = r => (dl(r).next ? dl(r).next.getTime() : Infinity);
+const cmp = (a, b) => b.relevance - a.relevance || tier(a) - tier(b) || dl(a).rank - dl(b).rank || b.score - a.score || dlTime(a) - dlTime(b) || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
 const idsOf = x => (x.fits || []).map(y => String(y.id));
 /* One per university, the way pick() counts them (uniKeys: name, or city + kind of school). */
 const firstUnis = (rows, n) => { const out = [], seen = new Set(); for (const p of rows) { const ks = M.uniKeys(p); if (ks.some(k => seen.has(k))) continue; ks.forEach(k => seen.add(k)); out.push(p); if (out.length >= n) break; } return out; };

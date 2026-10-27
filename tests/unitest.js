@@ -37,8 +37,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('it lists every university in the catalogue once', new Set(links).size === unis.size,
     links.length + ' links for ' + unis.size + ' universities');
   check('grouped under the country', /<h2 id="germany">/.test(html));
-  check('and says what each costs and how many programmes it has',
-    /from ₹|no tuition/.test(html) && /\d+ programmes? →/.test(html));
+  /* Round 175 (leak item 1): no per-university programme count — numbers
+     are not required, and a public university's count helped pick it out
+     of a locked finder row. */
+  check('and says what each costs, with no programme count',
+    /from ₹|no tuition/.test(html) && !/\d+ programmes? →/.test(html) && /Programmes →/.test(html));
   check('indexable, with a canonical', /content="index,follow/.test(html)
     && /<link rel="canonical" href="https:\/\/glovels\.example\/university">/.test(html));
 
@@ -362,7 +365,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await dp.waitForFunction(n => document.querySelectorAll('#uList li').length !== n, nBefore, { timeout: 5000 }).catch(() => {});
   const nAfter = await dp.locator('#uList li').count();
   check('choosing a CGPA on the page redraws the list', nAfter > 0 && nAfter < nBefore, nBefore + ' → ' + nAfter);
-  check('and says how many match', /universit(y|ies) match/.test(await dp.textContent('#uCount')));
+  /* Round 175: no count ("Showing 50 of 206") — numbers are not for the visitor. */
+  check('and says the list is the matching ones, without a count', /Universities that match/.test(await dp.textContent('#uCount')) && !/\d/.test(await dp.textContent('#uCount')));
   await dp.click('#ufClear');
   await dp.waitForFunction(n => document.querySelectorAll('#uList li').length === n, nBefore, { timeout: 5000 }).catch(() => {});
   check('Clear filters puts the first list back', await dp.locator('#uList li').count() === nBefore && await dp.locator('#ufClear').isHidden());

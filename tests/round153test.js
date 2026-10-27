@@ -27,10 +27,15 @@ ok('the new fields clean to their types', cl.greQuant === 160 && cl.greAwa === 4
 ok('an ECTS outside 180–240 is refused, not clamped', R.clean({ ectsMin: '120' }).refused.some(x => x.field === 'ectsMin'));
 
 /* B. check(). */
-let v = R.check({ ieltsMin: 6.5, moiAccepted: true }, { ielts: 6 });
-ok('MOI accepted + short IELTS: no fail, a note', v.fails.length === 0 && v.notes.includes('clears via MOI letter'), J(v));
-v = R.check({ ieltsMin: 6.5, moiAccepted: true }, {});
+/* Round 175 (item 6): the letter clears only when the student HAS one
+   (s.moi). A short score with no letter said is a miss, with a note that a
+   letter would clear it. */
+let v = R.check({ ieltsMin: 6.5, moiAccepted: true }, { ielts: 6, moi: true });
+ok('MOI accepted + short IELTS + an MOI letter: no fail, a note', v.fails.length === 0 && v.notes.includes('clears via MOI letter'), J(v));
+v = R.check({ ieltsMin: 6.5, moiAccepted: true }, { moi: true });
 ok('  · and with no score at all, the same note', v.fails.length === 0 && v.unknown.length === 0 && v.notes.length === 1, J(v));
+v = R.check({ ieltsMin: 6.5, moiAccepted: true }, { ielts: 6 });
+ok('  · but a short IELTS with no letter said is a miss (round 175), with a note that a letter would clear it', v.fails.length === 1 && v.notes.some(n => /MOI letter would clear/.test(n)) && !v.notes.includes('clears via MOI letter'), J(v));
 v = R.check({ ieltsMin: 6.5 }, { ielts: 6 });
 ok('  · but a short IELTS still misses where MOI is not stated', v.fails.length === 1 && !v.notes.length, J(v));
 v = R.check({ greQuant: 160 }, M.answersOf({ a_test: 'GRE', a_score: '320', a_quant: '155' }));
@@ -83,7 +88,11 @@ ok('restricted "yes" keeps only it', J(nc) === '["nc"]', nc);
 const all = M.screen(cat, P, C, {});
 const ncRow = all.fits.find(x => x.id === 'nc'), moiRow = all.fits.find(x => x.id === 'moi'), pubRow = all.fits.find(x => x.id === 'pub');
 ok('rows carry feeModel, restricted and notes', ncRow && ncRow.restricted === true && pubRow.feeModel === 'package' && all.fits.find(x => x.id === 'priv').feeModel === 'free', J(all.fits.map(x => [x.id, x.feeModel, x.restricted])));
-ok('  · the MOI row fits an IELTS 6.5 student and says why', moiRow && moiRow.notes.includes('clears via MOI letter'), J(moiRow));
+/* Round 175: on the list (English only ranks), short on English, and told a letter would clear it. */
+ok('  · the MOI row stays on the list for an IELTS 6.5 student with no letter, ranked lower, and says a letter would clear it',
+  moiRow && (moiRow.soft || []).some(s => /English test/.test(s)) && moiRow.notes.some(n => /MOI letter would clear/.test(n)) && !moiRow.notes.includes('clears via MOI letter'), J(moiRow));
+const moiRowL = M.screen(cat, Object.assign({}, P, { d_moi: 'yes' }), C, {}).fits.find(x => x.id === 'moi');
+ok('  · with the letter (d_moi yes) it clears via MOI and says why', moiRowL && moiRowL.notes.includes('clears via MOI letter') && !(moiRowL.soft || []).some(s => /English test/.test(s)), J(moiRowL));
 const askRow = M.screen([row('q', { reqs: { greQuant: 160 } })], Object.assign({}, P, { a_test: 'GRE', a_score: '320' }), C, {}).near[0] || {};
 ok('an unanswered section is asked for in words', (M.screen([row('q', { reqs: { greQuant: 160 } })], Object.assign({}, P, { a_test: 'GRE', a_score: '320' }), C, {}).fits[0] || askRow).ask.includes('GRE section scores'));
 

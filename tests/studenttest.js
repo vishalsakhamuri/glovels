@@ -98,7 +98,8 @@ const seen = (p, s) => p.isVisible(s).catch(() => false);
     multipart: {
       key: 'passport',
       file: { name: 'passport.pdf', mimeType: 'application/pdf',
-        buffer: Buffer.from('%PDF-1.4 passport ' + S) },
+        /* Round 175: a PDF under 128 bytes is refused as not a real scan. */
+        buffer: Buffer.from('%PDF-1.4 passport ' + S + '\n%' + 'x'.repeat(200) + '\n%%EOF') },
     },
   });
   ok(up.ok(), 'the student uploads a passport — ' + up.status());

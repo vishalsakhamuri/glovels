@@ -227,8 +227,10 @@ const PROFILE = { fullName: 'Stage', phone: '+919000006060', d_cgpa: '8.2',
   const swapTo = (await (await office.request.get(BASE + '/api/staff/catalogue?per=500')).json())
     .programmes.find(p => p.isPublic && p.country === 'DE'
       && !(rich.state.shortlist || []).some(s => String(s.id) === String(p.id)));
+  /* Round 175: a programme whose every deadline has passed is a 409 until
+     "Add anyway" (force) — the seeded rows' dates are last year's. */
   const added = await office.request.post(BASE + '/api/staff/student/' + them.id + '/shortlist',
-    { data: { id: swapTo.id } });
+    { data: { id: swapTo.id, force: true } });
   check('and put a different one on in its place', added.status() === 200, added.status());
   const after = await (await rich.ctx.request.get(BASE + '/api/state')).json();
   check('the student sees the swap on their own screen',

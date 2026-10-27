@@ -326,6 +326,9 @@ const filledPosts = seed.fillEmptyPosts({ db, root: ROOT });
 /* Round 172: links to nowhere — [M.Sc](http://M.Sc), a Wix auto-link — taken
    out of every stored post, once. The renderer refuses them regardless. */
 seed.repairBlogLinks({ db });
+/* 27 Oct: baked German rows that duplicate an office-sheet row are retired
+   once, with students' records moved to the sheet row. */
+seed.retireSeedDuplicates({ db });
 
 /*
  * One email a morning, to the people who can do something about it.
@@ -353,6 +356,16 @@ digest.start({
  * one is late" — and because an office that mutes one should not lose the
  * other.
  */
+/* Round 175 (item 5): files on students' records that fail today's type and
+   size checks — uploaded before the checks existed — are marked 'bad' at
+   startup and every ten minutes, so no screen can call them verified.
+   Nothing is deleted (server/filecheck.js). */
+const FILECHECK = require('./server/filecheck.js');
+const docSweep = () => { try { FILECHECK.sweep(db, UPLOADS, line => console.log(line)); } catch (e) { console.error('  [docs] sweep failed:', e && e.message); } };
+docSweep();
+const docSweepTimer = setInterval(docSweep, 10 * 60 * 1000);
+if (docSweepTimer.unref) docSweepTimer.unref();
+
 const sla = require('./server/sla.js');
 sla.start({
   db, mail, notify, live, push, emails: require('./server/emails.js'),
@@ -1137,7 +1150,7 @@ const USEARCH_JS = `<script>(function(){
     out.innerHTML = (U.length ? '<h5>Universities</h5>' + U.map(function (u) {
         return '<a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
           + esc([u.city, u.countryName].filter(Boolean).join(', ')) + '</small></span>'
-          + '<span class="n">' + u.programmes + ' programme' + (u.programmes === 1 ? '' : 's') + ' \u2192</span></a>'; }).join('') : '')
+          + '<span class="n">Open \u2192</span></a>'; }).join('') : '')
       + (P.length ? '<h5>Programmes</h5>' + P.map(function (p) {
         return '<a href="' + esc(p.url) + '"><span><b>' + esc(p.program) + '</b><small>'
           + esc(p.university) + ' \u00b7 ' + esc(p.countryName) + '</small></span><span class="n">Open \u2192</span></a>'; }).join('') : '');
@@ -1402,8 +1415,10 @@ function universityPage(u, req) {
     : (u.isPublic && c.minCgpaPublic ? c.minCgpaPublic + '+ on 10 (' + c.name + ' public)'
       : (!u.isPublic && c.minCgpaPrivate ? c.minCgpaPrivate + '+ on 10' : 'Assessed on your profile'));
 
+  /* Round 175: no "Programmes we track: N". Numbers are not required on a
+     public page, and a public university's programme count was one of the
+     three facts that picked it out from a locked finder row. */
   const facts = [
-    ['Programmes we track', n + (n === 1 ? ' programme' : ' programmes')],
     ['Type', u.isPublic ? 'Public university' : 'Private university'],
     ['Applying through Glovels', free ? 'Free — we are partnered' : 'With a package'],
     ['Total cost', feeLine],
@@ -1713,8 +1728,9 @@ function universitiesIndexPage() {
         + ' · ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
         + (u.feeModel === 'free' ? ' · free to apply through us' : '')
         + (DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad) ? ' · on the DAAD' : '')
-        + '</small></span><span class="n">' + u.programmes.length + ' programme'
-        + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>').join('')
+        /* Round 175: no programme count — numbers are not required, and a
+           public university's count helped pick it out of a locked row. */
+        + '</small></span><span class="n">Programmes →</span></a></li>').join('')
       + '</ul>';
   }).join('') || '<p style="color:var(--muted)">No universities are on the site yet.</p>';
 
@@ -2091,8 +2107,9 @@ function withDestinationUniversities(html, slug) {
       + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
       + ' · ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
       + (u.feeModel === 'free' ? ' · free to apply through us' : '')
-      + '</small></span><span class="n">' + u.programmes.length + ' programme'
-      + (u.programmes.length === 1 ? '' : 's') + ' →</span></a></li>';
+      /* Round 175 (item 2): no programme count on the row either — numbers
+         are not required (the /university list dropped its own). */
+      + '</small></span><span class="n">Programmes →</span></a></li>';
 
   /* "We can have the home page criteria — filter — on the country screen as
      well." The finder's fields, minus the country, over this country's
@@ -2120,13 +2137,15 @@ function withDestinationUniversities(html, slug) {
       + opt('2000000', 'Up to ₹20 lakh') + opt('4000000', 'Up to ₹40 lakh'))
     + sel('ufApply', 'Applying', opt('', 'Free or with a package') + opt('free', 'Free to apply through us'))
     + '<div class="field act"><button type="button" class="btn btn-ghost" id="ufClear" hidden>Clear filters</button></div>'
-    + '</form><p class="ucount" id="uCount" aria-live="polite">' + (more ? 'Showing ' + lead.length + ' of ' + total : total) + ' universit'
-    + (total === 1 ? 'y' : 'ies') + ' in ' + esc(c.name) + '</p>';
+    /* Round 175 (item 2): no "Showing 50 of 206" — numbers are not for the
+       visitor (owner rule); the line names what the list is, nothing more. */
+    + '</form><p class="ucount" id="uCount" aria-live="polite">Universities in ' + esc(c.name)
+    + (more ? ' — the ones we work with most are first; narrow the filters to find yours' : '') + '</p>';
 
   const block = '<h2 id="universities">Universities in ' + esc(c.name) + ' we place students at</h2>'
     + filterBar
     + '<ul class="ulist" id="uList">' + lead.map(li).join('') + '</ul>'
-    + '<p class="umore" id="uMore">' + (more ? 'And ' + more + ' more in ' + esc(c.name) + ' — narrow the filters above, or search below.'
+    + '<p class="umore" id="uMore">' + (more ? 'There are more in ' + esc(c.name) + ' — narrow the filters above, or search below.'
       : 'Looking for another university? Every one we track has its own page — search for it below.') + '</p>'
     /* "For more they can search — that option should be there." The same box
        the /university list has, on the country page itself. */
@@ -2154,8 +2173,7 @@ const UFILTER_JS = `<script>(function(){
       + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' \u00b7 ' + esc(u.city) : '')
       + ' \u00b7 ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + money(u.feeMin))
       + (u.feeModel === 'free' ? ' \u00b7 free to apply through us' : '')
-      + '</small></span><span class="n">' + (u.matching < u.programmes ? u.matching + ' of ' + u.programmes : u.programmes)
-      + ' programme' + (u.programmes === 1 ? '' : 's') + ' \u2192</span></a></li>';
+      + '</small></span><span class="n">' + (u.matching < u.programmes ? 'Some programmes match' : 'Programmes') + ' \u2192</span></a></li>';
   };
   function ask() {
     var s = state(), on = Object.keys(s).some(function (k) { return s[k]; });
@@ -2167,8 +2185,8 @@ const UFILTER_JS = `<script>(function(){
       if (!d || my !== seq) return;
       var U = d.universities || [];
       list.innerHTML = U.map(row).join('') || '<li style="color:var(--muted);padding:8px 0">Nothing clears every filter. Loosen one, or <a href="index.html#counsel">ask a counsellor</a> \u2014 we add universities on request.</li>';
-      count.textContent = (d.total > U.length ? 'Showing ' + U.length + ' of ' + d.total : d.total) + ' universit' + (d.total === 1 ? 'y matches' : 'ies match');
-      moreEl.textContent = d.total > U.length ? 'And ' + (d.total - U.length) + ' more match \u2014 narrow the filters, or search below.' : 'Every one has its own page. Search for another below.';
+      count.textContent = U.length ? 'Universities that match your filters' : 'No university matches every filter';
+      moreEl.textContent = d.total > U.length ? 'More match than fit here \u2014 narrow the filters, or search below.' : 'Every one has its own page. Search for another below.';
     }).catch(function () {});
   }
   f.addEventListener('change', ask);
@@ -3034,7 +3052,12 @@ const server = http.createServer(async (req, res) => {
     /* The home page's baked public rows too: the live catalogue brings them
        back as locked rows with stand-in ids, and the baked ones carried the
        real ids (patch 146). */
-    if (slug === 'index' && path.dirname(file) === ROOT) html = withoutPublicSeed(html, file, ['"programs": [']);
+    /* Round 175: the showcase's baked list (`const P = [`) as well — its
+       public rows carried the real university key (a hash of the name, which
+       the public university list reverses) and the hidden name's length. The
+       live catalogue replaces the list on load, and in gated mode a public
+       row never reaches the showcase anyway. */
+    if (slug === 'index' && path.dirname(file) === ROOT) html = withoutPublicSeed(html, file, ['"programs": [', 'const P = [']);
     /* The "Real journeys, real outcomes" rail's link, straight to /success-stories. */
     if (slug === 'index' && path.dirname(file) === ROOT) html = STORIES.withHomeLink(html, { db, content });
     if (slug.startsWith('study-in-')) {

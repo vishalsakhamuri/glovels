@@ -144,8 +144,10 @@ const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toI
   const cat = (await req('a', 'GET', '/api/staff/catalogue?q=bremen&per=6&status=')).body.programmes || [];
   const pA = cat[0], pB = cat[1];
   if (pA && pB) {
-    await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: pA.id });
-    await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: pB.id });
+    /* Round 175: a programme whose every deadline has passed is a 409 until
+       "Add anyway" — the Bremen rows' dates are last year's, so say so. */
+    await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: pA.id, force: true });
+    await req('a', 'POST', '/api/staff/student/' + sid + '/shortlist', { id: pB.id, force: true });
     /* Round 172 (N17-03): an outcome is only recorded at "Decision" (stage 4). */
     r = await req('a', 'PUT', '/api/staff/student/' + sid + '/application/' + encodeURIComponent(pA.id), { stage: 4, outcome: 'offer' });
     ok('CNS-01: an application is filed with an offer', r.ok, r.status + ' ' + r.text.slice(0, 160));

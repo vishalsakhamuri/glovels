@@ -69,8 +69,10 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
   const progs = (cat.programmes || []).slice(0, 5);
   ok(progs.length === 5, 'five programmes to work with — ' + progs.length);
   for (const p of progs) {
+    /* Round 175: a programme whose every deadline has passed is a 409 until
+       "Add anyway" (force) — the seeded rows' dates are last year's. */
     const r = await admin.request.post(BASE + '/api/staff/student/' + SID + '/shortlist',
-      { data: { id: p.id } });
+      { data: { id: p.id, force: true } });
     ok(r.ok(), 'shortlisted ' + p.id + ' — ' + r.status());
   }
   const app = (id, body) => admin.request.put(

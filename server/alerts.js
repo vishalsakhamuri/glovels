@@ -514,7 +514,12 @@ function all(db, now) {
      alerts — the key was the phone first, else the email. Leads are now
      joined when they share EITHER the phone (last ten digits) or the email
      (lower-cased), transitively. */
-  const enquiries = db.allEnquiries();
+  /* Round 175 (item 7): an enquiry from a staff member's own number or email,
+     or from a test account, is the office testing its own form — never a
+     lead nobody has called. Left in the book (with an "Internal" chip), left
+     out of every alert. */
+  const internal = typeof db.internalEnquiryTest === 'function' ? db.internalEnquiryTest() : (() => false);
+  const enquiries = db.allEnquiries().filter(e => !internal(e));
   const parent = new Map();
   const find = x => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
   const join = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };

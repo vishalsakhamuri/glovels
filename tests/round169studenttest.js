@@ -235,7 +235,8 @@ const PW = 'glovels123';
   const nid = ((await su.json().catch(() => ({}))).user || {}).id;
   const deId = (cat.find(p => p.country === 'DE' && /M\.?\s?Sc|Master/i.test(p.program || '')) || {}).id;
   if (nid && deId) {
-    await A.request.post(BASE + '/api/staff/student/' + nid + '/shortlist', { data: { id: deId } });
+    /* Round 175: a closed-deadline programme is a 409 until "Add anyway" (force). */
+    await A.request.post(BASE + '/api/staff/student/' + nid + '/shortlist', { data: { id: deId, force: true } });
     const sp = await page(N, '/scholarships');
     const dest = await sp.$eval('#pCountry', e => e.textContent).catch(() => '');
     const lvl = await sp.$eval('#pLevel', e => e.textContent).catch(() => '');

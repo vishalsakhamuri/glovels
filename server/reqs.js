@@ -269,34 +269,34 @@ function check(reqs, student) {
     const haveI = num(s.ielts), haveT = num(s.toefl);
     const okI = wantI != null && haveI != null && haveI >= wantI;
     const okT = wantT != null && haveT != null && haveT >= wantT;
+    const wantTxt = [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ');
+    const haveTxt = [haveI != null ? 'IELTS ' + haveI : null, haveT != null ? 'TOEFL ' + haveT : null].filter(Boolean).join(', ');
     if (okI || okT) { /* clears */ }
-    /* Patch 153: where the programme ACCEPTS an MOI letter, English can
-       never be the thing that fails. A short IELTS, or no test at all, is
-       covered by the bachelor's having been taught in English — the Germany
-       sheet says so for most public universities — and the student is told
-       that this is what carries them, because it is a letter they have to
-       go and get. */
-    else if (r.moiAccepted === true) notes.push('clears via MOI letter');
-    /* Patch 149: a Medium of Instruction letter clears where it is accepted,
-       fails where the programme says it is not, and is a question otherwise. */
-    else if (s.moi === true && haveI == null && haveT == null) {
-      if (r.moiAccepted === true) { /* clears */ }
+    /* Round 175 (item 6), replacing patch 153's rule: the MOI letter carries
+       a student only when the student HAS one (s.moi — the profile's English
+       answer, or the matcher's "MOI letter: yes"). Before, a programme that
+       accepted MOI cleared an IELTS 4 with "clears via MOI letter" though
+       nobody had mentioned a letter. Where the student has the letter: it
+       clears where accepted, misses where refused, and misses "not
+       confirmed" where the programme has not said (patch 149). Without one,
+       a short score or no score is a miss or a question as for any other
+       programme — ranked lower, never hidden — with a note that a letter
+       would clear it, so the counsellor knows to ask for one. */
+    else if (s.moi === true) {
+      if (r.moiAccepted === true) notes.push('clears via MOI letter');
       else if (r.moiAccepted === false) fails.push({ key: 'english', label: 'English test',
-        want: [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ') + ' (MOI not accepted)',
-        have: 'MOI letter' });
+        want: wantTxt + ' (MOI not accepted)', have: haveTxt ? haveTxt + ', MOI letter' : 'MOI letter' });
       /* Not stated: most German programmes want the test, so an MOI student
          is not counted as clearing until the programme says it accepts it. */
       else fails.push({ key: 'english', label: 'English test',
-        want: [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ') + ' (MOI not confirmed)',
-        have: 'MOI letter' });
+        want: wantTxt + ' (MOI not confirmed)', have: haveTxt ? haveTxt + ', MOI letter' : 'MOI letter' });
     }
-    else if (s.englishNone === true) fails.push({ key: 'english', label: 'English test',
-      want: [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or '),
-      have: 'not taken yet' });
-    else if (haveI == null && haveT == null) unknown.push('english');
-    else fails.push({ key: 'english', label: 'English test',
-      want: [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or '),
-      have: [haveI != null ? 'IELTS ' + haveI : null, haveT != null ? 'TOEFL ' + haveT : null].filter(Boolean).join(', ') });
+    else {
+      if (s.englishNone === true) fails.push({ key: 'english', label: 'English test', want: wantTxt, have: 'not taken yet' });
+      else if (haveI == null && haveT == null) unknown.push('english');
+      else fails.push({ key: 'english', label: 'English test', want: wantTxt, have: haveTxt });
+      if (r.moiAccepted === true) notes.push('an MOI letter would clear English here — ask for one');
+    }
   }
   /* GRE: the student answers with a score, or with "not taken" (false or 0).
      Required with no figure: any score clears, "not taken" fails. */

@@ -113,7 +113,9 @@ const fakeSub = (tag) => ({
      A student turning notifications on their own phone is not office business,
      and a line per student per device would bury what somebody reads. */
   const readLog = async () => {
-    const r = await admin.request.get(BASE + '/api/staff/catalogue?per=500');
+    /* Round 175: the Catalogue screen's trail shows catalogue events only;
+       the whole trail is on the content screen. */
+    const r = await admin.request.get(BASE + '/api/staff/content');
     const b = await r.json().catch(() => ({}));
     return Array.isArray(b.audit) ? b.audit : null;
   };
