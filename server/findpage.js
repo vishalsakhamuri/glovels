@@ -86,12 +86,15 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     return FIND.toQuery(c);
   }
 
-  const opt = (v, label, n, cur) => '<label class="fopt' + (n === 0 ? ' none' : '') + '"><input type="' + (cur.multi ? 'checkbox' : 'radio') + '" name="' + cur.name + '" value="' + esc(v) + '"' + (cur.value === v ? ' checked' : '') + '> <span>' + (cur.flag || '') + esc(label) + '</span><em>' + Number(n || 0).toLocaleString('en-IN') + '</em></label>';
+  /* Round 176: no count beside an option. "Numbers not required" — and the
+     numbers on the rail added up to the hidden set. An option is offered
+     when any row carries the value; nothing says how many. */
+  const opt = (v, label, n, cur) => '<label class="fopt' + (n === 0 ? ' none' : '') + '"><input type="' + (cur.multi ? 'checkbox' : 'radio') + '" name="' + cur.name + '" value="' + esc(v) + '"' + (cur.value === v ? ' checked' : '') + '> <span>' + (cur.flag || '') + esc(label) + '</span></label>';
 
-  /* The rail, rendered once here and re-counted in the browser. */
+  /* The rail, rendered once here; the browser keeps the same options. */
   function railHtml(f, R, countries) {
     const g = (title, body, open) => '<details class="fg"' + (open ? ' open' : '') + '><summary>' + esc(title) + '</summary><div class="fgb">' + body + '</div></details>';
-    const cs = Object.keys(R.facets.country).sort((a, b) => R.facets.country[b] - R.facets.country[a]);
+    const cs = Object.keys(R.facets.country).sort((a, b) => String(countries[a] ? countries[a].name : a).localeCompare(String(countries[b] ? countries[b].name : b)));
     const dest = '<label class="fopt"><input type="radio" name="country" value=""' + (!f.country ? ' checked' : '') + '> <span>All destinations</span></label>'
       + cs.map(c => opt(c, (countries[c] ? countries[c].name : c), R.facets.country[c],
         { name: 'country', value: f.country, flag: FIND.flagImg(c, countries[c] ? countries[c].name : c, 20) + ' ' })).join('');
@@ -113,16 +116,16 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       + '<label class="fcgnone"><input type="checkbox" id="fcgnone"' + (f.cgpa ? '' : ' checked') + '> Not told us yet</label>'
       + (f.cgpa ? '<button type="button" class="flink" data-clear="cgpa">clear</button>' : '') + '</div>';
     const tu = [['', 'Any tuition', null], ['0', 'No tuition fee', R.facets.tuition0], ['500', 'Up to €500 / semester', null], ['1500', 'Up to €1,500', null], ['4000', 'Up to €4,000', null], ['6000', 'Up to €6,000', null]]
-      .map(([v, l, n]) => '<label class="fopt"><input type="radio" name="tuition" value="' + v + '"' + ((f.tuition || '') === v ? ' checked' : '') + '> <span>' + l + '</span>' + (n != null ? '<em>' + n + '</em>' : '') + '</label>').join('');
+      .map(([v, l, n]) => '<label class="fopt' + (n === 0 ? ' none' : '') + '"><input type="radio" name="tuition" value="' + v + '"' + ((f.tuition || '') === v ? ' checked' : '') + '> <span>' + l + '</span></label>').join('');
     const terms = FIND.upcomingTerms(4).filter(t => R.facets.intake[t.key]);
     const it = '<label class="fopt"><input type="radio" name="intake" value=""' + (!f.intake ? ' checked' : '') + '> <span>Any intake</span></label>'
       + terms.map(t => opt(t.key, t.season.charAt(0).toUpperCase() + t.season.slice(1) + ' ' + t.year, R.facets.intake[t.key], { name: 'intake', value: f.intake })).join('');
     const ap = '<label class="fopt"><input type="radio" name="apply" value=""' + (!f.apply ? ' checked' : '') + '> <span>Either</span></label>'
       + opt('free', 'Free to apply', R.facets.apply.free, { name: 'apply', value: f.apply })
       + opt('package', 'With a package', R.facets.apply.package, { name: 'apply', value: f.apply });
-    const te = '<label class="fopt"><input type="checkbox" name="moi" value="1"' + (f.moi ? ' checked' : '') + '> <span>MOI letter accepted</span><em>' + R.facets.moi + '</em></label>'
-      + '<label class="fopt"><input type="checkbox" name="nogre" value="1"' + (f.nogre ? ' checked' : '') + '> <span>No GRE needed</span><em>' + R.facets.nogre + '</em></label>'
-      + '<label class="fopt"><input type="checkbox" name="restricted" value="open"' + (f.restricted === 'open' ? ' checked' : '') + '> <span>Open admission only</span><em>' + R.facets.open + '</em></label>';
+    const te = '<label class="fopt"><input type="checkbox" name="moi" value="1"' + (f.moi ? ' checked' : '') + '> <span>MOI letter accepted</span></label>'
+      + '<label class="fopt"><input type="checkbox" name="nogre" value="1"' + (f.nogre ? ' checked' : '') + '> <span>No GRE needed</span></label>'
+      + '<label class="fopt"><input type="checkbox" name="restricted" value="open"' + (f.restricted === 'open' ? ' checked' : '') + '> <span>Open admission only</span></label>';
     return g('Destination', dest, true) + g('Level', level, true) + g('Field', field, !!f.field) + g('Your CGPA', cg, !!f.cgpa)
       + g('Tuition', tu, !!f.tuition) + g('Intake', it, !!f.intake) + g('Applying', ap, !!f.apply) + g('Tests & admission', te, !!(f.moi || f.nogre || f.restricted))
       + '<details class="fg" id="ftagsGroup" open' + (FIND.tagList(f.tags).length ? '' : ' hidden') + '><summary>Tags</summary><div class="fgb" id="ftagsRail">' + tagsRailHtml(f) + '</div></details>';
@@ -152,16 +155,29 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
   function profileStrip(R) {
     if (R.said) {
       const parts = Object.keys(R.student).filter(k => k !== 'restrictedOk').length;
+      /* Round 176: no count of the rows turned away — a count of the
+         hidden set is what it would be. */
       return '<div class="fprof said"><b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
-        + (R.turned ? R.turned.toLocaleString('en-IN') + ' programme' + (R.turned === 1 ? '' : 's') + ' ask a higher CGPA and ' + (R.turned === 1 ? 'is' : 'are') + ' not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
+        + (R.turned ? 'Some programmes ask a higher CGPA and are not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
         + '<a href="index.html#find">Change your answers →</a></div>';
     }
     return '<div class="fprof"><b>Tell us your scores to see which of these would take you.</b> Your CGPA, IELTS and bachelor’s length are enough to start — '
       + '<a href="index.html#find">add them on the finder →</a> or <a href="login.html?signup=1">create a free account</a> and we keep them.</div>';
   }
 
-  function bodyHtml(f, R, countries) {
-    const rows = R.rows.slice(0, PAGE);
+  /* Round 176: the line under the list when locked rows were left out —
+     that there are more, never how many. Shared with the browser (FIND_PAGE_JS
+     draws the same words). */
+  const MORE_LOCKED = '<div class="fmore-locked" id="fmoreLocked">More public universities match — <a href="index.html#packages">a package opens them</a>.</div>';
+  /* Round 176: the summary names the list; it never counts it. */
+  const SUMMARY = { some: 'Programmes that match your filters', none: 'Nothing matches every filter — loosen one' };
+
+  function bodyHtml(f, R, countries, moreLocked) {
+    /* Round 176: at most LOCKED_CAP locked rows on the page, and no
+       "N programmes at M universities" anywhere on it. */
+    const capped = FIND.capLocked(R.rows, FIND.LOCKED_CAP);
+    capped.more = capped.more || !!moreLocked;
+    const rows = capped.rows.slice(0, PAGE);
     const ctx = { countries, said: R.said };
     const list = rows.length ? rows.map(p => FIND.rowHtml(p, ctx)).join('') : FIND.emptyHtml(f);
     const sort = '<label class="fsort">Sort <select id="fsort">' + Object.keys(FIND.SORTS).map(k => '<option value="' + k + '"' + ((f.sort || FIND.defaultSort(R.said)) === k ? ' selected' : '') + '>' + FIND.SORTS[k] + '</option>').join('') + '</select></label>';
@@ -173,13 +189,14 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       + '<div class="flayout"><button type="button" class="btn btn-sm fsheet-btn" id="fsheetBtn" aria-controls="frail" aria-expanded="false">Filters<span id="fcount"></span></button>'
       + '<aside class="frail" id="frail"><div class="frail-head"><b>Filters</b><button type="button" class="flink" id="fsheetClose">Done</button></div>' + railHtml(f, R, countries) + '</aside>'
       + '<div class="fresults">'
-      + '<div class="fhead"><h2 id="fsummary">' + R.total.toLocaleString('en-IN') + ' programme' + (R.total === 1 ? '' : 's') + ' at ' + R.unis.toLocaleString('en-IN') + ' universit' + (R.unis === 1 ? 'y' : 'ies') + (R.total === 1 ? ' matches' : ' match') + '</h2>'
+      + '<div class="fhead"><h2 id="fsummary">' + (rows.length ? SUMMARY.some : SUMMARY.none) + '</h2>'
       + '<div class="ftools">' + sort + view + '<button type="button" class="btn btn-sm" id="fshare">Share this search</button></div></div>'
       + profileStrip(R)
-      + '<div id="flist" class="flist" data-total="' + R.total + '">' + list + '</div>'
-      + (R.total > PAGE ? '<div class="fpage"><button type="button" class="btn btn-sm" id="fmore">Show ' + Math.min(PAGE, R.total - PAGE) + ' more</button></div>' : '')
+      + '<div id="flist" class="flist">' + list + '</div>'
+      + (capped.more ? MORE_LOCKED : '')
+      + (capped.rows.length > PAGE ? '<div class="fpage"><button type="button" class="btn btn-sm" id="fmore">Show more</button></div>' : '')
       + '</div></div></form>'
-      + '<div class="fcmp" id="fcmp" hidden><span id="fcmpText">Comparing 0 programmes</span><button type="button" class="btn btn-green btn-sm" id="fcmpGo">Compare side by side →</button><button type="button" class="flink" id="fcmpClear">Clear</button></div>'
+      + '<div class="fcmp" id="fcmp" hidden><span id="fcmpText">Pick programmes to compare</span><button type="button" class="btn btn-green btn-sm" id="fcmpGo">Compare side by side →</button><button type="button" class="flink" id="fcmpClear">Clear</button></div>'
       + '<div class="fmodal" id="fmodal" hidden><div class="fmodal-in" role="dialog" aria-modal="true" aria-labelledby="fmodalH"><div class="fmodal-head"><h2 id="fmodalH">Side by side</h2><button type="button" class="flink" id="fmodalClose">Close</button></div><div id="fmodalBody"></div></div></div>';
   }
 
@@ -196,13 +213,25 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
        same as /api/find/unis answers a signed-out browser. */
     const namedKeys = new Set(rows.filter(r => r.university).map(r => String(r.uKey)));
     const uniKeys = f.q ? UNISEARCH.match(liveCatalogue().filter(p => !p.searchOnly && namedKeys.has(String(p.uKey))), f.q) : null;
-    const R = FIND.run(rows, f, REQS, { countries, uniKeys });
+    /* Round 176: the locked rows that fit are capped (find.js capLocked)
+       and the list is run AGAIN on the named rows plus the kept dozen, so
+       the 70/30 mix and the ranking are made of what the page will draw. */
+    rows.forEach((p, i) => { p._ix = i; });
+    let R = FIND.run(rows, f, REQS, { countries, uniKeys });
+    const capped = FIND.capLocked(R.rows, FIND.LOCKED_CAP);
+    let more = capped.more;
+    if (more) {
+      const kept = new Set(capped.rows.filter(p => p._locked).map(p => p._ix));
+      R = FIND.run(rows.filter(p => !FIND.locked(p) || kept.has(p._ix)), f, REQS, { countries, uniKeys });
+    }
     const name = FIND.title(f, countries, null);
     const title = FIND.title(f, countries, R.total);
     const indexable = Object.keys(f).every(k => CANON_KEYS.includes(k)) && R.total > 0;
     const canonical = absolute('/find-university' + canonicalQuery(f));
-    const desc = R.total.toLocaleString('en-IN') + ' programmes at ' + R.unis + ' universities' + (f.country && countries[f.country] ? ' in ' + countries[f.country].name : '')
-      + ' — what each costs in total, when to apply, the CGPA and English score it asks for, and which ones you can apply to free through Glovels.';
+    /* Round 176: no count in the description either — it is the page's
+       text to a crawler and to a visitor, and the number was the hidden set. */
+    const desc = name + (f.country && countries[f.country] && !/ in /.test(name) ? ' in ' + countries[f.country].name : '')
+      + ' — what each programme costs in total, when to apply, the CGPA and English score it asks for, and which ones you can apply to free through Glovels.';
     const page = fill(t.page, Object.assign(metaHoles({
       title, desc, canonical, keywords: 'find university, ' + name.toLowerCase() + ', fees, intakes, CGPA, Indian students',
       image: defaultOg, imageAlt: 'Glovels — find your university', type: 'website', indexable,
@@ -218,7 +247,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       ] }),
       DATELINE: 'Every programme we track, filtered to what fits you. Change a filter and the address changes with it — bookmark it, share it, come back to it.',
       CRUMBS: '<a href="index.html">Home</a> / Find University',
-      BODY: bodyHtml(f, R, countries),
+      BODY: bodyHtml(f, R, countries, more),
     }));
     /* The logo index too, so the rows the browser fetches as a signed-in
        visitor — named, but not by this render — get their logos from the
@@ -317,6 +346,8 @@ const FIND_CSS = `<style>/* GLOVELS-FIND-CSS */
 .fempty{padding:22px;border:2px dashed var(--line);border-radius:14px;background:var(--paper);font:400 14px/1.6 var(--sans);color:var(--muted)}
 .fempty b{display:block;color:var(--navy-900);margin-bottom:4px}
 .fpage{display:flex;align-items:center;gap:14px;margin:16px 0 0;font:400 13px/1.3 var(--sans);color:var(--muted)}
+.fmore-locked{margin:12px 0 0;padding:11px 14px;border-radius:12px;background:#fdf6e6;border:1px solid #e6d5a8;font:600 13.4px/1.5 var(--sans);color:#5b4409}
+.fmore-locked a{color:inherit}
 .funi{margin:0 0 6px;font:700 15px/1.3 var(--sans);color:var(--navy-900);padding:10px 0 0}
 .fcmp{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:12px 18px;background:var(--navy-900);color:#fff;font:600 14px/1.3 var(--sans);box-shadow:0 -8px 30px rgba(0,0,0,.25)}
 .fcmp .flink{color:#c8d6e4}
@@ -356,6 +387,26 @@ var countries = BOOT.countries || {};
 var f = BOOT.f || {};
 var rows = null, result = null, shown = BOOT.page || 40, me = null;
 var saved = new Set(), compared = new Set();
+/* Round 176: the locked rows come from the server PER FILTER, capped
+   (/api/find/locked) — the page never holds the whole hidden set. named
+   is what /api/catalogue named for this viewer; lockedPool the
+   placeholders for the filter in lockedFor; lockedMore whether the cap
+   was hit. */
+var named = null, lockedPool = [], lockedFor = null, lockedAsking = null, lockedMore = false;
+var LOCKED_CAP = (F && F.LOCKED_CAP) || 12;
+var SUMMARY = { some: 'Programmes that match your filters', none: 'Nothing matches every filter — loosen one' };
+var MORE_LOCKED = 'More public universities match — <a href="index.html#packages">a package opens them</a>.';
+function lockedKey(){ var g = {}; Object.keys(f).forEach(function(k){ if (k !== 'sort' && k !== 'view') g[k] = f[k]; }); return F.toQuery(g); }
+function askLocked(key){
+  if (lockedAsking === key) return;
+  lockedAsking = key;
+  fetch('/api/find/locked' + key, { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (lockedAsking !== key) return;
+    lockedAsking = null; lockedFor = key; lockedPool = (d && d.locked) || []; lockedMore = !!(d && d.more);
+    rows = (named || []).concat(lockedPool);
+    if (lockedKey() === key) render();
+  }).catch(function(){ if (lockedAsking === key) { lockedAsking = null; lockedFor = key; lockedPool = []; lockedMore = false; rows = (named || []).slice(); render(); } });
+}
 /* Round 169 (WEB-06): the universities the search box names, from the server. */
 var uniKeys = null, uniFor = null, uniAsking = null;
 function askUnis(q){
@@ -380,22 +431,33 @@ function render(){
   /* A search waits for the server's answer on which universities it names,
      rather than drawing a list without them and then redrawing it. */
   if (f.q && uniFor !== f.q) { askUnis(f.q); if (result || document.querySelector('#flist .frow')) return; }
+  /* Round 176: the locked rows for THIS filter come from the server; until
+     they arrive the list is drawn from what is here (the named rows, and
+     the last filter's placeholders, which F.run narrows anyway). */
+  var lk = lockedKey();
+  if (lockedFor !== lk) askLocked(lk);
   result = F.run(rows, f, R, { countries: countries, uniKeys: uniFor === (f.q || '') ? uniKeys : null });
+  var capped = F.capLocked(result.rows, LOCKED_CAP);
   var list = $('#flist'), out = '';
-  var slice = result.rows.slice(0, shown);
+  var slice = capped.rows.slice(0, shown);
   if (!slice.length) out = F.emptyHtml(f);
   else if (f.view === 'uni') {
+    /* The named universities each under their name; every locked row under
+       ONE heading — grouping them by university would count them. */
     var by = {}, order = [];
-    slice.forEach(function(p){ var k = p.uKey || p.university || p.id; if (!by[k]) { by[k] = []; order.push(k); } by[k].push(p); });
-    out = order.map(function(k){ var g = by[k]; var name = g[0]._locked ? 'A public university in ' + ((countries[g[0].country] || {}).name || g[0].country) : (g[0].shortName || g[0].university);
-      return '<h3 class="funi">' + esc(name) + ' <small style="color:var(--muted);font-weight:400">' + g.length + ' programme' + (g.length === 1 ? '' : 's') + '</small></h3>' + g.map(function(p){ return F.rowHtml(p, ctx()); }).join(''); }).join('');
+    slice.forEach(function(p){ var k = p._locked ? '\u0000locked' : (p.uKey || p.university || p.id); if (!by[k]) { by[k] = []; order.push(k); } by[k].push(p); });
+    out = order.map(function(k){ var g = by[k]; var name = g[0]._locked ? 'Public universities — unlocked with a package' : (g[0].shortName || g[0].university);
+      return '<h3 class="funi">' + esc(name) + '</h3>' + g.map(function(p){ return F.rowHtml(p, ctx()); }).join(''); }).join('');
   } else out = slice.map(function(p){ return F.rowHtml(p, ctx()); }).join('');
   list.innerHTML = out;
-  $('#fsummary').textContent = result.total.toLocaleString('en-IN') + ' programme' + (result.total === 1 ? '' : 's') + ' at ' + result.unis.toLocaleString('en-IN') + ' universit' + (result.unis === 1 ? 'y' : 'ies') + (result.total === 1 ? ' matches' : ' match');
+  $('#fsummary').textContent = slice.length ? SUMMARY.some : SUMMARY.none;
+  var ml = $('#fmoreLocked'), wantMore = (capped.more || (lockedMore && lockedFor === lk)) && slice.length;
+  if (wantMore) { if (!ml) { ml = document.createElement('div'); ml.className = 'fmore-locked'; ml.id = 'fmoreLocked'; list.after(ml); } ml.innerHTML = MORE_LOCKED; }
+  else if (ml) ml.remove();
   var pg = $('.fpage');
-  if (result.total > shown) {
-    if (!pg) { pg = document.createElement('div'); pg.className = 'fpage'; list.after(pg); }
-    pg.innerHTML = '<button type="button" class="btn btn-sm" id="fmore">Show ' + Math.min(BOOT.page, result.total - shown) + ' more</button>';
+  if (capped.rows.length > shown) {
+    if (!pg) { pg = document.createElement('div'); pg.className = 'fpage'; ($('#fmoreLocked') || list).after(pg); }
+    pg.innerHTML = '<button type="button" class="btn btn-sm" id="fmore">Show more</button>';
   } else if (pg) pg.remove();
   chips(); counts(); profile(); cmpBar();
   document.title = F.title(f, countries, result.total) + ' | Glovels';
@@ -420,24 +482,12 @@ function chips(){
   $('#fcount').textContent = n ? ' (' + n + ')' : '';
 }
 
-/* Re-count the rail from the live result: a facet shows what it would add. */
+/* Round 176: the rail carries no counts. The options are the server's
+   (every value the whole catalogue holds, locked rows included — the
+   facets lists on /api/catalogue), so nothing is dimmed or numbered from
+   the capped rows the page holds. */
 function counts(){
-  var fc = result.facets;
-  $$('#frail .fopt').forEach(function(l){
-    var i = l.querySelector('input'), em = l.querySelector('em'); if (!i || !em) return;
-    var n = null;
-    if (i.name === 'country' && i.value) n = fc.country[i.value] || 0;
-    else if (i.name === 'level' && i.value) n = fc.level[i.value] || 0;
-    else if (i.name === 'field' && i.value) n = fc.field[i.value] || 0;
-    else if (i.name === 'apply' && i.value) n = fc.apply[i.value] || 0;
-    else if (i.name === 'intake' && i.value) n = fc.intake[i.value] || 0;
-    else if (i.name === 'tuition' && i.value === '0') n = fc.tuition0;
-    else if (i.name === 'moi') n = fc.moi;
-    else if (i.name === 'nogre') n = fc.nogre;
-    else if (i.name === 'restricted') n = fc.open;
-    if (n == null) return;
-    em.textContent = n.toLocaleString('en-IN'); l.classList.toggle('none', n === 0);
-  });
+  $$('#frail .fopt').forEach(function(l){ var em = l.querySelector('em'); if (em) em.remove(); l.classList.remove('none'); });
   /* The boxes mirror the address, so a chip removed un-ticks its box. */
   $$('#frail input[type=radio]').forEach(function(i){ i.checked = (f[i.name] || '') === i.value; });
   $$('#frail input[type=checkbox]').forEach(function(i){ i.checked = !!f[i.name]; });
@@ -453,7 +503,7 @@ function profile(){
     var parts = Object.keys(result.student).filter(function(k){ return k !== 'restrictedOk'; }).length;
     el.className = 'fprof said';
     el.innerHTML = '<b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
-      + (result.turned ? result.turned.toLocaleString('en-IN') + ' programme' + (result.turned === 1 ? '' : 's') + ' ask a higher CGPA and ' + (result.turned === 1 ? 'is' : 'are') + ' not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
+      + (result.turned ? 'Some programmes ask a higher CGPA and are not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
       + '<a href="index.html#find">Change your answers →</a>';
   } else if (me) {
     el.className = 'fprof';
@@ -480,7 +530,7 @@ function cmpBar(){
   var bar = $('#fcmp'); if (!bar) return;
   var n = compared.size;
   bar.hidden = n < 1;
-  $('#fcmpText').textContent = 'Comparing ' + n + ' programme' + (n === 1 ? '' : 's') + (n < 2 ? ' — pick one more' : '');
+  $('#fcmpText').textContent = n ? 'Comparing ' + n + ' programme' + (n === 1 ? '' : 's') + (n < 2 ? ' — pick one more' : '') : 'Pick programmes to compare';
   $('#fcmpGo').disabled = n < 2;
 }
 function compareNow(){
@@ -626,9 +676,35 @@ document.addEventListener('click', function(e){
 fetch('/api/auth/me', { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ me = j && (j.user || j.me || (j.id ? j : null)); }).catch(function(){});
 fetch('/api/catalogue', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function(r){ return r.json(); }).then(function(d){
   if (d && d.countries) Object.keys(d.countries).forEach(function(k){ countries[k] = countries[k] || d.countries[k]; });
-  rows = (d && d.programmes || []).filter(function(p){ return p.level && p.field; });
+  var all = (d && d.programmes || []).filter(function(p){ return p.level && p.field; });
+  /* Round 176: the named rows are kept; the placeholders that came with
+     them are the opening pool, replaced per filter by /api/find/locked. */
+  named = all.filter(function(p){ return !F.locked(p); });
+  lockedPool = all.filter(function(p){ return F.locked(p); });
+  lockedMore = !!(d && d.more);
+  if (!Object.keys(f).some(function(k){ return k !== 'sort' && k !== 'view'; })) lockedFor = '';
+  rows = named.concat(lockedPool);
+  /* Options the server says exist and the first paint did not offer. */
+  if (d && d.facets) addMissingOptions(d.facets);
   render();
 }).catch(function(){ /* the server's rows stay on screen */ });
+/* Round 176: a value the catalogue holds that the rail does not offer yet
+   gets its option — from the server's facet lists, with no count. */
+function addMissingOptions(fc){
+  var add = function(name, values, label){
+    var inputs = $$('#frail input[name="' + name + '"]'); if (!inputs.length) return;
+    var have = {}; inputs.forEach(function(i){ have[i.value] = true; });
+    var box = inputs[inputs.length - 1].closest('.fgb'); if (!box) return;
+    (values || []).forEach(function(v){ if (have[v]) return;
+      var l = document.createElement('label'); l.className = 'fopt';
+      l.innerHTML = '<input type="radio" name="' + esc(name) + '" value="' + esc(v) + '"> <span>' + esc(label(v)) + '</span>';
+      box.appendChild(l); });
+  };
+  add('country', fc.country, function(v){ return (countries[v] || {}).name || v; });
+  add('level', fc.level, function(v){ return F.LEVELS[v] || v; });
+  add('field', fc.field, function(v){ return String(v).replace(/&amp;/g, '&'); });
+  add('intake', fc.intake, function(v){ var t = F.termByKey(v); return t ? t.season.charAt(0).toUpperCase() + t.season.slice(1) + ' ' + t.year : v; });
+}
 })();`;
 
 module.exports = { makeFindPage, FIND_CSS, FIND_PAGE_JS };

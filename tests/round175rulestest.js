@@ -83,7 +83,15 @@ async function req(who, method, p, body) {
   }
 
   /* ================================================ item 2: the country page */
-  const filt = async (code, cgpa) => (await req('g', 'GET', '/api/universities/filter?country=' + code + (cgpa === undefined ? '' : '&cgpa=' + encodeURIComponent(cgpa)))).body;
+  /* Round 176: `total` is on the answer for a STAFF session only — a visitor
+     gets the rows and `more`, never a count (owner: numbers not required,
+     and the count was the hidden set). So the narrowing is read as the
+     admin, and a visitor's answer is checked to carry no total. */
+  const filt = async (code, cgpa) => (await req('a', 'GET', '/api/universities/filter?country=' + code + (cgpa === undefined ? '' : '&cgpa=' + encodeURIComponent(cgpa)))).body;
+  {
+    const g = (await req('g', 'GET', '/api/universities/filter?country=DE')).body;
+    ok('a visitor\'s /api/universities/filter carries no total (round 176)', g.total === undefined && typeof g.more === 'boolean' && Array.isArray(g.universities) && g.universities.every(u => u.programmes === undefined && u.matching === undefined), J(Object.keys(g)));
+  }
   for (const code of ['DE', 'CA']) {
     const none = await filt(code), low = await filt(code, '5.5'), top = await filt(code, '9.5');
     ok(code + ': a CGPA below 6 narrows the list (' + low.total + ' < ' + none.total + ')', none.total > 0 && low.total < none.total, J([none.total, low.total]));

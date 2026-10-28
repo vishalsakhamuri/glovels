@@ -234,6 +234,18 @@ run round175leaktest.js 8118
 # impossible scores / MOI / levels / labels, the Foundation level filter.
 run round175rulestest.js 8119
 run round175dupestest.js 8122
+# Round 176 (owner, go-live): the hidden set cannot be counted — ≤ 12 locked
+# placeholders per response, /api/find/locked per filter, no counts on any
+# public page; a 3-university student sees 3 named + ≤ 12; staff keep all.
+# Loads the German sheets itself.
+run round176secrecytest.js 8123
+# Round 176 (regression sweep, 28 Oct): one blockquote from several ">" lines,
+# the refer form shows the server's reason, published posts render from the
+# database, numeric names refused with the reason, document file types.
+run round176regressiontest.js 8124
+# Round 176 (go-live): indexing switch, one host, legal placeholder, mail /
+# payments / analytics states, readiness report, QA purge, backups, headers.
+run round176golivetest.js 8125 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.com WHATSAPP_APP_SECRET=testsecret
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

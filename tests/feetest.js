@@ -387,19 +387,26 @@ const stamp = Date.now();
      was moved to the front — at which point every assertion below kept passing
      while meaning the opposite thing. A positional read of two things that can
      swap is not a reading. */
+  /* Round 176 (owner, go-live): the tabs carry NO number, and the page never
+     holds more than 12 locked rows — so what is counted is the rows each
+     tab draws (a hidden tab draws none). */
+  const rowsPerTab = p => p.evaluate(() => {
+    const was = (document.querySelector('.rtab.on') || {}).dataset;
+    const rowsOn = rt => { const b = document.querySelector('.rtab[data-rt="' + rt + '"]'); if (!b || b.hidden) return 0; b.click(); return document.querySelectorAll('#rowsIn .mrow').length; };
+    const free = rowsOn('pub'), pkg = rowsOn('priv');
+    if (was && was.rt) { const b = document.querySelector('.rtab[data-rt="' + was.rt + '"]'); if (b && !b.hidden) b.click(); }
+    return { free, pkg };
+  });
   const countsFor = async code => {
     await fp.selectOption('#fCountry', code);
     await fp.click('#fGo');
-    await fp.waitForTimeout(900);
-    return {
-      free: Number(await fp.textContent('#rtnPub')),
-      pkg: Number(await fp.textContent('#rtnPriv')),
-    };
+    await fp.waitForTimeout(1400);
+    return rowsPerTab(fp);
   };
 
   const de = await countsFor('DE');
-  check('Germany is where the packages are — its public universities',
-    de.pkg > 100, JSON.stringify(de));
+  check('Germany is where the packages are — its public universities (locked rows, capped at 12 — round 176)',
+    de.pkg > 0 && de.pkg <= 12, JSON.stringify(de));
   check('and it has partnered ones to apply to for nothing as well',
     de.free > 0, JSON.stringify(de));
   const ie = await countsFor('IE');
@@ -514,11 +521,8 @@ const stamp = Date.now();
   await np.waitForTimeout(2200);
   await np.selectOption('#fCountry', 'GB');
   await np.click('#fGo');
-  await np.waitForTimeout(1000);
-  const afterCounts = {
-    free: Number(await np.textContent('#rtnPub')),
-    pkg: Number(await np.textContent('#rtnPriv')),
-  };
+  await np.waitForTimeout(1400);
+  const afterCounts = await rowsPerTab(np);
   /* Changed 1 Oct (Vishal): "all private unis should be free to apply". A
      private row marked Package on the sheet is a sheet mistake — it stays
      free and stays on the free-to-apply tab. */

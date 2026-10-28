@@ -216,8 +216,11 @@ try { chromium = require('playwright').chromium; } catch (e) { /* node-only run 
   await page.waitForSelector('#fSearchRes .fstag', { timeout: 5000 }).catch(() => {});
   const sug = await page.$$eval('#fSearchRes .fstag', b => b.map(x => x.dataset.tag + '/' + x.dataset.type));
   check('home: typing shows tag suggestions grouped by type', sug.includes('No German Required/Language') && (await page.$$('#fSearchRes h5')).length >= 1, sug.join());
-  const shown = () => page.evaluate(() => Number(document.querySelector('#rtnPub').textContent) + Number(document.querySelector('#rtnPriv').textContent));
+  /* Round 176: the tabs carry no number any more (owner: numbers not
+     required), so what is "shown" is the rows drawn on the open tab. */
+  const shown = () => page.evaluate(() => document.querySelectorAll('#rowsIn .mrow').length);
   const totalBefore = await shown();
+  check('home: the tabs carry no count (round 176)', (await page.textContent('#rtnPub')).trim() === '' && (await page.textContent('#rtnPriv')).trim() === '');
   await page.click('#fSearchRes .fstag');
   await page.waitForTimeout(600);
   check('home: a pick adds a chip under the box', (await page.$$eval('#fTagChips .ftagchip', b => b.map(x => x.textContent))).some(t => /No German Required/.test(t)));
@@ -257,9 +260,13 @@ try { chromium = require('playwright').chromium; } catch (e) { /* node-only run 
   check('find: ?tags= shows one chip per tag', fchips.join() === 'No German Required,MBA', fchips.join());
   const ssr = await (await fetch(BASE + '/find-university?tags=' + encodeURIComponent('No German Required;MBA') + '&country=DE')).text();
   check('find: the server renders the chips and the rail group', /data-cleartag="MBA"/.test(ssr) && /id="ftagsRail"/.test(ssr) && /ftagrow/.test(ssr));
-  const totalAll = Number((await (await fetch(BASE + '/find-university?country=DE')).text()).match(/data-total="(\d+)"/)[1]);
-  const totalTag = Number(ssr.match(/data-total="(\d+)"/)[1]);
-  check('find: the tags narrow the server-rendered list', totalTag > 0 && totalTag < totalAll, totalTag + ' of ' + totalAll);
+  /* Round 176: no data-total on the list and at most 12 locked rows on the
+     page (owner: a visitor never learns the size of the hidden set). The
+     narrowing is read from the rows: with the tags the page draws rows, no
+     more locked ones than without them, and never more than the cap. */
+  const ssrAll = await (await fetch(BASE + '/find-university?country=DE')).text();
+  const lockedOf = h => (h.match(/class="frow locked"/g) || []).length, rowsOf = h => (h.match(/<article class="frow/g) || []).length;
+  check('find: the tags narrow the server-rendered list (capped, no total)', rowsOf(ssr) > 0 && lockedOf(ssr) <= lockedOf(ssrAll) && lockedOf(ssr) <= 12 && !/data-total=/.test(ssr), rowsOf(ssr) + ' rows, ' + lockedOf(ssr) + ' locked of ' + lockedOf(ssrAll));
   check('find: the rail lists the chosen tags', (await page.$$eval('#ftagsRail .ftagrow', b => b.map(x => x.dataset.cleartag))).join() === 'No German Required,MBA');
   await page.fill('#fq', 'moi');
   await page.waitForSelector('#fsug button', { timeout: 5000 }).catch(() => {});

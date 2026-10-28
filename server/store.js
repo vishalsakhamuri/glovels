@@ -34,6 +34,20 @@ function isTestAccount(p) {
   return re.test(String(p.name || '').trim()) || re.test(String(p.email || '').split('@')[0]);
 }
 
+/* Round 176 (go-live): a record the testing team made. The markers the QA
+   rounds used, and nothing wider: an @example.com address, a +sudhin /
+   -sudhin tag in the address, a name carrying "QA ", "Test " or "-Sudhin".
+   A real student is never named like that; a tester's throwaway always is.
+   The purge requires this AND no live payment on any of their orders. */
+function isQaRecord(r) {
+  const email = String((r && r.email) || '').trim().toLowerCase();
+  const name = String((r && r.name) || '').trim();
+  if (/@example\.(com|org|net)$/.test(email)) return true;
+  if (/^[^@]*[+-]sudhin/i.test(email)) return true;
+  if (/(^|\s|\()(qa|test)\s/i.test(name) || /-sudhin/i.test(name)) return true;
+  return false;
+}
+
 /* ADM-07: a lead's destination is an ISO code — "DE" — whatever the form
    sent: "Germany", "🇩🇪 Germany", "de" or the flag alone. Something that is
    not a country ("Not sure yet") is kept as typed. */
@@ -2329,6 +2343,72 @@ function open(dir) {
       try { db.run('DELETE FROM lead_notes WHERE lead_id = ?', n); } catch (e) {}
       db.run('DELETE FROM enquiries WHERE id = ?', n);
       return { ok: true };
+    },
+
+    /*
+     * Round 176 (go-live): what the testing rounds left behind, listed so
+     * the office can see it before it goes, and removed on a typed
+     * confirmation. Only rows carrying a QA marker (isQaRecord / a test
+     * staff account), and never one tied to a live payment: an order with a
+     * gateway payment id is real money and stays, and so does the person it
+     * belongs to.
+     */
+    qaCandidates() {
+      const livePaid = new Set();
+      const liveMails = new Set();
+      let orders = [];
+      try { orders = db.all('SELECT * FROM orders WHERE id > ?', 0); } catch (e) { orders = []; }
+      orders.forEach(o => {
+        if (String(o.gateway_payment_id || '').trim()) {
+          if (o.student_id) livePaid.add(Number(o.student_id));
+          if (o.email) liveMails.add(String(o.email).toLowerCase());
+        }
+      });
+      const people = db.all('SELECT * FROM students WHERE id > ?', 0);
+      const students = people.filter(p => String(p.role || 'student') === 'student'
+        && isQaRecord(p) && !livePaid.has(Number(p.id)) && !liveMails.has(String(p.email || '').toLowerCase()));
+      const staff = people.filter(p => ['counsellor', 'admin', 'editor', 'partner'].includes(String(p.role || ''))
+        && (isTestAccount(p) || isQaRecord(p)));
+      const sids = new Set(students.map(p => Number(p.id)));
+      const qaOrders = orders.filter(o => !String(o.gateway_payment_id || '').trim()
+        && (sids.has(Number(o.student_id)) || isQaRecord(o)));
+      let enquiries = [];
+      try { enquiries = db.all('SELECT * FROM enquiries WHERE id > ?', 0).filter(e => isQaRecord(e) || sids.has(Number(e.student_id))); } catch (e) {}
+      let chats = [];
+      try { chats = db.all('SELECT * FROM chats WHERE id > ?', 0).filter(c => isQaRecord(c) || sids.has(Number(c.student_id))); } catch (e) {}
+      let documents = [];
+      try { documents = db.all('SELECT * FROM documents WHERE id > ?', 0).filter(d => sids.has(Number(d.student_id))); } catch (e) {}
+      let messages = 0;
+      try { messages = db.all('SELECT student_id FROM messages WHERE id > ?', 0).filter(m => sids.has(Number(m.student_id))).length; } catch (e) {}
+      const brief = p => ({ id: p.id, name: p.name || '', email: p.email || '', role: p.role || '' });
+      return {
+        students: students.map(brief),
+        staff: staff.map(brief),
+        orders: qaOrders.map(o => ({ id: o.id, reference: o.reference, name: o.name || '', email: o.email || '', package: o.package, status: o.status })),
+        enquiries: enquiries.map(e => ({ id: e.id, name: e.name || '', email: e.email || '' })),
+        chats: chats.map(c => ({ id: c.id, name: c.name || '', email: c.email || '' })),
+        documents: documents.map(d => ({ id: d.id, student_id: d.student_id, stored_name: d.stored_name })),
+        messages,
+        keptForPayment: people.filter(p => isQaRecord(p) && (livePaid.has(Number(p.id)) || liveMails.has(String(p.email || '').toLowerCase()))).map(brief),
+      };
+    },
+
+    /** Removes exactly what qaCandidates() listed. Returns the counts. */
+    qaPurge() {
+      const c = this.qaCandidates();
+      const n = { students: 0, staff: 0, orders: 0, enquiries: 0, chats: 0, documents: c.documents.length, messages: c.messages };
+      c.students.forEach(p => { try { this.closeAccount(p.id); n.students++; } catch (e) {} });
+      c.staff.forEach(p => { try { this.deletePerson(p.id); n.staff++; } catch (e) {} });
+      c.orders.forEach(o => {
+        try { db.run('DELETE FROM payments WHERE order_ref = ?', String(o.reference)); } catch (e) {}
+        try { db.run('DELETE FROM orders WHERE id = ?', Number(o.id)); n.orders++; } catch (e) {}
+      });
+      c.enquiries.forEach(e => { try { this.deleteLead(e.id); n.enquiries++; } catch (err) {} });
+      c.chats.forEach(ch => {
+        try { db.run('DELETE FROM chat_messages WHERE chat_id = ?', Number(ch.id)); } catch (e) {}
+        try { db.run('DELETE FROM chats WHERE id = ?', Number(ch.id)); n.chats++; } catch (e) {}
+      });
+      return Object.assign(n, { uploadDirs: c.students.map(p => String(p.id)) });
     },
 
     setStudentStatus(studentId, status, note) {

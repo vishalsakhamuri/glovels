@@ -73,6 +73,12 @@ function readEnv(file, env) {
        nasty way to turn the mail off. */
     if (v) cfg[k] = v;
   });
+  /* Round 176 (go-live): BREVO_API_KEY alone is enough — the provider is
+     implied by the name. MAIL_PROVIDER + MAIL_API_KEY, when set, win. */
+  const brevo = String(from.BREVO_API_KEY == null ? '' : from.BREVO_API_KEY).trim();
+  if (brevo && !cfg.MAIL_API_KEY) { cfg.MAIL_PROVIDER = 'brevo'; cfg.MAIL_API_KEY = brevo; }
+  const brevoFrom = String(from.BREVO_FROM == null ? '' : from.BREVO_FROM).trim();
+  if (brevoFrom && !cfg.MAIL_FROM) cfg.MAIL_FROM = brevoFrom;
   return cfg;
 }
 
@@ -408,7 +414,7 @@ function open({ dir, configFile, siteUrl, env, stored }) {
     const o = office();
     if (o.MAIL_API_KEY || o.SMTP_HOST) return 'office';
     const e = (env || process.env) || {};
-    if (e.MAIL_API_KEY || e.SMTP_HOST) return 'environment';
+    if (e.MAIL_API_KEY || e.BREVO_API_KEY || e.SMTP_HOST) return 'environment';
     if (base.MAIL_API_KEY || base.SMTP_HOST) return 'file';
     return 'none';
   };

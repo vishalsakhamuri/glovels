@@ -141,8 +141,10 @@ const txt = (p, s) => p.textContent(s).catch(() => '');
     'nor do the tabs — ' + (counted || {}).tabShown);
   ok(counted && !/\d/.test(counted.chip),
     'nor the chip over the list — "' + (counted || {}).chip + '"');
-  ok(counted && counted.railText.some(x => /\d/.test(x)),
-    'but the numbers are still worked out, because the dimming needs them — '
+  /* Round 176: the number is not even in the (hidden) cell any more — the
+     dimming is worked out without writing it anywhere a visitor could read. */
+  ok(counted && counted.railText.every(x => x === ''),
+    'and the numbers are not written into the cards at all (round 176) — '
     + JSON.stringify(counted && counted.railText));
 
   const opts = await page.evaluate(() =>

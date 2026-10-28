@@ -295,9 +295,19 @@ const visible = s => (s.shortlist || []).filter(r => r.addedBy !== 'student');
     'GET /api/staff/catalogue?tags= reads at most 2,000 rows before filtering (server/api.js ~7895, per: 2000) — on a catalogue of ' + staffRows.length + ' rows the tail is never looked at');
   const byId = new Map((cat.programmes || []).map(p => [String(p.id), p]));
   ok('  · and keeps the ranking order of the full list', J(idsOf(tagFit)) === J(idsOf(base).filter(id => idsOf(tagFit).includes(id))));
-  const homeAll = pubScreen.fits.length;
-  const homeTag = M.screen(cat.programmes || [], BASE_PROFILE, cat.countries || {}, { limit: 500, tags: TAG }).fits;
-  ok('the home finder path with the tag narrows too (' + homeTag.length + ' of ' + homeAll + ')', homeTag.length > 0 && homeTag.length < homeAll && homeTag.every(x => TAGS.match(byId.get(String(x.id)), [TAG], '')));
+  /* Round 176 (owner, go-live): the home page no longer holds the locked
+     set — /api/catalogue carries at most 12 placeholders, and the finder
+     asks /api/find/locked for the ones that fit its boxes as they change.
+     So the home path with a tag is that endpoint: the rows for the SET with
+     the tag are a subset of the rows without it, every one carries the tag,
+     never more than 12 come back, and nothing in the answer is a count. */
+  const lq = '/api/find/locked?country=DE&level=master&field=' + encodeURIComponent(BASE_PROFILE.g_field) + '&cgpa=8';
+  const lockedAll = (await req('v', 'GET', lq)).body, lockedTag = (await req('v', 'GET', lq + '&tags=' + encodeURIComponent(TAG))).body;
+  ok('the home finder path with the tag narrows too — /api/find/locked, capped at 12, every row carrying the tag, no count (' + (lockedTag.locked || []).length + ' of ≤12)',
+    (lockedAll.locked || []).length > 0 && (lockedAll.locked || []).length <= 12 && (lockedTag.locked || []).length > 0 && (lockedTag.locked || []).length <= 12
+    && lockedTag.locked.every(p => !p.university && TAGS.match(p, [TAG], '')) && lockedTag.total === undefined && typeof lockedTag.more === 'boolean' && Object.keys(lockedTag).every(k => k === 'locked' || k === 'more'),
+    J({ all: (lockedAll.locked || []).length, tag: (lockedTag.locked || []).length, keys: Object.keys(lockedTag) }));
+  void byId;
   r = await req('v', 'GET', '/api/catalogue?tags=' + encodeURIComponent(TAG));
   note('/api/catalogue?tags= returns ' + (r.body.programmes || []).length + ' rows (the home page filters tags in the browser with TAGS.match)');
 

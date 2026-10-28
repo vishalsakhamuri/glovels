@@ -149,9 +149,12 @@ const toCsv = rows => '﻿' + rows.map(r =>
      row is filtered by the country's CGPA rule while a named one is filtered by
      its published grade — two answers for one student, depending on whether
      they had paid. */
-  const locked = deRows.filter(p => !p.program);
-  ok(locked.length > 0 && locked.every(p => p.germanGpa != null),
-    'a locked German row carries its bar without carrying its name — '
+  /* Round 176: the office's own /api/catalogue names everything, so the
+     locked rows are read as a VISITOR — who gets at most 12 placeholders. */
+  const visitorCat = await (await fetch(BASE + '/api/catalogue')).json();
+  const locked = (visitorCat.programmes || []).filter(p => p.country === 'DE' && !p.program);
+  ok(locked.length > 0 && locked.length <= 12 && locked.every(p => p.germanGpa != null && !p.university),
+    'a locked German row (a visitor\'s, capped at 12) carries its bar without carrying its name — '
     + locked.filter(p => p.germanGpa != null).length + ' of ' + locked.length);
 
   /* ------------------------------------ a grade outside 1.0-4.0 is not a grade */
@@ -282,10 +285,18 @@ const toCsv = rows => '﻿' + rows.map(r =>
   const total = async g => {
     await page.selectOption('#fGgpa', g).catch(() => {});
     await page.click('#fGo').catch(() => {});
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(1400);
+    /* Round 176 (owner, go-live): the tabs carry no number and the page
+       never holds more than 12 locked rows (the server picks the dozen that
+       fit the boxes, the German grade included — /api/find/locked?ggpa=).
+       So the total is the rows the two tabs draw, and past the cap a better
+       grade shows no MORE rows — only never fewer. */
     return page.evaluate(() => {
-      const n = s => Number((document.querySelector(s) || {}).textContent || 0);
-      return n('#rtnPub') + n('#rtnPriv');
+      const was = (document.querySelector('.rtab.on') || {}).dataset;
+      const rowsOn = rt => { const b = document.querySelector('.rtab[data-rt="' + rt + '"]'); if (!b || b.hidden) return 0; b.click(); return document.querySelectorAll('#rowsIn .mrow').length; };
+      const n = rowsOn('pub') + rowsOn('priv');
+      if (was && was.rt) { const b = document.querySelector('.rtab[data-rt="' + was.rt + '"]'); if (b && !b.hidden) b.click(); }
+      return n;
     }).catch(() => -1);
   };
   await page.selectOption('#fCountry', 'DE').catch(() => {});
@@ -295,20 +306,20 @@ const toCsv = rows => '﻿' + rows.map(r =>
   const at40 = await total('4.0');
 
   ok(at15 > 0, 'an excellent grade sees German programmes — ' + at15);
-  ok(at15 > at25, 'a 1.5 sees MORE than a 2.5, because lower is better — '
+  ok(at15 >= at25, 'a 1.5 sees no fewer than a 2.5, because lower is better (no more past the 12-row cap — round 176) — '
     + at15 + ' vs ' + at25);
-  ok(at25 > at30, 'and a 2.5 more than a 3.0 — ' + at25 + ' vs ' + at30);
+  ok(at25 >= at30, 'and a 2.5 no fewer than a 3.0 — ' + at25 + ' vs ' + at30);
   ok(at40 === 0,
     'and a bare pass clears none of them, because every bar is above it — ' + at40);
 
   /* The inversion this suite exists for: if the comparison ran the CGPA way
      round, every grade would see everything and these numbers would all match. */
-  ok(new Set([at15, at25, at30, at40]).size > 2,
+  ok(new Set([at15, at25, at30, at40]).size >= 2,
     'the grade actually changes the list — ' + [at15, at25, at30, at40].join(', '));
 
   /* -------------------------------- the bar reached a row the page shipped with */
-  ok(at25 > 0 && at25 < at15,
-    'which means the office’s grades reached D.programs, not just the API');
+  ok(at25 > 0 && at25 <= at15,
+    'which means the office’s grades reached the rows drawn, not just the API');
 
   /* ============= a German row carrying only a CGPA bar is still judged by it
    *
@@ -359,11 +370,9 @@ const toCsv = rows => '﻿' + rows.map(r =>
     'switching back to the UK asks for a CGPA again — ' + JSON.stringify(ukScale));
   await page.selectOption('#fCgpa', '8.5').catch(() => {});
   await page.click('#fGo').catch(() => {});
-  await page.waitForTimeout(900);
-  const ukRows = await page.evaluate(() => {
-    const n = s => Number((document.querySelector(s) || {}).textContent || 0);
-    return n('#rtnPub') + n('#rtnPriv');
-  }).catch(() => -1);
+  await page.waitForTimeout(1400);
+  /* Round 176: no numbers on the tabs — the rows drawn are counted. */
+  const ukRows = await page.evaluate(() => document.querySelectorAll('#rowsIn .mrow').length).catch(() => -1);
   ok(ukRows > 0, 'and a UK student with 8.5 still sees programmes — ' + ukRows);
 
   ok(!errs.length, 'no page errors throughout — ' + errs.slice(0, 2).join(' | '));

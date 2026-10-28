@@ -439,8 +439,17 @@
         : canAdd ? '<button type="button" class="btn btn-ghost btn-sm" data-gfadd="' + esc(r.id) + '">Add</button>' : '')
       + '</li>';
 
+    /* Round 176: every run is numbered, and only the LATEST may write the
+       panel. The page mounts with autorun — a slow first run over the whole
+       catalogue — and a counsellor who then typed CGPA 15 and pressed Find
+       saw "cannot be more than its scale" under the box and, a second later,
+       the first run's "417 fit" land in the summary over it (round175rulestest
+       caught it). A stale answer is dropped, whether it is results or an
+       error. */
+    let runSeq = 0;
     async function go() {
       const out = el.querySelector('#gfOut');
+      const mine = ++runSeq;
       out.innerHTML = '<p class="sum">Checking every programme against the same rules the paid shortlist uses…</p>';
       let d;
       /* Round 175 (item 6a): the server refuses a score that cannot exist
@@ -451,6 +460,7 @@
       el.querySelectorAll('.gf-err').forEach(x => x.remove());
       el.querySelectorAll('[aria-invalid]').forEach(x => x.removeAttribute('aria-invalid'));
       try { d = await o.run(filters()); } catch (e) {
+        if (mine !== runSeq) return;
         out.innerHTML = '<p class="why">' + esc(e.message || 'Could not run that.') + '</p>';
         (Array.isArray(e.fields) ? e.fields : []).forEach(f => {
           const box = el.querySelector('#' + (FIELD_BOX[f.field] || '')); if (!box) return;
@@ -462,6 +472,7 @@
         });
         return;
       }
+      if (mine !== runSeq) return;
       /* Round 175: the server declines to judge an empty profile — no level,
          no field, no CGPA — rather than count the whole catalogue as a fit. */
       if (Array.isArray(d.needs) && d.needs.length) {
@@ -505,7 +516,7 @@
       draw();
       /* The logos, once the index is here — the first run draws without
          them and redraws; after that it is already loaded. */
-      if (!logoIdx) loadLogos().then(L => { if (L && out.isConnected) draw(); });
+      if (!logoIdx) loadLogos().then(L => { if (L && out.isConnected && mine === runSeq) draw(); });
     }
     el.addEventListener('click', async e => {
       if (e.target.closest('#gfGo')) { go(); return; }

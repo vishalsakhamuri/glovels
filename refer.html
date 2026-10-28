@@ -499,7 +499,10 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         sourcePage: location.pathname, referrer: document.referrer || 'direct', website: $('rfTrap').value
       }) })
       .then(function (r) {
-        if (r.status === 422) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || 'Please check what you typed.'); });
+        /* Round 176: any 4xx carries the server's own reason — a 422 says
+           what is wrong with what they typed, a 429 says to wait a few
+           minutes or call. Both were "That did not send", which is a dead end. */
+        if (r.status >= 400 && r.status < 500) return r.json().catch(function () { return {}; }).then(function (d) { throw new Error(d.error || (r.status === 422 ? 'Please check what you typed.' : 'That did not send. Please call us, or try again in a minute.')); });
         if (!r.ok) throw new Error('That did not send. Please call us, or try again in a minute.');
         if (window.glvTrack) glvTrack('generate_lead', { form: 'referral' });
         form.outerHTML = '<div class="rf-sent" id="rfSent"><b>Thank you — we have your referral.</b> A counsellor will call them within one working day. Keep an eye on your phone: we confirm with you when they buy.</div>';

@@ -97,12 +97,17 @@ const has = (html, s) => html.includes(s) || html.includes(esc(s));
   const pub = await pageOf('v', target.slug);
   ok('GET /university/' + target.slug + ' answers 200', pub.status === 200, pub.status);
   ok('  · signed out: none of its ' + target.progs.length + ' programme names is in the HTML', leaks(pub.text, target).length === 0, J(leaks(pub.text, target)));
-  ok('  · every row is locked, with Unlock to the packages', (pub.text.match(/class="prog locked/g) || []).length === target.progs.length
-    && (pub.text.match(/data-unlock>Unlock</g) || []).length === target.progs.length && /href="\/#packages" data-unlock/.test(pub.text),
+  /* Round 176 (owner, go-live): a locked page lists at most 12 rows and
+     never says how many there are — the count was one of the facts that
+     picked a public university out of a locked finder row. */
+  const nLocked = Math.min(12, target.progs.length);
+  ok('  · every listed row is locked, with Unlock to the packages — at most 12 of them (round 176)', (pub.text.match(/class="prog locked/g) || []).length === nLocked
+    && (pub.text.match(/data-unlock>Unlock</g) || []).length === nLocked && /href="\/#packages" data-unlock/.test(pub.text),
     (pub.text.match(/class="prog locked/g) || []).length + ' locked of ' + target.progs.length);
   ok('  · and the line "Programme names at German public universities are part of our packages."', /Programme names at German public universities are part of our packages\./.test(pub.text));
-  ok('  · the count and the fields are said', new RegExp('We track ' + target.progs.length + ' programme').test(pub.text)
-    && [...target.fields].filter(Boolean).every(f => has(pub.text, f)));
+  ok('  · the fields are said, the count is not', /We track programmes here/.test(pub.text) && !new RegExp('We track ' + target.progs.length + ' programme').test(pub.text)
+    && !/\d[\d,]* programmes?\b/.test(pub.text.replace(/<script[\s\S]*?<\/script>/g, ''))
+    && [...target.fields].filter(Boolean).every(f => has(pub.text, f)), (pub.text.replace(/<script[\s\S]*?<\/script>/g, '').match(/[^>]{0,40}\d[\d,]* programmes?\b/g) || []).join(' | '));
   ok('  · no programme id on an Apply button, no course link, no programme anchor', !/data-apply=/.test(pub.text) && !/Course page ↗/.test(pub.text) && !/data-prog=/.test(pub.text));
   ok('  · the university itself is there: its name in the <h1>, its city, its official site chip', has(pub.text.replace(/<\/?em>/g, ''), '<h1>' + esc(target.name) + '</h1>') /* 15 Oct banner: italic last word */ && /Public university/.test(pub.text));
   const title = (/<title>([^<]*)</.exec(pub.text) || [])[1] || '';

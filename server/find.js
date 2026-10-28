@@ -34,7 +34,10 @@
   /* The keys the address may carry, in the order the chips show them. The
      first group narrows the catalogue; the second is what the visitor told
      us about themselves and is checked against each row's requirements. */
-  const KEYS = ['country', 'level', 'field', 'apply', 'tuition', 'intake', 'moi', 'nogre', 'restricted',
+  /* Round 176: `ggpa` — the visitor's German grade (1.0 best, 4.0 pass),
+     the home page's calculator answer — narrows the way the home page
+     does: a row that STATES a German grade better than theirs is out. */
+  const KEYS = ['country', 'level', 'field', 'apply', 'tuition', 'intake', 'moi', 'nogre', 'restricted', 'ggpa',
     'cgpa', 'english', 'work', 'gre', 'greScore', 'greQuant', 'greVerbal', 'greAwa', 'german',
     'bachelorYears', 'ects', 'topPercent', 'papers', 'tags', 'q', 'sort', 'view'];
 
@@ -54,6 +57,49 @@
      (tags.js FEATURES). */
   const moiOk = p => !!(p && ((p.reqs && p.reqs.moiAccepted === true)
     || (Array.isArray(p.tags) && p.tags.some(t => String(t || '').trim().toLowerCase() === 'moi accepted'))));
+
+  /* Round 176 (owner, go-live): "students should not know how many
+     universities are in the filter at the back end". A viewer without a
+     package never receives the whole locked set — /api/catalogue and
+     /api/find/locked hand over at most LOCKED_CAP placeholders per response,
+     and every page draws at most that many locked rows. The count of what
+     is behind them is never sent or shown; `more` says only that the cap
+     was hit. */
+  const LOCKED_CAP = 12;
+  /* The locked rows of a list, capped. Named rows all stay, in place; of the
+     locked ones at most `cap` are kept, taken one per (country, level,
+     field) group in turn so a visitor's likely filters are each covered
+     rather than the first twelve of one kind. Order within the kept rows is
+     the order they came in. Returns { rows, more } — `more` is true when a
+     locked row was dropped; never how many. */
+  function capLocked(rows, cap) {
+    cap = Number(cap == null ? LOCKED_CAP : cap);
+    const lockedRows = rows.filter(p => (p._locked !== undefined ? p._locked : locked(p)));
+    if (lockedRows.length <= cap) return { rows: rows.slice(), more: false };
+    const groups = new Map();
+    lockedRows.forEach(p => { const k = [p.country, String(p.level || '').toLowerCase(), p.field].join('|'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+    const keep = new Set();
+    const lists = [...groups.values()];
+    for (let round = 0; keep.size < cap; round++) {
+      let any = false;
+      for (const g of lists) { if (keep.size >= cap) break; if (round < g.length) { keep.add(g[round]); any = true; } }
+      if (!any) break;
+    }
+    return { rows: rows.filter(p => !(p._locked !== undefined ? p._locked : locked(p)) || keep.has(p)), more: true };
+  }
+  /* The values the filter boxes may offer — every country, level, field
+     and open term across `rows`, as lists, with no count on any of them.
+     What /api/catalogue sends so the boxes are complete without the rows. */
+  function facetValues(rows) {
+    const uniq = (list) => [...new Set(list.filter(Boolean))].sort();
+    const terms = upcomingTerms(4).filter(t => rows.some(p => openFor(p, t))).map(t => t.key);
+    return {
+      country: uniq(rows.map(p => p.country)),
+      level: uniq(rows.map(p => String(p.level || '').toLowerCase())),
+      field: uniq(rows.map(p => p.field)),
+      intake: terms,
+    };
+  }
 
   const LEVELS = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma', foundation: 'Foundation / Pathway', phd: 'PhD' };
   const SORTS = { deadline: 'Deadline', cost: 'Total cost', fit: 'Fit', az: 'A – Z' };
@@ -185,6 +231,7 @@
     if (on('intake')) { const t = termByKey(f.intake); if (t && !openFor(p, t)) return false; }
     if (on('moi') && !moiOk(p)) return false;
     if (on('nogre') && reqsOf(p).greRequired === true) return false;
+    if (on('ggpa')) { const g = num(f.ggpa), pg = num(p.germanGpa); if (g != null && pg != null && g > pg) return false; }
     if (on('restricted')) {
       const r = reqsOf(p).restricted === true || p.restricted === true;
       if (f.restricted === 'open' && r) return false;
@@ -381,6 +428,7 @@
       case 'nogre': return 'No GRE needed';
       case 'restricted': return v === 'open' ? 'Open admission only' : 'Restricted admission only';
       case 'cgpa': return 'CGPA ' + v;
+      case 'ggpa': return 'German grade ' + v;
       case 'english': return /^ielts:/.test(v) ? 'IELTS ' + v.slice(6) : /^toefl:/.test(v) ? 'TOEFL ' + v.slice(6) : v === 'moi' ? 'English-medium bachelor’s' : v === 'none' ? 'No English test yet' : v;
       case 'work': return v === '0' ? 'No work experience' : v + '+ months’ work';
       case 'gre': return v === 'none' ? 'GRE not taken' : v === 'yes' ? 'GRE taken' : 'GRE ' + v;
@@ -566,6 +614,6 @@
       + ' — or <a href="index.html#counsel">ask a counsellor</a> to check your profile against the full list.</div>';
   }
 
-  return { KEYS, LEVELS, SORTS, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml,
+  return { KEYS, LEVELS, SORTS, LOCKED_CAP, capLocked, facetValues, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml,
     nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num, logoFor, logoTokens, tagList, flagImg };
 });

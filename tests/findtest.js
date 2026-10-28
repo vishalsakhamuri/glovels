@@ -127,7 +127,9 @@ check('chip labels', F.chipLabel('english', 'ielts:6.5') === 'IELTS 6.5' && F.ch
   await page.evaluate(() => { const i = document.querySelector('input[name=apply][value=free]'); i.closest('details').open = true; i.click(); }); await page.waitForTimeout(300);
   x = await st();
   check('a rail click writes the address', x.url.includes('apply=free') && x.chips === 3);
-  check('summary follows', /^\d+ programmes? at \d+ universit/.test(x.sum));
+  /* Round 176: the summary names the list, it never counts it (owner:
+     numbers not required — the count was the hidden set). */
+  check('summary follows (words, no count)', /^(Programmes that match your filters|Nothing matches every filter)/.test(x.sum) && !/\d/.test(x.sum), x.sum);
   await page.selectOption('#fsort', 'az'); await page.waitForTimeout(200);
   check('sort in the address', (await st()).url.includes('sort=az'));
   await page.click('[data-clear="apply"]'); await page.waitForTimeout(300);

@@ -306,10 +306,18 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const cat2 = await (await guest.request.get(BASE + '/api/catalogue')).json();
   check('a search-only programme is not in the finder', !cat2.programmes.some(p => soIds.includes(p.id))
     && soIds.every(id => cat2.inactive.includes(id)), soUni);
-  check('the finder lost only those rows', cat.programmes.length - cat2.programmes.length === soIds.length);
+  /* Round 176: the finder never carries the whole locked set — at most 12
+     placeholders, before and after — so a public university's rows going
+     search-only shows in `inactive` (above) and in the named rows staying
+     put, not in a count of the response. */
+  const isLocked = p => p.isPublic && !p.university;
+  check('the finder lost only those rows (named rows unchanged; locked rows capped at 12 either way)',
+    cat.programmes.filter(p => !isLocked(p)).length === cat2.programmes.filter(p => !isLocked(p)).length
+    && cat.programmes.filter(isLocked).length <= 12 && cat2.programmes.filter(isLocked).length <= 12);
   html = await (await guest.request.get(BASE + '/university')).text();
   check('and its university is off the /university list', !html.includes('href="university/' + soSlug + '"'));
-  check('which says how many more can be searched for', /1 more you can search for/.test(html));
+  /* Round 176: "more you can search for" — no number (owner: numbers not required). */
+  check('which says more can be searched for, without a count', /and more you can search for/.test(html) && !/\d+ more you can search for/.test(html));
   /* The page's scripts are one deferred file now (serve.js externalizeScripts). */
   const pageJs = async h => { const m = /src="(\/js\/[^"]+)"/.exec(h); return m ? await (await guest.request.get(BASE + m[1])).text() : ''; };
   check('and has a search box', /id="uSearch"/.test(html) && /api\/universities\/search/.test(await pageJs(html)));
@@ -346,12 +354,15 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     .every(id => html.includes('id="' + id + '"')) && /data-country="DE"/.test(html));
   check('the UK page has no German-grade field', !/id="ufGgpa"/.test(await (await guest.request.get(BASE + '/study-in-united-kingdom')).text()));
   let fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE&cgpa=7.2')).json();
-  check('a 7.2 CGPA in Germany clears only the private universities', fr.total > 0 && fr.universities.every(u => !u.isPublic), fr.total + ' universities');
+  /* Round 176: a visitor's answer carries no `total` and no programme
+     counts on a row — `more` and `partial` are booleans (owner: numbers not
+     required). The rows are what is read. */
+  check('a 7.2 CGPA in Germany clears only the private universities', fr.total === undefined && fr.universities.length > 0 && fr.universities.every(u => !u.isPublic), fr.universities.length + ' universities');
   fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE&budget=1')).json();
-  check('"no tuition" keeps only universities with a ₹0 programme', fr.total > 0 && fr.universities.every(u => u.feeMin === 0));
+  check('"no tuition" keeps only universities with a ₹0 programme', fr.universities.length > 0 && fr.universities.every(u => u.feeMin === 0));
   fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE&q=stutt&level=master')).json();
-  check('a name narrows it, and the row says how many programmes clear', fr.total === 1 && fr.universities[0].slug === 'university-of-stuttgart'
-    && fr.universities[0].matching >= 1);
+  check('a name narrows it, and the row says whether only some programmes clear (no count)', fr.universities.length === 1 && fr.universities[0].slug === 'university-of-stuttgart'
+    && typeof fr.universities[0].partial === 'boolean' && fr.universities[0].matching === undefined && fr.universities[0].programmes === undefined);
   fr = await (await guest.request.get(BASE + '/api/universities/filter?country=DE')).json();
   check('with no criteria it is the whole country, search-only included, fifty at most',
     fr.universities.length <= 50 && fr.universities.some(u => u.slug === soSlug) && fr.universities[0].listed);
@@ -481,20 +492,26 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
       list." */
   html = await (await guest.request.get(BASE + '/university/tu-munich')).text();
   const nTum = staffCat.programmes.filter(p => p.university === 'TU Munich' && p.active).length;
-  check('a long list shows six and folds the rest', nTum > 6
+  /* Round 176 (owner, go-live): a page whose programme names are locked
+     lists at most 12 of them, and nothing on it says how many there are —
+     the button says "Show more programmes", not "Show all N". The office's
+     view (below) still has every row, named, with the count. */
+  const nLocked = Math.min(nTum, 12);
+  check('a long list shows six and folds the rest (locked: capped at 12, no count on the button)', nTum > 6
     && (html.match(/<article class="prog(?: locked)?"/g) || []).length === 6
-    && (html.match(/<article class="prog(?: locked)? folded" id="[^"]+" hidden>/g) || []).length === nTum - 6
-    && html.includes('Show all ' + nTum + ' programmes'));
-  /* Patch 170: TU Munich is German public — signed out, every row is in the
+    && (html.match(/<article class="prog(?: locked)? folded" id="[^"]+" hidden>/g) || []).length === nLocked - 6
+    && html.includes('Show more programmes') && !new RegExp('Show all ' + nTum + ' programmes').test(html));
+  /* Patch 170: TU Munich is German public — signed out, the rows are in the
      HTML but locked (no name); staff, or a covering package, get the names. */
-  check('every programme is still in the HTML for Google (locked rows for a German public university)',
-    (html.match(/class="prog locked/g) || []).length === nTum && !/data-apply="/.test(html));
-  check('  · and named, with Apply, for staff', ((await (await staff.request.get(BASE + '/university/tu-munich')).text()).match(/data-apply="/g) || []).length === nTum);
+  check('the locked rows in the HTML are capped at 12 for a German public university (round 176)',
+    (html.match(/class="prog locked/g) || []).length === nLocked && !/data-apply="/.test(html) && (nTum > 12) === /More programmes here match/.test(html));
+  const staffHtml = await (await staff.request.get(BASE + '/university/tu-munich')).text();
+  check('  · and every one named, with Apply and the count, for staff', (staffHtml.match(/data-apply="/g) || []).length === nTum && staffHtml.includes('Show all ' + nTum + ' programmes'));
   check('a short list has no button', !/id="progMore"/.test(await (await guest.request.get(BASE + '/university/' + slug)).text()));
   const fp = await guest.newPage();
   await fp.goto(BASE + '/university/tu-munich');
   await fp.click('#progMore');
-  check('the button opens the complete list', await fp.locator('#progs .prog:visible').count() === nTum && await fp.locator('#progMore').isHidden());
+  check('the button opens the complete (capped) list', await fp.locator('#progs .prog:visible').count() === nLocked && await fp.locator('#progMore').isHidden());
   const lastId = await fp.locator('#progs .prog').last().getAttribute('id');
   await fp.goto(BASE + '/university/tu-munich#' + lastId);
   check('a link to a folded programme opens it', await fp.locator('#' + lastId).isVisible());

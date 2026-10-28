@@ -86,6 +86,9 @@ const BOTS = [
   [/bot|crawl|spider|scrapy|python-requests|curl\/|wget\/|Go-http-client|libwww|HttpClient/i, 'Other crawlers', 'other'],
 ];
 
+/* The user agents the office's own test runs carry. */
+const QA_AGENT = /GlovelsQA|glovels-test|Glovels-Test/i;
+
 function botOf(ua) {
   if (!ua) return { bot: 'No user agent', group: 'other' };
   for (const [re, name, group] of BOTS) if (re.test(ua)) return { bot: name, group };
@@ -149,6 +152,10 @@ function open({ db, log = console }) {
   function record(req, path, query) {
     try {
       const ua = String(req.headers['user-agent'] || '');
+      /* Round 176: the testing team's browsers announce themselves
+         (GlovelsQA / glovels-test in the user agent) and are not counted at
+         all — neither as visits nor as crawlers. */
+      if (QA_AGENT.test(ua)) return;
       const now = new Date();
       const day = now.toISOString().slice(0, 10);
       const bot = botOf(ua);

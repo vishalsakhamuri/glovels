@@ -185,8 +185,8 @@ const homeCounts = async ctx => {
   check('and every row on it is marked free to apply',
     (await v.$$eval('#rowsIn .mtype.priv', els => els.length)) === 0);
 
-  const pubCount = Number(await v.textContent('#rtnPub'));
-  check('the free tab says how many are on it', pubCount > 0, pubCount);
+  /* Round 176: the tab carries NO number (owner: numbers not required). */
+  check('the free tab carries no count', (await v.textContent('#rtnPub')).trim() === '', await v.textContent('#rtnPub'));
 
   await v.click('.rtab[data-rt="priv"]');
   await v.waitForTimeout(700);
@@ -225,22 +225,24 @@ const homeCounts = async ctx => {
   rp.on('pageerror', e => rerrs.push(String(e)));
   await rp.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await rp.waitForTimeout(2800);
-  const counts = () => rp.$$eval('.rail-n', e => e.map(x => Number(x.textContent)));
-  const tabs = async () => Number(await rp.textContent('#rtnPriv'))
-    + Number(await rp.textContent('#rtnPub'));
+  /* Round 176 (owner, go-live): the budget cards carry NO number and the
+     tabs carry none — "numbers not required", and the four added up to the
+     hidden set. A card still dims when nothing is behind it, and pressing
+     one still narrows the rows; what is read here is the rows drawn. */
+  const counts = () => rp.$$eval('.rail-n', e => e.map(x => x.textContent.trim()));
+  const tabs = async () => rp.$$eval('#rowsIn .mrow', e => e.length);
+  const live = () => rp.$$eval('[data-railband]', e => e.filter(b => !b.classList.contains('empty')).length);
 
   const all = await counts();
-  check('the budget cards carry a count', all.every(n => n > 0), all.join(','));
+  check('the budget cards carry no count', all.every(n => n === ''), all.join(','));
+  check('  · and the tabs carry none', (await rp.textContent('#rtnPriv')).trim() === '' && (await rp.textContent('#rtnPub')).trim() === '');
 
   await rp.selectOption('#fCountry', 'DE');
   await rp.click('#fGo');
   await rp.waitForTimeout(1200);
   const de = await counts();
-  check('and it moves when the destination changes',
-    de.join(',') !== all.join(','), all.join(',') + ' -> ' + de.join(','));
-  check('and adds up to what the two tabs are showing',
-    de.reduce((a, b) => a + b, 0) === await tabs(),
-    de.reduce((a, b) => a + b, 0) + ' vs ' + await tabs());
+  check('and the cards stay unnumbered when the destination changes', de.every(n => n === ''), de.join(','));
+  check('  · with at least one card live behind the rows shown', (await live()) >= 1 && (await tabs()) > 0, (await live()) + ' live, ' + (await tabs()) + ' rows');
 
   /* The destination is Germany, so the grade question is the German one and the
      calculator is how a 6.5 CGPA becomes an answer to it. */
@@ -254,23 +256,19 @@ const homeCounts = async ctx => {
   await rp.click('#fGo');
   await rp.waitForTimeout(1200);
   const cg = await counts();
-  check('and it moves again when the CGPA does',
-    cg.join(',') !== de.join(','), de.join(',') + ' -> ' + cg.join(','));
-  check('still adding up to the tabs',
-    cg.reduce((a, b) => a + b, 0) === await tabs(),
-    cg.reduce((a, b) => a + b, 0) + ' vs ' + await tabs());
+  check('and stay unnumbered when the CGPA changes', cg.every(n => n === ''), cg.join(','));
 
-  /* And pressing one filters BOTH tabs, which is the thing it is for. */
+  /* And pressing one filters the rows, which is the thing it is for. */
   await rp.selectOption('#fGgpa', '');
   await rp.click('#fGo');
   await rp.waitForTimeout(1000);
   const wide = await tabs();
   await rp.click('[data-railband="u20"]');
   await rp.waitForTimeout(1200);
-  check('pressing a budget card narrows the results', await tabs() < wide,
+  check('pressing a budget card narrows the results', await tabs() <= wide && wide > 0,
     wide + ' -> ' + await tabs());
-  check('to exactly what the card said',
-    await tabs() === (await counts())[1], await tabs() + ' vs ' + (await counts())[1]);
+  check('to rows of that band only',
+    await rp.$$eval('#rowsIn .mrow', e => e.every(r => r.dataset.band === 'u20')));
   check('and the card shows that it is on',
     (await rp.getAttribute('[data-railband="u20"]', 'aria-pressed')) === 'true');
   check('no page errors on the finder', rerrs.length === 0, rerrs.slice(0, 2).join(' | '));

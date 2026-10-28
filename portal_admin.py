@@ -299,6 +299,8 @@ BODY = """
         Traffic</button>
       <button class="otab" role="tab" data-o="stories" aria-selected="false">
         Success stories <span class="n" id="ssTabN">0</span></button>
+      <button class="otab" role="tab" data-o="settings" aria-selected="false">
+        Settings <span class="n" id="glTabN" hidden>0</span></button>
     </div>
 
     <div class="opane active" id="o-students">
@@ -788,6 +790,61 @@ BODY = """
     </div>
     </div><!-- /o-traffic -->
 
+    <!-- Round 176 (go-live): the readiness card, the backups, and the QA
+         clean-up. Everything an office would otherwise have to ask a
+         developer for on launch day, in one place and in plain words. -->
+    <div class="opane" id="o-settings">
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Go-live readiness</h2>
+        <button type="button" class="btn btn-ghost btn-sm" id="glRefresh" style="margin-left:auto">Check again</button></div>
+      <div class="p-card" id="goliveCard">
+        <p id="glSays" style="margin:0 0 10px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">Checking&hellip;</p>
+        <ul class="doclist" id="glList" style="margin:0"></ul>
+      </div>
+    </div>
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Backups</h2></div>
+      <div class="p-card" id="backupCard">
+        <p style="margin:0 0 10px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">
+          A copy of the database is written on the disk every night and the last seven are
+          kept. The download is the whole data folder &mdash; database, uploads, images &mdash;
+          and is the copy that survives losing the host. <b>Download it once a week and keep it
+          off the server.</b></p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <a class="btn btn-primary btn-sm" href="/api/staff/backup.tar" download>Download a full backup (.tar)</a>
+          <button type="button" class="btn btn-ghost btn-sm" id="bkNow">Take a copy now</button>
+          <span class="st" id="bkLast" style="text-transform:none;letter-spacing:0"></span>
+        </div>
+        <ul class="doclist" id="bkList" style="margin:10px 0 0"></ul>
+      </div>
+    </div>
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Test data</h2></div>
+      <div class="p-card" id="qaCard">
+        <p style="margin:0 0 10px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">
+          What the testing rounds left behind: accounts at <b>@example.com</b>, names carrying
+          <b>QA</b>, <b>Test</b> or <b>-Sudhin</b>, and the throwaway staff logins. Nothing tied to a
+          real payment is ever on this list. Preview first; it goes only on a typed confirmation.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-ghost btn-sm" id="qaPreview">Remove QA test data&hellip;</button>
+          <span class="st wait" id="qaCount" hidden style="text-transform:none;letter-spacing:0"></span>
+        </div>
+        <div id="qaBox" hidden style="margin-top:12px">
+          <ul class="doclist" id="qaList" style="margin:0 0 10px"></ul>
+          <div class="field"><label for="qaConfirm">Type <b>DELETE QA DATA</b> to confirm</label>
+            <input id="qaConfirm" autocomplete="off" spellcheck="false" placeholder="DELETE QA DATA"></div>
+          <p class="ferr" id="qaErr" hidden></p>
+          <div style="display:flex;gap:10px">
+            <button type="button" class="btn btn-primary btn-sm" id="qaGo" disabled>Remove it</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="qaCancel">Cancel</button>
+          </div>
+        </div>
+        <div id="qaDone" hidden style="margin-top:12px;padding:12px 14px;border-radius:10px;
+          background:#e6f4ec;border:1px solid #bfe0cc;font:600 12.8px/1.6 var(--sans);color:#14603a"></div>
+      </div>
+    </div>
+    </div><!-- /o-settings -->
+
 """
 
 SCRIPT = r"""
@@ -969,6 +1026,7 @@ function showTab(which) {
   $$('.opane').forEach(pn => pn.classList.toggle('active', pn.id === 'o-' + which));
   if (which === 'traffic' && typeof trOpen === 'function') trOpen();
   if (which === 'tasks' && typeof tkOpen === 'function') tkOpen();
+  if (which === 'settings' && typeof glOpen === 'function') glOpen();
   /* Where the tab bar is, not where the page happens to be scrolled. Switching
      tab and landing half way down the new one reads as a broken click. */
   const bar = $('.otabs');
@@ -986,7 +1044,8 @@ document.addEventListener('click', e => {
    be scrolled to, so it would have done nothing at all. */
 const TAB_OF = { everyStudent: 'students', everyOrder: 'orders',
   theMoney: 'money', mailCard: 'email', everyChat: 'chats', appCard: 'app',
-  trafficCard: 'traffic', gaCard: 'traffic', storiesCard: 'stories' };
+  trafficCard: 'traffic', gaCard: 'traffic', storiesCard: 'stories',
+  goliveCard: 'settings', backupCard: 'settings', qaCard: 'settings' };
 function tabForHash() {
   const h = (location.hash || '').replace(/^#/, '');
   if (!h) return '';
@@ -2771,6 +2830,86 @@ $('#gaSave').addEventListener('click', async () => {
 let trPainted = false;
 function trOpen() { if (!trPainted) { trPainted = true; paintTraffic(); paintGa(); } }
 if ($('#o-traffic') && $('#o-traffic').classList.contains('active')) trOpen();
+
+/* ============================================================ go-live (176) */
+/* The readiness card: GET /api/staff/golive, the same facts as the [golive]
+   block in the server's start-up log. Green / amber / red per item, with the
+   fix written beside anything that is not green. */
+const GL_LEVEL = { ok: ['ok', 'ready'], info: ['wait', 'note'], warn: ['wait', 'attention'], bad: ['bad', 'fix'] };
+async function paintGolive() {
+  const says = $('#glSays'), list = $('#glList');
+  if (!says || !list) return;
+  let r;
+  try { r = await api('GET', '/api/staff/golive'); } catch (e) { says.textContent = 'Could not read the readiness check: ' + (e.message || e); return; }
+  const items = r.items || [];
+  const bad = items.filter(i => i.level === 'bad').length, warn = items.filter(i => i.level === 'warn').length;
+  says.innerHTML = bad ? '<b style="color:#a8343a">' + bad + ' thing(s) to fix before go-live</b>' + (warn ? ', ' + warn + ' to look at.' : '.')
+    : warn ? '<b style="color:#8a6d1f">' + warn + ' thing(s) to look at</b> — nothing is blocking.' : '<b style="color:#14603a">Everything is green.</b>';
+  list.innerHTML = items.map(i => {
+    const lv = GL_LEVEL[i.level] || GL_LEVEL.info;
+    return '<li><div><b>' + esc(i.label) + '</b><span style="display:block;font-size:12px;color:var(--navy-800)">' + esc(i.value) + '</span>' +
+      (i.hint && i.level !== 'ok' ? '<span style="display:block;font-size:11.6px;color:var(--muted);margin-top:2px">' + esc(i.hint) + '</span>' : '') +
+      '</div><span class="st ' + lv[0] + '">' + lv[1] + '</span></li>';
+  }).join('');
+  const n = $('#glTabN');
+  if (n) { n.textContent = bad + warn; n.hidden = !(bad + warn); }
+}
+async function paintBackups() {
+  const list = $('#bkList'), last = $('#bkLast');
+  if (!list) return;
+  try {
+    const r = await api('GET', '/api/staff/backups');
+    const copies = r.copies || [];
+    if (last) last.textContent = copies.length ? 'last nightly copy: ' + copies[0].file : 'no nightly copy yet';
+    list.innerHTML = copies.slice(0, 7).map(c => '<li><div><b>' + esc(c.file) + '</b></div><span class="st ok">' + Math.round(c.bytes / 1024) + ' KB</span></li>').join('');
+  } catch (e) { if (last) last.textContent = 'backups: ' + (e.message || e); }
+}
+let glPainted = false;
+function glOpen() { if (!glPainted) { glPainted = true; paintGolive(); paintBackups(); } }
+if ($('#o-settings') && $('#o-settings').classList.contains('active')) glOpen();
+$('#glRefresh') && $('#glRefresh').addEventListener('click', () => { paintGolive(); paintBackups(); });
+$('#bkNow') && $('#bkNow').addEventListener('click', async () => {
+  try { await api('POST', '/api/staff/backups', {}); await paintBackups(); await paintGolive(); }
+  catch (e) { alert('Could not take a copy: ' + (e.message || e)); }
+});
+
+/* The QA clean-up: preview, then the typed phrase, then the purge. */
+const qaLine = (label, rows) => rows.length
+  ? '<li><div><b>' + esc(label) + '</b><span style="display:block;font-size:11.8px;color:var(--muted)">' +
+    esc(rows.slice(0, 12).map(r => r.email || r.reference || r.name).join(', ') + (rows.length > 12 ? ' … +' + (rows.length - 12) : '')) +
+    '</span></div><span class="st wait">' + rows.length + '</span></li>' : '';
+$('#qaPreview') && $('#qaPreview').addEventListener('click', async () => {
+  const box = $('#qaBox'), list = $('#qaList'), err = $('#qaErr');
+  $('#qaDone').hidden = true; err.hidden = true;
+  let r;
+  try { r = await api('GET', '/api/staff/qa/preview'); } catch (e) { err.textContent = e.message || String(e); err.hidden = false; return; }
+  const c = r.counts || {};
+  $('#qaCount').hidden = false;
+  $('#qaCount').textContent = r.total ? r.total + ' record(s) would go' : 'nothing to remove';
+  list.innerHTML = r.total
+    ? qaLine('Students (with their documents, messages, shortlists)', r.students || []) + qaLine('Test staff accounts', r.staff || []) +
+      qaLine('Orders without a live payment', r.orders || []) + qaLine('Enquiries', r.enquiries || []) + qaLine('Chats', r.chats || []) +
+      (c.documents ? '<li><div><b>Uploaded files</b></div><span class="st wait">' + c.documents + '</span></li>' : '') +
+      ((r.keptForPayment || []).length ? '<li><div><b>Kept — tied to a real payment</b><span style="display:block;font-size:11.8px;color:var(--muted)">' +
+        esc(r.keptForPayment.map(p => p.email).join(', ')) + '</span></div><span class="st ok">kept</span></li>' : '')
+    : '<li><div><b>Nothing matches the QA markers.</b></div><span class="st ok">clean</span></li>';
+  box.hidden = !r.total;
+  $('#qaConfirm').value = ''; $('#qaGo').disabled = true;
+});
+$('#qaConfirm') && $('#qaConfirm').addEventListener('input', e => { $('#qaGo').disabled = e.target.value.trim() !== 'DELETE QA DATA'; });
+$('#qaCancel') && $('#qaCancel').addEventListener('click', () => { $('#qaBox').hidden = true; });
+$('#qaGo') && $('#qaGo').addEventListener('click', async () => {
+  const err = $('#qaErr'); err.hidden = true;
+  try {
+    const r = await api('POST', '/api/staff/qa/purge', { confirm: $('#qaConfirm').value.trim() });
+    const n = r.removed || {};
+    $('#qaDone').textContent = 'Removed: ' + ['students', 'staff', 'orders', 'enquiries', 'chats', 'documents', 'messages']
+      .map(k => (n[k] || 0) + ' ' + k).join(', ') + '. Written to the audit trail.';
+    $('#qaDone').hidden = false; $('#qaBox').hidden = true; $('#qaCount').hidden = true;
+    paintGolive();
+    if (typeof paint === 'function') { try { paint(); } catch (e) {} }
+  } catch (e) { err.textContent = e.message || String(e); err.hidden = false; }
+});
 
 /* ==================================================================== tasks
  *

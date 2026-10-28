@@ -120,9 +120,16 @@ const student = async (browser, n) => {
 
   /* THE check. If an impossible grade could still be stored, this student
      would see the whole catalogue. It cannot be stored, so they cannot. */
-  const cat = await (await browser.newContext()).request.get(BASE + '/api/catalogue');
-  const total = ((await cat.json()).programmes || []).length;
-  ok(total > 50, 'there is a catalogue to be wrong about — ' + total);
+  /* Round 176: a visitor's /api/catalogue never carries the whole set (at
+     most 12 locked placeholders), so the size of the catalogue is read from
+     the office's own list. */
+  const office = await browser.newContext();
+  await office.request.post(BASE + '/api/auth/login', { data: { email: 'admin@glovels.com', password: 'glovels123' } });
+  const staffCat = await (await office.request.get(BASE + '/api/staff/catalogue?per=1&status=')).json().catch(() => ({}));
+  const visitorCat = await (await (await browser.newContext()).request.get(BASE + '/api/catalogue')).json();
+  const total = Number(staffCat.total || 0);
+  const visitorLocked = (visitorCat.programmes || []).filter(p => p.isPublic && !p.university).length;
+  ok(total > 50 && visitorLocked > 0 && visitorLocked <= 12, 'there is a catalogue to be wrong about (staff total ' + total + '; a visitor gets ' + visitorLocked + ' locked placeholders, 12 at most)');
 
   const cheat = await student(browser, 3);
   const tried = await cheat.ctx.request.put(BASE + '/api/profile', {

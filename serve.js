@@ -254,7 +254,9 @@ const backup = require('./server/backup.js').open({ db, dataDir: DATA, log: cons
 const traffic = require('./server/traffic.js').open({ db, log: console });
 const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
-  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic });
+  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
+  /* Round 176: the go-live readiness report, for /api/staff/golive. */
+  golive: () => require('./server/golive.js').report({ cfg: CFG, siteUrl: SITE_URL, mail, content, db, backup, dataDir: DATA, gaId: () => gaId() }) });
 
 /* First run only: a demo account with a shortlist, documents, applications and
    an order, so there is something to look at before anyone signs up. */
@@ -429,7 +431,14 @@ const PUBLIC_VISIT = req => {
 function send(res, code, body, type, extra) {
   if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
     const u = url.parse(res.req.url, true);
-    traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
+    /* Round 176: the office's own visits are not traffic. A request carrying
+       a staff session (counsellor, admin, editor, partner) is skipped;
+       traffic.js skips the QA user agents on its own. */
+    let staffHere = false;
+    if (res.req.headers.cookie) {
+      try { const w = whoIsIt(res.req); staffHere = !!(w && w.role && w.role !== 'student'); } catch (e) { staffHere = false; }
+    }
+    if (!staffHere) traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
     /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
     if (typeof body === 'string') body = withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)));
   }
@@ -1400,9 +1409,12 @@ function universityPage(u, req) {
 
   const title = x.metaTitle
     || (called ? called + ' (' + u.name + ')' : u.name) + ' — courses, fees & deadlines';
+  /* Round 176: no programme count in the description of a page whose
+     programmes are locked (uniAccess — decided below, before the body). */
+  const lockedDesc = isLockedKind(u) && !uniAccess(u, req).names;
   const desc = x.metaDesc
-    || u.name + (u.city ? ' in ' + u.city : '') + ', ' + c.name + ': ' + n + ' programme'
-      + (n === 1 ? '' : 's') + ' for Indian students — ' + feeLine.toLowerCase()
+    || u.name + (u.city ? ' in ' + u.city : '') + ', ' + c.name + ': ' + (lockedDesc ? 'programmes' : n + ' programme'
+      + (n === 1 ? '' : 's')) + ' for Indian students — ' + feeLine.toLowerCase()
       + (u.seasons.length ? ', ' + u.seasons.map(SEASON).join(' and ').toLowerCase() + ' intake' + (u.seasons.length > 1 ? 's' : '') : '')
       + ', the CGPA you need, and how to apply' + (free ? ' free through Glovels.' : ' with Glovels.');
 
@@ -1433,7 +1445,7 @@ function universityPage(u, req) {
     ? PROSE.render(x.about)
     : '<p>' + esc(u.name) + ' is a ' + (u.isPublic ? 'public' : 'private') + ' university'
       + (u.city ? ' in ' + esc(u.city) : '') + ', ' + esc(c.name) + '. Glovels tracks '
-      + n + ' programme' + (n === 1 ? '' : 's') + ' here'
+      + (lockedDesc ? 'programmes' : n + ' programme' + (n === 1 ? '' : 's')) + ' here'
       + (u.fields.length ? ' in ' + esc(u.fields.slice(0, 4).join(', ')) : '') + ', with '
       + (u.tuitionFree ? 'no tuition fees' : u.feeMin == null ? 'fees to be confirmed' : 'total costs from ' + esc(UNIS.money(u.feeMin)))
       + (u.seasons.length ? ' and ' + esc(u.seasons.map(SEASON).join(' and ').toLowerCase())
@@ -1453,7 +1465,15 @@ function universityPage(u, req) {
      or not (the script opens the list when the address names one). */
   const PROG_FIRST = 6;
   const access = uniAccess(u, req);
-  const ordered = u.programmes.slice().sort((a, b) => (!!a.searchOnly - !!b.searchOnly));
+  /* Round 176 (owner, go-live): a page whose programme names are locked
+     lists at most LOCKED_CAP of them and says nothing about how many there
+     are — not in the description, the pill, the paragraph, the lock note or
+     the button. "Numbers not required", and the count was one of the facts
+     that picked a public university out of a locked finder row. */
+  const LOCKED_CAP = require('./server/find.js').LOCKED_CAP;
+  const lockedPage = !access.names;
+  const ordered = u.programmes.slice().sort((a, b) => (!!a.searchOnly - !!b.searchOnly)).slice(0, lockedPage ? LOCKED_CAP : undefined);
+  const nShown = lockedPage ? null : n;
   /* Patch 170: a locked row — level, field and what it asks for (CGPA,
      German grade: requirements, not identities, as on the finder's locked
      row); the name, fee and deadlines blurred placeholders; no id, no course
@@ -1461,8 +1481,10 @@ function universityPage(u, req) {
   const blur = n => '█'.repeat(Math.max(6, Math.min(48, Number(n) || 18)));
   const lockedRow = (p, i) => {
     const folded = i >= PROG_FIRST;
+    /* Round 176: a fixed blur (two widths by position), never the hidden
+       name's length — the finder's rule (find.js, round 175). */
     return '<article class="prog locked' + (folded ? ' folded' : '') + '" id="prog-' + (i + 1) + '"' + (folded ? ' hidden' : '') + '>'
-      + '<div><h3><span class="masked" aria-hidden="true">' + blur(String(p.program || '').length) + '</span>'
+      + '<div><h3><span class="masked" aria-hidden="true">' + blur(i % 2 ? 26 : 22) + '</span>'
       + '<span class="offscreen">A programme at a German public university. Its name, fee and deadlines are part of our packages.</span></h3>'
       + '<p class="meta"><b>' + esc(UNIS.levelOf(p.level)) + '</b>'
       + (p.field ? ' · ' + esc(p.field) : '')
@@ -1508,9 +1530,9 @@ function universityPage(u, req) {
   const others = listedUniversities(u.country).filter(o => o.slug !== u.slug);
   const othersBlock = others.length
     ? '<h2>Other universities in ' + esc(c.name) + '</h2><ul class="uni-others">'
-      + others.slice(0, 40).map(o => '<li><a href="' + esc(o.slug) + '">' + esc(o.name) + '</a>'
-        + ' <span style="color:var(--muted);font-size:12.4px">· ' + o.programmes.length
-        + ' programme' + (o.programmes.length === 1 ? '' : 's') + '</span></li>').join('')
+      /* Round 176: no programme count beside a neighbour — numbers are not
+         for the visitor, and a public university's count picked it out. */
+      + others.slice(0, 40).map(o => '<li><a href="' + esc(o.slug) + '">' + esc(o.name) + '</a></li>').join('')
       + '</ul>'
     : '';
 
@@ -1519,7 +1541,7 @@ function universityPage(u, req) {
     + '<span class="pill ' + (u.isPublic ? 'pub' : 'priv') + '">' + (u.isPublic ? 'Public' : 'Private') + '</span>'
     + '<span class="pill">' + (require('./server/find.js').flagImg(u.country, c.name, 20) || esc(c.flag || '')) + ' ' + esc(c.name) + '</span>'
     + (u.city ? '<span class="pill">' + esc(u.city) + '</span>' : '')
-    + '<span class="pill">' + n + ' programme' + (n === 1 ? '' : 's') + '</span>'
+    + (nShown == null ? '' : '<span class="pill">' + nShown + ' programme' + (nShown === 1 ? '' : 's') + '</span>')
     /* Round 169 (WEB-05): the office's address for the university when set
        (University pages → Official website), otherwise the domain most of
        its course pages sit on; no chip when neither exists. */
@@ -1543,12 +1565,13 @@ function universityPage(u, req) {
         + 'Fees are the total for the whole course, in rupees at today\'s rate; deadlines are the '
         + 'university\'s and come round every year.</p>'
       : '<p class="uni-locknote"><b>Programme names at German public universities are part of our packages.</b> '
-        + 'We track ' + n + ' programme' + (n === 1 ? '' : 's') + ' here'
+        + 'We track programmes here'
         + (u.fields.length ? ' in ' + esc(u.fields.join(', ')) : '')
         + '. <a href="index.html#packages">See the packages</a> — the names, fees and deadlines open with one.</p>')
     + '<div class="progs" id="progs">' + progs + '</div>'
-    + (n > PROG_FIRST ? '<p class="progmore"><button type="button" class="btn btn-ghost" id="progMore" aria-expanded="false" aria-controls="progs">'
-      + 'Show all ' + n + ' programmes</button></p>' : '')
+    + (ordered.length > PROG_FIRST ? '<p class="progmore"><button type="button" class="btn btn-ghost" id="progMore" aria-expanded="false" aria-controls="progs">'
+      + (nShown == null ? 'Show more programmes' : 'Show all ' + nShown + ' programmes') + '</button></p>' : '')
+    + (lockedPage && n > ordered.length ? '<p class="uni-locknote">More programmes here match — <a href="index.html#packages">a package opens them</a>.</p>' : '')
     + packagesBlock(u, c)
     + '<h2>How applying works</h2>'
     + '<ol class="uni-steps">'
@@ -1719,9 +1742,9 @@ function universitiesIndexPage() {
   const body = order.map(code => {
     const c = countries[code] || { name: code, flag: '' };
     const list = byCountry.get(code);
-    return '<h2 id="' + esc(UNIS.slugOf(c.name)) + '">' + (require('./server/find.js').flagImg(code, c.name, 28) || esc(c.flag || '')) + ' ' + esc(c.name)
-      + ' <span style="font-size:14px;color:var(--muted);font-weight:400">· ' + list.length
-      + ' universit' + (list.length === 1 ? 'y' : 'ies') + '</span></h2>'
+    /* Round 176: no university count in the heading — numbers are not for
+       the visitor. */
+    return '<h2 id="' + esc(UNIS.slugOf(c.name)) + '">' + (require('./server/find.js').flagImg(code, c.name, 28) || esc(c.flag || '')) + ' ' + esc(c.name) + '</h2>'
       + '<ul class="ulist">' + list.map(u =>
         '<li><a class="haslogo" href="university/' + esc(u.slug) + '">' + uniTile(u) + '<span><b>' + esc(u.name) + '</b><small>'
         + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
@@ -1736,7 +1759,7 @@ function universitiesIndexPage() {
 
   const page = fill(t.page, Object.assign(metaHoles({
     title: 'Universities abroad for Indian students — fees, intakes & how to apply',
-    desc: shown.length + ' universities across ' + byCountry.size + ' countries that Glovels places '
+    desc: 'Universities across ' + byCountry.size + ' countries that Glovels places '
       + 'students at: public and private, what each costs in total, when to apply, and which '
       + 'ones you can apply to free through us.',
     canonical: absolute('/university'),
@@ -1751,8 +1774,8 @@ function universitiesIndexPage() {
     },
   }), {
     H1: 'Universities we place students at',
-    DATELINE: shown.length + ' universities in ' + byCountry.size + ' countries'
-      + (unlisted ? ', and ' + unlisted + ' more you can search for' : '') + '. Every one has its own page '
+    DATELINE: 'Universities in ' + byCountry.size + ' countries'
+      + (unlisted ? ', and more you can search for' : '') + '. Every one has its own page '
       + 'with the programmes we track, what they cost in total, and a way to apply.',
     CRUMBS: '<a href="index.html">Home</a> / Universities',
     BODY: USEARCH_HTML
@@ -2025,14 +2048,20 @@ function destinationWords(html, code, progs) {
   if (!pubN) {
     try { pubN = (db.rowsForCountries ? db.rowsForCountries([code]) : []).filter(r => r.is_public && r.active && !r.search_only).length; } catch (e) { pubN = 0; }
   }
-  const n1 = (n, one, many) => n.toLocaleString('en-IN') + ' ' + (n === 1 ? one : many);
-  html = html.replace(/(<h1>Study in [^<]*<\/h1><p>)([\d,]+) programmes?, [\d,]+ at public universit(?:y|ies)\./, (m, a, baked) => {
-    const n = progs || Number(String(baked).replace(/,/g, '')) || 0;
-    return a + n1(n, 'programme', 'programmes') + (pubN ? ', ' + n1(pubN, 'at a public university', 'at public universities') : '') + '.';
+  /* Round 176 (owner, go-live): NO COUNTS on a destination page. "Students
+     should not know how many universities are in the filter at the back
+     end" — and "158 programmes, 153 at public universities" was exactly
+     that number. The baked sentences are rewritten in words; the two count
+     tiles come off the fact box. */
+  void progs;
+  html = html.replace(/(<h1>Study in [^<]*<\/h1><p>)([\d,]+) programmes?, [\d,]+ at public universit(?:y|ies)\./, (m, a) => {
+    return a + (pubN ? 'Public and private universities.' : 'Universities we place students at.');
   });
+  html = html.replace(/We track <b>[\d,]+ programmes?<\/b> across\s*<b>[\d,]+ universit(?:y|ies)<\/b> in ([^,<]+),/g, 'We track programmes across universities in $1,');
+  html = html.replace(/<div><span>Programmes we track<\/span><b>[^<]*<\/b><\/div>/g, '').replace(/<div><span>Universities<\/span><b>[^<]*<\/b><\/div>/g, '');
+  html = html.replace(/<b>[\d,]+ programmes?<\/b>/g, '<b>programmes</b>').replace(/<b>[\d,]+ universit(?:y|ies)<\/b>/g, '<b>universities</b>');
   /* No public programme here: no sentence about what public universities charge. */
   if (!pubN) html = html.replace(/(<p class="lead">)Public universities here [^.]*\.\s*/g, '$1');
-  html = html.replace(/<b>1 programmes<\/b>/g, '<b>1 programme</b>').replace(/<b>1 universities<\/b>/g, '<b>1 university</b>');
   /* Money in lakh and crore, as everywhere else — the page body only, from
      the title band to the footer; scripts and structured data are left be. */
   const from = html.indexOf('<section class="page-hero"'), to = html.lastIndexOf('<footer');
@@ -2173,7 +2202,7 @@ const UFILTER_JS = `<script>(function(){
       + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' \u00b7 ' + esc(u.city) : '')
       + ' \u00b7 ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + money(u.feeMin))
       + (u.feeModel === 'free' ? ' \u00b7 free to apply through us' : '')
-      + '</small></span><span class="n">' + (u.matching < u.programmes ? 'Some programmes match' : 'Programmes') + ' \u2192</span></a></li>';
+      + '</small></span><span class="n">' + (u.partial ? 'Some programmes match' : 'Programmes') + ' \u2192</span></a></li>';
   };
   function ask() {
     var s = state(), on = Object.keys(s).some(function (k) { return s[k]; });
@@ -2186,7 +2215,7 @@ const UFILTER_JS = `<script>(function(){
       var U = d.universities || [];
       list.innerHTML = U.map(row).join('') || '<li style="color:var(--muted);padding:8px 0">Nothing clears every filter. Loosen one, or <a href="index.html#counsel">ask a counsellor</a> \u2014 we add universities on request.</li>';
       count.textContent = U.length ? 'Universities that match your filters' : 'No university matches every filter';
-      moreEl.textContent = d.total > U.length ? 'More match than fit here \u2014 narrow the filters, or search below.' : 'Every one has its own page. Search for another below.';
+      moreEl.textContent = d.more ? 'More match than fit here \u2014 narrow the filters, or search below.' : 'Every one has its own page. Search for another below.';
     }).catch(function () {});
   }
   f.addEventListener('change', ask);
@@ -2207,7 +2236,8 @@ function studyPage(c) {
     + (f.minCgpaPublic || f.minCgpaPrivate ? 'the CGPA you need (' + (f.minCgpaPublic || f.minCgpaPrivate) + '+ on 10), ' : '')
     + (f.fundsInr ? 'the funds to show (' + money(f.fundsInr) + '), ' : '')
     + (f.tests && f.tests.length ? 'accepted tests, ' : '')
-    + (n ? n + ' universit' + (n === 1 ? 'y' : 'ies') + ' with fees and intakes, ' : '')
+    /* Round 176: no university count — numbers are not for the visitor. */
+    + (n ? 'the universities we track there with fees and intakes, ' : '')
     + 'and how Glovels gets you there' + (free ? ' — free to apply through us.' : '.');
   const fact = (label, value) => value ? '<div><span>' + label + '</span><b>' + value + '</b></div>' : '';
   const factbox = '<div class="factbox">'
@@ -2216,7 +2246,7 @@ function studyPage(c) {
     + fact(f.fundsLabel || 'Funds to show', f.fundsInr ? money(f.fundsInr) : '')
     + fact('Living costs, per year', f.livingInr ? money(f.livingInr) : '')
     + fact('Tuition', f.tuitionFree ? 'Free or near-free at public universities' : (f.hasPublicTrack ? 'Public and private routes' : ''))
-    + fact('Universities we track', n ? String(n) : '')
+    /* Round 176: no "Universities we track: N" tile. */
     + '</div>';
   const para = (h, v) => v ? '<h2>' + h + '</h2><p>' + esc(v) + '</p>' : '';
   const list = (h, arr) => arr && arr.length ? '<h2>' + h + '</h2><ul>' + arr.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '';
@@ -2536,6 +2566,9 @@ function gaId() {
      means the tag lands on the very next page after the office saves. */
   let id = '';
   try { id = String((db.content('analytics') || {}).gaId || '').trim(); } catch (e) {}
+  /* Round 176: GA_ID in the environment is the fallback — set once on Render
+     and the tag is on from the first deploy; what the office types wins. */
+  if (!id) id = String(process.env.GA_ID || '').trim();
   return /^G-[A-Z0-9]{4,20}$/i.test(id) ? id.toUpperCase() : '';
 }
 /*
@@ -2638,11 +2671,15 @@ function withSocials(html, pathname) {
     const i = html.indexOf('<div class="fbot">');
     if (i > 0) html = html.slice(0, i) + row + '\n  ' + html.slice(i);
   }
-  if (links.length && (pathname === '/' || pathname === '/index')) {
+  /* Round 176: the Organization block is on the home page whether or not a
+     social account is ticked — the name and the address are what Google
+     ties a business listing to; sameAs is extra when there is one. */
+  if ((pathname === '/' || pathname === '/index') && html.indexOf('"@type":"Organization"') < 0) {
     const org = {
       '@context': 'https://schema.org', '@type': 'Organization', name: 'Glovels',
-      url: SITE_URL + '/', sameAs: links.map(l => l.url),
+      url: SITE_URL + '/', logo: SITE_URL + '/og/glovels.png',
     };
+    if (links.length) org.sameAs = links.map(l => l.url);
     html = html.replace('</head>', '<script type="application/ld+json">' + JSON.stringify(org).replace(/</g, '\\u003c') + '</script></head>');
   }
   return html;
@@ -2658,6 +2695,39 @@ function withAnalytics(html) {
       + 'gtag("js",new Date());gtag("config","' + id + '",{anonymize_ip:true});</script>'
     : '';
   return html.replace('</head>', hook + tag + '</head>');
+}
+
+/*
+ * Round 176 (go-live): the four policy pages, with the particulars missing.
+ *
+ * Each page hides the row for every particular not yet typed on Home page →
+ * Legal, so with nothing typed the Terms read as a policy with no company
+ * behind it. Until the office fills them in, a notice says so in plain
+ * words, written on the server so it is there before any script runs.
+ */
+const GOLIVE = require('./server/golive.js');
+const LEGAL_PAGES = new Set(['terms', 'privacy', 'refunds', 'grievance']);
+function withLegalNotice(html) {
+  const missing = GOLIVE.legalMissing(content);
+  if (!missing.length || html.indexOf('data-legal-notice') >= 0) return html;
+  const block = '<div class="legal-notice" data-legal-notice role="note" style="margin:14px 0 18px;padding:12px 14px;'
+    + 'border-radius:10px;background:#fff8e6;border:1px solid #f1d9a0;font-size:13.4px;line-height:1.6;color:#0b1f3a">'
+    + '<b>Company details are being updated.</b> The registered particulars this page quotes '
+    + '(' + missing.map(esc).join(', ') + ') are being added. Until then, write to the office at the address in the footer.</div>';
+  const i = html.indexOf('<ul class="legal-particulars">');
+  if (i >= 0) return html.slice(0, i) + block + html.slice(i);
+  return html.replace(/(<h1[^>]*>[\s\S]*?<\/h1>)/, '$1' + block);
+}
+
+/* Round 176 (go-live): a canonical on every static public page. The
+   generated pages (blog, university, finder) write their own; the fifty
+   built pages never carried one, so www / onrender / ?utm variants of the
+   same page had nothing telling Google they are one page. */
+function withCanonical(html, pathname) {
+  if (!CFG.siteUrl || /<link rel="canonical"/i.test(html)) return html;
+  const i = html.indexOf('</head>');
+  if (i < 0) return html;
+  return html.slice(0, i) + '<link rel="canonical" href="' + esc(CFG.siteUrl + pathname) + '">\n' + html.slice(i);
 }
 
 function forIndexing(html, slug) {
@@ -2686,8 +2756,39 @@ const FIND_SRC = {
   'tags.js': () => fs.readFileSync(path.join(__dirname, 'server', 'tags.js'), 'utf8'),
 };
 
+/*
+ * Round 176 (go-live): one address.
+ *
+ * Once GLOVELS_URL names the real domain, a page fetched as www.glovels.com
+ * or as glovels.onrender.com is the same page at a second address — a
+ * duplicate site to a search engine, and the old test address living on in
+ * people's bookmarks. A GET or HEAD for any other host is sent to the
+ * canonical one with a 301, same path and query. Never for localhost or a
+ * bare IP (a laptop, the health check from inside the host), never when
+ * GLOVELS_URL is unset, and CANONICAL_HOST_REDIRECT=false switches it off.
+ */
+const CANON = (() => {
+  if (/^(0|false|no|off)$/i.test(String(process.env.CANONICAL_HOST_REDIRECT || ''))) return null;
+  const u = String(process.env.GLOVELS_URL || '').trim();
+  if (!/^https?:\/\//i.test(u)) return null;
+  try { const p = new URL(u); return { host: p.host.toLowerCase(), origin: p.origin }; } catch (e) { return null; }
+})();
+function canonicalRedirect(req) {
+  if (!CANON) return '';
+  if (req.method !== 'GET' && req.method !== 'HEAD') return '';
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase();
+  if (!host || host === CANON.host) return '';
+  const bare = host.replace(/:\d+$/, '');
+  if (bare === 'localhost' || bare === '127.0.0.1' || bare === '[::1]' || /^\d+\.\d+\.\d+\.\d+$/.test(bare)) return '';
+  if (req.url === '/api/health') return '';
+  return CANON.origin + req.url;
+}
+
 const server = http.createServer(async (req, res) => {
   const { pathname, query } = url.parse(req.url);
+
+  const canon = canonicalRedirect(req);
+  if (canon) return send(res, 301, '', 'text/html', { Location: canon });
 
   if (pathname === '/find-university' || pathname === '/find-university/' || pathname === '/find-university.html') {
     if (pathname !== '/find-university') return send(res, 301, '', 'text/html', { Location: '/find-university' + (query ? '?' + query : '') });
@@ -2976,7 +3077,7 @@ const server = http.createServer(async (req, res) => {
          * comment on blogList has always said. */
         const orig = path.join(ROOT, 'post', post.slug + '.html');
         if (!fs.existsSync(orig)) return notFound(res);
-        return send(res, 200, externalizeScripts(forIndexing(fs.readFileSync(orig, 'utf8'), post.slug), 'post__' + post.slug),
+        return send(res, 200, externalizeScripts(withCanonical(forIndexing(fs.readFileSync(orig, 'utf8'), post.slug), '/post/' + post.slug), 'post__' + post.slug),
           TYPES['.html']);
       }
     }
@@ -3065,6 +3166,11 @@ const server = http.createServer(async (req, res) => {
     }
     html = withoutScripts(html, query, slug);
     html = forIndexing(html, slug);
+    if (LEGAL_PAGES.has(slug) && path.dirname(file) === ROOT) html = withLegalNotice(html);
+    if (!PORTAL_PAGES.has(slug)) {
+      const rel = path.relative(ROOT, file).replace(/\.html$/, '').replace(/\\/g, '/');
+      html = withCanonical(html, rel === 'index' ? '/' : '/' + rel);
+    }
     /* Public pages only: the office's screens keep their scripts inline. The
        key is the page's path with / as __, so the file can be rebuilt. */
     if (!PORTAL_PAGES.has(slug)) html = externalizeScripts(html, path.relative(ROOT, file).replace(/\.html$/, '').replace(/[\\/]/g, '__'));
@@ -3123,4 +3229,22 @@ ${newTiers ? `  ${newTiers} entry package(s) added and live — the machine deli
   Create an account on the sign-in page — it is a real one.
   Stop the server with Control-C.
 `);
+  /* Round 176: the go-live self-check, one block, the same facts as
+     /api/staff/golive and the readiness card on Organisation. */
+  try {
+    const deps = { cfg: CFG, siteUrl: SITE_URL, mail, content, db, backup, dataDir: DATA, gaId: () => gaId() };
+    const ps = GOLIVE.paymentsState(CFG.razorpay);
+    const missing = GOLIVE.legalMissing(content);
+    console.log('  [golive] url: ' + SITE_URL + ' — indexing ' + (CFG.allowIndexing ? 'ON' : 'OFF')
+      + (CANON ? ' — other hosts 301 → ' + CANON.host : ''));
+    console.log('  [golive] email: ' + (mail.mode === 'outbox'
+      ? 'Brevo not configured — mail is queued in the outbox'
+      : 'configured (' + (mail.mode === 'api' ? (mail.status().providerLabel || 'HTTPS provider') : 'SMTP ' + (mail.status().host || '')) + ')'));
+    console.log('  [golive] payments: ' + ps.label + (ps.state === 'off' ? '' : (CFG.razorpay.webhookSecret ? ', webhook secret set' : ', NO webhook secret')));
+    console.log('  [golive] analytics: ' + (gaId() ? 'GA id ' + gaId() + ' on public pages' : 'no GA id'));
+    if (missing.length) console.log('  [golive] legal details missing: ' + missing.join(', '));
+    else console.log('  [golive] legal details: complete');
+    GOLIVE.lines(deps).forEach(l => console.log(l));
+    console.log('');
+  } catch (e) { console.error('  [golive] self-check failed: ' + (e && e.message)); }
 });

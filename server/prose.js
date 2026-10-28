@@ -229,7 +229,20 @@ function render(body) {
     const q = /^&gt;\s?(.*)$/.exec(line);           // escaped already
     if (q) {
       flushPara(); flushList();
-      out.push('<blockquote><p>' + inline(q[1]) + '</p></blockquote>');
+      /* Round 176: a quotation wrapped over three lines (every line starting
+         with ">", the way Markdown is typed) came out as three one-line
+         blockquotes, each with its own bar and margin, instead of one. The
+         consecutive ">" lines are one quotation; a blank ">" line inside it
+         starts a new paragraph of the same quotation. */
+      const paras = [[q[1]]];
+      while (i + 1 < lines.length) {
+        const next = /^&gt;\s?(.*)$/.exec(lines[i + 1].trim());
+        if (!next) break;
+        i++;
+        if (!next[1].trim()) paras.push([]);
+        else paras[paras.length - 1].push(next[1]);
+      }
+      out.push('<blockquote>' + paras.filter(p => p.length).map(p => '<p>' + inline(p.join(' ')) + '</p>').join('') + '</blockquote>');
       continue;
     }
 

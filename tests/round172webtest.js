@@ -149,18 +149,23 @@ const num = s => Number(String(s || '').replace(/,/g, ''));
     /needs at least one letter/.test(contactHtml) && /r\.status === 422/.test(contactHtml) && /needs at least one letter/.test(referHtml) && /r\.status === 422/.test(referHtml));
 
   /* --------------------------------------------------------------- 11 API */
-  console.log('\n11. Facet counts after the CGPA filter');
+  console.log('\n11. The rail after the CGPA filter (round 176: no counts anywhere)');
+  /* Round 176 (owner, go-live): the rail carries NO count beside an option
+     and the summary no number — "numbers not required", and the facet
+     counts added up to the hidden set. What is checked now: the options
+     are still offered, nothing on the rail or in the summary is a number,
+     and a lower CGPA draws no more rows than a higher one. */
+  const drawn = {};
   for (const q of ['cgpa=5', 'cgpa=7', 'cgpa=8.5', 'cgpa=7&level=master']) {
     const h = await get('/find-university?' + q);
-    const total = num((/id="fsummary">([\d,]+) programme/.exec(h) || [])[1]);
-    const rail = h.slice(h.indexOf('id="frail"'));
-    const facet = name => [...rail.matchAll(new RegExp('name="' + name + '" value="([^"]+)"[^>]*>[\\s\\S]*?<em>([\\d,]+)</em>', 'g'))].map(m => [m[1], num(m[2])]);
-    const cs = facet('country'), lv = facet('level');
-    const sum = a => a.reduce((t, x) => t + x[1], 0);
-    ok('  ?' + q + ': ' + total + ' match; every country and level count is ≤ that', total > 0 && cs.length && cs.every(x => x[1] <= total) && lv.every(x => x[1] <= total), J(cs) + ' ' + J(lv));
-    if (!/level=/.test(q)) ok('  ?' + q + ': the country counts add up to the results', sum(cs) === total, sum(cs) + ' vs ' + total);
-    else ok('  ?' + q + ': the level counts are counted without the level filter, so Master\'s is the total', (lv.find(x => x[0] === 'master') || [])[1] === total, J(lv));
+    const rail = h.slice(h.indexOf('id="frail"'), h.indexOf('</aside>', h.indexOf('id="frail"')));
+    const summary = (/id="fsummary">([^<]*)/.exec(h) || [])[1] || '';
+    const opts = name => [...rail.matchAll(new RegExp('name="' + name + '" value="([^"]+)"', 'g'))].map(m => m[1]);
+    drawn[q] = (h.match(/<article class="frow/g) || []).length;
+    ok('  ?' + q + ': the rail offers countries and levels with no count on any of them', opts('country').length > 0 && opts('level').length > 0 && !/<em>[\d,]+<\/em>/.test(rail), J(opts('country')) + ' ' + J(opts('level')));
+    ok('  ?' + q + ': the summary has no number in it', summary && !/\d/.test(summary), summary);
   }
+  ok('  a lower CGPA draws no more rows than a higher one (5 ≤ 7 ≤ 8.5)', drawn['cgpa=5'] <= drawn['cgpa=7'] && drawn['cgpa=7'] <= drawn['cgpa=8.5'], J(drawn));
   {
     const FIND = require(path.join(ROOT, 'server', 'find.js'));
     const REQS = require(path.join(ROOT, 'server', 'reqs.js'));
@@ -317,12 +322,15 @@ const num = s => Number(String(s || '').replace(/,/g, ''));
     const fp = await fctx.newPage();
     await fp.goto(BASE + '/find-university?cgpa=5', { waitUntil: 'networkidle' });
     await fp.waitForTimeout(500);
+    /* Round 176: the browser re-draws the rail WITHOUT counts — no <em> on
+       any option, no number in the summary (owner: numbers not required). */
     const live = await fp.evaluate(() => {
-      const total = Number((document.getElementById('fsummary').textContent.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
-      const cs = [...document.querySelectorAll('#frail input[name=country]')].filter(i => i.value).map(i => Number((i.closest('label').querySelector('em') || {}).textContent.replace(/,/g, '') || 0));
-      return { total, cs, flags: document.querySelectorAll('#frail .fopt img.flagimg').length };
+      const summary = document.getElementById('fsummary').textContent;
+      const cs = [...document.querySelectorAll('#frail input[name=country]')].filter(i => i.value).length;
+      const ems = document.querySelectorAll('#frail .fopt em').length;
+      return { summary, cs, ems, flags: document.querySelectorAll('#frail .fopt img.flagimg').length };
     });
-    ok('re-counted in the browser, the country counts still add up to the results', live.total > 0 && live.cs.reduce((a, b) => a + b, 0) === live.total, JSON.stringify(live));
+    ok('re-drawn in the browser, the rail offers the countries with no count on any and the summary has no number', live.cs > 0 && live.ems === 0 && live.summary && !/\d/.test(live.summary), JSON.stringify(live));
     ok('the rail\'s countries carry flag pictures after the browser re-draws', live.flags > 0);
     ok('the banner\'s title is still italic after the browser re-draws it', await fp.$eval('.page-hero h1', h => !!h.querySelector('em')));
     await fp.goto(BASE + '/find-university', { waitUntil: 'networkidle' });

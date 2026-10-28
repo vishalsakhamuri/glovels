@@ -192,10 +192,14 @@ const check = (n, p, note) => (p ? ok : bad).push(n + (note ? ' — ' + note : '
 
   /* And a student who could not be served before can be now. */
   const anon = await browser.newContext();
-  const live = await (await anon.request.get(BASE + '/api/catalogue')).json();
-  const livePl = (live.programmes || []).filter(p => p.country === 'PL' && p.isPublic);
-  check('they are on the public catalogue immediately, no rebuild',
-    livePl.length === 3, livePl.length);
+  /* Round 176: a visitor's /api/catalogue carries at most 12 locked
+     placeholders spread over the whole set, so the rows for ONE country are
+     asked for by filter — /api/find/locked?country=PL — which is what the
+     finder does when Poland is chosen. */
+  const live = await (await anon.request.get(BASE + '/api/find/locked?country=PL')).json();
+  const livePl = (live.locked || []).filter(p => p.country === 'PL' && p.isPublic);
+  check('they are on the public finder immediately, no rebuild (locked placeholders for Poland)',
+    livePl.length === 3 && live.more === false, livePl.length);
   check('carrying the bar the sheet gave them',
     livePl.some(p => Number(p.minCgpa) === 6.5), livePl.map(p => p.minCgpa).join(','));
 

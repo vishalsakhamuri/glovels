@@ -588,6 +588,9 @@ section[id]{scroll-margin-top:92px}
 .empty{background:var(--paper);border:1px dashed #cfd6de;border-radius:14px;padding:28px;
   text-align:center;color:var(--muted)}
 .empty b{display:block;font-family:var(--disp);font-size:17px;color:var(--navy-900);margin-bottom:6px}
+/* Round 176: under the locked rows when the server's cap was hit — more
+   exist, never how many. */
+.mmore-locked{margin:10px 0 0;padding:11px 14px;border-radius:12px;background:#fdf6e6;border:1px solid #e6d5a8;font:600 13.4px/1.5 var(--sans);color:#5b4409}
 
 .pkg-teaser{background:var(--paper);border-top:1px solid var(--line);
   border-bottom:1px solid var(--line);padding:22px 0}
@@ -1396,7 +1399,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
       <div class="ftagchips" id="fTagChips" hidden></div>
     </div>
       </div>
-  <div class="rail" id="rail"><button class="rail-card" data-band="u10" data-railband="u10"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg></span><span class="rail-tx"><b>Under ₹10L</b><span>Public &amp; low-cost picks</span></span><span class="rail-n">132</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="u20" data-railband="u20"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg></span><span class="rail-tx"><b>Under ₹20L</b><span>Best-value programs</span></span><span class="rail-n">19</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="above20" data-railband="above20"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></span><span class="rail-tx"><b>₹20L+</b><span>Premium destinations</span></span><span class="rail-n">16</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="elite" data-railband="elite"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></span><span class="rail-tx"><b>Top-ranked</b><span>Top-ranked worldwide</span></span><span class="rail-n">4</span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+  <div class="rail" id="rail"><button class="rail-card" data-band="u10" data-railband="u10"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg></span><span class="rail-tx"><b>Under ₹10L</b><span>Public &amp; low-cost picks</span></span><span class="rail-n"></span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="u20" data-railband="u20"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-bank"/></svg></span><span class="rail-tx"><b>Under ₹20L</b><span>Best-value programs</span></span><span class="rail-n"></span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="above20" data-railband="above20"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></span><span class="rail-tx"><b>₹20L+</b><span>Premium destinations</span></span><span class="rail-n"></span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="rail-card" data-band="elite" data-railband="elite"><span class="rail-ic"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></span><span class="rail-tx"><b>Top-ranked</b><span>Top-ranked worldwide</span></span><span class="rail-n"></span><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
 </div>
 
 <section class="block" id="results">
@@ -1422,10 +1425,10 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div class="need" id="rNeed" hidden></div>
     <div class="rtabs" role="tablist">
       <button type="button" class="rtab on" data-rt="pub" role="tab" aria-selected="true">
-        Private Universities <span class="rtn" id="rtnPub">0</span>
+        Private Universities <span class="rtn" id="rtnPub"></span>
         <small>free to apply, we file it for you</small></button>
       <button type="button" class="rtab" data-rt="priv" role="tab" aria-selected="false">
-        Public Universities <span class="rtn" id="rtnPriv">0</span>
+        Public Universities <span class="rtn" id="rtnPriv"></span>
         <small>comes with a package, we file it for you</small></button>
     </div>
     <div class="rows-wrap" id="rowsWrap"><div class="rows" id="rows"><div id="rowsIn" aria-live="polite"></div></div></div>
@@ -2383,6 +2386,64 @@ const feeOf = r => (r.feeModel === 'free' || r.feeModel === 'package')
    ones set aside. Read by the two boxes around the results. */
 let TURNED = [], NEEDED = new Map(), ASKED = 0;
 
+/* Round 176 (owner, go-live): "Students should not know how many
+   universities are in the filter at the back end." The locked public rows
+   are NOT in D.programs any more. The server hands over at most LOCKED_CAP
+   placeholders — the opening dozen with /api/catalogue, then the ones that
+   fit the boxes from /api/find/locked as they change — and that pool is
+   what the finder draws beside the named rows. The page never holds the
+   hidden set, so nothing on it can count it. */
+const LOCKED_CAP = 12;
+let LOCKED_POOL = [], LOCKED_FOR = null, LOCKED_ASKING = null, LOCKED_MORE = false;
+/* The values the boxes may offer, from the server — lists, no counts. */
+let FACETS = {};
+const allRows = () => D.programs.concat(LOCKED_POOL);
+/* The boxes as /find-university names them (FIND.parse keys) — the same
+   address finderHref() builds, less the profile answers the server does
+   not filter on. */
+function lockedQuery(){
+  const q = new URLSearchParams();
+  const pick = id => { const el = $(id); return el && (typeof boxOn !== 'function' || boxOn(el)) ? String(el.value || '').trim() : ''; };
+  [['country','#fCountry'],['level','#fLevel'],['field','#fField'],['cgpa','#fCgpa'],['intake','#fIntake'],['tuition','#fTuition'],['restricted','#fRestricted']]
+    .forEach(([k, id]) => { const v = pick(id); if (v) q.set(k, v); });
+  const fee = pick('#fFee'); if (fee === 'free' || fee === 'package') q.set('apply', fee);
+  /* Their German grade (the calculator's answer, or the box) — the rows a
+     better stated grade turns away are left out of the pool at the server. */
+  if (typeof MYGERMAN !== 'undefined' && MYGERMAN != null && Number.isFinite(Number(MYGERMAN))) q.set('ggpa', String(MYGERMAN));
+  if (tagValues().length) q.set('tags', tagValues().join(';'));
+  if (tagText()) q.set('q', tagText());
+  const s = q.toString();
+  return s ? '?' + s : '';
+}
+function askLocked(){
+  const key = lockedQuery();
+  if (LOCKED_FOR === key || LOCKED_ASKING === key) return;
+  LOCKED_ASKING = key;
+  fetch('/api/find/locked' + key, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(d => {
+    if (LOCKED_ASKING !== key) return;
+    LOCKED_ASKING = null; LOCKED_FOR = key;
+    LOCKED_POOL = ((d && d.locked) || []).map(liveLockedRow).filter(Boolean);
+    LOCKED_MORE = !!(d && d.more);
+    if (lockedQuery() === key && typeof render === 'function') render();
+  }).catch(() => { if (LOCKED_ASKING === key) { LOCKED_ASKING = null; LOCKED_FOR = key; } });
+}
+/* A placeholder from the server, in the shape filtered() and rowHtml()
+   read — the same fields liveCatalogue() gives a live row. */
+function liveLockedRow(p){
+  if (!p || !p.level || !p.field) return null;
+  return {
+    id: p.id, country: p.country, level: p.level, fieldGroup: p.field, field: p.field,
+    band: p.band || 'u20', isPublic: true,
+    feeModel: p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel : 'package',
+    minCgpa: p.minCgpa == null ? null : Number(p.minCgpa), germanGpa: p.germanGpa == null ? null : p.germanGpa,
+    fit: p.fit || 75, uKey: p.uKey || ('live-' + p.id),
+    intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],
+    freeTuition: (p.totalInr || 0) === 0, dummy: false,
+    reqs: p.reqs && typeof p.reqs === 'object' ? p.reqs : null,
+    tags: Array.isArray(p.tags) ? p.tags : [],
+  };
+}
+
 /* 10 Oct: the tag search. The chips under the search box — each a value
    from the tag dictionary (with its type), or a free-text chip (type 'Text')
    for words that matched no tag and search the names instead. Every chip
@@ -2442,7 +2503,7 @@ function showRelevant(){
    * explain themselves. The only thing still read from the rows is the
    * specialisation list, because a select needs its options. */
   const co = $('#fCountry').value, lv = $('#fLevel').value, fd = $('#fField').value;
-  const view = D.programs.filter(p => (!co || p.country === co) && (!lv || p.level === lv) && (!fd || p.field === fd));
+  const view = allRows().filter(p => (!co || p.country === co) && (!lv || p.level === lv) && (!fd || p.field === fd));
   const show = (id, on) => { const el = $(id); if(el) el.hidden = !on; };
   ['#fEnglishWrap','#fWorkWrap','#fGreWrap','#fGermanWrap','#fBachYearsWrap','#fBachWrap','#fPapersWrap','#fTuitionWrap',
    '#fEctsWrap','#fTopWrap','#fRestrictedWrap','#fFeeWrap'].forEach(id => show(id, true));
@@ -2476,7 +2537,7 @@ function filtered(ignoreBands, collect){
   const fee = $('#fFee') ? $('#fFee').value : '';
   const me = myAnswers();
   if(collect){ TURNED = []; NEEDED = new Map(); ASKED = 0; }
-  return D.programs.filter(p => {
+  return allRows().filter(p => {
     if(co && p.country !== co) return false;
     if(lv && p.level !== lv) return false;
     if(fd && p.field !== fd) return false;
@@ -2817,7 +2878,10 @@ function rebuildIntakes(){
   if(!sel) return;
   const keep = sel.value;
   const terms = upcomingTerms(4);
-  const rows = terms.map((t, n) => ({ t, n, count: D.programs.filter(p => openFor(p, t)).length }))
+  /* Round 176: a term is offered when the server's facet list (every row,
+     locked ones included) or a row here is open for it — the page no
+     longer holds every row to count from. */
+  const rows = terms.map((t, n) => ({ t, n, count: (FACETS.intake && FACETS.intake.includes(t.key)) || allRows().some(p => openFor(p, t)) ? 1 : 0 }))
     /* This semester first — and where every deadline for it has passed, it
        is simply not offered, so next semester leads. */
     .filter(x => x.count);
@@ -2973,7 +3037,8 @@ function needBox(list){
   const withNames = list.filter(p => p._need && p._need.length).length;
   el.innerHTML = `<div class="need-ring"><svg width="64" height="64" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="#efece3" stroke-width="12"></circle><circle cx="50" cy="50" r="42" fill="none" stroke="#c9a24b" stroke-width="12" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="${dash}" transform="rotate(-90 50 50)"></circle></svg><b>${pct}%</b></div>`
     + `<div class="need-body"><h4>${keys.length === 1 ? 'One answer short' : keys.length + ' answers short'}</h4>`
-    + `<p>${withNames} of these ${list.length} ask for something you have not told us. We can show you the list, not which of them would take you \u2014 and a counsellor will ask the same ${keys.length === 1 ? 'question' : 'questions'} by phone.</p>`
+    /* Round 176: no "N of these M" \u2014 a count of the list is not for the visitor. */
+    + `<p>${withNames === list.length ? 'Every one of these asks' : 'Some of these ask'} for something you have not told us. We can show you the list, not which of them would take you \u2014 and a counsellor will ask the same ${keys.length === 1 ? 'question' : 'questions'} by phone.</p>`
     + `<div class="need-chips">${keys.map(k => `<button type="button" data-need="${k}">${esc(REQ_LABEL[k] || k)} \u2192</button>`).join('')}${done.map(k => `<span>${esc(REQ_LABEL[k] || k)} \u2014 done</span>`).join('')}</div></div>`
     + (PROFILE && PROFILE.__signedIn
         ? `<a class="btn btn-navy btn-sm" href="profile.html">Finish my profile ${ico('arrow')}</a>`
@@ -2995,13 +3060,17 @@ function turnedBox(){
   if(!touched || !TURNED.length){ el.hidden = true; el.innerHTML = ''; return; }
   const n = TURNED.length;
   const say = f => f.want + ' \u2014 you said ' + f.have;
-  el.innerHTML = `<details class="turned"><summary>${n} ${n === 1 ? 'programme is' : 'programmes are'} ranked lower \u2014 short of something ${n === 1 ? 'it asks' : 'they ask'} on what you told us</summary><ul>`
-    + TURNED.slice(0, 40).map(({ p, fails }) => {
+  /* Round 176: "some", not a number, and no "and N more" \u2014 neither is for
+     the visitor; and at most LOCKED_CAP locked rows are listed. */
+  let lockedListed = 0;
+  const listed = TURNED.filter(({ p }) => !p.isPublic || revealed[p.id] || ++lockedListed <= LOCKED_CAP).slice(0, 40);
+  el.innerHTML = `<details class="turned"><summary>${n === 1 ? 'One programme is' : 'Some programmes are'} ranked lower \u2014 short of something ${n === 1 ? 'it asks' : 'they ask'} on what you told us</summary><ul>`
+    + listed.map(({ p, fails }) => {
         const open = !p.isPublic || revealed[p.id];
         const name = open ? `<b>${esc(unent(p.program))}</b> \u00b7 ${esc(unent(p.shortName || p.university))}` : `<b>A public university</b> \u00b7 ${esc(C[p.country] ? C[p.country].name : p.country)}`;
         return `<li>${name}<span>${esc(fails.map(say).join('; '))}</span></li>`;
       }).join('')
-    + (n > 40 ? `<li><small>\u2026 and ${n - 40} more</small></li>` : '')
+    + (n > listed.length ? `<li><small>\u2026 and more</small></li>` : '')
     + `</ul><p style="margin:10px 0 0;font:400 12.6px/1.5 var(--sans);color:var(--muted)">They stay on your list, below the ones you clear. A score can be retaken and an intake can wait \u2014 your counsellor decides with you.</p></details>`;
   el.hidden = false;
 }
@@ -3016,9 +3085,11 @@ function banner(list, shown){
   /* Patch 157: no public university in the list means every row IS free to
      apply to (patch 152) — the old wording said the opposite above rows
      labelled "Free to apply". */
+  /* Round 176: no university count in the banner's title — "numbers not
+     required", and the public count was the hidden set. */
   if(!pubUnis){
     const unis = new Set(list.map(p => p.uKey)).size;
-    return ['gold','star', unis + ' universit' + (unis === 1 ? 'y' : 'ies') + ' free to apply to',
+    return ['gold','star', (unis === 1 ? 'A university' : 'Universities') + ' free to apply to',
       'We file these applications for you at no charge — pick one and press <b>Apply free</b>. '
       + 'Want a public university as well? A counsellor can map a route.'];
   }
@@ -3033,7 +3104,7 @@ function banner(list, shown){
       + (shownUnis === 0
           ? 'None of them match the filters you have set — widen them, or open the Public tab. '
         : shownUnis < unlocked
-          ? 'You are looking at ' + shownUnis + ' of them; widen the filters for the rest. '
+          ? 'You are looking at some of them; widen the filters for the rest. '
           : '')
       + 'Use <b>Lock again</b> above to go back to the locked view.'];
   }
@@ -3046,10 +3117,10 @@ function banner(list, shown){
      promise anyone should read on the banner. */
   const noTuition = pubRows.filter(p => { const t = reqsOf(p).tuitionEurSem; return t !== null && t !== undefined && t !== '' && Number(t) === 0; }).length;
   const open = NEEDED && NEEDED.size;
-  return ['gold','star',(open ? '' : 'You qualify for ')+pubUnis+' public universit'+(pubUnis===1?'y':'ies')
+  return ['gold','star',(open ? 'Public universities' : 'You qualify for public universities')
     + (open ? ' so far' : ''),
     (noTuition && noTuition === pubRows.length ? 'None of them charges tuition. '
-      : noTuition ? noTuition + ' of the programmes charge no tuition. ' : '')
+      : noTuition ? 'Some of the programmes charge no tuition. ' : '')
     + (open ? 'Answer the ' + (NEEDED.size === 1 ? 'question' : 'questions') + ' above and we can say which of them would take you. '
             : '') + 'A package reveals them.'];
 }
@@ -3068,8 +3139,10 @@ function paintRail(){
   $$('[data-railband]').forEach(b => {
     const id = b.dataset.railband;
     const n = pool.filter(p => p.band === id).length;
+    /* Round 176: the number is gone from the card (it is hidden by CSS
+       already); the card still dims when nothing is behind it. */
     const cell = b.querySelector('.rail-n');
-    if(cell) cell.textContent = n;
+    if(cell) cell.textContent = '';
     b.classList.toggle('empty', n === 0);
     /* Pressed but empty is a filter that hides everything and explains
        nothing, so pressing an empty card is simply not offered. */
@@ -3142,6 +3215,10 @@ function render(){
   rebuildIntakes();
   unnumber();
   showRelevant();
+  /* Round 176: the locked rows that fit THESE boxes come from the server,
+     capped; until they arrive the last pool is drawn (filtered() narrows
+     it anyway) and the list is redrawn when they land. */
+  if (LOCKED_FOR !== null || LOCKED_POOL.length) askLocked();
   const list = filtered(false, true), rows = visibleRows(list);
   needBox(list);
   turnedBox();
@@ -3176,8 +3253,9 @@ function render(){
   const hasPub = rows.some(r => r.isPublic);
   const privAll = hasPub ? rows.filter(r => r.isPublic) : rows.filter(r => feeOf(r) !== 'free');
   const pubAll = hasPub ? rows.filter(r => !r.isPublic) : rows.filter(r => feeOf(r) === 'free');
-  $('#rtnPriv') && ($('#rtnPriv').textContent = privAll.length);
-  $('#rtnPub') && ($('#rtnPub').textContent = pubAll.length);
+  /* Round 176: no number on a tab — the tab says what the list is. */
+  $('#rtnPriv') && ($('#rtnPriv').textContent = '');
+  $('#rtnPub') && ($('#rtnPub').textContent = '');
   /* If the tab being shown has emptied out under the filters — pick the UK and
      the package list goes to nothing — move to the one that has something
      rather than showing an apology where the results were. */
@@ -3216,9 +3294,15 @@ function render(){
   /* Round 169 (owner, 10 Oct): the home page shows fifteen rows, no more.
      The rest are one press away — "More universities" opens Find University
      with the same filters. */
-  const shownRows = (resTab === 'pub' ? pubAll : privAll).slice(0, HOME_ROWS);
+  /* Round 176: never more than LOCKED_CAP locked rows, whatever the pool
+     holds, and a line saying more exist — never how many — when the server
+     said its cap was hit. */
+  let lockedSeen = 0;
+  const shownRows = (resTab === 'pub' ? pubAll : privAll).filter(r => !r.locked || ++lockedSeen <= LOCKED_CAP).slice(0, HOME_ROWS);
   const anyOpen = shownRows.some(r => !r.locked);
-  let markup = shownRows.length ? shownRows.map(rowHtml).join('')
+  const moreLocked = (LOCKED_MORE || lockedSeen > LOCKED_CAP) && shownRows.some(r => r.locked)
+    ? '<div class="mmore-locked" id="rMoreLocked">More public universities match — <a href="#packages" data-goto-pkg style="display:inline;padding:0;color:inherit">a package opens them</a>.</div>' : '';
+  let markup = shownRows.length ? shownRows.map(rowHtml).join('') + moreLocked
     /* NOTHING AT ALL, ON EITHER TAB.
      *
      * "For any selection criteria we do not have any unis matching, or any
@@ -3238,14 +3322,15 @@ function render(){
     : bothEmpty
       ? '<div class="empty"><b>Nothing here yet</b>Set your filters above and this becomes your own shortlist.</div>'
     : resTab === 'priv'
+      /* Round 176: "some", never a number — numbers are not for the visitor. */
       ? '<div class="empty"><b>Nothing here matches those filters</b>'
-        + 'There are ' + pubAll.length + ' free to apply to — the other tab. Or widen the '
+        + 'There are some free to apply to — the other tab. Or widen the '
         + 'field, the level, or the CGPA band.'
         + (pubAll.length ? '<div style="margin-top:14px"><button type="button" '
           + 'class="btn btn-ghost btn-sm" data-rt-go="pub">See the free ones'
           + ico('arrow') + '</button></div>' : '') + '</div>'
       : '<div class="empty"><b>Nothing free to apply to matches those filters</b>'
-        + 'There are ' + privAll.length + ' you can read right now — the other '
+        + 'There are some you can read right now — the other '
         + 'tab.' + (privAll.length ? '<div style="margin-top:14px"><button type="button" '
           + 'class="btn btn-ghost btn-sm" data-rt-go="priv">See those' + ico('arrow')
           + '</button></div>' : '') + '</div>';
@@ -3308,7 +3393,7 @@ function assistForm() {
      list is empty because the data is not in, not because of the student —
      say so, and take their details for the counsellor who places there. */
   const co = $('#fCountry') ? $('#fCountry').value : '';
-  const bare = co && C[co] && !D.programs.some(p => p.country === co);
+  const bare = co && C[co] && !allRows().some(p => p.country === co) && !(FACETS.country || []).includes(co);
   const opening = bare
     ? ['We place students in ' + esc(C[co].name) + ' through our counsellors',
        'The ' + esc(C[co].name) + ' universities we work with are not on the online list yet. Leave your details and an expert will review your data and call you back with the options that fit you there.']
@@ -3735,7 +3820,7 @@ function convert(){
   $('#cvG4').textContent  = cl(c10/2.5,0,4).toFixed(2);
   const band = c10>=9?'9.5':c10>=8?'8.5':c10>=7.5?'7.5':c10>=7?'7.2':c10>=6?'6.5':'5.5';
   const o = [...$('#fCgpa').options].find(x => x.value === band);
-  const n = D.programs.filter(p => {
+  const n = allRows().filter(p => {
     const bar = p.minCgpa != null ? p.minCgpa
       : (p.isPublic ? (C[p.country].minCgpaPublic ?? S.cgpaFull) : (C[p.country].minCgpaPrivate ?? S.cgpaPartial));
     return parseFloat(band) >= bar;
@@ -4333,7 +4418,18 @@ render();
   const known = new Set(D.programs.map(p => String(p.id)));
   let added = 0;
 
+  /* Round 176: the server's facet lists, and its opening dozen locked
+     placeholders, go to their own pools — never into D.programs. */
+  FACETS = (data.facets && typeof data.facets === 'object') ? data.facets : {};
+  LOCKED_POOL = data.programmes.filter(p => p.isPublic && !p.university).map(liveLockedRow).filter(Boolean);
+  LOCKED_MORE = !!data.more;
+  LOCKED_FOR = lockedQuery() ? null : '';
+  /* Any locked public row the page was built with goes — the live pool
+     replaces it (the served page has none; a copy opened from disk may). */
+  D.programs = D.programs.filter(p => !(p.isPublic && !p.university));
+
   data.programmes.forEach(p => {
+    if (p.isPublic && !p.university) return;   // in LOCKED_POOL above
     /* An edited fee or a corrected name has to reach the unlocked view too, or
        a student who paid is looking at last month's price. A locked public row
        has no name in this response at all — that is what the package buys. */
@@ -4480,9 +4576,11 @@ render();
       miss.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = text(v); g.appendChild(o); });
       sel.appendChild(g);
     };
-    addTo($('#fField'), D.programs.map(p => p.field), 'More fields', v => v);
+    /* Round 176: from the server's facet lists (every row, locked ones
+       included, no counts) as well as the rows here. */
+    addTo($('#fField'), allRows().map(p => p.field).concat(FACETS.field || []), 'More fields', v => v);
     const LV = { phd: 'PhD / Doctorate', pathway: 'Foundation / Pathway', bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma', foundation: 'Foundation / Pathway' };
-    addTo($('#fLevel'), D.programs.map(p => p.level), 'More levels', v => LV[v] || v);
+    addTo($('#fLevel'), allRows().map(p => p.level).concat(FACETS.level || []), 'More levels', v => LV[v] || v);
   })();
   /* The questions that apply depend on the rows in view, and the rows just
      changed. Whether or not anything else did. */
@@ -4503,13 +4601,14 @@ render();
   if (off.size) D.programs = D.programs.filter(p => !off.has(String(p.id)));
   const removed = before - D.programs.length;
 
-  if (added || removed || touchedCountries || urls || bars) {
+  if (added || removed || touchedCountries || urls || bars || LOCKED_POOL.length) {
     const sel = $('#fCountry');
     if (sel) {
       const keep = sel.value;
       const any = sel.querySelector('option[value=""]');
       const counts = {};
-      D.programs.forEach(p => { counts[p.country] = (counts[p.country] || 0) + 1; });
+      allRows().forEach(p => { counts[p.country] = (counts[p.country] || 0) + 1; });
+      (FACETS.country || []).forEach(c => { counts[c] = counts[c] || 1; });
       /* Patch 162: every destination the office shows, with or without
          programmes, and no counts. A country whose data is not in yet still
          belongs in the list — choosing it brings up the special-assistance

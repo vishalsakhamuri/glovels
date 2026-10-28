@@ -55,6 +55,7 @@ const UNIS = require('./unis.js');
 const DAAD = require('./daad.js');
 const REQS = require('./reqs.js');
 const TAGS = require('./tags.js');
+const FIND = require('./find.js');
 /* CNS-04 (12 Oct): ONE UNIVERSITY, ONE NAME IN A SEARCH.
  * The tag dictionary holds a university under its full name AND its short
  * one — "Bremen University of Applied Sciences" and "HS Bremen", 14
@@ -364,7 +365,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic }) {
+function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -3521,8 +3522,69 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         named.add(p.uKey);
       }
     }
-    const mayName = p => !p.isPublic || gate === 'open' || gate === 'names' || named.has(p.uKey);
-    return { me: me_, gate, quota, named, mayName };
+    /* Round 176: signed-in staff keep everything — the office reads the
+       catalogue it keeps; the cap and the withholding are for visitors and
+       students. */
+    const staff = !!(me_ && me_.role && me_.role !== 'student' && me_.role !== 'partner');
+    const mayName = p => !p.isPublic || staff || gate === 'open' || gate === 'names' || named.has(p.uKey);
+    return { me: me_, gate, quota, named, mayName, staff };
+  }
+
+  /* Round 176 (owner, go-live): what a locked public row looks like to a
+     viewer whose package does not cover it — the facts the filters read and
+     nothing that names it. Shared by /api/catalogue and /api/find/locked so
+     the two cannot drift. `nonce` salts the stand-in keys per response
+     (round 175). */
+  const LOCKED_CAP = FIND.LOCKED_CAP;
+  function lockedPlaceholder(p, nonce) {
+    return {
+      id: OPAQUE_SALTED(nonce, 'p', p.id), country: p.country, level: p.level, field: p.field,
+      /* What it is about — never who it is (tags.js publicTags). */
+      tags: TAGS.publicTags(p),
+      band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
+      /* Whether applying costs anything travels on a locked row, for the
+         same reason the CGPA bar does: it is a fact about what this row
+         would ask of you, not a way to tell which university it is. */
+      feeModel: p.feeModel,
+      totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,
+      /* The CGPA it asks for, and the German grade: requirements, not
+         identities — withholding them would make the finder judge a locked
+         row by the country's rule and a named one by its own. */
+      minCgpa: p.minCgpa == null ? null : p.minCgpa,
+      germanGpa: p.germanGpa == null ? null : p.germanGpa,
+      reqs: p.reqs,
+      /* uKey groups the rows of one university inside THIS response (salted
+         per response, round 175); featured/featureSort say where the row
+         sits. No nLen / uLen: the blur is a fixed width (find.js). */
+      uKey: OPAQUE_SALTED(nonce, 'u', p.uKey), featured: p.featured, featureSort: p.featureSort,
+    };
+  }
+  /* The rows this viewer is NOT entitled to name: the locked set. */
+  const lockedRowsFor = ent => cat().filter(p => !p.searchOnly && p.isPublic && !ent.mayName(p));
+  /* Light throttle on the two open catalogue reads, per address: a page
+     asks a few times a minute, a script walking every filter does not. */
+  const FIND_BUDGET = 240, FIND_WINDOW_MS = 60 * 1000;
+  /* FIND.run over the locked set, per filter string, for a minute. The
+     cache holds REAL rows (the server's own), never the salted placeholders,
+     so every response is salted afresh. Keyed on the viewer's entitlement
+     too, so a student's cache line is not a visitor's. */
+  const lockedRunCache = new Map();
+  function lockedMatches(ent, f) {
+    const key = FIND.toQuery(f) + '|' + ent.gate + '|' + [...ent.named].sort().join(',') + '|' + (ent.staff ? 's' : '');
+    const now = Date.now();
+    const hit = lockedRunCache.get(key);
+    if (hit && now - hit.at < 60 * 1000) return hit.rows;
+    const rows = lockedRowsFor(ent).filter(p => p.level && p.field);
+    /* Run on a shape that find.js reads as locked (no `university`), but
+       keep the real row behind each one so the placeholder is made from it. */
+    const shaped = rows.map(p => Object.assign({}, p, { university: '', program: '', tags: TAGS.publicTags(p), _real: p }));
+    const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys: null });
+    const out = R.rows.map(p => p._real);
+    if (lockedRunCache.size > 500) {
+      for (const [k, v] of lockedRunCache) if (now - v.at > 60 * 1000) lockedRunCache.delete(k);
+    }
+    lockedRunCache.set(key, { at: now, rows: out });
+    return out;
   }
 
   route('GET', '/api/find/unis', async (req, res) => {
@@ -3613,61 +3675,38 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        box, not here. Their ids go in `inactive` below, so a row the home
        page was BUILT with and later made search-only comes off the finder
        the way a hidden one does. */
-    const programmes = cat().filter(p => !p.searchOnly).map(p => {
+    const all = cat().filter(p => !p.searchOnly);
+    const named_ = [], lockedReal = [];
+    all.forEach(p => {
       /* 10 Oct: the tags the home page's tag search narrows on — the
          office's where imported, derived from the row otherwise. A locked
          row carries them too, less the ones that would name it. */
-      if (!p.isPublic) return Object.assign({}, p, { tags: TAGS.tagsOf(p) });   // never gated
-      if (gate === 'open') return Object.assign({}, p, { tags: TAGS.tagsOf(p) });
+      if (!p.isPublic || ent.staff) return named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));   // never gated
+      if (gate === 'open') return named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));
       if (gate === 'names') {
         /* The name, and enough to place it, but not what it costs. */
-        return Object.assign({}, p, { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) });
+        return named_.push(Object.assign({}, p, { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) }));
       }
       const mayName = quota > 0 && mayShow(p);
       if (mayName) spent = named.size;
-      /* A stand-in id and university key on a locked row (patch 146). The real
-         id is printed on the programme's Apply button on its university page,
-         and uKey is a hash of the university's name — either one turned a
-         locked, profile-matched row back into a name without a package. The
-         stand-ins are keyed on a secret that lives only in this process, so
-         they group rows by university for the counts and say nothing else. */
-      return mayName ? Object.assign({}, p, { tags: TAGS.tagsOf(p) }) : {
-        id: OPAQUE('p', p.id), country: p.country, level: p.level, field: p.field,
-        /* What it is about — never who it is (tags.js publicTags). */
-        tags: TAGS.publicTags(p),
-        band: p.band, isPublic: true, fit: p.fit, intakes: p.intakes,
-        /* Whether applying costs anything travels on a locked row, for the
-           same reason the CGPA bar does: it is a fact about what this row
-           would ask of you, not a way to tell which university it is. The
-           filter reads it, so withholding it would make a locked row vanish
-           from a filter it belongs in. */
-        feeModel: p.feeModel,
-        totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,
-        /* The CGPA it asks for travels even on a locked row. It is a
-           requirement, not an identity — and withholding it would mean the
-           finder filters gated rows by the country's rule while naming them by
-           their own, so a student would be shown a locked row they cannot
-           apply to and charged to unlock it. */
-        minCgpa: p.minCgpa == null ? null : p.minCgpa,
-        /* And the German grade, for exactly the reason written above about the
-           CGPA. It is a requirement, not an identity — withholding it would
-           mean the finder filters a gated German row by the country's CGPA
-           rule while a named one is filtered by its own published grade, so
-           the same student would see two different answers depending on
-           whether they had paid. */
-        germanGpa: p.germanGpa == null ? null : p.germanGpa,
-        /* What it asks for. Not a secret — it is what the university
-           publishes — and it is what the finder's own filters read. */
-        reqs: p.reqs,
-        /* uKey groups programmes by university so the page can say "12 public
-           universities" without naming one. featured/featureSort say where the
-           row sits, not what it is. None of the three is the name. */
-        uKey: OPAQUE_SALTED(nonce, 'u', p.uKey), featured: p.featured, featureSort: p.featureSort,
-        /* Round 175: no nLen / uLen. The length of the hidden name was
-           enough, with the public university list, to pick the university
-           out — so the blur is drawn at a fixed width now (find.js filler). */
-      };
+      if (mayName) named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));
+      else lockedReal.push(p);
     });
+    void spent;
+    /*
+     * Round 176 (owner, go-live): "Students should not know how many
+     * universities are in the filter at the back end — 30 or 40 — as we only
+     * show as per the package selected."
+     *
+     * Every locked row used to travel as a placeholder — 1,605 of them on
+     * the live site — so a visitor could count the hidden set from the JSON
+     * or from the page. Now a viewer gets at most LOCKED_CAP placeholders,
+     * chosen across countries, levels and fields (find.js capLocked), and the
+     * page asks /api/find/locked for the ones that fit a filter as it
+     * changes. No total travels, and nothing says how many were left out.
+     */
+    const capped = FIND.capLocked(lockedReal.map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
+    const programmes = named_.concat(capped.rows.map(p => lockedPlaceholder(p, nonce)));
 
     return json(res, 200, {
       programmes,
@@ -3675,13 +3714,47 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          the rows it got. */
       gate,
       countries: countryMap(),
+      /* Round 176: which values the boxes may offer — over the WHOLE set,
+         locked rows included, as plain lists with no count on any value —
+         so the dropdowns are complete without carrying the rows. */
+      facets: FIND.facetValues(all.filter(p => p.level && p.field)),
+      /* True when locked rows were left out of this response (never how many). */
+      more: capped.more,
       /* Explicitly listed, so the page removes exactly what was switched off and
          nothing else. Filtering by "not in this list" would delete every row the
          database has never heard of. */
       inactive: (typeof bakedIds === 'function' ? bakedIds() : db.programmes(true).map(r => r.id))
         .filter(id => { const r = db.programme(id); return r && (!r.active || r.search_only); }),
-      unlockedCount: spent,
+      /* Round 176: no `unlockedCount` — no number about the public set
+         travels to a student or a visitor. The named rows ARE the answer. */
     });
+  }, { open: true });
+
+  /*
+   * Round 176: the locked rows that fit ONE filter, capped.
+   *
+   *   GET /api/find/locked?country=&level=&field=&cgpa=&intake=&tags=&q=…
+   *     (the same keys FIND.parse / toQuery read — the Find University
+   *     address)
+   *   → { locked: [placeholder…] (≤ LOCKED_CAP), more: true|false }
+   *
+   * The server runs the same FIND.run the page runs, over the rows this
+   * viewer is not entitled to name, and hands back at most LOCKED_CAP
+   * placeholders — opaque id, country, level, field, band, fee band,
+   * intakes, public tags, requirements — salted per response. `more` says
+   * the cap was hit; nothing says by how much. Cached per filter string
+   * for a minute; lightly throttled per address.
+   */
+  route('GET', '/api/find/locked', async (req, res) => {
+    if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
+    const f = FIND.parse(url.parse(req.url).query || '');
+    delete f.sort; delete f.view;
+    const ent = entitlement(req);
+    const nonce = OPAQUE_NONCE();
+    const matched = lockedMatches(ent, f);
+    const capped = FIND.capLocked(matched.map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
+    return json(res, 200, { locked: capped.rows.map(p => lockedPlaceholder(p, nonce)), more: capped.more },
+      { 'Cache-Control': 'private, no-store' });
   }, { open: true });
 
   /* ------------------------------------------------------------ live feed */
@@ -5943,6 +6016,49 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const file = await backup.nightly();
     db.log(s.name || s.email, 'Backup taken', path.basename(file));
     return json(res, 200, { ok: true, file: path.basename(file), copies: backup.list() });
+  }));
+
+  /*
+   * Round 176 (go-live): the readiness report — the same facts as the
+   * [golive] block in the start-up log — and the QA clean-up. Admins only.
+   *
+   * The purge lists first (preview) and removes only on the typed phrase,
+   * only what the preview showed, and never a record tied to a live
+   * payment (server/store.js qaCandidates). Logged to the audit trail.
+   */
+  route('GET', '/api/staff/golive', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (!golive) return json(res, 503, { error: 'The readiness check is not set up on this server.' });
+    return json(res, 200, golive());
+  }));
+  route('GET', '/api/staff/qa/preview', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const c = db.qaCandidates();
+    const counts = { students: c.students.length, staff: c.staff.length, orders: c.orders.length,
+      enquiries: c.enquiries.length, chats: c.chats.length, documents: c.documents.length, messages: c.messages };
+    return json(res, 200, Object.assign({ ok: true, counts, total: counts.students + counts.staff + counts.orders + counts.enquiries + counts.chats,
+      confirmWith: 'DELETE QA DATA' }, c));
+  }));
+  route('POST', '/api/staff/qa/purge', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    if (String((b && b.confirm) || '') !== 'DELETE QA DATA') {
+      return json(res, 422, { error: 'Type DELETE QA DATA (exactly) to confirm. Nothing was removed.' });
+    }
+    const before = db.qaCandidates();
+    if (before.staff.some(p => Number(p.id) === Number(s.id))) {
+      return json(res, 409, { error: 'Your own account is on the QA list. Sign in as a real administrator before purging.' });
+    }
+    const n = db.qaPurge();
+    (n.uploadDirs || []).forEach(id => {
+      if (!/^\d+$/.test(String(id))) return;
+      try { fs.rmSync(path.join(uploadDir, String(id)), { recursive: true, force: true }); } catch (e) {}
+    });
+    const summary = Object.keys(n).filter(k => k !== 'uploadDirs').map(k => k + ' ' + n[k]).join(', ');
+    db.log(s.name || s.email, 'QA test data removed', summary);
+    return json(res, 200, { ok: true, removed: n, names: {
+      students: before.students.map(p => p.email), staff: before.staff.map(p => p.email),
+      enquiries: before.enquiries.map(e => e.email), orders: before.orders.map(o => o.reference) } });
   }));
 
   route('GET', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
@@ -8929,13 +9045,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (hidden(f.slug)) continue;
       const u = UNIS.group(f.rows.map(UNIS.fromRow))[0];
       if (!u) continue;
+      /* Round 176: no programme counts on the row — `partial` says some of
+         its programmes fall outside the filter, not how many. */
       out.push({ slug: u.slug, name: shortNameOf(u.shortName) || u.name, city: u.city, isPublic: u.isPublic,
         feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
-        featured: u.programmes.some(p => p.featured), programmes: u.programmes.length, matching: f.matching,
+        featured: u.programmes.some(p => p.featured), partial: Number(f.matching) < u.programmes.length,
         url: '/university/' + u.slug });
     }
+    /* Round 176: no `total` — "numbers not required"; `more` says the list
+       was cut at fifty, never by how much. */
     const total = found.total || out.length;
-    return json(res, 200, { country: code, total, universities: out.slice(0, 50) }, { 'Cache-Control': 'public, max-age=60' });
+    const body = { country: code, more: total > 50 || out.length > 50, universities: out.slice(0, 50) };
+    /* The office keeps its numbers (the rules suite reads them). */
+    const who = me(req);
+    if (who && STAFF_ROLES.includes(who.role)) body.total = total;
+    return json(res, 200, body, { 'Cache-Control': who ? 'private, no-store' : 'public, max-age=60' });
   }, { open: true });
 
   /* ---------------------------------------------------- university pages */

@@ -38,7 +38,10 @@ async function req(who, method, p, body, extraHeaders) {
 }
 const page = async p => (await fetch(BASE + p)).text();
 const summary = h => ((/<h2 id="fsummary">([^<]*)/.exec(h) || [])[1] || '');
-const nProg = h => Number((summary(h).match(/^([\d,]+)/) || ['', '0'])[1].replace(/,/g, ''));
+/* Round 176: the summary carries no number any more (owner: numbers not
+   required — the count was the hidden set), so "how many" is the rows the
+   page draws: named rows plus at most 12 locked ones. */
+const nProg = h => (h.match(/<article class="frow/g) || []).length;
 
 (async () => {
   let r = await req('a', 'POST', '/api/auth/login', { email: 'admin@glovels.com', password: 'glovels123' });
@@ -88,9 +91,11 @@ const nProg = h => Number((summary(h).match(/^([\d,]+)/) || ['', '0'])[1].replac
   console.log('\n— WEB-02 / WEB-12: the CGPA decides, no Fit %');
   const C = {};
   for (const cg of ['5', '6', '7.5', '9.5']) C[cg] = await page('/find-university?cgpa=' + cg);
-  ok('a lower CGPA shows fewer programmes (5 < 6 < 7.5 ≤ 9.5)',
-    nProg(C['5']) < nProg(C['6']) && nProg(C['6']) < nProg(C['7.5']) && nProg(C['7.5']) <= nProg(C['9.5']),
-    ['5', '6', '7.5', '9.5'].map(k => summary(C[k])).join(' | '));
+  /* The rows drawn are one page (40) at most, so past the first page the
+     comparison is ≤, not <. */
+  ok('a lower CGPA shows fewer programmes (5 < 6 ≤ 7.5 ≤ 9.5; rows drawn, the summary has no count — round 176)',
+    nProg(C['5']) < nProg(C['6']) && nProg(C['6']) <= nProg(C['7.5']) && nProg(C['7.5']) <= nProg(C['9.5']) && !Object.values(C).some(h => /\d/.test(summary(h))),
+    ['5', '6', '7.5', '9.5'].map(k => nProg(C[k]) + ' rows / ' + summary(C[k])).join(' | '));
   ok('no Fit % badge on any of them', !Object.values(C).some(h => /Fit \d+%|tfit/.test(h)));
   ok('nor on the page with nothing said', !/Fit \d+%/.test(await page('/find-university')));
   ok('the compare table has no Fit row', !/\['Fit',/.test(require(path.join(ROOT, 'server', 'findpage.js')).FIND_PAGE_JS));

@@ -31,10 +31,19 @@ const cell = (html, label) =>
   const stamp = Date.now().toString(36);
   await req('a', 'POST', '/api/auth/login', { email: 'admin@glovels.com', password: 'glovels123' });
 
-  /* ---- 1. the counts follow the catalogue ---- */
+  /* ---- 1. no counts on a destination page (round 176) ----
+     The page used to state "Programmes we track: N" and "Universities: N"
+     and keep them in step with the catalogue. Owner, go-live: "students
+     should not know how many universities are in the filter at the back
+     end" — so the two tiles are gone, the sentences say "programmes" and
+     "universities" in words, and what still has to follow the catalogue
+     is the UNIVERSITY LIST on the page: a programme added in the office
+     appears on the next load, without a rebuild. */
   let html = await page('/study-in-canada');
-  const before = Number(String(cell(html, 'Programmes we track')).replace(/,/g, ''));
-  ok('a destination page states how many programmes we track', before > 0, before);
+  const noCounts = h => cell(h, 'Programmes we track') === null && cell(h, 'Universities') === null
+    && !/<b>[\d,]+ programmes?<\/b>/.test(h) && !/<b>[\d,]+ universit(?:y|ies)<\/b>/.test(h)
+    && !/<h1>Study in [^<]*<\/h1><p>[\d,]+ programme/.test(h);
+  ok('a destination page states no programme or university count', noCounts(html));
 
   let r = await req('a', 'PUT', '/api/staff/programme', {
     id: 'live-' + stamp, program: 'MSc Freshly Added', university: 'Newly Added University ' + stamp,
@@ -43,28 +52,14 @@ const cell = (html, label) =>
   ok('  · a programme can be added to it', r.ok, r.status + ' ' + ((r.body || {}).error || ''));
 
   html = await page('/study-in-canada');
-  const after = Number(String(cell(html, 'Programmes we track')).replace(/,/g, ''));
-  ok('  · and the page says so on the next load, without a rebuild',
-    after === before + 1, before + ' -> ' + after);
-  ok('  · the university count moves with it',
-    Number(String(cell(html, 'Universities')).replace(/,/g, '')) > 0, cell(html, 'Universities'));
+  ok('  · and its university is on the page on the next load, without a rebuild',
+    html.includes('Newly Added University ' + stamp), 'not listed');
+  ok('  · still with no count anywhere', noCounts(html));
 
-  /* The same number in the sentence above the box, which is the half that made
-     the page argue with itself. */
-  const inProse = (/<b>([\d,]+) programmes<\/b>/.exec(html) || [])[1];
-  if (inProse) {
-    ok('  · and the sentence above the box agrees with the box',
-      Number(inProse.replace(/,/g, '')) === after, inProse + ' vs ' + after);
-  }
-
-  /* The tile counts what the site OFFERS, not every row in the table. It
-     counted all of them, so Germany's tile claimed four more programmes than
-     the finder underneath it could find — the same disagreement between two
-     numbers on one screen that this whole change exists to end. */
+  /* The finder's answer for the country still names the rows the page lists. */
   const cat = await (await fetch(BASE + '/api/catalogue')).json();
-  const inCatalogue = (cat.programmes || []).filter(p => p.country === 'CA').length;
-  ok('the tile counts what the finder can actually show', after === inCatalogue,
-    'tile ' + after + ', catalogue ' + inCatalogue);
+  const inCatalogue = (cat.programmes || []).filter(p => p.country === 'CA');
+  ok('the finder carries the added row too', inCatalogue.some(p => String(p.id) === 'live-' + stamp), inCatalogue.length + ' CA rows');
 
   /* ---- 2. the CGPA bar is the office's, not the author's ---- */
   r = await req('a', 'PUT', '/api/staff/country',
