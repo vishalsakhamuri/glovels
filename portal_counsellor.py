@@ -203,8 +203,14 @@ const SORTS = {
   name: (a, b) => String(a.name || '').localeCompare(String(b.name || '')),
   /* Somebody who wrote and has not been answered. A thread with no messages at
      all is not waiting on us, so it goes last rather than first. */
-  oldest: (a, b) => (saidAt(a) || Infinity) - (saidAt(b) || Infinity),
+  /* Patch 177 (item 19): WAITING means the last word was the student's
+     ('me' is the student on this payload). Those first, the longest wait at
+     the top; then everybody else by last activity. A thread where staff
+     spoke last is not waiting on anybody, however old it is. */
+  oldest: (a, b) => (waiting(b) - waiting(a))
+    || (waiting(a) ? (saidAt(a) || Infinity) - (saidAt(b) || Infinity) : saidAt(b) - saidAt(a)),
 };
+const waiting = s => (s.lastMessage && s.lastMessage.who === 'me') ? 1 : 0;
 
 function paintCase() {
   const q = filter.toLowerCase();
@@ -303,9 +309,13 @@ function docNotTaken(d) {
  * the verified copy; querying one asks for another copy unless another file
  * is the verified copy; an older file of a refused type no longer blocks
  * accepting a valid one — it can be removed (kept on record, not deleted). */
-const FILE_VERDICT = { ok: 'Verified copy', rescan: 'Scan asked' };
+/* Patch 177 (item 4): each file's `status` is its own (wait / rescan / ok /
+   replaced / bad); the document's is `slot`, derived by the server. */
+const FILE_VERDICT = { ok: 'Verified copy', rescan: 'Scan asked', replaced: 'Replaced' };
 let DOCSIG = '';
 const docSig = rows => (rows || []).map(d => d.id + ':' + d.status + ':' + (d.verdict || '')).join(',');
+/* One status per DOCUMENT (the server's derived `slot`), however many files. */
+const docSlots = rows => { const seen = {}; (rows || []).forEach(d => { if (!(d.key in seen)) seen[d.key] = d.slot || d.status; }); return Object.values(seen); };
 /* The name the checklist uses ("Passport"), else the server's ("passport"). */
 function docTitle(key, said) {
   const all = (typeof DOCS !== 'undefined' ? DOCS : []).concat(typeof VISA_DOCS !== 'undefined' ? VISA_DOCS : []);
@@ -323,9 +333,8 @@ function docGroups(rows) {
   const L = {ok: 'Accepted', wait: 'In review', rescan: 'Waiting for a scan', none: 'Not uploaded'};
   return order.map(key => {
     const files = by[key];
-    const st = files[files.length - 1].status;
-    /* Accepted before files had their own answer: every file in it counts. */
-    const legacyOk = st === 'ok' && !files.some(f => f.verdict);
+    const st = files[0].slot || files[files.length - 1].status;
+    const legacyOk = false;
     return '<li class="docgroup" data-dockey="' + esc(key) + '" style="display:block;padding:10px 12px;' +
         'border:1px solid var(--line);border-radius:12px">' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
@@ -343,7 +352,7 @@ function fileRow(f, legacyOk) {
   /* Round 175: the server says what THIS file is (f.state — 'bad' fails
      today's checks, 'ok' verified copy, 'rescan', 'wait'); a bad file is
      never shown as verified, whatever the document's status. */
-  const v = f.state === 'bad' ? '' : f.state === 'ok' || f.state === 'rescan' ? f.state : (f.verdict || (legacyOk ? 'ok' : ''));
+  const v = f.state === 'bad' ? '' : f.state === 'ok' || f.state === 'rescan' || f.state === 'replaced' ? f.state : (f.verdict || (legacyOk ? 'ok' : ''));
   const bad = f.state === 'bad' ? (f.stateSaid || 'Not accepted — not a PDF, photo or Word file') + (f.bad ? ' (' + f.bad + ')' : '') : docNotTaken(f);
   const k = esc(f.key), id = esc(f.id);
   return '<li class="docfile" data-fileid="' + id + '" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
@@ -351,10 +360,10 @@ function fileRow(f, legacyOk) {
     '<span style="flex:1 1 160px;min-width:0"><a class="docfilelink" href="' + href + '" download ' +
       'style="color:var(--blue-deep);font-weight:600;overflow-wrap:anywhere">' + esc(f.file) + '</a>' +
       '<span style="display:block;font-size:11px;color:var(--muted)">' +
-        (f.by === 'staff' ? 'From the office' : 'From the student') +
+        (f.by === 'staff' ? 'From the office' : f.by === 'partner' ? 'From the agency' : 'From the student') +
         (f.at ? ' · ' + esc(String(f.at).slice(0, 10)) : '') + '</span></span>' +
     '<span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto">' +
-      (v ? '<span class="st ' + (v === 'ok' ? 'ok' : 'rescan') + '" style="margin-left:0">' + FILE_VERDICT[v] + '</span>' : '') +
+      (v ? '<span class="st ' + (v === 'ok' ? 'ok' : v === 'replaced' ? 'none' : 'rescan') + '" style="margin-left:0">' + FILE_VERDICT[v] + '</span>' : '') +
       (v === 'ok' ? ''
         : bad
           ? '<button type="button" class="btn btn-green btn-sm" disabled title="' + esc(bad) + '">Accept</button>' +
@@ -564,6 +573,8 @@ function paintRecord(r) {
       '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
         '<h3 style="margin:0;font-size:17px">' + esc(r.student.name) + '</h3>' +
         (r.counsellor ? '<span class="pill">' + esc(r.counsellor.name) + '</span>' : '') +
+        /* Patch 177 (item 5): which agency sent this student, if one did. */
+        (r.partner ? '<span class="pill referred" title="Added by the partner agency' + (r.partner.closed ? ' (account closed)' : '') + '">Referred by ' + esc(r.partner.agency) + '</span>' : '') +
         /* F4 (8 Oct): the main package (server rule: taken on, carries a
            package, unlocks universities), with the add-ons counted — not
            orders[0], which was the newest ₹0 add-on. */
@@ -615,8 +626,8 @@ function paintRecord(r) {
         (r.readiness
           ? '<div><b>' + r.readiness.ok + '/' + r.readiness.of + '</b><span>Required docs verified'
             + (r.readiness.okExtra ? ' (+' + r.readiness.okExtra + ' optional)' : '')
-          : '<div><b>' + r.docs.filter(d => d.status === 'ok').length + '/' + r.docs.length + '</b><span>Docs verified')
-          + (r.docs.filter(d => d.status === 'rescan').length ? ' \u00b7 ' + r.docs.filter(d => d.status === 'rescan').length + ' sent back' : '')
+          : '<div><b>' + docSlots(r.docs).filter(s => s === 'ok').length + '/' + docSlots(r.docs).length + '</b><span>Docs verified')
+          + (docSlots(r.docs).filter(s => s === 'rescan').length ? ' \u00b7 ' + docSlots(r.docs).filter(s => s === 'rescan').length + ' sent back' : '')
           + '</span></div>' +
         '<div><b>' + filled + '</b><span>Profile fields</span></div>' +
       '</div>' +
@@ -709,8 +720,9 @@ function paintRecord(r) {
                 'Send finished work</b>' +
               '<p style="margin:0 0 9px;font-size:11.8px;color:var(--muted);line-height:1.6">' +
                 'The SOP, the recommendation letters or the visa cover letter, once ' +
-                'they are final. It lands on their Documents screen already verified, ' +
-                'and the agency that sent them can download it.</p>' +
+                'they are final: those land on their Documents screen verified, and the ' +
+                'agency that sent them can download them. A document of the student’s ' +
+                'own (a marksheet they emailed you) lands In review until you accept it.</p>' +
               '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
                 /* EVERY SLOT, not the three we write.
                  *
@@ -955,6 +967,10 @@ function paintRecord(r) {
                     esc(t.why || 'Done because the applications are past this stage') + '</span>' : '') +
                   (t.status === 'blocked' && t.note ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
                     esc(t.note) + '</span>' : '') +
+                  /* Round 177 (item 3): the applications are past this step
+                     but the file is not — said before the lock. */
+                  (t.waitingOn ? '<span style="display:block;font-size:11.2px;color:#8a5a00;font-weight:700">' +
+                    esc(t.waitingOn) + '</span>' : '') +
                   /* N17-01 / N17-05: why "done" is refused right now. */
                   (t.lock ? '<span style="display:block;font-size:11.2px;color:#8a5a00">' +
                     esc(t.lock) + '</span>' : '') + '</td>' +
@@ -1198,9 +1214,14 @@ document.addEventListener('change', async e => {
   const stage = Number((row.querySelector('[data-stage]') || {}).value || 0);
   const outcome = (row.querySelector('[data-outcome]') || {}).value || '';
   const body = { stage, outcome };
+  /* Round 177 (item 6): the version this row was read with. The server
+     refuses the save (409) when somebody else changed it since, and the
+     row is reloaded instead of overwriting their change. */
+  const app0 = (CASE && CASE.apps && CASE.apps[id]) || {};
+  if (app0.updatedAt !== undefined) body.ifUpdatedAt = app0.updatedAt || '';
   /* N17-03: a decision is a message to the student — say so, and ask, before
      it goes. A programme no longer offered needs it said twice. */
-  const was = String(((CASE && CASE.apps && CASE.apps[id]) || {}).outcome || '');
+  const was = String(app0.outcome || '');
   if (oc && outcome && outcome !== was) {
     const p0 = ((CASE && CASE.shortlist) || []).find(x => String(x.id) === String(id)) || {};
     const said = (OUTCOMES.find(o => o.k === outcome) || {}).n || outcome;
@@ -1217,8 +1238,15 @@ document.addEventListener('change', async e => {
     const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +
       encodeURIComponent(id), body);
     if (r.told) toast('The student has been told.');
+    /* Round 177 (item 3): a stage ahead of the file is saved, and said. */
+    if (r.warning) toast(r.warning, 'bad');
     await refreshCase();
   } catch (err) {
+    if (err.conflict) {
+      toast('Someone else changed this — reloaded.', 'bad');
+      try { await refreshCase(); } catch (e2) { /* the row stays as it was */ }
+      return;
+    }
     alert(err.message || 'That did not save.');
     try { await refreshCase(); } catch (e2) { /* the row stays as it was */ }
   }
@@ -1471,23 +1499,29 @@ document.addEventListener('click', async e => {
   const box = row && row.querySelector('[data-note]');
   const ibox = row && row.querySelector('[data-inote]');
   if (!box) return;
-  /* The stage and outcome go up with it, because this endpoint sets all three
-     and sending the note alone would reset the other two to their defaults.
-     They are read off the row rather than remembered, so a counsellor who
-     changed the dropdown and then typed a note saves what is on the screen. */
-  const stage = Number((row.querySelector('[data-stage]') || {}).value || 0);
-  const outcome = (row.querySelector('[data-outcome]') || {}).value || '';
+  /* Round 177 (item 6): the note goes up on its own. The endpoint is a
+     partial update now — only the fields sent change — so the stage and the
+     outcome stay exactly as the row holds them, and a save that crosses
+     with somebody else's is refused and reloaded (ifUpdatedAt). */
+  const app0 = (CASE && CASE.apps && CASE.apps[id]) || {};
+  const body = { note: box.value, internalNote: ibox ? ibox.value : undefined };
+  if (app0.updatedAt !== undefined) body.ifUpdatedAt = app0.updatedAt || '';
   b.disabled = true;
   const was = b.textContent;
   b.textContent = 'Saving…';
   try {
     const r = await api('PUT', '/api/staff/student/' + openId + '/application/' +
-      encodeURIComponent(id), { stage, outcome, note: box.value, internalNote: ibox ? ibox.value : undefined });
+      encodeURIComponent(id), body);
     toast(r.noted ? 'Saved, and the student has been told.' : 'Saved.');
     await refreshCase();
   } catch (err) {
     b.disabled = false;
     b.textContent = was;
+    if (err.conflict) {
+      toast('Someone else changed this — reloaded.', 'bad');
+      try { await refreshCase(); } catch (e2) { /* the row stays as it was */ }
+      return;
+    }
     toast(err.message || 'That did not save.', 'bad');
   }
 });
@@ -1582,7 +1616,13 @@ async function deliverWork(f) {
       { method: 'POST', credentials: 'same-origin', body: form });
     const d = await r.json().catch(function () { return {}; });
     if (!r.ok) throw new Error(d.error || 'That did not go through.');
-    said.textContent = 'Delivered \u2014 it is on their file.';
+    /* Round 177 (item 11): say the state it actually landed in. Our own work
+       arrives verified; a student's document put up here is In review until
+       somebody accepts it on the Documents tab. */
+    said.textContent = d.status === 'ok'
+      ? 'Delivered \u2014 it is on their file, verified.'
+      : 'Added to their file \u2014 ' + (d.said || 'In review').toLowerCase()
+        + '. Accept it under Documents once you have checked it.';
     await refreshCase();
   } catch (err) {
     said.textContent = err.message || 'That did not go through.';

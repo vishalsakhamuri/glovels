@@ -703,6 +703,20 @@ function liftByApplications(db, st, base, T) {
   if (!floor) return base;
   const at = PHASES.find(p => p.key === floor.key);
   if (!at || base.finished || PHASE_AT.get(at.key) <= Number(base.index || 0)) return base;
+  /* Round 177 (item 3): THE FLOOR NEVER STEPS OVER MISSING EVIDENCE. An
+     application at Submitted with 0 of 10 documents verified lifted the file
+     to Applying — and an offer on top put it at Visa on day one. The lift
+     only happens when every phase behind the floor has its evidence on the
+     file (documents verified, something shortlisted); otherwise the phase
+     stays where the evidence is, and says what it is waiting on. */
+  let F = null;
+  try { F = factsOf(db, st); } catch (e) { F = null; }
+  if (F) {
+    for (const p of PHASES) {
+      if (PHASE_AT.get(p.key) >= PHASE_AT.get(at.key)) break;
+      if (evidenceGap(F, p.key)) return base;
+    }
+  }
   const since = (floor.key === 'offers' ? floor.since2 : floor.since) || floor.since || st.created_at;
   return {
     key: at.key, label: at.label, short: at.short,
@@ -877,7 +891,11 @@ function factsOf(db, st) {
 function evidenceGap(F, key) {
   switch (key) {
     case 'profile':
-      return (F.docs.ok >= F.docs.of || F.submitted) ? ''
+      /* Round 177 (item 3): a submitted application used to stand in for the
+         documents — so moving a stage to Submitted on a file with 0 of 10
+         verified read "Profile and documents: done". The documents are the
+         only evidence for this phase. */
+      return F.docs.ok >= F.docs.of ? ''
         : F.docs.ok + ' of ' + F.docs.of + ' required documents verified';
     case 'shortlist':
       return F.listed || F.submitted ? '' : 'Nothing is on the shortlist yet';
@@ -907,6 +925,11 @@ function departGap(F) {
  * Why a task cannot be ticked done yet, or '' when it can. The server refuses
  * with this sentence and the counsellor's screen disables the button with it.
  */
+/* Round 177 (item 7): what "Application documents assembled" means on the
+   file — the written pieces and the transcripts, in the student's own slots
+   (the keys are journey.js REQUIRED's). */
+const APPDOC_KEYS = ['sop', 'lor', 'cv', 'degree', 'consol'];
+
 function doneBlock(db, student, t) {
   const st = typeof student === 'object' ? student : db.studentById(Number(student));
   if (!st || !t) return '';
@@ -919,12 +942,39 @@ function doneBlock(db, student, t) {
         + 'Their file → Documents before ticking this.';
     }
   }
-  if (key === 'visadocs') {
+  /* Round 177 (item 7): the four steps that could be ticked with nothing
+     behind them. Each needs the thing it says happened to be on the file. */
+  if (key === 'shortlist') {
+    let n = 0;
+    try { n = (db.getShortlist(st.id) || []).length; } catch (e) { n = 0; }
+    if (!n) {
+      return 'Nothing is on the shortlist yet. Add at least one programme to the '
+        + 'student’s list before ticking this.';
+    }
+  }
+  if (key === 'appdocs') {
+    const R = J.readiness(db, st.id);
+    const miss = R.docs.filter(d => APPDOC_KEYS.includes(d.key) && d.status !== 'ok');
+    if (miss.length) {
+      return miss.length + ' of ' + APPDOC_KEYS.length + ' application documents are not '
+        + 'verified yet — still to verify: ' + miss.map(d => d.name).join(', ') + '.';
+    }
+  }
+  if (key === 'offer') {
+    let apps = [], listed = new Set();
+    try { listed = new Set((db.getShortlist(st.id) || []).map(r => String(r.prog_id))); } catch (e) {}
+    try { apps = db.getApplications(st.id) || []; } catch (e) { apps = []; }
+    if (!apps.some(a => listed.has(String(a.prog_id)) && APPS.hadOffer(a.outcome))) {
+      return 'No offer is recorded yet. Record “Offer” on the application (at Decision) '
+        + 'under Their file → Universities; this step follows from it.';
+    }
+  }
+  if (key === 'visadocs' || key === 'visa') {
     const V = J.visaReadiness(db, st.id);
     if (V.ok < V.of) {
       const miss = V.docs.filter(d => d.status !== 'ok').map(d => d.name);
       return V.ok + ' of ' + V.of + ' visa documents are verified — still to verify: '
-        + miss.join(', ') + '.';
+        + miss.join(', ') + '.' + (key === 'visa' ? ' The application cannot be filed before the visa file is complete.' : '');
     }
   }
   if (key === 'visadecision') {
@@ -960,7 +1010,8 @@ function setVisa(db, student, body, who) {
     }
     if (d === 'granted' || d === 'refused') {
       let letter = null;
-      try { letter = (db.getDocuments(st.id) || []).find(x => String(x.doc_key) === 'visa-decision'); } catch (e) { letter = null; }
+      /* Patch 177 (item 4): the slot's derived status, not one row's. */
+      try { letter = { status: db.docSlotStatus(st.id, 'visa-decision') }; if (letter.status === 'none') letter = null; } catch (e) { letter = null; }
       if (!letter || String(letter.status || '') === 'rescan') {
         return { status: 409, error: 'Upload the visa decision letter (Visa → “Visa decision letter”) '
           + 'before recording a ' + (d === 'granted' ? 'grant' : 'refusal') + '.' };
@@ -1243,6 +1294,16 @@ function effectiveTasks(db, student, rows, now) {
   try { ev = evidenceOf(db, st); } catch (e) { return list; }
   if (!ev.sent.size) return list;
   const applyingAt = PHASE_AT.get('applying');
+  /* Round 177 (item 3): the furthest stage the applications have reached,
+     for the sentence on a step they have overtaken but the file has not. */
+  let stageSaid = '';
+  try {
+    let apps = db.getApplications(st.id) || [];
+    const top = apps.reduce((m, a) => Math.max(m, Number(a.stage || 0)), 0);
+    stageSaid = (APPS.STAGES[top] || {}).n || 'Submitted';
+    if (apps.some(a => APPS.hadOffer(a.outcome))) stageSaid = 'Offer';
+  } catch (e) { stageSaid = 'Submitted'; }
+  const cache = {};
   return list.map(r => {
     if (CLOSED.has(String(r.status))) return r;
     const tpl = TEMPLATES.find(x => x.key === r.task_key);
@@ -1257,11 +1318,53 @@ function effectiveTasks(db, student, rows, now) {
     } else if (PHASE_AT.get(tpl.phase) < applyingAt || tpl.key === 'appdocs') {
       at = ev.firstSent;
     } else return r;
+    /* Round 177 (item 3): A DERIVED "DONE" PASSES THE SAME LOCK AS A TICK.
+       An application moved to stage 3 marked "Profile completed and
+       documents collected" done with 0 of 10 documents verified, "Offer
+       letter received" done at stage 4 with no offer, and the SOP and LOR
+       steps finished with nothing in their slots. The applications are
+       evidence that the step was PASSED, not that it was done: where the
+       file cannot back it up the task stays open and says so. */
+    let why = '';
+    try { why = derivedBlock(db, st, r, cache); } catch (e) { why = ''; }
+    if (why) {
+      return Object.assign({}, r, {
+        waitingOn: 'Applications are at ' + stageSaid + ' but ' + why,
+      });
+    }
     return Object.assign({}, r, {
       status: 'done', done_at: r.done_at || at || r.updated_at || r.created_at,
       derived: true, derivedWhy: DERIVED_WHY, storedStatus: r.status,
     });
   });
+}
+
+/* Why the applications cannot stand in for this step: the tick's own lock,
+   and for the two written pieces (which have no tick lock — the office
+   approves them by hand) the finished document in its slot. The sentence is
+   written to follow "Applications are at Submitted but …". */
+function derivedBlock(db, st, r, cache) {
+  const key = String(r.task_key || '');
+  const J = JOURNEY_();
+  const c = cache || {};
+  const readiness = () => (c.R = c.R || J.readiness(db, st.id));
+  if (key === 'profile') {
+    const R = readiness();
+    if (R.ok < R.of) return (R.of - R.ok) + ' of ' + R.of + ' required documents are still missing';
+  }
+  if (key === 'appdocs') {
+    const R = readiness();
+    const miss = R.docs.filter(d => APPDOC_KEYS.includes(d.key) && d.status !== 'ok');
+    if (miss.length) return miss.length + ' application document' + (miss.length === 1 ? ' is' : 's are') + ' still missing: ' + miss.map(d => d.name).join(', ');
+  }
+  if (key === 'sop' || key === 'lor') {
+    const R = readiness();
+    const d = R.docs.find(x => x.key === key);
+    if (!d || d.status !== 'ok') return 'the ' + (d ? d.name : key) + ' is not on the file yet';
+  }
+  const lock = doneBlock(db, st, r);
+  if (lock) return lock.charAt(0).toLowerCase() + lock.slice(1);
+  return '';
 }
 
 /** effectiveTasks over rows from many students (the board, the sweep). */

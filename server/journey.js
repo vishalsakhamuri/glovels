@@ -111,7 +111,11 @@ function of(db, st, now) {
           : 'Your counsellor calls you to open your file';
         break;
       case 'profile':
-        done = allDone(rows) || filed;
+        /* Round 177 (item 9): a filed application is not the documents. The
+           rows are the effective tasks, and the documents step only reads
+           done — ticked or derived — once the required documents are
+           verified, so this is the same check the phase makes. */
+        done = allDone(rows) || (!rows.length && R.ok >= R.of);
         detail = done ? 'Your details and documents are in'
           : R.ok + ' of ' + R.of + ' documents verified';
         break;
@@ -269,11 +273,20 @@ const VISA_REQUIRED = [
   ['visa-insurance', 'Travel and health insurance'], ['visa-form', 'Completed visa application form'],
   ['visa-cover', 'Visa cover letter'], ['visa-appointment', 'Appointment confirmation'],
 ];
+/* Patch 177 (item 4): key → the SLOT's status, derived from every file in
+   it (store.slotStatus) — a slot counts once however many files it holds. */
+function slotMap(db, rows) {
+  const by = {};
+  (rows || []).forEach(d => { const k = String(d.doc_key); (by[k] || (by[k] = [])).push(d); });
+  const derive = db && typeof db.slotStatus === 'function' ? db.slotStatus : require('./store.js').slotStatus;
+  const slot = {};
+  Object.keys(by).forEach(k => { slot[k] = derive(by[k]); });
+  return slot;
+}
 function visaReadiness(db, studentId) {
   let rows = [];
   try { rows = db.getDocuments(Number(studentId)) || []; } catch (e) { rows = []; }
-  const slot = {};
-  rows.forEach(d => { slot[d.doc_key] = String(d.status || 'wait'); });
+  const slot = slotMap(db, rows);
   const docs = VISA_REQUIRED.map(([key, name]) => {
     const status = slot[key] && WORD[slot[key]] ? slot[key] : (slot[key] ? 'wait' : 'none');
     return { key, name, status, word: WORD[status] };
@@ -303,8 +316,7 @@ const WORD = { none: 'Not uploaded', wait: 'In review', rescan: 'Send a scanned 
 function readiness(db, studentId) {
   let rows = [];
   try { rows = db.getDocuments(Number(studentId)) || []; } catch (e) { rows = []; }
-  const slot = {};
-  rows.forEach(d => { slot[d.doc_key] = String(d.status || 'wait'); });
+  const slot = slotMap(db, rows);
   const statusOf = k => (slot[k] && WORD[slot[k]] ? slot[k] : (slot[k] ? 'wait' : 'none'));
   const docs = REQUIRED.map(([key, name]) => {
     const status = statusOf(key);

@@ -436,8 +436,9 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         <input id="ctDest" placeholder="Germany, Canada, not sure yet" maxlength="100"></label>
     </div>
     <label>What would you like to ask?
-      <textarea id="ctMsg" rows="4" maxlength="2000"
-        placeholder="Your course, your CGPA, your intake — whatever is on your mind."></textarea></label>
+      <textarea id="ctMsg" rows="4" maxlength="2000" aria-describedby="ctMsgCount"
+        placeholder="Your course, your CGPA, your intake — whatever is on your mind."></textarea>
+      <small id="ctMsgCount" class="ct-count" aria-live="polite" style="display:block;margin:4px 0 0;font-size:12px;color:#5d6b7a;text-align:right">0 / 2,000 characters</small></label>
     <input id="ctTrap" tabindex="-1" autocomplete="off" aria-hidden="true"
       style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     <label class="ct-ok" style="display:flex;gap:8px;align-items:flex-start;font-size:12.8px;margin:6px 0 10px">
@@ -1043,6 +1044,22 @@ if (location.protocol === 'file:') {
       .catch(function () {});
   }
 
+  /* Round 177 (item 17): a live count under the message box — the limit is
+     2,000, the same one the server holds; over it the count turns red. */
+  (function () {
+    var ta = $('ctMsg'), c = $('ctMsgCount');
+    if (!ta || !c) return;
+    var MAX = 2000;
+    var draw = function () {
+      var n = ta.value.length;
+      c.textContent = n.toLocaleString('en-IN') + ' / ' + MAX.toLocaleString('en-IN') + ' characters';
+      c.style.color = n > MAX ? '#b42318' : n > MAX - 100 ? '#8a6a1f' : '#5d6b7a';
+      ta.classList.toggle('bad', n > MAX);
+    };
+    ta.addEventListener('input', draw);
+    draw();
+  }());
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var err = $('ctErr');
@@ -1075,6 +1092,9 @@ if (location.protocol === 'file:') {
       if (!ok && !bad) bad = typeof c[2] === 'function' ? c[2](el.value.trim()) : c[2];
     });
     if (!bad && !$('ctOk').checked) bad = 'Please tick the box so we can reply to you.';
+    /* Round 177 (item 17): the one limit, 2,000 — the server's 422 says the
+       same; here it is said before the round trip. */
+    if (!bad && $('ctMsg').value.trim().length > 2000) { bad = 'Please keep the message under 2,000 characters'; $('ctMsg').classList.add('bad'); }
     if (bad) { err.textContent = bad; err.hidden = false; $(checks[0][0]).focus(); return; }
 
     var btn = $('ctGo');

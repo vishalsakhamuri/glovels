@@ -385,6 +385,25 @@ const isAppFile = key => String(key || '').startsWith('app:');
    the bytes stay (re-keyed `removed:<key>`) so the audit log entry points at
    something; no reader of documents or app files sees it. */
 const isRemovedFile = key => String(key || '').startsWith('removed:');
+/* Patch 177 (item 4): THE SLOT'S STATUS, derived from its files' own states.
+   Any verified copy → the document is accepted; else a file still in review
+   → in review; else one queried → waiting for a scan; else (every file bad
+   or replaced, or none) → wait. Every counter and every checklist reads a
+   slot through this and nothing else, so a slot counts ONCE however many
+   files it holds. */
+/* Patch 177 (item 12): AN OPEN FILE, once. On the books (status active) and
+   not closed by the agency on its side. The overview tiles, the team cards'
+   caseloads and the money screen all count students through this, so they
+   cannot disagree about how many are open. */
+const openFile = st => !!st && String(st.status || 'active') === 'active' && Number(st.partner_closed || 0) !== 1;
+
+function slotStatus(files) {
+  const st = (files || []).map(f => String((f && f.status) || 'wait'));
+  if (st.includes('ok')) return 'ok';
+  if (st.includes('wait')) return 'wait';
+  if (st.includes('rescan')) return 'rescan';
+  return 'wait';
+}
 
 /* ------------------------------------------------------------------ sqlite */
 
@@ -1477,6 +1496,48 @@ function open(dir) {
     setFileVerdict: (studentId, docId, verdict) =>
       db.run('UPDATE documents SET verdict = ? WHERE student_id = ? AND id = ?',
         String(verdict || ''), Number(studentId), Number(docId)),
+    /* PATCH 177 (28 Oct, item 4): EACH ROW'S `status` IS ITS OWN STATE.
+     *
+     * The table has one row per FILE, and `status` used to belong to the
+     * SLOT — setDocStatus wrote it on every row — so accepting the real CV
+     * turned the 31-byte script beside it into a "verified" CV as well. Now:
+     *   wait      in review (the default on upload)
+     *   rescan    the counsellor asked for another copy of THIS file
+     *   ok        the verified copy
+     *   replaced  was the verified copy until a newer file was accepted
+     *   bad       fails today's type/size checks (server/filecheck.js)
+     * `verdict` mirrors it ('ok' | 'rescan' | 'bad' | '') so every reader
+     * written for patch 172 still sees the same answer.
+     *
+     * The SLOT's status — what the checklist, the readiness ring and the
+     * office's counters read — is DERIVED, by slotStatus() below, never
+     * stored: any row ok → ok; else any row in review → wait; else any row
+     * queried → rescan; else wait. */
+    setFileState: (studentId, docId, status) => {
+      const st = ['wait', 'rescan', 'ok', 'replaced', 'bad'].includes(String(status)) ? String(status) : 'wait';
+      const verdict = st === 'ok' || st === 'rescan' || st === 'bad' ? st : '';
+      return db.run('UPDATE documents SET status = ?, verdict = ? WHERE student_id = ? AND id = ?',
+        st, verdict, Number(studentId), Number(docId));
+    },
+    /** The derived status of ONE slot from its rows (see setFileState). */
+    slotStatus,
+    /** Patch 177 (item 12): is this student's file open (active, not agency-closed)? */
+    openFile,
+    /** Every checklist slot a student has: key → { status, files } (oldest first). */
+    docSlots(studentId) {
+      const out = {};
+      for (const d of this.getDocuments(studentId)) {
+        const k = String(d.doc_key);
+        (out[k] || (out[k] = { key: k, files: [] })).files.push(d);
+      }
+      Object.keys(out).forEach(k => { out[k].status = slotStatus(out[k].files); });
+      return out;
+    },
+    /** One slot's derived status, 'none' when nothing is in it. */
+    docSlotStatus(studentId, key) {
+      const files = this.docsInKey(studentId, key);
+      return files.length ? slotStatus(files) : 'none';
+    },
     /** Patch 172 (N17-02): take one file out of its slot without deleting it. */
     moveDocFileOut: (studentId, docId, key) =>
       db.run('UPDATE documents SET doc_key = ?, verdict = ? WHERE student_id = ? AND id = ?',
@@ -1521,9 +1582,15 @@ function open(dir) {
                 (student_id, doc_key, filename, stored_name, bytes, status, uploaded_at, uploaded_by)
               VALUES (?, ?, ?, ?, ?, 'wait', ?, ?)`,
         Number(studentId), String(key), filename, storedName, Number(bytes), now(),
-        who === 'staff' ? 'staff' : 'student');
+        /* Patch 177 (item 5): 'partner' — the student's agency filed it. Not
+           the student's to remove, and the office can see who sent it. */
+        who === 'staff' ? 'staff' : who === 'partner' ? 'partner' : 'student');
       return this.docByKey(studentId, key);
     },
+    /* Patch 177 (item 5): the lead this student was converted from, if any —
+       the "Source: lead" the office's list filters on. */
+    convertedLeadOf: studentId => db.one('SELECT * FROM enquiries WHERE student_id = ? AND status = ?',
+      Number(studentId), 'converted'),
     setDocStatus: (studentId, key, status) =>
       db.run('UPDATE documents SET status = ? WHERE student_id = ? AND doc_key = ?',
         status, Number(studentId), String(key)),
@@ -2752,7 +2819,8 @@ function open(dir) {
         .filter(Boolean).join(', ');
       const body = ['Enquired again via ' + where + ' at ' + t.slice(0, 16).replace('T', ' ') + ' UTC',
         e.destination ? 'Destination: ' + e.destination : '',
-        e.note ? String(e.note).slice(0, 1800) : '']
+        /* Round 177 (item 17): the one limit, 2,000 — the form's. */
+        e.note ? String(e.note).slice(0, 2000) : '']
         .filter(Boolean).join('\n');
       this.addLeadNote(open.id, 'website', 'enquiry', body);
       /* A destination they now name on a lead that had none is worth keeping;
@@ -3195,4 +3263,4 @@ function open(dir) {
   return store;
 }
 
-module.exports = { open, CONTACT_KINDS, destCode };
+module.exports = { open, CONTACT_KINDS, destCode, slotStatus, openFile };

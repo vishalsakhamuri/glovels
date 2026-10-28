@@ -62,9 +62,17 @@ const has = (html, s) => html.includes(s) || html.includes(esc(s));
   const P = { g_country: 'Germany', g_level: "Master's", g_field: 'Computer Science', d_course: 'B.Tech CSE', d_cgpa: '8', d_max: '10', d_pass: '4', e_test: 'IELTS', e_score: '6.5' };
   const C = { DE: 'Germany', Germany: 'DE' };
   const openOnly = M.screen(cat, Object.assign({}, P, { g_restricted: 'no' }), C, {});
-  const ids = openOnly.fits.map(x => x.id);
+  /* Round 177 (28 Oct item 8): a stated requirement the student falls short
+     of is a HARD miss — the row stays in the set but in the near tier, below
+     every fit, with the reason first. "Open admission only" against a
+     restricted row is such a miss. Still kept, never dropped. */
+  const ranked = openOnly.fits.concat(openOnly.near || []);
+  const ids = ranked.map(x => x.id);
+  const nc = ranked.find(x => x.id === 'a-nc') || {};
   ok('a restricted row is ranked BELOW the open ones for an open-admission student (kept, not dropped)',
-    ids.length === 3 && ids.indexOf('a-nc') === 2 && (openOnly.fits[2].soft || []).length > 0, J(openOnly.fits.map(x => [x.id, x.soft])));
+    ids.length === 3 && ids.indexOf('a-nc') === 2
+      && ((nc.soft || []).length > 0 || (nc.hard || []).length > 0 || (nc.why || []).length > 0),
+    J(ranked.map(x => [x.id, x.soft, x.hard])));
   ok('  · and is held for the counsellor (in words) before a package names it',
     /Restricted admission/.test(M.holdReasons(row('x', { reqs: { restricted: true } }), P).join()));
   ok('  · screen() still marks the row restricted for the staff screens', M.screen(cat, P, C, {}).fits.find(x => x.id === 'a-nc').restricted === true);

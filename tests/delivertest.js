@@ -51,7 +51,7 @@ let pass=0,fail=0; const ok=(c,m)=>{c?pass++:(fail++,console.log('  FAIL: '+m));
 
  // deliver an SOP
  const put=async(key,name)=>C.request.post(BASE+'/api/staff/student/'+sid+'/document/'+key+'/file',
-   {multipart:{file:{name,mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 finished '+key)}}});
+   {multipart:{file:{name,mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 finished '+key+'\n%'+'x'.repeat(200)+'\n%%EOF')  /* round 177: ≥128 bytes, or it is not a document */}}});
  const r1=await put('sop','Deliv-Student-SOP-final.pdf');
  ok(r1.ok(),'counsellor delivers an SOP — '+r1.status()+' '+(await r1.text()).slice(0,90));
  const r2=await put('visa-cover','Deliv-Student-visa-cover.pdf');

@@ -179,7 +179,9 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     capped.more = capped.more || !!moreLocked;
     const rows = capped.rows.slice(0, PAGE);
     const ctx = { countries, said: R.said };
-    const list = rows.length ? rows.map(p => FIND.rowHtml(p, ctx)).join('') : FIND.emptyHtml(f);
+    /* Round 177 (item 15): the rows they clear, a divider, the rows short
+       of something they ask — FIND.listHtml; no count on either part. */
+    const list = rows.length ? FIND.listHtml(rows, ctx) : FIND.emptyHtml(f);
     const sort = '<label class="fsort">Sort <select id="fsort">' + Object.keys(FIND.SORTS).map(k => '<option value="' + k + '"' + ((f.sort || FIND.defaultSort(R.said)) === k ? ' selected' : '') + '>' + FIND.SORTS[k] + '</option>').join('') + '</select></label>';
     const view = '<div class="fview" role="group" aria-label="View"><button type="button" data-view="list" aria-pressed="' + (f.view !== 'uni') + '">List</button><button type="button" data-view="uni" aria-pressed="' + (f.view === 'uni') + '">By university</button></div>';
     return '<form id="ffilters" class="ffilters" action="/find-university" method="get">'
@@ -349,7 +351,16 @@ const FIND_CSS = `<style>/* GLOVELS-FIND-CSS */
 .fmore-locked{margin:12px 0 0;padding:11px 14px;border-radius:12px;background:#fdf6e6;border:1px solid #e6d5a8;font:600 13.4px/1.5 var(--sans);color:#5b4409}
 .fmore-locked a{color:inherit}
 .funi{margin:0 0 6px;font:700 15px/1.3 var(--sans);color:var(--navy-900);padding:10px 0 0}
+/* Round 177 (item 15): the split between the rows they clear and the rows
+   short of something they ask. Words, no number. */
+.fdivide{display:flex;align-items:center;gap:12px;margin:18px 0 10px;font:700 12.6px/1.3 var(--sans);letter-spacing:.04em;text-transform:uppercase;color:#8a6a1f}
+.fdivide::before,.fdivide::after{content:"";flex:1;height:1px;background:#e6d5a8}
+/* Round 177 (item 1): the compare bar is above the WhatsApp button, not
+   under it — at 618px the fixed button sat on "Clear" and "Compare side by
+   side". The bar is z-indexed over the button and the page lifts the
+   button clear of it while the bar shows (body.fcmp-open). */
 .fcmp{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:12px 18px;background:var(--navy-900);color:#fff;font:600 14px/1.3 var(--sans);box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+body.fcmp-open .gv-corner{bottom:calc(var(--fcmp-h,64px) + 14px)!important}
 .fcmp .flink{color:#c8d6e4}
 .fsharebox{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#f6f9fc;font:600 13px/1.3 var(--sans);color:var(--navy-800)}
 .fsharebox input{flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:400 13px/1.3 var(--sans)}
@@ -447,8 +458,12 @@ function render(){
     var by = {}, order = [];
     slice.forEach(function(p){ var k = p._locked ? '\u0000locked' : (p.uKey || p.university || p.id); if (!by[k]) { by[k] = []; order.push(k); } by[k].push(p); });
     out = order.map(function(k){ var g = by[k]; var name = g[0]._locked ? 'Public universities — unlocked with a package' : (g[0].shortName || g[0].university);
-      return '<h3 class="funi">' + esc(name) + '</h3>' + g.map(function(p){ return F.rowHtml(p, ctx()); }).join(''); }).join('');
-  } else out = slice.map(function(p){ return F.rowHtml(p, ctx()); }).join('');
+      return '<h3 class="funi">' + esc(name) + '</h3>' + F.listHtml(g, ctx()); }).join('');
+    /* Round 177 (item 15): one divider on the page — the first group that
+       holds a short row carries it; later groups draw theirs out. */
+    var firstDiv = out.indexOf('<div class="fdivide"');
+    if (firstDiv >= 0) out = out.slice(0, firstDiv + 1) + out.slice(firstDiv + 1).replace(/<div class="fdivide"[^>]*>.*?<\/div>/g, '');
+  } else out = F.listHtml(slice, ctx());
   list.innerHTML = out;
   $('#fsummary').textContent = slice.length ? SUMMARY.some : SUMMARY.none;
   var ml = $('#fmoreLocked'), wantMore = (capped.more || (lockedMore && lockedFor === lk)) && slice.length;
@@ -532,6 +547,11 @@ function cmpBar(){
   bar.hidden = n < 1;
   $('#fcmpText').textContent = n ? 'Comparing ' + n + ' programme' + (n === 1 ? '' : 's') + (n < 2 ? ' — pick one more' : '') : 'Pick programmes to compare';
   $('#fcmpGo').disabled = n < 2;
+  /* Round 177 (item 1): while the bar shows, the WhatsApp / chat corner is
+     lifted above it by the bar's own height (it wraps to two lines at
+     618px), so "Clear" and "Compare side by side" are not under the button. */
+  document.body.classList.toggle('fcmp-open', n >= 1);
+  if (n >= 1) document.documentElement.style.setProperty('--fcmp-h', bar.offsetHeight + 'px');
 }
 function compareNow(){
   var ps = Array.from(compared).map(function(id){ return rows.find(function(r){ return String(r.id) === id; }); }).filter(Boolean);

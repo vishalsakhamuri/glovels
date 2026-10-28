@@ -354,6 +354,9 @@ const api = async (method, path, body) => {{
     /* Round 175: a programme whose deadlines have all passed — the fit
        panel asks "Add anyway?" and re-sends with force. */
     if (data.closed) {{ err.closed = true; err.lastDeadline = data.lastDeadline || null; }}
+    /* Round 177 (item 6): somebody else saved the same application first —
+       the row is reloaded rather than overwritten. */
+    if (data.conflict) {{ err.conflict = true; err.current = data.current || null; }}
     throw err;
   }}
   return data;
@@ -1123,7 +1126,7 @@ function __dashTodo(s) {
      purchase is 0% complete when it has been delivered in full is the screen
      being wrong about their own order. */
   const on = t.stages || [];
-  const why = on.indexOf('visa') >= 0
+  let why = on.indexOf('visa') >= 0
     ? 'Applications cannot be filed, and a visa cannot be applied for, until it is '
       + 'finished. Nothing here takes long.'
     : on.indexOf('apply') >= 0
@@ -1135,6 +1138,15 @@ function __dashTodo(s) {
     ? 'These are the answers your universities are matched against \u2014 change '
       + 'one and the list is picked again.'
     : 'Just enough for us to reach you.';
+  /* Round 177 (item 9): this box and the journey read the same file. When
+     the journey already says "Profile and documents" is done (the required
+     documents are verified), what is left here is not holding anything up \u2014
+     and it must not say it is. */
+  const prof = s.journey && (s.journey.stages || []).find(x => x.key === 'profile');
+  if (prof && prof.state === 'done' && !docs.length) {
+    why = 'Your documents are in. These details are still worth filling in \u2014 '
+      + 'your counsellor may ask for them.';
+  }
 
   const el = document.createElement('div');
   el.className = 'todo-card';

@@ -677,18 +677,31 @@ const nextTerm = t => t.season === 'winter'
  * have, 218) at #3. Vishal's rule is that her first N ARE the student's N —
  * one comparator, used by both.
  */
+/*
+ * Round 177 (item 8): a HARD miss is its own tier. A row that publishes
+ * "IELTS 7" and refuses the MOI letter was counted as a FIT for a student
+ * with IELTS 5 — the shortfall sat on the row as a "lower priority" note
+ * and the summary said "424 fit". Under the owner's rule the row stays
+ * (English, GRE, ECTS, German, work, papers only RANK — they never hide),
+ * but it is not a fit: every stated requirement the student has answered
+ * and falls short of (reqs.js check() `fails`) is `hard`, the row goes to
+ * the NEAR tier below every fit, and the reason is said first. `soft` is
+ * now only the bachelor's subject — words on both sides, never a hard
+ * miss. A requirement the row has not stated is still unknown (`ask`).
+ */
 function judge(p, w) {
-  const ask = [], soft = [];
+  const ask = [], soft = [], hard = [];
   let unknownDates = false;
   if (!w.hasBachelor && /^(master|mba|phd)$/.test(String(p.level || '').toLowerCase())) ask.push('their bachelor’s');
   if (w.term && termStatus(p, w.term) === 'unknown') { ask.push('dates not published'); unknownDates = true; }
   const vd = REQS.check(p.reqs || {}, w.answers || {});
-  vd.fails.forEach(f => soft.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
+  vd.fails.forEach(f => hard.push(f.label + ': asks ' + f.want + ', they have ' + f.have));
   vd.unknown.forEach(k => ask.push(ASK_SAID[k] || k));
   if (!subjectFits(p, w)) soft.push('asks a bachelor’s in ' + String((p.reqs || {}).bachelorSubjects || '').split(/[—;]/)[0].trim().slice(0, 60));
-  return { ask, soft, notes: vd.notes || [], unknownDates };
+  return { ask, soft, hard, notes: vd.notes || [], unknownDates };
 }
-const tierOf = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
+const hardOf = r => (r.hard && r.hard.length) ? 1 : 0;
+const tierOf = r => hardOf(r) ? 3 : (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
 /* Rows carrying relevance, ask, soft, score, totalInr, id and `dl`
    (deadlineInfo). Closest subject first, then clear < ask < soft, then the
    deadline's standing (round 175: a confirmed open deadline 14+ days away,
@@ -701,7 +714,9 @@ const tierOf = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 
    words and free tuition still decide. */
 const dlOf = r => r.dl || (r.dl = deadlineInfo(r.p || r));
 const dlTime = r => { const d = dlOf(r); return d.next ? d.next.getTime() : Infinity; };
-const byRank = (a, b) => b.relevance - a.relevance || tierOf(a) - tierOf(b) || dlOf(a).rank - dlOf(b).rank
+/* Round 177: a hard miss ranks below EVERY fit, whatever its relevance —
+   the package is filled from the fits first, then the near rows. */
+const byRank = (a, b) => hardOf(a) - hardOf(b) || b.relevance - a.relevance || tierOf(a) - tierOf(b) || dlOf(a).rank - dlOf(b).rank
   || b.score - a.score || dlTime(a) - dlTime(b)
   || (Number(a.totalInr || 0) - Number(b.totalInr || 0)) || String(a.id).localeCompare(String(b.id));
 
@@ -760,7 +775,7 @@ function pick(catalogue, profile, count, kind, drop, countries, prefer) {
   const over = p => (w.ceiling ? Math.max(0, Number(p.totalInr || 0) - w.ceiling) : 0);
   const ranked = eligible
     .map(p => { const j = judge(p, w); return { p, id: p.id, totalInr: p.totalInr, relevance: w.field ? relevance(p, w) : 1,
-      ask: j.ask, soft: j.soft, score: score(p, w) + (keep.has(String(p.id)) ? 25 : 0), dl: deadlineInfo(p) }; })
+      ask: j.ask, soft: j.soft, hard: j.hard, score: score(p, w) + (keep.has(String(p.id)) ? 25 : 0), dl: deadlineInfo(p) }; })
     /* With the budget relaxed, the closest to it comes first — somebody who
        said "under ₹10 lakhs" and was shown a ₹39 lakh programme at the top of
        their list has been shown the wrong thing first. Then the one order
@@ -995,7 +1010,9 @@ function promise(pkg) {
  *
  * Returns { fits: [...], near: [...], counts } — `near` is programmes that
  * miss on exactly one thing, which is what a counsellor can do something
- * about (a test score, a bridging semester, a later intake).
+ * about (a test score, a bridging semester, a later intake) — and, since
+ * round 177, every row short of a stated requirement the student answered
+ * (`hard`: IELTS 7 asked, they have 5), which is in the list but not a fit.
  */
 const fold0 = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
@@ -1133,21 +1150,24 @@ function screen(catalogue, profile, countries, opts) {
        not a miss. Patch 162: a shortfall on what the row states ranks it
        lower — said on the row (`soft`), not a reason to leave it out. Both
        come from judge(), the same reading pick() ranks by (round 166). */
-    const { ask, soft, notes, unknownDates } = judge(p, w);
+    const { ask, soft, hard, notes, unknownDates } = judge(p, w);
     if (unknownDates) out.counts.unknownDates++;
     /* Round 175: where its next deadline stands (deadlineInfo) — ranked on,
        and said on the row so the screen can warn before an Add. */
     const dl = deadlineInfo(p);
+    /* Round 177 (item 8): a hard miss on a stated requirement is a NEAR
+       row, not a fit — `why` carries the reason (the set's reasons first,
+       then the shortfall), `hard` says which part is the shortfall. */
     const row = { id: p.id, program: p.program, university: p.university, city: p.city || '', country: p.country,
       level: p.level, field: p.field, isPublic: !!p.isPublic, totalInr: Number(p.totalInr || 0),
-      intakes: p.intakes || [], relevance: rel, why, ask, soft, score: score(p, w), dl,
+      intakes: p.intakes || [], relevance: rel, why: why.concat(hard), hard, ask, soft, score: score(p, w), dl,
       nextDeadline: iso(dl.next), deadlineConfirmed: dl.confirmed, closed: dl.closed, lastDeadline: iso(dl.last),
       /* Patch 153: what the row is, and on what condition it clears. */
       feeModel, restricted, notes,
       /* 10 Oct: the first few of its tags, for the screen. */
       tags: TAGS.tagsOf(p).slice(0, 6) };
-    if (!why.length) { out.fits.push(row); out.counts.fits++; }
-    else if (why.length === 1) { out.near.push(row); out.counts.near++; }
+    if (!why.length && !hard.length) { out.fits.push(row); out.counts.fits++; }
+    else if (why.length <= 1) { out.near.push(row); out.counts.near++; }
   }
   /* The one order (byRank): closest subject first — a Biotechnology student
      sees Biology before a Mathematics programme that only shares the Natural

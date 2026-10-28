@@ -246,6 +246,26 @@ run round176regressiontest.js 8124
 # Round 176 (go-live): indexing switch, one host, legal placeholder, mail /
 # payments / analytics states, readiness report, QA purge, backups, headers.
 run round176golivetest.js 8125 ALLOW_INDEXING=true GLOVELS_URL=https://glovels.com WHATSAPP_APP_SECRET=testsecret
+# Round 177 (28 Oct full test, items 2/4/5/12/14/18/19): each document FILE
+# carries its own state (ok / replaced / bad / rescan / wait) and the
+# document's is derived; "Referred by <agency>" + Source filter + partner
+# uploads by:'partner'; one open-file rule for every student count; phone
+# search; no ₹0 order for an unpriced service; "Longest without a reply"
+# puts waiting students first; traffic sources count visitors.
+run round177docstest.js 8128
+# Round 177 (28 Oct full test, items 1/8/13/15/16/17/20/21): a hard miss on
+# a stated requirement is a NEAR row below every fit; impossible pass mark /
+# unknown destination refused; Find University's divider; the WhatsApp
+# corner above the compare bar; forgot-password address check; one 2,000
+# message limit; services priced "from" / on request; "Ones I qualify for".
+# Loads the German sheets itself.
+run round177mattest.js 8129
+# Round 177 (28 Oct full test, items 3/6/7/9/10/11): a derived "done" passes
+# the tick's lock, the phase follows the evidence, four more locked steps,
+# the dashboard journey and the "still needed" box agree, the application
+# PUT is a partial update with optimistic concurrency and 422s, and the
+# staff document route reports the state the file landed in.
+run round177journeytest.js 8127
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

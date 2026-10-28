@@ -188,9 +188,12 @@ const toCsv = rows => rows.map(r => r.map(c => {
   const junk = await admin.request.put(
     BASE + '/api/staff/student/' + SID + '/application/' + encodeURIComponent(prog.id),
     { data: { stage: 4, outcome: 'made-up' } });
+  /* Round 177 (item 10): refused with the reason (422), and the row keeps
+     the outcome it had — it used to be quietly cleared to "no decision". */
+  ok(junk.status() === 422, 'an outcome that is not on the list is refused — ' + junk.status());
   const afterJunk = await (await stu.request.get(BASE + '/api/state')).json();
-  ok(((afterJunk.apps || {})[String(prog.id)] || {}).outcome === '',
-    'an outcome that is not on the list is not stored — '
+  ok(((afterJunk.apps || {})[String(prog.id)] || {}).outcome === 'enrolled',
+    'and the outcome it had stands — '
     + JSON.stringify((afterJunk.apps || {})[String(prog.id)]));
 
   /* The student is told in the words of the outcome, not the stage it happened

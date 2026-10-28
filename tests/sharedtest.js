@@ -26,8 +26,8 @@ const OFFER = '/tmp/sharedtest-offer-' + stamp + '.pdf';
 const HUGE = '/tmp/sharedtest-huge-' + stamp + '.pdf';
 
 (async () => {
-  fs.writeFileSync(PASSPORT, Buffer.from('%PDF-1.4 a passport scan, near enough'));
-  fs.writeFileSync(OFFER, Buffer.from('%PDF-1.4 an offer letter'));
+  fs.writeFileSync(PASSPORT, Buffer.from('%PDF-1.4 a passport scan, near enough' + '\n%' + 'x'.repeat(200) + '\n%%EOF'));
+  fs.writeFileSync(OFFER, Buffer.from('%PDF-1.4 an offer letter' + '\n%' + 'x'.repeat(200) + '\n%%EOF'));
   fs.writeFileSync(HUGE, Buffer.alloc(11 * 1024 * 1024, 0x20));
 
   const browser = await chromium.launch();

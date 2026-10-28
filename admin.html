@@ -1244,7 +1244,14 @@ select.assign.none:hover{border-color:#a5342b}
       <div class="p-sec-head"><h2 id="everyStudent">Every student</h2>
         <span id="onlyChip" hidden class="st wait" style="text-transform:none;letter-spacing:0;
           cursor:pointer" title="Show everybody again"></span>
-        <input id="findStudent" placeholder="Search" style="margin-left:auto;padding:8px 11px;
+        <select id="srcFilter" aria-label="Source" title="Where the student came from" style="margin-left:auto;padding:8px 10px;
+          font:600 12.4px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;background:var(--paper)">
+          <option value="">Source: all</option>
+          <option value="partner">Source: partner</option>
+          <option value="direct">Source: direct</option>
+          <option value="lead">Source: lead</option>
+        </select>
+        <input id="findStudent" placeholder="Search name, email or phone" style="padding:8px 11px;
           font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;min-width:220px"></div>
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
@@ -1679,6 +1686,7 @@ select.assign.none:hover{border-color:#a5342b}
 
       <div class="tr-grid">
         <div class="p-card"><h3 style="margin:0;font-size:15px">Where visitors come from</h3>
+          <p class="tr-empty" style="margin-top:2px" id="trSourcesNote">Visitors per source — the same people the Visitors tile counts, once each. Page views beside.</p>
           <ul class="tr-list" id="trSources"></ul></div>
         <div class="p-card"><h3 style="margin:0;font-size:15px">AI assistants</h3>
           <p class="tr-empty" style="margin-top:2px">People who arrived from a ChatGPT, Claude, Perplexity, Gemini or Copilot answer.</p>
@@ -2373,7 +2381,10 @@ const counsellorName = id => {
 function row(s) {
   return '<tr data-row="' + s.id + '">' +
     '<td><b>' + esc(s.name) + '</b><br><span style="font-size:11.8px;color:var(--muted)">' +
-      esc(s.email) + '</span></td>' +
+      esc(s.email) + '</span>' +
+      /* Patch 177 (item 5): which agency sent them, when one did. */
+      (s.partner ? '<br><span class="referred" style="font-size:11.4px;color:var(--blue-deep);font-weight:600" title="Added by the partner agency">Referred by ' + esc(s.partner.agency) + '</span>' : '') +
+      '</td>' +
     /* F4 (8 Oct): the MAIN package, with the add-ons counted beside it —
        never the newest ₹0 insurance add-on standing in for the ₹49,999 that
        was paid. */
@@ -2424,12 +2435,31 @@ function row(s) {
 /* Which subset the counters asked for: '' (everybody), 'unassigned', 'docs'. */
 let only = '';
 
+/* Patch 177 (item 14): a search with seven or more digits in it is a phone
+   number — matched on digits alone, so "9000000228", "+91 90000 00228" and
+   "+919000000228" all find the same person. Words match name, email and
+   the referring agency. The server's ?q= does the same. */
+function phoneDigits(x) {
+  let d = String(x || '').replace(/\D+/g, '');
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return d;
+}
+function studentMatches(s, q) {
+  if (!q) return true;
+  const digits = phoneDigits(q);
+  if (digits.length >= 7 && /^[\d\s()+-]+$/.test(q)) return phoneDigits(s.phone).includes(digits);
+  return [s.name, s.email, s.partner && s.partner.agency].some(v => String(v || '').toLowerCase().includes(q));
+}
+let srcOnly = '';
 function paint() {
-  const q = filter.toLowerCase();
+  const q = filter.trim().toLowerCase();
   const list = STUDENTS
     .filter(s => only !== 'unassigned' || !s.counsellor)
     .filter(s => only !== 'docs' || s.docsWaiting > 0)
-    .filter(s => !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q));
+    /* Patch 177 (item 5): Source: partner / direct / lead. */
+    .filter(s => !srcOnly || (s.source || 'direct') === srcOnly)
+    .filter(s => studentMatches(s, q));
 
   const chip = $('#onlyChip');
   chip.hidden = !only;
@@ -2853,6 +2883,8 @@ async function paintMoney() {
     ['Students on the books', MONEY.students.active],
     ['Files completed', MONEY.students.completed],
     ['Students who left part-way', MONEY.students.left],
+    /* Patch 177 (item 12): an active account the agency closed is not "on the books". */
+    ['Closed by the agency', MONEY.students.agencyClosed || 0],
   ].map(([k, v]) => '<li><span>' + esc(k) + '</span><b style="margin-left:auto">'
     + esc(String(v)) + '</b></li>').join('');
 
@@ -3529,6 +3561,9 @@ $('#findStudent').addEventListener('input', e => {
   PAGE_AT.stu = 0;             /* a new search starts at its first page */
   paint();
 });
+/* Patch 177 (item 5): the Source filter. */
+const srcSel = $('#srcFilter');
+if (srcSel) srcSel.addEventListener('change', e => { srcOnly = e.target.value; PAGE_AT.stu = 0; paint(); });
 
 /* ------------------------------------------------------------------ the team */
 /*
@@ -3571,7 +3606,8 @@ async function paintPeople() {
            counsellor and an outside agency is the whole point of the role. */
         : p.role === 'partner'
           ? 'Partner agency \u00b7 ' + p.caseload + ' sent'
-        : p.caseload + ' student' + (p.caseload === 1 ? '' : 's')) + '</span>' +
+        /* Patch 177 (item 12): open files, with the closed ones said beside. */
+        : p.caseload + ' student' + (p.caseload === 1 ? '' : 's') + (p.closedFiles ? ' · ' + p.closedFiles + ' closed' : '')) + '</span>' +
     '</li>' +
     /* The permissions sit under the person rather than beside them: they are
        the answer to "what can this account do to the website", which is a
@@ -4249,7 +4285,9 @@ async function paintTraffic() {
   $('#trFrom').textContent = trDay(t.byDay[0].day);
   $('#trTo').textContent = 'today';
 
-  trList('trSources', t.sources, { label: r => trSourceName[r.name] || r.name, empty: 'No visits counted yet — this starts the moment the site is live.' });
+  /* Patch 177 (item 2): visitors, with the page views said beside. */
+  trList('trSources', t.sources, { label: r => trSourceName[r.name] || r.name, empty: 'No visits counted yet — this starts the moment the site is live.',
+    extra: r => (r.views != null ? '<small style="color:var(--muted);margin-left:6px">' + trN(r.views) + ' views</small>' : '') });
   trList('trAiList', t.ai, { empty: 'Nobody from an AI assistant yet. The crawler list says whether they have read the site at all.' });
   trList('trSearchList', t.search, { empty: 'Nobody from a search engine yet.' });
   trList('trBots', t.bots, {

@@ -19,7 +19,10 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   await s.request.post(BASE+'/api/auth/login',{data:{email:'phs'+st+'@ex.example',password:'phs-'+st+'X'}});
   await s.request.post(BASE+'/api/orders',{data:{packageId:'pkg-boarding',name:'Ph Student',email:'phs'+st+'@ex.example',phone:'9876543210',acceptedTerms:true}});
   const cat=await (await a.request.get(BASE+'/api/staff/catalogue?per=40')).json();
-  for(const p of (cat.programmes||[]).slice(0,4)) await a.request.post(BASE+'/api/staff/student/'+sId+'/shortlist',{data:{id:p.id}});
+  /* Round 175: the first catalogue rows' deadlines have passed, so adding one
+     is a 409 until "Add anyway" (force). Round 177: "Shortlist confirmed" is
+     locked until something IS on the list, so this must actually land. */
+  for(const p of (cat.programmes||[]).slice(0,4)) await a.request.post(BASE+'/api/staff/student/'+sId+'/shortlist',{data:{id:p.id,force:true}});
 
   // --- office funnel
   const ap=await a.newPage(); ap.on('pageerror',e=>errs.push('admin: '+e));

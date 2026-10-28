@@ -145,6 +145,73 @@ function clears(p) {
   return mine >= bar;
 }
 
+/* Round 177 (item 21): "Ones I qualify for" read the CGPA bar alone, and on
+   a row that states a German grade and no CGPA (most of Germany) the bar is
+   blank — so 1,207 rows both ways. Now the whole profile is read the way the
+   server's matcher reads it (server/matches.js answersOf), and a row is one
+   they qualify for when nothing it STATES is below what they told us: the
+   CGPA bar (or the German grade, by the finder's own rule — find.js
+   verdict), their English score, GRE, German level, bachelor's length /
+   ECTS, work, papers. A requirement the row has not stated, or a question
+   they have not answered, is never a reason to drop it. find.js and reqs.js
+   are the public finder's own files, loaded here once. */
+function myAnswers() {
+  const P = (typeof DB !== 'undefined' && DB.profile) || {};
+  const a = { cgpa: myCgpa() };
+  [['e_test', 'e_score'], ['e2_test', 'e2_score']].forEach(([tk, sk]) => {
+    const t = String(P[tk] || '').toLowerCase(), sc = parseFloat(P[sk]);
+    if (/ielts/.test(t) && Number.isFinite(sc) && a.ielts == null) a.ielts = sc;
+    if (/toefl/.test(t) && Number.isFinite(sc) && a.toefl == null) a.toefl = sc;
+    if (/not taken/.test(t) && tk === 'e_test' && !Number.isFinite(sc)) a.englishNone = true;
+    if (/medium of instruction|^moi\b/.test(t)) a.moi = true;
+  });
+  if (/^(yes|y|true|1)$/i.test(String(P.d_moi || '').trim())) a.moi = true;
+  if (a.moi || a.ielts != null || a.toefl != null) a.englishNone = false;
+  [['a_test', 'a_score'], ['a2_test', 'a2_score']].forEach(([tk, sk]) => {
+    const t = String(P[tk] || ''), sc = parseFloat(P[sk]);
+    if (/^gre$/i.test(t) && Number.isFinite(sc) && a.gre == null) a.gre = sc;
+  });
+  if (a.gre == null && /^(not taken|not taken yet|not required|none|no)$/i.test(String(P.a_test || '').trim())) a.gre = false;
+  if (P.g_german) {
+    const t = String(P.g_german).trim();
+    if (/^none/i.test(t)) a.germanLevel = 'none';
+    else { const m = /\b(A1|A2|B1|B2|C1|C2)\b/i.exec(t); if (m) a.germanLevel = m[1].toUpperCase(); }
+  }
+  { const m = /^(\d)/.exec(String(P.d_dur || '')); if (m) a.bachelorYears = Number(m[1]); }
+  if (/^no$/i.test(String(P.w_has || ''))) a.workExpMonths = 0;
+  else { const m = parseFloat(P.w_months); if (Number.isFinite(m)) a.workExpMonths = m; else if (/^yes/i.test(String(P.w_has || ''))) a.workExpMonths = 1; }
+  if (P.g_papers) a.papers = /^yes/i.test(String(P.g_papers));
+  if (String(P.d_course || '').trim()) a.bachelorSubjects = String(P.d_course).trim();
+  [['a_quant', 'greQuant'], ['a_verbal', 'greVerbal'], ['a_awa', 'greAwa'], ['d_ects', 'ects'], ['d_top', 'topPercent']]
+    .forEach(([pk, ak]) => { const n = parseFloat(P[pk]); if (Number.isFinite(n)) a[ak] = n; });
+  a.restrictedOk = !/^no$/i.test(String(P.g_restricted || '').trim());
+  return a;
+}
+/* What this row asks that they fall short of — [] when they qualify. */
+function shortOf(p) {
+  const s = myAnswers();
+  const out = [];
+  const gg = Number(p.germanGpa);
+  if (Number.isFinite(gg) && (p.minCgpa == null || p.minCgpa === '') && window.FIND && s.cgpa != null) {
+    /* The finder's own reading of a German grade against a CGPA out of ten. */
+    const v = window.FIND.verdict(p, { cgpa: s.cgpa }, null, COUNTRIES);
+    if ((v.fails || []).some(f => f.key === 'cgpa')) out.push('German grade ' + gg.toFixed(1));
+  } else if (!clears(p)) out.push('CGPA ' + barOf(p) + '+');
+  if (window.REQS && p.reqs && typeof window.REQS.check === 'function') {
+    (window.REQS.check(p.reqs, s).fails || []).forEach(f => out.push(f.label + ' ' + f.want));
+  }
+  return out;
+}
+const qualifies = p => !shortOf(p).length;
+/* Whether they have told us anything a row can be judged on. */
+const saidAnything = () => { const a = myAnswers(); return Object.keys(a).some(k => k !== 'restrictedOk' && a[k] !== undefined && a[k] !== null); };
+(function () {
+  const load = (src, done) => { const s = document.createElement('script'); s.src = src; s.async = true; s.onload = done; document.head.appendChild(s); };
+  const redraw = () => { if (typeof paintBrowse === 'function' && document.getElementById('allGrid') && POOL.length) { try { paintBrowse(); } catch (e) {} } };
+  load('/js/reqs.js', redraw);
+  load('/js/find.js', redraw);
+})();
+
 /* THE GERMAN GRADE THIS PROGRAMME ASKS FOR, on the card that asks for it.
  *
  * "Add German grade requirement on the cards."
@@ -293,6 +360,10 @@ function card(p, inList) {
       (clears(p) ? 'Asks for ' + barOf(p) + '+ CGPA'
                  : 'Asks for ' + barOf(p) + '+ CGPA — above yours') + '</div>') +
     germanLine(p) +
+    /* Round 177 (item 21): what else it states that the profile falls
+       short of — the reason the row sits outside "Ones I qualify for". */
+    (function () { const sh = shortOf(p).filter(x => !/^CGPA /.test(x)); return sh.length
+      ? '<div class="sl-meta" style="color:#8a6a1f">Short of what it asks: ' + esc(sh.join(', ')) + '</div>' : ''; })() +
     '<div class="sl-go" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       (inList === 'matched'
         /* A university the package delivered. It is not "waiting" on anybody —
@@ -515,9 +586,11 @@ function filtered() {
      many were held back rather than leaving the student to wonder why a
      country they know has fifty universities is showing four. Hiding them
      silently is the thing to avoid; hiding them is not. */
-  const short = l.filter(p => !clears(p));
+  /* Round 177 (item 21): judged on the whole profile (shortOf), not the
+     CGPA bar alone. */
+  const short = l.filter(p => !qualifies(p));
   outOfReach = short.length;
-  if (r === 'mine') l = l.filter(clears);
+  if (r === 'mine') l = l.filter(qualifies);
   const dl = p => (upcoming(p) || new Date(8640000000000)).getTime();
   l.sort((x, y) =>
     s === 'cost' ? x.totalInr - y.totalInr :
@@ -537,14 +610,18 @@ function filtered() {
 function paintBrowse() {
   const l = filtered();
   const ids = shortlist();
-  $('#nAll').textContent = POOL.length;
+  /* Round 177 (item 21, owner: numbers not required): no count of the
+     catalogue on the tab, and no "N programmes match" under the filters —
+     the line says what the list is, not how big it is. */
+  $('#nAll').textContent = ''; $('#nAll').style.display = 'none';
   const mine = myCgpa();
-  $('#cCount').textContent = l.length + ' programme' + (l.length === 1 ? '' : 's') +
-    ' match — showing ' + Math.min(shown, l.length) + '.' +
+  const onlyMine = $('#fReach').value === 'mine';
+  $('#cCount').textContent = (!l.length ? 'Nothing matches every filter — loosen one.'
+      : onlyMine && saidAnything() ? 'Programmes you qualify for on what you told us.' : 'Every programme that matches your filters.') +
     (mine == null
       ? '  Add your CGPA on My Profile and this list will only show what you can apply to.'
-      : ($('#fReach').value === 'mine' && outOfReach
-          ? '  ' + outOfReach + ' more ask for a higher CGPA than ' + mine +
+      : (onlyMine && outOfReach
+          ? '  Some ask for a higher CGPA than ' + mine + ', or more than your profile shows' +
             ' — switch to “Show every programme” to see them.'
           : ''));
   $('#allGrid').innerHTML = l.slice(0, shown).map(p => card(p, ids.includes(p.id))).join('');

@@ -90,15 +90,20 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     ((after.apps || {})[fresh.id] || {}).outcome === 'offer',
     JSON.stringify((after.apps || {})[fresh.id] || {}));
 
+  /* Round 177 (item 10): a stage past the end and an outcome nobody
+     recognises used to be quietly turned into 4 and "no decision" — which
+     cleared the offer just recorded. They are refused with the reason now,
+     and the row is left exactly as it was. */
   const junk = await staff.request.put(
     BASE + '/api/staff/student/' + id + '/application/' + encodeURIComponent(fresh.id),
     { data: { stage: 99, outcome: 'whatever-we-like' } });
+  check('a stage past the end is refused (422), not clamped', junk.status() === 422, junk.status());
   after = await (await stu.request.get(BASE + '/api/state')).json();
-  check('a stage past the end is clamped, not stored',
+  check('and the row keeps its stage',
     ((after.apps || {})[fresh.id] || {}).stage === 4,
     ((after.apps || {})[fresh.id] || {}).stage);
-  check('and an outcome we do not recognise is dropped',
-    ((after.apps || {})[fresh.id] || {}).outcome === '',
+  check('and the offer it had — an outcome we do not recognise changes nothing',
+    ((after.apps || {})[fresh.id] || {}).outcome === 'offer',
     ((after.apps || {})[fresh.id] || {}).outcome);
 
   /* --------------------------------------------------- taking it off */

@@ -89,8 +89,11 @@ const all = M.screen(cat, P, C, {});
 const ncRow = all.fits.find(x => x.id === 'nc'), moiRow = all.fits.find(x => x.id === 'moi'), pubRow = all.fits.find(x => x.id === 'pub');
 ok('rows carry feeModel, restricted and notes', ncRow && ncRow.restricted === true && pubRow.feeModel === 'package' && all.fits.find(x => x.id === 'priv').feeModel === 'free', J(all.fits.map(x => [x.id, x.feeModel, x.restricted])));
 /* Round 175: on the list (English only ranks), short on English, and told a letter would clear it. */
-ok('  · the MOI row stays on the list for an IELTS 6.5 student with no letter, ranked lower, and says a letter would clear it',
-  moiRow && (moiRow.soft || []).some(s => /English test/.test(s)) && moiRow.notes.some(n => /MOI letter would clear/.test(n)) && !moiRow.notes.includes('clears via MOI letter'), J(moiRow));
+/* Round 177 (item 8): short of a stated score is a NEAR row (`hard`, the
+   reason first), not a fit with a soft note — still on the list. */
+const moiNear = all.near.find(x => x.id === 'moi');
+ok('  · the MOI row stays on the list for an IELTS 6.5 student with no letter, ranked lower (near), and says a letter would clear it',
+  !moiRow && moiNear && (moiNear.hard || []).some(s => /English test/.test(s)) && /English test/.test(moiNear.why[0]) && moiNear.notes.some(n => /MOI letter would clear/.test(n)) && !moiNear.notes.includes('clears via MOI letter'), J(moiNear || moiRow));
 const moiRowL = M.screen(cat, Object.assign({}, P, { d_moi: 'yes' }), C, {}).fits.find(x => x.id === 'moi');
 ok('  · with the letter (d_moi yes) it clears via MOI and says why', moiRowL && moiRowL.notes.includes('clears via MOI letter') && !(moiRowL.soft || []).some(s => /English test/.test(s)), J(moiRowL));
 const askRow = M.screen([row('q', { reqs: { greQuant: 160 } })], Object.assign({}, P, { a_test: 'GRE', a_score: '320' }), C, {}).near[0] || {};

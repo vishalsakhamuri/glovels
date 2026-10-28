@@ -437,7 +437,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * upload is now every slot there is. A prefix cannot answer "who put this
    * here"; the row can, so the row is asked.
    */
-  const notTheirs = rec => String((rec || {}).uploaded_by || 'student') === 'staff';
+  /* Patch 177 (item 5): a file the student's AGENCY filed is not theirs either. */
+  const notTheirs = rec => ['staff', 'partner'].includes(String((rec || {}).uploaded_by || 'student'));
   const refuseAppFile = res => json(res, 403, {
     error: 'That one was put on your file by your counsellor, so it stays there '
          + '— it is the office’s record, not an upload of yours. Message your '
@@ -682,18 +683,60 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   function staffDocRows(id) {
     const all = db.getDocuments(id);
     /* Round 175: a file's own state (filecheck.stateOf) — a file that fails
-       today's checks is 'bad' whatever the slot's status says. */
-    const legacy = {};
-    all.forEach(d => { const k = String(d.doc_key); if (!(k in legacy)) legacy[k] = true; if (String(d.verdict || '')) legacy[k] = false; });
+       today's checks is 'bad' whatever the slot's status says.
+       Patch 177 (item 4): `status` is THIS row's own state (wait / rescan /
+       ok / replaced / bad); `slot` is the document's derived status, the
+       same one the checklist and the counters read. */
+    const slots = {};
+    all.forEach(d => { const k = String(d.doc_key); (slots[k] || (slots[k] = [])).push(d); });
     return all.map(d => {
-      const st = FILECHECK.stateOf(d.doc_key, d, legacy[String(d.doc_key)] && String(d.status) === 'ok');
+      const st = FILECHECK.stateOf(d.doc_key, d, false);
       return {
         id: d.id, key: d.doc_key, name: DOCSLOTS.nameOf(d.doc_key),
-        file: d.filename, status: d.status, at: d.uploaded_at, bytes: d.bytes,
+        file: d.filename, status: st.state === 'bad' ? 'bad' : d.status, at: d.uploaded_at, bytes: d.bytes,
         by: String(d.uploaded_by || 'student'), verdict: String(d.verdict || ''),
         state: st.state, stateSaid: st.said, bad: st.why,
+        slot: slotOf(slots[String(d.doc_key)]),
       };
     });
+  }
+  /* Patch 177 (item 5): WHO SENT THIS STUDENT. `partner_id` names the
+     agency's owning account (set when the agency added them, kept through
+     reassignment and closure); a converted lead carries its enquiry; the
+     rest signed up themselves. `partner` is null when none. */
+  function partnerOf(st) {
+    const pid = Number((st || {}).partner_id || 0);
+    if (!pid) return null;
+    const owner = db.studentById(pid);
+    return { id: pid, agency: owner ? owner.name : 'a closed agency', closed: !owner || String(owner.status || 'active') !== 'active' };
+  }
+  function studentSourceOf(st) {
+    if (Number((st || {}).partner_id || 0)) return 'partner';
+    try { if (db.convertedLeadOf(st.id)) return 'lead'; } catch (e) { /* no enquiries table on this store */ }
+    return 'direct';
+  }
+  /* Patch 177 (item 4): a slot's derived status, with a file that fails
+     today's cheap checks (type, slot, size) read as 'bad' even before the
+     sweep has marked it. The one way any screen or counter in this file
+     reads a document's status. */
+  const slotOf = files => db.slotStatus((files || []).map(f => FILECHECK.fails(f.doc_key, f) ? { status: 'bad' } : f));
+  /* Slots that hold a SET of documents rather than copies of one: accepting
+     a file in these does not mark the other accepted files 'replaced'. */
+  const SET_SLOTS = new Set(['english', 'other']);
+  /* The documents on a record counted ONCE each, however many files a slot
+     holds: `total` slots, `ok` slots with a verified copy, `wait` slots with
+     a file still to be looked at (a new file beside a verified copy counts —
+     it is what "to review" means). Every "N docs verified" reads this. */
+  function docCounts(rows) {
+    const by = {};
+    (rows || []).forEach(d => { const k = String(d.doc_key); (by[k] || (by[k] = [])).push(d); });
+    const slots = Object.values(by);
+    return {
+      total: slots.length,
+      ok: slots.filter(files => slotOf(files) === 'ok').length,
+      wait: slots.filter(files => files.some(f => String(f.status || 'wait') === 'wait' && !FILECHECK.fails(f.doc_key, f))).length,
+      rescan: slots.filter(files => slotOf(files) === 'rescan').length,
+    };
   }
 
   function stateFor(s) {
@@ -710,18 +753,19 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      * patch: nothing that reads a slot as one document had to change. */
     const docs = {};
     const allDocs = db.getDocuments(s.id);
-    /* Round 175: a slot accepted before files had their own answer — every
-       file that passes today's checks counts as the verified copy. */
-    const legacy = {};
-    allDocs.forEach(d => { const k = String(d.doc_key); if (!(k in legacy)) legacy[k] = true; if (String(d.verdict || '')) legacy[k] = false; });
+    /* Patch 177 (item 4): each row's status is its own; the slot's is
+       derived from the set (slotOf) once the rows are gathered. */
+    const rowsOf = {};
+    allDocs.forEach(d => { const k = String(d.doc_key); (rowsOf[k] || (rowsOf[k] = [])).push(d); });
     allDocs.forEach(d => {
-      const fst = FILECHECK.stateOf(d.doc_key, d, legacy[String(d.doc_key)] && String(d.status) === 'ok');
+      const fst = FILECHECK.stateOf(d.doc_key, d, false);
       const one = {
         id: d.id,
         file: d.filename,
         bytes: d.bytes,
         size: sizeSaid(d.bytes),
         at: d.uploaded_at,
+        status: fst.state === 'bad' ? 'bad' : String(d.status || 'wait'),
         /* Round 175: this file's own state — 'bad' (fails today's type or
            size checks: not accepted, can be removed), 'ok' (verified copy),
            'rescan' (scan asked) or 'wait'. Never read off the slot. */
@@ -736,12 +780,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       };
       const slot = docs[d.doc_key] || (docs[d.doc_key] = { files: [] });
       slot.files.push(one);
-      /* Newest wins for the single-file view, and the status belongs to the
-         SLOT — rows share it, and setDocStatus writes them all. */
+      /* Newest wins for the single-file view; the status is the SLOT's,
+         derived from every file in it (patch 177). */
       slot.id = one.id;
       slot.file = one.file;
       slot.size = one.size;
-      slot.status = d.status;
+      slot.status = slotOf(rowsOf[String(d.doc_key)]);
     });
     /* THE FILES THAT BELONG TO AN APPLICATION, in their own basket.
      *
@@ -782,6 +826,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            behind caseworkOnly — but shown to them, because a note nobody reads
            is a note nobody writes. */
         note: String(a.note || ''), noteAt: String(a.note_at || ''),
+        /* Round 177 (item 6): the version the counsellor's save carries back
+           as `ifUpdatedAt`, so a second person's change is caught. */
+        updatedAt: String(a.updated_at || ''),
       };
     });
     const c = s.counsellor_id ? db.studentById(s.counsellor_id) : null;
@@ -2009,7 +2056,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        somebody could change. */
     db.addDocument(s.id, key, parsed.file.filename, stored, parsed.file.data.length,
       'student');
-    db.setDocStatus(s.id, key, 'wait');
+    /* Patch 177 (item 4): the new row arrives 'wait' on its own; nothing is
+       written on the other files. A document with a verified copy keeps it
+       (the new file is "In review" beside it); one that was waiting for a
+       scan reads as in review again because a file in review is now in it. */
     /* Patch 172 (N17-02): the counsellor's open Documents list refreshes
        itself — the same live stream the messages use. */
     try { live.toThreadStaff(s.id, s.counsellor_id, 'documents', { studentId: s.id, key }); } catch (e) { /* the poll catches it */ }
@@ -2401,7 +2451,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * order on a student's file (F2), so the two can never price a thing
    * differently.
    */
-  function basketFrom(b) {
+  /* `opts.quote` (patch 177, item 18): the OFFICE's order route only — an
+     administrator may book a service priced "on request" at the price they
+     quoted ({id, priceInr}). The public checkout never passes it, so a
+     browser cannot name its own price. */
+  function basketFrom(b, opts) {
     const pkg = b.packageId ? PACKAGES()[b.packageId] : null;
     if (b.packageId && !pkg) return { error: 'No such package', code: 400 };
 
@@ -2420,14 +2474,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* A level is only honoured if this service HAS that level. "B2 at the A1
          price" is exactly what a hand-rolled request would try. */
       const level = codes.length ? (svc.levels[wanted] != null ? wanted : codes[0]) : '';
+      const quoted = opts && opts.quote && !level && !svc.isFree && !(svc.paise > 0)
+        ? Math.max(0, Math.min(9999999, Math.round(Number((raw && raw.priceInr) || 0)))) : 0;
       items.push({
         id, name: svc.name, level,
-        paise: level ? svc.levels[level] * 100 : svc.paise,
+        paise: level ? svc.levels[level] * 100 : quoted ? quoted * 100 : svc.paise,
+        quoted: !!quoted,
         ai: svc.ai || '',
+        isFree: !!svc.isFree,
+        perLevel: codes.length > 0,
       });
     });
 
     if (!pkg && !items.length) return { error: 'Nothing was selected', code: 400 };
+    /* Patch 177 (item 18): NO ₹0 ORDER FOR SOMETHING THAT IS NOT FREE. A
+       service priced "on request" / "insurer's rates" has priceInr 0 and no
+       free flag; a language course is priced per level. Either used to make
+       an order that read "owing · ₹0 to collect". Only a service marked free
+       (Book Counselling, the loan and forex help) may be ordered at ₹0. */
+    const unpriced = items.find(x => !x.isFree && Number(x.paise || 0) <= 0);
+    if (unpriced) {
+      return { code: 422, error: unpriced.perLevel
+        ? 'This service is priced per level — pick a level to book it.'
+        : 'This service is priced on request — book a counselling call and we will quote it.',
+        unpriced: unpriced.id, perLevel: unpriced.perLevel };
+    }
 
     const gross = (pkg ? pkg.paise : 0) + items.reduce((t, x) => t + x.paise, 0);
     /* What the order is CALLED. A package keeps its name; a basket of services
@@ -2466,7 +2537,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          screen; what a student is owed is not. */
       packageId: pkg ? pkg.id : '',
       publicUnis: pkg ? pkg.publicUnis : 0, grossPaise: gross, name, email, phone,
-      status, kind: pkg ? 'package' : 'services',
+      /* Patch 177 (item 18): nothing to collect on a free basket — it is
+         settled the moment it is placed, never "owing · ₹0 to collect". */
+      status: gross > 0 ? status : 'paid', kind: pkg ? 'package' : 'services',
       items: items.map(x => ({ id: x.id, name: x.name, level: x.level, paise: x.paise })),
       accepted,
     });
@@ -2619,7 +2692,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        which got it from here, so there is no number in this flow that a page
        could have tampered with. */
     let rzp = null;
-    if (collecting) {
+    if (collecting && chargeNow > 0) {
       try {
         const made = await pay.createOrder({
           amountPaise: chargeNow,
@@ -3038,6 +3111,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   const enquiry = async (req, res, shape) => {
     let b = await readJson(req);
     if (b.website) return json(res, 200, { ok: true });          // honeypot
+    /* Round 177 (item 17): ONE limit, 2,000 characters — the form's own
+       maxlength — and a message over it is refused with the reason, not cut
+       at 1,800 without a word (the lead store cut it again at 1,800). Read
+       before `shape`, which composes /api/assist's message from the filters. */
+    const MESSAGE_MAX = 2000;
+    const rawMessage = String(b.message || b.note || '');
+    if (rawMessage.trim().length > MESSAGE_MAX) return json(res, 422, { ok: false, error: 'Please keep the message under 2,000 characters', fields: [{ field: 'message', why: 'too long' }] });
     if (typeof shape === 'function') b = shape(b) || b;
     /* Six an hour from one address. A real person sending a second enquiry
        because they forgot to mention their intake is normal; a seventh in the
@@ -3069,7 +3149,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* Patch 154: a special-assistance lead carries the whole search. */
     /* Patch 160 (D21): the message is cut at 2,000 characters, the way every
        other free-text box on the site is cut — truncated, not refused. */
-    const said = String(b.message || b.note || '').trim().slice(0, b.source === 'no-match' ? 1800 : 2000);
+    const said = String(b.message || b.note || '').trim().slice(0, MESSAGE_MAX);
     const about = String(b.note || '').trim().slice(0, 200);
     const from = sourceOf(req, b);
     const record = {
@@ -3919,6 +3999,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('POST', '/api/auth/forgot', async (req, res) => {
     const b = await readJson(req);
     const email = String(b.email || '').trim().toLowerCase();
+    /* Round 177 (item 13): "not-an-email" was answered with the success
+       line. A malformed address is refused by name (422) — it is not a
+       hint about who has an account, since no address of that shape can
+       have one. A well-formed unknown address still gets the one answer. */
+    if (!validEmail(email)) return json(res, 422, { ok: false, error: 'That does not look like an email address — check it and try again.' });
     /* Each of these sends an email, to an address the caller chose. Without a
        limit this form is a way to pour mail at somebody's inbox, and to burn
        through the day's sending allowance doing it. Per address AND per
@@ -4086,6 +4171,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* One student, as an agency is allowed to see them. Everything on this
      object is either something the partner typed or something they need in
      order to answer "where is this one" without ringing the office. */
+  /* Patch 177 (item 4): the agency's view of one student's documents — the
+     newest file per slot, with the SLOT's derived status. */
+  function partnerDocs(studentId) {
+    const docs = {};
+    const slots = db.docSlots(studentId);
+    Object.keys(slots).forEach(k => {
+      const files = slots[k].files; const d = files[files.length - 1];
+      docs[k] = { key: k, file: d.filename, status: slotOf(files), at: d.uploaded_at, size: d.bytes || 0, files: files.length };
+    });
+    return docs;
+  }
   const forPartner = (st) => {
     const docs = db.getDocuments(st.id);
     const orders = db.ordersFor(st.id);
@@ -4109,9 +4205,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       destination: profile.g_country || profile.destination || '',
       level: profile.g_level || '',
       field: profile.g_field || '',
-      docsTotal: docs.length,
-      docsVerified: docs.filter(d => d.status === 'ok').length,
-      docsWaiting: docs.filter(d => d.status === 'wait').length,
+      docsTotal: docCounts(docs).total,
+      docsVerified: docCounts(docs).ok,
+      docsWaiting: docCounts(docs).wait,
       /* By name. This is the one place the gate is deliberately open — an
          agency that cannot tell its own student which universities are on
          their shortlist has nothing to sell. */
@@ -4193,13 +4289,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('GET', /^\/api\/partner\/student\/(\d+)$/, partnerOnly(async (req, res, s, m) => {
     const st = theirStudent(s, m[1]);
     if (!st) return json(res, 404, { error: 'No such student' });
-    const docs = {};
-    db.getDocuments(st.id).forEach(d => {
-      docs[d.doc_key] = {
-        key: d.doc_key, file: d.filename, status: d.status,
-        at: d.uploaded_at, size: d.bytes || 0,
-      };
-    });
+    const docs = partnerDocs(st.id);
     let profile = {};
     try { profile = db.getProfile(st.id) || {}; } catch (e) { profile = {}; }
     return json(res, 200, Object.assign(forPartner(st), { profile, docs }));
@@ -4325,20 +4415,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          this column answers one question only: may the student remove this
          row? A file the agency filed on their behalf is not theirs to delete
          out from under the people doing their paperwork. */
+      /* Patch 177 (item 5): recorded as the AGENCY's upload — the office
+         sees "From the agency", and it is no more the student's to remove
+         than a counsellor's file is. */
       db.addDocument(st.id, key, parsed.file.filename, stored, parsed.file.data.length,
-        'staff');
+        'partner');
       db.log(s.email, 'partner uploaded a document',
         s.name + ' \u2192 ' + st.name + ' \u00b7 ' + key);
       try { live.toThreadStaff(st.id, st.counsellor_id, 'documents', { studentId: st.id, key }); } catch (e) { /* the poll catches it */ }
 
-      const docs = {};
-      db.getDocuments(st.id).forEach(d => {
-        docs[d.doc_key] = {
-          key: d.doc_key, file: d.filename, status: d.status,
-          at: d.uploaded_at, size: d.bytes || 0,
-        };
-      });
-      return json(res, 200, { docs });
+      return json(res, 200, { docs: partnerDocs(st.id) });
     }));
 
   /* Their own student's file back. The path is built from the id the gate
@@ -4639,6 +4725,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       return {
         id: st.id, name: st.name, email: st.email, phone: st.phone,
         joined: st.created_at,
+        /* Patch 177 (item 5): who referred them — the agency, a lead, or
+           nobody (they signed up). `partner` is null when none. */
+        partner: partnerOf(st),
+        source: studentSourceOf(st),
         heldBy: held ? { id: held.id, name: held.name, closed: true } : null,
         /* Where they are in their life with us. The roster draws the closing
            control from this, and a control that cannot see the current value
@@ -4652,9 +4742,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         closeNote: st.close_note || '',
         counsellor: c ? { id: c.id, name: c.name } : null,
         shortlist: db.getShortlist(st.id).length,
-        docsTotal: docs.length,
-        docsVerified: docs.filter(d => d.status === 'ok').length,
-        docsWaiting: docs.filter(d => d.status === 'wait').length,
+        /* Patch 177 (item 4): slots, counted once each (docCounts). */
+        docsTotal: docCounts(docs).total,
+        docsVerified: docCounts(docs).ok,
+        docsWaiting: docCounts(docs).wait,
         unread: db.unreadForStaff(st.id),
         /* 8 Oct (F4): the MAIN package, not the newest order. */
         package: (() => { const m = packageOf(orders); return m.package || null; })(),
@@ -4663,8 +4754,35 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         lastMessage: last ? { who: last.sender, body: last.body, at: last.created_at } : null,
       };
     });
-    return json(res, 200, { students: rows, role: s.role });
+    /* Patch 177 (items 5, 14): `?source=partner|direct|lead` narrows the
+       list; `?q=` matches name, email or PHONE — digits only, so
+       "9000000228", "+91 90000 00228" and "+919000000228" all find the same
+       person. The screen filters the same way on what it already holds. */
+    const url = new URL(req.url, 'http://x');
+    const srcQ = String(url.searchParams.get('source') || '').toLowerCase();
+    const q = String(url.searchParams.get('q') || '').trim();
+    let out = rows;
+    if (['partner', 'direct', 'lead'].includes(srcQ)) out = out.filter(r => r.source === srcQ);
+    if (q) out = out.filter(r => studentMatches(r, q));
+    return json(res, 200, { students: out, role: s.role });
   }));
+  /* Patch 177 (item 14): does a search string find this student? Words match
+     the name, the email and the agency; a string with 7+ digits in it is a
+     phone number and matches on digits alone (a leading 91 is dropped when
+     ten digits remain). */
+  function phoneDigits(x) {
+    let d = String(x || '').replace(/\D+/g, '');
+    if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+    if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+    return d;
+  }
+  function studentMatches(r, q) {
+    const s = String(q || '').trim().toLowerCase();
+    if (!s) return true;
+    const digits = phoneDigits(s);
+    if (digits.length >= 7 && /^[\d\s()+-]+$/.test(s)) return phoneDigits(r.phone).includes(digits);
+    return [r.name, r.email, r.partner && r.partner.agency].some(v => String(v || '').toLowerCase().includes(s));
+  }
 
   route('GET', /^\/api\/staff\/student\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const id = Number(m[1]);
@@ -4675,6 +4793,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const c = st.counsellor_id ? db.studentById(st.counsellor_id) : null;
     return json(res, 200, {
       student: { id: st.id, name: st.name, email: st.email, phone: st.phone, joined: st.created_at },
+      /* Patch 177 (item 5): "Referred by <agency>" on the file header. */
+      partner: partnerOf(st),
+      source: studentSourceOf(st),
       counsellor: c ? { id: c.id, name: c.name } : null,
       profile: db.getProfile(id),
       shortlist: stateFor(st).shortlist,
@@ -4727,6 +4848,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           over: TASKS.lateness(t, now),
           done: t.done_at ? String(t.done_at).slice(0, 10) : '',
           derived: !!t.derived, why: t.derivedWhy || '',
+          /* Round 177 (item 3): overtaken by the applications but not backed
+             by the file — "Applications are at Submitted but 10 of 10
+             required documents are still missing". */
+          waitingOn: t.waitingOn || '',
           /* N17-01: the template key, and why "done" is refused right now. */
           key: t.task_key,
           lock: TASKS.CLOSED.has(String(t.status)) ? ''
@@ -4881,6 +5006,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const p = num('d_pass');
       if (!Number.isFinite(p) || p < 0) bad('d_pass', 'The pass mark must be a number, 0 or more');
       else if (Number.isFinite(max) && max > 0 && p >= max) bad('d_pass', 'The pass mark must be below the scale (' + max + ')');
+      /* Round 177 (item 16): a pass mark of 9 with a CGPA of 7.8 ran — the
+         German grade could not be worked out, so the row fitted MORE. A CGPA
+         below the pass mark they gave is not a profile; it is a typo. */
+      else if (given('d_cgpa') && Number.isFinite(num('d_cgpa')) && num('d_cgpa') > 0 && num('d_cgpa') < p) bad('d_pass', 'The CGPA is below the pass mark you gave');
+    }
+    /* Round 177 (item 16): "Atlantis" was read as no destination — any
+       country. The destination is blank, or a country we can name (the
+       catalogue's own, or any ISO name / code); each part of "Germany,
+       Poland" is checked. "Open to advice" is the profile's own blank. */
+    if (given('g_country')) {
+      const parts = String(q.g_country).split(',').map(s => s.trim()).filter(Boolean);
+      const known = s => /open to advice/i.test(s) || !!ISO_COUNTRIES.byName(s) || !!ISO_COUNTRIES.byCode(s.length === 2 ? s : '')
+        || Object.keys(countryMap()).some(c => c.toUpperCase() === s.toUpperCase() || String((countryMap()[c] || {}).name || '').toLowerCase() === s.toLowerCase());
+      const odd = parts.filter(s => !known(s));
+      if (odd.length) bad('g_country', 'We do not know a country called "' + odd[0].slice(0, 40) + '" — pick one from the list, or leave it blank for any country');
     }
     const eng = String(q.e_test || '').toLowerCase();
     if (/ielts/.test(eng)) range('e_score', 0, 9, 'An IELTS score');
@@ -5058,16 +5198,50 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!row) return json(res, 404, { error: 'That is not on this student\'s list.' });
 
       const b = await readJson(req);
-      const stage = APPS.cleanStage(b.stage);
-      const outcome = APPS.cleanOutcome(b.outcome);
+      const before = db.getApplications(id).find(a => String(a.prog_id) === progId);
+      /* Round 177 (item 6): A PARTIAL UPDATE. Saving a note alone used to
+         send the stage back to 0 and clear the outcome — the screen worked
+         round it by re-sending both, and anything else that called this
+         lost the record. Only the fields in the body change; the rest is
+         read off the row as it stands. */
+      const hasStage = b.stage !== undefined && b.stage !== null;
+      const hasOutcome = b.outcome !== undefined && b.outcome !== null;
+      /* Round 177 (item 10): a stage that is not on the list, or an outcome
+         nobody recognises, is refused with the reason — not quietly turned
+         into 4, 0 or "no decision". */
+      if (hasStage) {
+        const n = Number(b.stage);
+        if (!Number.isInteger(n) || n < 0 || n >= APPS.STAGES.length) {
+          return json(res, 422, { error: 'The stage has to be a whole number from 0 to '
+            + (APPS.STAGES.length - 1) + ' (' + APPS.STAGES[0].n + ' … ' + APPS.STAGES[APPS.STAGES.length - 1].n + ').' });
+        }
+      }
+      if (hasOutcome && !APPS.OUT_KEYS.includes(String(b.outcome))) {
+        return json(res, 422, { error: 'An outcome is one of: ' + APPS.OUTCOMES.map(o => o.n).join(', ') + '.' });
+      }
+      const stage = hasStage ? APPS.cleanStage(b.stage) : Number((before || {}).stage || 0);
+      const outcome = hasOutcome ? APPS.cleanOutcome(b.outcome) : String((before || {}).outcome || '');
+      /* Round 177 (item 6): OPTIMISTIC CONCURRENCY. Two people with the same
+         row open: the second save carries the `updatedAt` it was read with
+         and is refused when the row has moved, with the current row to
+         reload from. A caller that sends nothing is not checked (the office's
+         scripts and the older screens). */
+      const ifAt = b.ifUpdatedAt === undefined || b.ifUpdatedAt === null ? undefined : String(b.ifUpdatedAt || '');
+      if (ifAt !== undefined && String((before || {}).updated_at || '') !== ifAt) {
+        return json(res, 409, {
+          conflict: true,
+          error: 'Someone else changed this application since you opened it — it has been reloaded.',
+          current: before ? { stage: Number(before.stage || 0), outcome: String(before.outcome || ''),
+            note: String(before.note || ''), internalNote: String(before.internal_note || ''),
+            updatedAt: String(before.updated_at || '') } : null,
+        });
+      }
       /* ABSENT AND EMPTY ARE DIFFERENT ANSWERS. A screen that moves the stage
          and says nothing about the note must not erase the note; a counsellor
          clearing the box must be able to erase it. `undefined` keeps, `''`
          clears — and the store reads the same distinction. */
       const note = b.note === undefined ? undefined
         : String(b.note || '').replace(/\s+$/, '').slice(0, 600);
-
-      const before = db.getApplications(id).find(a => String(a.prog_id) === progId);
       /* N17-03 (16 Oct): AN OUTCOME IS WHAT THE UNIVERSITY SAID, so it can only
          be recorded at "Decision". One wrong click on an application at
          "Documents collected" told a student they had an offer that did not
@@ -5099,6 +5273,22 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          shown to the student and never messaged to them. */
       if (b.internalNote !== undefined) {
         db.putApplicationInternal(id, progId, String(b.internalNote || '').replace(/\s+$/, '').slice(0, 1000));
+      }
+      /* Round 177 (item 3): the counsellor records reality, so a stage ahead
+         of the file is saved — but it is said back, and nothing on the
+         journey is completed by it. "Application drafted" onwards needs the
+         student's documents; the task list shows the same gap. */
+      let warning = '';
+      const DRAFT = APPS.STAGES.findIndex(x => x.k === 'draft');
+      if (stage >= DRAFT && (!before || Number(before.stage || 0) < stage)) {
+        try {
+          const R = JOURNEY.readiness(db, id);
+          if (R.ok < R.of) {
+            warning = 'Saved at “' + APPS.STAGES[stage].n + '” — but only ' + R.ok + ' of ' + R.of
+              + ' required documents are verified, so “Profile completed and documents collected” '
+              + 'stays open and the journey stays at Profile and documents until they are.';
+          }
+        } catch (e) { warning = ''; }
       }
 
       /* The sentence the student reads, from the one list rather than written
@@ -5134,7 +5324,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         db.addMessage(id, 'them', progSaid(row) + ' — ' + note, '', s.name);
       }
       if (moved || noted) live.toStudent(id, 'apps', {});
-      return json(res, 200, { apps: stateFor(st).apps, moved, noted, told: !!tell });
+      const after = db.getApplications(id).find(a => String(a.prog_id) === progId) || {};
+      return json(res, 200, { apps: stateFor(st).apps, moved, noted, told: !!tell,
+        warning, updatedAt: String(after.updated_at || '') });
     }));
 
   route('POST', /^\/api\/staff\/student\/(\d+)\/message$/, caseworkOnly(async (req, res, s, m) => {
@@ -5346,9 +5538,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         }
         db.removeDocument(id, key);
       }
-      db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length,
+      const added = db.addDocument(id, key, parsed.file.filename, stored, parsed.file.data.length,
         'staff');
-      db.setDocStatus(id, key, ours || perApp || spare ? 'ok' : 'wait');
+      /* Patch 177 (item 4): THIS row only — the other files in the slot keep
+         their own states. */
+      if (added && (ours || perApp || spare)) db.setFileState(id, added.id, 'ok');
       /* Patch 172 (N17-02): REPLACE one file — `replaces=<fileId>` takes that
          file out of the slot (kept, logged) once the new one is in. */
       const replacesId = Number(parsed.fields.replaces || 0);
@@ -5387,7 +5581,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const msgs = db.getMessages(id).map(msgShape(id));
       live.toStudent(id, 'message', { studentId: id, msg: msgs[msgs.length - 1] });
 
-      return json(res, 200, { key, name: parsed.file.filename, status: 'ok' });
+      /* Round 177 (item 11): THE STATE IT LANDED IN, not "ok" whatever
+         happened. Our own work and an application file arrive verified; a
+         student's document put up by the office is In review until somebody
+         checks it. The file's own state (filecheck.stateOf) is what the
+         screens show, so it is what the caller is told. */
+      let landed = { state: ours || perApp || spare ? 'ok' : 'wait', said: '' };
+      try {
+        const inSlot = db.docsInKey(id, key) || [];
+        const rec = inSlot.find(d => String(d.stored_name) === stored) || inSlot[inSlot.length - 1];
+        const legacyOk = rec && !inSlot.some(d => String(d.verdict || '')) && String(rec.status) === 'ok';
+        if (rec) landed = FILECHECK.stateOf(key, rec, legacyOk);
+      } catch (e) { /* the default above */ }
+      landed.said = landed.said || FILECHECK.STATE_SAID[landed.state] || '';
+      return json(res, 200, { key, name: parsed.file.filename,
+        status: landed.state, said: landed.said, verified: landed.state === 'ok' });
     }));
 
   /* A student's file, to the person looking after them. The student's own
@@ -5480,7 +5688,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const b = await readJson(req);
       const verdict = b.status === 'ok' ? 'ok' : b.status === 'rescan' ? 'rescan' : '';
       const files = db.docsInKey(id, key);
-      const prevSlot = String((files[files.length - 1] || {}).status || 'wait');
+      const prevSlot = slotOf(files);
       if (verdict === 'ok') {
         /* THIS file only. Round 175: the extension, the slot, the size and
            the first bytes — a 31-byte .html, or a "PDF" that holds HTML, is
@@ -5488,29 +5696,36 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const ext = String(rec.filename || '').toLowerCase().split('.').pop();
         const why = FILECHECK.fails(key, rec, FILECHECK.headOf(uploadDir, id, rec));
         if (why) {
-          if (String(rec.verdict || '') !== 'bad') db.setFileVerdict(id, rec.id, 'bad');
+          if (String(rec.status || '') !== 'bad') db.setFileState(id, rec.id, 'bad');
           return json(res, 422, { error: '"' + String(rec.filename).slice(0, 60) + '" cannot be accepted here — '
             + (/^(doc|docx)$/.test(ext) && /Word file where/.test(why) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).'
               : /small|inside|text or HTML/.test(why) ? 'it is ' + why + '.' : 'Glovels takes ' + FILE_LIST + '.')
             + ' Remove it, or accept a valid file in this document.', why });
         }
-        db.setFileVerdict(id, rec.id, 'ok');
-        db.setDocStatus(id, key, 'ok');
-      } else {
-        db.setFileVerdict(id, rec.id, verdict);
-        const otherOk = files.some(x => Number(x.id) !== Number(rec.id) && String(x.verdict || '') === 'ok');
-        if (!otherOk) {
-          db.setDocStatus(id, key, verdict === 'rescan' ? 'rescan' : 'wait');
+        /* Patch 177 (item 4): THIS row becomes the verified copy; the file
+           that was the verified copy before it reads 'replaced'. In a slot
+           that holds a SET (English tests, Other documents) the other
+           accepted files stay accepted — each is its own document. */
+        db.setFileState(id, rec.id, 'ok');
+        if (!SET_SLOTS.has(key)) {
+          for (const x of files) {
+            if (Number(x.id) !== Number(rec.id) && String(x.status) === 'ok') db.setFileState(id, x.id, 'replaced');
+          }
         }
+      } else {
+        db.setFileState(id, rec.id, verdict === 'rescan' ? 'rescan' : 'wait');
       }
       const now0 = db.docsInKey(id, key);
-      const slot = String((now0[now0.length - 1] || {}).status || 'wait');
+      const slot = slotOf(now0);
       const st = db.studentById(id);
       db.log(s.name, verdict === 'ok' ? 'accepted a document file' : verdict === 'rescan' ? 'queried a document file' : 'put a document file back in review',
         (st ? st.name : '#' + id) + ' · ' + key + ' · ' + rec.filename);
       live.toStudent(id, 'documents', { key, status: slot });
       /* Into "Waiting for a scan": the student is told, naming the file. */
-      if (slot === 'rescan' && prevSlot !== 'rescan' && !DOCSLOTS.ours(key)) {
+      /* Patch 177: told whenever a file is newly queried and the document
+         has no verified copy (the slot may still read "in review" because
+         another file is waiting — the student still owes a copy). */
+      if (verdict === 'rescan' && String(rec.status || '') !== 'rescan' && slot !== 'ok' && prevSlot !== 'ok' && !DOCSLOTS.ours(key)) {
         const what = DOCSLOTS.nameOf(key);
         const why = str(b.note, 400);
         try {
@@ -5542,12 +5757,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* Out of the slot, kept, logged. If it was the only accepted copy and files
      remain, the document goes back to review. */
   function removeStaffFile(s, id, key, rec, what) {
-    const wasOk = String(rec.verdict || '') === 'ok';
+    /* Patch 177 (item 4): the slot's status is derived from the files left
+       in it — nothing to rewrite on them. */
     db.moveDocFileOut(id, rec.id, key);
-    const left = db.docsInKey(id, key);
-    if (wasOk && left.length && !left.some(x => String(x.verdict || '') === 'ok')) {
-      db.setDocStatus(id, key, 'wait');
-    }
     const st = db.studentById(id);
     db.log(s.name, what, (st ? st.name : '#' + id) + ' · ' + key + ' · ' + rec.filename
       + ' (file #' + rec.id + ', kept as removed)');
@@ -5603,7 +5815,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          say the rest in a message the student may not read. */
       const status = ['ok', 'wait', 'rescan', 'none'].includes(b.status)
         ? b.status : 'wait';
-      const was = (db.getDocuments(id) || []).find(d => String(d.doc_key) === String(m[2]));
+      /* Patch 177 (item 4): the slot's status before, derived. */
+      const was = { status: db.docSlotStatus(id, String(m[2])) };
       /* Round 30 Sep (issue 12): a .docx was accepted as a passport and .txt
          files as marksheets — uploaded before the type rules existed. Nothing
          is accepted unless every file in the slot is a kind we take, and an
@@ -5616,7 +5829,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         let why0 = '';
         const bad = files.find(d => { why0 = FILECHECK.fails(m[2], d, FILECHECK.headOf(uploadDir, id, d)) || ''; return !!why0; });
         if (bad) {
-          if (String(bad.verdict || '') !== 'bad') db.setFileVerdict(id, bad.id, 'bad');
+          if (String(bad.status || '') !== 'bad') db.setFileState(id, bad.id, 'bad');
           const ext0 = String(bad.filename || '').toLowerCase().split('.').pop();
           return json(res, 422, { error: '"' + String(bad.filename).slice(0, 60) + '" cannot be accepted here — '
             + (/^(doc|docx)$/.test(ext0) && /Word file where/.test(why0) ? 'this has to be a scan or photo (PDF, JPG, PNG or HEIC).'
@@ -5624,15 +5837,28 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
             + ' Ask the student for a scanned copy.', why: why0 });
         }
       }
-      db.setDocStatus(id, m[2], status);
-      /* Patch 172 (N17-02): the whole-document answer, said per file too —
-         accepting the document accepts every file in it (each was checked
-         above); anything else takes the accepted mark off them. */
-      for (const f0 of db.docsInKey(id, m[2])) {
-        if (status === 'ok') db.setFileVerdict(id, f0.id, 'ok');
-        else if (String(f0.verdict || '') === 'ok') db.setFileVerdict(id, f0.id, '');
+      /* Patch 177 (item 4): the whole-document answer, written PER FILE.
+         Accept: the newest valid file becomes the verified copy and the
+         files accepted before it read 'replaced' (a SET slot — English
+         tests, Other — keeps every valid file accepted). Anything else is
+         written on every file that is not bad. */
+      {
+        const rows = db.docsInKey(id, m[2]).filter(f => !FILECHECK.fails(m[2], f));
+        if (status === 'ok') {
+          if (SET_SLOTS.has(String(m[2]))) {
+            rows.forEach(f0 => db.setFileState(id, f0.id, 'ok'));
+          } else {
+            const newest = rows[rows.length - 1];
+            rows.forEach(f0 => {
+              if (newest && Number(f0.id) === Number(newest.id)) db.setFileState(id, f0.id, 'ok');
+              else if (String(f0.status) === 'ok') db.setFileState(id, f0.id, 'replaced');
+            });
+          }
+        } else {
+          rows.forEach(f0 => db.setFileState(id, f0.id, status === 'rescan' ? 'rescan' : 'wait'));
+        }
       }
-      live.toStudent(id, 'documents', { key: m[2], status });
+      live.toStudent(id, 'documents', { key: m[2], status: db.docSlotStatus(id, String(m[2])) });
       /*
        * SENDING A DOCUMENT BACK IS SOMETHING THE STUDENT HAS TO BE TOLD.
        *
@@ -5754,8 +5980,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const students = db.allStudents();
     const rows = db.activeCaseworkers().map(c => ({
       id: c.id, name: c.name, email: c.email, role: c.role,
-      caseload: students.filter(st => Number(st.counsellor_id) === Number(c.id)
-        && (st.status || 'active') === 'active').length,
+      /* Patch 177 (item 12): OPEN files only (store.openFile). */
+      caseload: students.filter(st => Number(st.counsellor_id) === Number(c.id) && db.openFile(st)).length,
     }));
     return json(res, 200, { counsellors: rows });
   }));
@@ -6320,12 +6546,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        active and 4 closed; "12 Unassigned" counted 2 closed files nobody is
        meant to be assigned to; all 7 "Docs to review" were on closed files.
        The closed ones are said beside each number, not mixed into it. */
-    const isClosed = st => String(st.status || 'active') !== 'active' || Number(st.partner_closed || 0) === 1;
+    /* Patch 177 (item 12): one rule for an open file (store.openFile) —
+       the team cards and the money screen count through the same one. */
+    const isClosed = st => !db.openFile(st);
     const students = everyone.filter(st => !isClosed(st));
     const closed = everyone.filter(isClosed);
     const counsellors = db.caseworkers();
-    const docs = students.flatMap(st => db.getDocuments(st.id));
-    const closedDocs = closed.flatMap(st => db.getDocuments(st.id));
     /* Every order, not one per student. An order placed before the buyer made
        an account belongs to nobody yet, and walking the students to find the
        orders skipped exactly those — so the counter read zero to the person
@@ -6348,8 +6574,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       enquiriesInternal: book.filter(internal).length,
       orders: orders.length,
       revenuePaise: orders.reduce((a, o) => a + (o.gross_paise || 0), 0),
-      docsWaiting: docs.filter(d => d.status === 'wait').length,
-      docsWaitingClosed: closedDocs.filter(d => d.status === 'wait').length,
+      docsWaiting: students.reduce((n, st) => n + docCounts(db.getDocuments(st.id)).wait, 0),
+      docsWaitingClosed: closed.reduce((n, st) => n + docCounts(db.getDocuments(st.id)).wait, 0),
       online: live.counts(),
       channels: notify.status(),
     });
@@ -6482,7 +6708,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       items,
       publicUnis: o.public_unis || 0,
       grossPaise: o.gross_paise || 0,
-      status: o.status || '',
+      /* Patch 177 (item 18): a row with nothing to collect is settled,
+         whatever was written on it when it was placed. */
+      status: ['owing', 'part', 'awaiting'].includes(String(o.status || '')) && Number(o.gross_paise || 0) === 0
+        ? 'paid' : (o.status || ''),
       name: o.name || '',
       email: o.email || '',
       phone: o.phone || '',
@@ -6779,7 +7008,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const st = db.studentById(id);
     if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
     const b = await readJson(req);
-    const basket = basketFrom(b);
+    /* Patch 177 (item 18): the office may quote an "on request" service. */
+    const basket = basketFrom(b, { quote: true });
     if (basket.error) return json(res, basket.code, { error: basket.error });
     const placed = placeOrder({
       basket, name: st.name, email: st.email, phone: st.phone || '',
@@ -7070,6 +7300,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       told: !!t.breached_at,
       /* CNS-01: done because the applications are past it, not ticked. */
       derived: !!t.derived, why: t.derivedWhy || '',
+      /* Round 177 (item 3): overtaken by the applications, not backed by the file. */
+      waitingOn: t.waitingOn || '',
       /* N17-01: why "done" is refused right now ('' when it is not). */
       lock: TASKS.CLOSED.has(String(t.status)) ? ''
         : (() => { try { return TASKS.doneBlock(db, st, t); } catch (e) { return ''; } })(),
@@ -7614,9 +7846,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         createdAt: p.created_at,
         /* For a partner this is how many students they have introduced; for
            everybody else it is how many files they are carrying. */
+        /* Patch 177 (item 12): a counsellor's caseload is their OPEN files
+           (store.openFile) — the same number the overview's team card and
+           the counsellor picker show; `closedFiles` says the rest. */
         caseload: p.role === 'partner'
           ? db.partnerStudentCount(p.id)
-          : db.allStudents().filter(st => Number(st.counsellor_id) === p.id).length,
+          : db.allStudents().filter(st => Number(st.counsellor_id) === p.id && db.openFile(st)).length,
+        closedFiles: p.role === 'partner' ? 0
+          : db.allStudents().filter(st => Number(st.counsellor_id) === p.id && !db.openFile(st)).length,
       })).sort((a, b) => a.name.localeCompare(b.name)),
       me: s.id,
     });

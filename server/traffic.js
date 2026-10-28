@@ -197,6 +197,10 @@ function open({ db, log = console }) {
     const sources = {}, aiSites = {}, searchSites = {}, socialSites = {}, referrals = {};
     const pages = {}, campaigns = {}, devices = {}, bots = {}, aiPages = {};
     const visitors = new Set();
+    /* Patch 177 (item 2): "Where visitors come from" counts VISITORS — the
+       same visitor key the Visitors tile counts, once per source — not page
+       views. Page views per source are kept beside as `views`. */
+    const sourceVisitors = {}, sourceViews = {};
     let views = 0, botHits = 0;
 
     rows.forEach(h => {
@@ -213,6 +217,8 @@ function open({ db, log = console }) {
       visitors.add(h.visitor);
       if (d) { d.views++; d.visitors.add(h.visitor); if (h.source === 'ai') d.ai++; if (h.source === 'search') d.search++; }
       sources[h.source] = (sources[h.source] || 0) + 1;
+      sourceViews[h.source] = (sourceViews[h.source] || 0) + 1;
+      (sourceVisitors[h.source] || (sourceVisitors[h.source] = new Set())).add(h.visitor);
       if (h.source === 'ai') aiSites[h.site] = (aiSites[h.site] || 0) + 1;
       if (h.source === 'search' || h.source === 'ads') searchSites[h.site] = (searchSites[h.site] || 0) + 1;
       if (h.source === 'social') socialSites[h.site] = (socialSites[h.site] || 0) + 1;
@@ -250,7 +256,10 @@ function open({ db, log = console }) {
         day: d.day, views: d.views, visitors: d.visitors.size, ai: d.ai, search: d.search, bots: d.bots,
         enquiries: enqByDay[d.day] || 0,
       })),
-      sources: top(sources, 10),
+      /* Patch 177 (item 2): visitors per source (count), views beside. */
+      sources: Object.entries(sourceVisitors).map(([name, set]) => ({ name, count: set.size, views: sourceViews[name] || 0 }))
+        .sort((a, b) => b.count - a.count || b.views - a.views).slice(0, 10),
+      sourcesUnit: 'visitors',
       ai: top(aiSites, 10),
       search: top(searchSites, 10),
       social: top(socialSites, 10),

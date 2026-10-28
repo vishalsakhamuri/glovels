@@ -41,6 +41,7 @@
 const DAY = 864e5;
 const PLANS = require('./plans.js');
 const DAYS = require('./days.js');
+const { slotStatus } = require('./store.js');
 
 const iso = d => new Date(d).toISOString();
 const inr = paise => '₹' + Number(Math.round((paise || 0) / 100)).toLocaleString('en-IN');
@@ -201,9 +202,12 @@ function missingDocs(docs, stages) {
      This was presence alone, so the one file being chased was counted as
      arrived and dropped off the "what is still needed" list — the only list
      where the student would have looked for it. */
-  const have = new Set((docs || [])
-    .filter(d => String(d.status || '') !== 'rescan')
-    .map(d => String(d.doc_key || d.key)));
+  /* Patch 177 (item 4): judged per SLOT (store.slotStatus) — a file in
+     review or accepted counts as having it; a slot whose files were all
+     queried does not. */
+  const by = {};
+  (docs || []).forEach(d => { const k = String(d.doc_key || d.key); (by[k] || (by[k] = [])).push(d); });
+  const have = new Set(Object.keys(by).filter(k => slotStatus(by[k]) !== 'rescan'));
   const want = stages ? wanted(DOCS_MUST, stages) : DOCS_MUST;
   return want.filter(([k]) => !have.has(k)).map(([, label]) => label);
 }

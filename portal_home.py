@@ -618,7 +618,10 @@ function paintServices() {
           '<br><span style="font-size:11.6px;color:var(--muted)">' +
           esc((x.desc || '').slice(0, 90)) + '</span></td>' +
         '<td>' + (x.isFree ? '<span class="st ok">Free</span>'
+          /* Round 177 (item 20): levels show "from" the cheapest; never ₹0. */
+          : (x.levels || []).some(l => Number(l.priceInr) > 0) ? '<b>from ' + inr(Math.min.apply(null, (x.levels || []).map(l => Number(l.priceInr || 0)).filter(n => n > 0))) + '</b>'
           : x.priceLabel ? esc(x.priceLabel)
+          : !Number(x.priceInr) ? 'Price on request'
           : '<b>' + inr(x.priceInr) + '</b>') + '</td>' +
         '<td style="font-size:12px;color:var(--muted)">' + esc(x.meta || '—') + '</td>' +
         '<td>' + (x.active === false ? '<span class="st wait">Hidden</span>'

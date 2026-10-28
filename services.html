@@ -1327,11 +1327,16 @@ const BOUGHT = new Set();
     });
   });
 
+/* Round 177 (item 20): a service with levels is "from" its cheapest level
+   (German: from ₹15,000 — it showed ₹0, its own priceInr); one with no price
+   and no levels is PRICED ON REQUEST — Book asks the counsellor for a quote
+   instead of making a ₹0 order (the server refuses those). */
+const svcLevelFrom = s => (s.levels || []).map(l => Number(l.priceInr || 0)).filter(n => n > 0).sort((a, b) => a - b)[0] || 0;
+const svcQuote = s => !s.isFree && !svcLevelFrom(s) && !Number(s.priceInr);
 const svcMoney = s => s.isFree ? 'Free'
-  : s.priceLabel ? esc(s.priceLabel)
-  : (s.priceInr || s.priceInr === 0)
-    ? '₹' + Number(s.priceInr).toLocaleString('en-IN')
-    : 'Price on request';
+  : svcLevelFrom(s) ? 'from ₹' + svcLevelFrom(s).toLocaleString('en-IN')
+  : svcQuote(s) ? 'Priced on request — Book to get a quote'
+  : '₹' + Number(s.priceInr).toLocaleString('en-IN');
 
 function svcCard(s) {
   const bought = BOUGHT.has(String(s.id));
@@ -1360,7 +1365,7 @@ function svcCard(s) {
              the public home page basket, which asked for their name, mobile
              and email again and made an order with no account behind it. */
           : '<button type="button" class="btn btn-primary btn-sm" data-svcbook="' + esc(s.id) + '">'
-            + 'Book this ' + ico('arrow') + '</button>'
+            + (svcQuote(s) ? 'Book — get a quote ' : 'Book this ') + ico('arrow') + '</button>'
             + '<button type="button" class="btn btn-ghost btn-sm" data-svcask="' + esc(s.id)
             + '">Ask my counsellor</button>')
     + '</div></article>';
@@ -1542,7 +1547,27 @@ document.addEventListener('click', async e => {
   const book = e.target.closest('[data-svcbook]');
   if (book) {
     const s = SVC.find(x => String(x.id) === book.dataset.svcbook);
-    if (s) svcCheckout(s);
+    if (!s) return;
+    /* Round 177 (item 20): priced on request — a quote request to the
+       counsellor's thread (an enquiry on the student's own file), never a
+       ₹0 order. */
+    if (svcQuote(s)) {
+      book.disabled = true;
+      const was = book.innerHTML;
+      book.textContent = 'Sending…';
+      try {
+        await api('POST', '/api/messages',
+          { body: 'Quote request: I would like to book ' + s.name + ' — please send me the price and what you need from me.' });
+        book.textContent = 'Quote requested — see Messages';
+        toast('Quote requested. Your counsellor replies in Messages.');
+      } catch (err) {
+        book.disabled = false;
+        book.innerHTML = was;
+        toast('That did not send: ' + err.message);
+      }
+      return;
+    }
+    svcCheckout(s);
     return;
   }
 

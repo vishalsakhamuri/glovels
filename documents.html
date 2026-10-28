@@ -1683,6 +1683,8 @@ function card(d) {
             ? '<span class="dsize fstate bad" style="color:#b42318;font-weight:600">' + esc(f.stateSaid || 'Not accepted — not a PDF, photo or Word file') + '</span>'
             : f.state === 'ok' ? '<span class="dsize fstate ok" style="color:#1b7f4b;font-weight:600">' + esc(f.stateSaid || 'Verified copy') + '</span>'
             : f.state === 'rescan' ? '<span class="dsize fstate rescan" style="color:#8a6a1f;font-weight:600">' + esc(f.stateSaid || 'Scan asked') + '</span>'
+            /* Patch 177 (item 4): an older copy a newer accepted file took over from. */
+            : f.state === 'replaced' ? '<span class="dsize fstate replaced" style="color:var(--muted)">' + esc(f.stateSaid || 'Replaced by a newer accepted copy') + '</span>'
             : '') +
           /* NO REMOVE ON A FILE THE OFFICE PUT HERE.
              "Disable in student view whichever the counsellor will attach."
@@ -1693,8 +1695,8 @@ function card(d) {
              file rather than by a button quietly missing, because a control
              that is simply absent reads as a bug. The route refuses it too;
              this only stops somebody pressing a button that would fail. */
-          (f.by === 'staff'
-            ? '<span class="dsize" style="font-style:italic">from your counsellor</span>'
+          (f.by === 'staff' || f.by === 'partner'
+            ? '<span class="dsize" style="font-style:italic">' + (f.by === 'partner' ? 'from your agency' : 'from your counsellor') + '</span>'
             /* Patch 169 (STU-05): an accepted document is the verified copy —
                no delete; the server refuses it too (409). */
             /* Round 175: a file that fails today's checks can always go —
@@ -1702,10 +1704,11 @@ function card(d) {
             : f.state === 'bad'
             ? '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" data-name="' + esc(f.file) + '" ' +
               'aria-label="Remove this file: ' + esc(f.file) + '">Remove this file</button>'
-            : st === S.OK && d.id !== 'other' ? ''
+            /* Patch 177 (item 4): only the verified copy itself is theirs-not-to-remove;
+               a newer file in review beside it can still be taken off. */
             /* Patch 172 (N17-02): the file the counsellor accepted stays the
                verified copy even after a newer one is added (409 too). */
-            : f.verdict === 'ok' && d.id !== 'other'
+            : (f.state === 'ok' || f.verdict === 'ok') && d.id !== 'other'
             ? '<span class="dsize" style="font-style:italic">accepted copy</span>'
             : '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" data-name="' + esc(f.file) + '" ' +
               'aria-label="Remove this file: ' + esc(f.file) + '">Remove this file</button>') +
@@ -1738,11 +1741,11 @@ function card(d) {
       ? '<p class="dlocked" style="margin:9px 0 0;font-size:12.2px;color:var(--muted)">Accepted. ' +
         '<a href="messages.html" style="color:var(--blue-deep);font-weight:600">Ask your counsellor to replace this</a> ' +
         'if it needs to change.</p>'
-      : rec && (rec.files || []).some(f => f.by !== 'staff')
+      : rec && (rec.files || []).some(f => f.by !== 'staff' && f.by !== 'partner')
         && (d.id === 'other' || !(rec.files || []).some(f => f.verdict === 'ok'))
       ? '<button type="button" class="btn btn-ghost btn-sm" data-rm="' + d.id +
         '" data-name="' + esc(d.name) + '" style="margin-top:9px">Clear this document' +
-        ((rec.files || []).some(f => f.by === 'staff') ? ' (my files)' : '') + '</button>'
+        ((rec.files || []).some(f => f.by === 'staff' || f.by === 'partner') ? ' (my files)' : '') + '</button>'
       : '') +
     (d.need ? '' : '<span class="sl-chip" style="width:fit-content">If available</span>') +
     '</div>';

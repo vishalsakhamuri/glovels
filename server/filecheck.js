@@ -121,24 +121,27 @@ const STATE_SAID = {
   bad: 'Not accepted — not a PDF, photo or Word file',
   ok: 'Verified copy',
   rescan: 'Scan asked',
+  replaced: 'Replaced by a newer accepted copy',
   wait: 'In review',
 };
 
 /**
- * A file's own display state: 'bad' | 'ok' | 'rescan' | 'wait', with the
- * sentence for it. The slot's status is not consulted — a file that fails
- * today's checks is never "verified", whatever the document's status says.
- * `legacyOk`: the document was accepted before files had their own answer
- * (status 'ok', no file in it carries a verdict) — then each file that
- * passes counts as the verified copy, as the screens have read it since
- * patch 172.
+ * A file's own display state: 'bad' | 'ok' | 'rescan' | 'replaced' | 'wait',
+ * with the sentence for it. Patch 177 (item 4): the row's `status` IS its
+ * own state (store.setFileState) — the slot's status is derived from the
+ * rows and never consulted here. A file that fails today's checks is never
+ * "verified", whatever anybody wrote on it. `legacyOk` is kept for callers
+ * written before the rows carried their own answer: a row that still says
+ * status 'ok' with no verdict is read as the verified copy.
  */
 function stateOf(key, rec, legacyOk) {
   const why = fails(key, rec);
   if (why) return { state: 'bad', said: STATE_SAID.bad, why };
   const v = String((rec && rec.verdict) || '');
-  if (v === 'ok' || (legacyOk && String(rec.status) === 'ok')) return { state: 'ok', said: STATE_SAID.ok, why: '' };
-  if (v === 'rescan') return { state: 'rescan', said: STATE_SAID.rescan, why: '' };
+  const s = String((rec && rec.status) || '');
+  if (v === 'ok' || s === 'ok' || (legacyOk && s === 'ok')) return { state: 'ok', said: STATE_SAID.ok, why: '' };
+  if (v === 'rescan' || s === 'rescan') return { state: 'rescan', said: STATE_SAID.rescan, why: '' };
+  if (s === 'replaced') return { state: 'replaced', said: STATE_SAID.replaced, why: '' };
   return { state: 'wait', said: STATE_SAID.wait, why: '' };
 }
 
@@ -149,38 +152,53 @@ function stateOf(key, rec, legacyOk) {
  * files were newly marked. Logs one line when that is more than none.
  */
 function sweep(db, uploadDir, log) {
-  let marked = 0, slotsBack = 0;
+  let marked = 0, slotsBack = 0, migrated = 0;
   let rows = [];
-  try { rows = db.allDocFiles(); } catch (e) { return { marked, slotsBack }; }
+  try { rows = db.allDocFiles(); } catch (e) { return { marked, slotsBack, migrated }; }
+  const setState = typeof db.setFileState === 'function'
+    ? (rec, st) => { db.setFileState(rec.student_id, rec.id, st); rec.status = st; rec.verdict = st === 'ok' || st === 'rescan' || st === 'bad' ? st : ''; }
+    : (rec, st) => { db.setFileVerdict(rec.student_id, rec.id, st === 'ok' || st === 'rescan' || st === 'bad' ? st : ''); rec.verdict = st; };
+  /* Patch 177 (item 4): RECONCILE ROWS WRITTEN WHEN `status` WAS THE SLOT'S.
+     The per-file `verdict` (patch 172) was always the truth about one file;
+     the slot status was copied onto every row. So: a verdict says what the
+     row is; a row with no verdict that reads 'ok' only because another row
+     in the slot was accepted was never accepted itself and goes to review;
+     a row with no verdict in a slot nobody accepted per file keeps the
+     slot's old word (an accepted set stays accepted). Idempotent — under
+     the new writes status and verdict never disagree. */
   const bySlot = new Map();
   for (const rec of rows) {
-    const key = String(rec.doc_key || '');
-    const sk = rec.student_id + '\u0000' + key;
+    const sk = rec.student_id + '\u0000' + String(rec.doc_key || '');
     if (!bySlot.has(sk)) bySlot.set(sk, []);
-    const slot = bySlot.get(sk);
+    bySlot.get(sk).push(rec);
+  }
+  for (const files of bySlot.values()) {
+    const anyVerdictOk = files.some(f => String(f.verdict || '') === 'ok');
+    for (const rec of files) {
+      const v = String(rec.verdict || ''), s = String(rec.status || 'wait');
+      let want = null;
+      if (v === 'ok' && s !== 'ok') want = 'ok';
+      else if (v === 'rescan' && s !== 'rescan') want = 'rescan';
+      else if (v === 'bad' && s !== 'bad') want = 'bad';
+      else if (v === '' && s === 'ok' && anyVerdictOk) want = 'wait';
+      else if (v === '' && !['wait', 'rescan', 'ok', 'replaced', 'bad'].includes(s)) want = 'wait';
+      if (want) { setState(rec, want); migrated += 1; }
+    }
+  }
+  for (const rec of rows) {
+    const key = String(rec.doc_key || '');
     const why = fails(key, rec, headOf(uploadDir, rec.student_id, rec));
-    const bad = !!why;
-    if (bad && String(rec.verdict || '') !== 'bad') {
-      db.setFileVerdict(rec.student_id, rec.id, 'bad');
+    if (why && String(rec.status || '') !== 'bad') {
+      setState(rec, 'bad');
       marked += 1;
-      rec.verdict = 'bad';
-    } else if (!bad && String(rec.verdict || '') === 'bad') {
+    } else if (!why && String(rec.status || '') === 'bad') {
       /* A file the sweep once refused that passes now (the rules changed)
          goes back to review, not to accepted. */
-      db.setFileVerdict(rec.student_id, rec.id, '');
-      rec.verdict = '';
+      setState(rec, 'wait');
     }
-    slot.push(rec);
   }
-  for (const [sk, files] of bySlot) {
-    if (!files.length || !files.every(f => String(f.verdict) === 'bad')) continue;
-    if (!files.some(f => String(f.status) === 'ok' || String(f.status) === 'rescan')) continue;
-    const [sid, key] = sk.split('\u0000');
-    db.setDocStatus(Number(sid), key, 'wait');
-    slotsBack += 1;
-  }
-  if (marked && typeof log === 'function') log('[docs] ' + marked + ' file(s) marked not accepted' + (slotsBack ? ', ' + slotsBack + ' document(s) back in review' : ''));
-  return { marked, slotsBack };
+  if (marked && typeof log === 'function') log('[docs] ' + marked + ' file(s) marked not accepted');
+  return { marked, slotsBack, migrated };
 }
 
 module.exports = { FILE_KINDS, FILE_LIST, WORD_SLOTS, ID_SLOTS, MIN_PDF_BYTES, slotRefuses, fails, headOf, stateOf, sweep, STATE_SAID };

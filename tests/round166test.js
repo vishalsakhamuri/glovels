@@ -13,7 +13,10 @@
  * every field in the catalogue (~31, MBA at level mba) × CGPA 9.0 / 8.0 /
  * 7.2 / 6.5, through POST /api/staff/fit (kind any / public / private):
  *   (a) the ranked list is sorted the way screen() says — relevance, then
- *       clear < ask < soft, then score desc;
+ *       clear < ask < soft, then score desc; (round 177: a row short of a
+ *       stated requirement the student answered — IELTS, GRE, ECTS… — is a
+ *       NEAR row, `hard`, below every fit and never in fits[]; soft is
+ *       only the bachelor's subject now);
  *   (b) no duplicate programme ids;
  *   (c) the package picks (auto[] plan, 3/5/10) are the first N distinct
  *       universities of the ranked list for that kind;
@@ -85,14 +88,16 @@ const BUYERS = [
 ];
 const PKGS = [['pkg-three-public', 3], ['pkg-roadmap', 5], ['pkg-offer', 10]];
 
-const tier = r => (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
+/* Round 177: 3 = a hard miss (near), below every fit. */
+const hardOf = r => (r.hard && r.hard.length) ? 1 : 0;
+const tier = r => hardOf(r) ? 3 : (r.soft && r.soft.length) ? 2 : (r.ask && r.ask.length) ? 1 : 0;
 /* screen()'s own order, server/matches.js byRank: relevance, tier, the
    deadline's standing (round 175: confirmed open 14+ days away, inside 14
    days, rolled from last year, no dates, cannot roll), score, the sooner
    deadline, fee, id. */
 const dl = r => M.deadlineInfo(r);
 const dlTime = r => (dl(r).next ? dl(r).next.getTime() : Infinity);
-const cmp = (a, b) => b.relevance - a.relevance || tier(a) - tier(b) || dl(a).rank - dl(b).rank || b.score - a.score || dlTime(a) - dlTime(b) || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
+const cmp = (a, b) => hardOf(a) - hardOf(b) || b.relevance - a.relevance || tier(a) - tier(b) || dl(a).rank - dl(b).rank || b.score - a.score || dlTime(a) - dlTime(b) || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id));
 const idsOf = x => (x.fits || []).map(y => String(y.id));
 /* One per university, the way pick() counts them (uniKeys: name, or city + kind of school). */
 const firstUnis = (rows, n) => { const out = [], seen = new Set(); for (const p of rows) { const ks = M.uniKeys(p); if (ks.some(k => seen.has(k))) continue; ks.forEach(k => seen.add(k)); out.push(p); if (out.length >= n) break; } return out; };
@@ -101,8 +106,28 @@ const uniCount = rows => firstUnis(rows, 1e9).length;
    id — it does not sort by the clear/ask/soft tier the way screen() does.
    Used to DIAGNOSE a plan-vs-list mismatch, not to excuse it. */
 const scoreOnly = rows => rows.slice().sort((a, b) => b.score - a.score || a.totalInr - b.totalInr || String(a.id).localeCompare(String(b.id)));
-const fitPost = (profile, filters, counts) => req('a', 'POST', '/api/staff/fit', Object.assign({ profile, filters: Object.assign({ limit: 500, kind: 'any' }, filters || {}) }, counts || {}));
-const fitGet = (who, sid, q) => req(who, 'GET', '/api/staff/student/' + sid + '/fit?limit=500' + (q ? '&' + q : ''));
+/* Round 177 (item 8): a row short of a stated requirement the student
+   answered (IELTS, GRE, ECTS, German…) is no longer a "fit" — it is a NEAR
+   row with `hard` reasons, ranked below every fit. It is still in the SET
+   (country + level + field + CGPA decide the set; the rest only ranks), so
+   this suite reads the set as fits followed by the near rows whose only
+   reasons are hard misses — the order pick() fills a package in. */
+const hardOnly = n => (n.hard || []).length && (n.why || []).length === n.hard.length;
+const asSet = r => {
+  const b = r.body || {};
+  if (Array.isArray(b.fits)) {
+    const extra = (b.near || []).filter(hardOnly);
+    b.fits = b.fits.concat(extra);
+    b.near = (b.near || []).filter(n => !hardOnly(n)).map(n => Object.assign({}, n, { why: (n.why || []).slice(0, (n.why || []).length - (n.hard || []).length) }));
+    if (b.counts) { b.counts.fits = (b.counts.fits || 0) + extra.length; b.counts.near = Math.max(0, (b.counts.near || 0) - extra.length); }
+  }
+  return r;
+};
+/* 2,000 (the server's cap), not 500: the hard-miss rows of the set now
+   travel in near[], which also holds every row the grade bar turns away —
+   cut at 500 it dropped part of the set. */
+const fitPost = (profile, filters, counts) => req('a', 'POST', '/api/staff/fit', Object.assign({ profile, filters: Object.assign({ limit: 2000, kind: 'any' }, filters || {}) }, counts || {})).then(asSet);
+const fitGet = (who, sid, q) => req(who, 'GET', '/api/staff/student/' + sid + '/fit?limit=2000' + (q ? '&' + q : '')).then(asSet);
 const visible = s => (s.shortlist || []).filter(r => r.addedBy !== 'student');
 const short = s => String(s || '').replace(/Universit(y|ät|aet) of Applied Sciences/i, 'UAS').replace(/Technische Universität/i, 'TU').replace(/University/i, 'U.').slice(0, 26);
 
@@ -170,7 +195,11 @@ const short = s => String(s || '').replace(/Universit(y|ät|aet) of Applied Scie
       /* (c) the picks are the first N distinct universities of the ranked list, per kind. */
       for (const [kind, x] of [['public', pub], ['private', priv]]) {
         const plan = (pub.auto || []).find(a => a.kind === kind) || { picks: [] };
-        const want10 = firstUnis(x.fits || [], 10);
+        /* Round 177: the set is fits then hard-miss rows; pick() keeps to the
+           student's own field (relevance 3) unless that cannot fill the
+           package, and only then widens to the whole set in its order. */
+        const rel3 = (x.fits || []).filter(f => f.relevance === 3);
+        const want10 = uniCount(rel3) >= 10 ? firstUnis(rel3, 10) : firstUnis(x.fits || [], 10);
         const byScore10 = firstUnis(scoreOnly(x.fits || []), 10);
         const byScore10rel3 = firstUnis(scoreOnly((x.fits || []).filter(f => f.relevance === 3)), 10);
         /* Different universities that uniKeys() folds into one (city + kind of

@@ -602,6 +602,28 @@
       + '<a class="btn btn-sm ' + (fee === 'free' ? 'btn-green' : 'btn-gold') + '" href="/university/' + esc(uniSlug) + '#' + esc(slugOf(p.program)) + '">' + (fee === 'free' ? 'Apply free' : 'See details') + '</a></div></div></article>';
   }
 
+  /* Round 177 (item 15): the list is drawn in two parts when the visitor
+     has said something about themselves — the rows they clear (or that
+     ask nothing they have answered) first, then a divider, then the rows
+     short of something they ask (tier 2: a stated IELTS, GRE, ECTS, German
+     level… they fall below). The home finder's wording (turnedBox), with
+     no number on it: the owner's rule is that nothing on a public page is
+     counted. Nothing is hidden — the divider only names the split. */
+  const DIVIDER = 'Ranked lower — short of something they ask on what you told us';
+  function dividerHtml() {
+    return '<div class="fdivide" id="fdivide" role="separator" aria-label="' + DIVIDER + '"><span>' + DIVIDER + '</span></div>';
+  }
+  const isShort = p => (p._tier || 0) === 2 || !!(p._v && p._v.fails && p._v.fails.length);
+  /* The rows as HTML, the divider in its place. `ctx.said` false: no split. */
+  function listHtml(rows, ctx) {
+    let out = '', split = false;
+    (rows || []).forEach(p => {
+      if (!split && ctx && ctx.said && isShort(p)) { split = true; out += dividerHtml(); }
+      out += rowHtml(p, ctx);
+    });
+    return out;
+  }
+
   function emptyHtml(f) {
     /* Round 169 (WEB-20.5): when the words typed are what emptied the list,
        say that — CGPA advice is no help to a search that matched nothing. */
@@ -614,6 +636,6 @@
       + ' — or <a href="index.html#counsel">ask a counsellor</a> to check your profile against the full list.</div>';
   }
 
-  return { KEYS, LEVELS, SORTS, LOCKED_CAP, capLocked, facetValues, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml,
+  return { KEYS, LEVELS, SORTS, LOCKED_CAP, capLocked, facetValues, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml, listHtml, dividerHtml, isShort,
     nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num, logoFor, logoTokens, tagList, flagImg };
 });

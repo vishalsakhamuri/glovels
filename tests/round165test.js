@@ -58,9 +58,29 @@ const WEAK = Object.assign({}, BASE_PROFILE, { d_dur: '3 years' });
 const LOW = Object.assign({}, BASE_PROFILE, { d_cgpa: '6.0' });
 
 const uniOrder = rows => { const out = []; rows.forEach(r => { if (!out.includes(r.university)) out.push(r.university); }); return out; };
-const tier = r => (r.soft && r.soft.length) ? 'soft' : (r.ask && r.ask.length) ? 'ask' : 'clear';
-const fitPost = (profile, filters) => req('a', 'POST', '/api/staff/fit', { profile, filters: Object.assign({ limit: 500, kind: 'any' }, filters || {}) });
-const fitGet = (who, sid, q) => req(who, 'GET', '/api/staff/student/' + sid + '/fit?limit=500' + (q ? '&' + q : ''));
+/* Round 177 (item 8): a row short of a stated requirement the student
+   answered (IELTS, GRE, ECTS, German, work…) is no longer a "fit" — it is a
+   NEAR row carrying `hard`, the reason first, ranked below every fit. It is
+   still in the SET (owner's rule: country + level + field + CGPA decide the
+   set; everything else only ranks), so this suite reads the set as the fits
+   followed by the near rows whose only reasons are hard misses — the order
+   pick() fills a package in — and counts a hard miss as "ranked lower". */
+const hardOnly = n => (n.hard || []).length && (n.why || []).length === n.hard.length;
+const asSet = r => {
+  const b = r.body || {};
+  if (Array.isArray(b.fits)) {
+    const extra = (b.near || []).filter(hardOnly);
+    b.fits = b.fits.concat(extra);
+    b.near = (b.near || []).filter(n => !hardOnly(n)).map(n => Object.assign({}, n, { why: (n.why || []).slice(0, (n.why || []).length - (n.hard || []).length) }));
+    if (b.counts) { b.counts.fits = (b.counts.fits || 0) + extra.length; b.counts.near = Math.max(0, (b.counts.near || 0) - extra.length); }
+  }
+  return r;
+};
+const tier = r => ((r.hard && r.hard.length) || (r.soft && r.soft.length)) ? 'soft' : (r.ask && r.ask.length) ? 'ask' : 'clear';
+/* 2,000 (the server's cap), not 500: the hard-miss rows of the set travel
+   in near[], which also holds every row the grade bar turns away. */
+const fitPost = (profile, filters) => req('a', 'POST', '/api/staff/fit', { profile, filters: Object.assign({ limit: 2000, kind: 'any' }, filters || {}) }).then(asSet);
+const fitGet = (who, sid, q) => req(who, 'GET', '/api/staff/student/' + sid + '/fit?limit=2000' + (q ? '&' + q : '')).then(asSet);
 const visible = s => (s.shortlist || []).filter(r => r.addedBy !== 'student');
 
 (async () => {
@@ -167,8 +187,10 @@ const visible = s => (s.shortlist || []).filter(r => r.addedBy !== 'student');
   ok('no GRE and a 3-year bachelor\'s saves', r.status === 200, r.text.slice(0, 160));
   const weakFit = (await fitGet('a', S10.id)).body;
   ok('  · still the whole SET (' + idsOf(weakFit).length + ') — a shortfall never drops a row', idsOf(weakFit).length === N_all, idsOf(weakFit).length);
-  const softRows = (weakFit.fits || []).filter(x => x.soft.length);
-  ok('  · rows short of a stated requirement carry it in soft[] (' + softRows.length + ')', softRows.length > 0 && softRows.some(x => x.soft.some(w => /bachelor|GRE|ECTS/i.test(w))), J(softRows.slice(0, 2).map(x => x.soft)));
+  /* Round 177: a stated requirement they fall short of is in hard[] (and
+     first in why[]); the bachelor's subject stays in soft[]. */
+  const softRows = (weakFit.fits || []).filter(x => (x.hard || []).length || x.soft.length);
+  ok('  · rows short of a stated requirement carry it in hard[] / soft[] (' + softRows.length + ')', softRows.length > 0 && softRows.some(x => (x.hard || []).concat(x.soft).some(w => /bachelor|GRE|ECTS/i.test(w))) && softRows.filter(x => (x.hard || []).length).every(x => x.why[0] === x.hard[0]), J(softRows.slice(0, 2).map(x => (x.hard || []).concat(x.soft))));
   /* Within one relevance tier a shortfall sinks below every cleared row.
      Across tiers the subject's closeness comes first — a CS programme short
      on ECTS still ranks above a related-field one that clears everything. */
@@ -358,7 +380,17 @@ const visible = s => (s.shortlist || []).filter(r => r.addedBy !== 'student');
   await cp.waitForTimeout(1500);
   const fitHead = await cp.$$eval('#gfOut h4', hs => hs.map(h => h.textContent));
   const fitCount = (await cp.$$('#gfOut ul')).length ? await cp.$$eval('#gfOut ul >> nth=0 >> li', ls => ls.length) : 0;
-  ok('  · the matcher panel lists the whole set (Fits (' + N_all + '))', fitHead.some(h => h.includes('Fits (' + N_all)) && fitCount === N_all, J(fitHead) + ' rows=' + fitCount);
+  /* Round 177: the set is drawn across both lists — the fits, then under
+     "Near — short of something they ask" the rows with a hard miss (each
+     saying it first), beside the few the grade bar turns away. */
+  const hardDrawn = (await cp.$$('#gfOut ul')).length > 1 ? await cp.$$eval('#gfOut ul >> nth=1 >> li', ls => ls.filter(l => /Near — short of something they ask:/.test(l.textContent)).length) : 0;
+  /* What the API says for this student, raw: the fits, and every near row
+     with a hard miss (a few of those are also under the grade bar, so
+     outside the set — the panel marks them "Near" all the same). */
+  const rawFit = (await req('c', 'GET', '/api/staff/student/' + S5.id + '/fit?limit=2000')).body;
+  const rawHard = (rawFit.near || []).filter(x => (x.hard || []).length).length;
+  ok('  · the matcher panel lists the whole set (' + N_all + ': ' + fitCount + ' fits + ' + hardDrawn + ' near on a stated requirement)', fitHead.some(h => /^Fits \(\d+/.test(h)) && fitHead.some(h => /^Near — short of something they ask \(\d+\)/.test(h))
+    && fitCount === (rawFit.fits || []).length && hardDrawn === rawHard && idsOf(asSet({ body: rawFit }).body).length === N_all, J(fitHead) + ' rows=' + fitCount + '+' + hardDrawn + ' api=' + (rawFit.fits || []).length + '+' + rawHard);
   const firstFive = await cp.$$eval('#gfOut ul >> nth=0 >> li', ls => ls.slice(0, 12).map(l => (l.querySelector('.m b span') || l.querySelector('.m b') || {}).textContent || ''));
   const panelUnis = []; firstFive.forEach(u => { const t = u.replace(/Restricted$/, '').trim(); if (t && !panelUnis.includes(t)) panelUnis.push(t); });
   ok('  · in the ranking order the API gives', J(panelUnis.slice(0, 4)) === J(uniOrder(cFit.fits || []).slice(0, 4)), J(panelUnis.slice(0, 4)) + ' vs ' + J(uniOrder(cFit.fits || []).slice(0, 4)));

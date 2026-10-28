@@ -260,12 +260,21 @@ async function forgotPassword(){
   const el = document.getElementById('lEmail') || document.querySelector('input[type=email]');
   const who = (el && el.value.trim()) || '';
   if (who) {
+    /* Round 177 (item 13): the sign-in form's own email rule, before anything
+       is sent — "not-an-email" was told a reset link was on its way. */
+    if (!/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(who)) {
+      if (el && el.closest('.field')) el.closest('.field').classList.add('bad');
+      forgotBox('That does not look like an email address — check it and try again.', true);
+      return;
+    }
+    if (el && el.closest('.field')) el.closest('.field').classList.remove('bad');
     try {
       const r = await fetch('/api/auth/forgot', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ email: who })
       });
       const d = await r.json().catch(() => ({}));
+      if (!r.ok && d.error) { forgotBox(d.error, true); return; }
       forgotBox(d.message || 'If that email has an account, a reset link is on its way.');
     } catch (e) {
       forgotBox('We can\u2019t reach Glovels right now, so the reset link was not sent. '

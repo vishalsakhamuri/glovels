@@ -160,9 +160,14 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
   await setStatus('ok');
   ok((((await state()).docs || {}).passport || {}).status === 'ok', 'a slot is accepted');
   await send('passport', 'passport-page-two.pdf');
-  ok((((await state()).docs || {}).passport || {}).status === 'wait',
-    'and adding a file to it puts the whole slot back in review — otherwise '
-    + '"accepted" means "accepted as it was last week"');
+  /* Patch 177 (item 4): each file carries its own state. The new file is
+     In review (and is counted as a document to review on the office's
+     screens); the verified copy stays verified, so the document stays
+     accepted rather than every file in it answering for the newest. */
+  { const pp = ((await state()).docs || {}).passport || {};
+    const files = pp.files || [];
+    ok(pp.status === 'ok' && files.some(f => f.file === 'passport-page-two.pdf' && f.state === 'wait'),
+      'and adding a file to it puts THAT file in review beside the verified copy — the document stays accepted'); }
 
   /* ================== 6. the counsellor uploads, two different errands */
   const put = (key, name) => admin.request.post(

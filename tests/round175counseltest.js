@@ -125,8 +125,13 @@ const STORE = require(path.join(__dirname, '..', 'server', 'store.js'));
   const after = Object.fromEntries(db.getDocuments(stu.id).map(d => [d.filename, d]));
   ok('item 5 sweep: the .html and the HTML-inside "PDF" are marked bad, the real PDF is not', r1.marked === 2 && after['QA Fake Script.html'].verdict === 'bad' && after['looks-like.pdf'].verdict === 'bad' && after['real.pdf'].verdict === '', J(after));
   ok('item 5 sweep: an "ok" the bad file carried is gone', after['QA Fake Script.html'].verdict !== 'ok');
-  ok('item 5 sweep: a slot whose only file is bad goes back to "wait"; a slot that still holds a good file keeps its status',
-    after['looks-like.pdf'].status === 'wait' && after['real.pdf'].status === 'ok', J(after));
+  /* Patch 177 (item 4): a row's status is its own — the bad file reads
+     'bad' (so the slot, derived, is back in review); the real PDF beside an
+     .html that was accepted per file was never accepted itself, so it is
+     'wait' and the slot it is in reads 'wait' too. */
+  ok('item 5 sweep (177): a bad file reads bad on its own row; a file never accepted on its own reads wait; the slots derive from that',
+    after['looks-like.pdf'].status === 'bad' && after['real.pdf'].status === 'wait'
+      && STORE.slotStatus([after['looks-like.pdf']]) === 'wait' && STORE.slotStatus([after['QA Fake Script.html'], after['real.pdf']]) === 'wait', J(after));
   ok('item 5 sweep: one log line, "[docs] N file(s) marked not accepted"', lines.length === 1 && /^\[docs\] 2 file\(s\) marked not accepted/.test(lines[0]), J(lines));
   ok('item 5 sweep: nothing is deleted', fs.existsSync(path.join(up, String(stu.id), 'a.html')) && db.getDocuments(stu.id).length === 3);
   const r2 = FILECHECK.sweep(db, up, l => lines.push(l));

@@ -419,12 +419,16 @@
        number, the next university is #2. With the kind filter on the package's
        kind, the student's #1 is this #1: the same one-per-university order
        the package delivers. */
+    /* Round 177 (item 8): a near row says its reason FIRST — "Near — short
+       of something they ask: English test: asks IELTS 7, they have IELTS 5"
+       — before the programme line; a row short of a stated requirement is
+       never under "Fits". */
     const item = (r, onList, canAdd, rk) => '<li>' + (rk ? '<span class="rk" title="Rank for this profile">#' + rk + '</span> ' : '')
       + '<div class="m"><b>' + logoTile(r) + '<span>' + esc(r.university)
       + (r.restricted ? ' <span class="tag">Restricted</span>' : '') + '</span></b>'
+      + (r.why && r.why.length ? '<small class="why">' + (r.hard && r.hard.length ? 'Near — short of something they ask: ' : '') + esc(r.why.join('; ')) + '</small>' : '')
       + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + cost(r)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
-      + (r.why && r.why.length ? '<small class="why">' + esc(r.why.join('; ')) + '</small>' : '')
       /* Round 175: every published deadline has passed — said before the
          Add button asks "Add anyway?", and the row ranks after open ones. */
       + (r.closed ? '<small class="soft">Every deadline has passed' + (r.lastDeadline ? ' (last ' + esc(dateSaid(r.lastDeadline)) + ')' : '') + ' — next intake not announced</small>' : '')
@@ -456,7 +460,7 @@
          (422 with fields:[{field, why}]) — the word goes under the box it
          is about, and the box is marked, as well as the line in #gfOut. */
       const FIELD_BOX = { d_cgpa: 'gfCgpa', d_max: 'gfMax', d_pass: 'gfPass', e_score: 'gfEngS', a_score: 'gfGreS',
-        a_quant: 'gfGreQ', a_verbal: 'gfGreV', a_awa: 'gfGreA', ggpa: 'gfGgpa', w_months: 'gfWork' };
+        a_quant: 'gfGreQ', a_verbal: 'gfGreV', a_awa: 'gfGreA', ggpa: 'gfGgpa', w_months: 'gfWork', g_country: 'gfCountry' };
       el.querySelectorAll('.gf-err').forEach(x => x.remove());
       el.querySelectorAll('[aria-invalid]').forEach(x => x.removeAttribute('aria-invalid'));
       try { d = await o.run(filters()); } catch (e) {
@@ -502,7 +506,7 @@
          on screen; 900 rows cost about what 60 did. */
       const draw = () => { out.innerHTML = (basics
           ? '<p class="sum">' + d.counts.looked + ' programmes in that field and level · <b>' + d.counts.fits + ' fit</b> · '
-            + d.counts.near + ' miss on one thing' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'
+            + d.counts.near + ' near' + (d.counts.unknownDates ? ' · ' + d.counts.unknownDates + ' publish no dates' : '') + '</p>'
           : '<p class="why">Add the student\'s ' + missing.join(', ').replace(/, ([^,]*)$/, ' and $1') + ' to judge fit.</p>')
         + (auto ? '<div class="auto"><b style="display:block;margin-bottom:4px">What a package would deliver now'
           + (d.bought === false ? ' (not bought yet)' : '') + '</b>' + auto + '</div>' : '')
@@ -511,7 +515,7 @@
             const k = String(r.university || r.id).toLowerCase();
             if (!seen.has(k)) seen.set(k, seen.size + 1);
             return item(r, onList, canAdd, seen.get(k)); }).join(''); })() + '</ul>' : '<p class="sum">Nothing fits every answer.</p>')
-        + '<h4>Misses on one thing (' + d.near.length + ')</h4>'
+        + '<h4>Near — short of something they ask (' + d.near.length + ')</h4>'
         + (d.near.length ? '<ul>' + d.near.map(r => item(r, onList, canAdd)).join('') + '</ul>' : '<p class="sum">None.</p>'); };
       draw();
       /* The logos, once the index is here — the first run draws without

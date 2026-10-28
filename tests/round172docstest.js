@@ -143,7 +143,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const u3 = await upload('s', '/api/documents', { key: 'provis' }, 'third.pdf', pdf('THIRD-FILE'));
   stt = (await req('s', 'GET', '/api/state')).body;
   const f3 = (((stt.docs || {}).provis || {}).files || []).find(f => f.file === 'third.pdf');
-  ok('N17-02: a new file puts the document back in review', u3.status === 200 && stt.docs.provis.status === 'wait', stt.docs && stt.docs.provis && stt.docs.provis.status);
+  /* Patch 177 (item 4): each file carries its own state — the new file is
+     "In review" beside the verified copy, and the document keeps its
+     accepted status (a slot counts once, by its verified copy). */
+  ok('N17-02 (177): a new file joins In review while the document keeps its verified copy',
+    u3.status === 200 && stt.docs.provis.status === 'ok' && f3 && f3.state === 'wait' && f3.status === 'wait',
+    J(stt.docs && stt.docs.provis && { status: stt.docs.provis.status, f3 }));
   const delAcc = await req('s', 'DELETE', '/api/documents/file/' + f1.id);
   ok('STU-05 kept: the student cannot remove the accepted copy, even while the document is in review (409)',
     delAcc.status === 409 && delAcc.body.accepted, delAcc.status + ' ' + J(delAcc.body));

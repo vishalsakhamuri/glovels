@@ -83,8 +83,31 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
   /* ---- the ones that used to vanish entirely ----
      Bought together in one order, which is both closer to how a real basket
      arrives and keeps the suite inside the ten-orders-an-hour limit. */
+  /* Patch 177 (28 Oct, item 18): THE ₹0 RULE. The public checkout refuses a
+     service with no price that is not marked free — "on request"
+     (Accommodation) or "insurer's rates" (Insurance) — with 422; a
+     level-priced course (German) is charged for the level picked. So the
+     basket buys the free and priced ones plus German at B1, and the two
+     on-request services are booked the way the rule intends: by the office,
+     on the student's file, at the price it quoted
+     (POST /api/staff/student/:id/order {services:[{id, priceInr}]}). Each is
+     still tracked as its own task. */
   const many = ['loan', 'forex', 'ielts', 'accom', 'insure', 'german'];
-  const basket = await buyer('basket', many);
+  const basket = await buyer('basket', ['loan', 'forex', 'ielts', { id: 'german', level: 'B1' }]);
+  ok('the checkout basket (free + priced + German at a level) is a real order', basket.bought);
+  {
+    const refused = await req('basket', 'POST', '/api/orders', { name: 'basket', email: 'x@example.com', phone: '9876543210', acceptedTerms: true, services: ['accom'] });
+    ok('an "on request" service cannot be bought at ₹0 through the checkout (422)', refused.status === 422 && /on request|per level/.test(refused.body.error || ''), refused.status + ' ' + (refused.body.error || ''));
+    const quoted = await req('a', 'POST', '/api/staff/student/' + basket.id + '/order',
+      { services: [{ id: 'accom', priceInr: 4000 }, { id: 'insure', priceInr: 2500 }], note: 'quoted on the call' });
+    ok('the office books the on-request services at the price it quoted', quoted.ok && quoted.body.order && quoted.body.order.grossPaise === 650000,
+      quoted.status + ' ' + JSON.stringify(quoted.body).slice(0, 160));
+    const orders = ((await req('a', 'GET', '/api/staff/orders')).body.orders || []).filter(o => Number(o.studentId) === Number(basket.id));
+    const g = orders.find(o => (o.items || []).some(i => i.id === 'german'));
+    ok('the German course with a level picked is a priced order (B1, ₹20,000 here)', g && (g.items.find(i => i.id === 'german') || {}).level === 'B1'
+      && (g.items.find(i => i.id === 'german') || {}).paise === 2000000, JSON.stringify(g && g.items));
+    basket.tasks = ((await req('a', 'GET', '/api/staff/student/' + basket.id + '/tasks')).body.tasks || []);
+  }
   for (const [id, expect] of [['loan', /Loan/i], ['forex', /Blocked Account|Forex/i],
                               ['ielts', /IELTS/i], ['accom', /Accommodation/i],
                               ['insure', /Insurance/i], ['german', /German/i]]) {

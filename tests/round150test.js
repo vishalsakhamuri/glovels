@@ -32,9 +32,14 @@ const g3 = M.screen(cat, P, C, { ggpa: '3.0' });
 ok('a German grade typed in is used', !fits(g3).includes('g25') && g3.near.some(x => x.id === 'g25' && /German 2.5/.test(x.why[0])), JSON.stringify(g3.near));
 ok('  · and a good one clears', fits(M.screen(cat, P, C, { ggpa: '1.8' })).includes('g25'));
 const np = M.screen(cat, Object.assign({ g_papers: 'No' }, P), C, {});
-/* Patch 162: a shortfall ranks the row lower on the list; it is not dropped. */
+/* Patch 162: a shortfall ranks the row lower on the list; it is not dropped.
+   Round 177 (item 8): a stated requirement they answered and miss is a NEAR
+   row (`hard`, the reason first) — still in the set (fits, then the
+   hard-miss rows), ranked below every fit. */
+const setOf = r => r.fits.map(x => x.id).concat(r.near.filter(x => (x.hard || []).length && x.why.length === x.hard.length).map(x => x.id));
+const papRow = np.near.find(x => x.id === 'pap');
 ok('"Published a paper: No" keeps the programme that requires one, ranked last and saying why',
-  fits(np).includes('pap') && fits(np)[fits(np).length - 1] === 'pap' && np.fits.find(x => x.id === 'pap').soft.some(w => /paper/i.test(w)), fits(np));
+  !fits(np).includes('pap') && setOf(np)[setOf(np).length - 1] === 'pap' && papRow && /paper|Publication/i.test(papRow.why[0]) && papRow.hard.length === 1, setOf(np));
 
 console.log('round150test: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

@@ -28,6 +28,7 @@
  */
 
 const PLANS = require('./plans.js');
+const { openFile } = require('./store.js');
 
 const GST_RATE = 0.18;
 
@@ -102,13 +103,17 @@ function summarise(students, orders, now, payments) {
     services: 0,        /* line items on fully-paid orders — work delivered */
     overdue: 0,         /* of `pending`, the part whose date has passed */
     refunded: 0,        /* given back, across every order */
-    students: { active: 0, completed: 0, left: 0 },
+    /* Patch 177 (item 12): `active` is OPEN files — on the books and not
+       closed by the agency (store.openFile), the same count as the overview
+       tile; an active account the agency closed is `agencyClosed`. */
+    students: { active: 0, completed: 0, left: 0, agencyClosed: 0 },
     /* Who to chase, longest overdue first. The point of the screen. */
     owing: [],
   };
 
   students.forEach(s => {
     const k = s.status || 'active';
+    if (k === 'active' && !openFile(s)) { out.students.agencyClosed++; return; }
     if (out.students[k] != null) out.students[k]++;
   });
 
