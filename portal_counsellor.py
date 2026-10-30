@@ -50,6 +50,72 @@ BODY = """
       .tktbl .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
         text-decoration:underline;cursor:pointer}
       .tktbl .lnk:hover{color:var(--navy-900)}
+      /* Round 178 (BUG-091): the Tasks tab is a timeline, not a table — one
+         column that reads the same at 375px as at 1400px. */
+      #t-tasks .lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-deep);
+        text-decoration:underline;cursor:pointer}
+      #t-tasks .lnk[disabled]{opacity:.45;cursor:not-allowed}
+      .tl{list-style:none;margin:10px 0 0;padding:0}
+      .tl li{position:relative;padding:0 0 13px 28px;min-width:0}
+      .tl li::before{content:'';position:absolute;left:5px;top:4px;width:9px;height:9px;border-radius:50%;
+        border:2px solid #b8c2cf;background:#fff}
+      .tl li::after{content:'';position:absolute;left:10px;top:17px;bottom:0;width:2px;background:var(--line)}
+      .tl li:last-child::after{display:none}
+      .tl li.done::before{background:#1f8a4c;border-color:#1f8a4c}
+      .tl li.current{background:#eef4fd;border:1px solid #cfdcf3;border-radius:10px;
+        padding:9px 11px 10px 36px;margin:0 0 12px -8px}
+      .tl li.current::before{left:13px;top:13px;background:var(--blue,#1f5fbf);border-color:var(--blue,#1f5fbf)}
+      .tl li.current::after{display:none}
+      .tl li.current.over{background:#fdf1f0;border-color:#efc6c1}
+      .tl li.current.over::before,.tl li.overdue::before{background:#c0392b;border-color:#c0392b}
+      .tl li.locked::before{border-style:dashed}
+      .tl-now li.current{margin:0;}
+      .tl .tlrow,.tkc-now .tlrow{display:flex;gap:6px 10px;align-items:baseline;justify-content:space-between;flex-wrap:wrap}
+      .tl b{font:700 13px/1.45 var(--sans);color:var(--navy-900);overflow-wrap:anywhere;min-width:0}
+      .tl li.locked b,.tl li.upcoming b{font-weight:600;color:var(--navy-800)}
+      .tl .st{white-space:nowrap;display:inline-block;font:700 11px/1 var(--sans);padding:4px 8px;border-radius:999px}
+      .tl .st.bad{background:#fdecea;color:#7a2118;border:1px solid #f1c4bf}
+      .tl small{display:block;font-size:11.9px;line-height:1.5;color:var(--muted)}
+      .tl small.why{color:#8a5a00}
+      .tl small.bad{color:#a8343a;font-weight:700}
+      .tl .tlctl{margin-top:4px;font-size:12.4px}
+      .tl .tag{display:inline-block;font:700 10.5px/1.6 var(--sans);letter-spacing:.04em;text-transform:uppercase;
+        padding:0 7px;border-radius:999px;background:#dbe7fb;color:#123a7b;margin-left:6px;vertical-align:1px}
+      .tl .stuckrow{padding-left:28px}
+      .tl .stuckrow::before,.tl .stuckrow::after{display:none}
+      .tks-bar{height:6px;border-radius:4px;background:#e6ebf1;overflow:hidden}
+      .tks-bar i{display:block;height:100%;background:#1f8a4c;border-radius:4px}
+    </style>
+
+    <style>
+      /* Round 178 (BUG-092 / BUG-094): an application's dated history, and
+         the file's Activity timeline (the automatic notices, out of the chat). */
+      .apphist{display:flex;gap:6px 12px;flex-wrap:wrap;align-items:baseline;margin-top:8px;
+        padding-top:8px;border-top:1px dashed var(--line);font:400 11.8px/1.5 var(--sans);color:var(--muted)}
+      .apphist .ahlast{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+      .apphist .ahlast b{color:var(--navy-800)}
+      .apphist .lnk{border:0;background:none;padding:0;font:700 11.8px/1.5 var(--sans);
+        color:var(--blue-deep);text-decoration:underline;cursor:pointer}
+      .ahlist{flex-basis:100%;list-style:none;margin:4px 0 0;padding:0;display:grid;gap:6px}
+      .ahlist>div{display:grid;grid-template-columns:150px 1fr auto;gap:2px 10px;align-items:baseline;
+        padding:6px 9px;border-radius:8px;background:#f6f8fc;color:var(--navy-800)}
+      .ahlist>div.ah-internal_note{background:#fbfbf8;border:1px dashed #c9d1dc}
+      .ahlist time{color:var(--muted);font-size:11.2px;white-space:nowrap}
+      .ahlist .ahsaid{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
+      .ahlist .ahwho{color:var(--muted);font-size:11.2px;text-align:right}
+      .ahrole{font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+      .ahoff{font-style:normal;font-weight:700;color:#8a5a00}
+      @media (max-width:640px){ .ahlist>div{grid-template-columns:1fr} .ahlist .ahwho{text-align:left} }
+      .actlist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+      .actlist li{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--line);
+        border-radius:10px;background:var(--paper);font:400 12.8px/1.55 var(--sans);color:var(--navy-800)}
+      .actlist li .ico{flex:none;color:var(--blue-deep);margin-top:3px}
+      .actlist li span{flex:1;min-width:0;overflow-wrap:anywhere}
+      .actlist li small{display:block;font-size:11.2px;color:var(--muted)}
+      /* Round 178 (BUG-093): the current file first, older versions folded. */
+      .docearlier{margin:7px 0 0;font:400 11.8px/1.5 var(--sans);color:var(--muted)}
+      .docearlier summary{cursor:pointer;font-weight:700;color:var(--navy-700)}
+      .docearlier .docfiles{margin-top:7px !important;opacity:.85}
     </style>
 
     <div class="p-cols aside" style="--aside:320px;align-items:start;gap:16px">
@@ -342,9 +408,33 @@ function docGroups(rows) {
         '<span class="st ' + esc(st) + '" style="margin-left:0">' + esc(L[st] || st) + '</span>' +
         '<span style="font-size:11.4px;color:var(--muted)">' + files.length + ' file' + (files.length === 1 ? '' : 's') + '</span>' +
       '</div>' +
-      '<ul class="docfiles" style="list-style:none;margin:0;padding:0;display:grid;gap:7px">' +
-      files.map(f => fileRow(f, legacyOk)).join('') + '</ul></li>';
+      /* Round 178 (BUG-093): THE CURRENT FILE FIRST — the accepted copy, else
+         the newest (the server marks it `current`) — and every older version
+         folded under "Earlier versions (N)", each with its own verdict and
+         its own controls. It listed them oldest first at one weight, so a
+         rejected September upload sat above the October file in use. */
+      (() => {
+        const split = docVersions(files);
+        return '<ul class="docfiles" style="list-style:none;margin:0;padding:0;display:grid;gap:7px">' +
+          split.now.map(f => fileRow(f, legacyOk)).join('') + '</ul>' +
+          (split.earlier.length
+            ? '<details class="docearlier"><summary>Earlier versions (' + split.earlier.length + ')</summary>' +
+              '<ul class="docfiles" style="list-style:none;margin:0;padding:0;display:grid;gap:7px">' +
+              split.earlier.map(f => fileRow(f, legacyOk)).join('') + '</ul></details>'
+            : '');
+      })() + '</li>';
   }).join('');
+}
+/* Round 178 (BUG-093): current files (accepted first, newest first), then the
+   earlier versions newest first. A server that sends no `current` flag shows
+   everything as current, as before. */
+function docVersions(files) {
+  const known = files.some(f => f.current !== undefined);
+  const byNew = (a, b) => Number(b.id) - Number(a.id);
+  const now = files.filter(f => !known || f.current).sort((a, b) =>
+    ((b.state === 'ok') - (a.state === 'ok')) || byNew(a, b));
+  const earlier = known ? files.filter(f => !f.current).sort(byNew) : [];
+  return { now, earlier };
 }
 function fileRow(f, legacyOk) {
   const href = '/api/staff/student/' + encodeURIComponent(openId) + '/document/' +
@@ -506,7 +596,7 @@ function uniRow(p) {
     '<div style="flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;' +
       'margin-top:9px">' +
       '<label style="flex-basis:100%;font:700 10.6px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em;color:#8a5a00">' +
-        'Note to the student — they see this and are messaged it</label>' +
+        'Note to the student — they see this on the application and in their activity</label>' +
       '<textarea data-note="' + esc(p.id) + '" rows="2" maxlength="600" ' +
         'placeholder="What the student should know — filed, chased, reference number…" ' +
         'style="flex:1;min-width:220px;padding:8px 10px;font:400 12.4px/1.5 var(--sans);' +
@@ -531,7 +621,66 @@ function uniRow(p) {
         'data-app="' + esc(p.id) + '" title="The letter the university sent back">' +
         'Decision' + appFileMark(p.id, 'decision') + '</button>' +
     '</div>' +
+    /* Round 178 (BUG-092): the latest change on this application, and its
+       whole dated history one click away. */
+    appHistBlock(p.id) +
     '</li>';
+}
+
+/* Round 178 (BUG-092): WHAT HAPPENED TO ONE APPLICATION, dated and signed —
+   added, every stage and outcome change, every note (the office's own
+   marked as such), taken off. Newest first; open lists stay open across a
+   repaint. */
+const APPHIST_OPEN = new Set();
+function appEvents(id) {
+  return ((CASE && CASE.appHistory) || {})[id] || (((CASE && CASE.apps) || {})[id] || {}).history || [];
+}
+const histDay = iso => {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+    ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+};
+const histWho = e => esc(e.who || 'Glovels') +
+  (e.role && e.role !== 'system' ? ' <span class="ahrole">' + esc(e.role) + '</span>' : '');
+function appHistBlock(id) {
+  const ev = appEvents(id);
+  if (!ev.length) return '';
+  const last = ev[ev.length - 1];
+  const open = APPHIST_OPEN.has(String(id));
+  return '<div class="apphist" style="flex-basis:100%">' +
+    '<span class="ahlast"><b>Latest:</b> ' + esc(last.said) + ' · ' + histWho(last) + ' · ' + esc(histDay(last.at)) + '</span>' +
+    '<button type="button" class="lnk" data-apphist="' + esc(id) + '" aria-expanded="' + open + '">History (' + ev.length + ')</button>' +
+    /* Not an <ol>: this sits inside the list's own <li>, and every reader of
+       "#uniList li" counts the rows of the list. */
+    '<div class="ahlist" role="list" data-apphistlist="' + esc(id) + '"' + (open ? '' : ' hidden') + '>' +
+      ev.slice().reverse().map(e => '<div role="listitem" class="ah-' + esc(e.kind) + '"><time datetime="' + esc(e.at) + '">' + esc(histDay(e.at)) + '</time>' +
+        '<span class="ahsaid">' + (e.kind === 'internal_note' ? '<em class="ahoff">Office only</em> ' : '') + esc(e.said) + '</span>' +
+        '<span class="ahwho">' + histWho(e) + '</span></div>').join('') +
+    '</div></div>';
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-apphist]');
+  if (!b) return;
+  const id = b.dataset.apphist;
+  const list = b.parentNode.querySelector('[data-apphistlist]');
+  if (!list) return;
+  list.hidden = !list.hidden;
+  b.setAttribute('aria-expanded', String(!list.hidden));
+  if (list.hidden) APPHIST_OPEN.delete(id); else APPHIST_OPEN.add(id);
+});
+
+/* Round 178 (BUG-094): THE ACTIVITY TIMELINE — the automatic notices
+   ("I have added … to your list", a document asked for, a payment, a stage
+   the student was told about), newest first, out of the conversation. */
+function activityHtml(r) {
+  const a = (r && r.activity) || [];
+  if (!a.length) return '<p style="font-size:13px;color:var(--muted)">Nothing has happened on this file yet. ' +
+    'Notices the system sends the student — a university added, a document asked for, a payment — appear here, not in the conversation.</p>';
+  return '<p style="margin:0 0 10px;font-size:12px;color:var(--muted)">What the system has told ' + esc(String(r.student.name || '').split(' ')[0]) +
+    ', newest first. The student reads the same list under “What’s happened” on their dashboard.</p>' +
+    '<ol class="actlist">' + a.map(x => '<li>' + ico(x.who === 'me' ? 'user' : 'info') + '<span>' + esc(x.t) +
+      '<small>' + (x.who === 'me' ? 'From the student' : esc(x.from || 'Glovels')) + ' · ' + esc(histDay(x.at)) + '</small></span></li>').join('') +
+    '</ol>';
 }
 
 /* Whether a file is already on this application, said on the button that adds
@@ -634,6 +783,9 @@ function paintRecord(r) {
       '<div class="tabs" style="margin-bottom:14px">' +
         '<button class="tab" data-t="chat" aria-selected="true">' + ico('chat') + ' Conversation</button>' +
         '<button class="tab" data-t="file" aria-selected="false">' + ico('user') + ' Their file</button>' +
+        /* Round 178 (BUG-094): the automatic notices, out of the conversation. */
+        '<button class="tab" data-t="activity" aria-selected="false">' + ico('clock') + ' Activity' +
+          ((r.activity || []).length ? ' <span class="pill" style="margin-left:4px">' + r.activity.length + '</span>' : '') + '</button>' +
         /* The third tab, and the number on it is the thing worth seeing from
            the other two: how much of this file is past its date. */
         '<button class="tab" data-t="tasks" aria-selected="false">' + ico('check') +
@@ -695,6 +847,8 @@ function paintRecord(r) {
               esc(q.slice(0, 34)) + '…</button>').join('') +
         '</div>' +
       '</section>' +
+
+      '<section class="pane" id="t-activity">' + activityHtml(r) + '</section>' +
 
       '<section class="pane" id="t-file">' +
         '<div class="p-cols" style="align-items:start">' +
@@ -791,6 +945,11 @@ function paintRecord(r) {
             ' on the list</span>' +
           '<button type="button" class="btn btn-ghost btn-sm" id="fitUni" ' +
             'style="margin-left:auto">Find what fits</button>' +
+          /* Round 178 (F7.5): the office's list as an Excel file - University,
+             Programme, Tuition fee, IELTS/TOEFL, GPA, application start and
+             end, link (GET /api/staff/student/:id/shortlist.xlsx). */
+          '<a class="btn btn-ghost btn-sm" id="exportList" download ' +
+            'href="/api/staff/student/' + encodeURIComponent(openId) + '/shortlist.xlsx">Export to Excel</a>' +
           '<button type="button" class="btn btn-primary btn-sm" id="addUni">+ Add a university</button></div>' +
         /* Patch 147: the finder's filters, with names, run through the same
            rules as the paid shortlist — so a counsellor can test and build a
@@ -914,6 +1073,8 @@ function paintRecord(r) {
          only two answers that mean anything — it is done, or it is stuck and
          here is why. */
       '<section class="pane" id="t-tasks">' +
+        /* Round 178 (BUG-091): the step in hand first, then every step. */
+        tkcTimeline(r) +
         /* N17-05: the visa result and the travel date. Granted and refused
            need the visa decision letter on file; a refusal re-opens the visa
            steps; Departed needs granted + a travel date. */
@@ -921,7 +1082,7 @@ function paintRecord(r) {
           const v = r.visa || {}, vr = r.visaReady || { ok: 0, of: 6 };
           const opts = [['', 'No decision yet'], ['granted', 'Granted'], ['refused', 'Refused'],
             ['more', 'More documents asked']];
-          return '<div class="p-card" id="visaDecision" style="padding:12px 14px;margin-bottom:12px">' +
+          return '<div class="p-card" id="visaDecision" style="padding:12px 14px;margin:12px 0">' +
             '<b style="display:block;font-size:13px;margin-bottom:7px">Visa decision</b>' +
             '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
               '<select id="vdDecision" aria-label="Visa decision" style="padding:6px 8px;font:600 12px/1.3 var(--sans);' +
@@ -936,54 +1097,8 @@ function paintRecord(r) {
               vr.ok + ' of ' + vr.of + ' visa documents verified · Granted and refused need the visa ' +
               'decision letter on file · the student is told once per decision</span></div>';
         })() +
-        (!(r.tasks || []).length
-          ? '<p style="font-size:13px;color:var(--muted)">Nothing is owed on this file yet. ' +
-            'Steps appear as soon as a package is bought or a university is shortlisted.</p>'
-          : '<div class="p-card" style="padding:0;overflow-x:auto">' +
-            '<table class="tbl tktbl" style="margin:0"><thead><tr><th>What</th><th>By when</th>' +
-            '<th>State</th><th></th></tr></thead><tbody>' +
-            (r.tasks || []).map(t => {
-              const late = t.over != null && t.over > 0;
-              const said = t.over == null ? ''
-                : late ? t.over + ' day' + (t.over === 1 ? '' : 's') + ' ago'
-                : t.over === 0 ? 'today'
-                : t.over === -1 ? 'tomorrow' : 'in ' + (-t.over) + ' days';
-              const st = TASK_STATE[t.status] || ['wait', t.status];
-              return '<tr' + (late ? ' class="late"' : '') + '>' +
-                '<td>' + esc(t.title) +
-                  (t.basis === 'deadline'
-                    ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
-                      'dated back from the university deadline</span>' : '') + '</td>' +
-                '<td>' + (t.due
-                  ? '<b' + (late ? ' style="color:#a8343a"' : '') + '>' + esc(dueDay(t.due)) +
-                    '</b><span style="display:block;font-size:11.4px;color:' +
-                    (late ? '#a8343a' : 'var(--muted)') + '">' + esc(said) + '</span>'
-                  : '<span style="font-size:11.8px;color:var(--muted)">waiting on a ' +
-                    'university deadline</span>') + '</td>' +
-                '<td><span class="st ' + st[0] + '" style="text-transform:none;letter-spacing:0">' +
-                  esc(st[1]) + '</span>' +
-                  /* CNS-01: finished because the applications are past it. */
-                  (t.derived ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
-                    esc(t.why || 'Done because the applications are past this stage') + '</span>' : '') +
-                  (t.status === 'blocked' && t.note ? '<span style="display:block;font-size:11.2px;color:var(--muted)">' +
-                    esc(t.note) + '</span>' : '') +
-                  /* Round 177 (item 3): the applications are past this step
-                     but the file is not — said before the lock. */
-                  (t.waitingOn ? '<span style="display:block;font-size:11.2px;color:#8a5a00;font-weight:700">' +
-                    esc(t.waitingOn) + '</span>' : '') +
-                  /* N17-01 / N17-05: why "done" is refused right now. */
-                  (t.lock ? '<span style="display:block;font-size:11.2px;color:#8a5a00">' +
-                    esc(t.lock) + '</span>' : '') + '</td>' +
-                '<td style="text-align:right;white-space:nowrap">' +
-                  (t.derived ? '' : t.status === 'done'
-                    ? '<button type="button" class="lnk" data-task-open="' + t.id + '">reopen</button>'
-                    : '<button type="button" class="lnk" data-task-done="' + t.id + '"' +
-                      (t.lock ? ' disabled title="' + esc(t.lock) + '" style="opacity:.45;cursor:not-allowed"' : '') +
-                      '>done</button>' +
-                      ' · <button type="button" class="lnk" data-task-stuck="' + t.id +
-                      '">stuck</button>') + '</td></tr>';
-            }).join('') +
-            '</tbody></table></div>') +
+        /* Round 178 (BUG-091): the flat table that stood here is the
+           timeline above (tkcTimeline). */
       '</section>' +
     '</div>';
 
@@ -1688,7 +1803,82 @@ const TASK_STATE = { open: ['wait', 'Not started'], doing: ['wait', 'In hand'],
 
 /* How many of this file's steps are past their date — the number on the tab,
    so it is visible from the other two. */
-const tkLate = r => (r.tasks || []).filter(t => t.over != null && t.over > 0).length;
+/* Round 178: from the timeline, so a locked step is never counted as late. */
+const tkLate = r => (r.timeline ? (r.timeline.overdue || 0)
+  : (r.tasks || []).filter(t => t.over != null && t.over > 0).length);
+
+/*
+ * Round 178 (BUG-091 / BUG-090): THE TASKS TAB AS A TIMELINE.
+ *
+ * It was one flat 13-row table whose columns broke on a phone. It is now the
+ * same timeline the office board opens: the step in hand at the top, then
+ * every step in order — done ones with the date and who (or "ticked
+ * automatically" where the applications did it), upcoming ones with their
+ * date, and locked ones with the reason they cannot start yet. Why a step
+ * cannot be ticked is written under it, not hidden in a button's tooltip.
+ */
+const tkcDist = x => {
+  if (!x.due) return 'No date yet — waiting on a university deadline';
+  const o = x.over;
+  if (o == null) return 'Due ' + dueDay(x.due);
+  if (o > 0) return o + ' day' + (o === 1 ? '' : 's') + ' overdue · was due ' + dueDay(x.due);
+  if (o === 0) return 'Due today, ' + dueDay(x.due);
+  if (o === -1) return 'Due tomorrow, ' + dueDay(x.due);
+  return 'Due ' + dueDay(x.due) + ' · in ' + (-o) + ' days';
+};
+const tkcPill = x => x.state === 'done' ? ['ok', 'Finished'] : x.state === 'locked' ? ['wait', 'Not yet']
+  : x.overdue ? ['bad', 'Overdue'] : x.status === 'blocked' ? ['bad', 'Stuck']
+  : x.status === 'doing' ? ['wait', 'In hand'] : (x.over != null && x.over >= -7) ? ['wait', 'Due soon']
+  : ['wait', 'Not started'];
+function tkcStep(x) {
+  const pill = tkcPill(x);
+  let sub = '', ctl = '';
+  if (x.state === 'done') {
+    sub = '<small>' + esc(x.derived ? 'Ticked automatically (the applications are past this stage)'
+      : 'Done ' + (x.doneAt ? dueDay(x.doneAt) : 'on an unrecorded date') + (x.doneBy ? ' · by ' + x.doneBy : '')) + '</small>';
+    if (!x.derived) ctl = '<button type="button" class="lnk" data-task-open="' + x.id + '">reopen</button>';
+  } else if (x.state === 'locked') {
+    sub = '<small class="why">' + esc(x.lockReason) + '</small>' +
+      (x.due ? '<small>Planned for ' + esc(dueDay(x.due)) + '</small>' : '');
+  } else {
+    sub = '<small' + (x.overdue ? ' class="bad"' : '') + '>' + esc(tkcDist(x)) + '</small>' +
+      (x.basis === 'deadline' ? '<small>Dated back from the university deadline</small>' : '') +
+      (x.status === 'blocked' && x.note ? '<small class="why">Stuck: ' + esc(x.note) + '</small>' : '') +
+      (x.waitingOn ? '<small class="why">' + esc(x.waitingOn) + '</small>' : '') +
+      (x.block ? '<small class="why">Can’t be ticked yet: ' + esc(x.block) + '</small>' : '');
+    ctl = '<button type="button" class="lnk" data-task-done="' + x.id + '"' +
+      (x.block ? ' disabled aria-disabled="true"' : '') + '>done</button>' +
+      ' · <button type="button" class="lnk" data-task-stuck="' + x.id + '">stuck</button>';
+  }
+  return '<li class="' + x.state + (x.current && x.overdue ? ' over' : '') + '" data-step="' + x.id + '">' +
+    '<div class="tlrow"><b>' + esc(x.title) + (x.current ? '<span class="tag">Now</span>' : '') + '</b>' +
+    '<span class="st ' + pill[0] + '" style="text-transform:none;letter-spacing:0">' + esc(pill[1]) + '</span></div>' +
+    sub + (ctl ? '<div class="tlctl">' + ctl + '</div>' : '') + '</li>';
+}
+function tkcTimeline(r) {
+  const T = r.timeline;
+  if (!T || !(T.steps || []).length) {
+    return '<p style="font-size:13px;color:var(--muted)">Nothing is owed on this file yet. ' +
+      'Steps appear as soon as a package is bought or a university is shortlisted.</p>';
+  }
+  const pr = T.progress || { done: 0, total: 0 };
+  const pct = pr.total ? Math.round(pr.done / pr.total * 100) : 0;
+  const cur = T.current;
+  return '<div class="p-card tkc-now" style="padding:12px 14px;margin-bottom:12px">' +
+      '<div class="tlrow" style="margin-bottom:6px"><b style="font-size:12px;letter-spacing:.06em;' +
+        'text-transform:uppercase;color:var(--muted)">' + (cur ? 'The step in hand' : 'Nothing to do right now') + '</b>' +
+        '<span style="font:700 12.4px/1.4 var(--sans);color:var(--navy-800)">' + pr.done + ' of ' + pr.total + ' done' +
+        (T.overdue ? ' · <span style="color:#a8343a">' + T.overdue + ' overdue</span>' : '') + '</span></div>' +
+      '<div class="tks-bar" aria-hidden="true"><i style="width:' + pct + '%"></i></div>' +
+      (cur ? '<ol class="tl tl-now">' + tkcStep(cur) + '</ol>'
+        : T.nextLocked ? '<p style="margin:9px 0 0;font-size:12.6px"><b>Next: ' + esc(T.nextLocked.title) +
+            '</b><span style="display:block;color:#8a5a00;font-size:12px">' + esc(T.nextLocked.lockReason) + '</span></p>'
+        : '<p style="margin:9px 0 0;font-size:12.6px;color:var(--muted)">Every step is finished.</p>') +
+    '</div>' +
+    '<div class="p-card" style="padding:12px 14px 4px">' +
+      '<b style="display:block;font-size:13px;margin-bottom:2px">Every step</b>' +
+      '<ol class="tl" aria-label="Every step on this file">' + T.steps.map(tkcStep).join('') + '</ol></div>';
+}
 
 async function open(id) {
   openId = id;
@@ -2155,7 +2345,7 @@ document.addEventListener('click', async e => {
   /* CNS-07 (1): "stuck" opens a note field under the task, not a prompt(). */
   const sv = e.target.closest('[data-stuck-save]');
   if (sv) {
-    const row = sv.closest('tr');
+    const row = sv.closest('.stuckrow');
     const inp = row && row.querySelector('input');
     const why = inp ? inp.value.trim() : '';
     if (!why) { if (inp) inp.focus(); return; }
@@ -2166,7 +2356,7 @@ document.addEventListener('click', async e => {
     } catch (err) { sv.disabled = false; toast(err.message || 'That did not save.'); }
     return;
   }
-  if (e.target.closest('[data-stuck-cancel]')) { const r0 = e.target.closest('tr'); if (r0) r0.remove(); return; }
+  if (e.target.closest('[data-stuck-cancel]')) { const r0 = e.target.closest('.stuckrow'); if (r0) r0.remove(); return; }
   /* Done, reopened, or stuck and why. Three clicks, because a task screen
      that takes a form to answer is a task screen that stays out of date. */
   const td = e.target.closest('[data-task-done]') || e.target.closest('[data-task-open]')
@@ -2180,17 +2370,21 @@ document.addEventListener('click', async e => {
         if (body) await api('PUT', '/api/staff/task/' + id, body);
         else {
           /* CNS-07 (1): an inline note field under the row, not prompt(). */
-          const tr = td.closest('tr');
+          /* Round 178: a timeline step is an <li>; a table row is a <tr>. */
+          const tr = td.closest('tr, li');
           if (!tr) return;
           const nx = tr.nextElementSibling;
           if (nx && nx.classList.contains('stuckrow')) { const i0 = nx.querySelector('input'); if (i0) i0.focus(); return; }
-          tr.insertAdjacentHTML('afterend', '<tr class="stuckrow"><td colspan="4" style="background:#fdf6f0">' +
+          const isLi = tr.tagName === 'LI';
+          tr.insertAdjacentHTML('afterend', (isLi ? '<li class="stuckrow"><div style="background:#fdf6f0;padding:9px 10px;border-radius:9px">'
+              : '<tr class="stuckrow"><td colspan="4" style="background:#fdf6f0">') +
             '<label style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">' +
               'What is holding this up? The office sees this.</label>' +
             '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-              '<input type="text" maxlength="400" class="stucknote" style="flex:1;min-width:200px;font-size:13px;padding:7px 9px">' +
+              '<input type="text" maxlength="400" class="stucknote" style="flex:1;min-width:160px;font-size:13px;padding:7px 9px">' +
               '<button type="button" class="btn btn-primary btn-sm" data-stuck-save="' + id + '">Save</button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" data-stuck-cancel>Cancel</button></div></td></tr>');
+              '<button type="button" class="btn btn-ghost btn-sm" data-stuck-cancel>Cancel</button></div>' +
+            (isLi ? '</div></li>' : '</td></tr>'));
           tr.nextElementSibling.querySelector('input').focus();
           return;
         }

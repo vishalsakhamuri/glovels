@@ -1078,6 +1078,22 @@ select.assign.none:hover{border-color:#a5342b}
       <div id="boughtWrap"></div>
     </section>
 
+    <!-- Round 178 (BUG-094): WHAT'S HAPPENED. The automatic notices — a
+         university added to your list, a document asked for again, a payment
+         received, an application moved on — used to be posted into the
+         conversation, where they buried what your counsellor actually wrote.
+         They are listed here instead, newest first; Messages is people. -->
+    <section class="p-sec" id="actSec" hidden>
+      <div class="p-sec-head">
+        <h2>What&rsquo;s happened</h2>
+        <a href="applications.html">My applications <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="p-card" style="padding:14px 16px">
+        <ol id="actList" style="list-style:none;margin:0;padding:0;display:grid;gap:8px"></ol>
+        <button type="button" class="btn btn-ghost btn-sm" id="actMore" hidden style="margin-top:10px"></button>
+      </div>
+    </section>
+
     <div class="p-cols" id="trackCols">
       <div class="p-card">
         <h3><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Application tracker <span class="pill" id="trackPill"></span></h3>
@@ -1367,7 +1383,7 @@ function __dashMain() {
 const $ = s => document.querySelector(s);
 const nf = new Intl.NumberFormat('en-IN');
 const C = {"DE": {"name": "Germany", "flag": "🇩🇪"}, "CA": {"name": "Canada", "flag": "🇨🇦"}, "GB": {"name": "United Kingdom", "flag": "🇬🇧"}, "IE": {"name": "Ireland", "flag": "🇮🇪"}, "PL": {"name": "Poland", "flag": "🇵🇱"}, "ES": {"name": "Spain", "flag": "🇪🇸"}, "IT": {"name": "Italy", "flag": "🇮🇹"}};
-const FALLBACK = [{"program": "IT Security", "university": "University of Lubeck", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Systems Engineering", "university": "University Paderborn", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-05-31"}, {"season": "summer", "deadline": "2026-11-30"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "MSc Autonomy Technologies", "university": "FAU Erlangen-Nuremberg", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Engineering (M. Eng.)", "university": "University of Rostock", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Engineering and Information Technology", "university": "RWTH Aachen University", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-03-01"}, {"season": "summer", "deadline": "2026-09-01"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Foundation Year — Business", "university": "Arden University", "city": "Coventry", "country": "GB", "totalInr": 275000, "isPublic": false, "intakes": [{"season": "winter", "deadline": "2026-08-31"}], "fit": 80, "why": ["Comfortably meets academics", "Within budget", "Work rights during study"], "months": 12, "feeEur": 1250, "semesters": 2}, {"program": "MSc Computer Science", "university": "Vistula University", "city": "Warsaw", "country": "PL", "totalInr": 899800, "isPublic": false, "intakes": [{"season": "winter", "deadline": "2026-07-01"}], "fit": 75, "why": ["Comfortably meets academics", "Within budget", "Work rights during study"], "months": 24, "feeEur": 2045, "semesters": 4}];
+const FALLBACK = [{"program": "IT Security", "university": "University of Lubeck", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Systems Engineering", "university": "University Paderborn", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-05-31"}, {"season": "summer", "deadline": "2026-11-30"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "MSc Autonomy Technologies", "university": "FAU Erlangen-Nuremberg", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Engineering (M. Eng.)", "university": "University of Rostock", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-07-15"}, {"season": "summer", "deadline": "2026-01-15"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Electrical Engineering and Information Technology", "university": "RWTH Aachen University", "city": "", "country": "DE", "totalInr": 0, "isPublic": true, "intakes": [{"season": "winter", "deadline": "2026-03-01"}, {"season": "summer", "deadline": "2026-09-01"}], "fit": 69, "why": ["Meets academics", "No tuition", "Work rights during study"], "months": 24, "feeEur": 0.0, "semesters": 4}, {"program": "Foundation Year — Business", "university": "Arden University", "city": "Coventry", "country": "GB", "totalInr": 0, "feeIndicative": true, "isPublic": false, "intakes": [{"season": "winter", "deadline": "2026-08-31"}], "fit": 80, "why": ["Comfortably meets academics", "Within budget", "Work rights during study"], "months": 12, "feeEur": 1250, "semesters": 2}, {"program": "MSc Computer Science", "university": "Vistula University", "city": "Warsaw", "country": "PL", "totalInr": 899800, "isPublic": false, "intakes": [{"season": "winter", "deadline": "2026-07-01"}], "fit": 75, "why": ["Comfortably meets academics", "Within budget", "Work rights during study"], "months": 24, "feeEur": 2045, "semesters": 4}];
 const DEMO_EMAIL = "student@glovels.com";
 /* The demo account gets a worked example: an Offer Letter order and a shortlist.
    Anyone who pays on the website overrides it with their own. */
@@ -1420,7 +1436,11 @@ $('#helloSub').textContent = paid
     + slSaid + '.'
   : 'Here is where your application stands today.';
 
-const money = p => p.totalInr === 0 ? '\u20B90 tuition'
+/* Round 178: an agent-portal (indicative) fee is never the student's \u2014 the
+   server sends 0 and `feeIndicative`; the status (public/private) is not
+   known either, so no label (typeOf ''). */
+const typeOf = p => (p && p.feeIndicative) ? '' : (p && p.isPublic ? 'Public' : 'Private');
+const money = p => (p.feeIndicative || p.feeHidden) ? 'Fee on request' : p.totalInr === 0 ? '\u20B90 tuition'
   : '\u2248 \u20B9' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L total';
 /* The deadline to show: for the intake the student chose on their profile
    when that term is still open for this programme, otherwise the next date
@@ -1486,8 +1506,8 @@ function card(p, i){
     + cell('Location', where ? esc(where) : '<span class="sl-none">\u2014</span>', 'sl-where')
     + cell('Match', p.withdrawn
         ? '<span class="sl-tag sl-tag-gone" style="background:#fff4ed;color:#9a3412;border-color:#f3c9a8">No longer offered</span>'
-        : '<span class="sl-tag">' + ico('check') + 'Matched \u00b7 '
-        + (p.isPublic ? 'Public' : 'Private') + '</span>')
+        : '<span class="sl-tag">' + ico('check') + 'Matched'
+        + (typeOf(p) ? ' \u00b7 ' + typeOf(p) : '') + '</span>')
     + cell('Tuition', '<b>' + money(p) + '</b>', 'sl-fee')
     + cell('Application deadline', dateOf(p)
         ? esc(dateOf(p)) : '<span class="sl-none">\u2014</span>', 'sl-when')
@@ -1907,6 +1927,42 @@ $('#signOut').onclick = async (e) => {
 
 }
 __dashBoot(function () { __dashMain();
+/* Round 178 (BUG-094): "What's happened" — the notices, newest first, six at
+   a time. From the same /api/state as the rest of this screen. */
+(function () {
+  var st = window.__GLOVELS;
+  var sec = document.getElementById('actSec');
+  var list = document.getElementById('actList');
+  var more = document.getElementById('actMore');
+  if (!sec || !list || !st || !st.activity || !st.activity.length) return;
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+  var day = function (iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+      ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  };
+  var all = st.activity, shown = 6;
+  var paint = function () {
+    list.innerHTML = all.slice(0, shown).map(function (a) {
+      return '<li class="act" style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;' +
+        'border:1px solid var(--line);border-radius:10px;background:var(--paper)">' +
+        '<svg class="ico" aria-hidden="true" style="flex:none;margin-top:3px;color:var(--blue-deep)"><use href="#i-' +
+          (a.who === 'me' ? 'user' : 'check') + '"/></svg>' +
+        '<span style="flex:1;min-width:0;overflow-wrap:anywhere;font:400 13px/1.55 var(--sans);color:var(--navy-800)">' +
+          esc(a.t) + '<small style="display:block;font-size:11.4px;color:var(--muted)">' +
+          (a.who === 'me' ? 'You asked' : esc(a.from || 'Glovels')) + ' &middot; ' + esc(day(a.at)) + '</small></span></li>';
+    }).join('');
+    more.hidden = all.length <= shown;
+    more.textContent = 'Show all ' + all.length;
+  };
+  more.onclick = function () { shown = all.length; paint(); };
+  paint();
+  sec.hidden = false;
+}());
 /* Every order, newest first, with what was in it. */
 (function () {
   var st = window.__GLOVELS;
@@ -2379,7 +2435,7 @@ if (location.protocol === 'file:') {
         '<header><div><b>' + (state.signedIn ? 'Your counsellor' : 'Glovels') + '</b>'
       + '<span>' + (state.signedIn
           ? 'This is the same conversation as your Messages screen.'
-          : 'Mon–Sat, 10am–7pm. Replies appear here.') + '</span></div>'
+          : 'Mon–Sat, 9:30am–7:30pm IST. Replies appear here.') + '</span></div>'
       + '<button type="button" aria-label="Close the chat">×</button></header>'
       + '<div class="gv-body"></div>'
       + ((state.started || state.signedIn) ? composer() : intro());

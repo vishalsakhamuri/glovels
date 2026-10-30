@@ -23,6 +23,7 @@ const FIND = require('./find.js');
 const REQS = require('./reqs.js');
 const LOGOS = require('./logos.js');
 const TAGS = require('./tags.js');
+const UNIS = require('./unis.js');
 const UNISEARCH = require('./unisearch.js');
 const HERO = require('./hero.js');
 
@@ -62,7 +63,9 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
   function publicRows() {
     let gate = 'gated';
     try { const f = content && content.get('finder'); if (f && f.gate) gate = f.gate; } catch (e) { /* strictest */ }
-    return liveCatalogue().filter(p => !p.searchOnly && p.level && p.field).map(p => {
+    /* Round 178: an indicative (agent-portal) fee never reaches a visitor —
+       the named rows below carried totalInr raw (UNIS.publicFee). */
+    return liveCatalogue().filter(p => !p.searchOnly && p.level && p.field).map(UNIS.publicFee).map(p => {
       /* A named row carries its logo (server/logos.js); a locked one never
          does — the logo would name the university the row withholds. */
       /* The tags too, the way /api/catalogue sends them (10 Oct): the row's
@@ -125,7 +128,8 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       + opt('package', 'With a package', R.facets.apply.package, { name: 'apply', value: f.apply });
     const te = '<label class="fopt"><input type="checkbox" name="moi" value="1"' + (f.moi ? ' checked' : '') + '> <span>MOI letter accepted</span></label>'
       + '<label class="fopt"><input type="checkbox" name="nogre" value="1"' + (f.nogre ? ' checked' : '') + '> <span>No GRE needed</span></label>'
-      + '<label class="fopt"><input type="checkbox" name="restricted" value="open"' + (f.restricted === 'open' ? ' checked' : '') + '> <span>Open admission only</span></label>';
+      /* Round 178 (F7.4): Germany-only — hidden for another destination. */
+      + '<label class="fopt" data-germany-only="1"' + (FIND.germanyOnlyOff(f) ? ' hidden' : '') + '><input type="checkbox" name="restricted" value="open"' + (f.restricted === 'open' ? ' checked' : '') + '> <span>Open admission only</span></label>';
     return g('Destination', dest, true) + g('Level', level, true) + g('Field', field, !!f.field) + g('Your CGPA', cg, !!f.cgpa)
       + g('Tuition', tu, !!f.tuition) + g('Intake', it, !!f.intake) + g('Applying', ap, !!f.apply) + g('Tests & admission', te, !!(f.moi || f.nogre || f.restricted))
       + '<details class="fg" id="ftagsGroup" open' + (FIND.tagList(f.tags).length ? '' : ' hidden') + '><summary>Tags</summary><div class="fgb" id="ftagsRail">' + tagsRailHtml(f) + '</div></details>';
@@ -152,13 +156,15 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     return chips.length ? chips.join('') + '<button type="button" class="flink" data-clear="*">Clear all</button>' : '';
   }
 
+  /* Round 178 (owner): the public side HIDES what the visitor falls short of. */
+  const PROF_HIDDEN = 'Programmes that ask for more than you told us — a grade, an English score, ECTS credits, the GRE — are not shown.';
   function profileStrip(R) {
     if (R.said) {
       const parts = Object.keys(R.student).filter(k => k !== 'restrictedOk').length;
       /* Round 176: no count of the rows turned away — a count of the
          hidden set is what it would be. */
       return '<div class="fprof said"><b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
-        + (R.turned ? 'Some programmes ask a higher CGPA and are not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
+        + (R.turned ? PROF_HIDDEN + ' ' : '')
         + '<a href="index.html#find">Change your answers →</a></div>';
     }
     return '<div class="fprof"><b>Tell us your scores to see which of these would take you.</b> Your CGPA, IELTS and bachelor’s length are enough to start — '
@@ -245,7 +251,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       HERO: HERO.attrs({ eyebrow: 'Find university', chips: [
         [(() => { const n = new Set(rows.map(p => p.country)).size; return n + ' countr' + (n === 1 ? 'y' : 'ies'); })(), 'to choose from'],
         ['Public', 'and private universities'],
-        ['Free', 'to apply at partners'],
+        ['Free', 'to apply at affiliated universities'],
       ] }),
       DATELINE: 'Every programme we track, filtered to what fits you. Change a filter and the address changes with it — bookmark it, share it, come back to it.',
       CRUMBS: '<a href="index.html">Home</a> / Find University',
@@ -508,6 +514,8 @@ function counts(){
   $$('#frail input[type=checkbox]').forEach(function(i){ i.checked = !!f[i.name]; });
   var cg = $('#fcgpa'); if (cg) { cg.value = f.cgpa || '7.5'; var o = cg.nextElementSibling; if (o) o.textContent = f.cgpa ? 'CGPA ' + f.cgpa : 'Not told us yet'; if (cg.parentNode) cg.parentNode.classList.toggle('empty', !f.cgpa); }
   var cgn = $('#fcgnone'); if (cgn) cgn.checked = !f.cgpa;
+  /* Round 178 (F7.4): the Germany-only boxes follow the destination. */
+  $$('#frail [data-germany-only]').forEach(function(l){ l.hidden = F.germanyOnlyOff(f); });
   var s = $('#fsort'); if (s) s.value = f.sort || F.defaultSort(result.said);
   $$('.fview button').forEach(function(b){ b.setAttribute('aria-pressed', String((f.view || 'list') === b.dataset.view)); });
 }
@@ -518,7 +526,7 @@ function profile(){
     var parts = Object.keys(result.student).filter(function(k){ return k !== 'restrictedOk'; }).length;
     el.className = 'fprof said';
     el.innerHTML = '<b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
-      + (result.turned ? 'Some programmes ask a higher CGPA and are not shown; anything else you fall short of is ranked lower, not hidden. ' : '')
+      + (result.turned ? 'Programmes that ask for more than you told us — a grade, an English score, ECTS credits, the GRE — are not shown. ' : '')
       + '<a href="index.html#find">Change your answers →</a>';
   } else if (me) {
     el.className = 'fprof';
@@ -561,9 +569,9 @@ function compareNow(){
   var yn = function(v){ return v === true ? 'Yes' : v === false ? 'No' : '—'; };
   var val = function(v, suf){ return (v === null || v === undefined || v === '') ? '—' : esc(v) + (suf || ''); };
   var dl = function(p){ var d = F.nextDeadline(p); return d.at ? d.at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : d.closed ? 'Intake closed' : 'To confirm'; };
-  var fee = function(p){ return F.locked(p) ? 'Unlock with a package' : F.feeUnknown(p) ? 'To be confirmed' : F.tuitionOf(p) === 0 ? 'No tuition' : F.money(p.totalInr) + ' total'; };
+  var fee = function(p){ return F.locked(p) ? 'Unlock with a package' : (F.feeIndicative && F.feeIndicative(p)) ? (Number(p.totalInr) > 0 ? F.money(p.totalInr) + ' total (indicative)' : 'Fee on request') : F.feeUnknown(p) ? 'To be confirmed' : F.tuitionOf(p) === 0 ? 'No tuition' : F.money(p.totalInr) + ' total'; };
   var lines = [['Level', function(p){ return F.LEVELS[String(p.level).toLowerCase()] || p.level; }], ['Field', function(p){ return p.field; }], ['Country', function(p){ return (countries[p.country] || {}).name || p.country; }],
-    ['Type', function(p){ return p.isPublic ? 'Public' : 'Private'; }], ['Applying', function(p){ return F.feeOf(p) === 'free' ? 'Free to apply' : 'With a package'; }], ['Cost', fee], ['Tuition / semester', function(p){ var t = F.tuitionOf(p); return t == null ? '—' : t === 0 ? 'None' : '€' + t; }],
+    ['Type', function(p){ return (F.typeLabel ? F.typeLabel(p) : (p.isPublic ? 'Public' : 'Private')) || '—'; }], ['Applying', function(p){ return F.feeOf(p) === 'free' ? 'Free to apply' : 'With a package'; }], ['Cost', fee], ['Tuition / semester', function(p){ var t = F.tuitionOf(p); return t == null ? '—' : t === 0 ? 'None' : '€' + t; }],
     ['Next deadline', dl], ['CGPA asked', function(p){ return val(p.minCgpa); }], ['IELTS', function(p){ return val(rq(p).ieltsMin); }], ['TOEFL', function(p){ return val(rq(p).toeflMin); }], ['MOI letter', function(p){ return yn(rq(p).moiAccepted); }],
     ['GRE', function(p){ return rq(p).greRequired === true ? 'Required' + (rq(p).greMin ? ' (' + rq(p).greMin + ')' : '') : rq(p).greRequired === false ? 'Not needed' : '—'; }], ['German', function(p){ return val(rq(p).germanLevel); }], ['Bachelor’s', function(p){ return val(rq(p).bachelorYears, '-year'); }],
     ['Work experience', function(p){ return rq(p).workExpRequired === true ? (rq(p).workExpMonths ? rq(p).workExpMonths + ' months' : 'Yes') : rq(p).workExpRequired === false ? 'No' : '—'; }], ['Restricted admission', function(p){ return yn(rq(p).restricted); }]];

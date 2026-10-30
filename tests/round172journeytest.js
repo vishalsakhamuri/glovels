@@ -69,7 +69,8 @@ const VISA_REQ = ['visa-offer', 'visa-funds', 'visa-insurance', 'visa-form', 'vi
       await req('a', 'PUT', '/api/staff/task/' + t.id, { status: 'done' });
     }
   };
-  const msgs = async (id, re) => ((await caseOf(id)).msgs || []).filter(m => re.test(String(m.t || '')));
+  /* Round 178 (BUG-094): the stage and visa notices are on the Activity timeline. */
+  const msgs = async (id, re) => ((await caseOf(id)).activity || []).filter(m => re.test(String(m.t || '')));
 
   /* ================= N17-01: a lead-converted student, no package */
   r = await req('a', 'POST', '/api/staff/leads', { name: 'Lead Journey ' + stamp, phone: '98' + String(Date.now()).slice(-8),
@@ -308,7 +309,8 @@ const VISA_REQ = ['visa-offer', 'visa-funds', 'visa-insurance', 'visa-form', 'vi
     await cp.click('.tab[data-t="tasks"]').catch(() => {});
     await cp.waitForTimeout(500);
     const lockUi = await cp.evaluate(() => {
-      const row = [...document.querySelectorAll('#t-tasks tr')].find(r => /Profile completed/.test(r.textContent));
+      /* Round 178 (BUG-091): the Tasks tab is a timeline of <li data-step>. */
+      const row = [...document.querySelectorAll('#t-tasks tr, #t-tasks li[data-step]')].find(r => /Profile completed/.test(r.textContent));
       if (!row) return null;
       const btn = row.querySelector('[data-task-done]');
       return { disabled: !!(btn && btn.disabled), text: row.textContent };

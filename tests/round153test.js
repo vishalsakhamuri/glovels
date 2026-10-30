@@ -194,7 +194,7 @@ async function req(who, method, p, body) {
     ok('the open programme is delivered', ids.includes(OPEN), ids.join(','));
     ok('the restricted one is NOT on the student\'s list', !ids.includes(NC), ids.join(','));
     ok('  · the dashboard counts it as held', s.matched && s.matched.held === 1 && s.matched.delivered === 1, J(s.matched));
-    ok('  · and the thread says so without naming it', (s.msgs || []).some(m => /being checked by your counsellor/.test(m.t) && !/B University/.test(m.t)));
+    ok('  · and the thread says so without naming it', (s.msgs || []).concat(s.activity || []).some(m => /being checked by your counsellor/.test(m.t) && !/B University/.test(m.t)));
     const sidHttp = s.user && s.user.id;
     let c = (await req('a', 'GET', '/api/staff/student/' + sidHttp)).body;
     ok('the counsellor sees the held row with its reason', (c.held || []).length === 1 && c.held[0].id === NC && /Restricted/.test(c.held[0].reason), J(c.held));

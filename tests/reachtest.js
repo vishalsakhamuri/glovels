@@ -108,14 +108,10 @@ const check = (n, p, note) => (p ? ok : bad).push(n + (note ? ' — ' + note : '
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2600);
     await page.selectOption('#fCountry', 'DE');
-    /* Germany asks for a German grade, not a CGPA — so the CGPA gets in the way
-       the student's does, through the calculator. */
-    await page.click('#openGg');
-    await page.fill('#ggMax', '10');
-    await page.fill('#ggPass', '4');
-    await page.fill('#ggNow', String(cgpa));
-    await page.waitForTimeout(400);
-    await page.click('#ggUse');
+    /* Round 178 (owner, 30 Oct): no calculator — the CGPA out of 10 is typed
+       straight into its own box (a German row converts it, pass 4/10). */
+    await page.fill('#fCgpa', String(cgpa));
+    await page.dispatchEvent('#fCgpa', 'change');
     await page.waitForTimeout(500);
     const go = await page.$('text=Find Programs'); if (go) await go.click();
     await page.waitForTimeout(1400);

@@ -68,9 +68,11 @@ async function req(who, method, path, body) {
   r = await req('c', 'POST', '/api/staff/student/' + sId + '/shortlist', { id: prog.id, force: true });
   ok('a counsellor can add a university to a student’s list', r.ok, r.status);
   r = await req('a', 'GET', '/api/staff/student/' + sId);
-  const msgs = (r.body.msgs || r.body.messages || []);
+  /* Round 178 (BUG-094): "I have added …" is a NOTICE now — on the Activity
+     feed, not in the conversation — and it still carries the counsellor's name. */
+  const msgs = (r.body.activity || []);
   const added = msgs.find(m => /I have added/.test(m.t || m.body || ''));
-  ok('  · and the message says so in their own name',
+  ok('  · and the notice says so in their own name',
     added && (added.from === 'Asha Menon' || added.author === 'Asha Menon'),
     JSON.stringify(added || {}).slice(0, 160));
 

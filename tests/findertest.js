@@ -246,12 +246,9 @@ const homeCounts = async ctx => {
 
   /* The destination is Germany, so the grade question is the German one and the
      calculator is how a 6.5 CGPA becomes an answer to it. */
-  await rp.click('#openGg');
-  await rp.fill('#ggMax', '10');
-  await rp.fill('#ggPass', '4');
-  await rp.fill('#ggNow', '6.5');
-  await rp.waitForTimeout(400);
-  await rp.click('#ggUse');
+  /* Round 178 (owner): no calculator — the CGPA (out of 10) is typed in. */
+  await rp.fill('#fCgpa', '6.5');
+  await rp.dispatchEvent('#fCgpa', 'change');
   await rp.waitForTimeout(500);
   await rp.click('#fGo');
   await rp.waitForTimeout(1200);
@@ -259,7 +256,7 @@ const homeCounts = async ctx => {
   check('and stay unnumbered when the CGPA changes', cg.every(n => n === ''), cg.join(','));
 
   /* And pressing one filters the rows, which is the thing it is for. */
-  await rp.selectOption('#fGgpa', '');
+  await rp.fill('#fCgpa', ''); await rp.dispatchEvent('#fCgpa', 'change');
   await rp.click('#fGo');
   await rp.waitForTimeout(1000);
   const wide = await tabs();

@@ -115,13 +115,10 @@ const buy = async (browser, cgpa, order, country) => {
   await fp.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await fp.waitForTimeout(2600);
   await fp.selectOption('#fCountry', 'DE');
-  /* Germany asks for a German grade; the calculator is how a CGPA becomes one. */
-  await fp.click('#openGg');
-  await fp.fill('#ggMax', '10');
-  await fp.fill('#ggPass', '4');
-  await fp.fill('#ggNow', String(pubBar - 1));
-  await fp.waitForTimeout(400);
-  await fp.click('#ggUse');
+  /* Round 178 (owner, 30 Oct): no calculator — the CGPA out of 10 is typed
+     into its own box and a German row converts it (pass 4/10). */
+  await fp.fill('#fCgpa', String(pubBar - 1));
+  await fp.dispatchEvent('#fCgpa', 'change');
   await fp.waitForTimeout(500);
   const go = await fp.$('text=Find Programs'); if (go) await go.click();
   await fp.waitForTimeout(1400);

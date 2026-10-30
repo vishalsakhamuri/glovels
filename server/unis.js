@@ -186,10 +186,20 @@ function group(catalogue) {
        is. A university whose every programme is search-only is reached from
        Google and the search box, and from nowhere else. */
     u.listed = u.programmes.some(p => !p.searchOnly);
+    /* Round 178: an agent-portal import (every row's fee indicative) is
+       stored non-public only so its name is not locked — whether it IS
+       public or private is not known, and no page says either (typeLabel).
+       Its fees are a counsellor's: `feeOnRequest`. */
+    u.typeKnown = u.programmes.some(p => !indicativeRow(p));
+    u.feeOnRequest = !u.typeKnown;
+    if (u.typeKnown) u.isPublic = !!u.programmes.find(p => !indicativeRow(p)).isPublic;
     /* Round 30 Sep (issue 1): a PRIVATE programme with no fee entered is not
        free — it is unknown. It is left out of the range, so EBS is not
        "no tuition on some programmes". */
-    const known = u.programmes.filter(p => p.isPublic || Number(p.totalInr) > 0 || (p.reqs && p.reqs.tuitionEurSem === 0));
+    /* Round 178: an indicative (agent-portal) or withheld fee is not a
+       known one — it never reaches the range a public page prints. */
+    const known = u.programmes.filter(p => !p.feeIndicative && !p.feeHidden
+      && (p.isPublic || Number(p.totalInr) > 0 || (p.reqs && p.reqs.tuitionEurSem === 0)));
     const fees = known.map(p => Number(p.totalInr) || 0);
     u.feeMin = fees.length ? Math.min(...fees) : null;
     u.feeMax = fees.length ? Math.max(...fees) : null;
@@ -273,7 +283,39 @@ function fromRow(r) {
     /* The office's tags, as a list. Empty until imported; server/tags.js
        derives a set from the other fields when it is. */
     tags: String(r.tags || '').split(';').map(t => t.trim()).filter(Boolean),
+    /* Round 178: the fee came from an agent portal (Crizac, ApplyBoard,
+       UCOL) — indicative, for counsellors only. Every public reader strips
+       it (publicFee below; api.js /api/catalogue). */
+    feeIndicative: !!r.fee_indicative,
+    /* Round 178 (F8): who awards the degree, when not the campus itself. */
+    awardingBody: r.awarding_body || '',
   };
 }
 
-module.exports = { slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf, spaceDegree };
+/* Round 178: a programme as a visitor or a student may see it. An
+   indicative fee is withheld whole — the total, the per-semester figure and
+   the budget band it implies — and the row says so (`feeHidden`). Anything
+   else is returned untouched. */
+function publicFee(p) {
+  if (!p || !p.feeIndicative) return p;
+  const reqs = p.reqs && typeof p.reqs === 'object' ? Object.assign({}, p.reqs, { tuitionEurSem: null }) : p.reqs;
+  return Object.assign({}, p, { totalInr: 0, freeTuition: false, feeHidden: true, feeIndicative: true, band: '', reqs });
+}
+
+/* Round 178: 'Public' | 'Private' | '' for a grouped university (group())
+   or a single row. '' when its status is not known — a university whose
+   every row came from an agent portal (fee indicative), or such a row. The
+   finder's browser copy is FIND.typeLabel (server/find.js), same rule. */
+function indicativeRow(p) {
+  return !!(p && (p.feeIndicative === true || p.feeIndicative === 1 || p.feeIndicative === 'yes'
+    || p.fee_indicative === 1 || p.fee_indicative === true || /agent/i.test(String(p.feeSource || p.fee_source || ''))));
+}
+function typeLabel(x) {
+  if (!x) return '';
+  const known = x.typeKnown !== undefined ? !!x.typeKnown
+    : Array.isArray(x.programmes) ? x.programmes.some(p => !indicativeRow(p)) : !indicativeRow(x);
+  if (!known) return '';
+  return (x.isPublic || x.is_public) ? 'Public' : 'Private';
+}
+
+module.exports = { slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf, spaceDegree, publicFee, typeLabel, indicativeRow };

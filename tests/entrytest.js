@@ -195,14 +195,19 @@ const PROFILE = {
   check('the country they asked for is not what got dropped',
     !((matched || {}).relaxed || []).includes('country'));
 
-  /* The thing that makes it feel real: they are told. */
+  /* The thing that makes it feel real: they are told. Round 178: a match
+     notice is a SYSTEM notice — on their Activity timeline (/api/state
+     `activity`), not in the conversation, which carries what people write. */
   const msgs = (state2.msgs || []).map(m => m.t || m.body || '').join(' ');
-  check('and the student is told, in the thread they read',
-    /matched/i.test(msgs) && /shortlist/i.test(msgs),
-    msgs.slice(-90));
+  const acts = (state2.activity || []).map(m => m.t || m.body || '').join(' ');
+  check('and the student is told, on the activity they read',
+    /matched/i.test(acts) && /shortlist/i.test(acts),
+    acts.slice(0, 90));
+  check('and the notice is not written into the conversation',
+    !/on your shortlist now/i.test(msgs), msgs.slice(-90));
   check('and is not promised a phone call nobody is making at ₹99',
-    !/confirm the shortlist with you on a call/i.test(msgs),
-    msgs.slice(0, 80));
+    !/confirm the shortlist with you on a call/i.test(msgs + ' ' + acts),
+    (msgs + ' ' + acts).slice(0, 80));
 
   /* Run it again — same answers, same universities. A paid shortlist that
      reshuffles on a refresh looks like it was never real. */
@@ -300,10 +305,14 @@ const PROFILE = {
   check('and every row on it is a public one the machine picked',
     againList.every(p => p.isPublic), againList.map(p => p.university).join(' | '));
   const thread = await (await pub.request.get(BASE + '/api/chat')).json();
-  const saidSo = (thread.messages || thread || []).filter(m =>
+  /* Round 178: the match notice is on the activity timeline now, and the
+     rule is the same — told once, not once per save. */
+  const saidSo = (repick.activity || []).filter(m =>
     /on your shortlist now/.test(m.body || m.t || ''));
-  check('the thread carries ONE "on your shortlist now" message, not one per save',
+  check('the activity carries ONE "on your shortlist now" notice, not one per save',
     saidSo.length === 1, saidSo.length);
+  check('and the conversation carries none of them',
+    !(thread.messages || thread || []).some(m => /on your shortlist now/.test(m.body || m.t || '')));
   check('and the welcome does not introduce a counsellor by an invented name',
     !(thread.messages || thread || []).some(m => /I am Kavya/.test(m.body || m.t || '')));
 

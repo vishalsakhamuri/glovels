@@ -77,6 +77,11 @@ const BODY = [
       title: 'Fees at German public universities ' + S,
       body: BODY, status: 'published', author: 'Priya Menon',
       publishedAt: '2026-03-04',
+      /* Round 178 (owner's rule, B5/D4): "Updated" and article:modified_time
+         move only for a significant content update — so this post, written
+         now and dated March, says so explicitly. Without the tick the dates
+         stay as published (tests/round178seotest.js covers that side). */
+      significant: true,
       excerpt: 'What a public university in Germany actually costs an Indian student, '
         + 'in the year they arrive.',
       tag: 'Germany',

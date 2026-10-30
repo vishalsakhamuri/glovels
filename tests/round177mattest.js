@@ -79,13 +79,15 @@ async function req(who, method, p, body) {
   /* IELTS 4 and 5 differ from 6.5; MOI "No" never clears. */
   const at = sc => M.screen(cat, Object.assign({}, prof, { e_test: 'IELTS', e_score: String(sc), d_moi: 'no' }), countries, { limit: 50 }).counts;
   ok('unit: IELTS 4 and 5 fit fewer rows than 6.5 does (' + at(4).fits + ' / ' + at(5).fits + ' / ' + at(6.5).fits + ')', at(4).fits === at(5).fits && at(5).fits < at(6.5).fits && at(6.5).fits === 4, J([at(4), at(5), at(6.5)]));
-  /* pick(): fits first, then near — the package is filled from the fits. */
+  /* Round 178 (owner, 30 Oct): pick() fills ONLY from rows the student
+     meets — a near row (a hard miss) is never a package pick; the counsellor
+     fills any shortfall by hand ("places to fill"). */
   const picked = M.pick(cat, Object.assign({}, prof, { e_test: 'IELTS', e_score: '5', d_moi: 'no', d_ects: '180', a_test: 'GRE', a_score: '300' }), 5, 'public', [], countries);
   const order = picked.map(p => p.id);
-  ok('unit: pick() fills from the fits first, then the near rows: ' + order.join(' → '), order.length === 5 && order[0] === 'clear' && order.slice(1).every(id => /ask|ielts7|ects|gre/.test(id)), J(order));
-  /* The same with a question row among the fits: a question ranks above a hard miss, below a clear row. */
+  ok('unit: pick() fills from the rows they meet only — no near row: ' + order.join(' → '), order.length === 1 && order[0] === 'clear', J(order));
+  /* The same with a question row among the fits: a question is still a pick, a hard miss is not. */
   const picked2 = M.pick(cat, Object.assign({}, prof, { d_ects: '180', a_test: 'GRE', a_score: '300' }), 5, 'public', [], countries).map(p => p.id);
-  ok('  · a row with an open question is still a fit and comes before every hard miss: ' + picked2.join(' → '), picked2.slice(0, 3).sort().join() === 'ask,clear,ielts7' && picked2[0] === 'clear' && picked2.slice(3).sort().join() === 'ects,gre', J(picked2));
+  ok('  · a row with an open question is still a pick; the ECTS and GRE misses are not: ' + picked2.join(' → '), picked2.slice().sort().join() === 'ask,clear,ielts7' && picked2[0] === 'clear', J(picked2));
   /* The letter still clears (patch 175 rule kept). */
   const v = R.check({ ieltsMin: 7, moiAccepted: true }, { ielts: 5, moi: true });
   ok('unit: an MOI letter where it is accepted still clears (round 175 rule kept)', v.fails.length === 0 && v.notes.includes('clears via MOI letter'), J(v));
@@ -93,10 +95,11 @@ async function req(who, method, p, body) {
   const frows = cat.map(p => Object.assign({}, p, { uKey: p.id }));
   const out = F.run(frows, { country: 'DE', level: 'master', cgpa: '7.8', english: 'ielts:5', ects: '180' }, R, { countries });
   const html = F.listHtml(out.rows, { countries: {}, said: out.said });
-  const at1 = html.indexOf('class="fdivide"');
-  ok('unit: find.js draws ONE divider before the first short row', (html.match(/class="fdivide"/g) || []).length === 1 && at1 > 0, html.length);
-  ok('  · every row before it clears, every row after it is short', !html.slice(0, at1).includes('Lower priority') && (html.slice(at1).match(/<article/g) || []).length === (html.slice(at1).match(/Lower priority/g) || []).length && (html.slice(at1).match(/<article/g) || []).length === 3, (html.slice(at1).match(/<article/g) || []).length);
-  ok('  · the divider carries no number', !/\d/.test((/<div class="fdivide"[^>]*>.*?<\/div>/.exec(html) || [''])[0]));
+  /* Round 178 (owner, 30 Oct): the PUBLIC side hides the rows they fall
+     short of (patch 177's "ranked lower" divider is the counsellor's now):
+     IELTS 5 / 180 ECTS leaves out the IELTS 6.5, IELTS 7 and ECTS rows. */
+  ok('unit: find.js HIDES the short rows — no divider, no "Lower priority" row (' + out.rows.map(p => p.id).join(', ') + ')', !html.includes('class="fdivide"') && !html.includes('Lower priority')
+    && !out.rows.some(p => /^(ask|ielts7|ects)$/.test(p.id)) && out.rows.some(p => p.id === 'clear') && out.turned >= 3, J(out.rows.map(p => p.id)));
   const out0 = F.run(frows, { country: 'DE', level: 'master' }, R, { countries });
   ok('  · with nothing said about themselves: no divider', !F.listHtml(out0.rows, { countries: {}, said: out0.said }).includes('fdivide'));
 })();
@@ -241,17 +244,15 @@ async function req(who, method, p, body) {
     /* item 16 on the screen: the reason under the pass box. */
     await page.goto(BASE + '/catalogue.html', { waitUntil: 'domcontentloaded' });
     await page.click('.tab[data-t="fit"]');
-    await page.waitForSelector('#gfPass', { timeout: 10000 });
+    /* Round 178 (owner): no "out of" / "pass" boxes — the CGPA is out of 10
+       (pass 4/10 when a German grade is worked out). The API still refuses
+       a pass mark above the CGPA (above); the screen has no box for it. */
+    await page.waitForSelector('#gfCgpa', { timeout: 10000 });
+    ok('matcher screen: no pass-mark box (CGPA is out of 10)', !(await page.$('#gfPass')) && !(await page.$('#gfMax')));
     await page.selectOption('#gfLevel', "Master's");
     await page.fill('#gfWords', 'Data Science');
     await page.fill('#gfCgpa', '7.8');
-    await page.fill('#gfPass', '9');
-    await page.click('#gfGo');
-    await page.waitForSelector('#gfPassErr', { timeout: 10000 }).catch(() => {});
-    const passErr = await page.$eval('#gfPassErr', e => e.textContent).catch(() => '');
-    ok('matcher screen: pass mark 9 with CGPA 7.8 — the reason sits under the pass box', /below the pass mark/.test(passErr) && (await page.$eval('#gfPass', e => e.getAttribute('aria-invalid')).catch(() => '')) === 'true', passErr);
     /* item 8 on the screen: the near heading and the reason-first row. */
-    await page.fill('#gfPass', '');
     await page.selectOption('#gfCountry', 'Germany').catch(() => {});
     await page.selectOption('#gfEng', 'IELTS');
     await page.fill('#gfEngS', '5');
@@ -356,9 +357,12 @@ async function req(who, method, p, body) {
     /* item 15 on the screen: the divider, drawn by the browser as well. */
     const fq = '/find-university?country=DE&level=master&field=' + encodeURIComponent('Computer Science & IT') + '&cgpa=7.5&english=ielts:5&ects=180';
     const raw = (await req('g', 'GET', fq)).text;
+    /* Round 178 (owner, 30 Oct): the public side HIDES the short rows — no
+       divider, no "Lower priority" row, a line that says some are not shown. */
+    ok('Find University (server render) HIDES the rows short of IELTS 5 / 180 ECTS: no divider, no "Lower priority" row, the "not shown" line',
+      !/<div class="fdivide"/.test(raw) && !/Lower priority/.test(raw) && /<article class="frow/.test(raw) && /are not shown/.test(raw), raw.length);
     const atDiv = raw.indexOf('<div class="fdivide"');
-    ok('Find University (server render): one divider, every row before it clears, every row after it is short', (raw.match(/<div class="fdivide"/g) || []).length === 1 && !raw.slice(0, atDiv).includes('Lower priority') && (raw.slice(atDiv).match(/<article class="frow/g) || []).length > 0 && (raw.slice(atDiv).match(/<article class="frow/g) || []).length === (raw.slice(atDiv).match(/Lower priority/g) || []).length, J([(raw.match(/<div class="fdivide"/g) || []).length, atDiv]));
-    ok('  · the divider carries no number', !/\d/.test((/<div class="fdivide"[^>]*>.*?<\/div>/.exec(raw) || [''])[0]));
+    if (false) ok('Find University (server render): one divider, every row before it clears, every row after it is short', (raw.match(/<div class="fdivide"/g) || []).length === 1 && !raw.slice(0, atDiv).includes('Lower priority') && (raw.slice(atDiv).match(/<article class="frow/g) || []).length > 0 && (raw.slice(atDiv).match(/<article class="frow/g) || []).length === (raw.slice(atDiv).match(/Lower priority/g) || []).length, J([(raw.match(/<div class="fdivide"/g) || []).length, atDiv]));
     ok('  · with no profile said: no divider', !/<div class="fdivide"/.test((await req('g', 'GET', '/find-university?country=DE&level=master')).text));
     await gp.goto(BASE + fq, { waitUntil: 'domcontentloaded' });
     await gp.waitForTimeout(2500);
@@ -370,11 +374,11 @@ async function req(who, method, p, body) {
         beforeShort: kids.slice(0, i).filter(k => /Lower priority/.test(k.textContent)).length,
         after: kids.slice(i + 1).length, afterShort: kids.slice(i + 1).filter(k => /Lower priority/.test(k.textContent)).length };
     });
-    ok('  · the browser draws the same split', divs && divs.n === 1 && divs.i > 0 && divs.beforeShort === 0 && divs.after > 0 && divs.after === divs.afterShort, J(divs));
+    ok('  · the browser draws the same: no divider and no short row (round 178: hidden)', divs && divs.n === 0 && divs.afterShort === 0 && divs.after > 0, J(divs));
     await gp.selectOption('#fsort', 'cost').catch(() => {});
     await gp.waitForTimeout(600);
     const divs2 = await gp.evaluate(() => { const list = document.querySelector('#flist'); const kids = [...list.children]; const i = kids.findIndex(k => k.classList.contains('fdivide')); return { n: kids.filter(k => k.classList.contains('fdivide')).length, beforeShort: kids.slice(0, i).filter(k => /Lower priority/.test(k.textContent)).length }; });
-    ok('  · sorted by cost, the short rows still sit under the divider', divs2.n === 1 && divs2.beforeShort === 0, J(divs2));
+    ok('  · sorted by cost, still no short row and no divider', divs2.n === 0 && divs2.beforeShort === 0, J(divs2));
 
     /* item 1: the compare bar is not under the WhatsApp button. */
     for (const w of [618, 375]) {

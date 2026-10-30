@@ -348,6 +348,9 @@ function readPost(html, url) {
     metaDesc: decodeEntities(meta('description') || (ld && ld.description) || '').slice(0, 320),
     author: decodeEntities((ld && ld.author && ld.author.name) || '').trim().slice(0, 90),
     publishedAt: when(ld && ld.datePublished) || when(meta('article:published_time')),
+    /* Round 178: Wix's own last-updated date, kept as the post's dateModified
+       so the page says exactly what the Wix page said. */
+    modifiedAt: when(ld && ld.dateModified) || when(meta('article:modified_time')),
     cover,
     body: text,
     images: ctx.images.filter((x, i, a) => a.indexOf(x) === i),
@@ -433,7 +436,7 @@ async function importAll(opts) {
             tag: '', status: 'draft',
             metaTitle: '', metaDesc: p.metaDesc, keywords: '', ogImage: '',
             related: '', readMins: require('./prose.js').readingMinutes(body),
-            publishedAt: p.publishedAt, updatedBy: opts.by || 'import',
+            publishedAt: p.publishedAt, modifiedAt: p.modifiedAt || '', updatedBy: opts.by || 'import',
           };
           if (have) { opts.db.updatePost(have.id, row); item.result = 'replaced'; status.replaced++; }
           else { opts.db.addPost(row); item.result = 'created'; status.created++; }

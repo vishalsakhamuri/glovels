@@ -204,6 +204,27 @@ function paintShared() {
   }).join('');
 }
 
+/* Round 178 (BUG-093): THE FILE IN USE FIRST.
+ *
+ * The files in a document were listed oldest first at one weight, so a CV
+ * sent back in September sat above the October one your counsellor accepted.
+ * The current file — the accepted copy, else the newest (the server marks
+ * it) — is shown first; older versions fold under "Earlier versions (N)",
+ * each saying what happened to it (Replaced, Not accepted, Scan asked). */
+function docFilesHtml(files, li) {
+  const known = files.some(f => f.current !== undefined);
+  const byNew = (a, b) => Number(b.id) - Number(a.id);
+  const now = files.filter(f => !known || f.current)
+    .sort((a, b) => ((b.state === 'ok') - (a.state === 'ok')) || byNew(a, b));
+  const earlier = known ? files.filter(f => !f.current).sort(byNew) : [];
+  return '<ul class="dfiles">' + now.map(li).join('') + '</ul>' +
+    (earlier.length
+      ? '<details class="docearlier" style="margin:8px 0 0;font:400 11.8px/1.5 var(--sans);color:var(--muted)">' +
+        '<summary style="cursor:pointer;font-weight:700;color:var(--navy-700)">Earlier versions (' + earlier.length + ')</summary>' +
+        '<ul class="dfiles" style="opacity:.85">' + earlier.map(li).join('') + '</ul></details>'
+      : '');
+}
+
 function card(d) {
   const rec = DB.docs[d.id];
   const st = stOf(d.id);
@@ -232,7 +253,7 @@ function card(d) {
      * the SLOT keeps a single status, so a set is checked as the one thing it
      * is and cannot end up half accepted. */
     (rec && rec.files && rec.files.length
-      ? '<ul class="dfiles">' + rec.files.map((f, i) =>
+      ? docFilesHtml(rec.files, (f, i) =>
           '<li>' + ico('check') +
           '<a href="/api/documents/file/' + encodeURIComponent(f.id) + '" ' +
             'style="color:var(--blue-deep);font-weight:600">' + esc(f.file) + '</a>' +
@@ -273,7 +294,7 @@ function card(d) {
             ? '<span class="dsize" style="font-style:italic">accepted copy</span>'
             : '<button type="button" class="dxf" data-dropfile="' + esc(f.id) + '" data-name="' + esc(f.file) + '" ' +
               'aria-label="Remove this file: ' + esc(f.file) + '">Remove this file</button>') +
-          '</li>').join('') + '</ul>'
+          '</li>')
       : '') +
     /* Reachable by keyboard, and announced as what it is.
      *

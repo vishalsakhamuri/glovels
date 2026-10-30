@@ -177,7 +177,7 @@ async function req(who, method, p, body) {
     ok('the level list has Diploma and PhD', levels.some(l => /Diploma/.test(l)) && levels.some(l => /PhD/.test(l)) && levels.some(l => /Foundation/.test(l)), J(levels));
     const unlabelled = await page.$$eval('#fitAdmin input, #fitAdmin select', cs => cs.filter(c => !c.id || !document.querySelector('label[for="' + c.id + '"]')).map(c => c.id || c.outerHTML.slice(0, 60)));
     const n = await page.$$eval('#fitAdmin input, #fitAdmin select', cs => cs.length);
-    ok('every one of the ' + n + ' boxes has a <label for> bound to it', n >= 28 && unlabelled.length === 0, J(unlabelled));
+    ok('every one of the ' + n + ' boxes has a <label for> bound to it', /* round 178: Field (exact), out of, pass, bachelor's length and GRE total are gone */ n >= 24 && unlabelled.length === 0, J(unlabelled));
     ok('  · an MOI letter box, labelled', await page.$('label[for="gfMoi"]') !== null && await page.$('#gfMoi option[value="yes"]') !== null);
     await page.fill('#gfCgpa', '15');
     await page.click('#gfGo');

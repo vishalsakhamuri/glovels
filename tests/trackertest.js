@@ -248,7 +248,8 @@ const pdf = n => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n, 0x41)
     + (said.match(/Latest from your counsellor[^]{0,90}/) || [''])[0].replace(/\s+/g, ' '));
   ok(/Latest from your counsellor/i.test(said), 'under a heading that says whose it is');
   /* And it reached them where they already look. */
-  const msgs = (await (await stu.request.get(BASE + '/api/state')).json()).msgs || [];
+  /* Round 178 (BUG-094): told on the Activity timeline, not in the chat. */
+  const msgs = (await (await stu.request.get(BASE + '/api/state')).json()).activity || [];
   ok(msgs.some(m => String(m.t || '').includes('TUM-4471')),
     'and they were told, rather than being expected to go and look');
 

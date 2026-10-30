@@ -31,7 +31,7 @@
 const dns = require('node:dns').promises;
 const net = require('node:net');
 
-const UA = 'Mozilla/5.0 (compatible; GlovelsLinkCheck/1.0; +https://glovels.com)';
+const UA = 'Mozilla/5.0 (compatible; GlovelsLinkCheck/1.0; +https://www.glovels.com)';
 const TIMEOUT_MS = 15000;
 const CONCURRENCY = 8;
 const PER_HOST_GAP_MS = 700;

@@ -649,11 +649,11 @@ function openEditor(p) {
       select('How the student applies', 'fFee',
         (v.feeModel === 'free' || v.feeModel === 'package')
           ? v.feeModel : (v.isPublic ? 'package' : 'free'),
-        [['free', 'Fast-track — free (we are partnered)'],
+        [['free', 'Fast-track — free (we are affiliated)'],
          ['package', 'Comprehensive filing (we are not)']],
         'What applying through us costs THEM. This is what the student filters on, ' +
         'because public-versus-private only means something in Germany. Mark a ' +
-        'university free the day the partnership is signed &mdash; here, or in the ' +
+        'university free the day the affiliation is signed &mdash; here, or in the ' +
         '<b>application</b> column of the catalogue sheet.') +
       field('Total tuition, ₹', 'fTuition', v.totalInr || 0, 'type="number" min="0" step="1000"',
         'Whole course, in rupees. <b>0 means no tuition</b> — that is load-bearing on the site.') +

@@ -1872,11 +1872,11 @@ PAGES["about-us"] = {
             ],
         },
         {
-            "h": "The numbers",
+            "h": "How it works in practice",
             "ul": [
-                "More than 2,000 institutions on the catalogue",
-                "Around 160,000 programmes searchable by budget, intake and entry bar",
-                "Eight countries covered end to end",
+                "Programmes searchable by budget, intake and entry bar, with the real fees",
+                "Every service priced on the site, from ₹99",
+                "A free first profile evaluation, and a reply within one working day",
             ],
         },
     ],
@@ -1922,7 +1922,7 @@ PAGES["careers"] = {
                 "<b>A team, not a floor.</b> Small, collaborative, and everybody's "
                 "opinion is available to everybody else.",
                 "<b>International exposure.</b> Universities, embassies and partners "
-                "across eight countries.",
+                "across our destination countries.",
             ],
         },
         {

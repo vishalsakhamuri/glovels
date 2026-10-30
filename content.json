@@ -435,13 +435,13 @@
  },
  "stats": [
   {
-   "num": "160,000+",
-   "label": "programmes across our destinations",
+   "num": "Free",
+   "label": "first profile evaluation with a counsellor",
    "dummy": false
   },
   {
-   "num": "2,000+",
-   "label": "institutions we work with",
+   "num": "1 working day",
+   "label": "for a counsellor to call you back",
    "dummy": false
   },
   {
@@ -617,7 +617,7 @@
     "sort": 1,
     "active": true,
     "name": "Private match preview",
-    "desc": "3 partner universities you match, instant.",
+    "desc": "Affiliated universities you match, instant.",
     "meta": "Instant · no call needed",
     "cats": [
      "top",
@@ -641,7 +641,7 @@
     "sort": 2,
     "active": true,
     "name": "Private shortlist of 10",
-    "desc": "10 partner universities, plus a profile gap analysis.",
+    "desc": "Affiliated universities matched to you, plus a profile gap analysis.",
     "meta": "Instant · re-runs when your profile changes",
     "cats": [
      "top",

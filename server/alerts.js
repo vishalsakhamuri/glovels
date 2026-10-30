@@ -426,8 +426,13 @@ function all(db, now) {
          same count, as the file header and its Tasks tab. Required here,
          not at the top: tasks.js requires this file. */
       const TASKS_ = require('./tasks.js');
-      late = TASKS_.effectiveTasks(db, st, db.tasksFor(st.id) || [], T)
-        .filter(t => !TASK_CLOSED.has(String(t.status)) && t.due_at)
+      const effRows = TASKS_.effectiveTasks(db, st, db.tasksFor(st.id) || [], T);
+      /* Round 178: a step that cannot start yet is not late work — the same
+         rule as lateCount, so the bell and the file header agree. */
+      let lockedNow = new Set();
+      try { lockedNow = TASKS_.lockedIds(db, st, effRows); } catch (e) { lockedNow = new Set(); }
+      late = effRows
+        .filter(t => !TASK_CLOSED.has(String(t.status)) && t.due_at && !lockedNow.has(Number(t.id)))
         /* Whole calendar days in India, the same arithmetic the sweep uses.
            These were two different calculations and they disagreed: the 9am
            digest and the 10am sweep described the same task, in the same

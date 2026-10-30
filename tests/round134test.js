@@ -137,8 +137,12 @@ const login = (who, e, p) => req(who, 'POST', '/api/auth/login', { email: e, pas
     { status: 'rescan', note: 'The photo page is cut off at the bottom.' });
   ok('a counsellor can send a document back', r.ok, r.status);
   r = await req('s', 'GET', '/api/state');
-  const msgs = (r.body.msgs || []).filter(m => m.who === 'them');
-  ok('  · and the student is told on their own thread',
+  /* Round 178 (BUG-094): a document sent back is a NOTICE — it is told on
+     the student's Activity feed, not in the conversation. */
+  const msgs = (r.body.activity || []).filter(m => m.who === 'them');
+  ok('  · and it is not dropped into the chat as a message',
+    !(r.body.msgs || []).some(m => /cut off at the bottom/.test(m.t)));
+  ok('  · and the student is told on their own Activity feed',
     msgs.some(m => /passport/i.test(m.t) && /another copy/i.test(m.t)),
     JSON.stringify(msgs.map(m => m.t.slice(0, 50))).slice(0, 200));
   ok('  · with the reason the counsellor gave',

@@ -391,6 +391,30 @@ const ROUTES_INTRO = 'Beyond university admissions: clients we took through the 
   + 'Card (Chancenkarte), the EU Blue Card, the German language course visa and the UK India '
   + 'Young Professionals Scheme.';
 
+/** "Winter 2025 to Winter 2026": the first and the last intake the offers cover. */
+function intakeSpan(admits) {
+  const key = i => { const m = /(summer|winter)\s+(\d{4})/i.exec(i || ''); return m ? Number(m[2]) * 2 + (/winter/i.test(m[1]) ? 1 : 0) : null; };
+  const ks = [...new Set((admits || []).map(a => a.Intake))].filter(i => key(i) != null).sort((a, b) => key(a) - key(b));
+  if (!ks.length) return '';
+  return ks.length === 1 ? ks[0] : ks[0] + ' to ' + ks[ks.length - 1];
+}
+
+/* The card the page and the home rail share — one way to show an offer. */
+function admitCardHtml(a, logoFor, esc, extraClass) {
+  const src = logoFor ? logoFor(a.University, '') : '';
+  const logo = src
+    ? '<img src="' + esc(src) + '" alt="' + esc(a.University) + ' logo" loading="lazy" decoding="async">'
+    : '<span class="ss-ini" aria-hidden="true">' + esc(initials(a.University)) + '</span>';
+  const prog = a['Programme (as recorded)'] || 'Programme to be confirmed';
+  return '<article class="ss-card ss-admit' + (extraClass ? ' ' + extraClass : '') + '">'
+    + '<div class="ss-logo">' + logo + '</div>'
+    + '<div class="ss-meta"><span class="ss-who">' + esc(a['Display name']) + '</span>'
+    + '<span class="ss-badge">' + esc(a.Intake) + '</span></div>'
+    + '<div class="ss-u">' + esc(a.University) + '</div>'
+    + '<div class="ss-p">' + esc(prog) + (a.Degree ? ' · ' + esc(a.Degree) : '') + '</div>'
+    + '</article>';
+}
+
 /**
  * The page. `deps`: templates(), fill(), metaHoles(), absolute(), logoFor(),
  * esc() (optional), and db/content for load().
@@ -411,14 +435,8 @@ function render(deps) {
   };
   const programme = a => a['Programme (as recorded)'] || 'Programme to be confirmed';
 
-  const admitCard = a =>
-    '<article class="ss-card ss-admit">'
-    + '<div class="ss-logo">' + logoHtml(a.University) + '</div>'
-    + '<div class="ss-meta"><span class="ss-who">' + esc(a['Display name']) + '</span>'
-    + '<span class="ss-badge">' + esc(a.Intake) + '</span></div>'
-    + '<div class="ss-u">' + esc(a.University) + '</div>'
-    + '<div class="ss-p">' + esc(programme(a)) + (a.Degree ? ' · ' + esc(a.Degree) : '') + '</div>'
-    + '</article>';
+  void logoHtml;
+  const admitCard = a => admitCardHtml(a, deps.logoFor, esc, '');
 
   const routeCard = r => {
     const d = routeOf(r);
@@ -459,10 +477,13 @@ function render(deps) {
   const blue = data.routes.filter(r => r.Route === 'EU Blue Card (Germany)').length;
   const yps = data.routes.filter(r => /Young Professionals/i.test(r.Route)).length;
   const n = (k, one, many) => k + ' ' + (k === 1 ? one : many);
-  const title = 'Success stories — ' + data.admits.length + ' admits, Opportunity Card & visa approvals';
+  /* Round 178 (coordinator, 30 Oct): the brief's title and description, cut
+     to the WEB-20.3 limits (title ≤ 65 with " | Glovels", description ≤ 160)
+     with the facts kept. */
+  const title = 'Success stories — ' + data.admits.length + ' admits & visa approvals';
   const desc = students + ' students, ' + n(data.admits.length, 'admission offer', 'admission offers')
     + ' at ' + n(unis, 'university', 'universities')
-    + (cards ? ', plus ' + n(cards, 'Germany Opportunity Card (Chancenkarte)', 'Germany Opportunity Cards (Chancenkarte)') : '')
+    + (cards ? ', plus ' + (cards === 1 ? 'a Germany Opportunity Card' : 'Germany Opportunity Cards') : '')
     + (blue ? ', ' + (blue === 1 ? 'an EU Blue Card' : blue + ' EU Blue Cards') : '')
     + (yps ? ' and UK Young Professionals visa approvals' : '')
     + '.';
@@ -496,12 +517,17 @@ function render(deps) {
     indexable: true,
   });
   holes.JSONLD = jsonld;
+  /* Round 178: title and description set whole (both now within the
+     WEB-20.3 limits), worked out from the data so a new export moves the
+     numbers with it. */
+  holes.HEAD_TITLE = esc(title + ' | Glovels');
+  holes.DESC = esc(desc);
   return deps.fill(t.page, Object.assign(holes, {
     CRUMBS: '<a href="index.html">Home</a> / Success stories',
     H1: 'Student success stories',
-    DATELINE: admits.length
-      ? admits.length + ' admission offers' + (routes.length ? ' · ' + routes.length + ' visa and work-route approvals' : '')
-      : 'Being confirmed',
+    /* Round 178: no counts in the page body ("numbers not required" on the
+       public site) — the period the offers cover, not how many there are. */
+    DATELINE: admits.length ? intakeSpan(data.admits) : 'Being confirmed',
     BODY: body,
   }));
 }
@@ -512,15 +538,56 @@ function render(deps) {
  * Pointed straight there, so the one link on the home page that matters for
  * this page costs no redirect.
  */
+/* Round 178: the home rail's cards, styled as the page's (a subset of STYLE
+   — the rail keeps its own track, arrows and dots). */
+const HOME_STYLE = '<style>'
+  + '#stories .ss-card{display:flex;flex-direction:column;gap:9px;padding:14px;background:var(--paper,#fff);'
+  + 'border:1px solid var(--line,#e6e2d7);border-radius:16px}'
+  + '#stories .ss-logo{height:84px;border-radius:12px;padding:10px;display:flex;align-items:center;justify-content:center;'
+  + 'background:#fff;border:1px solid var(--line,#e6e2d7);overflow:hidden;color-scheme:light}'
+  + '#stories .ss-logo img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block}'
+  + '#stories .ss-ini{font:800 20px/1 var(--sans,system-ui,sans-serif);letter-spacing:.06em;color:#13385c;'
+  + 'width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:#eef3fb;border:1px solid #d5e0f0}'
+  + '#stories .ss-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}'
+  + '#stories .ss-who{font:700 17px/1.25 var(--disp,inherit);color:var(--navy-900,#0b1e31);overflow-wrap:anywhere}'
+  + '#stories .ss-badge{flex:none;font:700 11.2px/1 var(--sans,system-ui,sans-serif);padding:6px 10px;border-radius:999px;'
+  + 'background:#eef3fb;color:var(--navy-700,#13385c);border:1px solid #d5e0f0;white-space:nowrap}'
+  + '#stories .ss-u{font-weight:700;font-size:14.2px;line-height:1.35;color:var(--navy-800,#0d2338)}'
+  + '#stories .ss-p{font-size:13.2px;line-height:1.5;color:var(--muted,#5b6b7e)}'
+  + '</style>';
+const HOME_CARDS = 8;
+
+/**
+ * Round 178: the home page's "Real journeys, real outcomes" section, from
+ * the same public file as /success-stories — the first cards of the page's
+ * own fixed order (so no student twice in any four), first names and
+ * intakes only. The old testimonial cards carried surnames; they no longer
+ * reach the home page (index.html's paintTestimonials leaves a rail the
+ * server filled alone). No count in the link: "numbers not required".
+ */
 function withHomeLink(html, deps) {
-  let out = String(html).replace(/(id="storyMore"[^>]*>\s*<a\s+href=")success-stories\.html(")/, '$1' + SITE_PATH + '$2');
-  /* Round 169 (WEB-17): "See all 9 admissions" counted the testimonials on
-     the home page; the page it opens says 109. The number is the stories
-     page's own — the admits it lists — and the home script leaves it be. */
-  if (deps) {
-    let n = 0;
-    try { n = load(deps).admits.length; } catch (e) { n = 0; }
-    if (n) out = out.replace(/<b data-count>\d*<\/b>/, '<b data-count data-src="stories">' + n + '</b>');
+  let out = String(html);
+  let admits = [];
+  try { admits = deps ? order(load(deps).admits) : []; } catch (e) { admits = []; }
+  const sec = out.indexOf('<section class="block" id="stories">');
+  if (sec >= 0 && admits.length) {
+    const esc = (deps && deps.esc) || escape_;
+    const a = out.indexOf('<div class="tgrid">', sec);
+    const b = a >= 0 ? out.indexOf('<div class="sdots"', a) : -1;
+    const close = b >= 0 ? out.lastIndexOf('</div>', out.lastIndexOf('</div>', b) - 1) : -1;
+    if (a >= 0 && close > a) {
+      const cards = admits.slice(0, HOME_CARDS).map(x => admitCardHtml(x, deps.logoFor, esc, 'card tcard')).join('');
+      out = out.slice(0, a) + '<div class="tgrid" data-admits>' + cards + out.slice(close);
+    }
+    out = out.replace('<p>In their own words — students Glovels has taken from application to admit, visa and departure.</p>',
+      '<p>Admission offers our students have received, Winter 2025 to Winter 2026 — the university, the programme '
+      + 'and the intake. Names are shown as the students chose.</p>');
+    out = out.replace(/<p class="smore" id="storyMore">[\s\S]*?<\/p>/,
+      '<p class="smore" id="storyMore"><a href="' + SITE_PATH + '">See all success stories</a>'
+      + ' · <a href="' + SITE_PATH + '#visa-work-stories">Opportunity Card and visa stories</a></p>');
+    out = out.replace('</head>', HOME_STYLE + '</head>');
+  } else {
+    out = out.replace(/(id="storyMore"[^>]*>\s*<a\s+href=")success-stories\.html(")/, '$1' + SITE_PATH + '$2');
   }
   return out;
 }

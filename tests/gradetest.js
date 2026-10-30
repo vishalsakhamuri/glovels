@@ -186,15 +186,18 @@ const toCsv = rows => '﻿' + rows.map(r =>
       german: !(document.querySelector('#fGgpaWrap') || {}).hidden,
     })).catch(() => null);
   };
+  /* Round 178 (owner, 30 Oct): TWO DIRECT INPUTS — the CGPA (out of 10)
+     always, and the German grade (1.0 – 4.0) beside it, hidden only for a
+     non-German destination (Germany-only filter, F7.4). */
   const anyWhere = await scaleFor('');
-  ok(anyWhere && anyWhere.cgpa && !anyWhere.german,
-    'with no destination chosen the finder asks for a CGPA — ' + JSON.stringify(anyWhere));
+  ok(anyWhere && anyWhere.cgpa && anyWhere.german,
+    'with no destination chosen the finder asks for a CGPA and offers the German grade — ' + JSON.stringify(anyWhere));
   const uk = await scaleFor('GB');
   ok(uk && uk.cgpa && !uk.german,
-    'and for the UK it still does — ' + JSON.stringify(uk));
+    'for the UK it asks for a CGPA only — ' + JSON.stringify(uk));
   const germany = await scaleFor('DE');
-  ok(germany && germany.german && !germany.cgpa,
-    'but Germany asks for a German grade instead — ' + JSON.stringify(germany));
+  ok(germany && germany.german && germany.cgpa,
+    'and Germany asks for both, side by side — ' + JSON.stringify(germany));
 
   const label = await page.textContent('label[for="fGgpa"]').catch(() => '');
   ok(/german/i.test(label), 'and says so — ' + label.trim());
@@ -204,7 +207,23 @@ const toCsv = rows => '﻿' + rows.map(r =>
    * Held to the tool the office already uses, both cases from Vishal's
    * screenshots. TRUNCATED, not rounded: 6.84 with a pass mark of 4 is 2.58,
    * which is reported as 2.5. */
-  ok(await seen(page, '#openGg'), 'there is a way to work the grade out');
+  /* Round 178 (owner, 30 Oct): the "out of / pass" calculator is gone. A
+     German-graded row is judged on the German grade TYPED in, else on the
+     CGPA (out of 10) converted by the modified Bavarian formula with the
+     pass at 4/10 — the office's tool at 10 / 4. */
+  ok(!(await page.$('#openGg')), 'there is no "Work it out" (out of / pass) calculator on the finder');
+  const germanFor = async (cgpa, typed) => {
+    await page.fill('#fCgpa', String(cgpa)).catch(() => {});
+    await page.fill('#fGgpa', typed == null ? '' : String(typed)).catch(() => {});
+    return page.evaluate(() => window.GLV_GRADE.myGerman()).catch(() => null);
+  };
+  ok(await germanFor(6.84) === 2.5, 'CGPA 6.84 reads as German 2.5 (10 / 4 / 6.84, truncated) — ' + await germanFor(6.84));
+  ok(await germanFor(10) === 1.0 && await germanFor(4) === 4.0, 'full marks is 1.0, the pass (4/10) is 4.0');
+  ok(await germanFor(3) === 99, 'a CGPA under 4/10 clears no German grade');
+  ok(await germanFor(9.5, 3.0) === 3.0, 'a German grade typed in wins over the CGPA');
+  ok(await page.evaluate(() => { document.querySelector('#fCgpa').value = '11'; return window.GLV_GRADE.cgpaOf(); }) === null, 'a CGPA above 10 is no answer, not a looser bar');
+  await page.fill('#fCgpa', '').catch(() => {}); await page.fill('#fGgpa', '').catch(() => {});
+  if (false) {
   await page.click('#openGg').catch(() => {});
   await page.waitForTimeout(500);
   ok(await seen(page, '#ggNow'), 'the calculator opens');
@@ -279,11 +298,14 @@ const toCsv = rows => '﻿' + rows.map(r =>
   ok(inFilter === '2.5',
     'and pressing it puts the grade into the filter — "' + inFilter + '"');
 
+  }   /* round 178: end of the retired calculator checks */
+
   /* ==================================================== the direction, which is
    * the whole point. The data has bars of 2.0, 2.5 and 3.0 in even thirds, so
    * a better grade must see MORE and 4.0 must see none. */
   const total = async g => {
-    await page.selectOption('#fGgpa', g).catch(() => {});
+    await page.fill('#fGgpa', g).catch(() => {});
+    await page.dispatchEvent('#fGgpa', 'change').catch(() => {});
     await page.click('#fGo').catch(() => {});
     await page.waitForTimeout(1400);
     /* Round 176 (owner, go-live): the tabs carry no number and the page
@@ -341,12 +363,10 @@ const toCsv = rows => '﻿' + rows.map(r =>
     await page.goto(BASE + '/index.html', { waitUntil: 'load' });
     await page.waitForTimeout(2600);
     await page.selectOption('#fCountry', 'DE').catch(() => {});
-    await page.click('#openGg').catch(() => {});
-    await page.fill('#ggMax', '10').catch(() => {});
-    await page.fill('#ggPass', '4').catch(() => {});
-    await page.fill('#ggNow', String(cgpa)).catch(() => {});
-    await page.waitForTimeout(400);
-    await page.click('#ggUse').catch(() => {});
+    /* Round 178: the CGPA is typed straight in (no calculator). */
+    await page.fill('#fCgpa', String(cgpa)).catch(() => {});
+    await page.dispatchEvent('#fCgpa', 'change').catch(() => {});
+    await page.click('#fGo').catch(() => {});
     await page.waitForTimeout(1300);
     return (await page.textContent('#rowsIn').catch(() => ''))
       .includes(cgOnly.university);
@@ -368,7 +388,8 @@ const toCsv = rows => '﻿' + rows.map(r =>
   })).catch(() => null);
   ok(ukScale && ukScale.cgpa,
     'switching back to the UK asks for a CGPA again — ' + JSON.stringify(ukScale));
-  await page.selectOption('#fCgpa', '8.5').catch(() => {});
+  await page.fill('#fCgpa', '8.5').catch(() => {});
+  await page.dispatchEvent('#fCgpa', 'change').catch(() => {});
   await page.click('#fGo').catch(() => {});
   await page.waitForTimeout(1400);
   /* Round 176: no numbers on the tabs — the rows drawn are counted. */
@@ -416,11 +437,12 @@ const toCsv = rows => '﻿' + rows.map(r =>
   await fp.waitForTimeout(3200);
   await fp.selectOption('#fCountry', 'DE').catch(() => {});
   await fp.waitForTimeout(700);
-  const fromProfile = await fp.evaluate(() =>
-    (document.querySelector('#fGgpa') || {}).value).catch(() => '');
-  ok(fromProfile === '2.5',
-    'a signed-in student’s own grade is already in the filter — "'
-    + fromProfile + '"');
+  /* Round 178: the German grade box is what they TYPE; their profile's CGPA
+     is what a German row is judged on when it is empty (6.84 → 2.5). */
+  const fromProfile = await fp.evaluate(() => [window.GLV_GRADE.myGerman(), (document.querySelector('#fGgpa') || {}).value]).catch(() => []);
+  ok(fromProfile[0] === 2.5 && fromProfile[1] === '',
+    'a signed-in student’s own CGPA is what the filter judges a German row on — '
+    + JSON.stringify(fromProfile));
   ok(!fErrs.length, 'and that page loads clean — ' + fErrs.slice(0, 2).join(' | '));
 
   await browser.close();

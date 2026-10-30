@@ -266,6 +266,34 @@ run round177mattest.js 8129
 # PUT is a partial update with optimistic concurrency and 422s, and the
 # staff document route reports the state the file landed in.
 run round177journeytest.js 8127
+# Round 178 (30 Oct package, data): agent-portal fees are indicative —
+# counsellors see them flagged, visitors and students never; awarding body;
+# "if already on the site = update"; absent columns keep the row's value;
+# a slice of every upload sheet; USA / Australia destinations; the
+# success-stories page and the home rail from the v3 public file.
+run round178datatest.js 8133
+# Round 178 (Part F filters, owner 30 Oct): home/public HIDES, counsellor RANKS;
+# tags OR within a kind; CGPA + German grade; ECTS 3-year rule; MBA under
+# Master's; Germany-only filters; shortlist export. Loads the sheets itself.
+run round178filterstest.js 8132
+# Round 178 (Part D): a page per NAMED programme, the university FAQ, and the
+# Germany master's guides (MOI, 3-year, tuition-free, low CGPA, English-taught,
+# deadline month, branch) — no German public programme name, no counts, thin
+# guides 404. Loads the German sheets itself.
+run round178pagestest.js 8135 ALLOW_INDEXING=true GLOVELS_URL=https://www.glovels.com
+# Round 178 (SEO / go-live): robots for named crawlers, sitemap dates, llms.txt,
+# LocalBusiness / BlogPosting / Service JSON-LD, the www host redirect, the
+# "significant update" switch and the test / off-topic blog review. Starts a
+# second, staging server of its own on 8935.
+run round178seotest.js 8134 ALLOW_INDEXING=true GLOVELS_URL=https://www.glovels.com
+run round178historytest.js 8131
+# Round 178 (30 Oct "Status and History", BUG-087/088/089/090/091/095): the
+# tasks board is one row per student with the timeline in place, sorted by
+# urgency with an Overdue state; done steps say when and by whom (or ticked
+# automatically); the counsellor's Tasks tab is the same timeline; the bell
+# groups alerts by student.
+run round178taskstest.js 8130
+run round178labelstest.js 8136
 run traffictest.js  8099
 run socialtest.js   8099
 run e2e.js          8097

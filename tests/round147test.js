@@ -101,8 +101,11 @@ const PROFILE = { g_country: 'Germany', g_level: "Master's", g_field: 'Computer 
   await cp.waitForTimeout(800);
   ok(await cp.locator('#fitBox select, #fitBox input').count() > 5, 'the panel opens with its filters');
   /* Patch 149 — the testing team could not find these. */
-  ok(await cp.locator('#fitBox #gfGre').count() === 1 && await cp.locator('#fitBox #gfGreS').count() === 1,
-    'the counsellor panel has a GRE filter (taken/not taken + score)');
+  /* Round 178 (owner): the combined GRE score box is gone from the counsellor
+     panel — taken / not taken, and the three sections when taken. */
+  ok(await cp.locator('#fitBox #gfGre').count() === 1 && await cp.locator('#fitBox #gfGreS').count() === 0
+    && await cp.locator('#fitBox #gfGreQ').count() === 1,
+    'the counsellor panel has a GRE filter (taken/not taken + sections, no combined score)');
   ok((await cp.$$eval('#gfEng option', o => o.map(x => x.textContent))).includes('MOI letter'),
     'and MOI letter as an English answer');
   /* Patch 150 — the home page's filters too. */

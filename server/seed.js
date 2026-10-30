@@ -619,6 +619,76 @@ function chipsAskWhatItWas({ db, content }) {
 const OLD_WHATSAPP = '917093314089';
 const NEW_WHATSAPP = '917839399999';
 
+/*
+ * Round 178 (C, owner: "numbers not required"): the home page's headline
+ * numbers said "160,000+ programmes" and "2,000+ institutions" — catalogue
+ * sizes, which the owner does not want public and which contradicted the
+ * About page and the finder. On a deployment that stored the old rows, those
+ * two come out and the shipped replacements go in. Once; a figure the office
+ * typed itself is left alone.
+ */
+/*
+ * Round 178 (owner, 30 Oct): Glovels says "AFFILIATED universities", never
+ * "partner universities". The shipped copy is rewritten in the files; this
+ * does the same, once, to copy the office stored on the Home page screen
+ * (services, packages, FAQ, numbers, testimonials, the writing studio, the
+ * finder lines and the per-line text overrides). The B2B "partner" — the
+ * agency portal — is a different word and is not touched: only "partner"
+ * next to university / campus / institution / college, and "partnered".
+ */
+const AFFILIATED_RULES = [
+  [/\b\d+\s+partner universities you match, instant\./g, 'Affiliated universities you match, instant.'],
+  [/\b\d+\s+partner universities, plus a profile gap analysis\./g, 'Affiliated universities matched to you, plus a profile gap analysis.'],
+  [/\bFree to apply at partners?(?: universities)?\b/g, 'Free to apply at affiliated universities'],
+  [/\bfree to apply at partners?(?: universities)?\b/g, 'free to apply at affiliated universities'],
+  [/\bWe are partnered\b/g, 'We are affiliated'], [/\bwe are partnered\b/g, 'we are affiliated'],
+  [/\bwe're partnered\b/gi, 'we are affiliated'], [/\bpartnered with\b/g, 'affiliated with'],
+  [/\bPartner (universit(?:y|ies)|campus(?:es)?|institutions?|colleges?)\b/g, 'Affiliated $1'],
+  [/\bpartner (universit(?:y|ies)|campus(?:es)?|institutions?|colleges?)\b/g, 'affiliated $1'],
+  [/\b\d+\s+(affiliated universit(?:y|ies))\b/g, '$1'],
+];
+function affiliatedText(s) {
+  let out = String(s);
+  AFFILIATED_RULES.forEach(([re, to]) => { out = out.replace(re, to); });
+  return out;
+}
+function affiliatedWording({ db }) {
+  if (db.content('affiliatedWordingV1')) return 0;
+  db.setContent('affiliatedWordingV1', { done: true }, 'system');
+  let n = 0;
+  const walk = v => {
+    if (typeof v === 'string') { const t = affiliatedText(v); if (t !== v) n++; return t; }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') { const o = {}; Object.keys(v).forEach(k => { o[k] = walk(v[k]); }); return o; }
+    return v;
+  };
+  ['packages', 'services', 'faq', 'stats', 'testimonials', 'writing', 'finder', 'textOverrides'].forEach(key => {
+    const live = db.content(key);
+    if (live == null) return;
+    const before = n;
+    const next = walk(live);
+    if (n !== before) db.setContent(key, next, 'system');
+  });
+  if (n) db.log('system', 'wording: partner universities → affiliated universities', n + ' line(s) in the office copy');
+  return n;
+}
+
+function catalogueCountsOut({ db, content }) {
+  if (db.content('catalogueCountsOutV1')) return 0;
+  db.setContent('catalogueCountsOutV1', { done: true }, 'system');
+  const live = db.content('stats');
+  if (!Array.isArray(live)) return 0;
+  const isCount = r => r && /^(160,000\+|2,000\+)$/.test(String(r.num || '').trim())
+    && /programme|program|institution|universit/i.test(String(r.label || ''));
+  if (!live.some(isCount)) return 0;
+  const kept = live.filter(r => !isCount(r));
+  const norm = v => String(v || '').trim().toLowerCase();
+  const added = ((content && content.stats) || []).filter(r => !kept.some(k => norm(k.label) === norm(r.label) || norm(k.num) === norm(r.num)));
+  db.setContent('stats', added.concat(kept).slice(0, 8), 'system');
+  db.log('system', 'catalogue-size numbers taken off the home page', (live.length - kept.length) + ' removed, ' + added.length + ' added');
+  return live.length - kept.length;
+}
+
 function placeholdersOut({ db, content }) {
   if (db.content('placeholdersOutV1')) return 0;
   db.setContent('placeholdersOutV1', { done: true }, 'system');
@@ -1273,8 +1343,8 @@ function renameEntryOffers({ db }) {
   const svc = db.content('services');
   if (svc && Array.isArray(svc.items)) {
     const RN = {
-      'first-three': ['First Three Universities', 'Private match preview', '3 partner universities you match, instant.'],
-      'shortlist-ten': ['Shortlist of Ten', 'Private shortlist of 10', '10 partner universities, plus a profile gap analysis.'],
+      'first-three': ['First Three Universities', 'Private match preview', 'Affiliated universities you match, instant.'],
+      'shortlist-ten': ['Shortlist of Ten', 'Private shortlist of 10', 'Affiliated universities matched to you, plus a profile gap analysis.'],
     };
     const items = svc.items.map(x => {
       const r = x && RN[x.id];
@@ -1356,7 +1426,89 @@ function mostBookedAgain({ db }) {
   return n;
 }
 
+/*
+ * ROUND 178 (BUG-094): THE AUTOMATIC NOTICES, OUT OF THE CONVERSATION.
+ *
+ * Every sentence below is one the server writes itself (server/api.js — read
+ * off the code, not guessed). Rows already in a thread that match one are
+ * re-marked kind 'notice': they leave the conversation and the unread counts
+ * and appear on the Activity timeline instead. Attachments (a file on the
+ * row) are never touched — a file sent is a message. The counsellor's
+ * application note ("<course> at <university> — <note>") is matched against
+ * that student's own list. Runs once.
+ */
+const NOTICE_TEMPLATES = [
+  /on your shortlist now/,
+  /^Your \d+ matched universit(y is|ies are) being checked by your counsellor/,
+  /^With the profile you have just saved, none of the universities we match automatically fit/,
+  /^I have added .+ to your list\./,
+  /^I have taken .+ off your list\.$/,
+  /^I have looked at .+ and it is on your list now\./,
+  /^Update on your applications — /,
+  /^Update on your visa — /,
+  /^I have added .+ to Other documents on your Documents screen\.$/,
+  /^Your application to .+ has been submitted — the confirmation is on your Applications screen\.$/,
+  /^The decision letter for .+ is on your Applications screen\.$/,
+  /^Your .+ is ready — it is on your Documents screen\.$/,
+  /^I have put .+ on your Documents screen for you\. Check it is the right one/,
+  /^Your .+ needs another copy/,
+  /^Your counsellor is now .+\. They have your whole file/,
+  /^Your file is being handed to a new counsellor/,
+  /^Received ₹[\d,]+ for /,
+  /^Refunded ₹[\d,]+ on /,
+  /^Your order \S+ — .+ is on your file\./,
+];
+/* A student's request — never a notice (see noticesOutOfTheChat). */
+const STUDENT_REQUEST = /^I would like to apply to .+\.$/;
+const progSaidOf = p => {
+  const uni = (p && (p.university || p.prog_id || p.id)) || 'that programme';
+  const course = p && String(p.program || '').trim();
+  return course ? course + ' at ' + uni : String(uni);
+};
+function noticesOutOfTheChat({ db }) {
+  /* The student's own "I would like to apply to …" is a request a counsellor
+     has to answer — a MESSAGE. A first version of this backfill marked it a
+     notice; this puts any such row back, on every boot (idempotent: it only
+     touches notices from the student that match). */
+  if (typeof db.unmarkNotices === 'function') {
+    const back = db.unmarkNotices(m => m.sender === 'me' && !String(m.file || '') && STUDENT_REQUEST.test(String(m.body || '')));
+    if (back) db.log('system', 'notices back in the chat', back + ' student request(s) returned to the conversation');
+  }
+  if (typeof db.markNotices !== 'function' || db.content('noticesV1')) return 0;
+  db.setContent('noticesV1', { done: true }, 'system');
+  const prefixes = new Map();
+  const prefixOf = sid => {
+    if (prefixes.has(sid)) return prefixes.get(sid);
+    let list = [];
+    try { list = db.getShortlist(sid).map(r => progSaidOf(r) + ' — '); } catch (e) { list = []; }
+    prefixes.set(sid, list);
+    return list;
+  };
+  const n = db.markNotices(m => {
+    if (String(m.file || '')) return false;
+    const body = String(m.body || '');
+    /* Nothing the student wrote is a notice. */
+    if (m.sender === 'me') return false;
+    if (NOTICE_TEMPLATES.some(re => re.test(body))) return true;
+    return prefixOf(m.student_id).some(p => body.startsWith(p) && body.length > p.length);
+  });
+  if (n) db.log('system', 'notices out of the chat', n + ' automatic message(s) moved to the Activity timeline');
+  return n;
+}
+
+/* ROUND 178 (BUG-092): a history for every application that existed before
+   history was kept. Runs once (store.backfillAppHistory is itself safe to
+   repeat — it only writes where a pair has no events). */
+function applicationsKeepHistory({ db }) {
+  if (typeof db.backfillAppHistory !== 'function' || db.content('appHistoryV1')) return 0;
+  db.setContent('appHistoryV1', { done: true }, 'system');
+  const n = db.backfillAppHistory();
+  if (n) db.log('system', 'application history started', n + ' event(s) recorded for earlier applications');
+  return n;
+}
+
 module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, addMissingCountries,
+  noticesOutOfTheChat, applicationsKeepHistory, NOTICE_TEMPLATES,
   moreServicesTab,
   mostBookedAgain,
   addMissingServices,
@@ -1369,6 +1521,9 @@ module.exports = { run, seedCatalogue, seedAdmin, seedPosts, bumpBrowseCaps, add
   removeTheCardsThatWereSourceCode,
   chipsAskWhatItWas,
   placeholdersOut,
+  catalogueCountsOut,
+  affiliatedWording,
+  affiliatedText,
   everyRowSaysWhatItCosts,
   feeModelIsFreeToApply,
   packagesBelongToADestination,

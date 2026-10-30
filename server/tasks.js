@@ -1388,7 +1388,39 @@ function effectiveAll(db, rows, now) {
     derived completions. Header, Tasks tab and the bell all read this. */
 function lateCount(db, student, now) {
   const T = now ? new Date(now).getTime() : Date.now();
-  return effectiveTasks(db, student, null, T).filter(t => isLate(t, T)).length;
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  const rows = effectiveTasks(db, student, null, T);
+  /* Round 178: a step that cannot start yet (lockedIds) is not late work —
+     the header, the Tasks badge, the bell and the board all agree on that. */
+  let locked = new Set();
+  try { locked = st ? lockedIds(db, st, rows) : locked; } catch (e) { locked = new Set(); }
+  return rows.filter(t => isLate(t, T) && !locked.has(Number(t.id))).length;
+}
+
+/**
+ * Round 178: the ids of the open steps on this file that cannot start yet —
+ * an earlier stage has to happen first (UNLOCK below). `rows` are the
+ * effective rows (effectiveTasks). Never late, never current, never counted
+ * as open work.
+ */
+function lockedIds(db, st, rows) {
+  const list = (rows || []).filter(t => String(t.status) !== 'dropped');
+  const out = new Set();
+  if (!list.some(t => UNLOCK[String(t.task_key)] && String(t.status) !== 'done')) return out;
+  const F = factsOf(db, st);
+  let stages = new Set(), bought = new Map();
+  try { stages = ALERTS.stagesFor(db, st); } catch (e) { /* none */ }
+  try { bought = servicesBought(db, st); } catch (e) { /* none */ }
+  F.visaOnly = bought.has('visa') && !stages.has('apply');
+  const doneKey = k => {
+    const r = list.filter(t => String(t.task_key) === k);
+    return r.length ? r.every(t => String(t.status) === 'done') : undefined;
+  };
+  list.forEach(t => {
+    const rule = UNLOCK[String(t.task_key)];
+    if (rule && String(t.status) !== 'done' && rule(F, doneKey)) out.add(Number(t.id));
+  });
+  return out;
 }
 
 /**
@@ -1425,7 +1457,140 @@ function progress(db, student, now) {
   };
 }
 
+/*
+ * ===================== ONE STUDENT'S STEPS AS A TIMELINE (round 178) =====
+ *
+ * BUG-087 / 088 / 089 / 090 / 091 (30 Oct "Status and History" review). The
+ * office board listed every remaining step for every student — 27 rows for
+ * one counsellor's three students, "Offer letter received", "Visa decision"
+ * and "Pre-departure" shown as open work on files with no application at all.
+ * What a person needs is ONE line per student: the step that needs doing now,
+ * its date, how far through the file is, and — on request — the whole
+ * timeline: what was done, when and by whom (or that the applications ticked
+ * it), the step in hand, and what is still to come with the reason it cannot
+ * start yet.
+ *
+ * Two different "not yet"s, kept apart on purpose:
+ *   lockReason   the step is not work yet — an earlier stage has to happen
+ *                first ("Unlocks after the offer letter is recorded"). It is
+ *                upcoming in the timeline, never current, never overdue.
+ *   block        the step IS the work now, but cannot be ticked until the
+ *                file backs it (doneBlock: "3 of 10 required documents are
+ *                verified …"). Shown as text under the step (BUG-090).
+ *
+ * Step states:  done · current (the one to do now; `overdue` says if it is
+ * late) · overdue (another open step past its date) · upcoming (open, not
+ * late, not the one in hand) · locked (lockReason).
+ */
+const UNLOCK = {
+  offer: F => (F.submitted ? '' : 'Unlocks after an application is submitted'),
+  visadocs: F => (F.offers || F.visaOnly ? '' : 'Unlocks after the offer letter is recorded'),
+  visa: (F, done) => (!(F.offers || F.visaOnly) ? 'Unlocks after the offer letter is recorded'
+    : done('visadocs') === false ? 'Unlocks after the visa documents are ready' : ''),
+  visadecision: (F, done) => (!(F.offers || F.visaOnly) ? 'Unlocks after the offer letter is recorded'
+    : done('visa') === false ? 'Unlocks after the visa application is filed' : ''),
+  predeparture: F => (!(F.offers || F.visaOnly) ? 'Unlocks after the offer letter is recorded'
+    : F.visa.decision === 'granted' ? '' : 'Unlocks after the visa is granted'),
+};
+
+const ORDER_AT = new Map(TEMPLATES.map(t => [t.key, t.order]));
+
+function timeline(db, student, now, effRows) {
+  const T = now ? new Date(now).getTime() : Date.now();
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st) return null;
+  let rows = effRows;
+  if (!rows) { try { rows = effectiveTasks(db, st, null, T); } catch (e) { rows = db.tasksFor(st.id) || []; } }
+  rows = (rows || []).filter(t => String(t.status) !== 'dropped');
+  let F = null;
+  try { F = factsOf(db, st); } catch (e) { F = null; }
+  if (F) {
+    /* Somebody who bought the visa service and nothing on the application
+       side has their offer from elsewhere: their visa work is not waiting on
+       an offer we will never record. */
+    let stages = new Set(), bought = new Map();
+    try { stages = ALERTS.stagesFor(db, st); } catch (e) { /* none */ }
+    try { bought = servicesBought(db, st); } catch (e) { /* none */ }
+    F.visaOnly = bought.has('visa') && !stages.has('apply');
+  }
+  /* true / false for a step on this file, undefined when it is not on it. */
+  const doneKey = k => {
+    const r = rows.filter(t => String(t.task_key) === k);
+    return r.length ? r.every(t => String(t.status) === 'done') : undefined;
+  };
+  const name = id => { if (!id) return ''; try { return (db.studentById(Number(id)) || {}).name || ''; } catch (e) { return ''; } };
+  const phaseLabel = k => {
+    const tpl = TEMPLATES.find(x => x.key === k);
+    const p = PHASES.find(x => x.key === (tpl ? tpl.phase : 'service'));
+    return p ? p.label : '';
+  };
+  const sorted = rows.slice().sort((a, b) =>
+    (ORDER_AT.has(a.task_key) ? ORDER_AT.get(a.task_key) : 500) - (ORDER_AT.has(b.task_key) ? ORDER_AT.get(b.task_key) : 500)
+    || String(a.due_at || '9999').localeCompare(String(b.due_at || '9999'))
+    || Number(a.id) - Number(b.id));
+
+  const steps = sorted.map(t => {
+    const isDone = String(t.status) === 'done';
+    const rule = UNLOCK[String(t.task_key)];
+    const lockReason = !isDone && F && rule ? rule(F, doneKey) : '';
+    const over = isDone ? null : lateness(t, T);
+    let block = '';
+    if (!isDone && !lockReason) { try { block = doneBlock(db, st, t); } catch (e) { block = ''; } }
+    const owner = ownerOf(db, t);
+    return {
+      id: t.id, key: t.task_key, title: String(t.title || ''), phase: phaseLabel(t.task_key),
+      status: String(t.status), note: t.note || '',
+      state: isDone ? 'done' : lockReason ? 'locked' : (over != null && over > 0) ? 'overdue' : 'upcoming',
+      current: false, overdue: !isDone && !lockReason && over != null && over > 0,
+      due: t.due_at ? String(t.due_at).slice(0, 10) : '', basis: t.due_basis || '',
+      over: lockReason ? null : over,
+      doneAt: isDone && t.done_at ? DAYS.istDay(t.done_at) : '',
+      doneBy: isDone && !t.derived ? name(t.done_by) : '',
+      derived: !!t.derived, derivedWhy: t.derivedWhy || '',
+      lockReason, block, waitingOn: t.waitingOn || '',
+      ownerId: owner, owner: name(owner),
+    };
+  });
+
+  /* The step that needs doing now: the most overdue; else the one due
+     soonest; else the first open one on the journey. Never a locked one. */
+  const live = steps.filter(x => x.state === 'overdue' || x.state === 'upcoming');
+  let cur = null;
+  const late = live.filter(x => x.overdue).sort((a, b) => b.over - a.over);
+  if (late.length) cur = late[0];
+  else {
+    const dated = live.filter(x => x.due).sort((a, b) => a.due.localeCompare(b.due));
+    cur = dated[0] || live[0] || null;
+  }
+  if (cur) { cur.current = true; cur.state = 'current'; }
+
+  const done = steps.filter(x => x.state === 'done');
+  const latestDone = done.slice().sort((a, b) => String(b.doneAt).localeCompare(String(a.doneAt)))[0] || null;
+  const nextLocked = steps.find(x => x.state === 'locked') || null;
+  /*
+   * What this file needs, as one word, for the board's filters:
+   *   overdue    the step in hand is past its date
+   *   now        due within a week (or today), or somebody marked it stuck
+   *   upcoming   later, undated, or nothing can start until something else
+   *              happens
+   *   finished   every step done
+   */
+  let need;
+  if (!steps.some(x => x.state !== 'done')) need = 'finished';
+  else if (cur && cur.overdue) need = 'overdue';
+  else if (cur && ((cur.over != null && cur.over >= -7) || cur.status === 'blocked')) need = 'now';
+  else need = 'upcoming';
+  return {
+    need, current: cur, latestDone, nextLocked,
+    progress: { done: done.length, total: steps.length },
+    overdue: steps.filter(x => x.overdue).length,
+    open: live.length,
+    steps,
+  };
+}
+
 module.exports = {
+  timeline, lockedIds,
   effectiveTasks, effectiveAll, lateCount, progress, DERIVED_WHY,
   TEMPLATES, STATUSES, CLOSED,
   PHASES, rules, saveRules, ruleSettings, serviceSlaOf, syncTasks, syncAll,

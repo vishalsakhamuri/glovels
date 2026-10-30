@@ -8363,7 +8363,7 @@ link_previews()
 MARKETING_HEADS = {
     "about-us": (
         "About Glovels — Study and Work Abroad, Run Online",
-        "Glovels matches you against 160,000 programmes, shows the real fees, and "
+        "Glovels matches you to public and private universities abroad, shows the real fees, and "
         "runs the application, funding and visa from one account. From ₹99 to a "
         "full package."),
     "blog": (

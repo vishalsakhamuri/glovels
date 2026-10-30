@@ -107,9 +107,11 @@ const toCsv = rows => rows.map(r => r.map(c => {
   ok(add.ok(), 'the office can add it — ' + add.status());
 
   /* ============================================ 1. the message names the course */
-  const msgs = await (await stu.request.get(BASE + '/api/chat')).json()
-    .catch(() => ({ messages: [] }));
-  const body = JSON.stringify(msgs);
+  /* Round 178 (BUG-094): "I have added …" is a notice — on the student's
+     Activity timeline ("What's happened"), not in the chat. */
+  const msgs = await (await stu.request.get(BASE + '/api/state')).json()
+    .catch(() => ({ activity: [] }));
+  const body = JSON.stringify(msgs.activity || []);
   ok(prog && body.includes(prog.program),
     'the student is told WHICH COURSE was added, not only the university — '
     + body.slice(0, 160));
@@ -202,7 +204,7 @@ const toCsv = rows => rows.map(r => r.map(c => {
     BASE + '/api/staff/student/' + SID + '/application/' + encodeURIComponent(prog.id),
     { data: { stage: 4, outcome: 'waitlist' } });
   const said = JSON.stringify(
-    await (await stu.request.get(BASE + '/api/chat')).json().catch(() => ({})));
+    ((await (await stu.request.get(BASE + '/api/state')).json().catch(() => ({}))).activity || []));
   ok(/waiting list/i.test(said),
     'a waitlist reaches the student as a waitlist — ' + said.slice(-200));
 

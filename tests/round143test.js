@@ -76,10 +76,14 @@ async function req(who, method, path, body) {
      ones they clear — it no longer keeps it off the list. The CGPA bar is
      the one requirement that still turns a row away. */
   const order = ids;
-  ok('a programme asking IELTS 7 is still delivered to an IELTS 6.5 student, after the one they clear', has(A) && order.indexOf(B) < order.indexOf(A), ids.join(','));
-  ok('  · and a public one asking IELTS 8 is delivered after the public one they clear', has(G) && order.indexOf(F) < order.indexOf(G), ids.join(','));
+  /* Round 178 (owner, 30 Oct): a package is filled only from rows the
+     student MEETS — a stated requirement they have answered and fall short
+     of (IELTS here) is no pick; the counsellor's screen still ranks it "near". */
+  ok('Round 178: a programme asking IELTS 7 is not delivered to an IELTS 6.5 student', !has(A) && has(B), ids.join(','));
+  ok('  · nor a public one asking IELTS 8 — the public one they clear is', !has(G) && has(F), ids.join(','));
   ok('a programme asking for a Computer Science bachelor\'s ranks after the plain one for a B.Com', has(C) && order.indexOf(B) < order.indexOf(C), ids.join(','));
-  ok('a programme that requires work experience ranks after the plain one for somebody with none', has(D) && order.indexOf(B) < order.indexOf(D), ids.join(','));
+  /* Round 178: "work experience required" against "none" is a stated miss too. */
+  ok('Round 178: a programme that requires work experience is not delivered to somebody with none', !has(D) && has(B), ids.join(','));
   ok('a bachelor\'s is never offered for a master\'s, even when the list comes up short', !has(E));
   ok('nothing irrelevant pads the list — every pick is a zymurgy programme',
     (s.shortlist || []).filter(x => x.addedBy === 'matched').every(x => /zymurgy/i.test(x.program)),

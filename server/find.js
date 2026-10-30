@@ -37,9 +37,18 @@
   /* Round 176: `ggpa` — the visitor's German grade (1.0 best, 4.0 pass),
      the home page's calculator answer — narrows the way the home page
      does: a row that STATES a German grade better than theirs is out. */
+  /* Round 178 (F2): no `bachelorYears` (ECTS only) and no `greScore` (the
+     GRE is yes/no plus the three sections). `moiLetter` = "I have an MOI
+     letter", beside a test score — IELTS 6 with a letter in hand (F6.5). */
   const KEYS = ['country', 'level', 'field', 'apply', 'tuition', 'intake', 'moi', 'nogre', 'restricted', 'ggpa',
-    'cgpa', 'english', 'work', 'gre', 'greScore', 'greQuant', 'greVerbal', 'greAwa', 'german',
-    'bachelorYears', 'ects', 'topPercent', 'papers', 'tags', 'q', 'sort', 'view'];
+    'cgpa', 'english', 'moiLetter', 'work', 'gre', 'greQuant', 'greVerbal', 'greAwa', 'german',
+    'ects', 'topPercent', 'papers', 'tags', 'q', 'sort', 'view'];
+  /* Round 178 (F7.4, owner 30 Oct): the filters only the Germany sheet
+     answers — the German grade, the German level, restricted admission and
+     the bachelor's ECTS (with its 3-year rule). A non-German destination
+     drops them from the address and the screens hide their boxes. */
+  const GERMANY_ONLY = ['ggpa', 'german', 'restricted', 'ects'];
+  const germanyOnlyOff = f => !!(f && f.country && String(f.country).toUpperCase() !== 'DE');
 
   /* 10 Oct: the tag search (server/tags.js) — required under Node, found on
      window in the browser, and looked up when needed so the two scripts may
@@ -77,7 +86,7 @@
     const lockedRows = rows.filter(p => (p._locked !== undefined ? p._locked : locked(p)));
     if (lockedRows.length <= cap) return { rows: rows.slice(), more: false };
     const groups = new Map();
-    lockedRows.forEach(p => { const k = [p.country, String(p.level || '').toLowerCase(), p.field].join('|'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+    lockedRows.forEach(p => { const k = [p.country, levelKey(p.level), p.field].join('|'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
     const keep = new Set();
     const lists = [...groups.values()];
     for (let round = 0; keep.size < cap; round++) {
@@ -95,7 +104,7 @@
     const terms = upcomingTerms(4).filter(t => rows.some(p => openFor(p, t))).map(t => t.key);
     return {
       country: uniq(rows.map(p => p.country)),
-      level: uniq(rows.map(p => String(p.level || '').toLowerCase())),
+      level: uniq(rows.map(p => levelKey(p.level))),
       field: uniq(rows.map(p => p.field)),
       intake: terms,
     };
@@ -121,6 +130,10 @@
     if (f.restricted && f.restricted !== 'open' && f.restricted !== 'restricted') delete f.restricted;
     if (f.sort && !SORTS[f.sort]) delete f.sort;
     if (f.view && f.view !== 'list' && f.view !== 'uni') delete f.view;
+    /* Round 178 (F7.1): one level, Master's, with the MBAs under it. */
+    if (f.level && f.level.toLowerCase() === 'mba') f.level = 'master';
+    if (germanyOnlyOff(f)) GERMANY_ONLY.forEach(k => { delete f[k]; });
+    if (f.moiLetter && !/^(1|yes|true|on)$/i.test(f.moiLetter)) delete f.moiLetter;
     return f;
   }
 
@@ -141,8 +154,9 @@
     else if (/^toefl:/.test(en)) s.toefl = num(en.slice(6));
     else if (en === 'moi') s.moi = true;
     else if (en === 'none') s.englishNone = true;
+    if (has(f.moiLetter)) { s.moi = true; delete s.englishNone; }
     if (f.gre === 'none') s.gre = false;
-    else if (f.gre === 'yes') s.gre = num(f.greScore) != null ? num(f.greScore) : 'taken';
+    else if (f.gre === 'yes') s.gre = 'taken';
     else if (num(f.gre) != null) s.gre = num(f.gre);
     if (s.gre !== false) {
       if (num(f.greQuant) != null) s.greQuant = num(f.greQuant);
@@ -150,9 +164,9 @@
       if (num(f.greAwa) != null) s.greAwa = num(f.greAwa);
     }
     if (has(f.german)) s.germanLevel = f.german;
-    if (num(f.bachelorYears) != null) s.bachelorYears = num(f.bachelorYears);
     if (num(f.ects) != null) s.ects = num(f.ects);
-    else if (s.bachelorYears != null) s.ects = s.bachelorYears >= 4 ? 240 : 180;
+    /* Round 178 (owner): the German grade typed in wins over the CGPA's. */
+    if (num(f.ggpa) != null) s.germanGrade = num(f.ggpa);
     if (num(f.topPercent) != null) s.topPercent = num(f.topPercent);
     if (num(f.work) != null) s.workExpMonths = num(f.work);
     if (f.papers === 'yes') s.papers = true; else if (f.papers === 'no') s.papers = false;
@@ -207,20 +221,39 @@
   /* ------------------------------------------------------------- the rows */
 
   const locked = p => !!p.isPublic && !p.university;
+  /* Round 178 (F7.1): MBA is filed under Master's on every public screen. */
+  const levelKey = v => { const l = String(v || '').toLowerCase(); return l === 'mba' ? 'master' : l; };
+  /* Round 178 (owner): a fee taken from an agent portal is INDICATIVE —
+     the public side never shows it, filters on it or sorts by it ("Fee on
+     request"); the counsellor sees it labelled. The flag is the data
+     import's (`feeIndicative`, or a `feeSource`/`fee_source` naming an agent). */
+  const feeIndicative = p => !!(p && (p.feeIndicative === true || p.feeIndicative === 1 || p.feeIndicative === 'yes'
+    || /agent/i.test(String(p.feeSource || p.fee_source || ''))));
+  /* Round 178: 'Public' | 'Private' | '' — an agent-portal row (fee
+     indicative) is stored non-public so its name is not locked, but its
+     real status is not known, so no label at all. Same rule as
+     UNIS.typeLabel (server/unis.js). */
+  const typeLabel = p => {
+    if (!p) return '';
+    const known = p.typeKnown !== undefined ? !!p.typeKnown : !feeIndicative(p);
+    return known ? (p.isPublic ? 'Public' : 'Private') : '';
+  };
+  /* Round 178 (F8): the awarding body of a foreign degree, when the row has one. */
+  const awardingBody = p => String((p && (p.awardingBody || p.awarding_body || reqsOf(p).awardingBody)) || '').trim();
   const feeOf = p => (p.feeModel === 'free' || p.feeModel === 'package') ? p.feeModel : (p.isPublic ? 'package' : 'free');
-  const tuitionOf = p => { const t = reqsOf(p).tuitionEurSem; return (t === null || t === undefined || t === '') ? null : num(t); };
+  const tuitionOf = p => { if (feeIndicative(p)) return null; const t = reqsOf(p).tuitionEurSem; return (t === null || t === undefined || t === '') ? null : num(t); };
   /* Does the row ask for anything at all? A green chip on a programme that
      states nothing would be a lie — the home page draws the same line. */
   const statesAny = p => num(p.minCgpa) != null || num(p.germanGpa) != null || Object.keys(reqsOf(p)).some(k => { const v = reqsOf(p)[k]; return k !== 'tuitionEurSem' && k !== 'specialisation' && v !== null && v !== undefined && v !== '' && v !== false; });
   /* "Fee to be confirmed" where nothing is stated, the way the home page says it. */
-  const feeUnknown = p => !locked(p) && !Number(p.totalInr || 0) && tuitionOf(p) == null && !p.freeTuition;
+  const feeUnknown = p => !locked(p) && !feeIndicative(p) && !Number(p.totalInr || 0) && tuitionOf(p) == null && !p.freeTuition;
 
   /* Which rows the narrowing filters keep. `skip` leaves one key out, so a
      facet can count what it would add. */
   function keep(p, f, skip) {
     const on = k => k !== skip && has(f[k]);
     if (on('country') && p.country !== f.country) return false;
-    if (on('level') && String(p.level || '').toLowerCase() !== f.level.toLowerCase()) return false;
+    if (on('level') && levelKey(p.level) !== levelKey(f.level)) return false;
     if (on('field') && String(p.field || '') !== f.field) return false;
     if (on('apply') && feeOf(p) !== f.apply) return false;
     if (on('tuition')) {
@@ -285,11 +318,15 @@
     const v = REQS ? REQS.check(r, s) : { fails: [], unknown: [], notes: [], ok: true };
     const gg = num(p.germanGpa);
     if (gg != null && num(p.minCgpa) == null) {
-      if (s.cgpa == null) v.unknown = v.unknown.concat(['cgpa']);
+      /* Round 178 (owner, 30 Oct): the German grade typed in wins; else the
+         CGPA (out of 10) converted by the modified Bavarian formula with the
+         pass at 4/10 — one answer, no range. 4.0 on the row asks nothing. */
+      if (s.germanGrade != null) {
+        if (s.germanGrade > gg) v.fails = [{ key: 'cgpa', label: 'German grade', want: gg.toFixed(1), have: s.germanGrade.toFixed(1) }].concat(v.fails);
+      } else if (s.cgpa == null) v.unknown = v.unknown.concat(['cgpa']);
       else {
-        const kind = germanFrom(s.cgpa, PASS_KIND), strict = germanFrom(s.cgpa, PASS_STRICT);
-        if (kind == null || kind > gg) v.fails = [{ key: 'cgpa', label: 'German grade', want: gg.toFixed(1), have: 'CGPA ' + s.cgpa }].concat(v.fails);
-        else if (strict == null || strict > gg) v.unknown = v.unknown.concat(['germanGrade']);
+        const g = germanFrom(s.cgpa, PASS_KIND);
+        if (g == null || g > gg) v.fails = [{ key: 'cgpa', label: 'German grade', want: gg.toFixed(1), have: 'CGPA ' + s.cgpa + (g != null ? ' (≈ ' + g.toFixed(1) + ')' : '') }].concat(v.fails);
       }
     } else {
       const bar = barOf(p, countries);
@@ -328,7 +365,7 @@
   function sortRows(rows, key, said) {
     const k = SORTS[key] ? key : defaultSort(said);
     const az = p => (locked(p) ? '￿' : '') + String(p.program || '').toLowerCase() + ' ' + String(p.university || '').toLowerCase();
-    const cost = p => { const t = tuitionOf(p); if (t != null) return t * (p.semesters || 4); const n = Number(p.totalInr || 0); return n > 0 ? n / 90 : (locked(p) ? 1e12 : 1e11); };
+    const cost = p => { if (feeIndicative(p)) return 1e11; const t = tuitionOf(p); if (t != null) return t * (p.semesters || 4); const n = Number(p.totalInr || 0); return n > 0 ? n / 90 : (locked(p) ? 1e12 : 1e11); };
     const dl = p => { const d = nextDeadline(p).at; return d ? d.getTime() : 8.64e15; };
     const fit = p => Number(p.fit || 0);
     const cmp = { deadline: (a, b) => dl(a) - dl(b) || fit(b) - fit(a), cost: (a, b) => cost(a) - cost(b) || fit(b) - fit(a),
@@ -344,6 +381,8 @@
   function run(rows, f, REQS, opts) {
     const o = opts || {};
     uniKeys = o.uniKeys ? new Set([...o.uniKeys].map(String)) : null;
+    /* Round 178 (F7.4): a non-German destination answers no Germany-only filter. */
+    if (germanyOnlyOff(f) && GERMANY_ONLY.some(k => has(f[k]))) { f = Object.assign({}, f); GERMANY_ONLY.forEach(k => { delete f[k]; }); }
     const s = student(f);
     const said = saidAnything(s);
     const kept = rows.filter(p => keep(p, f));
@@ -355,15 +394,21 @@
     const turnedAway = p => {
       if (!said) return false;
       if (cgpaOut.has(p)) return cgpaOut.get(p);
-      const t = verdict(p, s, REQS, o.countries).fails.some(x => x.key === 'cgpa');
+      const t = verdict(p, s, REQS, o.countries).fails.length > 0;
       cgpaOut.set(p, t);
       return t;
     };
     kept.forEach(p => {
       const v = said ? verdict(p, s, REQS, o.countries) : { fails: [], unknown: [], notes: [], ok: false };
-      /* Patch 162: a shortfall ranks the row lower; it does not drop it. The
-         CGPA bar is the exception — the one requirement that turns a row away. */
-      const away = said && v.fails.some(x => x.key === 'cgpa');
+      /* Round 178 (owner, 30 Oct): "home/public/student side HIDES,
+         counsellor RANKS". A row short of anything it states that the
+         visitor answered — the German grade or CGPA, IELTS/TOEFL (an MOI
+         letter clears only where accepted), ECTS (the 3-year rule), a GRE
+         that is "Yes…", German level, work, a paper, class rank — is left
+         out, not ranked lower (patch 162 is the counsellor's matcher now).
+         Not stated by the row is met; not answered by the visitor is a
+         question, and the row stays. */
+      const away = said && v.fails.length > 0;
       if (said) cgpaOut.set(p, away);
       if (away) { turned++; return; }
       out.push(Object.assign({}, p, { _v: v, _tier: v.fails.length ? 2 : v.unknown.length ? 1 : 0, _locked: locked(p), _fee: feeOf(p), _dl: nextDeadline(p) }));
@@ -388,7 +433,7 @@
     };
     const facets = {
       country: facet('country', p => p.country),
-      level: facet('level', p => String(p.level || '').toLowerCase()),
+      level: facet('level', p => levelKey(p.level)),
       field: facet('field', p => p.field),
       apply: facet('apply', p => feeOf(p)),
       tuition0: rows.filter(p => kf(p, 'tuition') && tuitionOf(p) === 0).length,
@@ -430,14 +475,13 @@
       case 'cgpa': return 'CGPA ' + v;
       case 'ggpa': return 'German grade ' + v;
       case 'english': return /^ielts:/.test(v) ? 'IELTS ' + v.slice(6) : /^toefl:/.test(v) ? 'TOEFL ' + v.slice(6) : v === 'moi' ? 'English-medium bachelor’s' : v === 'none' ? 'No English test yet' : v;
+      case 'moiLetter': return 'Has an MOI letter';
       case 'work': return v === '0' ? 'No work experience' : v + '+ months’ work';
       case 'gre': return v === 'none' ? 'GRE not taken' : v === 'yes' ? 'GRE taken' : 'GRE ' + v;
-      case 'greScore': return 'GRE ' + v;
       case 'greQuant': return 'Quant ' + v;
       case 'greVerbal': return 'Verbal ' + v;
       case 'greAwa': return 'AWA ' + v;
       case 'german': return v === 'none' ? 'No German yet' : 'German ' + v;
-      case 'bachelorYears': return v + '-year bachelor’s';
       case 'ects': return v + ' ECTS';
       case 'topPercent': return v === '100' ? 'Below top 50%' : 'Top ' + v + '%';
       case 'papers': return v === 'yes' ? 'Published a paper' : 'No paper published';
@@ -563,13 +607,17 @@
     if (tuitionOf(p) === 0) tags.push('<span class="ft t0">No tuition</span>');
     tags.push(fee === 'free' ? '<span class="ft tfree">Free to apply</span>' : '<span class="ft tpkg">With a package</span>');
     if (reqsOf(p).moiAccepted === true) tags.push('<span class="ft">MOI accepted</span>');
+    /* Round 178 (F3/F4): shown, not hidden — with the word on it. */
+    const nts = (v && v.notes) || [];
+    if (nts.some(n => /^maybe/i.test(n))) tags.push('<span class="ft tmaybe" title="Asks more than 180 ECTS and says nothing about a 3-year degree">Maybe – check eligibility</span>');
+    if (nts.some(n => /moi possibly/i.test(n))) tags.push('<span class="ft tmaybe">MOI possibly accepted</span>');
     /* Patch 170: restriction ranks, it is not shown on the public row. */
     /* Round 169 (WEB-02/12): no "Fit %" badge on a public page. The number
        was a stored 80 on every row, not a score of anything the visitor said. */
     let verdictHtml = '';
     if (v.fails && v.fails.length) verdictHtml = '<span class="fv short" title="' + esc(v.fails.map(x => (x.label || x.key) + ': asks ' + x.want + ', you said ' + x.have).join('; ')) + '">Lower priority \u00b7 ' + esc(v.fails.length === 1 ? (v.fails[0].label || v.fails[0].key) + ' asks ' + v.fails[0].want : v.fails.length + ' things it asks') + '</span>';
     else if (v.unknown && v.unknown.length) verdictHtml = '<span class="fv unknown">Chances unknown · tell us your ' + esc(REQ_WORDS[v.unknown[0]] || v.unknown[0]) + '</span>';
-    else if (v.notes && v.notes.includes('moi')) verdictHtml = '<span class="fv ok">✓ Clears via MOI letter</span>';
+    else if (v.notes && v.notes.some(n => n === 'moi' || /clears via moi/i.test(n))) verdictHtml = '<span class="fv ok">✓ Clears via MOI letter</span>';
     else if (ctx && ctx.said && statesAny(p)) verdictHtml = '<span class="fv ok">✓ You clear what it asks</span>';
     const when = dl.at ? 'Closes ' + dateOf(dl.at) : dl.closed ? 'Intake closed' : 'Dates to confirm';
     const saved = ctx && ctx.saved && ctx.saved.has(String(p.id));
@@ -589,13 +637,18 @@
     const uniSlug = String(p.uniSlug || slugOf(p.university)).trim();
     const uniName = esc(p.shortName || p.university);
     const uniHtml = uniSlug ? '<a href="/university/' + esc(uniSlug) + '">' + uniName + '</a>' : uniName;
-    const cost = feeUnknown(p) ? '<div class="fcost unk">Fee to be confirmed</div>'
+    /* A visitor's row has its indicative fee stripped (UNIS.publicFee —
+       totalInr 0); a counsellor's keeps it, labelled. */
+    const cost = feeIndicative(p) ? (Number(p.totalInr) > 0 ? '<div class="fcost">' + money(p.totalInr) + '<small>total (indicative)</small></div>' : '<div class="fcost unk">Fee on request</div>')
+      : feeUnknown(p) ? '<div class="fcost unk">Fee to be confirmed</div>'
       : tuitionOf(p) === 0 ? '<div class="fcost">No tuition<small>semester fee only</small></div>'
       : '<div class="fcost">' + money(p.totalInr) + '<small>total, all years</small></div>';
     return '<article class="frow" data-id="' + esc(p.id) + '">'
       + logoTile(p)
       + '<div class="fmain"><h3 class="ftitle">' + esc(p.program) + '</h3>'
-      + '<div class="fsub">' + uniHtml + (p.city ? ' · ' + esc(p.city) : '') + ' · ' + esc(c.name) + ' · ' + (p.isPublic ? 'Public' : 'Private') + ' university</div>'
+      + '<div class="fsub">' + uniHtml + (p.city ? ' · ' + esc(p.city) : '') + ' · ' + esc(c.name) + (typeLabel(p) ? ' · ' + typeLabel(p) + ' university' : '') + '</div>'
+      /* Round 178 (F8): a private campus that awards a foreign degree says whose. */
+      + (awardingBody(p) ? '<div class="fsub fawb">Degree awarded by ' + esc(awardingBody(p)) + '</div>' : '')
       + '<div class="ftags">' + tags.join('') + '</div>' + verdictHtml + '</div>'
       + '<div class="fside">' + cost + '<div class="fwhen">' + esc(when) + '</div>'
       + '<div class="facts">' + acts
@@ -624,18 +677,39 @@
     return out;
   }
 
+  /* Round 178 (owner): "for any selection criteria we do not have any unis
+     matching, or any country we do not have relevant universities, we need
+     to display a contact form". The same form as a destination page with
+     nothing listed (serve.js noListingBlock), posted by the same delegated
+     script (NOLIST_JS), landing in the same leads book. */
+  function askFormHtml(f) {
+    return '<div class="nolist"><p class="nl-lead">We do not list every university publicly — some placements are '
+      + 'arranged directly, and a counsellor holds that list. Leave your number and a counsellor will come back to you '
+      + 'with what is actually open for your profile.</p>'
+      + '<form class="nl-form" id="nlForm" novalidate>'
+      + '<input id="nlName" placeholder="Your name" autocomplete="name">'
+      + '<input id="nlPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel">'
+      + '<input id="nlEmail" placeholder="Email" inputmode="email" autocomplete="email">'
+      + '<input class="nl-hp" id="nlWeb" tabindex="-1" autocomplete="off" aria-hidden="true">'
+      + '<label class="nl-ok"><input type="checkbox" id="nlOk"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>'
+      + '<button type="submit" class="btn btn-primary" id="nlGo">Send to a counsellor</button></form>'
+      + '<p class="nl-err" id="nlErr" role="alert" hidden></p>'
+      + '<input type="hidden" id="nlDest" value="' + esc(String((f && f.country) || '').split(',')[0]) + '"></div>';
+  }
   function emptyHtml(f) {
     /* Round 169 (WEB-20.5): when the words typed are what emptied the list,
        say that — CGPA advice is no help to a search that matched nothing. */
     if (has(f.q) || has(f.tags)) {
       return '<div class="fempty"><b>Nothing matches that search — try fewer words.</b> Or remove a tag'
-        + ' — or <a href="index.html#counsel">ask a counsellor</a>; we place students at universities this list does not show.</div>';
+        + ' — or <a href="index.html#counsel">ask a counsellor</a>; we place students at universities this list does not show.</div>'
+        + askFormHtml(f);
     }
     return '<div class="fempty"><b>Not seeing what you expected?</b> Widen the CGPA range'
       + (f.tuition === '0' ? ', remove “No tuition”' : '') + (f.apply ? ', show both free and package rows' : '')
-      + ' — or <a href="index.html#counsel">ask a counsellor</a> to check your profile against the full list.</div>';
+      + ' — or <a href="index.html#counsel">ask a counsellor</a> to check your profile against the full list.</div>'
+      + askFormHtml(f);
   }
 
   return { KEYS, LEVELS, SORTS, LOCKED_CAP, capLocked, facetValues, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml, listHtml, dividerHtml, isShort,
-    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, money, esc, num, logoFor, logoTokens, tagList, flagImg };
+    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, levelKey, feeIndicative, typeLabel, awardingBody, GERMANY_ONLY, germanyOnlyOff, germanFrom, money, esc, num, logoFor, logoTokens, tagList, flagImg };
 });

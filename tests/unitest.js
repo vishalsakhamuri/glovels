@@ -151,8 +151,10 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('the sitemap lists the index and every university',
     map.includes('<loc>https://glovels.example/university</loc>')
     && links.every(l => map.includes('<loc>https://glovels.example/university/' + l + '</loc>'))
-    && (map.match(/\/university\//g) || []).length === unis.size,
-    (map.match(/\/university\//g) || []).length + ' of ' + unis.size);
+    /* University pages only — round 178 adds /university/<uni>/<programme>
+       pages for named programmes, which round178pagestest checks. */
+    && (map.match(/\/university\/[a-z0-9-]+<\/loc>/g) || []).length === unis.size,
+    (map.match(/\/university\/[a-z0-9-]+<\/loc>/g) || []).length + ' of ' + unis.size);
 
   /* ------------------------------------------------------ the finder */
   const page = await guest.newPage();

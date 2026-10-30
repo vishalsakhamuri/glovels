@@ -526,12 +526,25 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* 8 Oct: a notice written to a student's thread, pushed to their open
      Messages screen with the message ITSELF — the screen reads `msg.who` and
      an empty payload threw on it. */
+  /* Round 178 (BUG-094): every caller of this has just written a NOTICE,
+     which is not in the conversation — so what goes to their open screens is
+     "the activity moved", never a chat message (it re-sent the last real one,
+     which drew it twice). */
   const pingThread = studentId => {
-    try {
-      const msgs = db.getMessages(studentId).map(msgShape(studentId));
-      live.toStudent(studentId, 'message', { studentId, msg: msgs[msgs.length - 1] });
-    } catch (e) { /* the message is on the file either way */ }
+    try { live.toStudent(studentId, 'activity', { studentId }); } catch (e) { /* the notice is on the file either way */ }
   };
+  /* A SYSTEM NOTICE: on the Activity timeline (the student file, the
+     dashboard's "What's happened"), not in the conversation, counted by no
+     unread badge, and not written twice inside ten minutes. The emails and
+     pushes the callers send beside it are theirs and unchanged. */
+  const notice = (studentId, body, author, sender) => {
+    try { return db.addNotice(studentId, body, author, sender); } catch (e) { return false; }
+  };
+  /* The timeline itself, newest first. */
+  const activityOf = (studentId, max) => db.getNotices(studentId).slice(-(max || 300)).reverse().map(m => ({
+    t: m.body, at: m.created_at, who: m.sender,
+    from: m.sender === 'me' ? '' : (String(m.author || '').trim() || FROM_OFFICE),
+  }));
 
   /*
    * Where an attachment is written, and what it is called on the file.
@@ -689,9 +702,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        same one the checklist and the counters read. */
     const slots = {};
     all.forEach(d => { const k = String(d.doc_key); (slots[k] || (slots[k] = [])).push(d); });
+    const curOf = {};
+    Object.keys(slots).forEach(k => { curOf[k] = currentFileIds(k, slots[k]); });
     return all.map(d => {
       const st = FILECHECK.stateOf(d.doc_key, d, false);
       return {
+        /* Round 178 (BUG-093): this file is the current one (else an earlier version). */
+        current: curOf[String(d.doc_key)].has(Number(d.id)),
         id: d.id, key: d.doc_key, name: DOCSLOTS.nameOf(d.doc_key),
         file: d.filename, status: st.state === 'bad' ? 'bad' : d.status, at: d.uploaded_at, bytes: d.bytes,
         by: String(d.uploaded_by || 'student'), verdict: String(d.verdict || ''),
@@ -723,6 +740,26 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* Slots that hold a SET of documents rather than copies of one: accepting
      a file in these does not mark the other accepted files 'replaced'. */
   const SET_SLOTS = new Set(['english', 'other']);
+  /* Round 178 (BUG-093): WHICH FILES IN A SLOT ARE CURRENT — the rest are
+     earlier versions, shown collapsed under "Earlier versions (N)".
+     One document: the accepted copy (and anything uploaded after it that is
+     still waiting to be looked at), else the newest file. A set (English
+     tests, other documents): every accepted or waiting file, else the newest.
+     Returns the ids as a Set of numbers. */
+  function currentFileIds(key, rows) {
+    const list = (rows || []).slice().sort((a, b) => Number(a.id) - Number(b.id));
+    const st = d => FILECHECK.stateOf(d.doc_key || key, d, false).state;
+    let cur;
+    if (SET_SLOTS.has(String(key))) {
+      cur = list.filter(d => st(d) === 'ok' || st(d) === 'wait');
+    } else {
+      const ok = list.filter(d => st(d) === 'ok');
+      const last = ok[ok.length - 1];
+      cur = last ? [last].concat(list.filter(d => Number(d.id) > Number(last.id) && st(d) === 'wait')) : [];
+    }
+    if (!cur.length && list.length) cur = [list[list.length - 1]];
+    return new Set(cur.map(d => Number(d.id)));
+  }
   /* The documents on a record counted ONCE each, however many files a slot
      holds: `total` slots, `ok` slots with a verified copy, `wait` slots with
      a file still to be looked at (a new file beside a verified copy counts —
@@ -737,6 +774,52 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       wait: slots.filter(files => files.some(f => String(f.status || 'wait') === 'wait' && !FILECHECK.fails(f.doc_key, f))).length,
       rescan: slots.filter(files => slotOf(files) === 'rescan').length,
     };
+  }
+
+  /* Round 178 (BUG-092): AN APPLICATION'S HISTORY, per programme, oldest
+     first, each event with the sentence the screens print. `office` adds the
+     office-only notes; every other caller (the student, the agency) gets the
+     stage, outcome, note, added and removed events and nothing else. */
+  const PUBLIC_EVENTS = new Set(['created', 'stage', 'outcome', 'note', 'removed']);
+  const stageName = v => ((APPS.STAGES[Number(v) || 0] || {}).n || String(v));
+  const outcomeName = v => APPS.outcomeOf(v).n;
+  function eventSaid(e) {
+    switch (e.kind) {
+      case 'created': return 'Added to the list';
+      case 'removed': return 'Taken off the list';
+      case 'stage': return stageName(e.from_val) + ' → ' + stageName(e.to_val);
+      case 'outcome': return outcomeName(e.from_val) + ' → ' + outcomeName(e.to_val);
+      case 'note': return e.to_val === 'cleared' ? 'Note cleared' : 'Note: ' + e.text;
+      case 'internal_note': return e.to_val === 'cleared' ? 'Office note cleared' : 'Office note: ' + e.text;
+      default: return String(e.kind);
+    }
+  }
+  function historyOf(studentId, office) {
+    const out = {};
+    let rows = [];
+    try { rows = db.appEvents(studentId); } catch (e) { rows = []; }
+    rows.forEach(e => {
+      if (!office && !PUBLIC_EVENTS.has(String(e.kind))) return;
+      (out[e.prog_id] || (out[e.prog_id] = [])).push({
+        at: e.at, who: e.who, role: e.who_role, kind: e.kind,
+        from: e.from_val, to: e.to_val, text: e.text, said: eventSaid(e),
+      });
+    });
+    return out;
+  }
+  /* When it first reached "Submitted" in its current life on the list: the
+     stage event that took it there, else the submission confirmation's
+     upload date, else '' (an application filed before history was kept and
+     with no confirmation on file has no honest date). */
+  const SENT_AT = APPS.STAGES.findIndex(x => x.k === 'sent');
+  function submittedAt(events, stage, proof) {
+    if (Number(stage || 0) < SENT_AT) return '';
+    const list = events || [];
+    let start = 0;
+    list.forEach((e, i) => { if (e.kind === 'created') start = i; });
+    const hit = list.slice(start).find(e => e.kind === 'stage' && Number(e.to) >= SENT_AT && Number(e.from) < SENT_AT);
+    if (hit) return hit.at;
+    return (proof && proof.at) || '';
   }
 
   function stateFor(s) {
@@ -757,9 +840,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        derived from the set (slotOf) once the rows are gathered. */
     const rowsOf = {};
     allDocs.forEach(d => { const k = String(d.doc_key); (rowsOf[k] || (rowsOf[k] = [])).push(d); });
+    const curOf = {};
+    Object.keys(rowsOf).forEach(k => { curOf[k] = currentFileIds(k, rowsOf[k]); });
     allDocs.forEach(d => {
       const fst = FILECHECK.stateOf(d.doc_key, d, false);
       const one = {
+        /* Round 178 (BUG-093): the current file, or an earlier version. */
+        current: curOf[String(d.doc_key)].has(Number(d.id)),
         id: d.id,
         file: d.filename,
         bytes: d.bytes,
@@ -817,9 +904,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        written and the student's own screen walks the shortlist. One rule for
        both screens, here. */
     const listed = new Set(db.getShortlist(s.id).map(r => String(r.prog_id)));
+    /* Round 178 (BUG-092): the public history — never the office's notes. */
+    const hist = historyOf(s.id, false);
     db.getApplications(s.id).forEach(a => {
       if (!listed.has(String(a.prog_id))) return;
+      const proof = ((appFiles[a.prog_id] || {}).proof || {});
       apps[a.prog_id] = {
+        history: hist[a.prog_id] || [],
+        submittedAt: submittedAt(hist[a.prog_id], a.stage, (proof.files || [])[0]),
         stage: a.stage, outcome: a.outcome,
         /* The counsellor's sentence about this one application, and when it
            was written. Read-only to the student — the endpoint that sets it is
@@ -846,11 +938,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         try { L = lookup(r0.prog_id); } catch (e) { L = null; }
         const r = L ? Object.assign({}, r0, { program: L.program || r0.program,
           university: L.university || r0.university, city: L.city || r0.city,
-          country: L.country || r0.country, total_inr: L.totalInr, is_public: L.isPublic ? 1 : 0,
+          /* Round 178: an indicative (agent-portal) fee is not the student's to see. */
+          country: L.country || r0.country, total_inr: L.feeIndicative ? 0 : L.totalInr, is_public: L.isPublic ? 1 : 0,
+          fee_hidden: L.feeIndicative ? 1 : 0,
           url: L.url || r0.url, intakes: JSON.stringify(L.intakes || []), short_name: L.shortName || '' }) : r0;
+        /* Round 178: a withdrawn programme keeps its copy — and the copy
+           kept the indicative fee taken the day it was added. The stored
+           programme row still says whether it was one. */
+        if (!L) {
+          let pr = null;
+          try { pr = typeof db.programme === 'function' ? db.programme(String(r0.prog_id)) : null; } catch (e) { pr = null; }
+          if (pr && pr.fee_indicative) return Object.assign({}, r0, { total_inr: 0, fee_hidden: 1 });
+        }
         return r; }).map(r => ({
         id: r.prog_id, program: r.program, university: r.university, city: r.city,
         country: r.country, totalInr: r.total_inr, isPublic: !!r.is_public, url: r.url,
+        /* Round 178: `feeIndicative` too — the screens say "Fee on request"
+           and print no public/private label (its status is not known). */
+        ...(r.fee_hidden ? { feeHidden: true, feeIndicative: true } : {}),
         shortName: r.short_name || '',
         fit: r.fit || null,
         /* 'office' or 'student'. Two lists on the screen, and the screen must
@@ -940,6 +1045,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       saved: db.getSaved(s.id),
       drafts: draftsFor(s.id),
       msgs: db.getMessages(s.id).map(msgShape(s.id)),
+      /* Round 178 (BUG-094): "What's happened" — the notices, newest first. */
+      activity: activityOf(s.id, 60),
       /* The headline plan. Round 30 Sep (issue 8): the newest order was taken,
          so a ₹0 insurance add-on bought last became the student's "plan" over
          the ₹4,999 package. The package that unlocks universities, then the
@@ -1273,13 +1380,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          last message is this one and it is under an hour old, it is replaced
          rather than repeated. */
       const SAME = 'on your shortlist now';
-      const thread = db.getMessages(student.id);
+      /* Round 178: a notice now, so the one to replace is the last NOTICE. */
+      const thread = db.getNotices(student.id);
       const last = thread[thread.length - 1];
       const recent = last && last.sender === 'them' && String(last.body).includes(SAME)
         && (Date.now() - Date.parse(last.created_at)) < 60 * 60 * 1000;
       if (recent && typeof db.deleteMessage === 'function') db.deleteMessage(last.id);
       if (!(opts && opts.quiet) && (!recent || typeof db.deleteMessage === 'function')) {
-        db.addMessage(student.id, 'them', !out.delivered && heldNow.length
+        notice(student.id, !out.delivered && heldNow.length
           /* Patch 153: everything picked is waiting on a person. Not "none
              fit" — they do — and not "on your shortlist now" — they are not. */
           ? 'Your ' + heldNow.length + ' matched universit' + (heldNow.length === 1 ? 'y is' : 'ies are')
@@ -1800,7 +1908,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const row = db.getShortlist(s.id).find(x => String(x.prog_id) === progId);
       const app = db.getApplications(s.id).find(a => String(a.prog_id) === progId);
       if (row && row.added_by === 'student' && !(app && (Number(app.stage || 0) > 0 || app.outcome))) {
-        db.removeShortlist(s.id, progId);
+        db.removeShortlist(s.id, progId, { name: s.name, role: 'student' });
         db.removeApplication(s.id, progId);
         return json(res, 200, { removed: true, shortlist: stateFor(s).shortlist });
       }
@@ -1874,6 +1982,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const had = db.getShortlist(s.id).some(x => String(x.prog_id) === String(p.id));
       db.addShortlist(s.id, p, 'student');
       if (!had) {
+        /* Round 178: a MESSAGE, not a notice — a request from a person that
+           the counsellor has to answer, so it raises the unread count and the
+           waiting-for-reply alert. */
         db.addMessage(s.id, 'me', 'I would like to apply to '
           + (p.university || '') + (p.program ? ' — ' + p.program : '') + '.');
         db.log(s.name, 'applied', (p.university || p.id));
@@ -1968,7 +2079,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        A student recording their own offer moves money, deadlines and the visa
        file behind it. */
     const outcome = now ? (now.outcome || '') : '';
-    db.putApplication(s.id, progId, want, outcome);
+    db.putApplication(s.id, progId, want, outcome, undefined, { name: s.name, role: 'student' });
     return json(res, 200, { ok: true, stage: want });
   });
 
@@ -3617,7 +3728,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      (round 175). */
   const LOCKED_CAP = FIND.LOCKED_CAP;
   function lockedPlaceholder(p, nonce) {
+    /* Round 178: an indicative fee never travels on a locked row either. */
+    p = UNIS.publicFee(p);
     return {
+      ...(p.feeHidden ? { feeHidden: true } : {}),
       id: OPAQUE_SALTED(nonce, 'p', p.id), country: p.country, level: p.level, field: p.field,
       /* What it is about — never who it is (tags.js publicTags). */
       tags: TAGS.publicTags(p),
@@ -3657,7 +3771,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const rows = lockedRowsFor(ent).filter(p => p.level && p.field);
     /* Run on a shape that find.js reads as locked (no `university`), but
        keep the real row behind each one so the placeholder is made from it. */
-    const shaped = rows.map(p => Object.assign({}, p, { university: '', program: '', tags: TAGS.publicTags(p), _real: p }));
+    /* Round 178: filtered on what the viewer may see — an indicative fee
+       is not there to be narrowed on by budget. */
+    const shaped = rows.map(p => Object.assign({}, UNIS.publicFee(p), { university: '', program: '', tags: TAGS.publicTags(p), _real: p }));
     const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys: null });
     const out = R.rows.map(p => p._real);
     if (lockedRunCache.size > 500) {
@@ -3761,15 +3877,19 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* 10 Oct: the tags the home page's tag search narrows on — the
          office's where imported, derived from the row otherwise. A locked
          row carries them too, less the ones that would name it. */
-      if (!p.isPublic || ent.staff) return named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));   // never gated
-      if (gate === 'open') return named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));
+      /* Round 178 (owner, 30 Oct): an agent-portal fee is indicative — the
+         office sees it, flagged; a visitor or a student gets the row with
+         no fee (UNIS.publicFee: totalInr 0, feeHidden, no band). */
+      if (ent.staff) return named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));
+      if (!p.isPublic) return named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));   // never gated
+      if (gate === 'open') return named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));
       if (gate === 'names') {
         /* The name, and enough to place it, but not what it costs. */
-        return named_.push(Object.assign({}, p, { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) }));
+        return named_.push(Object.assign({}, UNIS.publicFee(p), { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) }));
       }
       const mayName = quota > 0 && mayShow(p);
       if (mayName) spent = named.size;
-      if (mayName) named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));
+      if (mayName) named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));
       else lockedReal.push(p);
     });
     void spent;
@@ -4177,7 +4297,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const docs = {};
     const slots = db.docSlots(studentId);
     Object.keys(slots).forEach(k => {
-      const files = slots[k].files; const d = files[files.length - 1];
+      /* Round 178 (BUG-093): the CURRENT file — the accepted copy, else the
+         newest — not merely the last one uploaded. */
+      const files = slots[k].files;
+      const cur = currentFileIds(k, files);
+      const d = files.slice().reverse().find(f => cur.has(Number(f.id)) && String(f.status) === 'ok')
+        || files.slice().reverse().find(f => cur.has(Number(f.id))) || files[files.length - 1];
       docs[k] = { key: k, file: d.filename, status: slotOf(files), at: d.uploaded_at, size: d.bytes || 0, files: files.length };
     });
     return docs;
@@ -4190,6 +4315,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     try { profile = db.getProfile(st.id) || {}; } catch (e) { profile = {}; }
     const apps = new Map(db.getApplications(st.id)
       .map(a => [String(a.prog_id), { stage: a.stage || 0, outcome: a.outcome || '' }]));
+    const hist = historyOf(st.id, false);
     return {
       id: st.id, name: st.name, email: st.email, phone: st.phone,
       added: st.created_at,
@@ -4220,6 +4346,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            rather than listed separately. */
         stage: (apps.get(String(r.prog_id)) || {}).stage || 0,
         outcome: (apps.get(String(r.prog_id)) || {}).outcome || '',
+        /* Round 178 (BUG-092): read-only, the public events only — never the
+           office's notes. */
+        history: (hist[String(r.prog_id)] || []),
       })),
       /* One number for the row, so a list of twenty students can be read
          without opening any of them. */
@@ -4804,6 +4933,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          these — their screen gets a count. */
       held: heldOf(id),
       apps: stateFor(st).apps,
+      /* Round 178 (BUG-092): every event on each application, the office's
+         own notes included — staff payload only. */
+      appHistory: historyOf(id, true),
+      /* Round 178 (BUG-094): the notices, newest first — the Activity tab. */
+      activity: activityOf(id),
       /* The submission confirmations and decision letters, in their own basket
          and NOT in `docs` below — that list is the student's own checklist and
          the counters beside it read it as one. */
@@ -4862,6 +4996,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          readiness — the Tasks tab draws its "Visa decision" box from these. */
       visa: (() => { try { return TASKS.visaOf(db, id); } catch (e) { return null; } })(),
       visaReady: (() => { try { return JOURNEY.visaReadiness(db, id); } catch (e) { return null; } })(),
+      /* Round 178 (BUG-091): the same steps as a timeline — done (when, by
+         whom, or ticked by the applications), the one in hand, and what is
+         still to come with the reason it cannot start. The Tasks tab draws
+         this; `tasks` above stays for the counts and older callers. */
+      timeline: (() => { try { return TASKS.timeline(db, st, Date.now()); } catch (e) { return null; } })(),
       /* The drafts the student wrote in the studio. The counsellor is the one
          being paid to rewrite them, so making them ask for a copy by email is
          a step that exists for no reason. */
@@ -4914,7 +5053,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         return json(res, 409, { closed: true, lastDeadline: MATCHES.isoDay(dl.last),
           error: 'Every deadline for this programme has passed' + (lastSaid ? ' (last ' + lastSaid + ')' : '') + '. Add anyway?' });
       }
-      db.addShortlist(id, p, 'office');
+      db.addShortlist(id, p, 'office', undefined, { name: s.name, role: s.role });
       if (typeof db.undismissShortlist === 'function') db.undismissShortlist(id, p.id);
       /* Where it sits on the student's list: the matcher's rank for their
          profile, or after the machine's picks (round 165). */
@@ -4950,8 +5089,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            as a notice from the building — which is exactly the complaint
            this whole column was added to answer, still true on the messages
            a counsellor actually causes. */
-        db.addMessage(id, 'them', 'I have added ' + progSaid(p) + ' to your list.'
-          + (dl.closed ? ' Its next intake is not announced yet; your counsellor will confirm.' : ''), '', s.name);
+        notice(id, 'I have added ' + progSaid(p) + ' to your list.'
+          + (dl.closed ? ' Its next intake is not announced yet; your counsellor will confirm.' : ''), s.name);
+        pingThread(id);
         live.toStudent(id, 'shortlist', {});
       }
       return json(res, 200, { shortlist: stateFor(st).shortlist, apps: stateFor(st).apps, closed: dl.closed });
@@ -5097,6 +5237,53 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, out);
   }));
 
+  /*
+   * Round 178 (F7.5): THE STUDENT'S SHORTLIST AS AN EXCEL FILE, for the
+   * counsellor. One row per programme on the office's list (what the
+   * counsellor agreed — not the ones the student only marked), exactly
+   * these columns, in this order. Staff only, and only for a student this
+   * counsellor may see. Reuses the catalogue export's writer (sheet.js).
+   */
+  const SHORTLIST_XLSX_COLUMNS = ['University', 'Programme', 'Tuition fee', 'IELTS/TOEFL requirement', 'GPA requirement',
+    'Application start', 'Application end', 'Programme link'];
+  function shortlistXlsxRows(studentId) {
+    const day = v => { const d = new Date(String(v || '').slice(0, 10) + 'T00:00:00Z'); return isNaN(d) ? String(v || '') : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+    const season = i => (/summer|spring/i.test(String((i && i.season) || '')) ? 'Summer' : 'Winter');
+    const inr = n => '₹' + Math.round(Number(n)).toLocaleString('en-IN');
+    return db.getShortlist(studentId).filter(r => String(r.added_by) !== 'student').map(r => {
+      const raw = (typeof db.programme === 'function' ? db.programme(r.prog_id) : null) || {};
+      const p = raw.id ? UNIS.fromRow(raw) : {};
+      const q = p.reqs || {};
+      const indicative = !!(raw.fee_indicative || p.feeIndicative === true || /agent/i.test(String(raw.fee_source || p.feeSource || '')));
+      const t = q.tuitionEurSem;
+      let fee = t === 0 ? 'No tuition fee' : (t != null && t !== '') ? '€' + Number(t).toLocaleString('en-IN') + ' / semester'
+        : Number(p.totalInr || r.total_inr || 0) > 0 ? inr(p.totalInr || r.total_inr) + ' total' : (p.isPublic || r.is_public ? 'No tuition fee' : 'Not stated');
+      if (indicative && fee !== 'Not stated') fee += ' (indicative)';
+      const eng = [q.ieltsMin != null ? 'IELTS ' + q.ieltsMin : '', q.toeflMin != null ? 'TOEFL ' + q.toeflMin : ''].filter(Boolean).join(' / ')
+        + (q.moiAccepted === true ? '; MOI accepted' : q.moiAccepted === 'maybe' ? '; MOI possibly accepted' : '');
+      const gpa = p.germanGpa != null ? (Number(p.germanGpa) >= 4 ? 'No minimum stated (German 4.0)' : 'German grade ' + Number(p.germanGpa).toFixed(1))
+        : p.minCgpa != null ? 'CGPA ' + p.minCgpa : 'Not stated';
+      const intakes = (p.intakes || []).filter(Boolean);
+      const opens = intakes.map(i => { const o = i.opens || i.open || i.openDate || i.start || ''; return o ? season(i) + ': ' + day(o) : ''; }).filter(Boolean).join('; ');
+      const ends = intakes.map(i => (i.deadline ? season(i) + ': ' + day(i.deadline) : '')).filter(Boolean).join('; ');
+      return [p.university || r.university || '', p.program || r.program || '', fee, eng.replace(/^; /, '') || 'Not stated', gpa,
+        opens || 'Not stated', ends || 'Not stated', p.url || r.url || ''];
+    });
+  }
+  route('GET', /^\/api\/staff\/student\/(\d+)\/shortlist\.xlsx$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+    const st = db.studentById(id);
+    if (!st) return json(res, 404, { error: 'No such student' });
+    const body = SHEET.writeXlsx(SHORTLIST_XLSX_COLUMNS, shortlistXlsxRows(id), 'Shortlist');
+    const who = String(st.name || 'student').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'student';
+    db.log(s.name, 'exported a shortlist', st.name + ' — ' + db.getShortlist(id).filter(r => String(r.added_by) !== 'student').length + ' programmes');
+    res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="glovels-shortlist-${who}-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+      'Content-Length': body.length, 'Cache-Control': 'no-store' });
+    return res.end(body);
+  }));
+
   /* The same, for a profile typed in on the admin screen — to test the
      matcher without a student, a payment or a shortlist. */
   route('POST', '/api/staff/fit', staffOnly(async (req, res) => {
@@ -5124,7 +5311,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          (dismissed), and the review task closes when it was the last one. */
       const heldRow = !row && typeof db.getHeld === 'function'
         ? db.getHeld(id).find(x => String(x.prog_id) === progId) : null;
-      db.removeShortlist(id, progId);
+      db.removeShortlist(id, progId, { name: s.name, role: s.role });
       /* The application goes with it. A tracker for a university nobody is
          applying to any more is a row that will be wrong forever. */
       db.removeApplication(id, progId);
@@ -5133,8 +5320,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (typeof db.dismissShortlist === 'function') db.dismissShortlist(id, progId, row ? row.added_by : (heldRow ? 'held' : 'matched'));
       if (row) {
         db.log(s.name, 'removed a university', st.name + ' — ' + (row.university || progId));
-        db.addMessage(id, 'them', 'I have taken ' + progSaid(row)
-          + ' off your list.', '', s.name);
+        notice(id, 'I have taken ' + progSaid(row)
+          + ' off your list.', s.name);
+        pingThread(id);
         live.toStudent(id, 'shortlist', {});
       } else if (heldRow) {
         db.log(s.name, 'dismissed a held pick', st.name + ' — ' + (heldRow.university || progId));
@@ -5166,12 +5354,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const progId = decodeURIComponent(m[2]);
       const was = typeof db.getHeld === 'function' ? db.getHeld(id).find(x => String(x.prog_id) === progId) : null;
       if (!was) return json(res, 404, { error: 'That programme is not being held for review' });
-      const row = db.releaseHeld(id, progId);
+      const row = db.releaseHeld(id, progId, { name: s.name, role: s.role });
       db.log(s.name, 'released a held pick', st.name + ' — ' + (was.university || progId)
         + (was.hold_reason ? ' (' + was.hold_reason + ')' : ''));
-      db.addMessage(id, 'them', 'I have looked at ' + progSaid(row || was) + ' and it is on your list now.'
+      notice(id, 'I have looked at ' + progSaid(row || was) + ' and it is on your list now.'
         + (was.hold_reason ? ' Worth knowing: ' + String(was.hold_reason) + '.' : ''),
-        '', s.name);
+        s.name);
+      pingThread(id);
       try { TASKS.syncTasks(db, st); } catch (e) {}
       try { TASKS.holdReview(db, st, db.getHeld(id).length); } catch (e) {}
       live.toStudent(id, 'shortlist', {});
@@ -5268,11 +5457,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           });
         }
       }
-      db.putApplication(id, progId, stage, outcome, note);
+      /* Round 178 (BUG-092): signed — the store writes one dated event per change. */
+      const who = { name: s.name, role: s.role };
+      db.putApplication(id, progId, stage, outcome, note, who);
       /* Round 30 Sep (issue 3): the office-only note. Stored apart, never
          shown to the student and never messaged to them. */
       if (b.internalNote !== undefined) {
-        db.putApplicationInternal(id, progId, String(b.internalNote || '').replace(/\s+$/, '').slice(0, 1000));
+        db.putApplicationInternal(id, progId, String(b.internalNote || '').replace(/\s+$/, '').slice(0, 1000), who);
       }
       /* Round 177 (item 3): the counsellor records reality, so a stage ahead
          of the file is saved — but it is said back, and nothing on the
@@ -5313,7 +5504,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         : (!outcomeChanged && !outcome && stage > wasStage && stage !== DECIDED) ? said
         : '';
       if (moved) db.log(s.name, 'moved an application', st.name + ' — ' + said);
-      if (tell) db.addMessage(id, 'them', 'Update on your applications — ' + tell + '.', '', s.name);
+      if (tell) { notice(id, 'Update on your applications — ' + tell + '.', s.name); pingThread(id); }
       /* The note is its own event, with its own sentence. Folding it into the
          one above would send "Update on your applications — Filed" to somebody
          whose stage did not move and whose counsellor had just explained why
@@ -5321,7 +5512,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const noted = note !== undefined && note !== String((before || {}).note || '');
       if (noted && note) {
         db.log(s.name, 'wrote an application note', st.name + ' — ' + progSaid(row));
-        db.addMessage(id, 'them', progSaid(row) + ' — ' + note, '', s.name);
+        notice(id, progSaid(row) + ' — ' + note, s.name);
+        pingThread(id);
       }
       if (moved || noted) live.toStudent(id, 'apps', {});
       const after = db.getApplications(id).find(a => String(a.prog_id) === progId) || {};
@@ -5564,7 +5756,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          nothing. */
       const onApp = perApp
         && db.getShortlist(id).find(x => String(x.prog_id) === perApp[1]);
-      db.addMessage(id, 'them',
+      notice(id,
         spare
           ? 'I have added ' + parsed.file.filename + ' to Other documents on your '
             + 'Documents screen.'
@@ -5578,8 +5770,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           ? 'Your ' + SLOT_SAID[key] + ' is ready — it is on your Documents screen.'
           : 'I have put ' + parsed.file.filename + ' on your Documents screen for '
             + 'you. Check it is the right one — it still has to be verified.', '');
-      const msgs = db.getMessages(id).map(msgShape(id));
-      live.toStudent(id, 'message', { studentId: id, msg: msgs[msgs.length - 1] });
+      /* Round 178: a notice, so their open screens hear "activity", not a message. */
+      pingThread(id);
 
       /* Round 177 (item 11): THE STATE IT LANDED IN, not "ok" whatever
          happened. Our own work and an application file arrive verified; a
@@ -5729,11 +5921,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const what = DOCSLOTS.nameOf(key);
         const why = str(b.note, 400);
         try {
-          db.addMessage(id, 'them',
+          notice(id,
             'Your ' + what + ' needs another copy — "' + String(rec.filename).slice(0, 80) + '".'
             + (why ? ' ' + why : ' The one on file is not clear enough to send on.')
             + ' You can upload a new one on your Documents screen — the old one stays '
-            + 'until the new one arrives.', '', s.name);
+            + 'until the new one arrives.', s.name);
           pingThread(id);
         } catch (e) { /* the status is set either way */ }
         if (st && st.email) {
@@ -5877,11 +6069,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const what = DOCSLOTS.nameOf(m[2]);
         const why = str(b.note, 400);
         try {
-          db.addMessage(id, 'them',
+          notice(id,
             'Your ' + what + ' needs another copy.'
             + (why ? ' ' + why : ' The one on file is not clear enough to send on.')
             + ' You can upload a new one on your Documents screen — the old one stays '
-            + 'until the new one arrives.', '', s.name);
+            + 'until the new one arrives.', s.name);
           pingThread(id);
         } catch (e) { /* the status is set either way */ }
         if (st && st.email) {
@@ -5932,9 +6124,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         st.name + ' (' + st.email + '): ' + (was ? was.name : 'nobody') + ' \u2192 ' + (c ? c.name : 'nobody'));
       if (c) {
         try {
-          db.addMessage(id, 'them',
+          notice(id,
             'Your counsellor is now ' + c.name + '. They have your whole file — nothing you have '
-            + 'sent is lost, and this is where to reach them.', '', c.name);
+            + 'sent is lost, and this is where to reach them.', c.name);
           pingThread(id);
         } catch (e) { /* the assignment stands */ }
         if (Number(c.id) !== Number(s.id)) {
@@ -5960,7 +6152,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         try { TASKS.syncTasks(db, db.studentById(id)); } catch (e) { /* not fatal */ }
       } else if (was) {
         try {
-          db.addMessage(id, 'them', 'Your file is being handed to a new counsellor — '
+          notice(id, 'Your file is being handed to a new counsellor — '
             + 'we will tell you who shortly.');
           pingThread(id);
         } catch (e) { /* the assignment stands */ }
@@ -6746,7 +6938,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   function tellStudentMoney(order, text) {
     if (!order.student_id) return;
     try {
-      db.addMessage(order.student_id, 'them', text);
+      notice(order.student_id, text);
       pingThread(order.student_id);
     } catch (e) { /* the payment is recorded either way */ }
   }
@@ -7347,6 +7539,86 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     })).sort((a, b) => b.late - a.late || b.open - a.open);
   }
 
+  /*
+   * Round 178 (BUG-087 / 088 / 089): THE BOARD, ONE ROW PER STUDENT.
+   *
+   *   GET /api/staff/tasks?view=students[&need=live|now|late|upcoming|done|all]
+   *                                    [&who=<staff id>|none][&phase=<key>]
+   *   → { students: [{ studentId, student, counsellorId, counsellor, phase,
+   *        need, current, latestDone, nextLocked, progress:{done,total},
+   *        overdue, open, steps:[…TASKS.timeline steps] }],
+   *       total, counts: { students, overdue, now, upcoming, finished,
+   *        late (overdue steps), open (steps that are work now) } }
+   *
+   * `need`: live = everybody with something left (the default, "Still to
+   * do"); now = overdue or due inside a week; late = overdue; upcoming =
+   * nothing due inside a week; done = finished work, latest first; all.
+   * Sorted by urgency — most overdue first, then soonest due, then undated.
+   * The counts are over the reader's students after `who` and `phase`, before
+   * `need`, so the filter chips do not change as you click them.
+   */
+  function studentBoard(s, q, every, now) {
+    const by = new Map();
+    every.forEach(t => {
+      const k = Number(t.student_id);
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(t);
+    });
+    const who = q.get('who') || '';
+    const phase = q.get('phase') || '';
+    const need = q.get('need') || q.get('state') || 'live';
+    const out = [];
+    by.forEach((list, sid) => {
+      if (s.role !== 'admin' && !db.canSee(s, sid)) return;
+      const st = db.studentById(sid);
+      if (!st || st.role !== 'student') return;
+      if (!list.some(t => String(t.status) !== 'dropped')) return;
+      const cid = st.counsellor_id ? Number(st.counsellor_id) : null;
+      if (who === 'none' ? cid != null : who && String(cid) !== String(who)) return;
+      let ph = null;
+      try { ph = TASKS.phaseOf(db, st, now); } catch (e) { ph = null; }
+      if (phase && (!ph || ph.key !== phase)) return;
+      let tl = null;
+      try { tl = TASKS.timeline(db, st, now, list); } catch (e) { tl = null; }
+      if (!tl) return;
+      out.push(Object.assign({
+        studentId: sid, student: st.name || 'Unknown',
+        counsellorId: cid, counsellor: cid ? ((db.studentById(cid) || {}).name || '') : '',
+        phase: ph ? { key: ph.key, label: ph.label } : null,
+      }, tl));
+    });
+    const counts = {
+      students: out.filter(x => x.need !== 'finished').length,
+      overdue: out.filter(x => x.need === 'overdue').length,
+      now: out.filter(x => x.need === 'now').length,
+      upcoming: out.filter(x => x.need === 'upcoming').length,
+      finished: out.filter(x => x.need === 'finished').length,
+      late: out.reduce((n, x) => n + x.overdue, 0),
+      open: out.reduce((n, x) => n + x.open, 0),
+    };
+    let rows = out;
+    if (need === 'live') rows = out.filter(x => x.need !== 'finished');
+    else if (need === 'now') rows = out.filter(x => x.need === 'overdue' || x.need === 'now');
+    else if (need === 'late' || need === 'overdue') rows = out.filter(x => x.need === 'overdue');
+    else if (need === 'upcoming') rows = out.filter(x => x.need === 'upcoming');
+    else if (need === 'done' || need === 'finished') rows = out.filter(x => x.latestDone);
+    const rank = { overdue: 0, now: 1, upcoming: 2, finished: 3 };
+    if (need === 'done' || need === 'finished') {
+      rows.sort((a, b) => String(b.latestDone.doneAt).localeCompare(String(a.latestDone.doneAt))
+        || a.student.localeCompare(b.student));
+    } else {
+      rows.sort((a, b) => {
+        const ca = a.current, cb = b.current;
+        return (rank[a.need] - rank[b.need])
+          || ((cb && cb.overdue ? cb.over : 0) - (ca && ca.overdue ? ca.over : 0))
+          /* soonest first; undated after every dated one */
+          || String((ca && ca.due) || '9999').localeCompare(String((cb && cb.due) || '9999'))
+          || a.student.localeCompare(b.student);
+      });
+    }
+    return { students: rows.slice(0, 400), total: rows.length, counts };
+  }
+
   /** The board. Everything the reader is allowed to see, filtered. */
   route('GET', '/api/staff/tasks', caseworkOnly(async (req, res, s) => {
     const q = new URL(req.url, 'http://x').searchParams;
@@ -7389,6 +7661,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
       rows = rows.filter(t => inPhase.has(Number(t.student_id)));
     }
+    /* Round 178 (BUG-087/088/089): one row per student — see studentBoard. */
+    if (q.get('view') === 'students') {
+      return json(res, 200, Object.assign(studentBoard(s, q, every, now), {
+        funnel,
+        people: scoreboard(s.role === 'admin' ? every
+          : every.filter(t => db.canSee(s, Number(t.student_id))), now),
+      }));
+    }
     const shaped = rows.map(t => taskShape(t, now));
     return json(res, 200, {
       tasks: shaped.slice(0, 600),
@@ -7417,7 +7697,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       try { rows = TASKS.syncTasks(db, db.studentById(id), now); }
       catch (e) { rows = db.tasksFor(id); }
       try { rows = TASKS.effectiveTasks(db, id, rows, now); } catch (e) { /* as stored */ }
-      return json(res, 200, { tasks: rows.map(t => taskShape(t, now)) });
+      let timeline = null;
+      try { timeline = TASKS.timeline(db, db.studentById(id), now, rows); } catch (e) { timeline = null; }
+      return json(res, 200, { tasks: rows.map(t => taskShape(t, now)), timeline });
     }));
 
   /** A task somebody thought of that no template covers. */
@@ -7484,7 +7766,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (out.status !== 200) return json(res, out.status, { error: out.error });
     if (out.changed) {
       db.log(s.name, 'recorded a visa decision', st.name + ' — ' + (out.visa.decision || 'cleared'));
-      db.addMessage(id, 'them', 'Update on your visa — ' + out.said + '.', '', s.name);
+      notice(id, 'Update on your visa — ' + out.said + '.', s.name);
       try { pingThread(id); } catch (e) { /* the message is on the file */ }
     } else if (b.travelDate !== undefined) {
       db.log(s.name, 'set a travel date', st.name + ' — ' + (out.visa.travelDate || 'cleared'));
@@ -9022,12 +9304,29 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* What it asks for. Sent as one object by the form; a caller that
          leaves it out leaves the stored record alone (the store does that),
          so a screen that never heard of it cannot blank it. */
-      reqs: b.reqs && typeof b.reqs === 'object' ? b.reqs : undefined,
+      /* Round 178: a key the form does not carry (the 3-year rule, the GRE
+         sections, ECTS…) keeps the stored value — the editor lists a few of
+         the fields, and a save used to blank the rest. A "maybe" the form's
+         yes/no box cannot show is kept unless the box was changed. */
+      reqs: b.reqs && typeof b.reqs === 'object'
+        ? (() => {
+            const was = existing ? REQS.parse(existing.reqs) : {};
+            const out = Object.assign({}, was, b.reqs);
+            Object.keys(was).forEach(k => { if (was[k] === 'maybe' && b.reqs[k] === null) out[k] = 'maybe'; });
+            return out;
+          })()
+        : undefined,
       /* The office's tags: a list or a ';'-joined string, at most 60 of
          them, each at most 60 characters. Left out, the stored ones stay
          (the store does that) — a sheet without the column must not wipe
          what the last one wrote. */
       tags: b.tags === undefined ? undefined : TAGS.parseList(b.tags),
+      /* Round 178: the fee is an agent portal's (indicative — counsellors
+         only), and who awards the degree. Left out, the row keeps its own
+         (the store does that), like the tags. */
+      feeIndicative: b.feeIndicative === undefined ? undefined : !!b.feeIndicative,
+      awardingBody: b.awardingBody === undefined ? undefined
+        : String(b.awardingBody == null ? '' : b.awardingBody).trim().slice(0, 120),
       active: b.active !== false,
       /* Search only: a page and a search hit, but not a row in the finder.
          Like featured, not a property of the programme, so an edit that says
@@ -9123,6 +9422,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            (derived when none are stored), the first few for the screen. */
         tags: String(r.tags || '').split(';').map(t => t.trim()).filter(Boolean),
         tagsShown: TAGS.tagsOf(UNIS.fromRow(r)).slice(0, 6),
+        /* Round 178: the office sees an agent-portal fee, flagged as such. */
+        feeIndicative: !!r.fee_indicative, awardingBody: r.awarding_body || '',
         /* CNS-04: the one name this university goes by in a list, whichever
            of its names the row was filed under ("HS Bremen" → "Bremen
            University of Applied Sciences"). */
@@ -9269,7 +9570,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        student's grade at the kindest pass mark Indian universities use; worse
        than the row's grade even then, the row is out. */
     const PASS_KIND = 4;
-    const cgpaAsGerman = cgpa ? (cgpa < PASS_KIND ? 99 : Math.floor((1 + 3 * (10 - cgpa) / (10 - PASS_KIND)) * 10) / 10) : 0;
+    /* Round 178 (owner): a German grade typed in wins over the converted CGPA. */
+    const cgpaAsGerman = cgpa ? (gg ? gg : cgpa < PASS_KIND ? 99 : Math.floor((1 + 3 * (10 - cgpa) / (10 - PASS_KIND)) * 10) / 10) : 0;
 
     /* The database picks the universities (store.filterUniversities); the
        office's off-search pages are dropped after. */
@@ -9284,8 +9586,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!u) continue;
       /* Round 176: no programme counts on the row — `partial` says some of
          its programmes fall outside the filter, not how many. */
+      /* Round 178: `typeLabel` '' when the status is not known (an
+         agent-portal import); `feeOnRequest` when every fee is indicative. */
       out.push({ slug: u.slug, name: shortNameOf(u.shortName) || u.name, city: u.city, isPublic: u.isPublic,
-        feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
+        typeLabel: UNIS.typeLabel(u), feeOnRequest: !!u.feeOnRequest, feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
         featured: u.programmes.some(p => p.featured), partial: Number(f.matching) < u.programmes.length,
         url: '/university/' + u.slug });
     }
@@ -9726,6 +10030,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* What the programme asks for — nine columns, one owner. server/reqs.js
        names them, reads them back, and refuses what it cannot read. */
     ...REQS.SHEET_HEADERS.map(h => [h, 'reqs.' + h]),
+    /* Round 178: yes when the fee came from an agent portal (Crizac,
+       ApplyBoard, UCOL) — shown to counsellors, flagged, and never to a
+       visitor or a student. And who awards the degree (blank = the
+       university itself). A sheet without either column leaves them be. */
+    ['fee indicative', 'feeIndicative'], ['awarding body', 'awardingBody'],
     /* 10 Oct: the office's tags, ';'-separated, from the dictionary. Blank
        on a row keeps what is stored; a sheet without the column at all
        changes nothing (see tagsOf in the importer). */
@@ -9766,6 +10075,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       !r.active ? 'no' : r.search_only ? 'search' : 'yes',
       r.featured ? 'yes' : 'no', r.feature_sort || '',
       ...REQS.toSheet(REQS.parse(r.reqs)),
+      r.fee_indicative ? 'yes' : 'no', r.awarding_body || '',
       String(r.tags || ''),
     ];
   });
@@ -9897,7 +10207,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          is what it was called in the request; "cost" and "charge" are what a
          person reaches for when retyping a header from memory. */
       'free or package': 'feeModel', 'application cost': 'feeModel',
-      cost: 'feeModel', charge: 'feeModel', partnered: 'feeModel',
+      cost: 'feeModel', charge: 'feeModel', partnered: 'feeModel', affiliated: 'feeModel',
       /* What a person types at the top of that column when they are working
          from the Germany sheet rather than from ours. `gpa` alone is the header
          on the merged Germany workbook. */
@@ -9912,6 +10222,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     REQS.FIELDS.forEach(f => REQS.headingsFor(f).forEach(h => { alias[h] = 'reqs.' + f.key; }));
     /* 10 Oct: the tags column, under the names it arrives as. */
     Object.assign(alias, { tags: 'tags', tag: 'tags', keywords: 'tags', labels: 'tags' });
+    /* Round 178: the indicative-fee flag, the awarding body, and "if this
+       course is already here, update it" — a blank-id row that names a
+       course the catalogue has (same university, programme, level, country)
+       changes THAT row instead of being refused as a duplicate. Only on a
+       sheet that asks for it; without the column a blank id still means
+       "add", and a twin is still refused. */
+    Object.assign(alias, {
+      'indicative fee': 'feeIndicative', 'fee is indicative': 'feeIndicative', indicative: 'feeIndicative',
+      'awarding body': 'awardingBody', 'awarded by': 'awardingBody', 'degree awarded by': 'awardingBody',
+      'if already on the site': 'upsert', 'if already there': 'upsert', 'if it exists': 'upsert', upsert: 'upsert',
+    });
     /* The tags on one row. No column at all: undefined, and the store keeps
        the row's. A blank cell in a sheet that has the column: ALSO keeps the
        row's — the Germany sheet is the only place these are written and a
@@ -9951,6 +10272,38 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     const seen = Object.keys(objects[0] || {});
     const unknown = seen.filter(h => !alias[h]);
+    /* Round 178: which columns this sheet carries. A column it does NOT
+       carry says nothing about that field, so an existing row keeps what it
+       has (keepAbsent below) — a sheet without "on the site" must not put
+       every hidden row back, nor one without "showcase" clear the showcase. */
+    const hasCol = key => seen.some(h => alias[h] === key);
+    const keepAbsent = (row, ex) => {
+      if (!ex) return row;
+      if (!hasCol('active')) { row.active = !!ex.active; row.searchOnly = !!ex.search_only; }
+      if (!hasCol('featured')) row.featured = !!ex.featured;
+      if (!hasCol('featureSort')) row.featureSort = ex.feature_sort || 0;
+      if (!hasCol('fit')) row.fit = Number(ex.fit || 0);
+      if (!hasCol('minCgpa')) row.minCgpa = ex.min_cgpa == null ? null : Number(ex.min_cgpa);
+      if (!hasCol('band')) row.band = ex.band || '';
+      if (!hasCol('i1d') && !hasCol('i2d')) {
+        try { row.intakes = JSON.parse(ex.intakes) || []; } catch (e) { row.intakes = []; }
+      }
+      return row;
+    };
+    const flagOf = o => {
+      if (!hasCol('feeIndicative')) return undefined;
+      for (const h of Object.keys(o)) if (alias[h] === 'feeIndicative') return YES(o[h]);
+      return false;
+    };
+    const awardOf = o => {
+      if (!hasCol('awardingBody')) return undefined;
+      for (const h of Object.keys(o)) if (alias[h] === 'awardingBody') return String(o[h] == null ? '' : o[h]).trim();
+      return '';
+    };
+    const upsertOf = o => {
+      for (const h of Object.keys(o)) if (alias[h] === 'upsert') return /^(update|yes|y|match|true|1)$/i.test(String(o[h] || '').trim());
+      return false;
+    };
 
     /*
      * Is this the catalogue sheet at all?
@@ -10137,6 +10490,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         id: String(g('id') || '').trim(),
         reqs: reqsOf(o),
         tags: tagsOf(o),
+        feeIndicative: flagOf(o), awardingBody: awardOf(o),
         program: g('program'), university: g('university'),
         /* The name a counsellor says out loud. Blank is a real answer and
            means "use the full name" — every row outside Germany has one —
@@ -10153,7 +10507,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         feeModel: (() => {
           const raw = String(g('feeModel') || '').trim().toLowerCase();
           if (!raw) return '';
-          if (/^(free|yes|y|partner|partnered|nil|no charge|0)$/.test(raw)) return 'free';
+          if (/^(free|yes|y|partner|partnered|affiliated|nil|no charge|0)$/.test(raw)) return 'free';
           if (/^(package|paid|charge|charged|chargeable|no|n)$/.test(raw)) return 'package';
           return '';
         })(),
@@ -10254,7 +10608,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          nothing recognises is stored blank — so a file carrying an
          unrecognised level, uploaded twice, has to match itself on blank
          rather than on two raw strings that happen to differ. */
-      const dupKey = sameCourse(draft.university, draft.program,
+      /* Round 178: the title as it will be STORED (cleanProgramme spaces a
+         degree glued to the name) — or a file uploaded twice would not find
+         the row its first upload wrote. */
+      const dupKey = sameCourse(draft.university,
+        UNIS.spaceDegree(String(draft.program || '').trim().slice(0, FIELD_LIMITS.program)),
         normLevel(draft.level), draft.country);
       const twin = already.get(dupKey);
       const earlier = inThisFile.get(dupKey);
@@ -10262,7 +10620,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const clashSaid = earlier
         ? `line ${earlier.line} of this file`
         : (twin ? `id ${twin.id}` : '');
-      if (clash && !draft.id) {
+      /* Round 178: the sheet asked for it — a blank id on a course already
+         here updates that course, by its own id. Never across two lines of
+         one file (that is still a duplicate in the file). */
+      if (clash && !draft.id && !earlier && twin && upsertOf(o)) {
+        draft.id = String(twin.id);
+        plan.matched = (plan.matched || 0) + 1;
+      } else if (clash && !draft.id) {
         why.push(`${draft.university} — ${draft.program} is already here, as ${clashSaid}`
           + (!earlier && twin && !twin.active ? ', currently removed from the site' : '')
           + `. A blank id always ADDS a new programme, so this line would put the same `
@@ -10293,7 +10657,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          171 rows today; requiring it would freeze a number per programme and
          changing Germany from 7.5 to 7.0 would then move nothing at all. */
       if (!raw('feeModel')) {
-        why.push('the application column is empty — say Free (we are partnered) '
+        why.push('the application column is empty — say Free (we are affiliated) '
                + 'or Package (we are not)');
       } else if (!draft.feeModel) {
         why.push(`"${raw('feeModel')}" is not Free or Package`);
@@ -10328,7 +10692,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (!inThisFile.has(dupKey)) inThisFile.set(dupKey, { line, id: draft.id });
 
       const existing = draft.id ? db.programme(draft.id) : null;
-      const clean = cleanProgramme(draft, existing);
+      const clean = cleanProgramme(keepAbsent(draft, existing), existing);
       if (!existing) {
         plan.create.push({ line, id: clean.id, what: clean.university + ' — ' + clean.program, warn });
         if (warn.length) plan.warned++;
@@ -10388,6 +10752,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         /* And the tags — the first upload of that column is a sheet where
            it is the only edit on every row. */
         tags: clean.tags === undefined ? '' : String(existing.tags || ''),
+        /* Round 178: the two new columns, for the reason every line above
+           gives — the first upload of a column is a sheet where it is the
+           only edit on every row. */
+        feeIndicative: clean.feeIndicative === undefined ? '' : !!existing.fee_indicative,
+        awardingBody: clean.awardingBody === undefined ? '' : String(existing.awarding_body || ''),
       };
       const after = {
         program: clean.program, university: clean.university, city: clean.city,
@@ -10402,6 +10771,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         intakes: asIntakes(clean.intakes),
         reqs: clean.reqs === undefined ? '' : JSON.stringify(REQS.clean(clean.reqs).reqs),
         tags: clean.tags === undefined ? '' : clean.tags.join(';'),
+        feeIndicative: clean.feeIndicative === undefined ? '' : !!clean.feeIndicative,
+        awardingBody: clean.awardingBody === undefined ? '' : String(clean.awardingBody || ''),
       };
       const changed = Object.keys(after).filter(k => String(before[k]) !== String(after[k]));
       /* An unchanged row can still carry a warning, and used to swallow it.
@@ -10438,6 +10809,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           create: plan.create.length, update: plan.update.length,
           unchanged: plan.unchanged.length, rejected: plan.rejected.length,
           warned: plan.warned,
+          /* Round 178: blank-id lines that found their course already here. */
+          matched: plan.matched || 0,
         },
         plan,
         note: 'Nothing has been changed. Send it again with confirm to apply.',
@@ -10465,10 +10838,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       };
       const id = c ? c.id : u.id;
       const existing = db.programme(id);
-      const clean = cleanProgramme({
+      const clean = cleanProgramme(keepAbsent({
         id,
         reqs: reqsOf(o),
         tags: tagsOf(o),
+        feeIndicative: flagOf(o), awardingBody: awardOf(o),
         program: g('program'), university: g('university'),
         /* Read here as well as in the plan above. The comment twenty lines
            down says why: a field the preview understands and the apply drops
@@ -10485,7 +10859,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         feeModel: (() => {
           const raw = String(g('feeModel') || '').trim().toLowerCase();
           if (!raw) return '';
-          if (/^(free|yes|y|partner|partnered|nil|no charge|0)$/.test(raw)) return 'free';
+          if (/^(free|yes|y|partner|partnered|affiliated|nil|no charge|0)$/.test(raw)) return 'free';
           if (/^(package|paid|charge|charged|chargeable|no|n)$/.test(raw)) return 'package';
           return '';
         })(),
@@ -10517,7 +10891,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         intakes: [[g('i1s'), g('i1d')], [g('i2s'), g('i2d')]]
           .filter(([, d]) => String(d || '').trim())
           .map(([sea, d]) => ({ season: String(sea || 'winter').toLowerCase().trim(), deadline: String(d).trim().slice(0, 10) })),
-      }, existing);
+      }, existing), existing);
       db.saveProgramme(clean, s.name);
       c ? created++ : updated++;
     });
@@ -11072,6 +11446,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       excerpt: p.excerpt || '', tag: p.tag || '', author: p.author || '',
       status: p.status, readMins: p.read_mins || 0,
       publishedAt: p.published_at || '', updatedAt: p.updated_at,
+      modifiedAt: p.modified_at || '',
       updatedBy: p.updated_by || '', cover: p.cover || '',
       metaTitle: p.meta_title || '', metaDesc: p.meta_desc || '',
       keywords: p.keywords || '', ogImage: p.og_image || '',
@@ -11086,7 +11461,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          and the office screen did not know about it: the tile said 5 DRAFTS
          while all five were readable at their address, and the admin believed
          nothing was published. */
-      onDisk: !!onDisk(p.slug) && p.status !== 'published',
+      onDisk: !!onDisk(p.slug) && p.status !== 'published' && p.status !== 'archived',
       words: p.words != null && (p.body == null || String(p.body).length >= 900) ? Number(p.words) || 0
         : String(p.body || '').trim().split(/\s+/).filter(Boolean).length,
     };
@@ -11129,7 +11504,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        headline, address, topic and author; ?status=published|draft; ?page=,
        ?per= (100). The four tiles are counted by the database over everything. */
     const qs = url.parse(req.url, true).query;
-    const pg = db.postsPage({ q: qs.q, status: qs.status === 'published' ? 'published' : qs.status ? 'draft' : '',
+    const pg = db.postsPage({ q: qs.q, status: qs.status === 'published' ? 'published' : qs.status === 'archived' ? 'archived' : qs.status ? 'draft' : '',
       page: qs.page, per: qs.per || 100 });
     const stats = db.postStats();
     /* A draft whose original page is still on disk is on the site (see
@@ -11137,7 +11512,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        draft. */
     let files = [];
     try { files = fs.readdirSync(path.join(__dirname, '..', 'post')).filter(f => f.endsWith('.html') && !f.startsWith('_')); } catch (e) {}
-    const stillUp = files.map(f => db.postBySlug(f.slice(0, -5))).filter(p => p && p.status !== 'published' && !replaced(p.slug)).length;
+    const stillUp = files.map(f => db.postBySlug(f.slice(0, -5))).filter(p => p && p.status !== 'published' && p.status !== 'archived' && !replaced(p.slug)).length;
     stats.live += stillUp; stats.draft -= stillUp;
     return json(res, 200, { posts: pg.rows.map(p => postShape(p, false)),
       total: pg.total, page: pg.page, per: pg.per, stats });
@@ -11189,7 +11564,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       if (new Date(stated) > yearAhead) warning = 'Publish date is more than a year ahead';
     }
 
-    let slug = PROSE.slugify(b.slug || title);
+    /* Round 178 (B5): the address is stored apart from the headline. Editing
+       the headline of an existing post NEVER moves it — only a different
+       address typed into the Address box does, and that is a deliberate act
+       (a published post's old address then 301s to the new one). */
+    let slug = existing
+      ? (b.slug && PROSE.slugify(b.slug) && PROSE.slugify(b.slug) !== existing.slug ? PROSE.slugify(b.slug) : existing.slug)
+      : PROSE.slugify(b.slug || title);
     const clash = db.postBySlug(slug);
     if (clash && (!existing || clash.id !== existing.id)) {
       /* Two posts cannot share an address. Rather than refuse and make somebody
@@ -11235,9 +11616,26 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
            written earlier is a normal thing to want. Kept once set, so a
            correction does not silently move the publication date — that is
            what "updated on" is for. */
-        publishedAt: wants === 'published'
-          ? (stated || (existing && existing.published_at) || new Date().toISOString())
-          : (stated || (existing ? existing.published_at || '' : '')),
+        /* Round 178 (B5): FIXED after the first publish. Once a post has been
+           live, its datePublished is what Google holds and it is not moved by
+           the editor. A draft keeps the exact stored timestamp (a Wix import's
+           to the second) when the date box still shows the same day. */
+        publishedAt: (existing && existing.status === 'published' && existing.published_at)
+          ? existing.published_at
+          : (() => {
+            const kept = existing && existing.published_at;
+            const sameDayAsKept = kept && stated && Math.abs(new Date(stated) - new Date(kept)) < 36 * 3600 * 1000
+              && /^\d{4}-\d{2}-\d{2}$/.test(String(b.publishedAt || '').trim());
+            const chosen = sameDayAsKept ? kept : stated;
+            return wants === 'published'
+              ? (chosen || kept || new Date().toISOString())
+              : (chosen || kept || '');
+          })(),
+        /* Round 178 (B5): "This is a significant content update". Off (the
+           default): dateModified, the visible Updated date and the sitemap
+           lastmod stay as they were. On: they become now. */
+        modifiedAt: (b.significant === true || b.significant === 'true' || b.significant === 'on')
+          ? new Date().toISOString() : undefined,
         updatedBy: s.name,
       },
     };
@@ -11344,6 +11742,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const r = await readPost(req, s, was);
     if (r.error) return json(res, 422, { error: r.error });
     const row = db.updatePost(was.id, r.post);
+    /* Round 178 (B5): an address changed on purpose. If the old one was ever
+       public it hands over with a 301 (serve.js reads postMoves). */
+    if (row && row.slug !== was.slug && (was.status === 'published' || was.published_at)) {
+      let moves = {};
+      try { moves = Object.assign({}, db.content('postMoves') || {}); } catch (e) { moves = {}; }
+      Object.keys(moves).forEach(k => { if (moves[k] === was.slug) moves[k] = row.slug; });
+      moves[was.slug] = row.slug;
+      delete moves[row.slug];
+      db.setContent('postMoves', moves, s.name);
+      db.log(s.name, 'changed a post address', '/post/' + was.slug + ' → /post/' + row.slug);
+    }
     db.log(s.name,
       was.status !== 'published' && r.post.status === 'published' ? 'published a post'
         : r.post.status === 'published' ? 'edited a live post' : 'saved a draft',
@@ -11368,9 +11777,50 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         published: true,
       });
     }
+    /* Round 178: an archived post was public once; it is kept, not deleted. */
+    if (p.status === 'archived') {
+      return json(res, 409, { error: 'This post is archived, and archived posts are kept so they can be restored. '
+        + 'Press Save to bring it back as a draft.', archived: true });
+    }
     db.deletePost(p.id);
     db.log(s.name, 'deleted a draft', p.title);
     return json(res, 200, { deleted: true });
+  }));
+
+  /* Round 178 (B3/B4): the two lists the office reads before go-live — test /
+     dummy posts and off-topic ones — from every post, whatever its status.
+     Read-only; see server/blogreview.js. */
+  const BLOGREVIEW = require('./blogreview.js');
+  route('GET', '/api/staff/posts/review', needs('content', async (req, res) => {
+    const all = [];
+    for (let pg = 1; pg <= 200; pg++) {
+      const r = db.postsPage({ page: pg, per: 500 });
+      all.push(...r.rows);
+      if (r.rows.length < 500) break;
+    }
+    const l = BLOGREVIEW.lists(all.map(p => postShape(p, false)));
+    return json(res, 200, Object.assign(l, { checked: all.length }));
+  }));
+
+  /* "Archive selected": off the site, out of the blog, the sitemap and
+     search, its address 301s to /blog — and nothing is deleted. Restore puts
+     it back as a draft, to be published again on purpose. */
+  route('POST', '/api/staff/posts/archive', needs('content', async (req, res, s) => {
+    const b = await readJson(req);
+    const restore = !!b.restore;
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter(n => n > 0).slice(0, 1000);
+    if (!ids.length) return json(res, 422, { error: 'Tick at least one post.' });
+    const done = [];
+    ids.forEach(id => {
+      const p = db.postById(id);
+      if (!p) return;
+      if (restore ? p.status !== 'archived' : p.status === 'archived') return;
+      db.setPostStatus(p.id, restore ? 'draft' : 'archived');
+      db.log(s.name, restore ? 'restored an archived post (as a draft)' : 'archived a post',
+        p.title + ' · /post/' + p.slug + (restore ? '' : ' (was ' + (p.status || 'draft') + ')'));
+      done.push({ id: p.id, slug: p.slug });
+    });
+    return json(res, 200, { ok: true, archived: restore ? 0 : done.length, restored: restore ? done.length : 0, posts: done });
   }));
 
   /* -------------------------------------------------------------- alerts */
@@ -11388,8 +11838,35 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    */
   route('GET', '/api/staff/alerts', caseworkOnly(async (req, res, s) => {
     const list = ALERTS.forStaff(db, s);
+    /* Round 178 (BUG-095): ONE ENTRY PER STUDENT. 77 alerts read as a flat
+       list, up to nine for one student. `groups` folds them: one per student
+       (or lead), its most urgent alert first and the rest behind "+N more";
+       the most urgent student first. `alerts` stays flat for older callers. */
+    const RANK = { now: 0, soon: 1, watch: 2 };
+    const groupMap = new Map();
+    list.forEach((a, i) => {
+      const sub = a.subject || {};
+      const k = sub.studentId != null && sub.studentId !== '' ? 's:' + sub.studentId
+        : sub.leadId != null && sub.leadId !== '' ? 'l:' + sub.leadId : 'a:' + i;
+      if (!groupMap.has(k)) {
+        let name = '';
+        if (k.startsWith('s:')) { try { name = (db.studentById(Number(sub.studentId)) || {}).name || ''; } catch (e) { name = ''; } }
+        groupMap.set(k, { key: k, studentId: k.startsWith('s:') ? Number(sub.studentId) : null,
+          leadId: k.startsWith('l:') ? sub.leadId : null, name, now: 0, count: 0, alerts: [] });
+      }
+      const g = groupMap.get(k);
+      g.alerts.push(a); g.count++;
+      if (a.urgency === 'now') g.now++;
+    });
+    const groups = [...groupMap.values()].map(g => {
+      g.alerts.sort((x, y) => (RANK[x.urgency] - RANK[y.urgency]) || String(x.at).localeCompare(String(y.at)));
+      g.urgency = g.alerts[0].urgency;
+      return g;
+    }).sort((x, y) => (RANK[x.urgency] - RANK[y.urgency]) || y.now - x.now || y.count - x.count
+      || String(x.alerts[0].at).localeCompare(String(y.alerts[0].at)));
     return json(res, 200, {
       alerts: list.slice(0, 200),
+      groups: groups.slice(0, 150),
       counts: ALERTS.counts(list),
       /* An administrator is answerable for the counsellors, so the split by
          person is theirs — it is the only view that shows a counsellor with

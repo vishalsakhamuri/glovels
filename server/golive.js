@@ -75,7 +75,7 @@ function report(deps) {
   /* URL */
   const own = /^https:\/\//i.test(siteUrl || '') && !/onrender\.com|localhost|127\.0\.0\.1/i.test(siteUrl || '');
   add('url', own ? 'ok' : (cfg.production ? 'warn' : 'info'), 'Public address', siteUrl || '(unset)',
-    own ? '' : 'Set GLOVELS_URL=https://glovels.com on Render once the domain points here.');
+    own ? '' : 'Set GLOVELS_URL=https://www.glovels.com on Render once the domain points here (www is the main address; glovels.com and glovels.onrender.com then 301 to it).');
 
   /* Indexing */
   add('indexing', cfg.allowIndexing ? 'ok' : (own ? 'warn' : 'info'), 'Search engines',

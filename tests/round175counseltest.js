@@ -198,13 +198,14 @@ const STORE = require(path.join(__dirname, '..', 'server', 'store.js'));
     ok('item 4b: …and it is not on the list', !list.some(x => String(x.id) === String(closedRow.id)), J(list.map(x => x.id)));
     r = await req('k', 'POST', '/api/staff/student/' + SID + '/shortlist', { id: closedRow.id, force: true });
     ok('item 4b: with force it goes on', r.ok && r.body.closed === true, r.status + ' ' + J(r.body).slice(0, 120));
-    let msgs = (await req('s', 'GET', '/api/state')).body.msgs || [];
+    /* Round 178 (BUG-094): "I have added" is a notice — Activity, oldest first here. */
+    let msgs = ((await req('s', 'GET', '/api/state')).body.activity || []).slice().reverse();
     const told = msgs.map(m => m.t || m.body || m.text || '').find(t => /I have added .*to your list/.test(t));
     ok('item 4b: the student is told, with "next intake is not announced yet; your counsellor will confirm"',
       !!told && /Its next intake is not announced yet; your counsellor will confirm\./.test(told), told);
     r = await req('k', 'POST', '/api/staff/student/' + SID + '/shortlist', { id: openRow.id });
     ok('item 4b: an open programme is added without a warning', r.ok && r.body.closed === false, r.status + ' ' + J(r.body).slice(0, 120));
-    msgs = (await req('s', 'GET', '/api/state')).body.msgs || [];
+    msgs = ((await req('s', 'GET', '/api/state')).body.activity || []).slice().reverse();
     const told2 = msgs.map(m => m.t || m.body || m.text || '').filter(t => /I have added .*to your list/.test(t)).pop();
     ok('item 4b: …and that message says nothing about an unannounced intake', !!told2 && !/not announced/.test(told2), told2);
   }

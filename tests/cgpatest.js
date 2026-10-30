@@ -113,13 +113,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
      calculator to work one out. Driving that calculator is therefore how a CGPA
      reaches the German filter, and it is the path the student actually walks:
      three numbers off their transcript, then "Use this in the finder". */
+  /* Round 178 (owner, 30 Oct): no calculator any more — the CGPA (out of 10)
+     is typed straight into its box, on Germany too, beside the German grade. */
   const useGerman = async cgpa => {
-    await page.click('#openGg');
-    await page.fill('#ggMax', '10');
-    await page.fill('#ggPass', '4');
-    await page.fill('#ggNow', String(cgpa));
-    await page.waitForTimeout(400);
-    await page.click('#ggUse');
+    await page.fill('#fCgpa', String(cgpa));
+    await page.dispatchEvent('#fCgpa', 'change');
     await page.waitForTimeout(500);
   };
 

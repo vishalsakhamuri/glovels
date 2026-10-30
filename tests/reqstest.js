@@ -72,8 +72,11 @@ const R = require('../server/reqs.js');
   const H = rows[0];
   /* Patch 165: the tags column follows the requirements, so they are the
      block just before the last column. */
-  ok('  · with one column per requirement, at the end (before tags)', R.SHEET_HEADERS.every(h => H.includes(h)) && H[H.length - 1] === 'tags'
-    && H.slice(-R.SHEET_HEADERS.length - 1, -1).join('|') === R.SHEET_HEADERS.join('|'), H.slice(-3).join('|'));
+  /* Round 178: 'fee indicative' and 'awarding body' sit between the
+     requirement block and the tags, so the block ends three from the end. */
+  ok('  · with one column per requirement, at the end (before fee indicative, awarding body, tags)',
+    R.SHEET_HEADERS.every(h => H.includes(h)) && H.slice(-3).join('|') === 'fee indicative|awarding body|tags'
+    && H.slice(-R.SHEET_HEADERS.length - 3, -3).join('|') === R.SHEET_HEADERS.join('|'), H.slice(-4).join('|'));
   const line = rows.find(x => String(x[H.indexOf('id')]) === String(id));
   ok('  · and the row carries what was saved', line && line[H.indexOf('ielts min')] === '6.5' && line[H.indexOf('german level')] === 'A2' && line[H.indexOf('papers required')] === 'no', line && line.slice(-R.SHEET_HEADERS.length).join('|'));
 
@@ -119,7 +122,10 @@ const R = require('../server/reqs.js');
   /* ---- 6. the finder's page carries the controls ---- */
   r = await req('x', 'GET', '/');
   ok('the home page has the two upfront boxes', /id="fEnglish"/.test(r.text) && /id="fWork"/.test(r.text));
-  ok('  · and the panel behind "More filters"', /id="fMoreBtn"/.test(r.text) && /id="fTuition"/.test(r.text) && /id="fPapers"/.test(r.text) && /id="fGerman"/.test(r.text) && /id="fBachYears"/.test(r.text) && /id="fGre"/.test(r.text));
+  ok('  · and the panel behind "More filters"', /id="fMoreBtn"/.test(r.text) && /id="fTuition"/.test(r.text) && /id="fPapers"/.test(r.text) && /id="fGerman"/.test(r.text) && /id="fGre"/.test(r.text));
+  /* Round 178 (F2.3): no bachelor's-length box — ECTS only. */
+  ok('  · Round 178: no bachelor’s-length box, the ECTS box instead',
+    !/id="fBachYears"/.test(r.text) && /id="fEcts"/.test(r.text));
   ok('  · and the two boxes around the results', /id="rNeed"/.test(r.text) && /id="rTurned"/.test(r.text));
   r = await req('x', 'GET', '/catalogue');
   ok('the catalogue screen has the "What it asks for" section', /What it asks for/.test(r.text) && /'fReq_' \+ key/.test(r.text) && /\['ieltsMin', 'IELTS minimum'/.test(r.text));

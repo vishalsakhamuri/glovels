@@ -657,6 +657,19 @@ function unisPane(s) {
           : '<span class="st none">not started</span>')
         + (u.outcome ? ' <span class="st ' + (outcomeOf(u.outcome).tone || 'wait')
             + '">' + esc(outcomeOf(u.outcome).n.toLowerCase()) + '</span>' : '')
+        /* Round 178 (BUG-092): the application's history, read-only — the
+           stage and outcome changes and the notes to the student, dated.
+           The office's own notes are never sent to this screen. */
+        + ((u.history || []).length
+          ? '<details class="apphist" style="margin-top:6px;font-size:11.8px;color:var(--navy-800)">'
+            + '<summary style="cursor:pointer;font-weight:700;color:var(--blue-deep)">History ('
+            + u.history.length + ')</summary><ol style="list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px">'
+            + u.history.slice().reverse().map(e => '<li style="white-space:normal;overflow-wrap:anywhere">'
+              + '<span style="color:var(--muted)">' + esc(new Date(e.at).toLocaleDateString('en-GB',
+                { day: 'numeric', month: 'short', year: 'numeric' })) + '</span> · '
+              + esc(e.said || '') + ' <span style="color:var(--muted)">· ' + esc(e.who || 'Glovels') + '</span></li>').join('')
+            + '</ol></details>'
+          : '')
         + '</td></tr>').join('')
     + '</tbody></table></div>'
     + '<p style="margin:12px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">'

@@ -60,9 +60,11 @@ const FIELDS = [
      and a single number column could only say it with a made-up number. */
   /* Patch 149. Whether a Medium of Instruction letter (the bachelor's taught
      in English) is taken instead of IELTS/TOEFL. Blank = not stated. */
+  /* Round 178 (F4/F5): "Maybe" / "Possibly – …" is a third answer — stored
+     as 'maybe', shown with a "MOI possibly accepted" badge, never a clear. */
   { key: 'moiAccepted', col: 'moi accepted', aliases: ['moi', 'english moi', 'medium of instruction', 'moi letter accepted'],
-    type: 'yesno', label: 'MOI letter accepted',
-    note: 'Yes if a Medium of Instruction letter is taken instead of IELTS/TOEFL. Blank if not stated.' },
+    type: 'yesmaybe', label: 'MOI letter accepted',
+    note: 'Yes if a Medium of Instruction letter is taken instead of IELTS/TOEFL; maybe if it might be. Blank if not stated.' },
   { key: 'greRequired', col: 'gre required', aliases: ['gre', 'gre needed', 'needs gre'],
     type: 'yesno', label: 'GRE required',
     note: 'yes or no. Blank if not stated. Most German programmes do not ask.' },
@@ -110,6 +112,15 @@ const FIELDS = [
   { key: 'topPercent', col: 'top percent', aliases: ['top %', 'top percent of class', 'class rank top %', 'top'],
     type: 'int', lo: 1, hi: 100, label: 'Top % of class required',
     note: 'e.g. 10 means the student must be in the top 10% of their class. Blank if not stated.' },
+  /* Round 178 (F3): the Germany sheet's "3 Year Degree Accepted?" — a
+     programme that asks 210 ECTS but takes a 180-ECTS (three-year)
+     bachelor's with a remedy (Yes), says nothing either way (Maybe), or
+     does not (No). A 180-ECTS student clears a Yes row and is shown a
+     Maybe row with a "Maybe – check eligibility" badge. */
+  { key: 'threeYearOk', col: '3 year degree accepted', aliases: ['3 year degree accepted?', '3 year degree acept?', '3 year degree acept',
+    'three year degree accepted', '3-year degree accepted', '3 year bachelor accepted'],
+    type: 'yesmaybe', label: '3-year (180 ECTS) degree accepted',
+    note: 'yes, no or maybe — for a programme that asks more than 180 ECTS. Blank if not stated.' },
 ];
 
 const BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
@@ -122,6 +133,16 @@ function headingsFor(f) {
 
 const YES = /^(y|yes|true|1|required|mandatory)$/i;
 const NO = /^(n|no|false|0|not required|none|optional)$/i;
+/* Round 178 (F4/F5): the v43 sheet's normalised words. "Yes, unless
+   waived" / "Yes - Subject Test …" are a yes; "Not mentioned" is not
+   stated (null — never a no); "Recommended", "Strongly recommended",
+   "Optional - …", "Scored in selection" ask for nothing, so they are a no.
+   "Maybe" / "Possibly - …" are their own answer where the field takes one. */
+const YES_LEAD = /^yes\b/i;
+const NO_LEAD = /^no\b/i;
+const NOT_STATED = /^(not mentioned|not stated|unknown|n\/a|-|—)$/i;
+const SOFT_NO = /^(recommended|strongly recommended|scored in selection|optional\b.*|not required\b.*)$/i;
+const MAYBE = /^(maybe|possibly\b.*|perhaps)$/i;
 
 /* One value, one field, normalised. Returns undefined for "refused" so the
    caller can say so; null for blank; otherwise the clean value. */
@@ -139,8 +160,15 @@ function one(f, raw) {
       return m ? m[1].toUpperCase() : undefined;
     }
     case 'yesno':
+    case 'yesmaybe':
+      if (s === 'maybe' && f.type === 'yesmaybe') return 'maybe';
       if (YES.test(s)) return true;
       if (NO.test(s)) return false;
+      if (NOT_STATED.test(s)) return null;
+      if (f.type === 'yesmaybe' && MAYBE.test(s)) return 'maybe';
+      if (SOFT_NO.test(s)) return false;
+      if (YES_LEAD.test(s)) return true;
+      if (NO_LEAD.test(s)) return false;
       return undefined;
     case 'months': {
       /* "12 months", "2 years", "20 weeks", "1 yr" or a bare number of
@@ -196,6 +224,7 @@ function problems(input) {
     let why;
     if (f.type === 'level') why = f.label + ' has to be none, A1, A2, B1, B2, C1 or C2. You entered "' + String(raw).slice(0, 20) + '".';
     else if (f.type === 'yesno') why = f.label + ' has to be yes or no. You entered "' + String(raw).slice(0, 20) + '".';
+    else if (f.type === 'yesmaybe') why = f.label + ' has to be yes, no or maybe. You entered "' + String(raw).slice(0, 20) + '".';
     else if (f.type === 'months') why = f.label + ' has to be a number of months, weeks or years, up to ' + f.hi + ' months. You entered "' + String(raw).slice(0, 20) + '".';
     else why = f.label + ' has to be between ' + f.lo + ' and ' + f.hi + '. You entered "' + String(raw).slice(0, 20) + '".';
     out.push({ field: f.key, label: f.label, why });
@@ -227,6 +256,7 @@ function toSheet(reqs) {
     const v = r[f.key];
     if (v === null || v === undefined) return '';
     if (f.type === 'yesno') return v ? 'yes' : 'no';
+    if (f.type === 'yesmaybe') return v === 'maybe' ? 'maybe' : v ? 'yes' : 'no';
     return v;
   });
 }
@@ -284,6 +314,8 @@ function check(reqs, student) {
        would clear it, so the counsellor knows to ask for one. */
     else if (s.moi === true) {
       if (r.moiAccepted === true) notes.push('clears via MOI letter');
+      /* Round 178 (F4): "Maybe" / "Possibly" — shown, with a badge. */
+      else if (r.moiAccepted === 'maybe') notes.push('MOI possibly accepted');
       else if (r.moiAccepted === false) fails.push({ key: 'english', label: 'English test',
         want: wantTxt + ' (MOI not accepted)', have: haveTxt ? haveTxt + ', MOI letter' : 'MOI letter' });
       /* Not stated: most German programmes want the test, so an MOI student
@@ -303,7 +335,10 @@ function check(reqs, student) {
   if (r.greRequired === true || num(r.greMin) != null) {
     const notTaken = s.gre === false || s.gre === 0 || s.gre === '0' || /^(no|none|not taken)$/i.test(String(s.gre || ''));
     const have = notTaken ? null : num(s.gre);
-    if (!notTaken && have == null) unknown.push('gre');
+    /* Round 178: "Taken" with no total clears a programme that only says
+       the GRE is required; a stated minimum is still a question. */
+    if (!notTaken && have == null && s.gre === 'taken' && num(r.greMin) == null) { /* clears */ }
+    else if (!notTaken && have == null) unknown.push('gre');
     else if (notTaken) fails.push({ key: 'gre', label: 'GRE', want: num(r.greMin) != null ? String(r.greMin) : 'a GRE score', have: 'not taken' });
     else if (num(r.greMin) != null && have < num(r.greMin)) fails.push({ key: 'gre', label: 'GRE', want: String(r.greMin), have: String(have) });
   }
@@ -336,16 +371,10 @@ function check(reqs, student) {
     if (haveL < 0) unknown.push('germanLevel');
     else if (haveL < want) fails.push({ key: 'germanLevel', label: 'German', want: r.germanLevel, have: CEFR[haveL] });
   }
-  if (num(r.bachelorYears) != null) {
-    /* Patch 156: the credit count stands in for the length when the years
-       were not given — 240 ECTS is a four-year degree, 180 a three-year one.
-       Most rows know only the years, so the ECTS answer has to reach them. */
-    let have = num(s.bachelorYears);
-    if (have == null && num(s.ects) != null) have = num(s.ects) >= 240 ? 4 : 3;
-    if (have == null) unknown.push('bachelorYears');
-    else if (have < num(r.bachelorYears)) fails.push({ key: 'bachelorYears', label: "Bachelor's length",
-      want: r.bachelorYears + ' years', have: have + ' years' });
-  }
+  /* Round 178 (F2.3/F6.3): the bachelor's LENGTH is no longer a filter —
+     the owner's rule is ECTS only (below). A row's stated years are kept on
+     the record and shown, never checked; a student's years still stand in
+     for their credits (3 → 180, 4+ → 240). */
   /* Work experience: required with no figure means "some"; a student with
      none is turned down, any amount clears. A figure is a floor. */
   const wantMonths = num(r.workExpMonths);
@@ -373,6 +402,11 @@ function check(reqs, student) {
       if (y != null) have = y >= 4 ? 240 : y === 3 ? 180 : null;
     }
     if (have == null) unknown.push('ects');
+    /* Round 178 (F3): a 180-ECTS bachelor's clears a 210/240 row whose
+       "3 Year Degree Accepted?" is Yes (it offers a remedy), and is shown —
+       badged "Maybe – check eligibility" — where it is Maybe. */
+    else if (have < wantEcts && have >= 180 && r.threeYearOk === true) notes.push('3-year degree accepted');
+    else if (have < wantEcts && have >= 180 && r.threeYearOk === 'maybe') notes.push('Maybe – check eligibility');
     else if (have < wantEcts) fails.push({ key: 'ects', label: 'Bachelor ECTS', want: String(wantEcts), have: String(have) });
   }
   /* Class rank: "top 10%" is a bar a bigger number falls below. */

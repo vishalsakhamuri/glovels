@@ -81,7 +81,8 @@ const cards = page => page.$$eval('#admit-stories .ss-admit, #visa-work-stories 
   check('the title from the brief',
     /* Round 169 (WEB-20.3): a title over 65 characters with " | Glovels"
        drops the suffix rather than being cut by Google. */
-    raw.includes('<title>Success stories — ' + N_ADMITS + ' admits, Opportunity Card &amp; visa approvals</title>'));
+    /* Round 178: the brief's title cut to the 65-character rule. */
+    raw.includes('<title>Success stories — ' + N_ADMITS + ' admits &amp; visa approvals | Glovels</title>'));
   check('the description counts students, offers and universities',
     /<meta name="description" content="\d+ students, \d+ admission offers at \d+ universities/.test(raw));
   check('a canonical on /success-stories', /<link rel="canonical" href="[^"]+\/success-stories">/.test(raw));
@@ -200,7 +201,7 @@ const cards = page => page.$$eval('#admit-stories .ss-admit, #visa-work-stories 
     const after = await (await ctx.request.get(BASE + '/success-stories')).text();
     check('and the page shows two cards', (after.match(/class="ss-card ss-admit"/g) || []).length === 2
       && (after.match(/class="ss-card ss-route"/g) || []).length === 1);
-    check('with the counts in the title', after.includes('<title>Success stories — 2 admits,'));
+    check('with the counts in the title', after.includes('<title>Success stories — 2 admits &amp;'));
 
     const wrong = await ctx.request.post(BASE + '/api/staff/success-stories',
       { data: { admits: [{ Intake: 'Winter 2026', University: 'X' }], routes: [] } });

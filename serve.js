@@ -290,6 +290,11 @@ const movedTiers = seed.moveEntryTiersToServices({ db, content: content.shipped(
    ₹9,999. It is ₹4,999 — only rewritten where nobody has edited that answer. */
 seed.fixCheapestPackagePrice({ db });
 seed.messagesSayWhoSentThem({ db });
+/* Round 178: the automatic notices leave the conversation for the Activity
+   timeline (BUG-094), and every earlier application gets the start of a
+   history (BUG-092). Once each. */
+seed.noticesOutOfTheChat({ db });
+seed.applicationsKeepHistory({ db });
 seed.renameEntryOffers({ db });
 /* The ones priced "on request" go straight on: there is no price to get wrong
    and the only button on them starts a conversation, which is the point. */
@@ -305,11 +310,15 @@ const chipAsks = seed.chipsAskWhatItWas({ db, content: content.shipped() });
 /* And the invented headline numbers and success stories, on a deployment
    seeded before the real ones went into content.json. */
 const placeholders = seed.placeholdersOut({ db, content: content.shipped() });
+/* Round 178: no catalogue-size counts in the home page's numbers. */
+seed.catalogueCountsOut({ db, content: content.shipped() });
 const openedServices = seed.openOnRequestServices({ db });
 /* Round 169: three services move from Most Booked to a More Services tab. */
 seed.moreServicesTab({ db });
 /* Round 15 Oct (4): …and back into Most Booked as well, once. */
 seed.mostBookedAgain({ db });
+/* Round 178 (owner, 30 Oct): "affiliated universities", never "partner universities". */
+seed.affiliatedWording({ db });
 /* What applying to each university costs the student through us. Read off
    public-versus-private for the rows already on the shelf — we are partnered
    with the private places, so those are free to apply to, and the public names
@@ -505,9 +514,29 @@ function robotsTxt() {
     return '# Not the live address yet — nothing here is for indexing.\n'
          + 'User-agent: *\nDisallow: /\n';
   }
+  /* Round 178 (A): the search and AI crawlers named one by one, in the same
+     group as everybody else — a group of its own would replace the rules
+     below for that crawler, not add to them (RFC 9309 §2.2.1), and the
+     portal would open up to it. One group, every crawler welcome to the
+     public pages, none to the portal. */
   return [
     '# The public pages are for reading. The portal and the API are not.',
+    '# Search engines and AI assistants are welcome to the public pages.',
     'User-agent: *',
+    'User-agent: Googlebot',
+    'User-agent: Bingbot',
+    'User-agent: GPTBot',
+    'User-agent: OAI-SearchBot',
+    'User-agent: ChatGPT-User',
+    'User-agent: ClaudeBot',
+    'User-agent: Claude-SearchBot',
+    'User-agent: Claude-User',
+    'User-agent: PerplexityBot',
+    'User-agent: Perplexity-User',
+    'User-agent: Google-Extended',
+    'User-agent: Applebot',
+    'User-agent: Applebot-Extended',
+    'User-agent: DuckDuckBot',
     'Disallow: /api/',
     'Disallow: /dashboard',
     'Disallow: /profile',
@@ -516,7 +545,11 @@ function robotsTxt() {
     'Disallow: /applications',
     'Disallow: /universities',
     'Disallow: /scholarships',
-    'Disallow: /visa',
+    /* Round 178: "/visa" alone is a PREFIX and blocked /visa-processing, a
+       public service page. The student's visa screen only, then. */
+    'Disallow: /visa$',
+    'Disallow: /visa.html',
+    'Disallow: /visa?',
     'Disallow: /admin',
     'Disallow: /counsellor',
     'Disallow: /chat',
@@ -530,6 +563,76 @@ function robotsTxt() {
     'Allow: /',
     '',
     'Sitemap: ' + (CFG.siteUrl || '') + '/sitemap.xml',
+    '',
+  ].join('\n');
+}
+
+/*
+ * Round 178 (A): /llms.txt — who Glovels is, in plain text, for the AI
+ * assistants that read a site the way a person skims it (llmstxt.org). The
+ * contact lines come from the same place as the footer (Finder & contact),
+ * the destinations from the country pages that exist, and every link is on
+ * the canonical address. No catalogue counts: the owner's rule.
+ */
+function llmsTxt() {
+  const base = SITE_URL;
+  let contact = {};
+  try { contact = ((content.get('finder') || {}).contact) || {}; } catch (e) { contact = {}; }
+  const phone = prettyPhone(contact.phone || '+917839399999');
+  const email = String(contact.email || 'info@glovels.com');
+  const dest = [];
+  try {
+    fs.readdirSync(ROOT).filter(f => /^study-in-[a-z0-9-]+\.html$/.test(f)).sort().forEach(f => {
+      const m = /<h1>([^<]{3,60})<\/h1>/.exec(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+      dest.push([m ? m[1].trim() : f.slice(0, -5), '/' + f.slice(0, -5)]);
+    });
+    addedDestinations().forEach(c => dest.push(['Study in ' + c.name, '/study-in-' + studySlugOf(c)]));
+  } catch (e) { /* the list without them */ }
+  const ln = (name, p, note) => '- [' + name + '](' + base + p + ')' + (note ? ': ' + note : '');
+  return [
+    '# Glovels',
+    '',
+    '> Glovels (Glovels Consultants Private Limited) is a study-abroad and work-abroad consultancy in Hyderabad, India,'
+      + ' with people in Germany. It matches Indian students to public universities abroad — mainly in Germany, where'
+      + ' public universities charge no tuition — and to private universities, then runs the applications, the funding'
+      + ' and the visa from one online account. Every service is priced on the site.',
+    '',
+    'Office: Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081, India.',
+    'Phone and WhatsApp: ' + phone + '. Email: ' + email + '. Hours: Monday to Saturday, 9:30–19:30 IST.',
+    '',
+    '## Start here',
+    ln('Home', '/', 'what Glovels does, the packages and how to start'),
+    ln('Find a university', '/find-university', 'search programmes by country, level, field, budget and entry requirements'),
+    ln('Universities', '/university', 'one page per university'),
+    ln('Success stories', '/success-stories', 'admissions and visas our students received'),
+    ln('Blog', '/blog', 'guides on public universities, blocked accounts, CGPA cut-offs and deadlines'),
+    ln('About Glovels', '/about-us'),
+    ln('Contact', '/contact-us', 'free first counselling session, reply within one working day'),
+    '',
+    '## Study abroad — country guides',
+    ...dest.map(([n, p]) => ln(n, p)),
+    '',
+    /* Round 178 (Part D): the Germany master's guides that have a list today. */
+    ...(() => { let g = []; try { g = GUIDES.llmsLines(); } catch (e) { g = []; }
+      return g.length ? ['## Guides — master\'s in Germany', ln("Germany master's guides", '/germany-masters-guides', 'every guide below, built from the live catalogue'), ...g, ''] : []; })(),
+    '## Services',
+    ln('Visa processing', '/visa-processing', 'student visas, German work visas, Canada and Australia PR'),
+    ln('Germany Opportunity Card', '/work-opportunity-card', 'the points-based job-seeker route to Germany'),
+    ln('Nursing jobs in Germany', '/work-nursing-germany'),
+    ln('Pharma jobs in Germany', '/work-pharma-germany'),
+    ln('Medical PG in Germany', '/work-medical-pg-germany'),
+    ln('Canada PR', '/migrate-canada-pr'),
+    ln('Australia PR', '/migrate-australia-pr'),
+    ln('German classes (A1–B2)', '/language-german'),
+    ln('French classes', '/language-french'),
+    ln('IELTS, TOEFL and PTE preparation', '/test-ielts-toefl-pte'),
+    ln('GRE, GMAT and SAT preparation', '/test-gre-gmat-sat'),
+    ln('Glossary', '/glossary', 'APS, blocked account, uni-assist, VPD and other terms'),
+    '',
+    '## Policies',
+    ln('Terms of use', '/terms'),
+    ln('Privacy policy', '/privacy'),
+    ln('Refund and cancellation', '/refunds'),
     '',
   ].join('\n');
 }
@@ -565,6 +668,46 @@ const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
   'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404']);
 
+/*
+ * Round 178 (A): the day a page's WORDS last changed, for <lastmod>.
+ *
+ * A file's mtime is the deploy, not the content — every push to Render
+ * re-checks-out every file and would tell Google all fifty pages changed
+ * today. Instead the visible text of the page (scripts, styles and tags
+ * stripped) is hashed, and the day that hash was first seen is remembered in
+ * the database (content key "pageDates"). A redeploy of the same words keeps
+ * the date; an edited paragraph moves it.
+ */
+const PAGE_DATES = new Map();        // rel -> { mtimeMs, date }
+function pageContentDate(rel, file) {
+  let st;
+  try { st = fs.statSync(file); } catch (e) { return ''; }
+  const hit = PAGE_DATES.get(rel);
+  if (hit && hit.mtimeMs === st.mtimeMs) return hit.date;
+  let text = '';
+  try {
+    const html = fs.readFileSync(file, 'utf8');
+    const b = html.indexOf('<body');
+    text = (b >= 0 ? html.slice(b) : html)
+      .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  } catch (e) { return ''; }
+  const h = require('crypto').createHash('sha1').update(text).digest('hex').slice(0, 16);
+  let all = {};
+  try { all = Object.assign({}, db.content('pageDates') || {}); } catch (e) { all = {}; }
+  const was = all[rel];
+  let date = was && was.h === h ? was.at : '';
+  if (!date) {
+    /* First sight of this text: the older of the file's own date and today. */
+    const t = Math.min(st.mtimeMs, Date.now());
+    date = new Date(t).toISOString().slice(0, 10);
+    all[rel] = { h, at: date };
+    try { db.setContent('pageDates', all, 'system'); } catch (e) { /* read-only: no date kept */ }
+  }
+  PAGE_DATES.set(rel, { mtimeMs: st.mtimeMs, date });
+  return date;
+}
+
 function sitemapXml(part, partNo) {
   let pages = [];
   const walk = (dir, prefix) => {
@@ -598,7 +741,7 @@ function sitemapXml(part, partNo) {
   /* A post/ file stays listed while its post is still a draft — the six
      pages that predate the editor. Looked up per file (there are six), not
      by reading every draft (there may be thousands). */
-  const stillDraft = p => { const row = db.postBySlug(p.slice(5)); return !!row && row.status !== 'published'; };
+  const stillDraft = p => { const row = db.postBySlug(p.slice(5)); return !!row && row.status !== 'published' && row.status !== 'archived'; };
   const kept = new Set();
   for (const p of pages) {
     if (!p.startsWith('post/') || live.has(p) || stillDraft(p)) kept.add(p);
@@ -626,9 +769,34 @@ function sitemapXml(part, partNo) {
   addedDestinations().forEach(c => pages.push('study-in-' + studySlugOf(c)));
   pages.sort();
   const base = CFG.siteUrl || '';
+  /* Round 178 (A): <lastmod> is when the CONTENT last changed — never the
+     time of the request or of the deploy. A post: its significant-update date,
+     else its publication date. A university page: its newest programme row.
+     A page on disk: the day its words last changed (pageContentDate). Pages
+     with no honest date (a filtered finder address) carry none. */
+  const LM = new Map();
+  const day = iso => { const d = new Date(iso || ''); return isNaN(d) ? '' : d.toISOString().slice(0, 10); };
+  try { db.postSlugs(true).forEach(p => LM.set('post/' + p.slug, day(p.modified_at || p.published_at || p.created_at))); } catch (e) { /* none */ }
+  let uniLm = new Map();
+  try { uniLm = db.uniLastmods ? db.uniLastmods() : new Map(); } catch (e) { uniLm = new Map(); }
+  let newestUni = '';
+  uniLm.forEach(v => { if (v > newestUni) newestUni = v; });
+  pages.forEach(p => {
+    if (LM.has(p)) return;
+    if (p === 'university' || p === 'find-university') { if (newestUni) LM.set(p, day(newestUni)); return; }
+    /* The blog index changes when a post does. */
+    if (p === 'blog') { let n = ''; LM.forEach((v, k) => { if (k.startsWith('post/') && v > n) n = v; }); if (n) LM.set(p, n); return; }
+    const f = path.join(ROOT, (p || 'index') + '.html');
+    if (!p.includes('?') && fs.existsSync(f)) { const d = pageContentDate(p || 'index', f); if (d) LM.set(p, d); }
+  });
+  /* Round 178 (Part D): the Germany master's guides, their hub and every
+     NAMED programme page, dated by their rows' newest change (server/guides.js). */
+  try { GUIDES.sitemapEntries().forEach(e => { pages.push(e.path); if (e.lastmod) LM.set(e.path, day(e.lastmod)); }); } catch (e) { /* no catalogue */ }
+  const lmOf = p => LM.get(p) || (p.startsWith('university/') ?day(uniLm.get(p.slice(11))) : '');
   const urlset = list => '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + list.map(p => '  <url><loc>' + base + '/' + p + '</loc></url>').join('\n')
+    + list.map(p => '  <url><loc>' + base + '/' + p + '</loc>'
+      + (lmOf(p) ? '<lastmod>' + lmOf(p) + '</lastmod>' : '') + '</url>').join('\n')
     + '\n</urlset>\n';
   /* Google reads at most 50,000 addresses from one sitemap file. The pages
      and the posts fit in one; the university pages come in files of 40,000
@@ -839,7 +1007,11 @@ function postPage(post, isDraft) {
     : (inBody && inBody.alt) || post.title;
 
   const published = post.published_at || post.created_at;
-  const modified = post.updated_at || published;
+  /* Round 178 (B5/D4): the content date, not the last save. A typo fixed or
+     a headline reworded leaves dateModified, the visible Updated line and the
+     sitemap where they were; only "This is a significant content update"
+     moves them (modified_at). The page and the JSON-LD read the same value. */
+  const modified = post.modified_at && new Date(post.modified_at) > new Date(published) ? post.modified_at : published;
   /* Round 169 (WEB-20.7): "By maurya2pi" — the Wix member handle the old
      posts came in with. A handle is shown as the account's own name when a
      member of staff goes by it, and as the team otherwise. */
@@ -953,7 +1125,7 @@ function blogList(pageNo) {
     let files = [];
     try { files = fs.readdirSync(path.join(ROOT, 'post')).filter(f => f.endsWith('.html') && !f.startsWith('_')).map(f => f.slice(0, -5)); } catch (e) {}
     const stillOnDisk = files.filter(sl => !shown.has(sl)).map(sl => db.postBySlug(sl))
-      .filter(p => p && p.status !== 'published' && !replacedLive(p.slug));
+      .filter(p => p && p.status !== 'published' && p.status !== 'archived' && !replacedLive(p.slug));
     posts = posts.concat(stillOnDisk).sort((a, b) =>
       String(b.published_at || b.created_at).localeCompare(String(a.published_at || a.created_at)));
   }
@@ -1383,6 +1555,11 @@ function uniAccess(u, req) {
   return named.has(key) ? all : (names || { names: false, fees: false });
 }
 
+/* Round 178: the start of a university's line on a list — "Public · Berlin · ",
+   or just "Seattle · " when its status is not known (UNIS.typeLabel: an
+   agent-portal import). Always ends in the separator the fee follows. */
+const uniLead = u => [UNIS.typeLabel(u), u.city ? esc(u.city) : ''].filter(Boolean).concat(['']).join(' · ');
+
 function universityPage(u, req) {
   const t = templates();
   if (!t) return null;
@@ -1398,7 +1575,8 @@ function universityPage(u, req) {
      University pages tab, or shipped in daad.js. */
   const daad = DAAD.daadUrl(u.slug, x.daad);
 
-  const feeLine = u.feeMin == null ? 'Fees to be confirmed'
+  const feeLine = u.feeOnRequest ? 'Fees from a counsellor'
+    : u.feeMin == null ? 'Fees to be confirmed'
     : u.feeMin === 0 && u.feeMax === 0 ? 'No tuition — public university'
     : u.feeMin === u.feeMax ? UNIS.money(u.feeMin)
     /* Round 169 (WEB-14): never "₹0 to ₹38.5 lakh" — a tuition-free
@@ -1431,8 +1609,9 @@ function universityPage(u, req) {
      public page, and a public university's programme count was one of the
      three facts that picked it out from a locked finder row. */
   const facts = [
-    ['Type', u.isPublic ? 'Public university' : 'Private university'],
-    ['Applying through Glovels', free ? 'Free — we are partnered' : 'With a package'],
+    /* Round 178: no Type row when the status is not known (UNIS.typeLabel). */
+    UNIS.typeLabel(u) ? ['Type', UNIS.typeLabel(u) + ' university'] : null,
+    ['Applying through Glovels', free ? 'Free — we are affiliated' : 'With a package'],
     ['Total cost', feeLine],
     ['Intakes', u.seasons.length ? u.seasons.map(SEASON).join(' & ') : 'Ask a counsellor'],
     ['Next deadline', soonest ? SEASON(soonest.season) + ' · ' + dateShort(soonest.at) : '—'],
@@ -1443,15 +1622,15 @@ function universityPage(u, req) {
 
   const about = x.about
     ? PROSE.render(x.about)
-    : '<p>' + esc(u.name) + ' is a ' + (u.isPublic ? 'public' : 'private') + ' university'
+    : '<p>' + esc(u.name) + ' is a ' + (UNIS.typeLabel(u) ? UNIS.typeLabel(u).toLowerCase() + ' ' : '') + 'university'
       + (u.city ? ' in ' + esc(u.city) : '') + ', ' + esc(c.name) + '. Glovels tracks '
       + (lockedDesc ? 'programmes' : n + ' programme' + (n === 1 ? '' : 's')) + ' here'
       + (u.fields.length ? ' in ' + esc(u.fields.slice(0, 4).join(', ')) : '') + ', with '
-      + (u.tuitionFree ? 'no tuition fees' : u.feeMin == null ? 'fees to be confirmed' : 'total costs from ' + esc(UNIS.money(u.feeMin)))
+      + (u.tuitionFree ? 'no tuition fees' : u.feeOnRequest ? 'fees from a counsellor' : u.feeMin == null ? 'fees to be confirmed' : 'total costs from ' + esc(UNIS.money(u.feeMin)))
       + (u.seasons.length ? ' and ' + esc(u.seasons.map(SEASON).join(' and ').toLowerCase())
         + ' intake' + (u.seasons.length > 1 ? 's' : '') : '')
       + '. ' + (free
-        ? 'We are partnered with the university, so applying through Glovels costs you nothing — '
+        ? 'We are affiliated with the university, so applying through Glovels costs you nothing — '
           + 'a counsellor checks your profile, prepares the file and follows it up.'
         : 'Applications here are filed by a counsellor as part of a Glovels package: the '
           + 'shortlist, the SOP and the follow-up are done for you.')
@@ -1507,10 +1686,13 @@ function universityPage(u, req) {
     const fm = p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel
       : (p.isPublic ? 'package' : 'free');
     return '<article class="prog' + (folded ? ' folded' : '') + '" id="' + esc(UNIS.slugOf(p.program)) + '"' + (folded ? ' hidden' : '') + '>'
-      + '<div><h3>' + esc(p.program) + '</h3><p class="meta">'
+      + '<div><h3>' + GUIDES.progTitleLink(u, p) + '</h3><p class="meta">'
       + '<b>' + esc(UNIS.levelOf(p.level)) + '</b>'
       + (p.field ? ' · ' + esc(p.field) : '')
-      + (access.fees ? ' · <b>' + (fee ? esc(UNIS.money(fee)) + ' total' : 'No tuition') + '</b>' : ' · <b>Fee with a package</b>')
+      /* Round 178: an indicative (agent-portal) fee is the counsellor's,
+         never the page's — "Fees from a counsellor", whoever is reading. */
+      + (p.feeIndicative ? ' · <b>Fees from a counsellor</b>'
+        : access.fees ? ' · <b>' + (fee ? esc(UNIS.money(fee)) + ' total' : 'No tuition') + '</b>' : ' · <b>Fee with a package</b>')
       + (dl.length ? ' · ' + dl.map(d => esc(SEASON(d.season)) + ' intake, apply by '
         + esc(dateShort(d.at))).join('; ') : '')
       + (p.minCgpa != null ? ' · CGPA ' + esc(Number(p.minCgpa).toFixed(1)) + '+' : '')
@@ -1528,6 +1710,8 @@ function universityPage(u, req) {
      reached from Google and the search box, not from a list — a list of
      every university in the catalogue is what "search only" exists to avoid. */
   const others = listedUniversities(u.country).filter(o => o.slug !== u.slug);
+  /* Round 178: the FAQ (and its FAQPage record), in general terms from the rows. */
+  const uniFaq = GUIDES.uniFaq(u, c);
   const othersBlock = others.length
     ? '<h2>Other universities in ' + esc(c.name) + '</h2><ul class="uni-others">'
       /* Round 176: no programme count beside a neighbour — numbers are not
@@ -1538,7 +1722,7 @@ function universityPage(u, req) {
 
   const body =
       '<div class="uni-lead">'
-    + '<span class="pill ' + (u.isPublic ? 'pub' : 'priv') + '">' + (u.isPublic ? 'Public' : 'Private') + '</span>'
+    + (UNIS.typeLabel(u) ? '<span class="pill ' + (u.isPublic ? 'pub' : 'priv') + '">' + UNIS.typeLabel(u) + '</span>' : '')
     + '<span class="pill">' + (require('./server/find.js').flagImg(u.country, c.name, 20) || esc(c.flag || '')) + ' ' + esc(c.name) + '</span>'
     + (u.city ? '<span class="pill">' + esc(u.city) + '</span>' : '')
     + (nShown == null ? '' : '<span class="pill">' + nShown + ' programme' + (nShown === 1 ? '' : 's') + '</span>')
@@ -1549,6 +1733,8 @@ function universityPage(u, req) {
     + (daad ? '<a class="pill daad" href="' + esc(daad) + '" target="_blank" rel="noopener">DAAD listing ↗</a>' : '')
     + '</div>'
     + (PROSE.safeImg(x.cover) ? '<figure class="uni-cover"><img src="' + esc(x.cover) + '" alt="' + esc(u.name) + '" decoding="async"></figure>' : '')
+    /* Round 178: the direct answer and the subjects (fields, never names). */
+    + GUIDES.uniAnswer(u, c)
     + '<div class="factbox">' + facts.map(f => '<div><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>').join('') + '</div>'
     + '<h2>About ' + esc(called || u.name) + '</h2>' + about
     + (daad
@@ -1580,18 +1766,19 @@ function universityPage(u, req) {
     + '<li><b>2. Your profile is read properly</b>Marksheets, backlogs, tests. You are told which '
       + 'programmes here you actually clear before anything is filed.</li>'
     + '<li><b>3. We file it</b>' + (free
-        ? 'Free at this university — we are partnered with it, so the application, the SOP and the follow-up cost you nothing.'
+        ? 'Free at this university — we are affiliated with it, so the application, the SOP and the follow-up cost you nothing.'
         : 'Through a Glovels package: SOP, documents, the application itself and every follow-up until the decision.')
       + '</li>'
     + '</ol>'
     + '<p style="margin-top:22px"><a class="btn btn-primary" href="../index.html#counsel">Book free counselling</a> '
     + '<a class="btn btn-ghost" href="../index.html#results">See how you match</a></p>'
+    + uniFaq.html
     + othersBlock
     + '<p style="margin-top:26px"><a class="btn btn-ghost" href="../university">All universities</a></p>';
 
   const jsonld = [{
     '@context': 'https://schema.org', '@type': 'CollegeOrUniversity',
-    name: u.name, alternateName: called || undefined, url: u.url || url_,
+    name: u.name, alternateName: called || undefined, url: x.website || u.url || url_,
     address: { '@type': 'PostalAddress', addressLocality: u.city || undefined, addressCountry: u.country },
     sameAs: [u.url, daad].filter(Boolean),
   }, {
@@ -1615,11 +1802,11 @@ function universityPage(u, req) {
     /* Round 15 Oct (6): no programme count in the banner (owner rule); the
        chips say what kind of university and where. */
     HERO: HERO.attrs({ eyebrow: 'Study in ' + c.name, chips: [
-      [u.isPublic ? 'Public' : 'Private', 'university'],
+      UNIS.typeLabel(u) ? [UNIS.typeLabel(u), 'university'] : null,
       [u.city || c.name, u.city ? c.name : 'study abroad'],
-    ] }),
-    DATELINE: esc((called ? called + ' · ' : '') + (u.isPublic ? 'Public university' : 'Private university')
-      + (u.city ? ' in ' + u.city : '') + ', ' + c.name),
+    ].filter(Boolean) }),
+    DATELINE: esc((called ? called + ' · ' : '') + (UNIS.typeLabel(u) ? UNIS.typeLabel(u) + ' university' + (u.city ? ' in ' + u.city : '') + ', '
+      : (u.city ? u.city + ', ' : '')) + c.name),
     CRUMBS: '<a href="../index.html">Home</a> / <a href="../university">Universities</a> / ' + esc(called || u.name),
     BODY: body,
   }));
@@ -1632,8 +1819,9 @@ function universityPage(u, req) {
     : page;
   /* The breadcrumb record beside the university's own, the stylesheet, and
      the apply sheet. */
-  return rootLinks(withLogo.replace('</head>', UNI_CSS + '<script type="application/ld+json">'
-      + JSON.stringify(jsonld[1]).replace(/</g, '\\u003c') + '</script>\n</head>')
+  return rootLinks(withLogo.replace('</head>', UNI_CSS + GUIDES.css + '<script type="application/ld+json">'
+      + JSON.stringify(jsonld[1]).replace(/</g, '\\u003c') + '</script>'
+      + '<script type="application/ld+json">' + JSON.stringify(uniFaq.ld).replace(/</g, '\\u003c') + '</script>\n</head>')
     .replace('</body>', UNI_JS + '</body>'));
 }
 
@@ -1747,8 +1935,8 @@ function universitiesIndexPage() {
     return '<h2 id="' + esc(UNIS.slugOf(c.name)) + '">' + (require('./server/find.js').flagImg(code, c.name, 28) || esc(c.flag || '')) + ' ' + esc(c.name) + '</h2>'
       + '<ul class="ulist">' + list.map(u =>
         '<li><a class="haslogo" href="university/' + esc(u.slug) + '">' + uniTile(u) + '<span><b>' + esc(u.name) + '</b><small>'
-        + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
-        + ' · ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
+        + uniLead(u)
+        + (u.feeOnRequest ? 'fees from a counsellor' : u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
         + (u.feeModel === 'free' ? ' · free to apply through us' : '')
         + (DAAD.daadUrl(u.slug, UNIS.cleanExtras(db.content('university:' + u.slug)).daad) ? ' · on the DAAD' : '')
         /* Round 175: no programme count — numbers are not required, and a
@@ -1895,13 +2083,15 @@ const NOLIST_CSS = `<style>
 @media (max-width:560px){.nl-form input,.nl-form .btn{flex:1 1 100%}}
 </style>`;
 
+/* Round 178: delegated, so the same form drawn later by the finder (an empty
+   result, find.js askFormHtml) sends too. */
 const NOLIST_JS = `<script>(function(){
-  var f = document.getElementById('nlForm');
-  if (!f) return;
-  var err = document.getElementById('nlErr');
-  function show(t){ err.textContent = t || ''; err.hidden = !t; }
-  f.addEventListener('submit', function(e){
+  document.addEventListener('submit', function(e){
+    var f = e.target;
+    if (!f || f.id !== 'nlForm') return;
     e.preventDefault();
+    var err = document.getElementById('nlErr');
+    function show(t){ if (!err) return; err.textContent = t || ''; err.hidden = !t; }
     var name = (document.getElementById('nlName').value || '').trim();
     var phone = (document.getElementById('nlPhone').value || '').trim();
     var email = (document.getElementById('nlEmail').value || '').trim();
@@ -2133,8 +2323,8 @@ function withDestinationUniversities(html, slug) {
     || (b.programmes.length - a.programmes.length) || a.name.localeCompare(b.name)).slice(0, DEST_MAX);
   const more = Math.max(0, total - lead.length);
   const li = u => '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.shortName || u.name) + '</b><small>'
-      + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' · ' + esc(u.city) : '')
-      + ' · ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
+      + uniLead(u)
+      + (u.feeOnRequest ? 'fees from a counsellor' : u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + esc(UNIS.money(u.feeMin)))
       + (u.feeModel === 'free' ? ' · free to apply through us' : '')
       /* Round 175 (item 2): no programme count on the row either — numbers
          are not required (the /university list dropped its own). */
@@ -2146,7 +2336,9 @@ function withDestinationUniversities(html, slug) {
      are what this country's programmes actually have, so nobody filters
      Germany to a level nothing there offers. */
   const opts = db.filterOptions(code);
-  const levels = opts.levels;
+  /* Round 178 (F7.1): Master's only — the MBAs are filed under it (the
+     filter route asks for both when Master's is chosen). */
+  const levels = [...new Set((opts.levels || []).map(l => (String(l).toLowerCase() === 'mba' ? 'master' : l)))];
   const fields = opts.fields;
   const LEVEL_NAMES = { bachelor: "Bachelor's", master: "Master's", mba: 'MBA', diploma: 'Diploma / PG Diploma',
     foundation: 'Foundation / Pathway', pathway: 'Foundation / Pathway', phd: 'PhD' };
@@ -2198,9 +2390,10 @@ const UFILTER_JS = `<script>(function(){
   var state = function () { return { q: val('ufQ'), level: val('ufLevel'), field: val('ufField'), cgpa: val('ufCgpa'),
     ggpa: val('ufGgpa'), intake: val('ufIntake'), budget: val('ufBudget'), apply: val('ufApply') }; };
   var row = function (u) {
+    var kind = u.typeLabel !== undefined ? u.typeLabel : (u.isPublic ? 'Public' : 'Private');
     return '<li><a href="' + esc(u.url) + '"><span><b>' + esc(u.name) + '</b><small>'
-      + (u.isPublic ? 'Public' : 'Private') + (u.city ? ' \u00b7 ' + esc(u.city) : '')
-      + ' \u00b7 ' + (u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + money(u.feeMin))
+      + [kind, u.city ? esc(u.city) : ''].filter(Boolean).concat(['']).join(' \u00b7 ')
+      + (u.feeOnRequest ? 'fees from a counsellor' : u.feeMin == null ? 'fees to be confirmed' : u.feeMin === 0 ? (u.feeMax === 0 ? 'no tuition' : 'no tuition on some programmes') : 'from ' + money(u.feeMin))
       + (u.feeModel === 'free' ? ' \u00b7 free to apply through us' : '')
       + '</small></span><span class="n">' + (u.partial ? 'Some programmes match' : 'Programmes') + ' \u2192</span></a></li>';
   };
@@ -2524,6 +2717,10 @@ function scriptFile(name) {
       const orig = path.join(ROOT, 'post', key.slice(6) + '.html');
       return fs.existsSync(orig) ? externalizeScripts(forIndexing(fs.readFileSync(orig, 'utf8'), key.slice(6)), key) : null;
     }
+    if (key.startsWith('guide__')) {
+      const g = GUIDES.rebuild(key);
+      return g ? externalizeScripts(forIndexing(g, key), key) : null;
+    }
     if (key.startsWith('university__')) {
       const u = universityOf(key.slice(12));
       if (!u) return null;
@@ -2680,9 +2877,68 @@ function withSocials(html, pathname) {
       url: SITE_URL + '/', logo: SITE_URL + '/og/glovels.png',
     };
     if (links.length) org.sameAs = links.map(l => l.url);
-    html = html.replace('</head>', '<script type="application/ld+json">' + JSON.stringify(org).replace(/</g, '\\u003c') + '</script></head>');
+    org['@id'] = SITE_URL + '/#organization';
+    org.legalName = 'Glovels Consultants Private Limited';
+    html = html.replace('</head>', '<script type="application/ld+json">' + JSON.stringify(org).replace(/</g, '\\u003c') + '</script>'
+      + '<script type="application/ld+json">' + JSON.stringify(localBusiness(links)).replace(/</g, '\\u003c') + '</script></head>');
   }
   return html;
+}
+
+/*
+ * Round 178 (A6): the Hyderabad office as a LocalBusiness — only what the
+ * site itself already states (the contact page and the footer): the address,
+ * the phone and email from Finder & contact, the hours, the social accounts
+ * the office ticked. Not invented: no geo co-ordinates, no price range, no
+ * rating — the owner supplies those (see the round 178 report).
+ */
+function localBusiness(links) {
+  let c = {};
+  try { c = ((content.get('finder') || {}).contact) || {}; } catch (e) { c = {}; }
+  const tel = String(c.phone || '+917839399999').replace(/[^0-9+]/g, '');
+  const lb = {
+    '@context': 'https://schema.org', '@type': 'LocalBusiness',
+    '@id': SITE_URL + '/#office',
+    name: 'Glovels', legalName: 'Glovels Consultants Private Limited',
+    description: 'Study-abroad and work-abroad consultancy in Hyderabad for Indian students: public universities in Germany and other countries, applications, funding and visas.',
+    url: SITE_URL + '/', logo: SITE_URL + '/og/glovels.png', image: SITE_URL + '/og/glovels.png',
+    telephone: tel, email: String(c.email || 'info@glovels.com'),
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur',
+      addressLocality: 'Hyderabad', addressRegion: 'Telangana', postalCode: '500081', addressCountry: 'IN',
+    },
+    openingHoursSpecification: [{
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      opens: '09:30', closes: '19:30',
+    }],
+    hasMap: 'https://www.google.com/maps?q=Metro+Pillar+C1734,+Madhapur,+Hyderabad,+Telangana+500081',
+    areaServed: 'IN',
+    parentOrganization: { '@id': SITE_URL + '/#organization' },
+  };
+  if (links && links.length) lb.sameAs = links.map(l => l.url);
+  return lb;
+}
+
+/* Round 178 (D5): the three service pages as Services, for the pages that
+   do not already carry one. */
+const SERVICE_LD = {
+  'work-opportunity-card': { name: 'Germany Opportunity Card (Chancenkarte) application support', serviceType: 'Work visa consultancy' },
+  'language-german': { name: 'German language classes, A1 to B2', serviceType: 'Language training' },
+  'visa-processing': { name: 'Visa processing', serviceType: 'Visa consultancy' },
+};
+function withServiceLd(html, slug) {
+  const s = SERVICE_LD[slug];
+  if (!s || /"@type":\s*"Service"/.test(html)) return html;
+  const d = /<meta name="description" content="([^"]*)"/.exec(html);
+  const ld = {
+    '@context': 'https://schema.org', '@type': 'Service', name: s.name, serviceType: s.serviceType,
+    description: d ? d[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"') : undefined,
+    provider: { '@type': 'Organization', '@id': SITE_URL + '/#organization', name: 'Glovels', url: SITE_URL + '/' },
+    areaServed: 'IN', url: SITE_URL + '/' + slug,
+  };
+  return html.replace('</head>', '<script type="application/ld+json">' + JSON.stringify(ld).replace(/</g, '\\u003c') + '</script></head>');
 }
 
 function withAnalytics(html) {
@@ -2734,6 +2990,8 @@ function forIndexing(html, slug) {
   /* Every public page goes through here, which makes it the one place to add
      the office's destinations to the menu. */
   if (!PORTAL_PAGES.has(slug)) html = withAddedDestinations(html);
+  /* Round 178: the Germany master's guides in the footer and on /study-in-germany. */
+  if (!PORTAL_PAGES.has(slug)) { try { html = GUIDES.withLinks(html, slug); } catch (e) { /* before boot, or no catalogue */ } }
   if (!CFG.allowIndexing) return html;
   if (PORTAL_PAGES.has(slug)) return html;
   return html.replace(NOINDEX,
@@ -2745,6 +3003,12 @@ function forIndexing(html, slug) {
 const FINDPAGE = require('./server/findpage.js');
 const findPage = FINDPAGE.makeFindPage({
   templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg: DEFAULT_OG, content, slugOf: UNIS.slugOf,
+});
+/* Round 178 (Part D): a page per NAMED programme, the university FAQ and the
+   Germany master's guides — server/guides.js. */
+const GUIDES = require('./server/guides.js').makeGuides({
+  db, esc, absolute, templates, fill, metaHoles, HERO, rootLinks, liveCountries, hiddenUniversitySlugs, universityOf,
+  defaultOg: DEFAULT_OG, uniCss: () => UNI_CSS, uniJs: () => UNI_JS.replace("'../dashboard.html'", "'/dashboard'"),
 });
 const FIND_SRC = {
   'find.js': () => fs.readFileSync(path.join(__dirname, 'server', 'find.js'), 'utf8'),
@@ -2794,7 +3058,9 @@ const server = http.createServer(async (req, res) => {
     if (pathname !== '/find-university') return send(res, 301, '', 'text/html', { Location: '/find-university' + (query ? '?' + query : '') });
     const out = findPage.render(query || '');
     if (out) {
-      const html = out.indexable ? forIndexing(out.html, 'find-university') : withAddedDestinations(out.html);
+      /* Round 178: an empty result carries the counsellor form (find.js askFormHtml) — its styles and its sender. */
+      const html = (out.indexable ? forIndexing(out.html, 'find-university') : withAddedDestinations(out.html))
+        .replace('</head>', NOLIST_CSS + '</head>').replace('</body>', NOLIST_JS + '</body>');
       return send(res, 200, withSignedInNav(html), TYPES['.html'], { 'Cache-Control': 'no-cache' });
     }
   }
@@ -2892,6 +3158,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/robots.txt') return send(res, 200, robotsTxt(), TYPES['.txt']);
+  if (pathname === '/llms.txt') return send(res, 200, llmsTxt(), 'text/plain; charset=utf-8', { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/sitemap.xml') {
     if (!CFG.allowIndexing) return notFound(res);
     return send(res, 200, sitemapXml(), TYPES['.xml']);
@@ -2960,7 +3227,13 @@ const server = http.createServer(async (req, res) => {
   }
   /* Wix's blog categories and tags: /blog/categories/german, /blog/tags/x.
      The posts keep their own addresses; the lists land on the index. */
-  if (/^\/blog\/(?:categories|tags)\//.test(pathname)) {
+  if (/^\/blog\/(?:categories|tags|hashtags|page)\//.test(pathname)) {
+    return send(res, 301, '', 'text/html', { Location: '/blog' });
+  }
+  /* Round 178 (B2): Wix's author archives — /profile/<member>/profile and the
+     like. /profile on its own is the student's profile screen here and is
+     left alone; anything under it is an old Wix author page. */
+  if (/^\/profile\/./.test(pathname)) {
     return send(res, 301, '', 'text/html', { Location: '/blog' });
   }
 
@@ -2992,6 +3265,15 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, js, TYPES['.js'], { 'Cache-Control': 'public, max-age=31536000, immutable' });
   }
 
+  /* Round 178 (Part D): /university/<uni>/<programme> for a NAMED programme
+     (a German public row has none — a 404 like any unknown address), and the
+     Germany master's guides; an empty guide is a 404 too (server/guides.js). */
+  {
+    const g = GUIDES.route(pathname);
+    if (g && g.redirect) return send(res, 301, '', 'text/html', { Location: g.redirect });
+    if (g && g.status === 404) return notFound(res);
+    if (g && g.html) return send(res, 200, externalizeScripts(g.noindex ? g.html : forIndexing(g.html, g.key), g.key), TYPES['.html']);
+  }
   const uniUrl = /^\/university\/([a-z0-9-]{1,90})(?:\.html|\/)?$/.exec(pathname);
   if (uniUrl) {
     if (pathname !== '/university/' + uniUrl[1]) {
@@ -3054,6 +3336,19 @@ const server = http.createServer(async (req, res) => {
   const postUrl = /^\/post\/([a-z0-9-]{1,90})(?:\.html)?$/.exec(pathname);
   if (postUrl) {
     const post = db.postBySlug(postUrl[1]);
+    /* Round 178 (B3/B5): an archived post's address hands over to the blog
+       (staff can still open it to read it); an address the office changed on
+       purpose hands over to the new one. 301 either way — never a 404. */
+    if (post && post.status === 'archived') {
+      const who = whoIsIt(req);
+      if (!(who && who.role !== 'student')) return send(res, 301, '', 'text/html', { Location: '/blog' });
+    }
+    if (!post) {
+      let moves = {};
+      try { moves = db.content('postMoves') || {}; } catch (e) { moves = {}; }
+      const to = Object.prototype.hasOwnProperty.call(moves, postUrl[1]) ? String(moves[postUrl[1]]) : '';
+      if (to && /^[a-z0-9-]{1,90}$/.test(to)) return send(res, 301, '', 'text/html', { Location: '/post/' + to });
+    }
     if (post && post.body && String(post.body).trim()) {
       /* A draft is visible to staff, so Preview shows the real page rather
          than an approximation of it, and to nobody else. */
@@ -3160,13 +3455,14 @@ const server = http.createServer(async (req, res) => {
        row never reaches the showcase anyway. */
     if (slug === 'index' && path.dirname(file) === ROOT) html = withoutPublicSeed(html, file, ['"programs": [', 'const P = [']);
     /* The "Real journeys, real outcomes" rail's link, straight to /success-stories. */
-    if (slug === 'index' && path.dirname(file) === ROOT) html = STORIES.withHomeLink(html, { db, content });
+    if (slug === 'index' && path.dirname(file) === ROOT) html = STORIES.withHomeLink(html, { db, content, logoFor: LOGOS.logoFor });
     if (slug.startsWith('study-in-')) {
       html = withDestinationUniversities(withLiveDestinationFacts(html, slug), slug);
     }
     html = withoutScripts(html, query, slug);
     html = forIndexing(html, slug);
     if (LEGAL_PAGES.has(slug) && path.dirname(file) === ROOT) html = withLegalNotice(html);
+    if (SERVICE_LD[slug] && path.dirname(file) === ROOT) html = withServiceLd(html, slug);
     if (!PORTAL_PAGES.has(slug)) {
       const rel = path.relative(ROOT, file).replace(/\.html$/, '').replace(/\\/g, '/');
       html = withCanonical(html, rel === 'index' ? '/' : '/' + rel);

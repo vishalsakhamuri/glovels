@@ -57,8 +57,21 @@ v = R.check({ germanLevel: 'A2' }, { germanLevel: 'A1' });
 check('A1 does not clear A2', v.fails[0] && v.fails[0].key === 'germanLevel');
 v = R.check({ germanLevel: 'none' }, {});
 check('German "none" asks nothing', v.ok);
+/* Round 178 (F2.3/F6.3): the bachelor's LENGTH is not a filter — ECTS only.
+   A row's stated years alone are never checked; the ECTS ask is, and a
+   student's years stand in for credits (3 → 180). */
 v = R.check({ bachelorYears: 4 }, { bachelorYears: 3 });
-check('a three-year bachelor fails a four-year ask', v.fails[0] && v.fails[0].key === 'bachelorYears');
+check('Round 178: a row stating only its length is not checked', v.ok && !v.fails.length);
+v = R.check({ ectsMin: 240 }, { bachelorYears: 3 });
+check('a three-year bachelor fails a 240-ECTS ask', v.fails[0] && v.fails[0].key === 'ects' && v.fails[0].have === '180');
+v = R.check({ ectsMin: 240 }, { ects: 180 });
+check('  · and so does 180 ECTS typed as credits', v.fails[0] && v.fails[0].key === 'ects');
+v = R.check({ ectsMin: 240, threeYearOk: false }, { ects: 180 });
+check('  · "3-year accepted: No" is still a miss', v.fails[0] && v.fails[0].key === 'ects');
+v = R.check({ ectsMin: 240, threeYearOk: true }, { bachelorYears: 3 });
+check('  · "3-year accepted: Yes" clears it, noted', v.ok && v.notes.includes('3-year degree accepted'));
+v = R.check({ ectsMin: 240, threeYearOk: 'maybe' }, { ects: 180 });
+check('  · "Maybe" is shown with its badge', v.ok && v.notes.some(n => /Maybe/.test(n)));
 v = R.check({ workExpRequired: true }, { workExpMonths: 0 });
 check('work experience required, none — fails', v.fails[0] && v.fails[0].want === 'some work experience');
 v = R.check({ workExpRequired: true, workExpMonths: 24 }, { workExpMonths: 12 });

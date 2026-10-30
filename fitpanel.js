@@ -217,7 +217,8 @@
     /* Round 175: a profile with no level starts on "Not set", not on
        Master's — the panel used to pick Master's for an empty file silently
        and count 2,707 programmes as a fit for nobody in particular. */
-    const lv = /mba/i.test(P.g_level || '') ? "MBA" : /bachelor/i.test(P.g_level || '') ? "Bachelor's" : /found|pathway/i.test(P.g_level || '') ? 'Foundation'
+    /* Round 178 (F7.1): Master's only — the MBAs are under it. */
+    const lv = /mba/i.test(P.g_level || '') ? "Master's" : /bachelor/i.test(P.g_level || '') ? "Bachelor's" : /found|pathway/i.test(P.g_level || '') ? 'Foundation'
       : /diploma/i.test(P.g_level || '') ? 'Diploma' : /phd|doctor/i.test(P.g_level || '') ? 'PhD'
       : /master/i.test(P.g_level || '') ? "Master's" : '';
     /* Round 175 (item 6): whether they hold a Medium of Instruction letter —
@@ -227,6 +228,18 @@
     const eng = /toefl/i.test(P.e_test || '') ? 'TOEFL' : /ielts/i.test(P.e_test || '') ? 'IELTS' : /medium of instruction|^moi/i.test(P.e_test || '') ? 'Medium of Instruction letter' : /not taken/i.test(P.e_test || '') ? 'Not taken yet' : '';
     const gre = /^gre$/i.test(P.a_test || '') ? 'GRE' : /^(not taken|not taken yet|not required)$/i.test(P.a_test || '') ? 'Not taken yet' : '';
     const intake = terms().find(t => t.toLowerCase() === String(P.g_intake || '').toLowerCase()) || '';
+    /* Round 178 (F2.2, owner): CGPA out of 10, typed directly — a profile
+       kept on another scale is shown on ten; no "out of" / "pass" boxes. */
+    const cgpa10 = (() => {
+      const c = parseFloat(String(P.d_cgpa || '').replace(',', '.')), m = parseFloat(String(P.d_max || '').replace(',', '.'));
+      if (!Number.isFinite(c)) return String(P.d_cgpa || '');
+      return Number.isFinite(m) && m > 0 && m !== 10 ? String(Math.round(c / m * 1000) / 100) : String(c);
+    })();
+    /* Round 178 (F3): the ECTS box starts from the profile's credits, else its length (3 → 180, 4+ → 240). */
+    const ects0 = P.d_ects || ((/(\d)/.exec(P.d_dur || '') || [])[1] ? (Number(/(\d)/.exec(P.d_dur)[1]) >= 4 ? '240' : '180') : '');
+    /* Round 178 (F7.4): the boxes only the Germany sheet answers (German
+       grade, German level, restricted admission, ECTS) — marked data-de-only. */
+    const deOff = c => !!c && !/^germany$/i.test(String(c).trim());
     el.innerHTML = '<div class="gf">'
       + (o.note ? '<p style="margin:0 0 10px;color:var(--muted,#5d6b7a);font-size:12.4px">' + o.note + '</p>' : '')
       + '<div class="gf-grid">'
@@ -238,8 +251,9 @@
       + '<div><label>Destination</label>' + sel('gfCountry', [['', 'Any country']].concat(COUNTRIES.map(c => [c, c])), countryPick(P.g_country)) + '</div>'
       /* Round 175 (item 6c): every level the catalogue holds (api.js
          normLevel: master, mba, bachelor, foundation, diploma, phd). */
-      + '<div><label>Level</label>' + sel('gfLevel', [['', 'Not set'], ["Master's", "Master's"], ['MBA', 'MBA'], ["Bachelor's", "Bachelor's"], ['Foundation', 'Foundation / Pathway'], ['Diploma', 'Diploma / PG Diploma'], ['PhD', 'PhD / Doctorate']], lv) + '</div>'
-      + '<div><label>Field (exact)</label>' + sel('gfField', [['', 'From their profile']].concat(FIELDS.map(f => [f, f])), '') + '</div>'
+      /* Round 178 (F7.1): Master's (with the MBAs) — no separate MBA. */
+      + '<div><label>Level</label>' + sel('gfLevel', [['', 'Not set'], ["Master's", "Master's (incl. MBA)"], ["Bachelor's", "Bachelor's"], ['Foundation', 'Foundation / Pathway'], ['Diploma', 'Diploma / PG Diploma'], ['PhD', 'PhD / Doctorate']], lv) + '</div>'
+      /* Round 178 (F2.1): no "Field (exact)" — the field in words decides the set. */
       + '<div><label>Their field, in words</label><input id="gfWords" value="' + esc([P.g_field, P.g_field2].filter(Boolean).join(', ')) + '" placeholder="Data Science, AI"></div>'
       + '<div><label>Intake</label>' + sel('gfIntake', [['', 'Any intake']].concat(terms().map((t, i) => [t, (i === 0 ? 'This semester — ' : i === 1 ? 'Next semester — ' : '') + t])), intake) + '</div>'
       + '<div><label>Public or private</label>' + sel('gfKind', [['any', 'Both'], ['public', 'Public'], ['private', 'Private']], 'any') + '</div>'
@@ -247,30 +261,31 @@
       + '<div><label>Name contains</label><input id="gfQ" placeholder="TUM, Data, Berlin"></div>'
       /* 10 Oct: the tag search — type, pick from the dictionary (/api/tags),
          and every chip has to hold on a row (server/matches.js screen, opts.tags). */
-      + '<div class="gf-tags"><label>Tags (all of these)</label><input id="gfTagQ" placeholder="No German Required, MOI Accepted, TU Munich, Data Science…" autocomplete="off" aria-autocomplete="list" aria-expanded="false">'
+      /* Round 178 (F1): tags of one kind are alternatives (ECE or EEE), different kinds all hold. */
+      + '<div class="gf-tags"><label>Search programmes, subjects, universities, cities… (any of a kind · all across kinds)</label><input id="gfTagQ" placeholder="No German Required, MOI Accepted, TU Munich, Data Science…" autocomplete="off" aria-autocomplete="list" aria-expanded="false">'
       + '<div class="gf-sug" id="gfTagSug" role="listbox" hidden></div><div class="gf-chips" id="gfTagChips"></div></div>'
       + '<div><label>Specialisation</label><input id="gfSpec" placeholder="Embedded Systems"></div>'
       + '<div><label>Tuition per semester</label>' + sel('gfTuition', [['', 'Any tuition'], ['0', 'No tuition fee'], ['500', 'Up to €500'], ['1500', 'Up to €1,500'], ['4000', 'Up to €4,000'], ['6000', 'Up to €6,000']], '') + '</div>'
-      + '<div><label>CGPA · out of · pass</label><div class="gf-row"><input id="gfCgpa" value="' + esc(P.d_cgpa || '') + '" inputmode="decimal"><input id="gfMax" value="' + esc(P.d_max || '10') + '" inputmode="decimal"><input id="gfPass" value="' + esc(P.d_pass || '') + '" inputmode="decimal" placeholder="pass"></div></div>'
+      + '<div><label>CGPA (out of 10)</label><input id="gfCgpa" value="' + esc(cgpa10) + '" inputmode="decimal" placeholder="e.g. 7.8"></div>'
       + '<div><label>Their bachelor’s</label><input id="gfBach" value="' + esc(P.d_course || '') + '" placeholder="B.Tech CSE"></div>'
-      + '<div><label>German grade (1.0 best)</label><input id="gfGgpa" inputmode="decimal" placeholder="worked out from CGPA"></div>'
-      + '<div><label>Bachelor’s length</label>' + sel('gfDur', [['', 'Not said'], ['3 years', '3 years'], ['4 years', '4 years'], ['5 years', '5 years']], (/(\d)/.exec(P.d_dur || '') || [])[1] ? (/(\d)/.exec(P.d_dur)[1] + ' years') : '') + '</div>'
+      + '<div data-de-only="1"><label>German grade (1.0 – 4.0)</label><input id="gfGgpa" inputmode="decimal" placeholder="from CGPA if blank"></div>'
       + '<div><label>English test · score</label><div class="gf-row">' + sel('gfEng', [['', 'Not said'], ['IELTS', 'IELTS'], ['TOEFL', 'TOEFL'], ['Medium of Instruction letter', 'MOI letter'], ['Not taken yet', 'Not taken']], eng) + '<input id="gfEngS" value="' + esc(P.e_score || '') + '" inputmode="decimal"></div></div>'
       + '<div><label>MOI letter (English-medium bachelor’s)</label>' + sel('gfMoi', [['', 'Not said'], ['yes', 'Yes — they have one'], ['no', 'No']], moi) + '</div>'
-      + '<div><label>GRE · score</label><div class="gf-row">' + sel('gfGre', [['', 'Not said'], ['GRE', 'Taken'], ['Not taken yet', 'Not taken']], gre) + '<input id="gfGreS" value="' + esc(gre === 'GRE' ? (P.a_score || '') : '') + '" inputmode="numeric" placeholder="e.g. 315"></div></div>'
+      /* Round 178 (F2.4): GRE yes / no and the three sections — no combined score. */
+      + '<div><label>GRE</label>' + sel('gfGre', [['', 'Not said'], ['GRE', 'Taken'], ['Not taken yet', 'Not taken']], gre) + '</div>'
       /* Patch 153 — the home page's "More filters" controls, so the counsellor
-       * can test exactly what a student would see. The GRE section row only
-       * appears once a GRE score is typed (a section score without a total is
-       * a question the server would not ask). */
-      + '<div id="gfGreSecWrap"' + (gre === 'GRE' && P.a_score ? '' : ' hidden') + '><label>GRE quant · verbal · AWA</label><div class="gf-row">'
+       * can test exactly what a student would see. The GRE section row
+       * appears once "Taken" is chosen. */
+      + '<div id="gfGreSecWrap"' + (gre === 'GRE' ? '' : ' hidden') + '><label>GRE quant · verbal · AWA</label><div class="gf-row">'
       + '<input id="gfGreQ" value="' + esc(P.a_quant || '') + '" inputmode="numeric" placeholder="Q">'
       + '<input id="gfGreV" value="' + esc(P.a_verbal || '') + '" inputmode="numeric" placeholder="V">'
       + '<input id="gfGreA" value="' + esc(P.a_awa || '') + '" inputmode="decimal" placeholder="AWA"></div></div>'
-      + '<div><label>Bachelor’s ECTS</label>' + sel('gfEcts', [['', 'Not said'], ['180', '180 (3-year)'], ['210', '210'], ['240', '240 (4-year)']], P.d_ects || '') + '</div>'
+      /* Round 178 (F3): replaces the bachelor's length. 180 clears a 210 row that takes a 3-year degree. */
+      + '<div data-de-only="1"><label>Bachelor’s ECTS</label>' + sel('gfEcts', [['', 'Not said'], ['180', '180 ECTS (3-year)'], ['210', '210 ECTS'], ['240', '240 ECTS (4-year)']], ects0) + '</div>'
       + '<div><label>Class rank</label>' + sel('gfTop', [['', 'Not said'], ['5', 'Top 5%'], ['10', 'Top 10%'], ['20', 'Top 20%'], ['30', 'Top 30%'], ['50', 'Top 50%'], ['100', 'Below 50%']], P.d_top || '') + '</div>'
-      + '<div><label>Restricted admission</label>' + sel('gfRestricted', [['', 'Show all'], ['open', 'Only open admission'], ['restricted', 'Only restricted']], /^no$/i.test(P.g_restricted || '') ? 'open' : '') + '</div>'
+      + '<div data-de-only="1"><label>Restricted admission</label>' + sel('gfRestricted', [['', 'Show all'], ['open', 'Only open admission'], ['restricted', 'Only restricted']], /^no$/i.test(P.g_restricted || '') ? 'open' : '') + '</div>'
       + '<div><label>Application fee</label>' + sel('gfFee', [['', 'Any application'], ['free', 'Free to apply'], ['package', 'Comes with a package']], '') + '</div>'
-      + '<div><label>German level</label>' + sel('gfGer', [['', 'Not said'], ['None yet', 'None'], ['A1', 'A1'], ['A2', 'A2'], ['B1', 'B1'], ['B2', 'B2'], ['C1', 'C1'], ['C2', 'C2']], P.g_german || '') + '</div>'
+      + '<div data-de-only="1"><label>German level</label>' + sel('gfGer', [['', 'Not said'], ['None yet', 'None'], ['A1', 'A1'], ['A2', 'A2'], ['B1', 'B1'], ['B2', 'B2'], ['C1', 'C1'], ['C2', 'C2']], P.g_german || '') + '</div>'
       + '<div><label>Published a paper</label>' + sel('gfPapers', [['', 'Not said'], ['Yes', 'Yes'], ['No', 'No']], /^yes/i.test(P.g_papers || '') ? 'Yes' : /^no/i.test(P.g_papers || '') ? 'No' : '') + '</div>'
       + '<div><label>Work experience (months)</label><input id="gfWork" value="' + esc(/^no$/i.test(P.w_has || '') ? '0' : (P.w_months || '')) + '" inputmode="numeric" placeholder="not said"></div>'
       + '</div>'
@@ -303,6 +318,7 @@
       c.innerHTML = [['', 'Any country']].concat(list.map(x => [x, x]))
         .map(([val, t]) => '<option value="' + esc(val) + '"' + (val === keep ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
       if (!list.includes(keep)) c.value = countryPick(P.g_country);
+      if (typeof deBoxes === 'function') deBoxes();
     });
 
     const v = id => (el.querySelector('#' + id) || {}).value || '';
@@ -333,7 +349,7 @@
       const by = new Map();
       list.forEach(x => { if (!by.has(x.type)) by.set(x.type, []); by.get(x.type).push(x); });
       let h = '';
-      by.forEach((items, type) => { h += '<h6>' + esc(type) + '</h6>' + items.map(x => '<button type="button" role="option" aria-selected="false" data-gfsug="' + esc(x.value) + '" data-gfsugtype="' + esc(x.type) + '">' + esc(x.value) + (x.count > 1 ? '<em>' + x.count + ' programmes</em>' : '') + '</button>').join(''); });
+      by.forEach((items, type) => { h += '<h6>' + esc(type) + '</h6>' + items.map(x => '<button type="button" role="option" aria-selected="false" data-gfsug="' + esc(x.value) + '" data-gfsugtype="' + esc(x.type) + '">' + esc(x.value) + '<em>' + esc(x.type) + (x.count ? ' · ' + x.count : '') + '</em></button>').join(''); });
       s.innerHTML = h; s.hidden = false; q.setAttribute('aria-expanded', 'true');
     };
     const moveSug = dir => {
@@ -345,18 +361,22 @@
       if (items[i].scrollIntoView) items[i].scrollIntoView({ block: 'nearest' });
     };
     const filters = () => {
+      /* Round 178 (F7.4): a non-German destination sends no Germany-only answer. */
+      const de = !deOff(v('gfCountry'));
       const f = {
         g_country: v('gfCountry'), g_level: v('gfLevel'), g_field: v('gfWords'), g_field2: '',
-        g_intake: v('gfIntake'), field: v('gfField'), kind: v('gfKind'), q: v('gfQ'),
-        d_cgpa: v('gfCgpa'), d_max: v('gfMax'), d_pass: v('gfPass'), d_course: v('gfBach'), d_dur: v('gfDur'),
-        e_test: v('gfEng'), e_score: /medium of instruction|not taken/i.test(v('gfEng')) ? '' : v('gfEngS'), g_german: v('gfGer'),
+        g_intake: v('gfIntake'), field: '', kind: v('gfKind'), q: v('gfQ'),
+        /* Round 178: CGPA out of 10, pass 4 (server/matches.js germanOf);
+           the bachelor's length is not asked — ECTS only. */
+        d_cgpa: v('gfCgpa').trim().replace(',', '.'), d_max: '10', d_pass: '', d_course: v('gfBach'), d_dur: '',
+        e_test: v('gfEng'), e_score: /medium of instruction|not taken/i.test(v('gfEng')) ? '' : v('gfEngS'), g_german: de ? v('gfGer') : '',
         d_moi: v('gfMoi'),
-        a_test: v('gfGre'), a_score: v('gfGre') === 'GRE' ? v('gfGreS') : '',
+        a_test: v('gfGre'), a_score: '',
       };
       if (v('gfBudget') !== '') f.ceiling = v('gfBudget');
       if (v('gfSpec').trim()) f.spec = v('gfSpec').trim();
       if (v('gfTuition') !== '') f.tuitionMax = v('gfTuition');
-      if (v('gfGgpa').trim()) f.ggpa = v('gfGgpa').trim().replace(',', '.');
+      if (de && v('gfGgpa').trim()) f.ggpa = v('gfGgpa').trim().replace(',', '.');
       f.g_papers = v('gfPapers');
       const wk = v('gfWork');
       if (wk !== '') { f.w_has = Number(wk) > 0 ? 'Yes' : 'No'; f.w_months = wk; }
@@ -369,9 +389,9 @@
       f.a_quant = gre ? v('gfGreQ').trim() : '';
       f.a_verbal = gre ? v('gfGreV').trim() : '';
       f.a_awa = gre ? v('gfGreA').trim().replace(',', '.') : '';
-      f.d_ects = v('gfEcts');
+      f.d_ects = de ? v('gfEcts') : '';
       f.d_top = v('gfTop');
-      const rs = v('gfRestricted');
+      const rs = de ? v('gfRestricted') : '';
       f.g_restricted = rs === 'open' ? 'no' : '';
       f.restricted = rs === 'open' ? 'no' : rs === 'restricted' ? 'yes' : '';
       f.feeModel = v('gfFee');
@@ -386,8 +406,12 @@
       const w = el.querySelector('#gfGreSecWrap');
       if (w) w.hidden = v('gfGre') !== 'GRE';   /* patch 156: open on "Taken" */
     };
-    el.addEventListener('input', e => { if (e.target.closest('#gfGre, #gfGreS')) greSections(); });
-    el.addEventListener('change', e => { if (e.target.closest('#gfGre, #gfGreS')) greSections(); });
+    el.addEventListener('input', e => { if (e.target.closest('#gfGre')) greSections(); });
+    el.addEventListener('change', e => { if (e.target.closest('#gfGre')) greSections(); if (e.target.closest('#gfCountry')) deBoxes(); });
+    /* Round 178 (F7.4): German grade, German level, restricted admission and
+       the bachelor's ECTS are hidden for any destination but Germany. */
+    const deBoxes = () => { const off = deOff(v('gfCountry')); el.querySelectorAll('[data-de-only]').forEach(b => { b.hidden = off; }); };
+    deBoxes();
 
     /* Patch 153 (K) — one muted line of the special conditions a counsellor
      * must know about before promising a place: "Restrictions: No" when the
@@ -412,8 +436,10 @@
     const feeOf = r => (r.feeModel || (r.isPublic ? 'package' : 'free')) === 'free' ? 'Free to apply' : 'With a package';
     /* F9 (8 Oct): the home page's rule for a ₹0 total — a public programme
        has no tuition fee; a private one at ₹0 is a fee nobody has written down. */
-    const cost = r => Number(r.totalInr) ? lakh(r.totalInr)
-      : (r.isPublic || (r.reqs && r.reqs.tuitionEurSem === 0) ? 'No tuition fee' : 'Fee to be confirmed');
+    /* Round 178: a fee from an agent portal is shown to staff, labelled. */
+    const cost = r => (Number(r.totalInr) ? lakh(r.totalInr)
+      : (r.isPublic || (r.reqs && r.reqs.tuitionEurSem === 0) || r.tuitionEurSem === 0 ? 'No tuition fee' : 'Fee to be confirmed'))
+      + (r.feeIndicative ? ' (indicative)' : '');
     /* Round 165: the rank, per university — the first programme of the first
        university is #1, a second programme at the same university shares its
        number, the next university is #2. With the kind filter on the package's
@@ -429,6 +455,9 @@
       + (r.why && r.why.length ? '<small class="why">' + (r.hard && r.hard.length ? 'Near — short of something they ask: ' : '') + esc(r.why.join('; ')) + '</small>' : '')
       + '<small>' + esc(r.program) + ' · ' + (r.isPublic ? 'Public' : 'Private') + ' · ' + feeOf(r) + ' · ' + esc(r.city || '') + ' · ' + cost(r)
       + (nextDeadline(r.intakes, v('gfIntake')) ? ' · closes ' + nextDeadline(r.intakes, v('gfIntake')) : '') + '</small>'
+      /* Round 178 (F8): a foreign degree's awarding body; F3's "Maybe" badge. */
+      + (r.awardingBody ? '<small>Degree awarded by ' + esc(r.awardingBody) + '</small>' : '')
+      + ((r.notes || []).some(n => /^maybe/i.test(n)) ? '<small><span class="tag" style="background:#fff3d6">Maybe – check eligibility</span></small>' : '')
       /* Round 175: every published deadline has passed — said before the
          Add button asks "Add anyway?", and the row ranks after open ones. */
       + (r.closed ? '<small class="soft">Every deadline has passed' + (r.lastDeadline ? ' (last ' + esc(dateSaid(r.lastDeadline)) + ')' : '') + ' — next intake not announced</small>' : '')
@@ -554,6 +583,8 @@
       if (e.target.id === 'gfTagQ') {
         const s = el.querySelector('#gfTagSug');
         if (e.key === 'Escape') { if (s && !s.hidden) { e.preventDefault(); e.stopPropagation(); hideSug(); } return; }
+        /* Round 178 (F1): backspace in an empty box takes the last chip off. */
+        if (e.key === 'Backspace' && !e.target.value && TAGS_CHOSEN.length) { e.preventDefault(); TAGS_CHOSEN.pop(); drawChips(); go(); return; }
         if (s && !s.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); moveSug(e.key === 'ArrowDown' ? 1 : -1); return; }
         if (e.key === 'Enter') {
           e.preventDefault();

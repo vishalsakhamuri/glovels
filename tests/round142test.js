@@ -26,7 +26,7 @@ const page = async p => { const r = await fetch(BASE + p); let t = await r.text(
   let r = await req('x', 'GET', '/api/content');
   const svc = ((r.body || {}).services || {}).items || [];
   const pk = ((r.body || {}).packages || {}).items || [];
-  ok('₹99 is "Private match preview"', svc.some(s => s.id === 'first-three' && s.name === 'Private match preview' && /3 partner universities/.test(s.desc)), JSON.stringify(svc.find(s => s.id === 'first-three') || {}).slice(0, 120));
+  ok('₹99 is "Private match preview"', svc.some(s => s.id === 'first-three' && s.name === 'Private match preview' && /Affiliated universities you match/.test(s.desc)), /* round 178: "affiliated", no count (owner) */ JSON.stringify(svc.find(s => s.id === 'first-three') || {}).slice(0, 120));
   ok('₹999 is "Private shortlist of 10"', svc.some(s => s.id === 'shortlist-ten' && s.name === 'Private shortlist of 10' && /gap analysis/.test(s.desc)));
   ok('₹4,999 is "Public University Unlock"', pk.some(p => p.id === 'pkg-three-public' && p.title === 'Public University Unlock'), JSON.stringify(pk.find(p => p.id === 'pkg-three-public') || {}).slice(0, 120));
   let t = await page('/');

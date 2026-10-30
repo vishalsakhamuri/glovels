@@ -272,7 +272,7 @@ const visible = s => (s.shortlist || []).filter(r => r.addedBy !== 'student');
   ok('  · the student still sees 5', l5.length === 5, l5.length);
   ok('  · with the replacement and without the removed one', l5.some(x => x.id === next.id) && !l5.some(x => x.id === fifth.id), J(l5.map(x => x.university)));
   ok('  · the replacement is marked as the office\'s choice, the rest as matched', (l5.find(x => x.id === next.id) || {}).addedBy === 'office' && l5.filter(x => x.addedBy === 'matched').length === 4, J(l5.map(x => x.addedBy)));
-  ok('  · the student is told, by name', (s5.msgs || []).some(m => /I have taken/.test(m.t) && m.t.includes(fifth.university)) && (s5.msgs || []).some(m => /I have added/.test(m.t) && m.t.includes(next.university)));
+  ok('  · the student is told, by name', (s5.msgs || []).concat((s5.activity || [])).some(m => /I have taken/.test(m.t) && m.t.includes(fifth.university)) && (s5.msgs || []).concat((s5.activity || [])).some(m => /I have added/.test(m.t) && m.t.includes(next.university)));
   /* A profile save re-runs the matcher: the swap must survive it. */
   await req('s5', 'PUT', '/api/profile', { profile: BASE_PROFILE });
   s5 = (await req('s5', 'GET', '/api/state')).body; l5 = visible(s5); held5 = await heldIds('s5');

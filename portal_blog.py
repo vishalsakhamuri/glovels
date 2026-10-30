@@ -7,6 +7,7 @@ BODY = """
       @media (max-width:430px){ .out.tiles{grid-template-columns:1fr} }
 
       .blog-cols{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+      .blog-cols>*{min-width:0}
       @media (max-width:1000px){ .blog-cols{grid-template-columns:1fr} }
 
       .plist{list-style:none;margin:0;padding:0;max-height:72vh;overflow-y:auto}
@@ -118,14 +119,31 @@ BODY = """
       <div class="items" id="wixItems" hidden></div>
     </div>
 
+    <div class="wixbox" id="revBox" hidden>
+      <h3>Before go-live: test and off-topic posts</h3>
+      <p>Two lists, worked out from the headline, the address and the word count of every post.
+        Nothing changes until you tick posts and press <b>Archive selected</b>. An archived post comes
+        off the site, the blog list, the sitemap and search, and its address sends visitors to the blog.
+        Nothing is deleted: open an archived post from the <b>Archived</b> list and press Save to bring it
+        back as a draft.</p>
+      <div id="revLists"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+        <button type="button" class="btn btn-primary btn-sm" id="revArchive">Archive selected</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="revHide">Close</button>
+        <span id="revSaid" style="font:600 12.4px/1.5 var(--sans);color:var(--navy-800)"></span>
+      </div>
+    </div>
+
     <div class="blog-cols">
       <div class="p-card" style="padding:0">
         <div style="padding:12px 15px;border-bottom:1px solid var(--line);display:flex;
-          gap:10px;align-items:center">
+          gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
           <b style="font:700 12.4px/1 var(--sans);letter-spacing:.07em;
             text-transform:uppercase;color:var(--muted)">Posts</b>
           <button type="button" class="btn btn-ghost btn-sm" id="wixBtn"
             style="margin-left:auto" title="Copy every post on glovels.com into this blog, as drafts">From glovels.com</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="revBtn"
+            title="Test and off-topic posts to look at before go-live">Review</button>
           <button type="button" class="btn btn-primary btn-sm" id="newPost">+ New</button>
         </div>
         <div style="padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px;
@@ -137,6 +155,7 @@ BODY = """
             <option value="">All</option>
             <option value="published">On the site</option>
             <option value="draft">Not on the site</option>
+            <option value="archived">Archived</option>
           </select>
         </div>
         <ul class="plist" id="postList"></ul>
@@ -255,7 +274,7 @@ function paintList() {
   $('#postList').innerHTML = POSTS.map(p =>
     '<li data-post="' + p.id + '"' + (p.id === openId ? ' class="on"' : '') + '>'
     + '<b>' + esc(p.title) + '</b>'
-    + '<span><span class="stpill ' + (p.status === 'published' ? 'live">On the site'
+    + '<span><span class="stpill ' + (p.status === 'archived' ? 'draft">Archived' : p.status === 'published' ? 'live">On the site'
         : p.onDisk ? 'live">On the site — original page'
         : 'draft">Not on the site') + '</span> '
       + (p.words ? p.words.toLocaleString('en-IN') + ' words' : 'no words yet')
@@ -310,11 +329,14 @@ function editor(p) {
       + '<div class="field"><label for="pPublished">Published on'
         + '<small> — leave it and we use the day you press Publish</small></label>'
         + '<input id="pPublished" type="date" max="' + new Date().toISOString().slice(0, 10)
-        + '" value="' + esc(dateOnly(p.publishedAt)) + '">'
+        + '" value="' + esc(dateOnly(p.publishedAt)) + '"'
+        + (p.status === 'published' && p.publishedAt ? ' disabled title="Fixed after the first publish"' : '') + '>'
         + '<small style="display:block;margin-top:5px;font:400 11.6px/1.55 var(--sans);'
-        + 'color:var(--muted)">Last updated ' + (p.updatedAt ? esc(fmtWhen(p.updatedAt))
-          : 'never') + '. That date goes on the post and into the page, so a guide '
-        + 'you corrected today does not read as a year old.</small></div>'
+        + 'color:var(--muted)">' + (p.status === 'published' && p.publishedAt
+          ? 'Fixed after the first publish — it is the date Google shows. ' : '')
+        + 'Last saved ' + (p.updatedAt ? esc(fmtWhen(p.updatedAt)) : 'never')
+        + '. The post shows &ldquo;Updated&rdquo; only after a significant content update'
+        + (p.modifiedAt ? ' (last one ' + esc(fmtWhen(p.modifiedAt)) + ')' : '') + '.</small></div>'
     + '</div>'
 
     + '<div class="field"><label for="pExcerpt">The line under the headline'
@@ -404,6 +426,17 @@ function editor(p) {
         + '</div>'
     + '</div>'
 
+    /* Round 178 (B5): off by default. Off — a reworded headline, a typo, an
+       image swap: dateModified, the Updated line and the sitemap date stay.
+       On — they become today. */
+    + (isNew ? '' : '<label for="pSig" style="display:flex;gap:9px;align-items:flex-start;margin:0 0 14px;'
+      + 'padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#f7f9fc;'
+      + 'font:400 12.6px/1.55 var(--sans);color:var(--navy-800);cursor:pointer">'
+      + '<input type="checkbox" id="pSig" style="width:auto;margin:3px 0 0;flex:none">'
+      + '<span><b>This is a significant content update</b><br>Tick it when the facts changed — a fee, a '
+      + 'deadline, a rule, a new section. Leave it off for a reworded headline, a typo, formatting or a '
+      + 'new picture: the post then keeps its dates exactly as Google has them. Ticked, the post shows '
+      + '&ldquo;Updated&rdquo; with today&rsquo;s date and the sitemap tells Google.</span></label>')
     + '<p id="pErr" role="alert" style="display:none;margin:0 0 12px;padding:11px 13px;'
       + 'border-radius:10px;font:600 12.9px/1.55 var(--sans);background:#fdf3f2;'
       + 'border:1px solid #f0c8c4;color:#7a2118"></p>'
@@ -662,7 +695,7 @@ function preview() {
     || body.split(/\n\s*\n/).filter(x => !/^\s*(#|-|\d+[.)]|>)/.test(x))[0] || '';
   const slug = $('#pSlug').value.trim() || slugify($('#pTitle').value);
 
-  $('#sU').textContent = 'glovels.com/post/' + slug;
+  $('#sU').textContent = 'www.glovels.com/post/' + slug;
   $('#sT').textContent = (title || 'Your headline') + ' | Glovels';
   $('#sD').textContent = desc.slice(0, 300) || 'The sentence a student reads before deciding '
     + 'whether to click.';
@@ -694,6 +727,7 @@ function body() {
     cover: $('#pCover').value.trim(),
     author: $('#pAuthor').value.trim(),
     publishedAt: $('#pPublished').value,
+    significant: !!($('#pSig') && $('#pSig').checked),
     related: [...$('#relPick').querySelectorAll('input:checked')]
       .map(b => b.value).join(','),
   };
@@ -816,6 +850,37 @@ PAGE_SIZES.post = 100;
 const loadSoon = () => { clearTimeout(loadTimer); loadTimer = setTimeout(() => { load().catch(e => toast(e.message)); }, 220); };
 $('#pq').addEventListener('input', () => { PAGE_AT.post = 0; loadSoon(); });
 $('#pst').addEventListener('change', () => { PAGE_AT.post = 0; loadSoon(); });
+
+/* Round 178 (B3/B4): the test / off-topic review and "Archive selected". */
+async function review() {
+  $('#revBox').hidden = false;
+  $('#revLists').innerHTML = '<p>Reading every post…</p>';
+  const r = await api('GET', '/api/staff/posts/review');
+  const list = (title, rows) => '<h4 style="margin:12px 0 4px;font:700 13px/1.4 var(--sans);color:var(--navy-900)">'
+    + esc(title) + ' (' + rows.length + ')</h4>'
+    + (rows.length ? '<div class="items" style="max-height:260px">' + rows.map(x =>
+      '<label style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;font:400 12.4px/1.5 var(--sans)">'
+      + '<input type="checkbox" data-rev="' + x.id + '" style="width:auto;margin:3px 0 0;flex:none">'
+      + '<span><b>' + esc(x.title || '(no headline)') + '</b> &middot; <a href="/post/' + esc(x.slug)
+      + '" target="_blank" rel="noopener">/post/' + esc(x.slug) + '</a><br><small>' + esc(x.reason) + ' &middot; '
+      + (x.status === 'published' ? 'on the site' : 'not on the site') + ' &middot; ' + x.words + ' words</small></span></label>').join('')
+      + '</div>' : '<p style="margin:0">None.</p>');
+  $('#revLists').innerHTML = '<p style="margin:0">' + r.checked + ' posts checked.</p>'
+    + list('Test / dummy posts — archive these', r.test)
+    + list('Off-topic — you decide: keep, keep but noindex, 301 to a guide, or archive', r.offTopic);
+}
+$('#revBtn').onclick = () => { review().catch(e => toast(e.message)); };
+$('#revHide').onclick = () => { $('#revBox').hidden = true; };
+$('#revArchive').onclick = async () => {
+  const ids = [...document.querySelectorAll('[data-rev]:checked')].map(b => Number(b.dataset.rev));
+  if (!ids.length) { $('#revSaid').textContent = 'Tick the posts to archive first.'; return; }
+  try {
+    const r = await api('POST', '/api/staff/posts/archive', { ids });
+    await load();
+    await review();
+    $('#revSaid').textContent = r.archived + ' archived. They are on the Archived list.';
+  } catch (e) { $('#revSaid').textContent = e.message; }
+};
 
 document.addEventListener('click', e => {
   const row = e.target.closest('[data-post]');

@@ -702,6 +702,11 @@ function sqliteDriver(file) {
    'DROP INDEX IF EXISTS idx_posts_status',
    'CREATE INDEX IF NOT EXISTS idx_posts_live ON posts(status, published_at, id, words)',
    'CREATE INDEX IF NOT EXISTS idx_posts_updated ON posts(updated_at, id)',
+   /* Round 178 (SEO, B5): the date the CONTENT last changed in a way worth
+      telling a reader about — dateModified, the visible "Updated" line and the
+      sitemap <lastmod>. Set only when the writer ticks "This is a significant
+      content update"; updated_at goes on recording every save for the office. */
+   "ALTER TABLE posts ADD COLUMN modified_at TEXT NOT NULL DEFAULT ''",
    /* ---- one row per piece of work owed to a student ----
     *
     * The alerts engine next door is deliberately not stored: an alert is a
@@ -843,6 +848,39 @@ function sqliteDriver(file) {
       none imported yet, and server/tags.js derives a set from the row's own
       fields so the tag search works before and without the import. */
    "ALTER TABLE programmes ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
+   /* Round 178 (owner, 30 Oct): a fee taken from an agent portal (Crizac,
+      ApplyBoard, UCOL) is INDICATIVE — the counsellor sees it, flagged; a
+      visitor or a student never does (api.js /api/catalogue, serve.js
+      university and destination pages). 1 = indicative. */
+   'ALTER TABLE programmes ADD COLUMN fee_indicative INTEGER NOT NULL DEFAULT 0',
+   /* Round 178 (F8): who awards the degree when it is not the campus — a UK,
+      US, French, Italian or Dutch degree taught at a German private campus.
+      Blank = the university itself. */
+   "ALTER TABLE programmes ADD COLUMN awarding_body TEXT NOT NULL DEFAULT ''",
+   /* Round 178 (BUG-092): AN APPLICATION'S HISTORY, one row per change.
+      The applications row holds where it is NOW — stage, outcome, the latest
+      note — and every save overwrote the one before, undated and unsigned.
+      This is the record of how it got there: who, when, from what to what.
+      kind: created | stage | outcome | note | internal_note | removed.
+      `from_val` / `to_val` because FROM and TO are SQL words. */
+   `CREATE TABLE IF NOT EXISTS application_events (
+      id          INTEGER PRIMARY KEY,
+      student_id  INTEGER NOT NULL,
+      prog_id     TEXT NOT NULL,
+      at          TEXT NOT NULL,
+      who         TEXT NOT NULL DEFAULT '',
+      who_role    TEXT NOT NULL DEFAULT '',
+      kind        TEXT NOT NULL,
+      from_val    TEXT NOT NULL DEFAULT '',
+      to_val      TEXT NOT NULL DEFAULT '',
+      text        TEXT NOT NULL DEFAULT ''
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_appev_student ON application_events(student_id, prog_id)',
+   /* Round 178 (BUG-094): 'msg' is a person writing; 'notice' is the system
+      saying something happened (a university added, a document asked for, a
+      payment received). Notices live in the Activity timeline, not in the
+      conversation, and no unread counter counts them. */
+   "ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'msg'",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -886,7 +924,7 @@ function jsonDriver(file) {
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
-    'push_subs', 'payments'];
+    'push_subs', 'payments', 'application_events'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1047,8 +1085,9 @@ function open(dir) {
     if (v == null) return '';
     const list = Array.isArray(v) ? v : String(v).split(';');
     const seen = new Set(), out = [];
-    list.forEach(t => { const s = String(t == null ? '' : t).trim().slice(0, 60); const k = s.toLowerCase(); if (s && !seen.has(k)) { seen.add(k); out.push(s); } });
-    return out.slice(0, 60).join(';');
+    /* Round 178: 160 characters and 120 tags — tags.js parseList's limits. */
+    list.forEach(t => { const s = String(t == null ? '' : t).trim().slice(0, 160); const k = s.toLowerCase(); if (s && !seen.has(k)) { seen.add(k); out.push(s); } });
+    return out.slice(0, 120).join(';');
   };
   /* The FTS5 query for what somebody typed: each word as a prefix. */
   const ftsMatch = q => {
@@ -1274,7 +1313,7 @@ function open(dir) {
     },
     /* The counsellor has looked: it becomes a machine pick the student can
        see. Only a held row moves — releasing what is not held is a no-op. */
-    releaseHeld(studentId, progId) {
+    releaseHeld(studentId, progId, who) {
       const row = db.all('SELECT * FROM shortlist WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(progId))[0];
       if (!row || String(row.added_by) !== 'held') return null;
@@ -1282,6 +1321,8 @@ function open(dir) {
          released #1 at the bottom of the student's list (round 165). */
       db.run('UPDATE shortlist SET added_by = ?, hold_reason = ? WHERE student_id = ? AND prog_id = ?',
         'matched', '', Number(studentId), String(progId));
+      /* Round 178: released onto the student's list — its history starts. */
+      try { this.appCreated(studentId, progId, who); } catch (e) { /* released either way */ }
       return db.all('SELECT * FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId))[0] || null;
     },
     /**
@@ -1299,7 +1340,7 @@ function open(dir) {
      * exactly what confirming means. The machine re-running over a university
      * a counsellor has already agreed does not demote it back.
      */
-    addShortlist(studentId, p, by, rank) {
+    addShortlist(studentId, p, by, rank, who) {
       const existing = db.all(
         'SELECT added_by, added_at, rank FROM shortlist WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(p.id))[0];
@@ -1318,9 +1359,29 @@ function open(dir) {
         p.country || '', Number(p.totalInr || 0), p.isPublic ? 1 : 0, p.url || '',
         JSON.stringify(p.intakes || []), Number(p.fit || 0), (kept && kept.added_at) || now(), owner,
         Number(rank || (kept && kept.rank) || 0));
+      /* Round 178 (BUG-092): a programme arriving on the list is where its
+         application's history starts. */
+      if (!kept) {
+        try { this.appCreated(studentId, p.id, who || this.whoFor(studentId, want)); } catch (e) { /* listed either way */ }
+      }
     },
-    removeShortlist: (studentId, progId) =>
-      db.run('DELETE FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
+    /* The name on an event nobody passed a name for: the student themselves
+       for 'student', the system for the machine's picks. */
+    whoFor(studentId, by) {
+      if (by === 'student') {
+        const st = db.one('SELECT name FROM students WHERE id = ?', Number(studentId));
+        return { name: (st && st.name) || 'The student', role: 'student' };
+      }
+      return { name: 'Glovels', role: 'system' };
+    },
+    removeShortlist(studentId, progId, who) {
+      const was = db.one('SELECT added_by FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId));
+      const out = db.run('DELETE FROM shortlist WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId));
+      if (was && String(was.added_by) !== 'held') {
+        try { this.appRemoved(studentId, progId, who); } catch (e) { /* removed either way */ }
+      }
+      return out;
+    },
     /* "Not this one", remembered — see shortlist_dismissed. Adding it back by
        hand clears it. */
     dismissShortlist: (studentId, progId, was) =>
@@ -1413,9 +1474,10 @@ function open(dir) {
        moment it held a counsellor's note: advancing the stage would have wiped
        what somebody had typed, silently, on the screen that shows it. So the
        note is carried through unless this call is the one changing it. */
-    putApplication(studentId, progId, stage, outcome, note) {
-      const had = db.one('SELECT * FROM applications WHERE student_id = ? AND prog_id = ?',
-        Number(studentId), String(progId)) || {};
+    putApplication(studentId, progId, stage, outcome, note, who) {
+      const found = db.one('SELECT * FROM applications WHERE student_id = ? AND prog_id = ?',
+        Number(studentId), String(progId));
+      const had = found || {};
       const keep = note === undefined ? String(had.note || '') : String(note || '');
       const when = note === undefined ? String(had.note_at || '')
         : (keep ? now() : '');
@@ -1424,6 +1486,80 @@ function open(dir) {
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(studentId), String(progId), Number(stage) || 0, outcome || '', now(),
         keep, when, String(had.internal_note || ''));
+      /* Round 178 (BUG-092): one event per thing that changed, dated and
+         signed. A save that changes nothing writes nothing. */
+      try {
+        if (!found) this.appCreated(studentId, progId, who);
+        const s0 = Number(had.stage) || 0, s1 = Number(stage) || 0;
+        if (s1 !== s0) this.addAppEvent(studentId, progId, 'stage', who, s0, s1, '');
+        const o0 = String(had.outcome || ''), o1 = String(outcome || '');
+        if (o1 !== o0) this.addAppEvent(studentId, progId, 'outcome', who, o0, o1, '');
+        if (note !== undefined && keep !== String(had.note || '')) {
+          this.addAppEvent(studentId, progId, 'note', who, '', keep ? '' : 'cleared', keep);
+        }
+      } catch (e) { /* the application is saved either way */ }
+    },
+    /* ---- an application's history (round 178, BUG-092) ---- */
+    appEvents(studentId, progId) {
+      const rows = db.all('SELECT * FROM application_events WHERE student_id = ? ORDER BY id asc', Number(studentId));
+      return progId === undefined ? rows : rows.filter(r => String(r.prog_id) === String(progId));
+    },
+    /* `who` is { name, role }. Nobody named is the system itself. */
+    addAppEvent(studentId, progId, kind, who, from, to, text, at) {
+      const w = who || {};
+      db.run(`INSERT INTO application_events
+                (student_id, prog_id, at, who, who_role, kind, from_val, to_val, text)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        Number(studentId), String(progId), String(at || now()),
+        String(w.name || 'Glovels').slice(0, 80), String(w.role || 'system').slice(0, 20),
+        String(kind), String(from == null ? '' : from).slice(0, 80),
+        String(to == null ? '' : to).slice(0, 80), String(text || '').slice(0, 1000));
+    },
+    /* Once per life on the list: a programme added, removed and added again
+       has two `created` events with a `removed` between them. */
+    appCreated(studentId, progId, who, at) {
+      const life = this.appEvents(studentId, progId).filter(e => e.kind === 'created' || e.kind === 'removed');
+      const last = life[life.length - 1];
+      if (last && last.kind === 'created') return false;
+      this.addAppEvent(studentId, progId, 'created', who, '', '', '', at);
+      return true;
+    },
+    /* Round 178: history for the applications that existed before it was
+       kept — one `created` event per application (and per programme on a
+       list) at the earliest date known for it, and its current note as one
+       `note` event dated when it was written. Only where the pair has no
+       events yet, so it is safe to run again. Returns how many written. */
+    backfillAppHistory() {
+      let n = 0;
+      const sys = { name: 'Glovels', role: 'system' };
+      const seen = new Set(db.all('SELECT * FROM application_events WHERE id > ?', 0)
+        .map(e => e.student_id + '|' + e.prog_id));
+      const first = new Map();
+      const take = (sid, pid, at) => {
+        const k = sid + '|' + pid;
+        if (!at || seen.has(k)) return;
+        const had = first.get(k);
+        if (!had || String(at) < String(had.at)) first.set(k, { sid, pid, at: String(at) });
+      };
+      db.all('SELECT * FROM shortlist WHERE student_id > ?', 0)
+        .filter(r => String(r.added_by) !== 'held')
+        .forEach(r => take(r.student_id, r.prog_id, r.added_at));
+      const apps = db.all('SELECT * FROM applications WHERE student_id > ?', 0);
+      apps.forEach(a => { take(a.student_id, a.prog_id, a.updated_at); if (a.note_at) take(a.student_id, a.prog_id, a.note_at); });
+      first.forEach(f => { this.addAppEvent(f.sid, f.pid, 'created', sys, '', '', '', f.at); n++; });
+      apps.forEach(a => {
+        if (seen.has(a.student_id + '|' + a.prog_id) || !String(a.note || '').trim()) return;
+        this.addAppEvent(a.student_id, a.prog_id, 'note', sys, '', '', String(a.note), a.note_at || a.updated_at);
+        n++;
+      });
+      return n;
+    },
+    appRemoved(studentId, progId, who) {
+      const life = this.appEvents(studentId, progId).filter(e => e.kind === 'created' || e.kind === 'removed');
+      const last = life[life.length - 1];
+      if (!last || last.kind !== 'created') return false;
+      this.addAppEvent(studentId, progId, 'removed', who, '', '', '');
+      return true;
     },
     /* The note on its own, without having to know the stage to write it. The
        row may not exist yet — an application nobody has moved off stage zero
@@ -1436,12 +1572,20 @@ function open(dir) {
         had.outcome || '', String(note || ''));
     },
     /* The office's own note on one application. The row may not exist yet. */
-    putApplicationInternal(studentId, progId, text) {
-      const had = db.one('SELECT stage, outcome FROM applications WHERE student_id = ? AND prog_id = ?',
+    putApplicationInternal(studentId, progId, text, who) {
+      const had = db.one('SELECT stage, outcome, internal_note FROM applications WHERE student_id = ? AND prog_id = ?',
         Number(studentId), String(progId));
-      if (!had) this.putApplication(studentId, progId, 0, '', undefined);
+      if (!had) this.putApplication(studentId, progId, 0, '', undefined, who);
       db.run('UPDATE applications SET internal_note = ? WHERE student_id = ? AND prog_id = ?',
         String(text || ''), Number(studentId), String(progId));
+      /* Round 178: office-only, and so is its history — never on a student's
+         or an agency's payload. */
+      try {
+        const t = String(text || '');
+        if (t !== String((had && had.internal_note) || '')) {
+          this.addAppEvent(studentId, progId, 'internal_note', who, '', t ? '' : 'cleared', t);
+        }
+      } catch (e) { /* the note is saved either way */ }
     },
     removeApplication: (studentId, progId) =>
       db.run('DELETE FROM applications WHERE student_id = ? AND prog_id = ?', Number(studentId), String(progId)),
@@ -1598,7 +1742,53 @@ function open(dir) {
       db.run('DELETE FROM documents WHERE student_id = ? AND doc_key = ?', Number(studentId), String(key)),
 
     /* ---- messages ---- */
-    getMessages: id => db.all('SELECT * FROM messages WHERE student_id = ? ORDER BY id asc', Number(id)),
+    /* Round 178 (BUG-094): the CONVERSATION — what people wrote. A notice
+       ("I have added … to your list", a document request, a payment) is not
+       in it; every reader of a thread (the screens, the unread counts, "who
+       spoke last", the alerts) reads this and so leaves notices out. */
+    getMessages: id => db.all('SELECT * FROM messages WHERE student_id = ? ORDER BY id asc', Number(id))
+      .filter(m => String(m.kind || 'msg') !== 'notice'),
+    /* …and the notices, for the Activity timeline. */
+    getNotices: id => db.all('SELECT * FROM messages WHERE student_id = ? ORDER BY id asc', Number(id))
+      .filter(m => String(m.kind || 'msg') === 'notice'),
+    /* A notice, written once. The same sentence to the same student inside
+       ten minutes is the same event (one document request was posted three
+       times), so it is not written again. Returns whether it was written. */
+    addNotice(studentId, body, author, sender) {
+      const text = String(body || '');
+      const cut = Date.now() - 10 * 60 * 1000;
+      const dupe = db.all('SELECT * FROM messages WHERE student_id = ?', Number(studentId))
+        .some(m => String(m.kind || 'msg') === 'notice' && String(m.body) === text
+          && Date.parse(m.created_at) >= cut);
+      if (dupe) return false;
+      /* Read by both sides from the start: no unread counter counts a notice. */
+      db.run(`INSERT INTO messages (student_id, sender, body, file, author, created_at, kind, read_by_student, read_by_staff)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        Number(studentId), sender === 'me' ? 'me' : 'them', text, '',
+        String(author == null ? '' : author).slice(0, 80), now(), 'notice', 1, 1);
+      return true;
+    },
+    /* Round 178: notices that should be messages, put back. `isMsg(row)`
+       decides; returns how many. Safe to run on every boot. */
+    unmarkNotices(isMsg) {
+      let n = 0;
+      db.all('SELECT * FROM messages WHERE id > ?', 0).forEach(m => {
+        if (String(m.kind || 'msg') !== 'notice' || !isMsg(m)) return;
+        db.run('UPDATE messages SET kind = ? WHERE id = ?', 'msg', m.id);
+        n++;
+      });
+      return n;
+    },
+    /* Round 178: existing rows re-marked. `isNotice(row)` decides; returns how many. */
+    markNotices(isNotice) {
+      let n = 0;
+      db.all('SELECT * FROM messages WHERE id > ?', 0).forEach(m => {
+        if (String(m.kind || 'msg') === 'notice' || !isNotice(m)) return;
+        db.run('UPDATE messages SET kind = ?, read_by_student = ?, read_by_staff = ? WHERE id = ?', 'notice', 1, 1, m.id);
+        n++;
+      });
+      return n;
+    },
     deleteMessage: id => db.run('DELETE FROM messages WHERE id = ?', Number(id)),
     /* `author` is who it is FROM, in words the student can read: a
        counsellor's own name, or the office's name for everything it sends
@@ -1844,6 +2034,20 @@ function open(dir) {
       return db.all('SELECT DISTINCT uni_slug FROM programmes WHERE ' + w.join(' AND ') + ' ORDER BY uni_slug'
         + (limit ? ' LIMIT ' + Number(limit) + ' OFFSET ' + Number(offset || 0) : ''), ...a).map(r => r.uni_slug);
     },
+    /** Round 178 (sitemap): uni_slug → the newest updated_at of its live programmes. */
+    uniLastmods() {
+      const out = new Map();
+      if (db.kind !== 'sqlite') {
+        db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active).forEach(r => {
+          const t = String(r.updated_at || '');
+          if (t > (out.get(r.uni_slug) || '')) out.set(r.uni_slug, t);
+        });
+        return out;
+      }
+      db.all('SELECT uni_slug, MAX(updated_at) AS at FROM programmes WHERE active = 1 GROUP BY uni_slug')
+        .forEach(r => out.set(r.uni_slug, String(r.at || '')));
+      return out;
+    },
     /**
      * Universities in a country for its page: the ones on the site first,
      * then whoever has the most on offer, `limit` in all. Returns their rows.
@@ -1890,7 +2094,9 @@ function open(dir) {
      */
     filterUniversities({ country, level, field, cgpa, cgpaAsGerman, ggpa, season, budget, free, q, bars, limit }) {
       const w = ['active = 1', 'country = ?']; const a = [country];
-      if (level) { w.push("LOWER(COALESCE(NULLIF(level, ''), 'master')) = ?"); a.push(String(level).toLowerCase()); }
+      /* Round 178 (F7.1): Master's takes the MBAs too. */
+      const lvMba = String(level || '').toLowerCase() === 'master';
+      if (level) { w.push("LOWER(COALESCE(NULLIF(level, ''), 'master')) " + (lvMba ? "IN (?, 'mba')" : '= ?')); a.push(String(level).toLowerCase()); }
       if (field) { w.push('field = ?'); a.push(field); }
       /* Round 175: a row with a German grade and no CGPA is held to that grade
          (cgpaAsGerman: the student's CGPA converted, api.js); one with
@@ -1905,7 +2111,9 @@ function open(dir) {
       }
       if (ggpa) { w.push('(german_gpa IS NULL OR german_gpa >= ?)'); a.push(ggpa); }
       if (season) { w.push('intakes LIKE ?'); a.push('%"season":"' + season + '"%'); }
-      if (budget) { w.push('total_inr <= ?'); a.push(budget); }
+      /* Round 178: an indicative (agent-portal) fee is not one a visitor may
+         filter on — passing a budget would tell them the range. */
+      if (budget) { w.push('total_inr <= ? AND fee_indicative = 0'); a.push(budget); }
       if (free) w.push("fee_model = 'free'");
       /* The search words arrive with their accents stripped ("munchen"), so
          the names they are compared with are folded the same way — "münchen"
@@ -1914,14 +2122,15 @@ function open(dir) {
       if (db.kind !== 'sqlite') {
         /* The development store: the same question, in JavaScript. */
         const rows = db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.country === country);
-        const ok = r => (!level || String(r.level || 'master').toLowerCase() === String(level).toLowerCase())
+        const ok = r => (!level || String(r.level || 'master').toLowerCase() === String(level).toLowerCase()
+            || (lvMba && String(r.level || '').toLowerCase() === 'mba'))
           && (!field || r.field === field)
           && (!cgpa || (r.min_cgpa != null ? r.min_cgpa <= cgpa
             : (gFromC && r.german_gpa != null) ? r.german_gpa >= gFromC
             : ((r.is_public ? Number((bars || {}).pub) || 0 : Number((bars || {}).priv) || 0) <= cgpa)))
           && (!ggpa || r.german_gpa == null || r.german_gpa >= ggpa)
           && (!season || String(r.intakes || '').includes('"season":"' + season + '"'))
-          && (!budget || (r.total_inr || 0) <= budget) && (!free || r.fee_model === 'free')
+          && (!budget || ((r.total_inr || 0) <= budget && !r.fee_indicative)) && (!free || r.fee_model === 'free')
           && (q || []).every(word => (r.university + ' ' + r.short_name + ' ' + r.city).toLowerCase().includes(word));
         const by = {}; rows.forEach(r => { const u = by[r.uni_slug] = by[r.uni_slug] || { slug: r.uni_slug, matching: 0, rows: [] }; u.rows.push(r); if (ok(r)) u.matching++; });
         return Object.values(by).filter(u => u.matching).sort((x, y) => (y.rows.some(r => !r.search_only) - x.rows.some(r => !r.search_only)) || (y.matching - x.matching)).slice(0, limit || 50);
@@ -2171,7 +2380,13 @@ function open(dir) {
          mention them keeps what the row already has — an edit of the title
          must not blank the IELTS bar, which is the exact fault a
          column-by-column save invites. */
-      const prior = db.one('SELECT reqs, tags FROM programmes WHERE id = ?', String(p.id));
+      const prior = db.one('SELECT reqs, tags, fee_indicative, awarding_body FROM programmes WHERE id = ?', String(p.id));
+      /* Round 178: the indicative-fee flag and the awarding body the same
+         way — a caller that does not mention them (rebandAll, an older
+         form) keeps what the row has. */
+      const feeInd = p.feeIndicative === undefined ? ((prior && prior.fee_indicative) ? 1 : 0) : (p.feeIndicative ? 1 : 0);
+      const awarding = p.awardingBody === undefined ? String((prior && prior.awarding_body) || '')
+        : String(p.awardingBody == null ? '' : p.awardingBody).trim().slice(0, 120);
       const reqsText = p.reqs === undefined
         ? ((prior && prior.reqs) || '')
         : JSON.stringify(REQS.clean(p.reqs).reqs);
@@ -2182,8 +2397,9 @@ function open(dir) {
       db.run(`INSERT OR REPLACE INTO programmes
         (id, program, university, short_name, city, country, level, field, band,
          is_public, fit, min_cgpa, total_inr, url, intakes, active, featured,
-         feature_sort, fee_model, german_gpa, search_only, uni_slug, reqs, tags, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         feature_sort, fee_model, german_gpa, search_only, uni_slug, reqs, tags, updated_at, updated_by,
+         fee_indicative, awarding_body)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         String(p.id), p.program, p.university,
         cleanShortName(p.shortName).slice(0, 40),
         p.city || '', p.country,
@@ -2191,7 +2407,8 @@ function open(dir) {
         Number(p.fit || 0), bar, Number(p.totalInr || 0), p.url || '',
         JSON.stringify(p.intakes || []), p.active === false ? 0 : 1,
         p.featured ? 1 : 0, Number(p.featureSort || 0), fee, gg,
-        p.searchOnly ? 1 : 0, UNIS.slugOf(p.university), reqsText, tagText, now(), who || '');
+        p.searchOnly ? 1 : 0, UNIS.slugOf(p.university), reqsText, tagText, now(), who || '',
+        feeInd, awarding);
       ftsPut(Object.assign({}, p, { tags: tagText }));
       return this.programme(p.id);
     },
@@ -2241,6 +2458,8 @@ function open(dir) {
           moved++;
         });
       });
+      /* Round 178: the history follows the application it belongs to. */
+      try { db.run('UPDATE application_events SET prog_id = ? WHERE prog_id = ?', t, f); } catch (e) { /* no history table */ }
       return moved;
     },
 
@@ -2356,7 +2575,7 @@ function open(dir) {
 
       [
         'sessions', 'profiles', 'shortlist', 'applications', 'documents',
-        'messages', 'saved_scholarships', 'drafts', 'tasks',
+        'messages', 'saved_scholarships', 'drafts', 'tasks', 'application_events',
       ].forEach(table => {
         try { db.run('DELETE FROM ' + table + ' WHERE student_id = ?', n); }
         catch (e) { /* a table this database has never had */ }
@@ -2694,7 +2913,7 @@ function open(dir) {
 
       ['documents', 'profiles', 'shortlist', 'applications', 'messages',
        'saved_scholarships', 'drafts', 'sessions', 'password_resets',
-       'staff_notes', 'chats', 'tasks']
+       'staff_notes', 'chats', 'tasks', 'application_events']
         .forEach(t => {
           try { db.run('DELETE FROM ' + t + ' WHERE student_id = ?', sid); }
           catch (e) { /* table without that column, or nothing to remove */ }
@@ -2714,12 +2933,13 @@ function open(dir) {
     },
 
     /* ---- unread ---- */
+    /* Round 178 (BUG-094): people's messages only — never a notice. */
     unreadForStudent: id =>
       db.all('SELECT * FROM messages WHERE student_id = ?', Number(id))
-        .filter(m => m.sender !== 'me' && !m.read_by_student).length,
+        .filter(m => m.sender !== 'me' && !m.read_by_student && String(m.kind || 'msg') !== 'notice').length,
     unreadForStaff: id =>
       db.all('SELECT * FROM messages WHERE student_id = ?', Number(id))
-        .filter(m => m.sender === 'me' && !m.read_by_staff).length,
+        .filter(m => m.sender === 'me' && !m.read_by_staff && String(m.kind || 'msg') !== 'notice').length,
     markRead(studentId, who) {
       const col = who === 'staff' ? 'read_by_staff' : 'read_by_student';
       const want = who === 'staff' ? 'me' : 'them';
@@ -2728,7 +2948,8 @@ function open(dir) {
         .forEach(m => db.run(`UPDATE messages SET ${col} = ? WHERE id = ?`, 1, m.id));
     },
     lastMessage(studentId) {
-      const l = db.all('SELECT * FROM messages WHERE student_id = ? ORDER BY id asc', Number(studentId));
+      const l = db.all('SELECT * FROM messages WHERE student_id = ? ORDER BY id asc', Number(studentId))
+        .filter(m => String(m.kind || 'msg') !== 'notice');
       return l[l.length - 1] || null;
     },
 
@@ -3072,13 +3293,14 @@ function open(dir) {
       const hit = p => words.every(w => (p.title + ' ' + p.slug + ' ' + (p.tag || '') + ' ' + (p.author || '')).toLowerCase().includes(w));
       if (db.kind !== 'sqlite') {
         const rows = db.all('SELECT * FROM posts WHERE id > ? ORDER BY id desc', 0)
-          .filter(p => (!status || (status === 'published' ? p.status === 'published' : p.status !== 'published')) && hit(p))
+          .filter(p => (!status || (status === 'published' ? p.status === 'published' : status === 'archived' ? p.status === 'archived' : (p.status !== 'published' && p.status !== 'archived'))) && hit(p))
           .map(p => Object.assign({}, p, { words: wordsOf(p.body) }));
         return { rows: rows.slice((pageN - 1) * perN, pageN * perN), total: rows.length, page: pageN, per: perN };
       }
       const w = ['1 = 1']; const a = [];
       if (status === 'published') w.push("status = 'published'");
-      else if (status) w.push("status <> 'published'");
+      else if (status === 'archived') w.push("status = 'archived'");
+      else if (status) w.push("status <> 'published' AND status <> 'archived'");
       words.forEach(word => { w.push("LOWER(title || ' ' || slug || ' ' || COALESCE(tag, '') || ' ' || COALESCE(author, '')) LIKE ?"); a.push('%' + word + '%'); });
       const total = (db.one('SELECT COUNT(*) AS n FROM posts WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
       const rows = db.all('SELECT ' + POST_LITE_P + ' FROM (SELECT id, updated_at FROM posts WHERE ' + w.join(' AND ') + ' ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?) q JOIN posts p ON p.id = q.id ORDER BY q.updated_at DESC, q.id DESC', ...a, perN, (pageN - 1) * perN);
@@ -3106,10 +3328,10 @@ function open(dir) {
       if (db.kind !== 'sqlite') {
         return db.all('SELECT * FROM posts WHERE id > ?', 0)
           .filter(p => published ? (p.status === 'published' && wordsOf(p.body)) : p.status !== 'published')
-          .map(p => ({ slug: p.slug, published_at: p.published_at || '', updated_at: p.updated_at, created_at: p.created_at }));
+          .map(p => ({ slug: p.slug, published_at: p.published_at || '', updated_at: p.updated_at, created_at: p.created_at, modified_at: p.modified_at || '' }));
       }
       return published
-        ? db.all("SELECT slug, published_at, updated_at, created_at FROM posts WHERE status = 'published' AND words > 0 ORDER BY id")
+        ? db.all("SELECT slug, published_at, updated_at, created_at, modified_at FROM posts WHERE status = 'published' AND words > 0 ORDER BY id")
         : db.all("SELECT slug, published_at, updated_at, created_at FROM posts WHERE status <> 'published' ORDER BY id");
     },
     /** The live posts with these slugs (lite) — a post's "Read next". */
@@ -3144,6 +3366,7 @@ function open(dir) {
         p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
         p.keywords || '', p.ogImage || '', p.related || '', Number(p.readMins || 0),
         p.publishedAt || '', p.createdAt || t, t, p.updatedBy || '', wordsOf(p.body));
+      if (p.modifiedAt) db.run('UPDATE posts SET modified_at = ? WHERE slug = ?', String(p.modifiedAt), p.slug);
       return db.one('SELECT * FROM posts WHERE slug = ?', p.slug);
     },
     updatePost(id, p) {
@@ -3155,6 +3378,15 @@ function open(dir) {
         p.tag || '', p.status || 'draft', p.metaTitle || '', p.metaDesc || '',
         p.keywords || '', p.ogImage || '', p.related || '', Number(p.readMins || 0),
         p.publishedAt || '', now(), p.updatedBy || '', wordsOf(p.body), Number(id));
+      /* Round 178: modified_at moves only when told to (a significant update);
+         left out, it keeps what it had. */
+      if (p.modifiedAt != null) db.run('UPDATE posts SET modified_at = ? WHERE id = ?', String(p.modifiedAt), Number(id));
+      return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
+    },
+    /* Round 178 (B3): archive / restore — never a delete. The status alone
+       moves; updated_at and the dates the page prints stay as they were. */
+    setPostStatus(id, status) {
+      db.run('UPDATE posts SET status = ? WHERE id = ?', String(status), Number(id));
       return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
     },
     deletePost: id => db.run('DELETE FROM posts WHERE id = ?', Number(id)),

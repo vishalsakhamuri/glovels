@@ -274,7 +274,8 @@ const VISA_REQ = ['visa-offer', 'visa-funds', 'visa-insurance', 'visa-form', 'vi
     await cp.click('.tab[data-t="tasks"]').catch(() => {});
     await cp.waitForTimeout(500);
     const rowTxt = await cp.evaluate(() => {
-      const row = [...document.querySelectorAll('#t-tasks tr')].find(r => /Profile completed/.test(r.textContent));
+      /* Round 178 (BUG-091): the Tasks tab is a timeline of <li data-step>. */
+      const row = [...document.querySelectorAll('#t-tasks tr, #t-tasks li[data-step]')].find(r => /Profile completed/.test(r.textContent));
       return row ? row.textContent.replace(/\s+/g, ' ') : '';
     });
     ok('3 UI: the documents row says "Applications are at … but … still missing"', /Applications are at .* but .* still missing/.test(rowTxt), rowTxt.slice(0, 300));

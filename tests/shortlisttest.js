@@ -43,10 +43,12 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   let after = await (await stu.request.get(BASE + '/api/state')).json();
   check('the student sees it', (after.shortlist || []).some(x => String(x.id) === String(fresh.id)),
     (before.shortlist || []).length + ' -> ' + (after.shortlist || []).length);
+  /* Round 178 (BUG-094): told on the Activity timeline ("What's happened"),
+     not in the conversation — a notice is not a message. */
   check('and is told, rather than finding it there one day',
-    (after.msgs || []).some(m => /I have added/.test(m.t || '') &&
-      (m.t || '').includes(fresh.university)),
-    (after.msgs || []).slice(-1).map(m => m.t).join(''));
+    (after.activity || []).some(m => /I have added/.test(m.t || '') &&
+      (m.t || '').includes(fresh.university)) && !(after.msgs || []).some(m => /I have added/.test(m.t || '')),
+    (after.activity || []).slice(0, 1).map(m => m.t).join(''));
 
   /* The name and the fee come from OUR catalogue, not from the request. */
   const added = (after.shortlist || []).find(x => String(x.id) === String(fresh.id));
@@ -67,20 +69,20 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('and the student\'s tracker shows it',
     ((after.apps || {})[fresh.id] || {}).stage === 2,
     JSON.stringify((after.apps || {})[fresh.id] || {}));
-  check('with a message saying what moved',
-    (after.msgs || []).some(m => /Submitted/.test(m.t || '')),
-    (after.msgs || []).slice(-1).map(m => m.t).join(''));
+  check('with a notice saying what moved (Activity, round 178)',
+    (after.activity || []).some(m => /Submitted/.test(m.t || '')),
+    (after.activity || []).slice(0, 1).map(m => m.t).join(''));
 
   /* Saving the same thing twice must not send a second message — a counsellor
      tidying ten rows should not send ten notifications saying nothing. */
-  const msgsBefore = (after.msgs || []).length;
+  const msgsBefore = (after.msgs || []).length + (after.activity || []).length;
   const again = await (await staff.request.put(
     BASE + '/api/staff/student/' + id + '/application/' + encodeURIComponent(fresh.id),
     { data: { stage: 2, outcome: '' } })).json();
   check('saving an unchanged row says nothing to anybody', again.moved === false, again.moved);
   after = await (await stu.request.get(BASE + '/api/state')).json();
-  check('and really sends no message', (after.msgs || []).length === msgsBefore,
-    msgsBefore + ' -> ' + (after.msgs || []).length);
+  check('and really sends no message (nor notice)', (after.msgs || []).length + (after.activity || []).length === msgsBefore,
+    msgsBefore + ' -> ' + ((after.msgs || []).length + (after.activity || []).length));
 
   r = await staff.request.put(
     BASE + '/api/staff/student/' + id + '/application/' + encodeURIComponent(fresh.id),
@@ -115,8 +117,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     !(after.shortlist || []).some(x => String(x.id) === String(fresh.id)));
   check('and its tracker went with it — no row for a university nobody is applying to',
     !(after.apps || {})[fresh.id], JSON.stringify((after.apps || {})[fresh.id] || {}));
-  check('the student is told that too',
-    (after.msgs || []).some(m => /I have taken/.test(m.t || '')));
+  check('the student is told that too (Activity, round 178)',
+    (after.activity || []).some(m => /I have taken/.test(m.t || '')));
 
   /* -------------------------------- and only for their own students */
   const other = await browser.newContext();

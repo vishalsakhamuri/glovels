@@ -190,6 +190,10 @@ function answersOf(profile) {
   /* Patch 149: "not taken" is an answer — a programme that requires the GRE
      is a miss, not a question. "Planning to take" stays a question. */
   if (a.gre == null && /^(not taken|not taken yet|not required|none|no)$/i.test(String(P.a_test || '').trim())) a.gre = false;
+  /* Round 178 (F2.4): "GRE: taken" with no combined score (the box is
+     gone) — a programme that only requires the GRE is cleared; the
+     sections decide the rest. */
+  if (a.gre == null && /^gre$/i.test(String(P.a_test || '').trim())) a.gre = 'taken';
   if (P.g_german) {
     const t = String(P.g_german).trim();
     if (/^none/i.test(t)) a.germanLevel = 'none';
@@ -222,7 +226,14 @@ function answersOf(profile) {
    the profile, which is a reason not to judge, never a reason to guess. */
 function germanOf(profile) {
   const P = profile || {};
-  const o = parseFloat(P.d_cgpa), m = parseFloat(P.d_max), p = parseFloat(P.d_pass);
+  const o = parseFloat(P.d_cgpa);
+  let m = parseFloat(P.d_max), p = parseFloat(P.d_pass);
+  /* Round 178 (owner, 30 Oct): a CGPA out of 10 with no pass mark given is
+     converted with the pass at 4/10 — the finder's rule (find.js
+     germanFrom). The "out of" and "pass" boxes are gone from the screens;
+     a profile that states its own pass mark still uses it. */
+  if (!Number.isFinite(m)) m = 10;
+  if (!Number.isFinite(p) && m === 10) p = 4;
   if (![o, m, p].every(Number.isFinite) || m <= p || o < p || o > m) return null;
   const g = Math.max(1, Math.min(4, 1 + 3 * (m - o) / (m - p)));
   return Math.floor(g * 10) / 10;
@@ -476,6 +487,10 @@ function barOf(p, countries) {
    who has only finished school may be shown a foundation year. Never across
    that line — before 143 a 12th-pass student who bought fifteen public
    universities was handed fifteen master's degrees, "at a different level". */
+/* Round 178 (F7.1): "Masters only, with MBA programmes under it" — a
+   master's search takes the MBAs too. (An old profile that says MBA still
+   finds only MBAs.) */
+const sameLevel = (lv, want) => lv === want || (want === 'master' && lv === 'mba');
 const LEVEL_NEAR = {
   master: ['mba'], mba: ['master'],
   bachelor: ['pathway', 'foundation', 'diploma'],
@@ -734,8 +749,14 @@ function pick(catalogue, profile, count, kind, drop, countries, prefer) {
       && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) return false;
     if (w.level) {
       const lv = String(p.level || '').toLowerCase();
-      if (lv !== w.level && !(off.has('level') && (LEVEL_NEAR[w.level] || []).includes(lv))) return false;
+      if (!sameLevel(lv, w.level) && !(off.has('level') && (LEVEL_NEAR[w.level] || []).includes(lv))) return false;
     }
+    /* Round 178 (owner, 30 Oct): the package is filled from rows the
+       student MEETS — a programme short of a requirement it states that the
+       student has answered (IELTS, GRE "Yes…", ECTS, German…) is not a pick.
+       Any shortfall in the count is the counsellor's to fill ("places to
+       fill"); her screen (screen()) still ranks those rows, as "near". */
+    if (REQS.check(p.reqs || {}, w.answers || {}).fails.length) return false;
     /* undefined — not asked. null — asked, no ceiling. A private programme at
        ₹0 is a fee nobody entered, not a free one — it cannot be promised as
        inside a budget (patch 145). */
@@ -928,7 +949,7 @@ function plan(catalogue, profile, count, kind, countries, opts) {
       if (w.countries && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) return false;
       if (w.level) {
         const lv = String(p.level || '').toLowerCase();
-        if (lv !== w.level && !(off.has('level') && (LEVEL_NEAR[w.level] || []).includes(lv))) return false;
+        if (!sameLevel(lv, w.level) && !(off.has('level') && (LEVEL_NEAR[w.level] || []).includes(lv))) return false;
       }
       if (!off.has('budget') && w.ceiling && Number(p.totalInr || 0) > w.ceiling) return false;
       if (w.field && relevance(p, w) < (off.has('field') ? 2 : 3)) return false;
@@ -1116,7 +1137,7 @@ function screen(catalogue, profile, countries, opts) {
     if (restrWant === 'yes' && !restricted) continue;
     if (restrWant === 'no' && restricted) continue;
     if (w.countries && w.countries.indexOf(String(p.country || '').toUpperCase()) < 0) continue;
-    if (w.level && String(p.level || '').toLowerCase() !== w.level) continue;
+    if (w.level && !sameLevel(String(p.level || '').toLowerCase(), w.level)) continue;
     if (o.field && normField(p.field) !== o.field) continue;
     if (words.length && !words.every(x => fold(p.program + ' ' + p.university + ' ' + p.city).includes(x))) continue;
     /* No programme has a specialisation filled in yet, so the programme's own
@@ -1164,6 +1185,11 @@ function screen(catalogue, profile, countries, opts) {
       nextDeadline: iso(dl.next), deadlineConfirmed: dl.confirmed, closed: dl.closed, lastDeadline: iso(dl.last),
       /* Patch 153: what the row is, and on what condition it clears. */
       feeModel, restricted, notes,
+      /* Round 178: an agent-portal fee is shown to staff, labelled
+         "indicative"; a foreign degree's awarding body (F8). */
+      feeIndicative: !!(p.feeIndicative === true || p.feeIndicative === 1 || /agent/i.test(String(p.feeSource || p.fee_source || ''))),
+      awardingBody: String(p.awardingBody || p.awarding_body || (p.reqs || {}).awardingBody || '').trim(),
+      tuitionEurSem: (p.reqs || {}).tuitionEurSem == null ? null : (p.reqs || {}).tuitionEurSem,
       /* 10 Oct: the first few of its tags, for the screen. */
       tags: TAGS.tagsOf(p).slice(0, 6) };
     if (!why.length && !hard.length) { out.fits.push(row); out.counts.fits++; }

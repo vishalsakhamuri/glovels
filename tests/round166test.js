@@ -198,8 +198,12 @@ const short = s => String(s || '').replace(/Universit(y|ät|aet) of Applied Scie
         /* Round 177: the set is fits then hard-miss rows; pick() keeps to the
            student's own field (relevance 3) unless that cannot fill the
            package, and only then widens to the whole set in its order. */
-        const rel3 = (x.fits || []).filter(f => f.relevance === 3);
-        const want10 = uniCount(rel3) >= 10 ? firstUnis(rel3, 10) : firstUnis(x.fits || [], 10);
+        /* Round 178 (owner, 30 Oct): pick() fills ONLY from rows the student
+           meets — the hard-miss rows stay in the counsellor's SET (ranked,
+           near) but are never a package pick. */
+        const met = (x.fits || []).filter(f => !(f.hard || []).length);
+        const rel3 = met.filter(f => f.relevance === 3);
+        const want10 = uniCount(rel3) >= 10 ? firstUnis(rel3, 10) : firstUnis(met, 10);
         const byScore10 = firstUnis(scoreOnly(x.fits || []), 10);
         const byScore10rel3 = firstUnis(scoreOnly((x.fits || []).filter(f => f.relevance === 3)), 10);
         /* Different universities that uniKeys() folds into one (city + kind of
@@ -323,7 +327,7 @@ const short = s => String(s || '').replace(/Universit(y|ät|aet) of Applied Scie
       const file = (await req('c', 'GET', '/api/staff/student/' + sid)).body;
       const held = file.held || [];
       const list = visible(s);
-      const unis = firstUnis(cPub.fits || [], 1e9);
+      const unis = firstUnis((cPub.fits || []).filter(f => !(f.hard || []).length), 1e9);   /* round 178: met rows only */
       const want = Math.min(unis.length, n);
       const expUnis = unis.slice(0, n).map(p => p.university);
       const gotUnis = list.map(x => x.university).concat(held.map(h => h.university));

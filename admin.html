@@ -1481,20 +1481,78 @@ select.assign.none:hover{border-color:#a5342b}
         <select id="tkWho" style="margin-left:auto;padding:8px 11px;min-width:0;max-width:100%;
           font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">
           <option value="">Everybody</option></select>
-        <select id="tkState" style="padding:8px 11px;min-width:0;max-width:100%;
+        <select id="tkState" aria-label="Show" style="padding:8px 11px;min-width:0;max-width:100%;
           font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">
-          <option value="late">Past its date</option>
           <option value="live" selected>Still to do</option>
+          <option value="now">Needs action now</option>
+          <option value="late">Overdue</option>
+          <option value="upcoming">Upcoming</option>
           <option value="done">Finished</option>
-          <option value="all">Everything</option>
+          <option value="all">Everybody</option>
         </select></div>
-      <div class="p-card" style="padding:0;overflow-x:auto">
-        <table class="tbl" style="margin:0">
-          <thead><tr><th>Student</th><th>What</th><th>Counsellor</th>
-            <th>By when</th><th>State</th><th></th></tr></thead>
-          <tbody id="tkRows"></tbody>
-        </table>
-      </div>
+      <!-- Round 178 (BUG-087/088/089/090): one row per student — the step that
+           needs doing now, its date, how far through the file is, and the
+           whole timeline in place on "View all steps". -->
+      <style>
+        .tkneed{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+        .tkneed button{font:700 12.2px/1.4 var(--sans);padding:6px 12px;border-radius:999px;
+          border:1px solid var(--line);background:#fff;color:var(--navy-800);cursor:pointer}
+        .tkneed button b{margin-left:6px;font-weight:800}
+        .tkneed button.bad b{color:#a8343a}
+        .tkneed button[aria-pressed="true"]{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+        .tkneed button[aria-pressed="true"] b{color:#fff}
+        .tks .st,.tl .st{display:inline-block;font:700 11px/1 var(--sans);padding:4px 8px;border-radius:999px;
+          white-space:nowrap;margin-bottom:5px}
+        .tks .st.bad,.tl .st.bad{background:#fdecea;color:#7a2118;border:1px solid #f1c4bf}
+        .tks .lnk{border:0;background:none;padding:0;font:600 12.6px/1.5 var(--sans);color:var(--blue-deep);
+          text-decoration:underline;cursor:pointer}
+        .tks .lnk:hover{color:var(--navy-900)}
+        .tkl{display:grid;gap:10px}
+        .tks{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+        .tks.over{border-left:4px solid #c0392b}
+        .tks-top{display:grid;grid-template-columns:minmax(140px,1fr) minmax(0,2.3fr) minmax(120px,.8fr) auto;
+          gap:14px;align-items:start}
+        .tks-top>*{min-width:0}
+        .tks-who b{display:block;font:700 13.6px/1.4 var(--sans);overflow-wrap:anywhere}
+        .tks-who span,.tks-meta{display:block;font-size:12px;line-height:1.5;color:var(--muted)}
+        .tks-step b{display:block;font:700 13.4px/1.45 var(--sans);color:var(--navy-900);overflow-wrap:anywhere}
+        .tks-step .st{margin-right:6px}
+        .tks-why{display:block;font-size:12px;line-height:1.5;color:#8a5a00;margin-top:4px}
+        .tks-late{color:#a8343a;font-weight:700}
+        .tks-prog b{display:block;font:700 12.4px/1.4 var(--sans);color:var(--navy-800)}
+        .tks-bar{height:6px;border-radius:4px;background:#e6ebf1;margin-top:6px;overflow:hidden}
+        .tks-bar i{display:block;height:100%;background:#1f8a4c;border-radius:4px}
+        .tks-act{display:flex;gap:6px 12px;flex-wrap:wrap;justify-content:flex-end;align-items:center;
+          font-size:12.6px;white-space:nowrap}
+        .tks-act .lnk[disabled]{opacity:.45;cursor:not-allowed}
+        @media (max-width:820px){
+          .tks-top{grid-template-columns:1fr;gap:9px}
+          .tks-act{justify-content:flex-start}
+        }
+        .tl{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--line)}
+        .tl li{position:relative;padding:0 0 13px 28px;min-width:0}
+        .tl li::before{content:'';position:absolute;left:5px;top:4px;width:9px;height:9px;border-radius:50%;
+          border:2px solid #b8c2cf;background:#fff}
+        .tl li::after{content:'';position:absolute;left:10px;top:17px;bottom:0;width:2px;background:var(--line)}
+        .tl li:last-child::after{display:none}
+        .tl li.done::before{background:#1f8a4c;border-color:#1f8a4c}
+        .tl li.current{background:#eef4fd;border:1px solid #cfdcf3;border-radius:10px;
+          padding:9px 11px 10px 36px;margin:0 0 12px -8px}
+        .tl li.current::before{left:13px;top:13px;background:var(--blue,#1f5fbf);border-color:var(--blue,#1f5fbf)}
+        .tl li.current::after{display:none}
+        .tl li.current.over{background:#fdf1f0;border-color:#efc6c1}
+        .tl li.current.over::before,.tl li.overdue::before{background:#c0392b;border-color:#c0392b}
+        .tl li.locked::before{border-style:dashed}
+        .tl b{display:block;font:700 13px/1.45 var(--sans);color:var(--navy-900);overflow-wrap:anywhere}
+        .tl li.locked b,.tl li.upcoming b{font-weight:600;color:var(--navy-800)}
+        .tl small{display:block;font-size:11.9px;line-height:1.5;color:var(--muted)}
+        .tl small.why{color:#8a5a00}
+        .tl small.bad{color:#a8343a;font-weight:700}
+        .tl .tag{display:inline-block;font:700 10.5px/1.6 var(--sans);letter-spacing:.04em;text-transform:uppercase;
+          padding:0 7px;border-radius:999px;background:#dbe7fb;color:#123a7b;margin-left:6px;vertical-align:1px}
+      </style>
+      <div class="tkneed" id="tkNeed" role="group" aria-label="Filter by what the file needs"></div>
+      <div id="tkRows" class="tkl"></div>
       <p id="tkNone" hidden style="margin:12px 0 0;font-size:13px;color:var(--muted)"></p>
     </div>
     <div class="p-sec">
@@ -2156,13 +2214,29 @@ async function bell(me) {
           + (p.now ? ' · ' + p.now + ' late' : '') + '</span>').join('') + '</div>'
       : '';
 
-    panel.innerHTML = '<h4>What needs doing</h4>' + who
-      + ((d.alerts || []).map(a =>
+    const one = a =>
           '<button type="button" class="al ' + esc(a.urgency) + '" '
           + 'data-student="' + esc((a.subject || {}).studentId || '') + '" '
           + 'data-lead="' + esc((a.subject || {}).leadId || '') + '">'
-          + '<b><i></i>' + esc(a.title) + '</b><span>' + esc(a.detail) + '</span></button>'
-        ).join('')
+          + '<b><i></i>' + esc(a.title) + '</b><span>' + esc(a.detail) + '</span></button>';
+    /* Round 178 (BUG-095): one entry per student — the most urgent alert,
+       and the rest behind "+N more"; the most urgent student first. */
+    const groups = d.groups || (d.alerts || []).map((a, i) => ({ key: 'a' + i, name: '', alerts: [a] }));
+    panel.innerHTML = '<h4>What needs doing</h4>' + who
+      + (groups.map(g => {
+          const rest = (g.alerts || []).slice(1);
+          const label = '+' + rest.length + ' more' + (g.name ? ' for ' + g.name : '');
+          return '<div class="alg" data-alg="' + esc(g.key) + '">' + one(g.alerts[0])
+            + (rest.length
+              ? '<button type="button" class="al-more" data-almore aria-expanded="false" data-label="'
+                + esc(label) + '" style="display:inline-block;margin:-2px 0 9px 33px;padding:3px 11px;'
+                + 'border:1px solid var(--line);border-radius:999px;background:#f0f4f9;cursor:pointer;'
+                + 'font:700 11.8px/1.5 var(--sans);color:var(--navy-800)">' + esc(label) + '</button>'
+                + '<div class="al-rest" hidden style="margin:0 0 6px 20px;padding-left:6px;'
+                + 'border-left:2px solid var(--line)">' + rest.map(one).join('') + '</div>'
+              : '')
+            + '</div>';
+        }).join('')
         || '<p class="bell-empty"><b>Nothing is waiting.</b><br>No deadline inside six '
            + 'weeks, nobody waiting on a reply, and every follow-up is on time.</p>');
   };
@@ -2184,6 +2258,15 @@ async function bell(me) {
     openNow = false; panel.hidden = true; b.setAttribute('aria-expanded', 'false');
   });
   panel.addEventListener('click', e => {
+    const more = e.target.closest('[data-almore]');
+    if (more) {
+      const rest = more.nextElementSibling;
+      const opening = !!(rest && rest.hidden);
+      if (rest) rest.hidden = !opening;
+      more.setAttribute('aria-expanded', String(opening));
+      more.textContent = opening ? 'Show fewer' : more.dataset.label;
+      return;
+    }
     const a = e.target.closest('.al');
     if (!a) return;
     if (a.dataset.lead) location.href = 'leads.html';
@@ -4503,48 +4586,155 @@ function paintTasks() {
   const tab = $('.otab[data-o="tasks"] .n');
   if (tab) tab.textContent = lateN || ((TK.counts || {}).open || 0);
 
-  const rows = TK.tasks || [];
-  $('#tkRows').innerHTML = rows.map(t => {
-    const st = TK_STATE[t.status] || ['wait', t.status];
-    return '<tr' + (t.over != null && t.over > 0 ? ' class="late"' : '') + '>' +
-      '<td><a class="lnk" href="counsellor.html?student=' + t.studentId + '"><b>' +
-        esc(t.student) + '</b></a></td>' +
-      '<td>' + esc(t.title) +
-        (t.note ? '<span style="display:block;font-size:11.4px;color:var(--muted)">' +
-          esc(t.note) + '</span>' : '') + '</td>' +
-      '<td>' + (t.owner ? esc(t.owner) :
-        '<span style="color:#a8343a;font-weight:700">nobody</span>') + '</td>' +
-      '<td>' + tkWhen(t) + '</td>' +
-      '<td><span class="st ' + st[0] + '" style="text-transform:none;letter-spacing:0">' +
-        esc(st[1]) + '</span></td>' +
-      '<td style="text-align:right;white-space:nowrap">' +
-        (t.status === 'done' ? ''
-          : '<button type="button" class="lnk" data-tkdone="' + t.id + '"' +
-            /* N17-01: a step the file cannot back up says why, and waits. */
-            (t.lock ? ' disabled title="' + esc(t.lock) + '" style="opacity:.45;cursor:not-allowed"' : '') +
-            '>mark done</button> · ') +
-        '<button type="button" class="lnk" data-tkchase="' + t.studentId +
-          '" data-tkid="' + t.id + '" data-tkstudent="' + esc(t.student) +
-          '" data-tktitle="' + esc(t.title) + '" data-tkover="' + (t.over == null ? '' : t.over) +
-          '">ask</button></td>' +
-    '</tr>';
-  }).join('');
+  paintStudents();
+}
+
+/*
+ * Round 178 (BUG-087 / 088 / 089 / 090): THE WORK, ONE ROW PER STUDENT.
+ *
+ * The list used to be every remaining step for every student — 27 rows for
+ * one counsellor's three files, "Visa decision" and "Pre-departure" open on
+ * files with no application. Each row now names the step that needs doing
+ * now (the most overdue, else the one due soonest), its date, and how far
+ * through the file is; "View all steps" opens the timeline in place — what
+ * was done, when and by whom (or that the applications ticked it), the step
+ * in hand, and what is still to come with the reason it cannot start yet.
+ */
+const TK_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const TK_OPEN = new Set();
+function tkDay(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || ''));
+  return m ? Number(m[3]) + ' ' + TK_MON[Number(m[2]) - 1] + ' ' + m[1] : '';
+}
+/* "12 days overdue", "due today", "due in 4 days" — the date alone does not
+   say whether to worry. */
+function tkDist(x) {
+  if (!x.due) return 'no date yet — waiting on a university deadline';
+  const o = x.over;
+  if (o == null) return 'due ' + tkDay(x.due);
+  if (o > 0) return o + ' day' + (o === 1 ? '' : 's') + ' overdue · was due ' + tkDay(x.due);
+  if (o === 0) return 'due today, ' + tkDay(x.due);
+  if (o === -1) return 'due tomorrow, ' + tkDay(x.due);
+  return 'due ' + tkDay(x.due) + ' · in ' + (-o) + ' days';
+}
+/* BUG-088: the word for where the step is — "Overdue", never "Not started"
+   with a red date. */
+function tkPill(x) {
+  if (!x) return ['wait', 'Nothing to do now'];
+  if (x.state === 'done') return ['ok', 'Finished'];
+  if (x.state === 'locked') return ['wait', 'Not yet'];
+  if (x.overdue) return ['bad', 'Overdue'];
+  if (x.status === 'blocked') return ['bad', 'Stuck'];
+  if (x.status === 'doing') return ['wait', 'In hand'];
+  if (x.over != null && x.over >= -7) return ['wait', 'Due soon'];
+  return ['wait', 'Not started'];
+}
+/* BUG-089: who finished it and when — or that nobody did, the applications did. */
+function tkDoneLine(x) {
+  return x.derived ? 'Ticked automatically (the applications are past this stage)'
+    : 'Done ' + (tkDay(x.doneAt) || 'on an unrecorded date') + (x.doneBy ? ' · by ' + x.doneBy : '');
+}
+function tkDoneBtn(x) {
+  /* BUG-090: the reason a step cannot be ticked is written under it; the
+     button only waits. */
+  return '<button type="button" class="lnk" data-tkdone="' + x.id + '"' +
+    (x.block ? ' disabled aria-disabled="true"' : '') + '>mark done</button>';
+}
+function tkStep(x) {
+  const cls = x.state + (x.current && x.overdue ? ' over' : '');
+  let sub = '';
+  if (x.state === 'done') sub = '<small>' + esc(tkDoneLine(x)) + '</small>';
+  else if (x.state === 'locked') sub = '<small class="why">' + esc(x.lockReason) + '</small>' +
+    (x.due ? '<small>Planned for ' + esc(tkDay(x.due)) + '</small>' : '');
+  else {
+    sub = '<small' + (x.overdue ? ' class="bad"' : '') + '>' + esc(tkDist(x)) +
+      (x.owner ? ' · ' + esc(x.owner) : '') + '</small>' +
+      (x.status === 'blocked' && x.note ? '<small class="why">Stuck: ' + esc(x.note) + '</small>' : '') +
+      (x.waitingOn ? '<small class="why">' + esc(x.waitingOn) + '</small>' : '') +
+      (x.block ? '<small class="why">Can’t be ticked yet: ' + esc(x.block) + '</small>' : '') +
+      '<small>' + tkDoneBtn(x) + '</small>';
+  }
+  return '<li class="' + cls + '" data-tkstep="' + x.id + '"><b>' + esc(x.title) +
+    (x.current ? '<span class="tag">Now</span>' : '') + '</b>' + sub + '</li>';
+}
+function tkRow(r, finished) {
+  const c = finished ? r.latestDone : (r.current || r.nextLocked);
+  const pill = finished ? ['ok', 'Finished'] : tkPill(r.current);
+  const pr = r.progress || { done: 0, total: 0 };
+  const pct = pr.total ? Math.round(pr.done / pr.total * 100) : 0;
+  const open = TK_OPEN.has(String(r.studentId));
+  let what = '';
+  if (!c) what = '<b>All ' + pr.total + ' steps finished</b>';
+  else if (finished) {
+    what = '<b>' + esc(c.title) + '</b><span class="tks-meta">' + esc(tkDoneLine(c)) + '</span>';
+  } else if (!r.current) {
+    what = '<b>Next: ' + esc(c.title) + '</b><span class="tks-why">' + esc(c.lockReason || '') + '</span>';
+  } else {
+    what = '<b>' + esc(c.title) + '</b>' +
+      '<span class="tks-meta' + (c.overdue ? ' tks-late' : '') + '">' + esc(tkDist(c)) + '</span>' +
+      (c.status === 'blocked' && c.note ? '<span class="tks-why">Stuck: ' + esc(c.note) + '</span>' : '') +
+      (c.waitingOn ? '<span class="tks-why">' + esc(c.waitingOn) + '</span>' : '') +
+      (c.block ? '<span class="tks-why">Can’t be ticked yet: ' + esc(c.block) + '</span>' : '');
+  }
+  const cur = r.current;
+  return '<article class="tks' + (r.need === 'overdue' && !finished ? ' over' : '') + '" data-tkrow="' + r.studentId + '">' +
+    '<div class="tks-top">' +
+      '<div class="tks-who"><a class="lnk" href="counsellor.html?student=' + r.studentId + '"><b>' +
+        esc(r.student) + '</b></a>' +
+        '<span>' + (r.counsellor ? esc(r.counsellor)
+          : '<b style="display:inline;color:#a8343a">nobody assigned</b>') +
+        (r.phase ? ' · ' + esc(r.phase.label) : '') + '</span></div>' +
+      '<div class="tks-step"><span class="st ' + pill[0] + '" style="text-transform:none;letter-spacing:0">' +
+        esc(pill[1]) + '</span>' + what + '</div>' +
+      '<div class="tks-prog"><b>' + pr.done + ' of ' + pr.total + ' done</b>' +
+        '<div class="tks-bar" aria-hidden="true"><i style="width:' + pct + '%"></i></div>' +
+        (r.overdue > 1 ? '<span class="tks-meta tks-late">' + r.overdue + ' steps overdue</span>' : '') + '</div>' +
+      '<div class="tks-act">' +
+        (!finished && cur ? tkDoneBtn(cur) : '') +
+        '<button type="button" class="lnk" data-tkchase="' + r.studentId +
+          '" data-tkid="' + (cur ? cur.id : '') + '" data-tkstudent="' + esc(r.student) +
+          '" data-tktitle="' + esc(cur ? cur.title : '') + '" data-tkover="' +
+          (cur && cur.over != null ? cur.over : '') + '">ask</button>' +
+        '<button type="button" class="lnk" data-tkview="' + r.studentId + '" aria-expanded="' + open +
+          '" aria-controls="tl-' + r.studentId + '">' + (open ? 'Hide steps' : 'View all steps') + '</button>' +
+      '</div>' +
+    '</div>' +
+    '<ol class="tl" id="tl-' + r.studentId + '"' + (open ? '' : ' hidden') + ' aria-label="Every step for ' +
+      esc(r.student) + '">' + (r.steps || []).map(tkStep).join('') + '</ol>' +
+  '</article>';
+}
+function paintStudents() {
+  const want = $('#tkState').value;
+  const c = TK.counts || {};
+  const chips = [['now', 'Needs action now', (c.overdue || 0) + (c.now || 0), ''],
+    ['late', 'Overdue', c.overdue || 0, 'bad'], ['upcoming', 'Upcoming', c.upcoming || 0, ''],
+    ['done', 'Finished', null, '']];
+  const need = $('#tkNeed');
+  if (need) {
+    need.innerHTML = chips.map(x => '<button type="button" data-tkneed="' + x[0] + '" class="' + x[3] + '"' +
+      ' aria-pressed="' + (want === x[0]) + '">' + esc(x[1]) +
+      (x[2] == null ? '' : '<b>' + x[2] + '</b>') + '</button>').join('');
+  }
+  const rows = TK.students || [];
+  const finished = want === 'done';
+  $('#tkRows').innerHTML = rows.map(r => tkRow(r, finished)).join('');
   const none = $('#tkNone');
   if (none) {
     none.hidden = rows.length > 0;
-    none.textContent = $('#tkState').value === 'late'
-      ? 'Nothing is past its date. That is the screen working.'
-      : 'Nothing here.';
+    none.textContent = want === 'late'
+      ? 'Nothing is overdue. That is the screen working.'
+      : want === 'done' ? 'Nothing has been finished yet.' : 'Nothing here.';
   }
 }
 
 let TK_PHASE = '';
 async function loadTasks() {
   const who = $('#tkWho').value, state = $('#tkState').value;
-  const q = '?state=' + encodeURIComponent(state) + (who ? '&who=' + encodeURIComponent(who) : '')
+  /* Round 178: one row per student (view=students); `need` is the filter. */
+  const q = '?view=students&need=' + encodeURIComponent(state) + (who ? '&who=' + encodeURIComponent(who) : '')
     + (TK_PHASE ? '&phase=' + encodeURIComponent(TK_PHASE) : '');
   try { TK = await api('GET', '/api/staff/tasks' + q); }
-  catch (e) { TK = { tasks: [], people: [], counts: {} }; }
+  catch (e) { TK = { students: [], people: [], counts: {} }; }
   /* The people list is filled from the scoreboard, so it names exactly the
      people who have work — not every account that has ever existed. */
   const sel = $('#tkWho');
@@ -4572,6 +4762,24 @@ document.addEventListener('click', async e => {
     return;
   }
   if (e.target.closest('#fnChip')) { TK_PHASE = ''; loadTasks(); return; }
+
+  /* Round 178: the need chips, and a student's timeline opened in place. */
+  const nd = e.target.closest('[data-tkneed]');
+  if (nd) {
+    $('#tkState').value = nd.getAttribute('aria-pressed') === 'true' ? 'live' : nd.dataset.tkneed;
+    loadTasks();
+    return;
+  }
+  const vw = e.target.closest('[data-tkview]');
+  if (vw) {
+    const id = vw.dataset.tkview, tl = document.getElementById('tl-' + id);
+    const opening = !!(tl && tl.hidden);
+    if (tl) tl.hidden = !opening;
+    if (opening) TK_OPEN.add(id); else TK_OPEN.delete(id);
+    vw.setAttribute('aria-expanded', String(opening));
+    vw.textContent = opening ? 'Hide steps' : 'View all steps';
+    return;
+  }
 
   const w = e.target.closest('[data-tkwho]');
   if (w) { $('#tkWho').value = w.dataset.tkwho; $('#tkState').value = 'live'; loadTasks(); return; }

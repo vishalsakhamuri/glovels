@@ -61,10 +61,15 @@ check('group: by type in order', T.group(T.suggest('data')).map(g => g.type).joi
 check('match: every chosen tag has to hold', T.match(row, ['TU Munich', 'No German Required'], '') && !T.match(row, ['TU Munich', 'GMAT'], ''));
 check('match: case does not matter', T.match(row, ['tu munich'], ''));
 check('match: free text hits a tag or the names', T.match(row, [], 'munich') && T.match(row, [], 'moi') && !T.match(row, [], 'berlin'));
-check('match: a phrase chip hits the title even when not a stored tag', T.match({ program: 'MSc Data Science and AI', tags: ['Public University'] }, ['Data Science'], ''));
+/* Round 178 (F1): a chosen tag is matched EXACTLY on the row's tag list — a
+   row whose imported tags do not carry "Data Science" is not matched by its
+   title; a row with no imported tags is judged on the ones derived from it. */
+check('match: a chip is an exact tag — not the title of a row whose tags do not carry it', !T.match({ program: 'MSc Data Science and AI', tags: ['Public University'] }, ['Data Science'], '')
+  && T.match({ program: 'MSc Data Science and AI', isPublic: true, tags: [] }, ['Data Science'], ''));
 check('match: nothing chosen keeps everything', T.match({ program: 'x' }, [], '') && T.match({ program: 'x' }, '', ''));
 check('score: more hits, higher', T.score(row, ['TU Munich', 'GRE'], 'data') > T.score(row, ['TU Munich'], '') && T.score(row, ['GMAT'], '') === 0);
-check('parseList trims, dedupes, caps', T.parseList(' A ; b;a;;').join() === 'A,b' && T.parseList(Array.from({ length: 80 }, (_, i) => 't' + i)).length === 60);
+check('parseList trims, dedupes, caps', T.parseList(' A ; b;a;;').join() === 'A,b' && /* Round 178 (data import): v43 rows carry up to 77 tags — the cap is 120. */
+  T.parseList(Array.from({ length: 140 }, (_, i) => 't' + i)).length === 120);
 
 /* find.js reads the same module */
 const f = F.parse('?tags=No%20German%20Required;TU%20Munich;;tu munich&q=data');

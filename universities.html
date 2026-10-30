@@ -1385,7 +1385,11 @@ function feeTbc(p) {
   return !!p && !p.isPublic && !Number(p.totalInr)
     && !(p.reqs && typeof p.reqs === 'object' && p.reqs.tuitionEurSem === 0);
 }
+/* Round 178 (owner): a fee from an agent portal is indicative — never
+   shown to a student, filtered or sorted on. */
+const feeIndicative = p => !!(p && (p.feeIndicative === true || /agent/i.test(String(p.feeSource || p.fee_source || ''))));
 function money(p) {
+  if (feeIndicative(p)) return 'Fee on request';
   if (feeTbc(p) || p.totalInr == null || isNaN(Number(p.totalInr))) return 'Fee to be confirmed';
   if (Number(p.totalInr) === 0) return '₹0 tuition';
   return '≈ ₹' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L total';
@@ -1495,6 +1499,8 @@ function myAnswers() {
     if (/^gre$/i.test(t) && Number.isFinite(sc) && a.gre == null) a.gre = sc;
   });
   if (a.gre == null && /^(not taken|not taken yet|not required|none|no)$/i.test(String(P.a_test || '').trim())) a.gre = false;
+  /* Round 178: "GRE: taken", no total — clears a row that only requires it. */
+  if (a.gre == null && /^gre$/i.test(String(P.a_test || '').trim())) a.gre = 'taken';
   if (P.g_german) {
     const t = String(P.g_german).trim();
     if (/^none/i.test(t)) a.germanLevel = 'none';
@@ -1648,6 +1654,8 @@ function card(p, inList) {
       + (feeOf(p) === 'free' ? 'Fast-track — free' : 'Comprehensive filing') + '</span>' +
     (p.isPublic ? '<span class="sl-tag">' + ico('check') + ' Public university</span>' : '') +
     '<div class="sl-meta"><b>' + money(p) + '</b></div>' +
+    /* Round 178 (F8): a foreign degree says whose. */
+    (p.awardingBody ? '<div class="sl-meta" style="color:var(--muted)">Degree awarded by ' + esc(p.awardingBody) + '</div>' : '') +
     /* A programme that is no longer offered has no deadline worth chasing. */
     (!p.withdrawn && nextDeadline(p) ? '<div class="sl-meta" style="color:var(--muted)">Next deadline: ' +
       nextDeadline(p) + '</div>' : '') +
@@ -1916,7 +1924,7 @@ function filtered() {
   if (r === 'mine') l = l.filter(qualifies);
   const dl = p => (upcoming(p) || new Date(8640000000000)).getTime();
   l.sort((x, y) =>
-    s === 'cost' ? x.totalInr - y.totalInr :
+    s === 'cost' ? ((feeIndicative(x) ? 1 : 0) - (feeIndicative(y) ? 1 : 0)) || x.totalInr - y.totalInr :
     s === 'dl'   ? dl(x) - dl(y) :
     /* THE SORT STAYS, the number on the card goes.
        Removing "Best fit" from here as well was an over-reach, and reachtest
@@ -2296,7 +2304,7 @@ if (location.protocol === 'file:') {
         '<header><div><b>' + (state.signedIn ? 'Your counsellor' : 'Glovels') + '</b>'
       + '<span>' + (state.signedIn
           ? 'This is the same conversation as your Messages screen.'
-          : 'Mon–Sat, 10am–7pm. Replies appear here.') + '</span></div>'
+          : 'Mon–Sat, 9:30am–7:30pm IST. Replies appear here.') + '</span></div>'
       + '<button type="button" aria-label="Close the chat">×</button></header>'
       + '<div class="gv-body"></div>'
       + ((state.started || state.signedIn) ? composer() : intro());

@@ -653,13 +653,29 @@ async function bell(me) {{
           + (p.now ? ' · ' + p.now + ' late' : '') + '</span>').join('') + '</div>'
       : '';
 
-    panel.innerHTML = '<h4>What needs doing</h4>' + who
-      + ((d.alerts || []).map(a =>
+    const one = a =>
           '<button type="button" class="al ' + esc(a.urgency) + '" '
           + 'data-student="' + esc((a.subject || {{}}).studentId || '') + '" '
           + 'data-lead="' + esc((a.subject || {{}}).leadId || '') + '">'
-          + '<b><i></i>' + esc(a.title) + '</b><span>' + esc(a.detail) + '</span></button>'
-        ).join('')
+          + '<b><i></i>' + esc(a.title) + '</b><span>' + esc(a.detail) + '</span></button>';
+    /* Round 178 (BUG-095): one entry per student — the most urgent alert,
+       and the rest behind "+N more"; the most urgent student first. */
+    const groups = d.groups || (d.alerts || []).map((a, i) => ({{ key: 'a' + i, name: '', alerts: [a] }}));
+    panel.innerHTML = '<h4>What needs doing</h4>' + who
+      + (groups.map(g => {{
+          const rest = (g.alerts || []).slice(1);
+          const label = '+' + rest.length + ' more' + (g.name ? ' for ' + g.name : '');
+          return '<div class="alg" data-alg="' + esc(g.key) + '">' + one(g.alerts[0])
+            + (rest.length
+              ? '<button type="button" class="al-more" data-almore aria-expanded="false" data-label="'
+                + esc(label) + '" style="display:inline-block;margin:-2px 0 9px 33px;padding:3px 11px;'
+                + 'border:1px solid var(--line);border-radius:999px;background:#f0f4f9;cursor:pointer;'
+                + 'font:700 11.8px/1.5 var(--sans);color:var(--navy-800)">' + esc(label) + '</button>'
+                + '<div class="al-rest" hidden style="margin:0 0 6px 20px;padding-left:6px;'
+                + 'border-left:2px solid var(--line)">' + rest.map(one).join('') + '</div>'
+              : '')
+            + '</div>';
+        }}).join('')
         || '<p class="bell-empty"><b>Nothing is waiting.</b><br>No deadline inside six '
            + 'weeks, nobody waiting on a reply, and every follow-up is on time.</p>');
   }};
@@ -681,6 +697,15 @@ async function bell(me) {{
     openNow = false; panel.hidden = true; b.setAttribute('aria-expanded', 'false');
   }});
   panel.addEventListener('click', e => {{
+    const more = e.target.closest('[data-almore]');
+    if (more) {{
+      const rest = more.nextElementSibling;
+      const opening = !!(rest && rest.hidden);
+      if (rest) rest.hidden = !opening;
+      more.setAttribute('aria-expanded', String(opening));
+      more.textContent = opening ? 'Show fewer' : more.dataset.label;
+      return;
+    }}
     const a = e.target.closest('.al');
     if (!a) return;
     if (a.dataset.lead) location.href = 'leads.html';

@@ -68,7 +68,8 @@ address. That is deliberate: getting the platform's address into Google's index
 is a nuisance to undo once your own domain is live.
 
 When the domain is pointed here, set **`GLOVELS_URL`** in Render's Environment
-tab to `https://glovels.com` (or whichever it is). That one variable does three
+tab to `https://www.glovels.com` (www is the main address; the apex and
+glovels.onrender.com 301 to it). That one variable does three
 things: password-reset and receipt links start using the real address,
 `robots.txt` starts inviting crawlers to the public pages, and the `noindex` tag
 comes off those pages. `sitemap.xml` starts answering at the same moment and

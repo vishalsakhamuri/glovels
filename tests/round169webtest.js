@@ -105,7 +105,8 @@ const nProg = h => (h.match(/<article class="frow/g) || []).length;
   const v75 = FIND.verdict(g27, { cgpa: 7.5 }, REQS, {});
   const v95 = FIND.verdict(g27, { cgpa: 9.5 }, REQS, {});
   ok('German grade 2.7 at CGPA 5: turned away, not "you clear"', v5.fails.some(f => f.key === 'cgpa') && !v5.ok, J(v5));
-  ok('at CGPA 7.5: nobody can say without the pass mark', !v5.ok && !v75.ok && v75.unknown.includes('germanGrade') && !v75.fails.length, J(v75));
+  /* Round 178 (owner, 30 Oct): the CGPA (out of 10) is converted with the pass at 4/10 — 7.5 is German 2.2, which clears 2.7. */
+  ok('at CGPA 7.5 (German 2.2 at pass 4/10): cleared', !v5.ok && v75.ok && !v75.fails.length && !v75.unknown.length, J(v75));
   ok('at CGPA 9.5: cleared', v95.ok, J(v95));
   ok('the row never says "You clear what it asks" at CGPA 5',
     !/You clear what it asks/.test(FIND.rowHtml(Object.assign({}, g27, { _v: v5, program: 'X', university: 'Y' }), { said: true, countries: {} })));
@@ -233,8 +234,10 @@ const nProg = h => (h.match(/<article class="frow/g) || []).length;
   console.log('\n— WEB-17: one admissions count');
   const ss = await page('/success-stories');
   const nStories = Number(((/(\d[\d,]*) admission offers/.exec(ss) || [])[1] || '0').replace(/,/g, ''));
-  const nHome = Number(((/<b data-count data-src="stories">(\d+)<\/b>/.exec(home) || [])[1]) || -1);
-  ok('home "See all N admissions" = the stories page (' + nStories + ')', nStories > 0 && nHome === nStories, nHome + ' vs ' + nStories);
+  /* Round 178: the home link carries no count at all now ("numbers not
+     required"), so the two can no longer disagree. */
+  ok('home links to the stories page with no count (' + nStories + ' there)', nStories > 0
+    && /id="storyMore"><a href="\/success-stories">See all success stories<\/a>/.test(home) && !/<b data-count/.test(home));
 
   /* =========================================================== WEB-18: SOP */
   console.log('\n— WEB-18: the SOP joins');

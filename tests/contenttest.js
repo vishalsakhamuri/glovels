@@ -135,9 +135,16 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   check('the new FAQ is on the page', b3.includes('Is this editable?'));
   check('there is only one FAQ now',
     (await page3.$$('details.faq')).length === 1, (await page3.$$('details.faq')).length);
-  check('the new testimonial is on the page', b3.includes('Admitted to UCD.'));
-  check('the testimonial initial is right',
-    (await page3.textContent('article.tcard .av')).trim() === 'M');
+  /* Round 178: the home rail is filled by the server from the success-stories
+     file (first names, no surnames); edited testimonials are saved but no
+     longer replace it. */
+  const tsaved = await (await ctx.request.get(BASE + '/api/content')).json();
+  check('the new testimonial is saved',
+    JSON.stringify(tsaved.testimonials || []).includes('Admitted to UCD.'),
+    JSON.stringify(tsaved.testimonials || []).slice(0, 90));
+  check('Round 178: the home rail is the success-stories file, not the testimonial',
+    !b3.includes('Admitted to UCD.') && (await page3.$$('.stories [data-admits] article.tcard')).length > 0,
+    (await page3.$$('[data-admits] article.tcard')).length);
 
   /* -------------------------------------------------- empty is not allowed */
   const empty = await ctx.request.put(BASE + '/api/staff/content/faq', { data: { value: [] } });

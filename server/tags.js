@@ -31,8 +31,14 @@
 })(typeof self !== 'undefined' ? self : this, function (isNode) {
   'use strict';
 
-  const TYPES = ['Programme', 'University', 'City', 'State', 'Bachelor', 'Degree', 'Language', 'Requirement',
+  const TYPES = ['Programme', 'University', 'City', 'State', 'Bachelor', 'Degree', 'English Test', 'Language', 'Requirement',
     'Feature', 'Application', 'Deadline', 'Intake', 'Eligibility'];
+  /* Round 178 (F1/F8): the DESCRIPTIVE types. Two chosen tags of one of
+     these types are alternatives — ECE or EEE, Rostock or Bremen, IELTS 6.5
+     or PTE 60 — so they are OR-ed; different types are AND-ed. Every other
+     type (Requirement, Eligibility, Language, Intake, Deadline, Application,
+     Feature, and anything the dictionary does not know) must each hold. */
+  const DESCRIPTIVE = ['Programme', 'Bachelor', 'University', 'City', 'State', 'Degree', 'English Test'];
   /* The types that would name a public university on a locked row. */
   const IDENTITY = ['University', 'City', 'State'];
 
@@ -96,6 +102,8 @@
     if (/^(winter|summer)$/i.test(s)) return 'Intake';
     if (/^(english|german) [abc][12]$/i.test(s) || /^no german required$/i.test(s)) return 'Language';
     if (/^(public|private) university$/i.test(s) || /^no tuition fee$/i.test(s)) return 'Feature';
+    /* v43's "accepts my score" tags (F8), for a dictionary that predates them. */
+    if (/^(ielts|toefl|pte|duolingo) \d+(\.\d)?$/i.test(s) || /^(cambridge [abc][12] \w+|unicert i{1,4}|telc [abc][12]|toeic accepted)$/i.test(s)) return 'English Test';
     return '';
   }
 
@@ -155,7 +163,11 @@
     if (!deg && String(p.level || '').toLowerCase() === 'mba') deg = 'MBA';
     add(deg);
     /* Public or private; tuition. */
-    add(p.isPublic ? 'Public University' : (p.university || p.id ? 'Private University' : ''));
+    /* Round 178: not for an agent-portal row (fee indicative) — stored
+       non-public so its name is not locked, its real status unknown. */
+    const indic = p.feeIndicative === true || p.feeIndicative === 1 || p.fee_indicative === 1 || p.fee_indicative === true
+      || /agent/i.test(String(p.feeSource || p.fee_source || ''));
+    if (!indic) add(p.isPublic ? 'Public University' : (p.university || p.id ? 'Private University' : ''));
     const tu = num(r.tuitionEurSem);
     if (tu === 0 || (p.isPublic && (Number(p.totalInr || 0) === 0 || p.freeTuition === true))) add('No Tuition Fee');
     /* What it asks for. */
@@ -206,7 +218,11 @@
   function tagsOf(p) {
     if (!p) return [];
     const stored = Array.isArray(p.tags) ? p.tags : String(p.tags || '').split(';');
-    const list = stored.map(t => String(t == null ? '' : t).trim()).filter(Boolean);
+    let list = stored.map(t => String(t == null ? '' : t).trim()).filter(Boolean);
+    /* Round 178: an agent-portal row's status is not known — no
+       "Public/Private University" tag, the import's own included. */
+    if (p.feeIndicative === true || p.feeIndicative === 1 || p.fee_indicative === 1 || p.fee_indicative === true
+      || /agent/i.test(String(p.feeSource || p.fee_source || ''))) list = list.filter(t => !/^(public|private) universit(y|ies)$/i.test(t));
     return list.length ? list : derive(p);
   }
 
@@ -345,15 +361,30 @@
 
   /* One chosen tag against a row: in its tags, or — a phrase — sitting whole
      inside its name, university or city. */
+  /* Round 178 (F1): EXACT, case-insensitive, on the row's split tag list —
+     "IT" does not match "Information Technology", nor a title that has
+     "IT" in it. The name search (`hay`) is only the fallback for a row with
+     no imported tags at all, whose list is derived from its names anyway. */
   function hasTag(p, tag, tagKeys, hay) {
     const k = fold(tag);
     if (!k) return true;
     if (tagKeys.has(k) || tagKeys.has(foldUe(tag))) return true;
-    if (hay.includes(' ' + k + ' ')) return true;
+    if (hay && hay.includes(' ' + k + ' ')) return true;
     /* CNS-04: a university chosen by one of its names matches a row filed
        under another ("HS Bremen" / "Bremen University of Applied Sciences"). */
     const grp = ALIAS.get(k);
-    return !!grp && grp.some(n => { const a = fold(n); return a !== k && (tagKeys.has(a) || hay.includes(' ' + a + ' ')); });
+    return !!grp && grp.some(n => { const a = fold(n); return a !== k && (tagKeys.has(a) || (hay && hay.includes(' ' + a + ' '))); });
+  }
+  const storedTags = p => (Array.isArray(p && p.tags) ? p.tags : String((p && p.tags) || '').split(';')).some(t => String(t == null ? '' : t).trim());
+  /* The chosen tags, split by the OR/AND rule: { each: [tag], any: [[tag…] per descriptive type] }. */
+  function groupChosen(list) {
+    const each = [], by = new Map();
+    list.forEach(t => {
+      const ty = typeOf(t);
+      if (DESCRIPTIVE.includes(ty)) { if (!by.has(ty)) by.set(ty, []); by.get(ty).push(t); }
+      else each.push(t);
+    });
+    return { each, any: [...by.values()] };
   }
 
   /**
@@ -400,7 +431,12 @@
     own.forEach(t => { tagKeys.add(fold(t)); tagKeys.add(foldUe(t)); });
     const hay = ' ' + fold(nameText(p)) + ' ';
     const hayUe = ' ' + foldUe(nameText(p)) + ' ';
-    for (const t of list) if (!hasTag(p, t, tagKeys, hay)) return false;
+    if (list.length) {
+      const tagHay = storedTags(p) ? '' : hay;
+      const g = groupChosen(list);
+      for (const t of g.each) if (!hasTag(p, t, tagKeys, tagHay)) return false;
+      for (const alts of g.any) if (!alts.some(t => hasTag(p, t, tagKeys, tagHay))) return false;
+    }
     if (q.length) {
       const tagText = ' ' + own.map(fold).join(' ') + ' ' + own.map(foldUe).join(' ') + ' ';
       for (const w of q) {
@@ -431,12 +467,15 @@
   function parseList(v) {
     const seen = new Set(), out = [];
     (Array.isArray(v) ? v : String(v || '').split(';')).forEach(t => {
-      const s = String(t == null ? '' : t).trim().slice(0, 60);
+      /* Round 178: v43 carries programme-name tags up to 146 characters and
+         up to 77 tags on a row; cut at 60/60 they no longer matched the
+         dictionary (F8: every dictionary tag must be on a row). */
+      const s = String(t == null ? '' : t).trim().slice(0, 160);
       const k = fold(s);
       if (s && k && !seen.has(k)) { seen.add(k); out.push(s); }
     });
-    return out.slice(0, 60);
+    return out.slice(0, 120);
   }
 
-  return { TYPES, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, publicTags, suggest, group, match, score, parseList, fold, setAliases, aliasesOf };
+  return { TYPES, DESCRIPTIVE, groupChosen, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, publicTags, suggest, group, match, score, parseList, fold, setAliases, aliasesOf };
 });

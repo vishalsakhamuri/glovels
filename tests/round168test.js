@@ -122,7 +122,7 @@ async function req(who, method, p, body) {
   const heldN = Number((s.matched || {}).held || 0);
   ok('the student sees what there is: ' + named.length + ' named + ' + heldN + ' held, fewer than 10', named.length + heldN < 10 && named.length + heldN > 0, J(s.matched));
   ok('all of them are public (the package\'s kind)', named.every(x => x.isPublic !== false), J(named.map(x => x.university)));
-  const told = (s.msgs || []).find(m => /stay open/.test(m.t || ''));
+  const told = (s.msgs || []).concat((s.activity || [])).find(m => /stay open/.test(m.t || ''));
   ok('and is told the remaining places stay open for the counsellor', !!told, (s.msgs || []).slice(-1).map(m => (m.t || '').slice(0, 200)).join());
   /* The counsellor's half: the bell. */
   r = await req('a', 'GET', '/api/staff/alerts');

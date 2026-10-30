@@ -172,7 +172,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   rec = (await req('k', 'GET', '/api/staff/student/' + SID)).body;
   const pp = (rec.docs || []).find(d => d.key === 'passport');
   r = await req('k', 'POST', '/api/staff/student/' + SID + '/document/passport/file/' + pp.id + '/verdict', { status: 'rescan', note: 'The corner is cut off.' });
-  const msgs = (await req('s', 'GET', '/api/state')).body.msgs || [];
+  /* Round 178 (BUG-094): the request is a notice — on the Activity timeline. */
+  const msgs = (await req('s', 'GET', '/api/state')).body.activity || [];
   const told = JSON.stringify(msgs).includes('passport-blurred.pdf');
   ok('N17-02: querying the only file sends the document to "Waiting for a scan" and names the file to the student',
     r.ok && r.body.status === 'rescan' && told, r.status + ' ' + r.body.status + ' told=' + told);

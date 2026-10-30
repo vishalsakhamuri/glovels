@@ -195,7 +195,8 @@ const JOURNEY = require(path.join(__dirname, '..', 'server', 'journey.js'));
   await upload('s', '/api/documents', { key: 'passport' }, 'pp-blurred.pdf', pdf('PP1'));
   let pp = (await staffDocs()).filter(d => d.key === 'passport');
   r = await req('k', 'POST', '/api/staff/student/' + SID + '/document/passport/file/' + pp[0].id + '/verdict', { status: 'rescan', note: 'Corner cut off.' });
-  const msgs = (await student()).msgs || [];
+  /* Round 178 (BUG-094): the request is a notice — on the Activity timeline. */
+  const msgs = (await student()).activity || [];
   ok('item 4: querying the only file → the file rescan, the document "Waiting for a scan", the student told which file',
     r.ok && r.body.status === 'rescan' && JSON.stringify(msgs).includes('pp-blurred.pdf'), r.status + ' ' + r.body.status);
   await upload('s', '/api/documents', { key: 'passport' }, 'pp-clean.pdf', pdf('PP2'));

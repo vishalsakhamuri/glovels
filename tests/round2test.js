@@ -86,8 +86,12 @@ const txt = (p, s) => p.textContent(s).catch(() => '');
     + JSON.stringify(seam));
 
   /* ------------------------------------ 3. the two chips on a story card */
+  /* Round 178: the home rail is the success-stories admit card — the first
+     name and the intake badge share one meta row (.ss-meta). The name is
+     text and the intake a pill, so they are not the same height; they are
+     one line, centred on each other. */
   const chips = await page.evaluate(() => {
-    const row = document.querySelector('.tcard .trow');
+    const row = document.querySelector('.tcard .ss-meta') || document.querySelector('.tcard .trow');
     if (!row) return null;
     const kids = [...row.children].filter(el => el.offsetParent !== null);
     if (kids.length < 2) return { only: kids.length };
@@ -96,14 +100,16 @@ const txt = (p, s) => p.textContent(s).catch(() => '');
       count: kids.length,
       heights: b.map(r => Math.round(r.height)),
       tops: b.map(r => Math.round(r.top)),
+      mids: b.map(r => Math.round(r.top + r.height / 2)),
+      oneLine: b.every(r => r.top < b[0].bottom && r.bottom > b[0].top),
     };
   }).catch(() => null);
-  ok(chips && chips.count >= 2, 'a story card has both chips on it — '
+  ok(chips && chips.count >= 2, 'a story card has both chips on it (name + intake) — '
     + JSON.stringify(chips));
-  ok(chips && chips.heights && new Set(chips.heights).size === 1,
-    'and they are the same height — ' + JSON.stringify(chips && chips.heights));
-  ok(chips && chips.tops && new Set(chips.tops).size === 1,
-    'and start at the same line — ' + JSON.stringify(chips && chips.tops));
+  ok(chips && chips.mids && Math.max(...chips.mids) - Math.min(...chips.mids) <= 2,
+    'and they are centred on each other — ' + JSON.stringify(chips && chips.mids));
+  ok(chips && chips.oneLine,
+    'and sit on the same line — ' + JSON.stringify(chips && chips.tops));
 
   /* -------------------------------------------- 4. the two tabs, told apart */
   const tabs = await page.evaluate(() => {

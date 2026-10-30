@@ -37,7 +37,8 @@ check('toQuery is stable and only what is set', F.toQuery({ level: 'master', cou
 const s = F.student({ english: 'ielts:6.5', gre: 'yes', greQuant: '160', work: '12', bachelorYears: '3', cgpa: '7.5', restricted: 'open', papers: 'no' });
 check('student reads IELTS', s.ielts === 6.5);
 check('student: GRE yes without a total is "taken"', s.gre === 'taken' && s.greQuant === 160);
-check('student derives ECTS from years', s.ects === 180 && s.bachelorYears === 3);
+/* Round 178 (F2.3): the bachelor's length is not a filter any more — ECTS only. */
+check('student: no bachelor\'s length (ECTS only)', s.ects === undefined && s.bachelorYears === undefined);
 check('student reads work, papers, cgpa, open-only', s.workExpMonths === 12 && s.papers === false && s.cgpa === 7.5 && s.restrictedOk === false);
 check('student: GRE none drops sections', F.student({ gre: 'none', greQuant: '160' }).gre === false && F.student({ gre: 'none', greQuant: '160' }).greQuant === undefined);
 check('nothing said', !F.saidAnything(F.student({ country: 'DE' })));
@@ -45,7 +46,7 @@ check('nothing said', !F.saidAnything(F.student({ country: 'DE' })));
 let r = F.run(rows, F.parse('?country=DE'), R);
 check('country filter', r.total === 3 && r.rows.every(p => p.country === 'DE'));
 check('universities counted by key', r.unis === 3);
-check('facets count what each value would add', r.facets.level.master === 2 && r.facets.level.mba === 1 && r.facets.country.IE === 1 && r.facets.apply.free === 1);
+check('facets count what each value would add', /* round 178: MBA under Master's */ r.facets.level.master === 3 && r.facets.level.mba === undefined && r.facets.country.IE === 1 && r.facets.apply.free === 1);
 check('no-tuition facet', r.facets.tuition0 === 1 && r.facets.moi === 1 && r.facets.nogre === 2 && r.facets.open === 2);
 
 r = F.run(rows, F.parse('?country=DE&cgpa=7.5'), R);
@@ -61,9 +62,9 @@ check('said: an IELTS bar with no score is an open question', r.rows.find(p => p
 r = F.run(rows, F.parse('?country=DE&cgpa=7.5&english=ielts:6.5'), R);
 check('IELTS 6.5 clears row a', r.rows.find(p => p.id === 'a')._v.ok === true);
 r = F.run(rows, F.parse('?country=DE&work=6'), R);
-/* Patch 162: a shortfall ranks the row last, it does not drop it. */
-check('6 months of work ranks the MBA that wants 24 last, still shown', r.rows[r.rows.length - 1].id === 'c' && r.turned === 0 && r.rows.find(p => p.id === 'c')._tier === 2);
-check('and the row says so', F.rowHtml(r.rows.find(p => p.id === 'c'), { countries: {}, said: true }).includes('Lower priority'));
+/* Round 178 (owner, 30 Oct): the PUBLIC side hides a shortfall (patch 162's
+   "ranked last" is the counsellor's matcher now). */
+check('6 months of work hides the MBA that wants 24', !r.rows.some(p => p.id === 'c') && r.turned === 1);
 r = F.run(rows, F.parse('?tuition=0'), R);
 check('no-tuition keeps only a stated 0', r.total === 1 && r.rows[0].id === 'a');
 r = F.run(rows, F.parse('?tuition=1500'), R);
