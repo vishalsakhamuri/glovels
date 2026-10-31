@@ -399,7 +399,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* Patch 179: only the levels this profile can be matched at (its own and
        the neighbours it may bend to) come out of the database. */
     const levels = MATCHES.levelsFor ? MATCHES.levelsFor(profile) : null;
-    if (!cs) return db.rowsOnSite().map(UNIS.fromRow).filter(p => !levels || levels.includes(String(p.level || '').toLowerCase()));
+    if (!cs) return (levels ? db.rowsForCountries([], { levels, onSite: true }) : db.rowsOnSite()).map(UNIS.fromRow);
     return db.rowsForCountries(cs, { levels }).map(UNIS.fromRow);
   };
   /* One programme by id — any live one, including the search-only rows that
@@ -3689,6 +3689,54 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    *          order — the same walk /api/catalogue takes, so the two agree
    *   mayName(p)  whether a public row comes back with its name
    */
+  /* Patch 180: { id, uKey } of every public on-site row, in rowsOnSite order. */
+  const publicWalk = () => (typeof db.publicOnSite === 'function'
+    ? db.publicOnSite().map(r => ({ id: r.id, uKey: UNIS.uKeyOf(r.university) }))
+    : cat().filter(p => p.isPublic && !p.searchOnly).map(p => ({ id: p.id, uKey: p.uKey })));
+  /* Patch 180: on-site rows as the finder reads them, without reading them
+     all. findCandidates narrows in the database on what it can (destination,
+     level, field, how one applies); the finder's own rules run on the rest.
+     Over CAND_MAX the words typed narrow it too; `more` says it was cut. */
+  const CAND_MAX = 4000;
+  function candidatesFor(f, extra) {
+    if (typeof db.findCandidates !== 'function') {
+      return { rows: cat().filter(p => !p.searchOnly && (!extra || !extra.publicOnly || p.isPublic)), more: false };
+    }
+    const base = Object.assign({ country: f.country, level: f.level, field: f.field, apply: f.apply, limit: CAND_MAX }, extra || {});
+    let got = db.findCandidates(base);
+    if (got.more && f.q) {
+      const ix = uniIndex();
+      const keys = new Set(require('./unisearch.js').match(ix.rows, f.q));
+      const names = [...new Set(ix.rows.filter(r => keys.has(r.uKey)).map(r => r.university))];
+      const narrowed = db.findCandidates(Object.assign({}, base, { match: f.q, universities: names }));
+      if (narrowed.rows.length) got = narrowed;
+    }
+    return { rows: got.rows.map(UNIS.fromRow), more: !!got.more };
+  }
+  /* A named row as the finder receives it (the same shape /api/catalogue
+     has always sent): staff see the office's row; a visitor or student gets
+     an indicative fee withheld, and with the "names" gate no fee at all. */
+  function namedShape(ent, p) {
+    if (ent.staff) return Object.assign({}, p, { tags: TAGS.tagsOf(p) });
+    if (p.isPublic && ent.gate === 'names') return Object.assign({}, UNIS.publicFee(p), { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) });
+    return Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) });
+  }
+  /* The finder's facet lists over every on-site row, remembered until the
+     catalogue changes (and for an hour at most — the open terms move with
+     the calendar). Four columns a row. */
+  let facetMemo = null;
+  function onSiteFacets() {
+    const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+    if (facetMemo && facetMemo.v === v && Date.now() - facetMemo.at < 60 * 60 * 1000) return facetMemo.facets;
+    const rows = typeof db.facetRowsOnSite === 'function'
+      ? db.facetRowsOnSite().map(r => ({ country: r.country, level: r.level, field: r.field,
+        intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })() }))
+      : cat().filter(p => !p.searchOnly && p.level && p.field);
+    const facets = FIND.facetValues(rows);
+    facetMemo = { v, at: Date.now(), facets };
+    return facets;
+  }
+
   function entitlement(req) {
     const me_ = me(req);
     const me_orders = me_ ? db.ordersFor(me_.id) : [];
@@ -3703,15 +3751,18 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (me_ && quota) {
       const mine = new Set(db.getShortlist(me_.id)
         .filter(r => r.is_public).map(r => String(r.prog_id)));
+      /* Patch 180: the public on-site rows, four columns from the database,
+         in the catalogue's order — not every on-site row mapped (60,000 once
+         the UK and USA are listed) to walk the few hundred public ones. */
+      const pubs = publicWalk();
       if (mine.size) {
-        for (const p of cat()) {
+        for (const p of pubs) {
           if (named.size >= quota) break;
-          if (!p.isPublic || !mine.has(String(p.id))) continue;
+          if (!mine.has(String(p.id))) continue;
           named.add(p.uKey);
         }
       }
-      for (const p of cat()) {
-        if (p.searchOnly || !p.isPublic) continue;
+      for (const p of pubs) {
         if (named.has(p.uKey)) continue;
         if (named.size >= quota) break;
         named.add(p.uKey);
@@ -3758,7 +3809,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     };
   }
   /* The rows this viewer is NOT entitled to name: the locked set. */
-  const lockedRowsFor = ent => cat().filter(p => !p.searchOnly && p.isPublic && !ent.mayName(p));
+  /* Patch 180: the public on-site rows from the database (a few thousand at
+     most — every non-German destination is private), not the whole on-site set. */
+  const lockedRowsFor = ent => candidatesFor({}, { publicOnly: true, limit: 20000 }).rows.filter(p => p.isPublic && !ent.mayName(p));
   /* Light throttle on the two open catalogue reads, per address: a page
      asks a few times a minute, a script walking every filter does not. */
   const FIND_BUDGET = 240, FIND_WINDOW_MS = 60 * 1000;
@@ -3787,6 +3840,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return out;
   }
 
+  /* The universities the words name, among the on-site rows this viewer may
+     see named. Patch 180: the full-text index finds the candidates (by
+     university, short name, city, programme, field) rather than every
+     on-site row being read; unisearch.js then decides as it always has. */
+  let uniIndexMemo = null;
+  function uniIndex() {
+    const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+    if (uniIndexMemo && uniIndexMemo.v === v) return uniIndexMemo;
+    const rows = (typeof db.uniNamesOnSite === 'function' ? db.uniNamesOnSite() : cat().filter(p => !p.searchOnly)
+      .map(p => ({ university: p.university, short_name: p.shortName, city: p.city, is_public: p.isPublic })))
+      .map(r => ({ university: r.university, shortName: r.short_name || '', city: r.city || '', uKey: UNIS.uKeyOf(r.university), isPublic: !!r.is_public }));
+    const anyPrivate = new Set(rows.filter(r => !r.isPublic).map(r => r.uKey));
+    uniIndexMemo = { v, rows, anyPrivate };
+    return uniIndexMemo;
+  }
+  function namedUniKeys(ent, q) {
+    /* Patch 180: one line per university (name, short name, city) from the
+       database, remembered until the catalogue changes — unisearch.js matches
+       on it exactly as before (acronyms, logo aliases, cities) — and a public
+       university's key comes back only when this viewer may see it named. */
+    const ix = uniIndex();
+    return require('./unisearch.js').match(ix.rows, q)
+      .filter(k => ix.anyPrivate.has(k) || ent.mayName({ isPublic: true, uKey: k }));
+  }
+
   route('GET', '/api/find/unis', async (req, res) => {
     const q = String(url.parse(req.url, true).query.q || '').trim().slice(0, 80);
     if (q.length < 2) return json(res, 200, { keys: [] });
@@ -3795,8 +3873,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        anything handed out here, and a hidden university's real key is not
        handed out either — so typing "Aalen" signed out lights up nothing. */
     const ent = entitlement(req);
-    const rows = cat().filter(p => !p.searchOnly && ent.mayName(p));
-    const real = require('./unisearch.js').match(rows, q);
+    const real = namedUniKeys(ent, q);
     return json(res, 200, { keys: real });
   }, { open: true });
 
@@ -3875,7 +3952,27 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        box, not here. Their ids go in `inactive` below, so a row the home
        page was BUILT with and later made search-only comes off the finder
        the way a hidden one does. */
-    const all = cat().filter(p => !p.searchOnly);
+    /* Patch 180: not every on-site row any more — at most SAMPLE_PER_COUNTRY
+       a destination (the office's featured first, then by fit), plus every
+       public row (a few thousand at most), so the locked dozen is chosen from
+       the whole public set as before. The page asks /api/find/match for the
+       rows that fit its boxes as they change, so nothing is out of reach;
+       sending all 60,000 UK and USA rows to every visitor is what this stops. */
+    const SAMPLE_PER_COUNTRY = 300;
+    const facetsAll = onSiteFacets();
+    const seenIds = new Set();
+    const all = [];
+    const take = list => list.forEach(p => { const k = String(p.id); if (seenIds.has(k)) return; seenIds.add(k); all.push(p); });
+    take(candidatesFor({}, { publicOnly: true, limit: 20000 }).rows);
+    let sampled = false;
+    (facetsAll.country || []).forEach(code => {
+      const got = candidatesFor({ country: code }, { privateOnly: true, limit: SAMPLE_PER_COUNTRY });
+      if (got.more) sampled = true;
+      take(got.rows);
+    });
+    /* In the order the catalogue always came (rowsOnSite: by university),
+       so anything that takes "the first" of a kind still gets the same one. */
+    all.sort((a, b) => (a.university < b.university ? -1 : a.university > b.university ? 1 : 0));
     const named_ = [], lockedReal = [];
     all.forEach(p => {
       /* 10 Oct: the tags the home page's tag search narrows on — the
@@ -3921,9 +4018,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* Round 176: which values the boxes may offer — over the WHOLE set,
          locked rows included, as plain lists with no count on any value —
          so the dropdowns are complete without carrying the rows. */
-      facets: FIND.facetValues(all.filter(p => p.level && p.field)),
+      facets: facetsAll,
       /* True when locked rows were left out of this response (never how many). */
       more: capped.more,
+      /* Patch 180: true when a destination's named rows were sampled — the
+         page then asks /api/find/match for what fits its boxes. */
+      sampled,
       /* Explicitly listed, so the page removes exactly what was switched off and
          nothing else. Filtering by "not in this list" would delete every row the
          database has never heard of. */
@@ -3959,6 +4059,42 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const capped = FIND.capLocked(matched.map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
     return json(res, 200, { locked: capped.rows.map(p => lockedPlaceholder(p, nonce)), more: capped.more },
       { 'Cache-Control': 'private, no-store' });
+  }, { open: true });
+
+  /*
+   * Patch 180: the rows that fit ONE set of boxes — named and locked.
+   *
+   *   GET /api/find/match?country=&level=&field=&…   (FIND.parse keys)
+   *   → { named: [row…] (≤ NAMED_CAP, in the finder's order),
+   *       locked: [placeholder…] (≤ LOCKED_CAP), more, moreNamed }
+   *
+   * The home page, /find-university and the portal's browse screens send
+   * their boxes here as they change, so a destination with tens of thousands
+   * of programmes is searched on the server and only the first screen or so
+   * travels. Named rows have the shape /api/catalogue gives them (fees
+   * withheld the same way); locked rows are the round-176 placeholders, from
+   * the same lockedMatches() /api/find/locked uses. `moreNamed` says the
+   * named list was cut — never by how much.
+   */
+  const NAMED_CAP = 200;
+  route('GET', '/api/find/match', async (req, res) => {
+    if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
+    const f = FIND.parse(url.parse(req.url).query || '');
+    delete f.view;
+    const ent = entitlement(req);
+    const nonce = OPAQUE_NONCE();
+    const cand = candidatesFor(f);
+    const shaped = cand.rows.filter(p => !p.isPublic || ent.mayName(p)).map(p => namedShape(ent, p));
+    const uniKeys = f.q ? namedUniKeys(ent, f.q) : null;
+    const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys });
+    const strip = p => { const o = {}; Object.keys(p).forEach(k => { if (k[0] !== '_') o[k] = p[k]; }); return o; };
+    const named = R.rows.slice(0, NAMED_CAP).map(strip);
+    const lf = Object.assign({}, f); delete lf.sort;
+    const capped = FIND.capLocked(lockedMatches(ent, lf).map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
+    return json(res, 200, {
+      named, locked: capped.rows.map(p => lockedPlaceholder(p, nonce)),
+      more: capped.more, moreNamed: cand.more || R.rows.length > NAMED_CAP,
+    }, { 'Cache-Control': 'private, no-store' });
   }, { open: true });
 
   /* ------------------------------------------------------------ live feed */

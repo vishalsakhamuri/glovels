@@ -1965,6 +1965,72 @@ function open(dir) {
         ? db.all('SELECT * FROM programmes WHERE active = 1 AND search_only = 0 AND country = ? ORDER BY university', country)
         : db.all('SELECT * FROM programmes WHERE active = 1 AND search_only = 0 ORDER BY university');
     },
+    /**
+     * Patch 180: the finder's candidates for one set of boxes — on-site live
+     * rows narrowed by what the database can narrow on (destination, level
+     * with MBAs under Master's, field, how one applies, the words typed),
+     * the office's featured rows first, then by fit, at most `limit`.
+     * Returns { rows, more } — `more` when the limit cut the set. The finder's
+     * own rules (find.js run) then run over these rows only, so the UK and
+     * USA (60,000 rows) are never all in memory for one visitor.
+     */
+    findCandidates({ country, level, field, apply, match, universities, publicOnly, privateOnly, limit } = {}) {
+      const lim = Math.max(1, Math.min(20000, Number(limit) || 4000));
+      const lv = String(level || '').toLowerCase();
+      const levels = !lv ? null : (lv === 'master' || lv === 'mba') ? ['master', 'mba'] : [lv];
+      const feeSql = "CASE WHEN fee_model IN ('free', 'package') THEN fee_model WHEN is_public = 1 THEN 'package' ELSE 'free' END";
+      if (db.kind !== 'sqlite') {
+        const rows = db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && !r.search_only && r.level && r.field
+          && (!country || r.country === country) && (!levels || levels.includes(String(r.level).toLowerCase()))
+          && (!field || r.field === field) && (!publicOnly || r.is_public) && (!privateOnly || !r.is_public)
+          && (!apply || ((r.fee_model === 'free' || r.fee_model === 'package') ? r.fee_model : (r.is_public ? 'package' : 'free')) === apply));
+        return { rows: rows.slice(0, lim), more: rows.length > lim };
+      }
+      const w = ["active = 1", "search_only = 0", "COALESCE(level, '') <> ''", "COALESCE(field, '') <> ''"]; const a = [];
+      if (country) { w.push('country = ?'); a.push(String(country)); }
+      if (levels) { w.push('LOWER(level) IN (' + levels.map(() => '?').join(',') + ')'); a.push(...levels); }
+      if (field) { w.push('field = ?'); a.push(String(field)); }
+      if (publicOnly) w.push('is_public = 1');
+      if (privateOnly) w.push('is_public = 0');
+      if (apply === 'free' || apply === 'package') { w.push(feeSql + ' = ?'); a.push(apply); }
+      const m = match ? ftsMatch(match) : '';
+      /* The words typed: rows the full-text index finds, OR rows at the
+         universities the search box names (by short name, alias or campus
+         city — unisearch.js), which the index cannot know. */
+      const unis = Array.isArray(universities) ? universities.filter(Boolean).slice(0, 400) : [];
+      if (m && unis.length) {
+        w.push('(rowid IN (SELECT rowid FROM prog_fts WHERE prog_fts MATCH ?) OR university IN (' + unis.map(() => '?').join(',') + '))');
+        a.push(m, ...unis);
+      } else if (m) { w.push('rowid IN (SELECT rowid FROM prog_fts WHERE prog_fts MATCH ?)'); a.push(m); }
+      else if (unis.length) { w.push('university IN (' + unis.map(() => '?').join(',') + ')'); a.push(...unis); }
+      const rows = db.all('SELECT rowid AS _rid, * FROM programmes WHERE ' + w.join(' AND ')
+        + ' ORDER BY featured DESC, feature_sort ASC, COALESCE(fit, 0) DESC, university ASC, program ASC LIMIT ?', ...a, lim + 1);
+      const kept = rows.slice(0, lim);
+      /* Handed back in the order the finder always had them (rowsOnSite's,
+         by university) — its sorts are stable, so ties keep falling the way
+         they did before patch 180. */
+      kept.sort((x, y) => (x.university < y.university ? -1 : x.university > y.university ? 1 : x._rid - y._rid));
+      return { rows: kept, more: rows.length > lim };
+    },
+    /** Patch 180: the public on-site rows, four columns, in rowsOnSite's order — the package walk (who a quota names). */
+    publicOnSite() {
+      if (db.kind !== 'sqlite') return this.rowsOnSite().filter(r => r.is_public).map(r => ({ id: r.id, university: r.university, uni_slug: r.uni_slug, is_public: r.is_public }));
+      return db.all('SELECT id, university, uni_slug, is_public FROM programmes WHERE active = 1 AND search_only = 0 AND is_public = 1 ORDER BY university');
+    },
+    /** Patch 180: one line per on-site university, city and kind — the search box's index. */
+    uniNamesOnSite() {
+      if (db.kind !== 'sqlite') {
+        const seen = new Set();
+        return this.rowsOnSite().filter(r => { const k = [r.university, r.short_name, r.city, r.is_public].join('|'); if (seen.has(k)) return false; seen.add(k); return true; })
+          .map(r => ({ university: r.university, short_name: r.short_name, city: r.city, is_public: r.is_public }));
+      }
+      return db.all('SELECT DISTINCT university, short_name, city, is_public FROM programmes WHERE active = 1 AND search_only = 0 ORDER BY university');
+    },
+    /** Patch 180: country, level, field and intakes of every on-site row — the finder's facet lists, nothing else. */
+    facetRowsOnSite() {
+      if (db.kind !== 'sqlite') return this.rowsOnSite().map(r => ({ country: r.country, level: r.level, field: r.field, intakes: r.intakes }));
+      return db.all("SELECT country, level, field, intakes FROM programmes WHERE active = 1 AND search_only = 0 AND COALESCE(level, '') <> '' AND COALESCE(field, '') <> ''");
+    },
     /** Every live row at one university, by its page address. */
     rowsForUniversity(slug) {
       if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && r.uni_slug === String(slug));
@@ -1984,11 +2050,13 @@ function open(dir) {
       const lv = opts && Array.isArray(opts.levels) && opts.levels.length
         ? [...new Set(opts.levels.map(l => String(l || '').toLowerCase()).filter(Boolean))] : null;
       if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && (!cs.length || cs.includes(r.country))
-        && (!lv || lv.includes(String(r.level || '').toLowerCase())));
+        && (!lv || lv.includes(String(r.level || '').toLowerCase())) && (!(opts && opts.onSite) || !r.search_only));
       const w = ['active = 1']; const a = [];
       if (cs.length) { w.push('country IN (' + cs.map(() => '?').join(',') + ')'); a.push(...cs); }
       if (lv) { w.push('LOWER(level) IN (' + lv.map(() => '?').join(',') + ')'); a.push(...lv); }
-      return db.all('SELECT * FROM programmes WHERE ' + w.join(' AND '), ...a);
+      /* Patch 180: `onSite` — only the rows on the site (the matcher with no destination). */
+      if (opts && opts.onSite) w.push('search_only = 0');
+      return db.all('SELECT * FROM programmes WHERE ' + w.join(' AND ') + (opts && opts.onSite ? ' ORDER BY university' : ''), ...a);
     },
     /** Patch 179: the rows baked into the build (ids gated-… and 9000…), three columns. */
     bakedProgrammes() {

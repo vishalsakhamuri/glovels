@@ -54,18 +54,22 @@ function heroFields() {
   } catch (e) { return heroCache.list; }
 }
 
-function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg, content, slugOf }) {
+function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg, content, slugOf, candidates, facetLists }) {
 
   /* The rows as a signed-out visitor is allowed to see them — the same
      withholding /api/catalogue does with no package: a public university's
      name, city and website stay behind. The office's "gate" setting is
      honoured the same way. */
-  function publicRows() {
+  function publicRows(f) {
     let gate = 'gated';
     try { const f = content && content.get('finder'); if (f && f.gate) gate = f.gate; } catch (e) { /* strictest */ }
+    /* Patch 180: the rows for THIS address from the database (candidates:
+       destination, level, field and how one applies narrowed there), not
+       every on-site row — 60,000 once the UK and USA are listed. */
+    const source = typeof candidates === 'function' ? candidates(f || {}) : liveCatalogue();
     /* Round 178: an indicative (agent-portal) fee never reaches a visitor —
        the named rows below carried totalInr raw (UNIS.publicFee). */
-    return liveCatalogue().filter(p => !p.searchOnly && p.level && p.field).map(UNIS.publicFee).map(p => {
+    return source.filter(p => !p.searchOnly && p.level && p.field).map(UNIS.publicFee).map(p => {
       /* A named row carries its logo (server/logos.js); a locked one never
          does — the logo would name the university the row withholds. */
       /* The tags too, the way /api/catalogue sends them (10 Oct): the row's
@@ -213,14 +217,14 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     if (!t) return null;
     const f = FIND.parse(query || '');
     const countries = liveCountries();
-    const rows = publicRows();
+    const rows = publicRows(f);
     /* Round 169: the destinations' CGPA bars, and the universities the search
        box names (WEB-06) — a locked row has no name to match the words on. */
     /* Round 175: only among the universities this (signed-out) page NAMES —
        a locked row stays out of a search for its university's name, the
        same as /api/find/unis answers a signed-out browser. */
     const namedKeys = new Set(rows.filter(r => r.university).map(r => String(r.uKey)));
-    const uniKeys = f.q ? UNISEARCH.match(liveCatalogue().filter(p => !p.searchOnly && namedKeys.has(String(p.uKey))), f.q) : null;
+    const uniKeys = f.q ? UNISEARCH.match(rows.filter(p => p.university && namedKeys.has(String(p.uKey))), f.q) : null;
     /* Round 176: the locked rows that fit are capped (find.js capLocked)
        and the list is run AGAIN on the named rows plus the kept dozen, so
        the 70/30 mix and the ranking are made of what the page will draw. */
@@ -231,6 +235,14 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
     if (more) {
       const kept = new Set(capped.rows.filter(p => p._locked).map(p => p._ix));
       R = FIND.run(rows.filter(p => !FIND.locked(p) || kept.has(p._ix)), f, REQS, { countries, uniKeys });
+    }
+    /* Patch 180: the rows were narrowed in the database, so the rail's
+       options come from the whole catalogue's lists (facetLists); an option
+       this address's rows do not hold is offered, not dimmed. */
+    if (typeof facetLists === 'function') {
+      const lists = facetLists() || {};
+      ['country', 'level', 'field'].forEach(k => { const c = Object.assign({}, R.facets[k] || {}); (lists[k] || []).forEach(v => { if (!c[v]) c[v] = 1; }); R.facets[k] = c; });
+      const it = Object.assign({}, R.facets.intake || {}); (lists.intake || []).forEach(v => { if (!it[v]) it[v] = 1; }); R.facets.intake = it;
     }
     const name = FIND.title(f, countries, null);
     const title = FIND.title(f, countries, R.total);
@@ -413,13 +425,23 @@ var named = null, lockedPool = [], lockedFor = null, lockedAsking = null, locked
 var LOCKED_CAP = (F && F.LOCKED_CAP) || 12;
 var SUMMARY = { some: 'Programmes that match your filters', none: 'Nothing matches every filter — loosen one' };
 var MORE_LOCKED = 'More public universities match — <a href="index.html#packages">a package opens them</a>.';
-function lockedKey(){ var g = {}; Object.keys(f).forEach(function(k){ if (k !== 'sort' && k !== 'view') g[k] = f[k]; }); return F.toQuery(g); }
+/* Patch 180: the sort is part of the key — the server picks the first
+   screen of named rows in that order. */
+function lockedKey(){ var g = {}; Object.keys(f).forEach(function(k){ if (k !== 'view') g[k] = f[k]; }); return F.toQuery(g); }
+/* Patch 180: the named rows for this filter come from the server too
+   (/api/find/match) and join the ones already here — a destination with
+   tens of thousands of programmes is searched there, not shipped whole. */
+var namedById = {}, namedMore = false;
+function addNamed(list){
+  (list || []).forEach(function(p){ if (!p || !p.level || !p.field || F.locked(p)) return; var k = String(p.id); if (!namedById[k]) { namedById[k] = p; (named = named || []).push(p); } });
+}
 function askLocked(key){
   if (lockedAsking === key) return;
   lockedAsking = key;
-  fetch('/api/find/locked' + key, { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+  fetch('/api/find/match' + key, { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
     if (lockedAsking !== key) return;
     lockedAsking = null; lockedFor = key; lockedPool = (d && d.locked) || []; lockedMore = !!(d && d.more);
+    addNamed(d && d.named); namedMore = !!(d && d.moreNamed);
     rows = (named || []).concat(lockedPool);
     if (lockedKey() === key) render();
   }).catch(function(){ if (lockedAsking === key) { lockedAsking = null; lockedFor = key; lockedPool = []; lockedMore = false; rows = (named || []).slice(); render(); } });
@@ -475,6 +497,10 @@ function render(){
   var ml = $('#fmoreLocked'), wantMore = (capped.more || (lockedMore && lockedFor === lk)) && slice.length;
   if (wantMore) { if (!ml) { ml = document.createElement('div'); ml.className = 'fmore-locked'; ml.id = 'fmoreLocked'; list.after(ml); } ml.innerHTML = MORE_LOCKED; }
   else if (ml) ml.remove();
+  /* Patch 180: the server sent the first screen of a very wide search. */
+  var mn = $('#fmoreNamed'), wantNamed = namedMore && lockedFor === lk && slice.length && capped.rows.length <= shown;
+  if (wantNamed) { if (!mn) { mn = document.createElement('div'); mn.className = 'fmore-locked'; mn.id = 'fmoreNamed'; ($('#fmoreLocked') || list).after(mn); } mn.textContent = 'These are the closest matches — choose a level or a field to see more.'; }
+  else if (mn) mn.remove();
   var pg = $('.fpage');
   if (capped.rows.length > shown) {
     if (!pg) { pg = document.createElement('div'); pg.className = 'fpage'; ($('#fmoreLocked') || list).after(pg); }
@@ -707,8 +733,9 @@ fetch('/api/catalogue', { credentials: 'same-origin', headers: { Accept: 'applic
   var all = (d && d.programmes || []).filter(function(p){ return p.level && p.field; });
   /* Round 176: the named rows are kept; the placeholders that came with
      them are the opening pool, replaced per filter by /api/find/locked. */
-  named = all.filter(function(p){ return !F.locked(p); });
-  lockedPool = all.filter(function(p){ return F.locked(p); });
+  named = named || [];
+  addNamed(all.filter(function(p){ return !F.locked(p); }));
+  if (lockedFor === null) lockedPool = all.filter(function(p){ return F.locked(p); });
   lockedMore = !!(d && d.more);
   if (!Object.keys(f).some(function(k){ return k !== 'sort' && k !== 'view'; })) lockedFor = '';
   rows = named.concat(lockedPool);

@@ -2447,13 +2447,40 @@ function askLocked(){
   const key = lockedQuery();
   if (LOCKED_FOR === key || LOCKED_ASKING === key) return;
   LOCKED_ASKING = key;
-  fetch('/api/find/locked' + key, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(d => {
+  /* Patch 180: the named rows that fit come back too, and join D.programs —
+     a destination with tens of thousands of programmes is searched on the
+     server; the opening catalogue carries only a sample of it. */
+  fetch('/api/find/match' + key, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(d => {
     if (LOCKED_ASKING !== key) return;
     LOCKED_ASKING = null; LOCKED_FOR = key;
     LOCKED_POOL = ((d && d.locked) || []).map(liveLockedRow).filter(Boolean);
     LOCKED_MORE = !!(d && d.more);
+    addMatchedNamed((d && d.named) || []);
     if (lockedQuery() === key && typeof render === 'function') render();
   }).catch(() => { if (LOCKED_ASKING === key) { LOCKED_ASKING = null; LOCKED_FOR = key; } });
+}
+/* Patch 180: named rows from /api/find/match, added once each. A public
+   one the viewer's package names carries its name the way the opening
+   catalogue's do (revealed / EXTRA_NAMES). */
+function addMatchedNamed(list){
+  if (!list.length) return;
+  const have = new Set(D.programs.map(p => String(p.id)));
+  list.forEach(p => {
+    if (!p || !p.level || !p.field || (p.isPublic && !p.university)) return;
+    if (p.program && p.university) {
+      const nm = { program: p.program, university: p.university, city: p.city || '',
+        totalInr: p.totalInr || 0, url: p.url || '', uKey: p.uKey || ('live-' + p.id) };
+      EXTRA_NAMES[p.id] = nm;
+      /* A public name reaches this page only when the office has published
+         names to everybody ("names" / "open") — never on a package alone;
+         a student's universities are on My Universities (publishedNames). */
+      const g = window.__glovelsGate || 'gated';
+      if (p.isPublic && (g === 'names' || g === 'open')) revealed[p.id] = nm;
+    }
+    if (have.has(String(p.id))) return;
+    have.add(String(p.id));
+    D.programs.push(liveRowOf(p));
+  });
 }
 /* A placeholder from the server, in the shape filtered() and rowHtml()
    read — the same fields liveCatalogue() gives a live row. */
@@ -4440,6 +4467,56 @@ render();
  * The built-in copy renders first, so the finder is usable before this request
  * finishes and still works on static hosting with no server behind it.
  * ------------------------------------------------------------------------- */
+/* Patch 180: a named row from the server, in the shape filtered() and
+   rowHtml() read — used by the opening catalogue and by every per-filter
+   answer (/api/find/match), which brings the rows that fit the boxes. */
+function liveRowOf(p){
+    const row = {
+      id: p.id, country: p.country, level: p.level || 'master',
+      fieldGroup: p.field || 'Other', field: p.field || 'Other',
+      band: p.band || 'u20', isPublic: !!p.isPublic,
+      /* Free where we are partnered, charged where we are not. This is what
+         the two result tabs split on now — public-versus-private is a German
+         fact and six of our seven destinations have no public row at all. */
+      feeModel: p.feeModel === 'free' || p.feeModel === 'package'
+        ? p.feeModel : (p.isPublic ? 'package' : 'free'),
+      /* The bar THIS programme sets, which beats its country's rule in
+         filtered(). Hardcoded null here, it could never beat anything. */
+      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),
+      /* The server's university key, so "N universities" counts universities.
+         'live-' + id made every added row its own university, and the banner
+         read "1394 universities with no fee to apply" for Germany's 184
+         (patch 143). */
+      fit: p.fit || 75, uKey: p.uKey || ('live-' + p.id),
+      intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],
+      /* Round 175: a locked row carries no nLen / uLen any more and the blur
+         is a fixed width; a named row's lengths are its own. */
+      nLen: String(p.program || '').length,
+      uLen: String(p.university || '').length,
+      freeTuition: (p.totalInr || 0) === 0, dummy: false,
+      reqs: p.reqs && typeof p.reqs === 'object' ? p.reqs : null,
+      /* 10 Oct: the tags the search narrows on, as the server sent them. */
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      /* Round 178: an agent-portal fee (never shown here) and a foreign degree's awarding body. */
+      feeIndicative: !!(p.feeIndicative === true || /agent/i.test(String(p.feeSource || p.fee_source || ''))),
+      awardingBody: String(p.awardingBody || '').trim(),
+    };
+    /* A private university is not gated, so its row carries its own name, city
+       and fee — a locked public row deliberately carries none of that. Adding a
+       private one without them renders "undefined undefined ₹NaNL". */
+    if (!p.isPublic) {
+      row.program = p.program;
+      row.university = p.university;
+      row.city = p.city || '';
+      row.totalInr = p.totalInr || 0;
+      row.slug = String(p.program || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      row.universitySlug = String(p.university || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      row.semesters = p.semesters || 4;
+      row.feeEur = p.feeEur || 0;
+      row.url = p.url || '';
+    }
+    return row;
+}
 (async function liveCatalogue(){
   let data;
   try {
@@ -4526,50 +4603,7 @@ render();
        tuition". It stays in the admin catalogue to be finished. */
     if (!p.level || !p.field) return;
 
-    const row = {
-      id: p.id, country: p.country, level: p.level || 'master',
-      fieldGroup: p.field || 'Other', field: p.field || 'Other',
-      band: p.band || 'u20', isPublic: !!p.isPublic,
-      /* Free where we are partnered, charged where we are not. This is what
-         the two result tabs split on now — public-versus-private is a German
-         fact and six of our seven destinations have no public row at all. */
-      feeModel: p.feeModel === 'free' || p.feeModel === 'package'
-        ? p.feeModel : (p.isPublic ? 'package' : 'free'),
-      /* The bar THIS programme sets, which beats its country's rule in
-         filtered(). Hardcoded null here, it could never beat anything. */
-      minCgpa: p.minCgpa == null ? null : Number(p.minCgpa),
-      /* The server's university key, so "N universities" counts universities.
-         'live-' + id made every added row its own university, and the banner
-         read "1394 universities with no fee to apply" for Germany's 184
-         (patch 143). */
-      fit: p.fit || 75, uKey: p.uKey || ('live-' + p.id),
-      intakes: (p.intakes && p.intakes.length) ? p.intakes : [{season: 'winter', deadline: ''}],
-      /* Round 175: a locked row carries no nLen / uLen any more and the blur
-         is a fixed width; a named row's lengths are its own. */
-      nLen: String(p.program || '').length,
-      uLen: String(p.university || '').length,
-      freeTuition: (p.totalInr || 0) === 0, dummy: false,
-      reqs: p.reqs && typeof p.reqs === 'object' ? p.reqs : null,
-      /* 10 Oct: the tags the search narrows on, as the server sent them. */
-      tags: Array.isArray(p.tags) ? p.tags : [],
-      /* Round 178: an agent-portal fee (never shown here) and a foreign degree's awarding body. */
-      feeIndicative: !!(p.feeIndicative === true || /agent/i.test(String(p.feeSource || p.fee_source || ''))),
-      awardingBody: String(p.awardingBody || '').trim(),
-    };
-    /* A private university is not gated, so its row carries its own name, city
-       and fee — a locked public row deliberately carries none of that. Adding a
-       private one without them renders "undefined undefined ₹NaNL". */
-    if (!p.isPublic) {
-      row.program = p.program;
-      row.university = p.university;
-      row.city = p.city || '';
-      row.totalInr = p.totalInr || 0;
-      row.slug = String(p.program || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      row.universitySlug = String(p.university || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      row.semesters = p.semesters || 4;
-      row.feeEur = p.feeEur || 0;
-      row.url = p.url || '';
-    }
+    const row = liveRowOf(p);
     D.programs.push(row);
     added++;
   });

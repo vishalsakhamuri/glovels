@@ -117,6 +117,18 @@ async function guarantees(label) {
   const pl = (await req('guest', 'GET', '/api/find/locked?country=PL')).body || {};
   ok('  · the filter is honoured (every DE row is DE; a country with no public rows gives none)',
     (de.locked || []).length > 0 && de.locked.every(p => p.country === 'DE') && (pl.locked || []).length === 0 && pl.more === false);
+  /* Patch 180: /api/find/match — the named rows for a filter plus the same
+     capped placeholders. A guest gets no public university by name, at most
+     CAP locked rows, and no count anywhere. */
+  for (const q of ['', '?country=DE', '?country=DE&level=master', '?country=GB', '?q=berlin']) {
+    const m = (await req('guest', 'GET', '/api/find/match' + q)).body || {};
+    const keys = Object.keys(m).sort().join(',');
+    ok('/api/find/match' + (q || ' (no filter)') + ': no public name, ≤ ' + CAP + ' locked, no count',
+      keys === 'locked,more,moreNamed,named' && Array.isArray(m.named) && m.named.length <= 200
+        && m.named.every(p => !p.isPublic) && (m.locked || []).length <= CAP
+        && m.locked.every(p => isLocked(p) && /^xp/.test(String(p.id))) && typeof m.more === 'boolean' && typeof m.moreNamed === 'boolean',
+      keys + ' named ' + (m.named || []).length + ' locked ' + (m.locked || []).length);
+  }
   const ggpa = (await req('guest', 'GET', '/api/find/locked?country=DE&ggpa=1.0')).body || {};
   ok('  · ggpa= narrows the way the home page does (no stated grade better than 1.0)',
     (ggpa.locked || []).every(p => p.germanGpa == null || Number(p.germanGpa) >= 1.0));
@@ -212,7 +224,7 @@ async function guarantees(label) {
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1300, height: 900 } });
     const errs = []; page.on('pageerror', e => errs.push(String(e)));
-    const asked = []; page.on('request', r => { if (/\/api\/find\/locked/.test(r.url())) asked.push(r.url().replace(BASE, '')); });
+    const asked = []; page.on('request', r => { if (/\/api\/find\/(locked|match)/.test(r.url())) asked.push(r.url().replace(BASE, '')); });
     await page.goto(BASE + '/find-university?country=DE', { waitUntil: 'networkidle' });
     await page.waitForTimeout(800);
     const st = () => page.evaluate(() => ({
@@ -227,7 +239,7 @@ async function guarantees(label) {
     await page.evaluate(() => { const i = document.querySelector('input[name=level][value=master]'); i.closest('details').open = true; i.click(); });
     await page.waitForTimeout(1200);
     x = await st();
-    ok('  · a filter change asks /api/find/locked for that filter and stays within the cap', asked.some(u => /country=DE&level=master/.test(u)) && x.locked <= CAP, J(asked) + ' ' + x.locked);
+    ok('  · a filter change asks /api/find/match (or locked) for that filter and stays within the cap', asked.some(u => /country=DE&level=master/.test(u)) && x.locked <= CAP, J(asked) + ' ' + x.locked);
     await page.evaluate(() => { const i = document.querySelector('#fcgpa'); i.value = '6'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); });
     await page.waitForTimeout(1200);
     x = await st();
@@ -239,7 +251,7 @@ async function guarantees(label) {
 
     const hp = await browser.newPage({ viewport: { width: 1300, height: 900 } });
     const herrs = []; hp.on('pageerror', e => herrs.push(String(e)));
-    const hasked = []; hp.on('request', r => { if (/\/api\/find\/locked/.test(r.url())) hasked.push(r.url().replace(BASE, '')); });
+    const hasked = []; hp.on('request', r => { if (/\/api\/find\/(locked|match)/.test(r.url())) hasked.push(r.url().replace(BASE, '')); });
     await hp.goto(BASE + '/', { waitUntil: 'domcontentloaded' }); await hp.waitForTimeout(2500);
     await hp.selectOption('#fCountry', 'DE'); await hp.click('#fGo'); await hp.waitForTimeout(1500);
     const pubTab = await hp.$('.rtab[data-rt="priv"]'); if (pubTab) await pubTab.click(); await hp.waitForTimeout(600);
@@ -250,7 +262,7 @@ async function guarantees(label) {
     }));
     ok('the home finder, Germany, the Public tab: ≤ ' + CAP + ' locked rows and the "more" line', h.locked > 0 && h.locked <= CAP && h.more, J(h));
     ok('  · the banner, the tabs and the budget cards carry no count', !COUNT.test(h.banner) && h.tabs.every(t => t === '') && h.rail.every(t => t === ''), J(h));
-    ok('  · it asked /api/find/locked for Germany', hasked.some(u => /country=DE/.test(u)), J(hasked));
+    ok('  · it asked /api/find/match (or locked) for Germany', hasked.some(u => /country=DE/.test(u)), J(hasked));
     ok('  · no page errors', herrs.length === 0, herrs.join(' | '));
     await browser.close();
   } else note('no playwright — the browser checks are skipped');

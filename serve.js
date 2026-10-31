@@ -138,7 +138,33 @@ function withoutPublicSeed(html, file, keys) {
   return out;
 }
 
-function listedUniversities(country) { return UNIS.group(db.rowsOnSite(country).map(fromRow)); }
+/* Patch 180: the universities on the site, one university at a time — its
+   on-site rows grouped as UNIS.group always did, then its programme list let
+   go — and remembered until the catalogue changes. Grouping every on-site row
+   at once was 60,000 rows in memory once the UK and USA were listed. */
+const listedMemo = new Map();
+function listedUniversities(country) {
+  const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+  const k = String(country || '');
+  const hit = listedMemo.get(k);
+  if (hit && hit.v === v) return hit.list;
+  if (typeof db.uniSlugs !== 'function') return UNIS.group(db.rowsOnSite(country).map(fromRow));
+  const out = [];
+  for (const slug of db.uniSlugs({ country: country || undefined, listed: true })) {
+    const rows = db.rowsForUniversity(slug).filter(r => !r.search_only && (!country || r.country === country));
+    if (!rows.length) continue;
+    UNIS.group(rows.map(fromRow)).forEach(u => {
+      const n = u.programmes.length;
+      const slim = Object.assign({}, u, { programmes: [], listed: u.listed, programmeCount: n });
+      delete slim._sites;
+      out.push(slim);
+    });
+  }
+  out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  if (listedMemo.size > 40) listedMemo.clear();
+  listedMemo.set(k, { v, list: out });
+  return out;
+}
 /* Which university pages the office took off search — read once per request
    that needs all of them, rather than one content row per university. */
 function hiddenUniversitySlugs() {
@@ -262,7 +288,10 @@ const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: l
    an order, so there is something to look at before anyone signs up. */
 const importedCat = seed.seedCatalogue({ db, catalogue: seedCat, countries: seedCountries });
 const seeded = CFG.seedDemo
-  ? seed.run({ db, uploadDir: UPLOADS, catalogue: liveCatalogue(), hashPassword, newSalt,
+  /* Patch 180: a few thousand on-site rows are plenty to pick a demo
+     shortlist from; every on-site row (60,000 with the UK and USA listed)
+     was read on every start just to be ignored once the demo exists. */
+  ? seed.run({ db, uploadDir: UPLOADS, catalogue: (typeof db.findCandidates === 'function' ? db.findCandidates({ limit: 4000 }).rows.map(fromRow) : liveCatalogue()), hashPassword, newSalt,
       password: CFG.demoPassword })
   : null;
 const adminSeed = seed.seedAdmin({ db, admin: CFG.admin, hashPassword, newSalt,
@@ -1539,7 +1568,10 @@ function uniAccess(u, req) {
   } catch (e) { quota = 0; }
   if (!quota) return names || { names: false, fees: false };
   const key = UNIS.uKeyOf(u.name);
-  const cat = liveCatalogue();
+  /* Patch 180: the public on-site rows, four columns — the same walk
+     api.js entitlement() takes, without mapping every on-site row. */
+  const cat = (typeof db.publicOnSite === 'function' ? db.publicOnSite() : db.rowsOnSite().filter(r => r.is_public))
+    .map(r => ({ id: r.id, uKey: UNIS.uKeyOf(r.university), isPublic: true, searchOnly: false }));
   const named = new Set();
   const mine = new Set(shortlist.filter(r => r.is_public).map(r => String(r.prog_id)));
   if (mine.size) {
@@ -2999,8 +3031,50 @@ function forIndexing(html, slug) {
 /* Patch 159: /find-university — every programme, filtered, sorted, in the
    address. The module renders with the same code the browser runs. */
 const FINDPAGE = require('./server/findpage.js');
+/* Patch 180: the rows for one /find-university address, narrowed in the
+   database (api.js candidatesFor does the same for /api/find/match), and
+   the finder's option lists over the whole on-site set, remembered until
+   the catalogue changes. */
+function findCandidateRows(f) {
+  if (typeof db.findCandidates !== 'function') return liveCatalogue();
+  const base = { country: f.country, level: f.level, field: f.field, apply: f.apply, limit: 4000 };
+  let got = db.findCandidates(base);
+  if (got.more && f.q) {
+    const ix = findUniIndex();
+    const keys = new Set(require('./server/unisearch.js').match(ix, f.q));
+    const names = [...new Set(ix.filter(r => keys.has(r.uKey)).map(r => r.university))];
+    const n = db.findCandidates(Object.assign({}, base, { match: f.q, universities: names }));
+    if (n.rows.length) got = n;
+  }
+  return got.rows.map(fromRow);
+}
+/* One line per on-site university (name, short name, city) for the search
+   box's narrowing above — remembered until the catalogue changes. */
+let findUniMemo = null;
+function findUniIndex() {
+  const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+  if (findUniMemo && findUniMemo.v === v) return findUniMemo.rows;
+  const rows = (typeof db.uniNamesOnSite === 'function' ? db.uniNamesOnSite() : [])
+    .map(r => ({ university: r.university, shortName: r.short_name || '', city: r.city || '', uKey: UNIS.uKeyOf(r.university), isPublic: !!r.is_public }));
+  findUniMemo = { v, rows };
+  return rows;
+}
+let findFacetMemo = null;
+function findFacetLists() {
+  const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+  if (findFacetMemo && findFacetMemo.v === v && Date.now() - findFacetMemo.at < 60 * 60 * 1000) return findFacetMemo.lists;
+  const FINDMOD = require('./server/find.js');
+  const rows = typeof db.facetRowsOnSite === 'function'
+    ? db.facetRowsOnSite().map(r => ({ country: r.country, level: r.level, field: r.field,
+      intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })() }))
+    : liveCatalogue().filter(p => !p.searchOnly && p.level && p.field);
+  const lists = FINDMOD.facetValues(rows);
+  findFacetMemo = { v, at: Date.now(), lists };
+  return lists;
+}
 const findPage = FINDPAGE.makeFindPage({
   templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg: DEFAULT_OG, content, slugOf: UNIS.slugOf,
+  candidates: findCandidateRows, facetLists: findFacetLists,
 });
 /* Round 178 (Part D): a page per NAMED programme, the university FAQ and the
    Germany master's guides — server/guides.js. */
