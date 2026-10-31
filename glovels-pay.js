@@ -363,6 +363,12 @@
       if (!inr && rn) inr = inrIn(rn.textContent);
       if (!inr) continue;
       var main = el.querySelector(':scope > .glv-main');
+      /* "including taxes" under a price that has none for this buyer. */
+      var note = el.querySelector(':scope > .note');
+      if (note && /tax/i.test(note.getAttribute('data-glv-note') || note.textContent)) {
+        if (!note.getAttribute('data-glv-note')) note.setAttribute('data-glv-note', note.textContent);
+        note.style.display = foreign ? 'none' : '';
+      }
       if (!foreign) {
         if (main) main.remove();
         if (rn) {
