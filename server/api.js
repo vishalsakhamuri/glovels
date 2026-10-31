@@ -3080,7 +3080,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      */
     let assigned = null;
     if (buyer && !buyer.counsellor_id) {
-      const who = db.lightestCounsellor();
+      const who = db.lightestCounsellor(buyer);
       if (who) {
         db.assignCounsellor(buyer.id, who.id);
         buyer.counsellor_id = who.id;
@@ -4736,6 +4736,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!STAFF_ROLES.includes(s.role)) {
       return json(res, 403, { error: 'Not your workspace' });
     }
+    /* Patch 201: before the first admin action, the existing administrators
+       become super admins — never after somebody has been added. */
+    if (s.role === 'admin' && !superSeen) { ensureSuper(); const me = db.studentById(s.id); if (me) s.super = me.super; }
     return handler(req, res, s, m);
   };
 
@@ -4757,6 +4760,48 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * given, which starts as nothing.
    */
   const can = (s, perm) => db.permsOf(s).includes(perm);
+
+  /*
+   * Patch 201: who is what.
+   *
+   *   super admin     an administrator who may also manage administrators,
+   *                   money, settings, keys, backups and the catalogue export
+   *   admin           runs the office, every country
+   *   country admin   a counsellor account flagged `manager`, with countries:
+   *                   sees every student going to those countries (canSee),
+   *                   and none of the office-wide screens
+   *   counsellor      their own students; may be limited to countries, which
+   *                   decides who they are given automatically
+   *
+   * Every account also says what it is: employee, external or b2b.
+   */
+  /* There is always a super administrator: when none is left (a fresh site,
+     or the first start after this upgrade) every active administrator is one. */
+  let superSeen = false;
+  const ensureSuper = () => {
+    if (superSeen) return;
+    try {
+      if (db.countSupers() > 0) { superSeen = true; return; }
+      {
+        db.staffByRole('admin').filter(a => (a.status || 'active') === 'active')
+          .forEach(a => db.setStaffShape(a.id, { super: true }));
+        superSeen = db.countSupers() > 0;
+      }
+    } catch (e) { /* the rest still works: isSuper falls back below */ }
+  };
+  const isSuper = s => !!s && s.role === 'admin' && (Number(s.super) === 1 || db.countSupers() === 0);
+  const superOnly = (s, res) => {
+    if (isSuper(s)) return false;
+    json(res, 403, { error: 'Only a super administrator can do that.' });
+    return true;
+  };
+  const STAFF_KINDS = ['employee', 'external', 'b2b'];
+  const kindOf = p => (p.role === 'partner' ? 'b2b' : (STAFF_KINDS.includes(p.staff_kind) ? p.staff_kind : 'employee'));
+  const cleanScope = v => (Array.isArray(v) ? v : String(v || '').split(','))
+    .map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z]{2}$/.test(x) && ISO_COUNTRIES.byCode(x))
+    .filter((x, i, a) => a.indexOf(x) === i).slice(0, 40).join(',');
+  const levelOf = p => p.role === 'admin' ? (Number(p.super) ? 'super' : 'admin')
+    : p.role === 'counsellor' ? (Number(p.manager) ? 'country-admin' : 'counsellor') : p.role;
 
   /** For routes that read or write a student's own record. */
   const caseworkOnly = handler => staffOnly(async (req, res, s, m) => {
@@ -5364,14 +5409,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return json(res, 200, { logo: url_ });
   }));
 
-  route('GET', '/api/staff/me', staffOnly(async (req, res, s) => json(res, 200, {
-    user: publicStudent(s),
+  route('GET', '/api/staff/me', staffOnly(async (req, res, s) => (ensureSuper(), json(res, 200, {
+    /* Patch 201: what this person is, so screens can say it and offer only
+       what they may do. The server checks every action regardless. */
+    user: Object.assign(publicStudent(s), { level: levelOf(s), super: isSuper(s), kind: kindOf(s), scope: db.scopeOf(s) }),
     counsellors: s.role === 'admin'
       ? db.activeCaseworkers().map(c => ({ id: c.id, name: c.name, email: c.email }))
       : [],
     live: live.counts(),
     channels: notify.status(),
-  })));
+  }))));
 
   route('GET', '/api/staff/students', caseworkOnly(async (req, res, s) => {
     const rows = db.staffStudents(s).map(st => {
@@ -6812,6 +6859,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    */
   route('GET', '/api/staff/money', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     const sum = MONEY.summarise(db.allStudents(), db.allOrders(), Date.now(), db.paymentsByOrder());
     return json(res, 200, Object.assign({ gstRate: MONEY.GST_RATE }, sum));
   }));
@@ -6911,6 +6959,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    */
   route('GET', '/api/staff/backup.tar', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     if (!backup) return json(res, 503, { error: 'Backups are not set up on this server.' });
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
     db.log(s.name || s.email, 'Backup downloaded', stamp);
@@ -6959,10 +7008,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   /* The copies on the disk, and a button to take one now. */
   route('GET', '/api/staff/backups', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     return json(res, 200, { ok: true, copies: backup ? backup.list() : [], dir: backup ? backup.dir : '' });
   }));
   route('POST', '/api/staff/backups', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     if (!backup) return json(res, 503, { error: 'Backups are not set up on this server.' });
     const file = await backup.nightly();
     db.log(s.name || s.email, 'Backup taken', path.basename(file));
@@ -6992,6 +7043,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   }));
   route('POST', '/api/staff/qa/purge', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     const b = await readJson(req);
     if (String((b && b.confirm) || '') !== 'DELETE QA DATA') {
       return json(res, 422, { error: 'Type DELETE QA DATA (exactly) to confirm. Nothing was removed.' });
@@ -7063,6 +7115,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('PUT', '/api/staff/android', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     const b = await readJson(req);
 
     /* Reverse-DNS, lower case, at least one dot. Play refuses anything else and
@@ -7124,6 +7177,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('PUT', '/api/staff/ios', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     const b = await readJson(req);
     const teamId = String(b.teamId || '').trim().toUpperCase();
     const bundleId = String(b.bundleId || '').trim();
@@ -7160,6 +7214,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('PUT', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
     const b = await readJson(req);
     const was = db.content('mail') || {};
 
@@ -8139,11 +8194,22 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * Admins see everybody. A counsellor sees their own students (and the
    * leads that are theirs or nobody's), so the same screen works as "my day".
    */
-  const COMMAND_SLA = {
+  const COMMAND_SLA_DEFAULT = {
     counsellor: 24,    // hours a paying student may wait to be given a counsellor
     messages: 24,      // hours a student's message may wait for a reply
     docs: 48,          // hours an uploaded document may wait to be checked
     leads: 24,         // hours a new lead may wait for a first call
+  };
+  /* Patch 201: the office sets these (Command centre → SLAs). */
+  const commandSlaOf = () => {
+    let saved = {};
+    try { saved = db.content('commandSla') || {}; } catch (e) { saved = {}; }
+    const out = {};
+    Object.keys(COMMAND_SLA_DEFAULT).forEach(k => {
+      const n = Number(saved[k]);
+      out[k] = Number.isFinite(n) && n >= 1 && n <= 24 * 60 ? Math.round(n) : COMMAND_SLA_DEFAULT[k];
+    });
+    return out;
   };
   const COMMAND_QUEUES = [
     { key: 'counsellor', label: 'Waiting for a counsellor', group: 'start', sla: '24 h' },
@@ -8165,6 +8231,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   function commandCentre(s, now) {
     const H = 36e5;
+    const COMMAND_SLA = commandSlaOf();
     const admin = s.role === 'admin';
     const people = peopleMap();
     const nameOf = id => (id && people.get(Number(id))) ? people.get(Number(id)).name : '';
@@ -8265,6 +8332,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     });
 
     const rank = { late: 0, soon: 1, ok: 2 };
+    const hrs = h => (h % 24 === 0 && h >= 48 ? (h / 24) + ' days' : h + ' h');
     const queues = COMMAND_QUEUES.map(q => {
       const rows = out[q.key].sort((a, b) => rank[a.state] - rank[b.state]
         || (b.overHours != null ? b.overHours - a.overHours : 0)
@@ -8272,7 +8340,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const worst = rows.find(r => r.state === 'late') || null;
       return {
         key: q.key, label: q.label, group: q.group,
-        sla: q.sla || 'per step',
+        sla: COMMAND_SLA[q.key] ? hrs(COMMAND_SLA[q.key]) : 'per step',
         total: rows.length,
         late: rows.filter(r => r.state === 'late').length,
         soon: rows.filter(r => r.state === 'soon').length,
@@ -8304,11 +8372,38 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       };
     }).sort((a, b) => (b.late + b.lateMessages) - (a.late + a.lateMessages) || b.open - a.open);
 
-    /* The journey, left to right, as the tasks board counts it. */
+    /* The journey, left to right, as the tasks board counts it — and, since
+       patch 201, who is at each stop, so a stop opens its students. */
     let journey = [];
     try {
+      const byPhase = {};
+      const openTask = new Map();
+      tasksAll.forEach(t => {
+        if (t.derived || TASKS.CLOSED.has(String(t.status))) return;
+        const sid = Number(t.student_id);
+        const was = openTask.get(sid);
+        if (!was || String(t.due_at || '9') < String(was.due_at || '9')) openTask.set(sid, t);
+      });
+      files.forEach(st => {
+        if (!withWork.has(Number(st.id))) return;
+        let ph = null;
+        try { ph = TASKS.phaseOf(db, st, now); } catch (e) { ph = null; }
+        if (!ph || !ph.key) return;
+        const next = openTask.get(Number(st.id));
+        const over = next ? TASKS.lateness(next, now) : null;
+        (byPhase[ph.key] = byPhase[ph.key] || []).push({
+          studentId: st.id, student: st.name, counsellor: counsellorOf(st),
+          what: next ? 'Next: ' + next.title : 'Nothing open',
+          due: next ? (next.due_at || '') : '', status: next ? next.status : '',
+          overDays: over == null ? null : over,
+          state: ph.late ? 'late' : over != null && over >= -2 ? 'soon' : 'ok',
+          late: ph.late || 0,
+        });
+      });
+      const rankS = { late: 0, soon: 1, ok: 2 };
       journey = TASKS.funnel(db, now, admin ? null : fileIds)
-        .map(p => ({ key: p.key, label: p.short || p.label, students: p.students, late: p.late }));
+        .map(p => ({ key: p.key, label: p.short || p.label, students: p.students, late: p.late,
+          rows: (byPhase[p.key] || []).sort((x, y) => rankS[x.state] - rankS[y.state] || (y.late - x.late)).slice(0, 100) }));
     } catch (e) { journey = []; }
 
     const lateAll = queues.reduce((n, q) => n + q.late, 0);
@@ -8329,6 +8424,29 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('GET', '/api/staff/command', caseworkOnly(async (req, res, s) =>
     json(res, 200, commandCentre(s, Date.now()))));
+
+  /* Patch 201: every SLA in one place — the four clocks here, the steps of
+     the journey through /api/staff/task-rules. */
+  route('GET', '/api/staff/command/sla', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    return json(res, 200, { clocks: commandSlaOf(), defaults: COMMAND_SLA_DEFAULT });
+  }));
+  route('PUT', '/api/staff/command/sla', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const keep = {};
+    for (const k of Object.keys(COMMAND_SLA_DEFAULT)) {
+      if (b[k] == null || b[k] === '') continue;
+      const n = Number(b[k]);
+      if (!Number.isFinite(n) || n < 1 || n > 24 * 60) {
+        return json(res, 422, { error: 'An SLA is between 1 hour and 60 days.', field: k });
+      }
+      keep[k] = Math.round(n);
+    }
+    db.setContent('commandSla', Object.assign({}, commandSlaOf(), keep), s.name);
+    db.log(s.name, 'changed the SLAs', Object.keys(keep).map(k => k + ' ' + keep[k] + ' h').join(', '));
+    return json(res, 200, { clocks: commandSlaOf() });
+  }));
 
   /*
    * Round 178 (BUG-087 / 088 / 089): THE BOARD, ONE ROW PER STUDENT.
@@ -8867,7 +8985,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* A counsellor may only do this for their own. The rule is the same one
          that governs every other student action, and it is enforced here
          rather than by hiding the button. */
-      if (s.role !== 'admin' && Number(student.counsellor_id) !== s.id) {
+      if (!db.canSee(s, id)) {
         return json(res, 403, { error: 'That student is not assigned to you.' });
       }
 
@@ -8904,6 +9022,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
   route('GET', '/api/staff/people', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    ensureSuper();
     const rows = db.staffByRole('counsellor')
       .concat(db.staffByRole('editor'))
       .concat(db.staffByRole('admin'))
@@ -8916,6 +9035,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       people: rows.map(p => ({
         id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: p.role,
         perms: db.permsOf(p),
+        /* Patch 201 */
+        level: levelOf(p), super: Number(p.super) === 1, manager: Number(p.manager) === 1,
+        kind: kindOf(p), scope: db.scopeOf(p), status: p.status || 'active',
         createdAt: p.created_at,
         /* For a partner this is how many students they have introduced; for
            everybody else it is how many files they are carrying. */
@@ -8928,7 +9050,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         closedFiles: p.role === 'partner' ? 0
           : db.allStudents().filter(st => Number(st.counsellor_id) === p.id && !db.openFile(st)).length,
       })).sort((a, b) => a.name.localeCompare(b.name)),
-      me: s.id,
+      me: s.id, meSuper: isSuper(s),
+      countries: ISO_COUNTRIES.all().map(c => ({ code: c.code, name: c.name })),
     });
   }));
 
@@ -8944,6 +9067,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const role = ['admin', 'editor', 'counsellor', 'student', 'partner'].includes(b.role)
       ? b.role : 'counsellor';
     const phone = String(b.phone || '').trim();
+    /* Patch 201: only a super administrator makes administrators. */
+    if ((role === 'admin' || b.super) && !isSuper(s)) {
+      return json(res, 403, { error: 'Only a super administrator can add an administrator.' });
+    }
+    if (role === 'counsellor' && b.manager && !cleanScope(b.scope)) {
+      return json(res, 422, { error: 'A country admin needs at least one country.' });
+    }
 
     if (!name) return json(res, 422, { error: 'They need a name' });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
@@ -8989,6 +9119,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        granted here would be one nobody thought about. */
     if (role === 'partner') perms = [];
     if (role !== 'admin') db.setPerms(person.id, perms);
+    /* Patch 201: what they are and where they work. */
+    if (role !== 'student') {
+      db.setStaffShape(person.id, {
+        super: role === 'admin' && !!b.super,
+        manager: role === 'counsellor' && !!b.manager,
+        kind: role === 'partner' ? 'b2b' : (STAFF_KINDS.includes(b.kind) && b.kind !== 'b2b' ? b.kind : 'employee'),
+        scope: role === 'admin' ? '' : cleanScope(b.scope),
+      });
+    }
 
     /* A student made by a COUNSELLOR is theirs — they are sitting with the
        person. One made by an administrator is left unassigned on purpose: an
@@ -9028,6 +9167,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const id = Number(m[1]);
     const person = db.studentById(id);
     if (!person) return json(res, 404, { error: 'No such person' });
+    if (person.role === 'admin' && Number(id) !== Number(s.id) && superOnly(s, res)) return;
     const b = await readJson(req);
     if (b.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(b.email).trim())) {
       return json(res, 400, { error: 'That is not an email address' });
@@ -9082,6 +9222,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     }
     const person = db.studentById(id);
     if (!person) return json(res, 404, { error: 'No such person' });
+    if (person.role === 'admin' && superOnly(s, res)) return;
+    if (Number(person.super) === 1 && db.countSupers() <= 1) {
+      return json(res, 400, { error: 'That is the only super administrator. Make somebody else one first.' });
+    }
 
     if (person.role === 'admin' && db.countAdmins() <= 1) {
       return json(res, 400, {
@@ -9140,6 +9284,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     const person = db.studentById(id);
     if (!person) return json(res, 404, { error: 'No such person' });
+    if ((person.role === 'admin' || role === 'admin') && superOnly(s, res)) return;
+    if (Number(person.super) === 1 && role !== 'admin' && db.countSupers() <= 1) {
+      return json(res, 409, { error: 'That is the only super administrator. Make somebody else one first.' });
+    }
 
     /* Two things this must never allow, both unrecoverable from inside the app:
        an organisation with no administrator, and an admin removing their own
@@ -9193,8 +9341,59 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     }
 
     db.setRole(id, role);
+    /* Patch 201: the flags belong to a role; leaving it drops them. */
+    db.setStaffShape(id, {
+      super: role === 'admin' ? Number(person.super) === 1 : false,
+      manager: role === 'counsellor' ? Number(person.manager) === 1 : false,
+      kind: role === 'partner' ? 'b2b' : (person.staff_kind === 'b2b' ? 'employee' : (person.staff_kind || 'employee')),
+      scope: role === 'admin' ? '' : (person.scope || ''),
+    });
     db.log(s.name, 'role changed', person.name + ' is now a ' + role);
     return json(res, 200, { person: { id, name: person.name, role } });
+  }));
+
+  /*
+   * Patch 201: what somebody is and where they work, changed in one place.
+   *   { level: 'super'|'admin'|'country-admin'|'counsellor', kind, scope }
+   * `level` only moves within the person's current role (the role itself
+   * changes through /role, with its own safeguards).
+   */
+  route('PUT', /^\/api\/staff\/people\/(\d+)\/shape$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const id = Number(m[1]);
+    const person = db.studentById(id);
+    if (!person || person.role === 'student') return json(res, 404, { error: 'No such person' });
+    if (person.role === 'admin' && superOnly(s, res)) return;
+    const b = await readJson(req);
+    const shape = {};
+    if (b.level !== undefined) {
+      if (person.role === 'admin') {
+        const sup = b.level === 'super';
+        if (!sup && Number(person.super) === 1 && db.countSupers() <= 1) {
+          return json(res, 409, { error: 'That is the only super administrator. Make somebody else one first.' });
+        }
+        shape.super = sup;
+      } else if (person.role === 'counsellor') {
+        shape.manager = b.level === 'country-admin';
+      }
+    }
+    if (b.kind !== undefined && person.role !== 'partner') {
+      if (!['employee', 'external'].includes(b.kind)) return json(res, 422, { error: 'An account is an employee or external.' });
+      shape.kind = b.kind;
+    }
+    if (b.scope !== undefined && person.role !== 'admin') shape.scope = cleanScope(b.scope);
+    const after = Object.assign({}, person, {
+      scope: shape.scope !== undefined ? shape.scope : person.scope,
+      manager: shape.manager !== undefined ? (shape.manager ? 1 : 0) : person.manager,
+    });
+    if (Number(after.manager) && !db.scopeOf(after).length) {
+      return json(res, 422, { error: 'A country admin needs at least one country.' });
+    }
+    db.setStaffShape(id, shape);
+    const p = db.studentById(id);
+    db.log(s.name, 'role details changed', p.name + ' \u2014 ' + levelOf(p) + ', ' + kindOf(p)
+      + (db.scopeOf(p).length ? ', ' + db.scopeOf(p).join(' ') : ', every country'));
+    return json(res, 200, { person: { id, level: levelOf(p), kind: kindOf(p), scope: db.scopeOf(p) } });
   }));
 
   route('PUT', /^\/api\/staff\/people\/(\d+)\/perms$/, caseworkOnly(async (req, res, s, m) => {
@@ -9220,6 +9419,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const id = Number(m[1]);
     const person = db.studentById(id);
     if (!person) return json(res, 404, { error: 'No such person' });
+    if (person.role === 'admin' && Number(id) !== Number(s.id) && superOnly(s, res)) return;
 
     const password = newPassword();
     const salt = newSalt();
@@ -10947,6 +11147,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   }));
 
   route('GET', /^\/api\/staff\/catalogue\.(xlsx|csv)$/, needs('catalogue', async (req, res, s, m) => {
+    /* Patch 201: the whole catalogue is the business's secret sauce; only a
+       super administrator may take a copy of it. */
+    if (superOnly(s, res)) return;
     const headers = SHEET_COLUMNS.map(c => c[0]);
     /* ?country=DE — one destination's rows. The whole catalogue as one Excel
        file stops at 60,000 rows (a workbook of a million rows is built in

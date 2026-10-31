@@ -900,11 +900,33 @@ function sqliteDriver(file) {
    /* Patch 187: the visitor's country (two letters, from their IP), for the
       Traffic screen's "Visitors by country". The address itself is never kept. */
    "ALTER TABLE hits ADD COLUMN country TEXT NOT NULL DEFAULT ''",
+   /* Patch 201: who is what, and where.
+      super       an administrator who may also manage administrators, money,
+                  settings, keys, backups and the catalogue export
+      manager     a counsellor account that is a COUNTRY ADMIN: it sees every
+                  student going to its countries, not only its own
+      staff_kind  employee | external | b2b — said on the team screen
+      scope       the study destinations this person works on, as two-letter
+                  codes ("DE,CA"); empty means every country */
+   "ALTER TABLE students ADD COLUMN super INTEGER NOT NULL DEFAULT 0",
+   "ALTER TABLE students ADD COLUMN manager INTEGER NOT NULL DEFAULT 0",
+   "ALTER TABLE students ADD COLUMN staff_kind TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE students ADD COLUMN scope TEXT NOT NULL DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
   const one = (sql, ...a) => db.prepare(sql).get(...a) || null;
   const run = (sql, ...a) => db.prepare(sql).run(...a);
+
+  /* Patch 201: there is always a super administrator. On the first start
+     after the upgrade — and whenever none is left — every administrator is
+     one, so nobody is locked out of their own office. */
+  try {
+    if (!all('SELECT * FROM students WHERE super = ?', 1).length) {
+      all('SELECT * FROM students WHERE role = ?', 'admin').forEach(a =>
+        run('UPDATE students SET super = ? WHERE id = ?', 1, Number(a.id)));
+    }
+  } catch (e) { /* an old driver without the column: nothing to promote */ }
 
   /*
    * A consistent copy of the database in another file, while the server keeps
@@ -2674,9 +2696,17 @@ function open(dir) {
      * again. `all` overrides it either way.
      */
     staffStudents(staff, all) {
-      const rows = staff.role === 'admin'
+      let rows = staff.role === 'admin'
         ? db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student')
         : db.all('SELECT * FROM students WHERE counsellor_id = ? ORDER BY id desc', Number(staff.id));
+      /* Patch 201: a country admin's list is their own students plus every
+         student going to one of their countries. */
+      if (staff.role === 'counsellor' && Number(staff.manager)) {
+        const have = new Set(rows.map(r => Number(r.id)));
+        db.all("SELECT * FROM students WHERE role = ? ORDER BY id desc", 'student')
+          .forEach(r => { if (!have.has(Number(r.id)) && this.inScope(staff, r)) rows.push(r); });
+        rows.sort((a, b) => Number(b.id) - Number(a.id));
+      }
       if (all || staff.role === 'admin') return rows;
       return rows.filter(r => (r.status || 'active') === 'active');
     },
@@ -2857,7 +2887,39 @@ function open(dir) {
     canSee(staff, studentId) {
       if (staff.role === 'admin') return true;
       const st = this.studentById(studentId);
-      return !!st && Number(st.counsellor_id) === Number(staff.id);
+      if (!st) return false;
+      if (Number(st.counsellor_id) === Number(staff.id)) return true;
+      /* Patch 201: a country admin also sees every student going to one of
+         their countries. Nobody else sees a student they do not hold. */
+      return this.inScope(staff, st);
+    },
+    /** The study destinations a person works on: [] means everywhere. */
+    scopeOf(person) {
+      return String((person && person.scope) || '').split(',').map(x => x.trim().toUpperCase())
+        .filter(x => /^[A-Z]{2}$/.test(x));
+    },
+    /** Where a student wants to study, as two-letter codes. */
+    destinationsOf(st) {
+      let p = {};
+      try { p = this.getProfile(Number(st.id)) || {}; } catch (e) { p = {}; }
+      return String(p.g_country || p.destination || '').split(',').map(x => destCode(x.trim())).filter(Boolean);
+    },
+    /** A country admin, and the student is going to one of their countries. */
+    inScope(staff, st) {
+      if (!staff || !Number(staff.manager) || staff.role !== 'counsellor') return false;
+      const mine = this.scopeOf(staff);
+      if (!mine.length) return false;
+      return this.destinationsOf(st).some(c => mine.includes(c));
+    },
+    setStaffShape(id, { super: sup, manager, kind, scope }) {
+      if (sup !== undefined) db.run('UPDATE students SET super = ? WHERE id = ?', sup ? 1 : 0, Number(id));
+      if (manager !== undefined) db.run('UPDATE students SET manager = ? WHERE id = ?', manager ? 1 : 0, Number(id));
+      if (kind !== undefined) db.run('UPDATE students SET staff_kind = ? WHERE id = ?', String(kind || ''), Number(id));
+      if (scope !== undefined) db.run('UPDATE students SET scope = ? WHERE id = ?', String(scope || ''), Number(id));
+    },
+    countSupers() {
+      return db.all('SELECT * FROM students WHERE super = ?', 1).filter(r => r.role === 'admin'
+        && (r.status || 'active') === 'active').length;
     },
     assignCounsellor: (studentId, counsellorId) =>
       db.run('UPDATE students SET counsellor_id = ? WHERE id = ?',
@@ -2879,7 +2941,7 @@ function open(dir) {
      * student, so putting one on a caseload does not give them anything and
      * does quietly make them somebody's first point of contact.
      */
-    lightestCounsellor() {
+    lightestCounsellor(student) {
       /* Bound parameters, not literals written into the SQL. The fallback
          driver's WHERE reader only sees `column = ?`, so a literal is a
          condition it silently drops — and "every counsellor" quietly became
@@ -2889,9 +2951,18 @@ function open(dir) {
          read role = 'counsellor' with status active and nothing else, so the
          testers' "qwe" account (active, a test name) took the next paying
          student on its turn of the round robin. None left: unassigned. */
-      const staff = this.activeCaseworkers().slice()
+      let staff = this.activeCaseworkers().slice()
         .sort((a, b) => Number(a.id) - Number(b.id));
       if (!staff.length) return null;
+      /* Patch 201: country first. A student going to Germany goes to the
+         lightest counsellor who works on Germany; if nobody does, to the
+         lightest counsellor who works everywhere; only then to anybody. */
+      if (student) {
+        const dest = this.destinationsOf(student);
+        const forDest = staff.filter(c => { const sc = this.scopeOf(c); return sc.length && dest.some(d => sc.includes(d)); });
+        const global = staff.filter(c => !this.scopeOf(c).length);
+        staff = forDest.length ? forDest : global.length ? global : staff;
+      }
       const load = c => db.all(
         'SELECT * FROM students WHERE counsellor_id = ? AND role = ?', Number(c.id), 'student')
         .filter(r => r.status == null || r.status === 'active').length;

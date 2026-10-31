@@ -77,6 +77,7 @@ button{font:inherit;color:inherit}
   radial-gradient(circle at 90% 120%,rgba(64,120,200,.28),transparent 45%);pointer-events:none}
 .route h2{position:relative;margin:0;font:700 15px var(--disp);color:#e9eef5;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .route h2 span{font:500 12.5px var(--sans);color:#9fb2c8}
+.route-tip{position:relative;margin:4px 0 0;font:500 12.5px var(--sans);color:#9fb2c8}
 .track{position:relative;margin-top:10px;height:132px}
 .track svg.line{position:absolute;left:0;top:0;width:100%;height:110px;display:block;overflow:visible}
 .track path.base{fill:none;stroke:rgba(255,255,255,.12);stroke-width:2;stroke-dasharray:2 7;stroke-linecap:round}
@@ -86,7 +87,9 @@ button{font:inherit;color:inherit}
 .stop{position:absolute;transform:translate(-50%,-23px);display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:0;cursor:pointer;padding:0 2px;color:#fff;width:96px}
 .dot{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font:800 16px var(--disp);
   background:#13304d;border:2px solid rgba(255,255,255,.18);position:relative;transition:transform .2s}
-.stop:hover .dot{transform:translateY(-2px);border-color:var(--gold)}
+.stop:hover .dot{transform:translateY(-3px) scale(1.06);border-color:var(--gold);box-shadow:0 0 0 6px rgba(201,162,75,.18)}
+.stop:hover span{color:#fff}
+.stop:focus-visible .dot{box-shadow:0 0 0 4px var(--gold)}
 .stop.has .dot{background:#1b3f63;border-color:rgba(201,162,75,.65)}
 .stop.empty .dot{color:#6f86a1}
 .stop .late{position:absolute;top:-7px;right:-9px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--late);font:800 11px/20px var(--sans);color:#fff;box-shadow:0 0 0 3px var(--ink)}
@@ -139,6 +142,25 @@ tr:last-child td{border-bottom:0}
 .ring svg{width:42px;height:42px;transform:rotate(-90deg)}
 .ring circle{fill:none;stroke-width:5}
 .ring b{position:absolute;inset:0;display:grid;place-items:center;font:800 11px var(--sans)}
+
+/* -------------------------------------------------------- the SLA editor */
+.slaf{display:grid;gap:10px;padding:6px 6px 20px}
+.slaf h3{margin:14px 0 2px;font:800 15px var(--disp)}
+.slaf p{margin:0 0 4px;color:var(--mute);font-size:12.5px}
+.slar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--rule);border-radius:12px}
+.slar b{display:block;font-size:13.5px}
+.slar small{color:var(--mute);font-size:12px}
+.slar .in{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.slar input[type=number]{width:72px;padding:8px 10px;border:1px solid var(--rule);border-radius:10px;font:700 14px var(--sans);text-align:right}
+.slar input[type=number]:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 4px rgba(201,162,75,.25)}
+.slar.off{opacity:.55}
+.sw{position:relative;width:38px;height:22px;border-radius:999px;background:#d5dde8;border:0;cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw[aria-checked="true"]{background:var(--ok)}
+.sw[aria-checked="true"]::after{transform:translateX(16px)}
+.slasave{position:sticky;bottom:0;background:#fff;padding:12px 6px;border-top:1px solid var(--rule);display:flex;gap:10px;align-items:center}
+.slasave button{background:var(--ink);color:#fff;border:0;border-radius:12px;padding:11px 18px;font:700 14px var(--sans);cursor:pointer}
+.slasave span{color:var(--mute);font-size:12.5px}
 
 /* ------------------------------------------------------------ the drawer */
 .scrim{position:fixed;inset:0;background:rgba(11,30,49,.38);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
@@ -215,6 +237,7 @@ body.open .drawer{transform:none}
           <svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="gfg" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
           <b id="gnum">—</b>
         </div>
+        <button type="button" class="refresh" id="slaBtn" hidden>Set SLAs</button>
         <button type="button" class="refresh" id="refresh">Refresh</button>
       </div>
     </div>
@@ -223,6 +246,7 @@ body.open .drawer{transform:none}
 
     <section class="route" aria-labelledby="routeH">
       <h2 id="routeH">Where every student is on the journey <span id="routeNote"></span></h2>
+      <p class="route-tip">Tap a stop to see who is there.</p>
       <div class="track" id="track">
         <svg class="line" id="line" viewBox="0 0 1000 110" preserveAspectRatio="none" aria-hidden="true">
           <path class="base" id="pBase" d=""/>
@@ -433,6 +457,22 @@ body.open .drawer{transform:none}
     drawRows(q.rows, q.total);
     document.body.classList.add('open'); $('#drawer').focus();
   }
+  /* A stop on the route opens the students at that stage, worst first. */
+  function openPhase(key) {
+    var p = (DATA.journey || []).find(function (x) { return x.key === key; });
+    if (!p) return;
+    OPEN = { kind: 'phase', key: key }; FILTER = p.late ? 'late' : 'all';
+    $('#dTitle').textContent = p.label;
+    $('#dSub').textContent = p.students + (p.students === 1 ? ' student' : ' students') + ' at this stage'
+      + (p.late ? ' · ' + p.late + ' with steps past their date' : '');
+    drawRows(p.rows || [], p.students);
+    document.body.classList.add('open'); $('#drawer').focus();
+  }
+  function rowsOpen() {
+    if (!OPEN) return null;
+    var src = OPEN.kind === 'phase' ? DATA.journey : DATA.queues;
+    return (src || []).find(function (x) { return x.key === OPEN.key; });
+  }
   function drawRows(rows, total) {
     var counts = { all: rows.length, late: 0, soon: 0, ok: 0 };
     rows.forEach(function (r) { counts[r.state]++; });
@@ -456,19 +496,78 @@ body.open .drawer{transform:none}
   document.addEventListener('click', function (e) {
     var q = e.target.closest('[data-q]'); if (q) return openQueue(q.dataset.q);
     var st = e.target.closest('[data-phase]');
-    if (st) { location.href = 'admin.html?view=tasks&phase=' + encodeURIComponent(st.dataset.phase); return; }
+    if (st) return openPhase(st.dataset.phase);
     var f = e.target.closest('[data-f]');
-    if (f && OPEN) { FILTER = f.dataset.f; var qq = DATA.queues.find(function (x) { return x.key === OPEN.key; }); drawRows(qq.rows, qq.total); }
+    if (f && OPEN) { FILTER = f.dataset.f; var qq = rowsOpen(); if (qq) drawRows(qq.rows || [], qq.total != null ? qq.total : qq.students); }
   });
   $('#dx').onclick = closeDrawer; $('#scrim').onclick = closeDrawer;
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+
+  /* -------------------------------------------------------- SLA editor */
+  var RULES = null;
+  function openSla() {
+    OPEN = { kind: 'sla' };
+    $('#dTitle').textContent = 'SLAs';
+    $('#dSub').textContent = 'How long each thing may take before it shows as late. Changes apply to open work at once.';
+    $('#dFilters').innerHTML = '';
+    $('#dList').innerHTML = '<div class="none">Loading…</div>';
+    document.body.classList.add('open');
+    Promise.all([api('/api/staff/command/sla'), api('/api/staff/task-rules')]).then(function (r) {
+      var c = r[0].clocks; RULES = r[1];
+      var CL = [['counsellor', 'A paying student gets a counsellor'], ['messages', 'A student\u2019s message gets a reply'],
+        ['leads', 'A new lead gets a first call'], ['docs', 'An uploaded document gets checked']];
+      var html = '<form class="slaf" id="slaForm"><h3>Response times</h3><p>In hours. 48 = two days.</p>'
+        + CL.map(function (x) {
+          return '<label class="slar"><span><b>' + x[1] + '</b></span><span class="in"><input type="number" min="1" max="1440" name="c_' + x[0] + '" value="' + c[x[0]] + '"> hours</span></label>';
+        }).join('')
+        + '<h3>Steps of the journey</h3><p>Each step is due a number of days after the student starts, or before (minus: after) their application deadline. Switch off a step the office does not do.</p>'
+        + (RULES.rules || []).map(function (t) {
+          var isSla = t.due && Object.prototype.hasOwnProperty.call(t.due, 'sla');
+          var n = isSla ? t.due.sla : t.due.before;
+          return '<div class="slar' + (t.off ? ' off' : '') + '" data-rule="' + esc(t.key) + '"><span><b>' + esc(t.title) + '</b><small>'
+            + (isSla ? 'days after they start' : 'days before the deadline') + '</small></span>'
+            + '<span class="in"><input type="number" min="-365" max="365" name="r_' + esc(t.key) + '" data-kind="' + (isSla ? 'sla' : 'before') + '" value="' + n + '"> days '
+            + '<button type="button" class="sw" role="switch" aria-label="Step on" aria-checked="' + (!t.off) + '" data-sw="' + esc(t.key) + '"></button></span></div>';
+        }).join('')
+        + '<label class="slar"><span><b>Any bought service</b><small>days after it is bought</small></span><span class="in"><input type="number" min="0" max="365" name="svc" value="' + (RULES.serviceSla != null ? RULES.serviceSla : 14) + '"> days</span></label>'
+        + '<div class="slasave"><button type="submit">Save SLAs</button><span id="slaMsg"></span></div></form>';
+      $('#dList').innerHTML = html;
+    }).catch(function (e) { $('#dList').innerHTML = '<div class="none">' + esc(e.message) + '</div>'; });
+  }
+  document.addEventListener('click', function (e) {
+    var sw = e.target.closest('[data-sw]');
+    if (sw) { var on = sw.getAttribute('aria-checked') !== 'true'; sw.setAttribute('aria-checked', String(on)); sw.closest('.slar').classList.toggle('off', !on); }
+  });
+  document.addEventListener('submit', function (e) {
+    if (e.target.id !== 'slaForm') return;
+    e.preventDefault();
+    var f = e.target, clocks = {}, rules = {};
+    ['counsellor', 'messages', 'leads', 'docs'].forEach(function (k) { clocks[k] = f['c_' + k].value; });
+    [].forEach.call(f.querySelectorAll('[data-rule]'), function (row) {
+      var k = row.dataset.rule, inp = row.querySelector('input'), one = {};
+      one[inp.dataset.kind] = inp.value;
+      if (row.querySelector('[data-sw]').getAttribute('aria-checked') !== 'true') one.off = true;
+      rules[k] = one;
+    });
+    $('#slaMsg').textContent = 'Saving…';
+    fetch('/api/staff/command/sla', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clocks) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error); }); })
+      .then(function () {
+        return fetch('/api/staff/task-rules', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rules: rules, serviceSla: f.svc.value }) })
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error); }); });
+      })
+      .then(function () { $('#slaMsg').textContent = 'Saved. Every queue now counts with these.'; load(); })
+      .catch(function (err) { $('#slaMsg').textContent = err.message; });
+  });
+  $('#slaBtn').onclick = openSla;
 
   /* ------------------------------------------------------------- load */
   function load() {
     return api('/api/staff/command').then(function (d) {
       DATA = d; $('#error').hidden = true;
       paintTop(d); paintRoute(d); paintQueues(d); paintCrew(d);
-      if (OPEN) { var q = d.queues.find(function (x) { return x.key === OPEN.key; }); if (q) drawRows(q.rows, q.total); }
+      if (OPEN && OPEN.kind !== 'sla') { var q = rowsOpen(); if (q) drawRows(q.rows || [], q.total != null ? q.total : q.students); }
     }).catch(function (e) {
       if (e.message === 'signed out') return;
       $('#error').textContent = e.message + ' Press Refresh to try again.'; $('#error').hidden = false;
@@ -484,6 +583,7 @@ body.open .drawer{transform:none}
     var u = me.user || me;
     $('#meName').textContent = u.name || ''; $('#meRole').textContent = u.role || '';
     if (u.role !== 'admin') $('#navOrg').hidden = true;
+    else $('#slaBtn').hidden = false;
     tick(); setInterval(tick, 15000);
     load(); setInterval(function () { if (!document.hidden) load(); }, 60000);
   }).catch(function (e) {

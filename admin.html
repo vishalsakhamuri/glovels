@@ -1108,15 +1108,34 @@ select.assign.none:hover{border-color:#a5342b}
           <div class="field" style="margin-bottom:10px"><label for="pEmail">Work email</label>
             <input id="pEmail" placeholder="kavya@glovels.com" inputmode="email"></div>
           <div class="field" style="margin-bottom:10px"><label for="pPhone">Mobile (optional)</label>
-            <input id="pPhone" inputmode="tel" placeholder="98765 43210" pattern="[+\d\s().-]*" maxlength="20"></div>
-          <div class="field" style="margin-bottom:10px"><label for="pRole">What kind of account</label>
+            <input id="pPhone" inputmode="tel" placeholder="98765 43210" pattern="[\d\s\+\(\)\.\-]*" maxlength="20"></div>
+          <div class="field" style="margin-bottom:10px"><label for="pRole">Role</label>
             <select id="pRole">
               <option value="counsellor">Counsellor — their own students, and the chat</option>
+              <option value="country-admin">Country admin — every student going to their countries</option>
+              <option value="admin">Administrator — runs the office, every country</option>
+              <option value="super">Super admin — also admins, money, settings and exports</option>
               <option value="editor">Website editor — the site only, no student records</option>
-              <option value="admin">Administrator — everything, including this screen</option>
+              <option value="partner">Partner agency (B2B) — a partner who sends us students</option>
               <option value="student">Student — a real student account on this site</option>
-              <option value="partner">Partner agency — a B2B partner who sends us students</option>
             </select></div>
+          <div class="pm-row" id="pKindBox">
+            <span class="pm-lbl">Works for us as</span>
+            <div class="pm-seg" role="radiogroup" aria-label="Works for us as">
+              <button type="button" data-kind="employee" aria-checked="true">Employee</button>
+              <button type="button" data-kind="external" aria-checked="false">External counsellor</button>
+            </div>
+          </div>
+          <div class="pm-row" id="pScopeBox">
+            <span class="pm-lbl" id="pScopeLbl">Countries they work on</span>
+            <div class="pm-chips" id="pScopeChips"></div>
+            <div class="pm-pick">
+              <input id="pScopeIn" list="pScopeList" placeholder="Add a country — Germany, Canada…" autocomplete="off">
+              <datalist id="pScopeList"></datalist>
+            </div>
+            <div class="pm-quick" id="pScopeQuick"></div>
+            <small class="pm-help" id="pScopeHelp">Leave empty for every country.</small>
+          </div>
           <p id="pPartnerNote" style="display:none;margin:0 0 10px;padding:11px 13px;
             border-radius:10px;background:#f6f2ea;border:1px solid #e2d6bd;
             font:600 12.4px/1.55 var(--sans);color:var(--navy-800)">
@@ -3692,6 +3711,11 @@ if (srcSel) srcSel.addEventListener('change', e => { srcOnly = e.target.value; P
 async function paintPeople() {
   const r = await api('GET', '/api/staff/people');
   PEOPLE = r.people;
+  fillCountries(r.countries);
+  ME_SUPER = !!r.meSuper;
+  /* Only a super administrator is offered the administrator levels. */
+  [].forEach.call(document.querySelectorAll('#pRole option[value="admin"], #pRole option[value="super"]'),
+    o => { o.disabled = !r.meSuper; });
   /* Counsellors and administrators. In an office this size the administrator
      IS somebody's counsellor, usually for the difficult files, and the server
      accepts either — this filter was the only thing still saying otherwise, so
@@ -3733,15 +3757,25 @@ async function paintPeople() {
             '" data-key="' + perm[0] + '" data-on="' + (on ? '1' : '0') + '" aria-pressed="' + on + '">' +
             '<i aria-hidden="true"></i>' + perm[1] + '</button>';
         }).join('');
-    return '<li class="tm-card">' +
+    const LV = { super: 'Super admin', admin: 'Administrator', 'country-admin': 'Country admin',
+      counsellor: 'Counsellor', editor: 'Website editor', partner: 'Partner agency' };
+    const KD = { employee: 'Employee', external: 'External', b2b: 'B2B' };
+    const flags = (p.scope || []).map(c => '<span class="tm-flag" title="' + esc(countryName(c)) + '">' + flagOf(c) + ' ' + esc(countryName(c)) + '</span>').join('');
+    const meta = '<div class="tm-meta"><span class="tm-lvl lv-' + esc(p.level || p.role) + '">' + esc(LV[p.level] || p.role) + '</span>' +
+      '<span class="tm-kind k-' + esc(p.kind || 'employee') + '">' + esc(KD[p.kind] || 'Employee') + '</span>' +
+      (p.role === 'admin' ? '<span class="tm-flag all">Every country</span>'
+        : (p.scope && p.scope.length ? flags : (p.role === 'counsellor' ? '<span class="tm-flag all">Every country</span>' : ''))) + '</div>';
+    return '<li class="tm-card" data-level="' + esc(p.level || p.role) + '" data-kind="' + esc(p.kind || 'employee') + '">' +
       '<span class="tm-av" style="background:' + AV[Math.abs(Number(p.id) || 0) % AV.length] + '">' + esc(initialsOf(p.name)) + '</span>' +
       '<div class="tm-who"><b>' + esc(p.name) + (p.id === ME ? ' <span class="tm-you">you</span>' : '') + '</b>' +
-        '<span>' + esc(p.email) + '</span></div>' +
+        '<span>' + esc(p.email) + '</span>' + meta + '</div>' +
       '<div class="tm-role">' + (p.id === ME
-        ? '<span class="tm-badge r-' + esc(p.role) + '">' + esc(ROLE_NAME[p.role] || p.role) + '</span>'
-        : '<select class="tm-select r-' + esc(p.role) + '" data-role="' + p.id + '" aria-label="Role for ' + esc(p.name) + '">' +
-          [['counsellor', 'Counsellor'], ['editor', 'Website editor'], ['admin', 'Administrator'], ['partner', 'Partner agency']]
-            .map(r => '<option value="' + r[0] + '"' + (p.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>').join('') +
+        ? '<span class="tm-badge r-' + esc(p.level || p.role) + '">' + esc(LV[p.level] || ROLE_NAME[p.role] || p.role) + '</span>'
+        : '<select class="tm-select r-' + esc(p.level || p.role) + '" data-role="' + p.id + '" aria-label="Role for ' + esc(p.name) + '">' +
+          [['super', 'Super admin'], ['admin', 'Administrator'], ['country-admin', 'Country admin'], ['counsellor', 'Counsellor'],
+           ['editor', 'Website editor'], ['partner', 'Partner agency']]
+            .map(r => '<option value="' + r[0] + '"' + ((p.level || p.role) === r[0] ? ' selected' : '')
+              + ((r[0] === 'super' || r[0] === 'admin') && !ME_SUPER ? ' disabled' : '') + '>' + r[1] + '</option>').join('') +
           '</select>') +
         '<small>' + esc(load) + '</small></div>' +
       '<div class="tm-perms">' + perms + '</div>' +
@@ -3753,6 +3787,7 @@ async function paintPeople() {
         (p.id === ME ? '' : '<button type="button" class="tm-act danger" data-del="' + p.id + '">Delete</button>') +
       '</div></li>';
   }).join('') || '<li class="tm-card"><span>Nobody yet. Add your first counsellor.</span></li>';
+  groupTeam();
 
   paint();
 }
@@ -3786,6 +3821,114 @@ function showPassword(title, name, email, password) {
    only thing that changes is the verb. */
 let EDITING = null;
 
+/* ---------------------------------------------------------- Patch 201
+   Who is what: grouped team, role levels, type and countries. */
+let COUNTRY_LIST = [];
+let ME_SUPER = false;
+let SCOPE = [];
+let KIND = 'employee';
+const POPULAR = ['DE', 'GB', 'US', 'CA', 'AU', 'IE', 'FR', 'NZ', 'IT', 'NL'];
+function flagOf(c) { return String(c || '').toUpperCase().replace(/./g, ch => String.fromCodePoint(127397 + ch.charCodeAt(0))); }
+function countryName(c) { const x = COUNTRY_LIST.find(k => k.code === c); return x ? x.name : c; }
+const TEAM_GROUPS = [
+  ['super', 'Super admins'], ['admin', 'Administrators'], ['country-admin', 'Country admins'],
+  ['counsellor', 'Counsellors'], ['editor', 'Website editors'], ['partner', 'B2B partners'],
+];
+let TEAM_FILTER = 'all';
+function groupTeam() {
+  const ul = $('#counsellors');
+  if (!ul) return;
+  const cards = [].slice.call(ul.querySelectorAll('li.tm-card[data-level]'));
+  ul.querySelectorAll('li.tm-group').forEach(n => n.remove());
+  TEAM_GROUPS.forEach(([lv, label]) => {
+    const mine = cards.filter(c => c.dataset.level === lv);
+    if (!mine.length) return;
+    const h = document.createElement('li');
+    h.className = 'tm-group';
+    h.innerHTML = '<b>' + label + '</b><span>' + mine.length + '</span>';
+    ul.appendChild(h);
+    mine.forEach(c => ul.appendChild(c));
+  });
+  cards.filter(c => !TEAM_GROUPS.some(g => g[0] === c.dataset.level)).forEach(c => ul.appendChild(c));
+  /* Filter chips: everybody, employees, externals, B2B. */
+  let bar = $('#teamFilter');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'teamFilter'; bar.className = 'tm-filter';
+    ul.parentNode.insertBefore(bar, ul);
+  }
+  const n = k => cards.filter(c => k === 'all' || c.dataset.kind === k).length;
+  bar.innerHTML = [['all', 'Everybody'], ['employee', 'Employees'], ['external', 'External counsellors'], ['b2b', 'B2B partners']]
+    .map(([k, t]) => '<button type="button" data-tf="' + k + '" aria-pressed="' + (TEAM_FILTER === k) + '">' + t + ' <i>' + n(k) + '</i></button>').join('');
+  applyTeamFilter();
+}
+function applyTeamFilter() {
+  const ul = $('#counsellors');
+  ul.querySelectorAll('li.tm-card[data-level]').forEach(c => { c.hidden = TEAM_FILTER !== 'all' && c.dataset.kind !== TEAM_FILTER; });
+  ul.querySelectorAll('li.tm-group').forEach(h => {
+    let el = h.nextElementSibling, any = false;
+    while (el && !el.classList.contains('tm-group')) { if (!el.hidden) any = true; el = el.nextElementSibling; }
+    h.hidden = !any;
+  });
+}
+function paintScope() {
+  $('#pScopeChips').innerHTML = SCOPE.map(c => '<span class="pm-chip">' + flagOf(c) + ' ' + esc(countryName(c)) +
+    '<button type="button" data-unscope="' + c + '" aria-label="Remove ' + esc(countryName(c)) + '">×</button></span>').join('');
+  $('#pScopeQuick').innerHTML = POPULAR.filter(c => !SCOPE.includes(c) && COUNTRY_LIST.some(k => k.code === c))
+    .map(c => '<button type="button" data-scope="' + c + '">+ ' + flagOf(c) + ' ' + esc(countryName(c)) + '</button>').join('');
+}
+function addScope(code) {
+  if (code && !SCOPE.includes(code)) SCOPE.push(code);
+  paintScope();
+}
+function syncLevel() {
+  const v = $('#pRole').value;
+  const staffish = ['counsellor', 'country-admin', 'admin', 'super', 'editor'].includes(v);
+  $('#pKindBox').style.display = staffish ? '' : 'none';
+  $('#pScopeBox').style.display = (v === 'counsellor' || v === 'country-admin') ? '' : 'none';
+  $('#pScopeLbl').textContent = v === 'country-admin' ? 'Their countries (at least one)' : 'Countries they work on';
+  $('#pScopeHelp').textContent = v === 'country-admin'
+    ? 'They see every student going to these countries.'
+    : 'New students going to these countries are given to them first. Leave empty for every country.';
+  [].forEach.call(document.querySelectorAll('#pKindBox [data-kind]'), b => b.setAttribute('aria-checked', String(b.dataset.kind === KIND)));
+}
+document.addEventListener('click', e => {
+  const k = e.target.closest('#pKindBox [data-kind]');
+  if (k) { KIND = k.dataset.kind; syncLevel(); return; }
+  const a = e.target.closest('[data-scope]');
+  if (a) { addScope(a.dataset.scope); return; }
+  const r = e.target.closest('[data-unscope]');
+  if (r) { SCOPE = SCOPE.filter(c => c !== r.dataset.unscope); paintScope(); return; }
+  const tf = e.target.closest('[data-tf]');
+  if (tf) { TEAM_FILTER = tf.dataset.tf; groupTeam(); }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'pScopeIn') {
+    const v = e.target.value.trim().toLowerCase();
+    const hit = COUNTRY_LIST.find(c => c.name.toLowerCase() === v || c.code.toLowerCase() === v);
+    if (hit) { addScope(hit.code); e.target.value = ''; }
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'pScopeIn' && e.key === 'Enter') {
+    e.preventDefault();
+    const v = e.target.value.trim().toLowerCase();
+    const hit = COUNTRY_LIST.find(c => c.name.toLowerCase() === v || c.code.toLowerCase() === v)
+      || COUNTRY_LIST.find(c => c.name.toLowerCase().startsWith(v));
+    if (hit) { addScope(hit.code); e.target.value = ''; }
+  }
+});
+function fillCountries(list) {
+  COUNTRY_LIST = list || [];
+  const dl = $('#pScopeList');
+  if (dl && !dl.children.length) dl.innerHTML = COUNTRY_LIST.map(c => '<option value="' + esc(c.name) + '">').join('');
+}
+function bodyRole(v) {
+  return v === 'super' ? { role: 'admin', super: true }
+    : v === 'country-admin' ? { role: 'counsellor', manager: true }
+    : { role: v };
+}
+
 function openPersonEdit(p) {
   EDITING = p;
   $('#pTitle').textContent = 'Edit ' + p.name;
@@ -3801,6 +3944,13 @@ function openPersonEdit(p) {
      name, and offering them here would mean a save could quietly change one. */
   $('#pRole').closest('.field').style.display = 'none';
   const box = $('#pPermBox'); if (box) box.style.display = 'none';
+  /* Patch 201: type and countries are edited here; the role itself keeps its
+     own picker on the card. */
+  KIND = p.kind === 'external' ? 'external' : 'employee';
+  SCOPE = (p.scope || []).slice();
+  $('#pRole').value = p.level === 'country-admin' ? 'country-admin' : p.level === 'super' ? 'super' : p.role;
+  syncLevel(); paintScope();
+  if (p.role === 'partner' || p.role === 'student') { $('#pKindBox').style.display = 'none'; $('#pScopeBox').style.display = 'none'; }
   $('#pSave').textContent = 'Save';
   $('#personModal').classList.add('on');
   setTimeout(() => $('#pName').focus(), 50);
@@ -3820,7 +3970,8 @@ function openPersonForm() {
   $('#pRole').value = 'counsellor';
   $('#pPermContent').checked = false;
   $('#pPermCatalogue').checked = false;
-  syncRole();
+  KIND = 'employee'; SCOPE = [];
+  syncRole(); syncLevel(); paintScope();
   $('#personModal').classList.add('on');
   setTimeout(() => $('#pName').focus(), 50);
 }
@@ -3859,9 +4010,11 @@ document.addEventListener('click', async e => {
       $('#pPhone').focus();
       return;
     }
+    const lv = bodyRole($('#pRole').value);
     const body = {
       name: $('#pName').value, email: $('#pEmail').value,
-      phone: $('#pPhone').value, role: $('#pRole').value,
+      phone: $('#pPhone').value, role: lv.role, super: !!lv.super, manager: !!lv.manager,
+      kind: KIND, scope: SCOPE.slice(),
       perms: [$('#pPermContent').checked && 'content',
               $('#pPermCatalogue').checked && 'catalogue'].filter(Boolean),
     };
@@ -3873,6 +4026,15 @@ document.addEventListener('click', async e => {
       if (editing) {
         await api('PUT', '/api/staff/people/' + editing.id,
           { name: body.name, email: body.email, phone: body.phone });
+        if (editing.role !== 'student') {
+          const shape = { kind: editing.role === 'partner' ? undefined : KIND };
+          if (editing.role === 'counsellor' || editing.role === 'admin') {
+            shape.level = $('#pRole').value === 'super' ? 'super' : $('#pRole').value === 'country-admin' ? 'country-admin'
+              : editing.role === 'admin' ? 'admin' : 'counsellor';
+          }
+          if (editing.role === 'counsellor') shape.scope = SCOPE.slice();
+          await api('PUT', '/api/staff/people/' + editing.id + '/shape', shape);
+        }
         await paintPeople();
         $('#personModal').classList.remove('on');
         toast('Saved.');
@@ -3964,18 +4126,35 @@ document.addEventListener('change', async e => {
   const rl = e.target.closest('select[data-role]');
   if (!rl) return;
   const p = PEOPLE.find(x => x.id === Number(rl.dataset.role));
-  const to = rl.value;
+  const level = rl.value;
+  const to = bodyRole(level).role;
   const what = to === 'admin'
     ? 'an administrator — they will be able to see every student and every file, and add people.'
     : to === 'editor'
       ? 'a website editor — they lose all student records and see only the parts of the site '
         + 'they are allowed to change.'
       : 'a counsellor — they see the students assigned to them, and the chat.';
-  if (!confirm(p.name + ' becomes ' + what)) { await paintPeople(); return; }
+  const what2 = level === 'super' ? 'a super admin — everything, including administrators, money, settings and exports.'
+    : level === 'country-admin' ? 'a country admin — every student going to their countries. Pick the countries next.'
+    : what;
+  if (!confirm(p.name + ' becomes ' + what2)) { await paintPeople(); return; }
   try {
-    await api('PUT', '/api/staff/people/' + p.id + '/role', { role: to });
+    if (to !== p.role) await api('PUT', '/api/staff/people/' + p.id + '/role', { role: to });
+    if (level === 'country-admin' && !(p.scope || []).length) {
+      /* A country admin needs countries: open the form to pick them. */
+      await paintPeople();
+      const fresh = PEOPLE.find(x => x.id === p.id) || p;
+      openPersonEdit(Object.assign({}, fresh, { level: 'country-admin' }));
+      toast('Pick their countries, then Save.');
+      return;
+    }
+    if (to === 'admin' || to === 'counsellor') {
+      await api('PUT', '/api/staff/people/' + p.id + '/shape',
+        { level: level === 'super' ? 'super' : level === 'country-admin' ? 'country-admin' : to });
+    }
     await paintPeople();
-    toast(p.name + ' is now a ' + (to === 'editor' ? 'website editor' : to) + '.');
+    toast(p.name + ' is now ' + ({ super: 'a super admin', admin: 'an administrator', 'country-admin': 'a country admin',
+      counsellor: 'a counsellor', editor: 'a website editor', partner: 'a partner agency' }[level] || level) + '.');
   } catch (err) {
     toast(err.message);
     await paintPeople();
@@ -3985,7 +4164,7 @@ document.addEventListener('change', async e => {
 /* An administrator has every permission by definition, so offering the boxes
    next to that choice would be offering something that does nothing. */
 function syncRole() {
-  const role = $('#pRole').value;
+  const role = bodyRole($('#pRole').value).role;
   /* An administrator has every permission by definition, a student has none
      of them, and a partner agency is not inside this business at all —
      offering the boxes next to any of the three is offering something that
@@ -4001,7 +4180,7 @@ function syncRole() {
   const pn = $('#pPartnerNote');
   if (pn) pn.style.display = role === 'partner' ? '' : 'none';
 }
-$('#pRole').addEventListener('change', syncRole);
+$('#pRole').addEventListener('change', () => { syncRole(); syncLevel(); });
 
 addEventListener('keydown', e => {
   if (e.key === 'Escape') $('#personModal').classList.remove('on');

@@ -272,3 +272,51 @@ select.assign.none{background-color:#fff4e5!important;border-color:#f1d2a3!impor
 .lclose:hover{border-color:var(--ink)}
 .lhint{margin:0;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){#leadPane.open{animation:none}}
+
+/* ======================================== Patch 201: who is what */
+.tm-filter{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 4px}
+.tm-filter button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font:700 12.5px var(--sans);color:#3c5168;cursor:pointer}
+.tm-filter button i{font-style:normal;color:var(--muted);margin-left:4px}
+.tm-filter button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.tm-filter button[aria-pressed="true"] i{color:#c7d4e3}
+#counsellors li.tm-group{display:flex!important;align-items:center;gap:8px;padding:10px 2px 0!important;border:0!important;background:none!important;
+  font:800 13px var(--disp);color:var(--ink);box-shadow:none!important}
+#counsellors li.tm-group span{font:700 11.5px var(--sans);background:#e3eaf3;color:#3c5168;border-radius:999px;padding:3px 8px}
+.tm-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.tm-lvl,.tm-kind,.tm-flag{font:700 11.5px/1 var(--sans);border-radius:999px;padding:5px 9px;white-space:nowrap}
+.lv-super{background:linear-gradient(135deg,#0b1e31,#1c4d78);color:#f3dfa6}
+.lv-admin{background:#0b1e31;color:#fff}
+.lv-country-admin{background:#fff4e5;color:#7a5a12}
+.lv-counsellor{background:#e3edfb;color:#123a7b}
+.lv-editor{background:#efe6f8;color:#5b2d8a}
+.lv-partner{background:#f6ecd2;color:#7a5a12}
+.k-employee{background:#e2f4ea;color:#1e7a50}
+.k-external{background:#eaf0f7;color:#3c5168;border:1px dashed #b9c7d8}
+.k-b2b{background:#f6ecd2;color:#7a5a12}
+.tm-flag{background:#fff;border:1px solid var(--line);color:#3c5168}
+.tm-flag.all{color:var(--muted)}
+.pm-row{margin:0 0 12px}
+.pm-lbl{display:block;font:700 12px/1.2 var(--sans);color:#3c5168;margin-bottom:7px}
+.pm-seg{display:inline-flex;background:#eef3f9;border-radius:12px;padding:4px;gap:4px}
+.pm-seg button{border:0;background:none;border-radius:9px;padding:8px 14px;font:700 13px var(--sans);color:#3c5168;cursor:pointer}
+.pm-seg button[aria-checked="true"]{background:#fff;color:var(--ink);box-shadow:0 2px 8px -3px rgba(11,30,49,.3)}
+.pm-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.pm-chip{display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:#fff;border-radius:999px;padding:6px 6px 6px 11px;font:700 12.5px var(--sans)}
+.pm-chip button{border:0;background:rgba(255,255,255,.18);color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;line-height:1}
+.pm-pick input{width:100%}
+.pm-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pm-quick button{border:1px dashed #b9c7d8;background:#fff;border-radius:999px;padding:5px 10px;font:600 12px var(--sans);color:#3c5168;cursor:pointer}
+.pm-quick button:hover{border-style:solid;border-color:var(--ink);color:var(--ink)}
+.pm-help{display:block;color:var(--muted);font-size:12px;margin-top:6px}
+#pRole option:disabled{color:#aab6c4}
+/* role chips beat the generic field style */
+.p-main select.tm-select.r-super{background-color:#0b1e31!important;color:#f3dfa6!important}
+.p-main select.tm-select.r-admin{background-color:#0b1e31!important;color:#fff!important}
+.p-main select.tm-select.r-country-admin{background-color:#fff4e5!important;color:#7a5a12!important}
+.p-main select.tm-select.r-counsellor{background-color:#e3edfb!important;color:#123a7b!important}
+.p-main select.tm-select.r-editor{background-color:#efe6f8!important;color:#5b2d8a!important}
+.p-main select.tm-select.r-partner{background-color:#f6ecd2!important;color:#7a5a12!important}
+.p-main select.tm-select.r-super{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f3dfa6' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")!important}
+.p-main select.tm-select.r-admin{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")!important}
+.pm-pick input{padding:11px 12px!important;height:auto!important;font-size:14px!important}
+.tm-badge.r-super{background:linear-gradient(135deg,#0b1e31,#1c4d78)!important;color:#f3dfa6!important}

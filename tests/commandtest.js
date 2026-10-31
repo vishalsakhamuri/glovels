@@ -69,6 +69,17 @@ const login = async (email) => {
     check('the journey has every stage', (a.body.journey || []).length >= 8, String((a.body.journey || []).length));
     check('the headline adds up', a.body.headline.open === a.body.queues.reduce((n, q) => n + q.total, 0));
 
+    /* Patch 201: the SLAs are the office's to set. */
+    const setSla = await call('/api/staff/command/sla', { method: 'PUT', headers: { Cookie: admin }, body: { messages: 2, docs: 72 } });
+    const a2 = await call('/api/staff/command', { headers: { Cookie: admin } });
+    const m2 = a2.body.queues.find(q => q.key === 'messages'), d2 = a2.body.queues.find(q => q.key === 'docs');
+    check('the reply SLA can be changed, and the queue counts with it', setSla.status === 200 && m2.sla === '2 h' && m2.rows[0].slaHours === 2, m2 && m2.sla);
+    check('and the document SLA reads in days', d2.sla === '3 days', d2.sla);
+    const badSla = await call('/api/staff/command/sla', { method: 'PUT', headers: { Cookie: admin }, body: { messages: 0 } });
+    check('a nonsense SLA is refused', badSla.status === 422, String(badSla.status));
+    const kSla = await call('/api/staff/command/sla', { method: 'PUT', headers: { Cookie: kavya }, body: { messages: 5 } });
+    check('a counsellor cannot change the SLAs', kSla.status === 403, String(kSla.status));
+
     const k = await call('/api/staff/command', { headers: { Cookie: kavya } });
     check('a counsellor gets their own board', k.status === 200 && k.body.admin === false);
     check('and sees only themself on it', (k.body.counsellors || []).length === 1 && /Kavya/.test(k.body.counsellors[0].name),
@@ -88,6 +99,12 @@ const login = async (email) => {
     check('/ops draws with no script errors', errs.length === 0, errs.join(' | '));
     check('it greets the admin by name', /Good (morning|afternoon|evening), \w+/.test(await p.textContent('#hello')));
     check('fourteen queue cards', (await p.$$('[data-q]')).length === 14);
+    /* Patch 201: a stop on the route opens its students. */
+    const stop = await p.$('.stop.has');
+    if (stop) { await stop.click(); await p.waitForTimeout(500); }
+    check('a stop on the route opens the students at that stage', !!stop && /Vishal Sakhamuri|Open file/.test(await p.textContent('#dList')),
+      (await p.textContent('#dTitle')) + ': ' + (await p.textContent('#dList')).slice(0, 80));
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
     await p.click('[data-q="messages"]'); await p.waitForTimeout(500);
     check('a queue opens with the student in it', /SOP/.test(await p.textContent('#dList')));
     check('with a way into the file', !!(await p.$('#dList a[href^="counsellor.html?student="]')));

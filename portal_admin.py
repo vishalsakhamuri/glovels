@@ -172,7 +172,7 @@ BODY = """
           <div class="field" style="margin-bottom:10px"><label for="pEmail">Work email</label>
             <input id="pEmail" placeholder="kavya@glovels.com" inputmode="email"></div>
           <div class="field" style="margin-bottom:10px"><label for="pPhone">Mobile (optional)</label>
-            <input id="pPhone" inputmode="tel" placeholder="98765 43210" pattern="[+\d\s().-]*" maxlength="20"></div>
+            <input id="pPhone" inputmode="tel" placeholder="98765 43210" pattern="[\d\s\+\(\)\.\-]*" maxlength="20"></div>
           <div class="field" style="margin-bottom:10px"><label for="pRole">What kind of account</label>
             <select id="pRole">
               <option value="counsellor">Counsellor — their own students, and the chat</option>
