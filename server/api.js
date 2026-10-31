@@ -4077,23 +4077,42 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * named list was cut — never by how much.
    */
   const NAMED_CAP = 200;
+  const matchCache = new Map();
+  const MATCH_CACHE_MAX = 50, MATCH_TTL_MS = 2 * 60 * 1000;
   route('GET', '/api/find/match', async (req, res) => {
     if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
     const f = FIND.parse(url.parse(req.url).query || '');
     delete f.view;
     const ent = entitlement(req);
     const nonce = OPAQUE_NONCE();
-    const cand = candidatesFor(f);
-    const shaped = cand.rows.filter(p => !p.isPublic || ent.mayName(p)).map(p => namedShape(ent, p));
-    const uniKeys = f.q ? namedUniKeys(ent, f.q) : null;
-    const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys, noFacets: true });
-    const strip = p => { const o = {}; Object.keys(p).forEach(k => { if (k[0] !== '_') o[k] = p[k]; }); return o; };
-    const named = R.rows.slice(0, NAMED_CAP).map(strip);
-    const lf = Object.assign({}, f); delete lf.sort;
-    const capped = FIND.capLocked(lockedMatches(ent, lf).map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
+    /* Patch 182: the same boxes asked again within two minutes (a visitor
+       going back, or many visitors trying "data science") are answered
+       from memory — keyed on the filter AND on what this viewer may see
+       (the gate, the universities their package names, staff or not), and
+       dropped the moment the catalogue changes. The REAL rows are kept, so
+       every response still salts its placeholders afresh. 50 answers at
+       most (~200 rows each). */
+    const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+    const key = FIND.toQuery(f) + '|' + ent.gate + '|' + [...ent.named].sort().join(',') + '|' + (ent.staff ? 's' : '');
+    const now = Date.now();
+    let hit = matchCache.get(key);
+    if (!hit || hit.v !== v || now - hit.at > MATCH_TTL_MS) {
+      const cand = candidatesFor(f);
+      const shaped = cand.rows.filter(p => !p.isPublic || ent.mayName(p)).map(p => namedShape(ent, p));
+      const uniKeys = f.q ? namedUniKeys(ent, f.q) : null;
+      const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys, noFacets: true });
+      const strip = p => { const o = {}; Object.keys(p).forEach(k => { if (k[0] !== '_') o[k] = p[k]; }); return o; };
+      const lf = Object.assign({}, f); delete lf.sort;
+      const capped = FIND.capLocked(lockedMatches(ent, lf).map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
+      hit = { v, at: now, named: R.rows.slice(0, NAMED_CAP).map(strip), lockedReal: capped.rows,
+        more: capped.more, moreNamed: cand.more || R.rows.length > NAMED_CAP };
+      matchCache.delete(key);
+      matchCache.set(key, hit);
+      while (matchCache.size > MATCH_CACHE_MAX) matchCache.delete(matchCache.keys().next().value);
+    }
     return json(res, 200, {
-      named, locked: capped.rows.map(p => lockedPlaceholder(p, nonce)),
-      more: capped.more, moreNamed: cand.more || R.rows.length > NAMED_CAP,
+      named: hit.named, locked: hit.lockedReal.map(p => lockedPlaceholder(p, nonce)),
+      more: hit.more, moreNamed: hit.moreNamed,
     }, { 'Cache-Control': 'private, no-store' });
   }, { open: true });
 
