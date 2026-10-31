@@ -2005,6 +2005,9 @@ async function loadUnlocked(){
 /* Money: totalInr is the stored truth. Display currency is a view, so switching
    it can never move a programme between bands. */
 function money(inr){
+  /* Patch 193: the visitor's own currency (glovels-pay.js) unless they
+     picked one here. */
+  if(cur === 'INR' && window.glovelsPay && window.glovelsPay.fee){ const g = window.glovelsPay.fee(inr); if(g) return g; }
   if(cur === 'INR') return '₹' + nf.format(Math.round(inr));
   const v = inr / S.fx[cur];
   /* A currency added on the Finder tab has no symbol here. Falling back to
@@ -2018,7 +2021,7 @@ function money(inr){
 }
 function short(inr){
   if(inr === 0) return '₹0 tuition';
-  if(cur !== 'INR') return '≈ ' + money(inr);
+  if(cur !== 'INR' || (window.glovelsPay && window.glovelsPay.fee && window.glovelsPay.fee(inr))) return '≈ ' + money(inr);
   return '≈ ₹' + (inr >= 10000000 ? (inr/10000000).toFixed(1)+'Cr'
         : (inr/100000).toFixed(inr % 100000 ? 1 : 0)+'L');
 }
@@ -3664,7 +3667,16 @@ $('#fMoreBtn') && ($('#fMoreBtn').onclick = () => {
   $('#fMoreBtn').setAttribute('aria-expanded', String(open));
 });
 showRelevant();
-$('#fxPick').addEventListener('change', e => { cur = e.target.value; render(); });
+$('#fxPick').addEventListener('change', e => {
+  /* Patch 193: one currency for the whole site — this picker sets it. */
+  if (window.glovelsPay && window.glovelsPay.set) { cur = 'INR'; window.glovelsPay.set(e.target.value); }
+  else { cur = e.target.value; render(); }
+});
+document.addEventListener('glv-currency', ev => {
+  const p = $('#fxPick'); const c = ev.detail || 'INR';
+  if (p) { if (![...p.options].some(o => o.value === c)) p.add(new Option(c, c)); p.value = c; }
+  try { render(); } catch (e) {}
+});
 $$('[data-railband]').forEach(b => b.onclick = () => {
   const id = b.dataset.railband;
   bands.has(id) ? bands.delete(id) : bands.add(id);
@@ -5367,6 +5379,7 @@ let cat = 'all', field = null;
 const feeTbc = p => !!p && !p.isPublic && !Number(p.totalInr)
   && !(p.reqs && typeof p.reqs === 'object' && p.reqs.tuitionEurSem === 0);
 const lakh = inr => inr === 0 ? '₹0 tuition'
+  : (window.glovelsPay && window.glovelsPay.fee && window.glovelsPay.fee(inr)) ? '≈ ' + window.glovelsPay.fee(inr)
   : inr >= 1e7 ? '≈ ₹'+(inr/1e7).toFixed(1)+'Cr'
   : '≈ ₹'+(inr/1e5).toFixed(inr % 1e5 ? 1 : 0)+'L';
 const bandLabel = id => (BANDS.find(b => b.id === id) || {}).label || '';
@@ -6766,7 +6779,7 @@ if (location.protocol === 'file:') {
     .catch(function () {});
 }());
 </script>
-<script src="/glovels-pay.js?v=193"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+<script src="/glovels-pay.js?v=194"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 <script>/* GLOVELS-PKG-CONNECTORS */
 (function () {
   /* Each package gets its own icon. They were all the same compass, which on a

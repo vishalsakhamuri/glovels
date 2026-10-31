@@ -497,7 +497,10 @@
     }
   }
 
-  const money = n => { n = Number(n || 0); if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2).replace(/\.?0+$/, '') + ' Cr'; if (n >= 1e5) return '₹' + (n / 1e5).toFixed(1).replace(/\.0$/, '') + ' L'; return '₹' + n.toLocaleString('en-IN'); };
+  const money = n => { n = Number(n || 0);
+    /* Patch 193: in the browser, the visitor's own currency (glovels-pay.js). */
+    if (typeof window !== 'undefined' && window.glovelsPay && window.glovelsPay.fee) { const g = window.glovelsPay.fee(n); if (g) return g; }
+    if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2).replace(/\.?0+$/, '') + ' Cr'; if (n >= 1e5) return '₹' + (n / 1e5).toFixed(1).replace(/\.0$/, '') + ' L'; return '₹' + n.toLocaleString('en-IN'); };
   const dateOf = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const initials = s => String(s || '').replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(w => w && !/^(of|the|and|for|in|de|der|die|und)$/i.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'U';
 

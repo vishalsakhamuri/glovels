@@ -2681,7 +2681,7 @@ patch(
 # With no keys configured `d.razorpay` is absent, __glovelsCollect resolves at
 # once, and the checkout behaves exactly as it did before there was a gateway.
 # That is the state this site is in today and it has to keep working.
-RAZORPAY_JS = """<script src="/glovels-pay.js?v=193"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+RAZORPAY_JS = """<script src="/glovels-pay.js?v=194"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 """
 
 

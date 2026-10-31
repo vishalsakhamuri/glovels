@@ -282,7 +282,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
        same matcher (find.js logoFor). */
     const boot = '<script>window.FIND_BOOT=' + JSON.stringify({ f, countries, page: PAGE }).replace(/</g, '\\u003c') + ';'
       + 'window.FIND_LOGOS=' + JSON.stringify(LOGOS.index()).replace(/</g, '\\u003c') + '</script>'
-      + '<script src="/js/tags.js" defer></script><script src="/js/find.js" defer></script><script src="/js/reqs.js" defer></script><script src="/js/find-page.js" defer></script>';
+      + '<script src="/js/tags.js" defer></script><script src="/js/find.js" defer></script><script src="/js/reqs.js" defer></script><script src="/js/find-page.js" defer></script><script src="/glovels-pay.js?v=194" defer></script>';
     return { html: page.replace('</head>', FIND_CSS + '</head>').replace('</body>', boot + '</body>'), indexable };
   }
 
@@ -467,6 +467,8 @@ function askUnis(q){
 }
 try { (JSON.parse(localStorage.getItem('glv-saved') || '[]') || []).forEach(function(id){ saved.add(String(id)); }); } catch (e) {}
 
+/* Patch 193: fees in the visitor's currency once glovels-pay.js knows it. */
+document.addEventListener('glv-currency', function(){ try { render(); } catch (e) {} });
 function url(){ return '/find-university' + F.toQuery(f); }
 function write(){ try { history.replaceState(null, '', url()); } catch (e) {} }
 function esc(s){ return F.esc(s); }

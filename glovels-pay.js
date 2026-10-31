@@ -305,7 +305,27 @@
     return n >= 8 && n <= 15;
   }
 
-  window.glovelsPay = { config: config, guess: guess, attach: attach, chosen: chosen,
+  /*
+   * Patch 193: university fees (tuition + living — not our price, so no GST
+   * question) in the visitor's currency, for the finders. Returns null in
+   * rupees, so the page keeps its own lakh/crore format for India.
+   */
+  function fee(inr) {
+    if (!CFG) return null;
+    var code = current(CFG);
+    var r = Number((CFG.fx || {})[code]);
+    if (code === 'INR' || !(r > 0)) return null;
+    var v = Number(inr || 0) / r;
+    try {
+      return new Intl.NumberFormat('en', { style: 'currency', currency: code,
+        notation: v >= 1e6 ? 'compact' : 'standard', maximumFractionDigits: v >= 1e6 ? 1 : 0,
+        minimumFractionDigits: 0 }).format(v);
+    } catch (e) { return code + ' ' + Math.round(v).toLocaleString('en'); }
+  }
+  function code() { return CFG ? current(CFG) : 'INR'; }
+
+  window.glovelsPay = { config: config, guess: guess, attach: attach, chosen: chosen, fee: fee, code: code,
+    set: function (c) { set(c); try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: c })); } catch (e) {} },
     convert: convert, money: money, phoneOk: phoneOk,
     PHONE_MSG: 'A mobile number, please — add the country code if you are outside India' };
 
@@ -504,7 +524,11 @@
     });
     if (!priceTimer) priceTimer = setTimeout(function () { priceTimer = 0; localPrices(); }, 120);
   }
-  config().then(function (c) { CFG = c; localPrices(); });
+  config().then(function (c) {
+    CFG = c; localPrices();
+    /* The finders draw their fees again now that the currency is known. */
+    try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: current(CFG) })); } catch (e) {}
+  });
   document.addEventListener('glv-currency', function () { localPrices(); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan);
   else scan();
