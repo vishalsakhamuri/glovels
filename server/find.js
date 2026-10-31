@@ -424,6 +424,10 @@
       sorted = tiers.reduce((all, t) => all.concat(mix(t.filter(p => !isR(p))), mix(t.filter(isR))), []);
     }
     const unis = new Set(sorted.map(p => p.uKey || p.university || p.id)).size;
+    /* Patch 180: /api/find/match needs the rows, not the option counts —
+       those are a dozen more passes over every row, each through the tag
+       matcher, and on a wide search they were most of the time. */
+    if (o.noFacets) return { rows: sorted, total: sorted.length, unis, turned, said, student: s, facets: null };
     /* Every other active filter, the CGPA bar included — all but the facet's own key. */
     const kf = (p, key) => keep(p, f, key) && !turnedAway(p);
     const facet = (key, valueOf) => {

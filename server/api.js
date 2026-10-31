@@ -3831,7 +3831,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     /* Round 178: filtered on what the viewer may see — an indicative fee
        is not there to be narrowed on by budget. */
     const shaped = rows.map(p => Object.assign({}, UNIS.publicFee(p), { university: '', program: '', tags: TAGS.publicTags(p), _real: p }));
-    const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys: null });
+    const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys: null, noFacets: true });
     const out = R.rows.map(p => p._real);
     if (lockedRunCache.size > 500) {
       for (const [k, v] of lockedRunCache) if (now - v.at > 60 * 1000) lockedRunCache.delete(k);
@@ -4086,7 +4086,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const cand = candidatesFor(f);
     const shaped = cand.rows.filter(p => !p.isPublic || ent.mayName(p)).map(p => namedShape(ent, p));
     const uniKeys = f.q ? namedUniKeys(ent, f.q) : null;
-    const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys });
+    const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys, noFacets: true });
     const strip = p => { const o = {}; Object.keys(p).forEach(k => { if (k[0] !== '_') o[k] = p[k]; }); return o; };
     const named = R.rows.slice(0, NAMED_CAP).map(strip);
     const lf = Object.assign({}, f); delete lf.sort;
