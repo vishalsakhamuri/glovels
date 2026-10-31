@@ -485,7 +485,11 @@ function send(res, code, body, type, extra) {
     }
     if (!staffHere) traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
     /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
-    if (typeof body === 'string') body = withMobileKit(globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)))));
+    if (typeof body === 'string') body = withMobileKit(globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)))), u.pathname);
+  } else if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || '')) && res.req && res.req.method === 'GET') {
+    /* Patch 195: a student's portal page — money in their currency too. */
+    const pth = String(res.req.url || '').split('?')[0];
+    if (STUDENT_PAGES.test(pth)) body = withMobileKit(body, pth);
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -3041,14 +3045,27 @@ function mobileBar(waNumber) {
     + 'if(location.hash==="#packages"){var t=0,i=setInterval(function(){if(show()||++t>20)clearInterval(i);},250);}})();</script>';
 }
 
-function withMobileKit(html) {
-  if (html.indexOf('<header class="site"') < 0 || html.indexOf('data-mobile-kit') >= 0) return html;
+/* Patch 195: the student's own portal pages show money in their currency
+   too (the office's screens stay in rupees). */
+const STUDENT_PAGES = /^\/(dashboard|profile|documents|universities|applications|visa|services|scholarships|messages)(\.html)?\/?$/;
+function withMobileKit(html, pathname) {
+  if (html.indexOf('<header class="site"') < 0) {
+    if (STUDENT_PAGES.test(String(pathname || '')) && html.indexOf('<script src="/glovels-pay.js') < 0) {
+      const end = html.lastIndexOf('</body>');
+      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=195" defer></script>\n' + html.slice(end);
+    }
+    return html;
+  }
+  if (html.indexOf('data-mobile-kit') >= 0) return html;
   let wa = '';
   try { wa = String(((content.get('finder') || {}).contact || {}).whatsapp || ((content.get('finder') || {}).contact || {}).phone || ''); } catch (e) { wa = ''; }
   wa = wa || '917839399999';
   html = html.replace('</head>', MOBILE_CSS + '</head>');
   const at = html.lastIndexOf('</body>');
-  return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + '\n' + html.slice(at);
+  /* Patch 194: the currency script on every public page, so every rupee
+     figure is shown in the visitor's own money (it also runs the checkout). */
+  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=195" defer></script>';
+  return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + pay + '\n' + html.slice(at);
 }
 
 function globalFooter(html) {

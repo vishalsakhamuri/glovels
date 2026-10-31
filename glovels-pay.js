@@ -316,6 +316,8 @@
     var r = Number((CFG.fx || {})[code]);
     if (code === 'INR' || !(r > 0)) return null;
     var v = Number(inr || 0) / r;
+    /* Rounded up like the checkout, so a figure here never undercuts it. */
+    if (v < 1e6) v = Math.ceil(v - 1e-9);
     try {
       return new Intl.NumberFormat('en', { style: 'currency', currency: code,
         notation: v >= 1e6 ? 'compact' : 'standard', maximumFractionDigits: v >= 1e6 ? 1 : 0,
@@ -363,6 +365,7 @@
     var foreign = code !== 'INR';
     picker();
     sheets();
+    sweep();
 
     /* Package and service prices: the local amount becomes the main figure. */
     /* .price: packages; .svc-now: the home page's service cards; #planTotal:
@@ -405,23 +408,13 @@
         if (rn) el.insertBefore(main, rn); else el.insertBefore(main, el.firstChild);
       }
       if (main.textContent !== text) main.textContent = text;
-      if (rn) rn.style.cssText = 'display:inline-block;font:600 11.5px/1.3 var(--sans,system-ui,sans-serif);'
-        + 'color:var(--muted,#5a6b80);margin-top:5px;letter-spacing:0';
+      /* Patch 195 (owner: "not mixed"): one currency on screen — the rupee
+         figure is hidden for a visitor abroad, not shown beside. */
+      if (rn) rn.style.cssText = 'display:none';
     }
 
-    /* "Part payment possible — ₹20,000 to start": the local figure beside it. */
-    var parts = document.querySelectorAll('.partline > span');
-    for (var j = 0; j < parts.length; j++) {
-      var sp = parts[j];
-      var tag = sp.querySelector('.glv-local');
-      if (!foreign) { if (tag) tag.remove(); continue; }
-      var base = sp.getAttribute('data-glv-text');
-      if (!base) { base = sp.textContent; sp.setAttribute('data-glv-text', base); }
-      var p = inrIn(base); if (!p) continue;
-      var t2 = ' (\u2248 ' + local(p, code, CFG) + ')';
-      if (!tag) { tag = document.createElement('span'); tag.className = 'glv-local'; sp.appendChild(tag); }
-      if (tag.textContent !== t2) tag.textContent = t2;
-    }
+    /* Old "(≈ €193)" tags from patch 188 — the sweep converts the line itself now. */
+    [].forEach.call(document.querySelectorAll('.partline .glv-local'), function (t) { t.remove(); });
   }
 
   /*
@@ -483,6 +476,58 @@
           if (lead.textContent !== lt) lead.textContent = lt;
         } else if (lead.__glvOrig) { lead.textContent = lead.__glvOrig; lead.__glvOrig = null; }
       }
+    });
+  }
+
+  /*
+   * Patch 194 (owner: "everything in INR to local currency, based on IP"):
+   * every other rupee figure on a public page — the price bands
+   * ("Under ₹10L"), costs on the country, university and blog pages,
+   * "₹0–₹3L" — in the visitor's currency. Lakh and crore are read as
+   * numbers ("₹2.8L" = 280,000). Put back exactly when they pick rupees.
+   * Not on the legal pages (the terms state prices in rupees), not inside
+   * form fields, and not where the page already shows the conversion.
+   */
+  var LEGAL = /^\/(terms|refunds|privacy|grievance|disclaimers)(\.html)?\/?$/;
+  var SKIP = 'script,style,textarea,input,select,option,code,pre,[data-no-fx],.glv-inr,.glv-main,.glv-local,'
+    + '.glv-cur,.glv-prices-in,#buyModal,#svcCheckout,.price,.svc-now,#planTotal';
+  var AMOUNT = /₹\s?([\d,]+(?:\.\d+)?)\s?(lakhs?|Lakhs?|L|crores?|Crores?|Cr|k|K)?(?![\w])/g;
+  function unitOf(u) {
+    u = String(u || '').toLowerCase();
+    return u[0] === 'l' ? 1e5 : u[0] === 'c' ? 1e7 : u === 'k' ? 1e3 : 1;
+  }
+  var swept = [];
+  function sweep() {
+    if (!CFG || !document.body || LEGAL.test(location.pathname)) return;
+    var code = current(CFG), foreign = code !== 'INR';
+    if (!foreign) {
+      swept.forEach(function (t) { if (t.__glvSweep != null && t.textContent === t.__glvShown) t.textContent = t.__glvSweep; t.__glvSweep = null; });
+      swept = [];
+      return;
+    }
+    var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        if (n.textContent.indexOf('₹') < 0 && n.__glvSweep == null) return NodeFilter.FILTER_REJECT;
+        var p = n.parentNode;
+        if (!p || (p.closest && p.closest(SKIP))) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes = [], n;
+    while ((n = walk.nextNode())) nodes.push(n);
+    nodes.forEach(function (t) {
+      if (t.__glvSweep == null || t.textContent !== t.__glvShown) {
+        if (t.textContent.indexOf('₹') < 0) return;
+        t.__glvSweep = t.textContent;
+        swept.push(t);
+      }
+      var shown = t.__glvSweep.replace(AMOUNT, function (m0, num, unit) {
+        var inr = Number(String(num).replace(/,/g, '')) * unitOf(unit);
+        if (!(inr >= 0)) return m0;
+        return fee(inr) || m0;
+      });
+      if (t.textContent !== shown) t.textContent = shown;
+      t.__glvShown = shown;
     });
   }
 
