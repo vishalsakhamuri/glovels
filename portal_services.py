@@ -47,6 +47,12 @@ BODY = r"""
 """
 
 SCRIPT = r"""
+/* Patch 185: the checkout (glovels-pay.js) — the card sheet and the
+   "Pay in" currency line. It was only ever on the home page before. */
+(function () {
+  if (window.__glovelsCollect || document.querySelector('script[src^="/glovels-pay.js"]')) return;
+  var s = document.createElement('script'); s.src = '/glovels-pay.js?v=185'; document.head.appendChild(s);
+}());
 /* The services the office is actually selling today, not a copy frozen into
    this page at build time. Same endpoint the home page reads. */
 let SVC = [], SVC_TABS = [], svcCat = '';
@@ -237,8 +243,9 @@ function svcCheckout(s) {
     const err = box.querySelector('#svcCoErr');
     const phone = (box.querySelector('#svcCoPhone') || {}).value || '';
     if (!box.querySelector('#svcCoOk').checked) { err.textContent = 'Please accept the terms shown before booking.'; return; }
-    if (!String(U.phone || '').trim() && !/^[6-9][0-9]{9}$/.test(phone.replace(/[^0-9]/g, '').slice(-10))) {
-      err.textContent = 'A 10-digit Indian mobile, please.'; return;
+    if (!String(U.phone || '').trim() && !(window.glovelsPay ? window.glovelsPay.phoneOk(phone)
+        : /^[6-9][0-9]{9}$/.test(phone.replace(/[^0-9]/g, '').slice(-10)))) {
+      err.textContent = 'A mobile number, please — add the country code if you are outside India.'; return;
     }
     const btn = box.querySelector('#svcCoPay');
     btn.disabled = true; btn.textContent = 'Booking…';
@@ -250,6 +257,7 @@ function svcCheckout(s) {
           services: [{ id: s.id, level: lvl }],
           name: U.name || '', email: U.email || '', phone: U.phone || phone,
           acceptedTerms: true, payIn: 'full', from: 'portal',
+          currency: window.glovelsPay ? window.glovelsPay.chosen() : 'INR',
         }),
       });
       const d = await r.json().catch(() => ({}));

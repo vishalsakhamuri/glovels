@@ -1354,8 +1354,18 @@ function __dashOrders(s) {
     const was = b.textContent;
     b.textContent = 'One moment…';
     try {
+      /* Patch 185: the checkout script is fetched when it is first needed. */
+      if (!window.__glovelsCollect) {
+        await new Promise(function (res) {
+          const s = document.createElement('script');
+          s.src = '/glovels-pay.js?v=185'; s.onload = res; s.onerror = res;
+          document.head.appendChild(s);
+        });
+      }
       const r = await fetch('/api/orders/' + encodeURIComponent(b.dataset.paypart)
-        + '/pay-part', { method: 'POST', credentials: 'same-origin' });
+        + '/pay-part', { method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currency: window.glovelsPay ? window.glovelsPay.chosen() : 'INR' }) });
       const d = await r.json().catch(function () { return {}; });
       if (!r.ok) throw new Error(d.error || 'That did not go through.');
       if (window.__glovelsCollect) {

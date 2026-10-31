@@ -38,9 +38,9 @@ const fake = http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/v1/orders') {
       const o = JSON.parse(body || '{}');
       const id = 'order_' + crypto.randomBytes(6).toString('hex');
-      created.push({ id, amount: o.amount, receipt: o.receipt });
+      created.push({ id, amount: o.amount, receipt: o.receipt, currency: o.currency });
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ id, amount: o.amount, currency: 'INR',
+      return res.end(JSON.stringify({ id, amount: o.amount, currency: o.currency || 'INR',
         receipt: o.receipt, status: 'created' }));
     }
     res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -236,6 +236,52 @@ async function boot(port, env) {
     r = await post(PORT, '/api/razorpay/webhook', fullBody,
       { 'x-razorpay-signature': sign(HOOK_SECRET, fullBody) });
     check('but the right amount does', r.status === 200);
+
+    /* ------------------- Patch 185: a buyer abroad pays in their currency */
+    check('the page is told which currencies it may offer',
+      Array.isArray(cfg.body.currencies) && cfg.body.currencies[0] === 'INR'
+        && cfg.body.currencies.includes('USD') && cfg.body.currencies.includes('EUR'),
+      JSON.stringify(cfg.body.currencies));
+    const usd = await post(PORT, '/api/orders', {
+      packageId: 'pkg-roadmap', name: 'Sam Lee', currency: 'USD',
+      email: 'usd@example.com', phone: '+1 415 555 0134', acceptedTerms: true,
+    });
+    check('an order from a US mobile is accepted', usd.status === 200, JSON.stringify(usd.body).slice(0, 120));
+    const usdMade = created[created.length - 1];
+    const usdRate = cfg.body.fx.USD;
+    const wantCents = Math.ceil(usd.body.grossPaise / 100 / usdRate) * 100;
+    check('the gateway is asked in USD, rounded up to a whole dollar',
+      usdMade.currency === 'USD' && usdMade.amount === wantCents,
+      usdMade.currency + ' ' + usdMade.amount + ' vs ' + wantCents);
+    check('the page is told the currency and amount it will be charged',
+      usd.body.razorpay && usd.body.razorpay.currency === 'USD'
+        && usd.body.razorpay.amountMinor === wantCents && usd.body.razorpay.amountPaise === usd.body.grossPaise);
+    const usdGw = usd.body.razorpay.orderId;
+    const rupeeBody = JSON.stringify({ event: 'payment.captured',
+      payload: { payment: { entity: { id: 'pay_usd_wrong', order_id: usdGw,
+        amount: usd.body.grossPaise, currency: 'INR' } } } });
+    r = await post(PORT, '/api/razorpay/webhook', rupeeBody,
+      { 'x-razorpay-signature': sign(HOOK_SECRET, rupeeBody) });
+    check('a webhook in the wrong currency does not settle it',
+      /mismatch/.test(JSON.stringify(r.body)), JSON.stringify(r.body));
+    const usdBody = JSON.stringify({ event: 'payment.captured',
+      payload: { payment: { entity: { id: 'pay_usd', order_id: usdGw,
+        amount: wantCents, currency: 'USD' } } } });
+    r = await post(PORT, '/api/razorpay/webhook', usdBody,
+      { 'x-razorpay-signature': sign(HOOK_SECRET, usdBody) });
+    check('the dollar amount we asked for settles it', r.status === 200 && r.body.ok === true && !r.body.note);
+    const bogus = await post(PORT, '/api/orders', {
+      packageId: 'pkg-roadmap', name: 'Odd Coin', currency: 'XYZ',
+      email: 'xyz@example.com', phone: '9812345671', acceptedTerms: true,
+    });
+    check('a currency the office has no rate for falls back to rupees',
+      bogus.body.razorpay && bogus.body.razorpay.currency === 'INR'
+        && created[created.length - 1].amount === bogus.body.grossPaise);
+    const junk = await post(PORT, '/api/orders', {
+      packageId: 'pkg-roadmap', name: 'Junk', email: 'junk@example.com',
+      phone: '$%qwe123', acceptedTerms: true,
+    });
+    check('a phone number with letters in it is still refused', junk.status === 422, junk.status);
 
     /* ------------------------------------ the office can see all of it */
     const book = await (await staff.request.get(

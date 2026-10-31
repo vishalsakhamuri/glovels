@@ -3551,11 +3551,17 @@ const server = http.createServer(async (req, res) => {
     if (segs.length === 1) {
       const name = segs[0];
       const PUBLIC_TOP = /\.(html|ico|png|svg|jpg|jpeg|webp|webmanifest|txt|xml)$/i;
-      const PUBLIC_FILES = ['fitpanel.js', 'sw.js'];
+      const PUBLIC_FILES = ['fitpanel.js', 'sw.js', 'glovels-pay.js'];
       const hasExt = /\.[a-z0-9]+$/i.test(name);
       if (hasExt && !PUBLIC_TOP.test(name) && !PUBLIC_FILES.includes(name)) return notFound(res);
       if (!hasExt && /^(Dockerfile|LICENSE|Makefile|Procfile)$/i.test(name)) return notFound(res);
     }
+  }
+
+  /* Patch 185: the address a payment gateway's reviewer asks for. Glovels
+     ships nothing; the delivery policy is a section of the refund page. */
+  if (/^\/(shipping|shipping-policy|delivery|delivery-policy)(\.html)?\/?$/.test(pathname)) {
+    return send(res, 301, '', 'text/html', { Location: '/refunds#delivery' });
   }
 
   let file = resolveSafe(pathname);

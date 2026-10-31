@@ -570,6 +570,19 @@ function sqliteDriver(file) {
    "ALTER TABLE students ADD COLUMN close_note TEXT NOT NULL DEFAULT ''",
    "CREATE INDEX IF NOT EXISTS idx_push_staff ON push_subs(staff_id)",
    'CREATE INDEX IF NOT EXISTS idx_prog_active ON programmes(active)',
+   /* Patch 185: each gateway order made for one of ours — what it charges, in
+      which currency, and for which part — so the webhook checks the amount the
+      gateway was ASKED for (a USD order reports cents, not paise) and settles
+      the right part. INR is still the order's truth (gross_paise). */
+   `CREATE TABLE IF NOT EXISTS gateway_orders (
+      gateway_order_id TEXT PRIMARY KEY,
+      reference        TEXT NOT NULL,
+      part_n           INTEGER,
+      currency         TEXT NOT NULL DEFAULT 'INR',
+      amount_minor     INTEGER NOT NULL,
+      inr_paise        INTEGER NOT NULL,
+      created_at       TEXT NOT NULL DEFAULT ''
+    )`,
    "CREATE INDEX IF NOT EXISTS idx_lead_notes ON lead_notes(lead_id)",
    /* After the ALTERs, not in the schema above: the schema runs first, and an
       index on a column that does not exist yet fails on every fresh database. */
@@ -1001,7 +1014,7 @@ function jsonDriver(file) {
           shortlist_dismissed: ['student_id', 'prog_id'],
           applications: ['student_id', 'prog_id'], saved_scholarships: ['student_id', 'sch_id'],
           password_resets: ['token'], programmes: ['id'], countries: ['code'],
-          content: ['key']}[table];
+          content: ['key'], gateway_orders: ['gateway_order_id']}[table];
         if (keys) data[table] = data[table].filter(r => !keys.every(k => String(r[k]) === String(row[k])));
       }
       data[table].push(row);
@@ -1860,6 +1873,13 @@ function open(dir) {
     orderByReference: r => db.one('SELECT * FROM orders WHERE reference = ?', String(r)),
     orderByGateway: g =>
       db.one('SELECT * FROM orders WHERE gateway_order_id = ?', String(g)),
+    /** Patch 185: one gateway order — its currency, amount and part. */
+    putGatewayOrder({ gatewayOrderId, reference, partN, currency, amountMinor, inrPaise }) {
+      db.run('INSERT OR REPLACE INTO gateway_orders (gateway_order_id, reference, part_n, currency, amount_minor, inr_paise, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        String(gatewayOrderId), String(reference), partN == null ? null : Number(partN), String(currency || 'INR'),
+        Math.round(Number(amountMinor) || 0), Math.round(Number(inrPaise) || 0), new Date().toISOString());
+    },
+    gatewayOrder: id => db.one('SELECT * FROM gateway_orders WHERE gateway_order_id = ?', String(id)),
     setOrderGateway: (reference, gatewayOrderId) =>
       db.run('UPDATE orders SET gateway_order_id = ? WHERE reference = ?',
         String(gatewayOrderId), String(reference)),

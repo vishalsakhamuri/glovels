@@ -114,18 +114,23 @@ function makePay(cfg) {
      * never a number that arrived from a browser — that is the entire point of
      * doing it here.
      */
-    async createOrder({ amountPaise, receipt, notes }) {
+    async createOrder({ amountPaise, amountMinor, currency, receipt, notes }) {
       if (!on) throw new Error('Razorpay is not configured on this server.');
-      const amount = Math.round(Number(amountPaise) || 0);
+      /* Patch 185: any currency the account takes (international payments
+         on). `amountMinor` is in that currency's smallest unit (cents for
+         USD); INR callers may still pass `amountPaise`. Every figure here was
+         worked out by this server, never sent by a browser. */
+      const cur = /^[A-Z]{3}$/.test(String(currency || '')) ? String(currency) : 'INR';
+      const amount = Math.round(Number(amountMinor != null ? amountMinor : amountPaise) || 0);
       if (amount < 100) {
-        /* Razorpay's own floor is ₹1. Sending less returns a 400 that reads
-           like a server fault; refusing here says what actually happened. */
-        throw new Error('That amount is too small to charge: ₹'
+        /* Razorpay's own floor is 1 unit (₹1, $1). Sending less returns a 400
+           that reads like a server fault; refusing here says what happened. */
+        throw new Error('That amount is too small to charge: ' + cur + ' '
           + (amount / 100).toFixed(2) + '.');
       }
       return request('POST', '/v1/orders', keyId + ':' + keySecret, {
         amount,
-        currency: 'INR',
+        currency: cur,
         receipt: String(receipt || '').slice(0, 40),
         notes: notes || {},
         payment_capture: 1,

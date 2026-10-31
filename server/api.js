@@ -370,6 +370,61 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
   const pay = PAY.makePay((config && config.razorpay) || {});
+
+  /*
+   * Patch 185: paying in your own currency.
+   *
+   * Prices are set in rupees and the rupee figure stays the order's truth. A
+   * buyer abroad is charged the same price in their currency, converted with
+   * the office's own rates (Finder settings → exchange rates, rupees per unit)
+   * and rounded UP to a whole unit, so the office never collects less than the
+   * rupee price. Razorpay settles to the bank in rupees. Only currencies the
+   * office has a rate for are offered, and the browser only ever names one —
+   * every amount is worked out here.
+   */
+  const PAY_CURRENCY_ORDER = ['INR', 'USD', 'EUR', 'GBP', 'AUD', 'CAD'];
+  const payFx = () => {
+    let fx = null;
+    try { const f = content && content.get('finder'); fx = f && f.fx; } catch (e) { fx = null; }
+    const out = { INR: 1 };
+    Object.keys(fx || {}).forEach(k => {
+      const code = String(k).toUpperCase();
+      const r = Number(fx[k]);
+      if (/^[A-Z]{3}$/.test(code) && code !== 'INR' && r > 0) out[code] = r;
+    });
+    return out;
+  };
+  const payCurrencies = () => {
+    const fx = payFx();
+    const known = PAY_CURRENCY_ORDER.filter(c => fx[c]);
+    return known.concat(Object.keys(fx).filter(c => !known.includes(c)).sort());
+  };
+  /** What `inrPaise` is in `currency`, in its smallest unit. */
+  const inCurrency = (inrPaise, currency) => {
+    const fx = payFx();
+    const cur = String(currency || 'INR').toUpperCase();
+    if (cur === 'INR' || !fx[cur]) return { currency: 'INR', amountMinor: Math.round(inrPaise), rate: 1 };
+    const units = Math.max(1, Math.ceil((Number(inrPaise) / 100) / fx[cur]));
+    return { currency: cur, amountMinor: units * 100, rate: fx[cur] };
+  };
+  /** One gateway order for `inrPaise` of ours, in the buyer's currency, and a
+   *  record of exactly what it asked for — the webhook checks against that. */
+  async function gatewayOrderFor({ reference, partN, inrPaise, currency, receipt, notes }) {
+    const c = inCurrency(inrPaise, currency);
+    const made = await pay.createOrder({
+      amountMinor: c.amountMinor, currency: c.currency, receipt,
+      notes: Object.assign({}, notes || {}, c.currency === 'INR' ? {} : {
+        inr: String(Math.round(inrPaise) / 100), rate: String(c.rate),
+      }),
+    });
+    try {
+      db.putGatewayOrder({ gatewayOrderId: made.id, reference, partN: partN == null ? null : partN,
+        currency: c.currency, amountMinor: c.amountMinor, inrPaise: Math.round(inrPaise) });
+    } catch (e) { /* the order row still carries the id; the old checks apply */ }
+    db.setOrderGateway(reference, made.id);
+    return { orderId: made.id, keyId: pay.keyId, amountPaise: Math.round(inrPaise),
+      amountMinor: c.amountMinor, currency: c.currency };
+  }
   /* Prices are read per request, never captured. A package edited at 11:02 is
      charged at the new price at 11:03, without a restart. */
   const PACKAGES = () => (content ? content.priceList() : FALLBACK_PACKAGES);
@@ -2733,13 +2788,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        so it is linked to the account and reads the same on every screen. A
        mobile the form sends is used only when the account has none. */
     const acct = (() => { const w = me(req); return w && w.role === 'student' ? w : null; })();
-    const acctPhone = acct && validPhone(String(acct.phone || '').trim()) ? String(acct.phone).trim() : '';
+    /* Patch 185: a buyer anywhere — a mobile from any country, not only India. */
+    const acctPhone = acct && anyPhone(String(acct.phone || '').trim()) ? String(acct.phone).trim() : '';
     const name = acct && String(acct.name || '').trim() ? String(acct.name).trim() : String(b.name || '').trim();
     const email = acct ? String(acct.email || '').trim().toLowerCase() : String(b.email || '').trim().toLowerCase();
     const phone = acctPhone || String(b.phone || '').trim();
     if (!name) return json(res, 422, { error: 'Tell us your name' });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
-    if (!validPhone(phone) && !(acct && !phone)) return json(res, 422, { error: 'A 10-digit Indian mobile, please' });
+    if (!anyPhone(phone) && !(acct && !phone)) {
+      return json(res, 422, { error: 'A mobile number, please — with the country code if you are outside India (e.g. +49 151 2345 6789)' });
+    }
 
     /* Ten an hour. Somebody genuinely buying a package and then three services
        makes four in a minute; a script making orders forever creates accounts
@@ -2809,14 +2867,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     let rzp = null;
     if (collecting && chargeNow > 0) {
       try {
-        const made = await pay.createOrder({
-          amountPaise: chargeNow,
-          receipt: reference,
+        rzp = await gatewayOrderFor({
+          reference, partN: plan ? plan[0].n : null, inrPaise: chargeNow,
+          currency: b.currency, receipt: reference,
           notes: { reference, email, package: label,
             part: plan ? '1 of ' + plan.length : 'in full' },
         });
-        rzp = { orderId: made.id, keyId: pay.keyId, amountPaise: chargeNow };
-        db.setOrderGateway(reference, made.id);
       } catch (e) {
         /* The gateway is down or misconfigured. The order still exists and a
            counsellor can still collect — losing the sale because a third party
@@ -3025,6 +3081,28 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          owed, and it settles THAT part rather than the order. */
       const amount = Number(entity.amount || 0);
       const parts = planOf(order);
+      /* Patch 185: what we ASKED this gateway order for — its currency and
+         amount — is the check, because a USD payment reports cents. The rupee
+         figure it stood for is what settles the part or the order. */
+      let rec = null;
+      try { rec = db.gatewayOrder(gatewayOrderId); } catch (e) { rec = null; }
+      if (rec) {
+        const cur = String(entity.currency || 'INR').toUpperCase();
+        if (cur !== String(rec.currency) || amount !== Number(rec.amount_minor)) {
+          db.log('system', 'Webhook amount mismatch',
+            order.reference + ': gateway says ' + cur + ' ' + amount + ', we asked for '
+            + rec.currency + ' ' + rec.amount_minor);
+          return json(res, 200, { ok: true, note: 'amount mismatch, left alone' });
+        }
+        if (order.status !== 'paid') {
+          const which = rec.part_n != null && parts ? rec.part_n : null;
+          const done = recordPayment(order, entity.id || '', which);
+          db.log('system', 'Payment captured', order.reference + ' — ' + inrOf(Number(rec.inr_paise))
+            + (cur !== 'INR' ? ' (charged ' + cur + ' ' + (amount / 100).toFixed(2) + ')' : '')
+            + (done.outstanding ? ' (' + inrOf(done.outstanding) + ' still to come)' : ''));
+        }
+        return json(res, 200, { ok: true });
+      }
       const part = parts && parts.find(x => x.status !== 'paid' && Number(x.paise) === amount);
       if (!part && amount !== Number(order.gross_paise || 0)) {
         db.log('system', 'Webhook amount mismatch',
@@ -3049,6 +3127,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('GET', '/api/pay/config', async (req, res) => json(res, 200, {
     enabled: pay.enabled,
     keyId: pay.keyId,
+    /* Patch 185: which currencies a buyer may pay in, and the rupees per unit
+       the office converts with — so the checkout can show the figure before
+       the card sheet opens. The server works the charged amount out again. */
+    currencies: payCurrencies(),
+    fx: payFx(),
   }), { open: true });
 
   /*
@@ -3117,17 +3200,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
     }
     try {
-      const made = await pay.createOrder({
-        amountPaise: part.paise,
-        receipt: order.reference + '-' + part.n,
+      const b = await readJson(req).catch(() => ({}));
+      /* The gateway id is stored (with what it charges) so the webhook can find
+         this order when it arrives — it has only the gateway's identifiers. */
+      const rzp = await gatewayOrderFor({
+        reference: order.reference, partN: part.n, inrPaise: part.paise,
+        currency: b && b.currency, receipt: order.reference + '-' + part.n,
         notes: { reference: order.reference, part: part.n + ' of ' + plan.length },
       });
-      /* The gateway id is stored so the webhook can find this order when it
-         arrives — the webhook has nothing but the gateway's own identifiers. */
-      db.setOrderGateway(order.reference, made.id);
       return json(res, 200, {
         reference: order.reference,
-        razorpay: { orderId: made.id, keyId: pay.keyId, amountPaise: part.paise },
+        razorpay: rzp,
         part: { n: part.n, label: part.label, paise: part.paise },
       });
     } catch (e) {
