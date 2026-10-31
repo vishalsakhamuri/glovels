@@ -361,6 +361,14 @@ PRIVACY = """
 <p>We set one cookie, to keep you signed in. It is not used to track you across
   other sites and there is no advertising cookie on this site.</p>
 
+<h2 id="country">Your country and currency</h2>
+<p>To show prices and take payment in your own currency, our server works out
+  which country you are visiting from, using your IP address. Only the country
+  is used and kept (in our visit counts); the address itself is not stored. You
+  can always choose a different currency at checkout, and your choice is
+  remembered in your browser only. IP geolocation by
+  <a href="https://db-ip.com" rel="noopener">DB-IP</a> (licensed under CC BY 4.0).</p>
+
 <h2>Children</h2>
 <p>This service is for people aged 18 and over. We do not knowingly collect data
   about anyone younger except through a parent or guardian acting for them.</p>

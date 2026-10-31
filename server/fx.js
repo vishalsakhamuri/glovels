@@ -29,33 +29,51 @@ const EXP0 = new Set(['BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'P
 const EXP3 = new Set(['BHD', 'IQD', 'JOD', 'KWD', 'OMR', 'TND']);
 const exponent = c => (EXP0.has(c) ? 0 : EXP3.has(c) ? 3 : 2);
 
-/* What the checkout offers, region by region. Only currencies Razorpay
-   accepts; Argentina (ARS) and Venezuela (VES) are not among them, so those
-   buyers are offered US dollars. */
+/* What the checkout offers, region by region: every currency Razorpay
+   International Payments accepts (its published list), less the Russian
+   rouble and the Cuban peso, which international cards cannot pay in, and
+   the Croatian kuna (Croatia uses the euro). Currencies Razorpay does not
+   take — Argentina (ARS), Venezuela (VES), Iran, Syria, Lebanon — are
+   offered US dollars. */
 const REGIONS = [
-  ['South Asia', ['INR', 'NPR', 'LKR', 'BDT', 'PKR', 'MVR']],
-  ['South-East Asia', ['MYR', 'IDR', 'VND', 'THB', 'PHP', 'SGD', 'KHR']],
-  ['Middle East', ['AED', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD', 'IQD', 'EGP', 'TRY']],
-  ['Africa', ['NGN', 'KES', 'GHS', 'ZAR', 'TZS', 'UGX', 'RWF', 'ETB', 'ZMW', 'MWK', 'MZN',
-    'BWP', 'NAD', 'MUR', 'MAD', 'DZD', 'TND', 'XOF', 'XAF']],
-  ['South America', ['BRL', 'CLP', 'COP', 'PEN', 'UYU', 'BOB', 'PYG']],
-  ['Worldwide', ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'NZD', 'CHF']],
+  ['South Asia', ['INR', 'NPR', 'LKR', 'BDT', 'PKR', 'MVR', 'BTN']],
+  ['Middle East', ['AED', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD', 'IQD', 'EGP', 'TRY', 'ILS', 'YER']],
+  ['South-East Asia', ['MYR', 'IDR', 'VND', 'THB', 'PHP', 'SGD', 'KHR', 'MMK', 'LAK', 'BND']],
+  ['East Asia', ['CNY', 'HKD', 'TWD', 'KRW', 'JPY', 'MNT', 'MOP']],
+  ['Africa', ['NGN', 'KES', 'GHS', 'ZAR', 'TZS', 'UGX', 'RWF', 'ETB', 'ZMW', 'MWK', 'MZN', 'BWP', 'NAD', 'MUR', 'MAD', 'DZD', 'TND', 'XOF', 'XAF', 'SCR', 'SOS', 'SLL', 'LRD', 'GMD', 'GNF', 'BIF', 'DJF', 'KMF', 'MGA', 'CVE', 'LSL', 'SZL']],
+  ['South America', ['BRL', 'CLP', 'COP', 'PEN', 'UYU', 'BOB', 'PYG', 'GYD']],
+  ['Central America & Caribbean', ['MXN', 'GTQ', 'HNL', 'NIO', 'CRC', 'SVC', 'DOP', 'JMD', 'TTD', 'BBD', 'BSD', 'BZD', 'HTG', 'KYD', 'XCD', 'AWG', 'BMD']],
+  ['Central Asia & Caucasus', ['KZT', 'UZS', 'KGS', 'AZN', 'AMD']],
+  ['Europe', ['EUR', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'RSD', 'MKD', 'ALL', 'BAM', 'MDL', 'UAH', 'ISK', 'GIP']],
+  ['North America', ['USD', 'CAD']],
+  ['Oceania', ['AUD', 'NZD', 'FJD', 'PGK', 'VUV', 'XPF']],
 ];
 const OFFERED = [].concat(...REGIONS.map(r => r[1]));
 
 /* Rupees per unit, 31 Oct 2026 (open.er-api.com). Used until the first daily
    fetch succeeds, and whenever it cannot. NPR is pegged at 1.6 per rupee. */
 const SNAPSHOT = {
-  AED: 25.888, AUD: 66.8494, BDT: 0.766577, BHD: 252.8445, BOB: 7.9352, BRL: 17.6544,
-  BWP: 6.6494, CAD: 68.0504, CHF: 115.327, CLP: 0.096355, COP: 0.030022, DZD: 0.704068,
-  EGP: 1.6995, ETB: 0.589744, EUR: 106.0895, GBP: 127.2265, GHS: 8.1331, IDR: 0.005243,
-  IQD: 0.062712, JOD: 134.1022, KES: 0.732003, KWD: 305.6235, LKR: 0.285866, MAD: 9.6525,
-  MUR: 1.9763, MVR: 6.1607, MWK: 0.054369, MYR: 23.4274, MZN: 1.4875, NAD: 5.705,
-  NGN: 0.070246, NPR: 0.625, NZD: 53.5705, OMR: 247.2799, PEN: 27.4288, PHP: 1.4925,
-  PKR: 0.344064, PYG: 0.01643, QAR: 26.1192, RWF: 0.064199, SAR: 25.353, SGD: 74.3439,
-  THB: 2.8163, TND: 31.5886, TRY: 1.9014, TZS: 0.035859, UGX: 0.021915, USD: 95.0751,
-  UYU: 2.3695, VND: 0.003696, XAF: 0.161738, XOF: 0.161738, ZAR: 5.7049, ZMW: 4.6879,
-  KHR: 0.023479,
+  AED: 25.888, ALL: 1.16804, AMD: 0.263872, AUD: 66.8494, AWG: 53.1124, AZN: 55.9222,
+  BAM: 54.2446, BBD: 47.5376, BDT: 0.766577, BGN: 54.2446, BHD: 252.845, BIF: 0.0318196,
+  BMD: 95.0751, BND: 74.3439, BOB: 7.93525, BRL: 17.6544, BSD: 95.0751, BTN: 1.0, BWP: 6.64942,
+  BZD: 47.5376, CAD: 68.0504, CHF: 115.327, CLP: 0.0963549, CNY: 14.2908, COP: 0.0300217,
+  CRC: 0.209484, CVE: 0.962166, CZK: 4.3576, DJF: 0.53496, DKK: 14.1943, DOP: 1.56644,
+  DZD: 0.704068, EGP: 1.69954, ETB: 0.589744, EUR: 106.09, FJD: 42.3657, GBP: 127.226,
+  GHS: 8.13312, GIP: 127.226, GMD: 1.27221, GNF: 0.010741, GTQ: 12.4607, GYD: 0.454433,
+  HKD: 12.1098, HNL: 3.54692, HTG: 0.72629, HUF: 0.289956, IDR: 0.00524299, ILS: 30.3306,
+  IQD: 0.0627124, ISK: 0.781037, JMD: 0.600376, JOD: 134.102, JPY: 0.603626, KES: 0.732003,
+  KGS: 1.08645, KHR: 0.0234785, KMF: 0.215651, KRW: 0.0712564, KWD: 305.623, KYD: 114.09,
+  KZT: 0.209798, LAK: 0.00428323, LKR: 0.285866, LRD: 0.559349, LSL: 5.70496, MAD: 9.65251,
+  MDL: 5.28547, MGA: 0.0206982, MKD: 1.71908, MMK: 0.0453906, MNT: 0.0263685, MOP: 11.7571,
+  MUR: 1.97632, MVR: 6.16067, MWK: 0.0543688, MXN: 5.03943, MYR: 23.4274, MZN: 1.48751,
+  NAD: 5.70496, NGN: 0.0702457, NIO: 2.58842, NOK: 10.301, NPR: 0.625, NZD: 53.5705,
+  OMR: 247.28, PEN: 27.4288, PGK: 21.2775, PHP: 1.4925, PKR: 0.344064, PLN: 24.1057,
+  PYG: 0.0164298, QAR: 26.1192, RON: 19.8515, RSD: 0.902416, RWF: 0.0641993, SAR: 25.353,
+  SCR: 6.76169, SEK: 9.66501, SGD: 74.3439, SLL: 0.00415721, SOS: 0.166512, SVC: 10.8696,
+  SZL: 5.70496, THB: 2.81631, TND: 31.5886, TRY: 1.9014, TTD: 14.0477, TWD: 2.91655,
+  TZS: 0.0358591, UAH: 2.09253, UGX: 0.0219154, USD: 95.0751, UYU: 2.3695, UZS: 0.00793301,
+  VND: 0.00369587, VUV: 0.798925, XAF: 0.161738, XCD: 35.2125, XOF: 0.161738, XPF: 0.88906,
+  YER: 0.403271, ZAR: 5.7049, ZMW: 4.6879
 };
 
 /* The cushion for the card network's conversion spread. */

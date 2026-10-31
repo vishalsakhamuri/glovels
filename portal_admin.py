@@ -837,6 +837,11 @@ BODY = """
         <div class="p-card"><h3 style="margin:0;font-size:15px">Where visitors come from</h3>
           <p class="tr-empty" style="margin-top:2px" id="trSourcesNote">Visitors per source — the same people the Visitors tile counts, once each. Page views beside.</p>
           <ul class="tr-list" id="trSources"></ul></div>
+        <!-- Patch 187: where visitors are, from their IP address (only the
+             country is kept, never the address). -->
+        <div class="p-card"><h3 style="margin:0;font-size:15px">Visitors by country</h3>
+          <p class="tr-empty" style="margin-top:2px">From each visitor&rsquo;s IP address &mdash; only the country is kept. Page views beside.</p>
+          <ul class="tr-list" id="trCountries"></ul></div>
         <div class="p-card"><h3 style="margin:0;font-size:15px">AI assistants</h3>
           <p class="tr-empty" style="margin-top:2px">People who arrived from a ChatGPT, Claude, Perplexity, Gemini or Copilot answer.</p>
           <ul class="tr-list" id="trAiList"></ul></div>
@@ -2933,6 +2938,14 @@ async function paintTraffic() {
 
   /* Patch 177 (item 2): visitors, with the page views said beside. */
   trList('trSources', t.sources, { label: r => trSourceName[r.name] || r.name, empty: 'No visits counted yet — this starts the moment the site is live.',
+    extra: r => (r.views != null ? '<small style="color:var(--muted);margin-left:6px">' + trN(r.views) + ' views</small>' : '') });
+  /* Patch 187: visitors by country, named in English. */
+  const trCountry = code => {
+    if (!code || code === '??') return 'Not known';
+    try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code; } catch (e) { return code; }
+  };
+  trList('trCountries', (t.countries || []).map(r => Object.assign({ name: trCountry(r.code) }, r)), {
+    empty: 'No visits counted yet.',
     extra: r => (r.views != null ? '<small style="color:var(--muted);margin-left:6px">' + trN(r.views) + ' views</small>' : '') });
   trList('trAiList', t.ai, { empty: 'Nobody from an AI assistant yet. The crawler list says whether they have read the site at all.' });
   trList('trSearchList', t.search, { empty: 'Nobody from a search engine yet.' });

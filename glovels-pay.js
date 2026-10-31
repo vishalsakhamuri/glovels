@@ -103,7 +103,9 @@
    *  office takes it, else rupees. */
   function current(cfg) {
     var list = (cfg && cfg.currencies) || ['INR'];
-    var pick = stored() || guess();
+    /* Their own pick first; then the country their IP is in (server); then
+       the clock on their device. */
+    var pick = stored() || (cfg && cfg.geo && cfg.geo.currency) || guess();
     if (list.indexOf(pick) >= 0) return pick;
     return pick !== 'INR' && list.indexOf('USD') >= 0 ? 'USD' : 'INR';
   }
@@ -203,8 +205,9 @@
   }
 
   /** What to send with an order: the currency the buyer picked. */
+  var CFG = null;
   function chosen() {
-    var s = stored() || guess();
+    var s = stored() || (CFG && CFG.geo && CFG.geo.currency) || guess();
     return /^[A-Z]{3}$/.test(s) ? s : 'INR';
   }
 
@@ -299,13 +302,55 @@
     convert: convert, money: money, phoneOk: phoneOk,
     PHONE_MSG: 'A mobile number, please — add the country code if you are outside India' };
 
+  /*
+   * Patch 187: every price on the page in the visitor's own money too.
+   * "₹49,999" on a package card gets a quiet "≈ ₦715,000" under it for a
+   * visitor in Nigeria. The rupee price stays the price; this is a guide,
+   * and the checkout shows the exact charge.
+   */
+  function localPrices() {
+    if (!CFG) return;
+    var code = current(CFG);
+    var els = document.querySelectorAll('.price, [data-inr]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var tag = el.querySelector(':scope > .glv-local');
+      if (code === 'INR') { if (tag) tag.remove(); continue; }
+      var inr = Number(el.getAttribute('data-inr')) || 0;
+      if (!inr) {
+        var t = '';
+        for (var k = 0; k < el.childNodes.length; k++) {
+          var n = el.childNodes[k];
+          if (n.nodeType === 3 || (n.nodeType === 1 && !n.classList.contains('glv-local'))) t += n.textContent;
+        }
+        var m = /\u20b9\s*([\d,]+)/.exec(t);
+        inr = m ? Number(m[1].replace(/,/g, '')) : 0;
+      }
+      if (!inr) continue;
+      var text = '\u2248 ' + money(convert(inr, code, CFG), code);
+      if (tag && tag.textContent === text) continue;
+      if (!tag) {
+        tag = document.createElement('span');
+        tag.className = 'glv-local';
+        tag.style.cssText = 'display:block;font:600 12px/1.35 var(--sans,system-ui,sans-serif);color:#5a6b80;'
+          + 'margin-top:2px;letter-spacing:0';
+        el.appendChild(tag);
+      }
+      tag.textContent = text;
+    }
+  }
+
   /* Every checkout button the pages know about, whenever it appears. */
+  var priceTimer = 0;
   function scan() {
     ['buyPay', 'scPay', 'svcCoPay'].forEach(function (id) {
       var b = document.getElementById(id);
       if (b) attach(b);
     });
+    if (!priceTimer) priceTimer = setTimeout(function () { priceTimer = 0; localPrices(); }, 120);
   }
+  config().then(function (c) { CFG = c; localPrices(); });
+  document.addEventListener('glv-currency', function () { localPrices(); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan);
   else scan();
   try {

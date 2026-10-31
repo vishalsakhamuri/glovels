@@ -894,6 +894,9 @@ function sqliteDriver(file) {
       payment received). Notices live in the Activity timeline, not in the
       conversation, and no unread counter counts them. */
    "ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'msg'",
+   /* Patch 187: the visitor's country (two letters, from their IP), for the
+      Traffic screen's "Visitors by country". The address itself is never kept. */
+   "ALTER TABLE hits ADD COLUMN country TEXT NOT NULL DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -3543,10 +3546,10 @@ function open(dir) {
 
     /* ---- traffic ---- */
     hit(h) {
-      db.run(`INSERT INTO hits (day, ts, path, kind, source, site, campaign, medium, device, bot, visitor)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      db.run(`INSERT INTO hits (day, ts, path, kind, source, site, campaign, medium, device, bot, visitor, country)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         h.day, h.ts, h.path, h.kind, h.source || '', h.site || '', h.campaign || '',
-        h.medium || '', h.device || '', h.bot || '', h.visitor || '');
+        h.medium || '', h.device || '', h.bot || '', h.visitor || '', h.country || '');
     },
     hitsSince: day => db.kind === 'sqlite'
       ? db.all('SELECT * FROM hits WHERE day >= ? ORDER BY id', day)

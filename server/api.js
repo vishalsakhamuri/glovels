@@ -30,6 +30,7 @@ const OPAQUE = (kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY)
 const OPAQUE_NONCE = () => crypto.randomBytes(12).toString('hex');
 const OPAQUE_SALTED = (nonce, kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY).update(nonce + ':' + kind + ':' + String(v)).digest('hex').slice(0, 14);
 const FX = require('./fx.js');
+const GEO = require('./geo.js');
 const PAY = require('./pay.js');
 const fs = require('fs');
 const path = require('path');
@@ -407,8 +408,21 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * browser only ever names a currency; every amount is worked out here.
    */
   FX.start(db);
+  /* Patch 187: the visitor's country from their IP (server/geo.js), to offer
+     their own currency. Started once, here, beside the rates. */
+  GEO.start(path.dirname(uploadDir));
+  /** The currency to suggest to this visitor: their country's, if it can be
+   *  charged; US dollars for anywhere else abroad; rupees in India or when the
+   *  country is not known (the page then asks the browser's clock). */
+  const geoFor = req => {
+    const g = GEO.forRequest(req, clientIp(req));
+    const offered = payCurrenciesLazy();
+    const currency = !g.country ? '' : offered.includes(g.currency) ? g.currency : 'USD';
+    return { country: g.country, currency, source: g.source };
+  };
   const payFx = () => FX.rates();
   const payCurrencies = () => FX.currencies();
+  function payCurrenciesLazy() { return FX.currencies(); }
   const inCurrency = (inrPaise, currency) => FX.convert(inrPaise, currency);
   /** One gateway order for `inrPaise` of ours, in the buyer's currency, and a
    *  record of exactly what it asked for — the webhook checks against that. */
@@ -3139,6 +3153,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     regions: FX.regions(),
     exponents: Object.fromEntries(payCurrencies().map(c => [c, FX.exponent(c)])),
     ratesAt: FX.status().at,
+    /* Patch 187: where this visitor is, from their IP — never stored. */
+    geo: geoFor(req),
   }), { open: true });
 
   /*
@@ -6927,6 +6943,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       pay: { enabled: pay.enabled, keyId: pay.keyId, currencies: payCurrencies(), fx: payFx(),
         regions: FX.regions(), ratesAt: FX.status().at },
       phone: { defaultCountry: '+91' },
+      geo: geoFor(req),
     });
   }, { open: true });
 

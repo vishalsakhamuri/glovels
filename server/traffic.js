@@ -20,6 +20,7 @@
  * a few tens of megabytes on the disk, read in a moment.
  */
 const crypto = require('crypto');
+const GEO = require('./geo.js');
 
 const KEEP_DAYS = 180;
 
@@ -167,7 +168,10 @@ function open({ db, log = console }) {
         const ip = String(req.headers['x-forwarded-for'] || '').split(',').pop().trim()
           || (req.socket && req.socket.remoteAddress) || '';
         const visitor = crypto.createHmac('sha256', secret).update(ip + '|' + ua + '|' + day).digest('hex').slice(0, 16);
-        Object.assign(row, { kind: 'page', device: deviceOf(ua), visitor },
+        /* Patch 187: the country only — the address itself is not kept. */
+        let country = '';
+        try { country = GEO.forRequest(req, ip).country || ''; } catch (e) { country = ''; }
+        Object.assign(row, { kind: 'page', device: deviceOf(ua), visitor, country },
           sourceOf(String(req.headers.referer || ''), query, ownHost));
       }
       db.hit(row);
@@ -201,6 +205,7 @@ function open({ db, log = console }) {
        same visitor key the Visitors tile counts, once per source — not page
        views. Page views per source are kept beside as `views`. */
     const sourceVisitors = {}, sourceViews = {};
+    const countryVisitors = {}, countryViews = {};
     let views = 0, botHits = 0;
 
     rows.forEach(h => {
@@ -225,6 +230,9 @@ function open({ db, log = console }) {
       if (h.source === 'referral') referrals[h.site] = (referrals[h.site] || 0) + 1;
       if (h.campaign) campaigns[h.campaign + (h.medium ? ' · ' + h.medium : '')] = (campaigns[h.campaign + (h.medium ? ' · ' + h.medium : '')] || 0) + 1;
       pages[h.path] = (pages[h.path] || 0) + 1;
+      const cc = h.country || '??';
+      countryViews[cc] = (countryViews[cc] || 0) + 1;
+      (countryVisitors[cc] || (countryVisitors[cc] = new Set())).add(h.visitor);
       devices[h.device] = (devices[h.device] || 0) + 1;
     });
 
@@ -256,6 +264,9 @@ function open({ db, log = console }) {
         day: d.day, views: d.views, visitors: d.visitors.size, ai: d.ai, search: d.search, bots: d.bots,
         enquiries: enqByDay[d.day] || 0,
       })),
+      /* Patch 187: visitors per country (from their IP; '??' = not known). */
+      countries: Object.entries(countryVisitors).map(([code, set]) => ({ code, count: set.size, views: countryViews[code] || 0 }))
+        .sort((a, b) => b.count - a.count).slice(0, 40),
       /* Patch 177 (item 2): visitors per source (count), views beside. */
       sources: Object.entries(sourceVisitors).map(([name, set]) => ({ name, count: set.size, views: sourceViews[name] || 0 }))
         .sort((a, b) => b.count - a.count || b.views - a.views).slice(0, 10),
