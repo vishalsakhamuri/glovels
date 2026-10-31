@@ -2674,7 +2674,23 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     try { return order.plan ? JSON.parse(order.plan) : null; } catch (e) { return null; }
   };
 
+  /*
+   * Patch 197: "you can see your universities within seconds of paying."
+   * An order is `awaiting` while a gateway collects, and an awaiting order
+   * unlocks nothing — so the checkout's delivery found nothing owed, and the
+   * universities only arrived the next time the student saved their profile.
+   * The moment a payment is recorded (Razorpay handback or webhook, Stripe
+   * return or webhook) the shortlist is delivered.
+   */
   function recordPayment(order, paymentId, which, via) {
+    const done = recordPayment0(order, paymentId, which, via);
+    try {
+      const st = order.student_id ? db.studentById(order.student_id) : null;
+      if (st) done.matched = deliverMatches(st);
+    } catch (e) { /* the payment stands; the dashboard can still re-run it */ }
+    return done;
+  }
+  function recordPayment0(order, paymentId, which, via) {
     const plan = planOf(order);
     /* 8 Oct (F2): the gateway's money goes in the same ledger as the office's,
        so GET /api/staff/order/:ref lists a card payment beside a bank

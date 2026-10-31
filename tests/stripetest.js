@@ -156,6 +156,32 @@ const hook = obj => {
     check('the order is paid', (one.body.order || one.body).status === 'paid', (one.body.order || one.body).status);
     check('return + webhook recorded ONE payment, by Stripe', pays.length === 1 && /stripe/i.test(pays[0].note || pays[0].method + pays[0].byStaff || ''), JSON.stringify(pays).slice(0, 200));
 
+    /* Patch 197: the universities arrive the moment the payment is confirmed. */
+    {
+      const em = 'shortlist-' + Date.now() + '@example.com';
+      const su = await call('/api/auth/signup', { method: 'POST', body: JSON.stringify({ name: 'Ada Obi', email: em,
+        password: 'a-long-password-1', phone: '+234 803 555 0101', terms: true }) });
+      const ck = String((su.headers['set-cookie'] || [])[0] || '').split(';')[0];
+      const pr = await call('/api/profile', { method: 'PUT', headers: { Cookie: ck }, body: JSON.stringify({ profile: {
+        fullName: 'Ada Obi', g_level: "Master's", g_field: 'Computer Science', g_country: 'Germany',
+        d_course: 'B.Tech Computer Science', d_cgpa: '8.2', d_max: '10', d_pass: '5' } }) });
+      const before = await call('/api/state', { headers: { Cookie: ck } });
+      const n0 = ((before.body && before.body.shortlist) || []).length;
+      const o = await call('/api/orders', { method: 'POST', headers: { Cookie: ck, 'cf-ipcountry': 'NG' },
+        body: JSON.stringify({ packageId: 'pkg-three-public', acceptedTerms: true, currency: 'USD', sourcePage: '/' }) });
+      const mid = await call('/api/state', { headers: { Cookie: ck } });
+      const n1 = ((mid.body && mid.body.shortlist) || []).length;
+      const sid2 = o.body.stripe && o.body.stripe.sessionId;
+      const back = await call('/api/stripe/return?ref=' + o.body.reference + '&session_id=' + sid2, { headers: { Cookie: ck } });
+      const after = await call('/api/state', { headers: { Cookie: ck } });
+      const n2 = ((after.body && after.body.shortlist) || []).length;
+      check('signed-in student with a profile, via Stripe', su.status === 200 && pr.status === 200 && !!sid2,
+        su.status + '/' + pr.status + ' ' + JSON.stringify(o.body).slice(0, 120));
+      check('nothing is handed over while the payment is only started', n1 === n0, n0 + ' → ' + n1);
+      check('the universities are on the shortlist the moment Stripe confirms', /paid=/.test(back.headers.location || '') && n2 > n1,
+        n1 + ' → ' + n2 + ' ' + back.headers.location);
+    }
+
     /* An expired session marks a waiting order failed */
     /* (d's session really was paid on the stand-in, so the return settled d —
        right: Stripe's word decides, whatever the address said.) */
