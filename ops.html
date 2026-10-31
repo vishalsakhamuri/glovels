@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command centre | Glovels</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Patch 198 — the command centre.
+   One idea: students are travellers, the office is the control tower.
+   The route across the top is the memorable thing; everything below it is
+   quiet, dense and exact, because it is where the work gets done. */
+:root{
+  --sky:#eaf0f7;        /* canvas: cool, airy, not cream */
+  --panel:#ffffff;
+  --ink:#0b1e31;        /* Glovels navy */
+  --ink-2:#3c5168;
+  --mute:#7889a0;
+  --rule:#d9e2ee;
+  --gold:#c9a24b;       /* Glovels gold: the route, the plane, the brand */
+  --late:#d64545;
+  --soon:#e39a2d;
+  --ok:#2e9e6a;
+  --rail:#0b1e31;
+  --disp:'Bricolage Grotesque', 'Manrope', system-ui, sans-serif;
+  --sans:'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --r-lg:22px; --r-md:14px; --r-sm:9px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--sky);color:var(--ink);font:500 14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:6px}
+
+/* ---------------------------------------------------------------- shell */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.rail{background:var(--rail);color:#c7d4e3;padding:22px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:22px}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 10px;font:800 19px/1 var(--disp);color:#fff;letter-spacing:-.01em;text-decoration:none}
+.brand i{width:30px;height:30px;border-radius:10px;background:conic-gradient(from 210deg,var(--gold),#f3dfa6,var(--gold));display:grid;place-items:center;font-style:normal;color:var(--ink);font-size:15px}
+.who{padding:12px;border-radius:var(--r-md);background:rgba(255,255,255,.06)}
+.who b{display:block;color:#fff;font-weight:700}
+.who span{font-size:12px;color:#93a6bd;text-transform:capitalize}
+.who button{margin-top:8px;background:none;border:0;padding:0;color:#93a6bd;cursor:pointer;font-size:12px;text-decoration:underline}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;text-decoration:none;font-weight:600;font-size:13.5px;color:#c7d4e3}
+.nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav a.on{background:linear-gradient(90deg,rgba(201,162,75,.22),rgba(201,162,75,.04));color:#fff;box-shadow:inset 3px 0 0 var(--gold)}
+.nav svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.main{padding:28px clamp(16px,3vw,40px) 60px;min-width:0}
+
+/* -------------------------------------------------------------- the top */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:22px}
+.hello h1{font:800 clamp(26px,3.2vw,38px)/1.05 var(--disp);letter-spacing:-.025em;margin:0}
+.hello p{margin:8px 0 0;color:var(--ink-2);font-size:15px;max-width:62ch}
+.hello p b{color:var(--late)}
+.clock{display:flex;align-items:center;gap:14px}
+.clock .t{font:700 15px/1.2 var(--disp);text-align:right}
+.clock .t small{display:block;font:500 12px var(--sans);color:var(--mute)}
+.gauge{width:64px;height:64px;position:relative}
+.gauge svg{width:64px;height:64px;transform:rotate(-90deg)}
+.gauge circle{fill:none;stroke-width:7}
+.gauge .bg{stroke:var(--rule)}
+.gauge .fg{stroke:var(--ok);stroke-linecap:round;transition:stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1),stroke .3s}
+.gauge b{position:absolute;inset:0;display:grid;place-items:center;font:800 15px var(--disp)}
+.refresh{border:1px solid var(--rule);background:var(--panel);border-radius:999px;padding:8px 14px;font-weight:700;font-size:12.5px;cursor:pointer}
+.refresh:hover{border-color:var(--ink)}
+
+/* ------------------------------------------------------------ the route */
+.route{background:var(--ink);border-radius:var(--r-lg);padding:22px 24px 18px;color:#fff;position:relative;overflow:hidden;margin-bottom:22px}
+.route::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(circle at 12% 0%,rgba(201,162,75,.18),transparent 40%),
+  radial-gradient(circle at 90% 120%,rgba(64,120,200,.28),transparent 45%);pointer-events:none}
+.route h2{position:relative;margin:0;font:700 15px var(--disp);color:#e9eef5;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.route h2 span{font:500 12.5px var(--sans);color:#9fb2c8}
+.track{position:relative;margin-top:10px;height:132px}
+.track svg.line{position:absolute;left:0;top:0;width:100%;height:110px;display:block;overflow:visible}
+.track path.base{fill:none;stroke:rgba(255,255,255,.12);stroke-width:2;stroke-dasharray:2 7;stroke-linecap:round}
+.track path.flown{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-linecap:round}
+.plane{position:absolute;left:0;top:0;width:26px;height:26px;margin:-13px 0 0 -13px;color:var(--gold);filter:drop-shadow(0 0 8px rgba(201,162,75,.6));pointer-events:none}
+.stops{position:absolute;inset:0}
+.stop{position:absolute;transform:translate(-50%,-23px);display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:0;cursor:pointer;padding:0 2px;color:#fff;width:96px}
+.dot{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font:800 16px var(--disp);
+  background:#13304d;border:2px solid rgba(255,255,255,.18);position:relative;transition:transform .2s}
+.stop:hover .dot{transform:translateY(-2px);border-color:var(--gold)}
+.stop.has .dot{background:#1b3f63;border-color:rgba(201,162,75,.65)}
+.stop.empty .dot{color:#6f86a1}
+.stop .late{position:absolute;top:-7px;right:-9px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--late);font:800 11px/20px var(--sans);color:#fff;box-shadow:0 0 0 3px var(--ink)}
+.stop .pulse{position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--late);opacity:0;animation:pulse 2.4s ease-out infinite}
+@keyframes pulse{0%{opacity:.8;transform:scale(.85)}100%{opacity:0;transform:scale(1.35)}}
+.stop span{font-weight:700;font-size:12px;color:#c7d4e3;text-align:center;line-height:1.25}
+
+/* ---------------------------------------------------------- the queues */
+.sec{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:30px 0 12px}
+.sec h2{margin:0;font:800 21px var(--disp);letter-spacing:-.015em}
+.sec p{margin:0;color:var(--mute);font-size:13px}
+.lanes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.lane h3{margin:0 0 10px;font:700 13px var(--sans);color:var(--ink-2);display:flex;align-items:center;gap:8px}
+.lane h3 i{width:8px;height:8px;border-radius:50%;background:var(--gold)}
+.q{width:100%;text-align:left;background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-md);padding:14px 14px 12px;margin-bottom:10px;cursor:pointer;display:block;position:relative;transition:border-color .15s,transform .15s}
+.q:hover{border-color:var(--ink);transform:translateY(-1px)}
+.q.is-late{border-color:rgba(214,69,69,.45);background:linear-gradient(180deg,#fff,#fff6f6)}
+.q .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.q .name{font-weight:700;font-size:13.5px;line-height:1.3}
+.q .n{font:800 24px/1 var(--disp);letter-spacing:-.02em}
+.q.zero .n{color:#b3c0d1}
+.q .sla{font-size:11.5px;color:var(--mute);margin-top:2px}
+.bar{display:flex;height:6px;border-radius:999px;overflow:hidden;background:#eef2f7;margin:10px 0 8px}
+.bar i{display:block;height:100%;transition:flex-grow .6s}
+.bar .l{background:var(--late)}.bar .s{background:var(--soon)}.bar .o{background:var(--ok)}
+.q .foot{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;font-weight:700}
+.tag{display:inline-flex;align-items:center;gap:5px}
+.tag::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.tag.l{color:var(--late)}.tag.s{color:#b9771a}.tag.o{color:var(--ok)}
+.q .worst{margin-left:auto;color:var(--late)}
+
+/* ------------------------------------------------------- the counsellors */
+.crew{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);overflow:auto}
+table{border-collapse:collapse;width:100%;min-width:820px}
+th{font:700 12px var(--sans);color:var(--mute);text-align:left;padding:14px 16px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:14px 16px;border-bottom:1px solid #eef2f7;vertical-align:middle;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+.person{display:flex;align-items:center;gap:12px}
+.av{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font:800 14px var(--disp);color:#fff;flex:none}
+.person b{display:block}
+.person small{color:var(--mute)}
+.num{font:800 17px var(--disp)}
+.num.bad{color:var(--late)}
+.muted{color:var(--mute)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-weight:800;font-size:12px}
+.pill.behind{background:#fde8e8;color:var(--late)}
+.pill.watch{background:#fdf1dc;color:#9a6312}
+.pill.good{background:#e2f4ea;color:#1e7a50}
+.ring{width:42px;height:42px;position:relative;display:inline-block;vertical-align:middle}
+.ring svg{width:42px;height:42px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:5}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font:800 11px var(--sans)}
+
+/* ------------------------------------------------------------ the drawer */
+.scrim{position:fixed;inset:0;background:rgba(11,30,49,.38);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--panel);z-index:21;transform:translateX(102%);transition:transform .32s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(11,30,49,.18)}
+body.open .scrim{opacity:1;pointer-events:auto}
+body.open .drawer{transform:none}
+.dhead{padding:22px 24px 16px;border-bottom:1px solid var(--rule)}
+.dhead h2{margin:0;font:800 22px var(--disp);letter-spacing:-.015em}
+.dhead p{margin:6px 0 0;color:var(--mute);font-size:13px}
+.dhead .x{position:absolute;top:18px;right:18px;width:36px;height:36px;border-radius:50%;border:1px solid var(--rule);background:#fff;cursor:pointer;font-size:18px;line-height:1}
+.filters{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.filters button{border:1px solid var(--rule);background:#fff;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.dlist{overflow:auto;padding:8px 12px 30px}
+.item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px;border-radius:var(--r-md)}
+.item:hover{background:#f4f7fb}
+.item .who2 b{display:block;font-size:14px}
+.item .who2 span{display:block;color:var(--ink-2);font-size:12.5px;line-height:1.4;margin-top:2px}
+.item .who2 small{color:var(--mute);font-size:12px}
+.timer{text-align:right;white-space:nowrap}
+.timer b{display:block;font:800 14px var(--disp)}
+.timer small{color:var(--mute);font-size:11.5px}
+.timer.late b{color:var(--late)}.timer.soon b{color:#b9771a}.timer.ok b{color:var(--ok)}
+.go{display:inline-block;margin-top:4px;font-weight:800;font-size:12px;color:var(--ink);text-decoration:none;border-bottom:2px solid var(--gold)}
+.none{padding:40px 20px;text-align:center;color:var(--mute)}
+.none b{display:block;color:var(--ok);font:800 18px var(--disp);margin-bottom:6px}
+
+.err{background:#fde8e8;color:var(--late);padding:14px 16px;border-radius:var(--r-md);font-weight:700;margin-bottom:16px}
+.sk{background:linear-gradient(90deg,#e3eaf3,#f2f5f9,#e3eaf3);background-size:200% 100%;animation:sk 1.2s linear infinite;border-radius:var(--r-md);height:96px;margin-bottom:10px}
+@keyframes sk{to{background-position:-200% 0}}
+
+@media (max-width:1180px){.lanes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:860px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .rail{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:12px}
+  .who{display:none}
+  .nav{flex-direction:row;overflow:auto;gap:4px}
+  .nav a{white-space:nowrap;padding:8px 10px}
+  .lanes{grid-template-columns:1fr}
+  .track{height:auto}
+  .stops{position:static;display:grid;grid-template-columns:repeat(3,1fr);gap:16px 6px;margin-top:6px}
+  .stop{position:static;transform:none;width:auto}
+  .track svg.line,.plane{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <a class="brand" href="/ops"><i>G</i> Glovels</a>
+    <div class="who"><b id="meName">…</b><span id="meRole"></span><br><button type="button" id="out">Sign out</button></div>
+    <nav class="nav" aria-label="Staff">
+      <a href="ops.html" class="on"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Command centre</a>
+      <a href="counsellor.html"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/></svg>Conversations</a>
+      <a href="chat.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Website chat</a>
+      <a href="leads.html"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Leads</a>
+      <a href="home.html"><svg viewBox="0 0 24 24"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v6h6"/></svg>Home page</a>
+      <a href="blog-admin.html"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/></svg>Blog</a>
+      <a href="catalogue.html"><svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></svg>Catalogue</a>
+      <a href="admin.html" id="navOrg"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Organisation</a>
+    </nav>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="top">
+      <div class="hello">
+        <h1 id="hello">Command centre</h1>
+        <p id="summary">Reading the board…</p>
+      </div>
+      <div class="clock">
+        <div class="t"><span id="now">—</span><small id="upd">India time</small></div>
+        <div class="gauge" title="Share of open work inside its SLA">
+          <svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="gfg" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
+          <b id="gnum">—</b>
+        </div>
+        <button type="button" class="refresh" id="refresh">Refresh</button>
+      </div>
+    </div>
+
+    <div id="error" class="err" hidden></div>
+
+    <section class="route" aria-labelledby="routeH">
+      <h2 id="routeH">Where every student is on the journey <span id="routeNote"></span></h2>
+      <div class="track" id="track">
+        <svg class="line" id="line" viewBox="0 0 1000 110" preserveAspectRatio="none" aria-hidden="true">
+          <path class="base" id="pBase" d=""/>
+          <path class="flown" id="pFlown" d=""/>
+        </svg>
+        <svg class="plane" id="plane" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" transform="rotate(90 12 12)"/></svg>
+        <div class="stops" id="stops"></div>
+      </div>
+    </section>
+
+    <div class="sec"><h2>Queues and SLAs</h2><p>Click a queue to see who is waiting, worst first.</p></div>
+    <div class="lanes" id="lanes">
+      <div><div class="sk"></div><div class="sk"></div></div><div><div class="sk"></div><div class="sk"></div></div>
+      <div><div class="sk"></div><div class="sk"></div></div><div><div class="sk"></div><div class="sk"></div></div>
+    </div>
+
+    <div class="sec"><h2 id="crewH">Counsellors</h2><p>Behind means a step or a reply is past its SLA right now.</p></div>
+    <div class="crew"><table>
+      <thead><tr><th>Counsellor</th><th>Status</th><th>Students</th><th>Open steps</th><th>Late steps</th><th>Oldest late</th><th>Replies owed</th><th>Longest wait</th><th>Docs to check</th><th>On time</th></tr></thead>
+      <tbody id="crew"><tr><td colspan="10"><div class="sk" style="height:40px"></div></td></tr></tbody>
+    </table></div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle" tabindex="-1">
+  <div class="dhead">
+    <button type="button" class="x" id="dx" aria-label="Close">×</button>
+    <h2 id="dTitle">Queue</h2>
+    <p id="dSub"></p>
+    <div class="filters" id="dFilters"></div>
+  </div>
+  <div class="dlist" id="dList"></div>
+</aside>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var DATA = null, OPEN = null, FILTER = 'all';
+  var LANES = [
+    { key: 'start', label: 'First contact' },
+    { key: 'file', label: 'Building the file' },
+    { key: 'apply', label: 'Applications' },
+    { key: 'visa', label: 'Visa and departure' },
+  ];
+  var COLORS = ['#1a4fb4', '#7a3fb0', '#0f8a7a', '#c0582b', '#2e6f9e', '#9c3d64', '#4d7a1f', '#a4741c'];
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function api(path) {
+    return fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      if (r.status === 401) { location.href = 'login.html?next=' + encodeURIComponent('/ops'); throw new Error('signed out'); }
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'The board did not load.'); return j; });
+    });
+  }
+
+  /* ------------------------------------------------------------ words */
+  function hours(h) { h = Math.max(0, Math.round(h)); return h < 48 ? h + ' h' : Math.round(h / 24) + ' days'; }
+  function timerOf(r) {
+    if (r.overHours != null) {
+      return r.state === 'late'
+        ? { big: hours(r.ageHours) + ' waiting', small: hours(r.overHours) + ' past the ' + r.slaHours + ' h SLA' }
+        : { big: hours(r.ageHours) + ' waiting', small: hours(r.slaHours - r.ageHours) + ' left of ' + r.slaHours + ' h' };
+    }
+    if (r.overDays == null) return { big: 'No date', small: r.status || 'open' };
+    if (r.overDays > 0) return { big: r.overDays + (r.overDays === 1 ? ' day' : ' days') + ' late', small: 'was due ' + nice(r.due) };
+    if (r.overDays === 0) return { big: 'Due today', small: nice(r.due) };
+    return { big: 'In ' + (-r.overDays) + (r.overDays === -1 ? ' day' : ' days'), small: 'due ' + nice(r.due) };
+  }
+  function nice(d) { if (!d) return ''; var t = new Date(String(d).slice(0, 10) + 'T12:00:00'); return isNaN(t) ? d : t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
+  function initials(n) { return String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(function (p) { return p[0].toUpperCase(); }).join(''); }
+  function colour(id) { return COLORS[Math.abs(Number(id) || 0) % COLORS.length]; }
+  function greet(name) {
+    var h = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date()));
+    var part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    return part + ', ' + String(name || '').split(' ')[0];
+  }
+
+  /* ------------------------------------------------------------ top */
+  function paintTop(d) {
+    $('#hello').textContent = greet(d.me.name);
+    var late = d.headline.late, worstQ = d.queues.filter(function (q) { return q.late; })
+      .sort(function (a, b) { return b.late - a.late; })[0];
+    var behind = d.counsellors.filter(function (c) { return c.health === 'behind'; });
+    var s;
+    if (!d.headline.open) s = 'Nothing is waiting on anybody. Every queue is clear.';
+    else if (!late) s = 'All ' + d.headline.open + ' open items are inside their SLA. ' + (d.headline.waitingReply ? d.headline.waitingReply + ' students are waiting for a reply.' : '');
+    else s = '<b>' + late + (late === 1 ? ' item is' : ' items are') + ' past the SLA.</b> '
+      + (worstQ ? 'The most are in ' + esc(worstQ.label.toLowerCase()) + ' (' + worstQ.late + '). ' : '')
+      + (behind.length ? esc(behind.map(function (c) { return c.name.split(' ')[0]; }).join(', ')) + (behind.length === 1 ? ' is' : ' are') + ' behind.' : '');
+    $('#summary').innerHTML = s;
+    var pct = d.headline.onTrack, C = 169.6;
+    var g = $('#gfg'); g.style.strokeDashoffset = String(C - C * pct / 100);
+    g.style.stroke = pct >= 90 ? 'var(--ok)' : pct >= 70 ? 'var(--soon)' : 'var(--late)';
+    $('#gnum').textContent = pct + '%';
+    $('#upd').textContent = 'Updated ' + new Date(d.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) + ' IST';
+    if (!d.admin) { $('#crewH').textContent = 'Your numbers'; }
+  }
+
+  /* ------------------------------------------------------------ route */
+  var flewOnce = false;
+  function paintRoute(d) {
+    var J = d.journey || [];
+    var n = J.length || 1;
+    $('#stops').style.setProperty('--n', n);
+    var total = J.reduce(function (a, p) { return a + p.students; }, 0);
+    $('#routeNote').textContent = total ? total + ' students on the way' : 'No students on a journey yet';
+    $('#stops').innerHTML = J.map(function (p) {
+      return '<button type="button" class="stop ' + (p.students ? 'has' : 'empty') + '" data-phase="' + esc(p.key) + '" aria-label="' + esc(p.label + ': ' + p.students + ' students, ' + p.late + ' late') + '">'
+        + '<div class="dot">' + p.students + (p.late ? '<em class="late">' + p.late + '</em><i class="pulse"></i>' : '') + '</div>'
+        + '<span>' + esc(p.label) + '</span></button>';
+    }).join('');
+    /* The line: a gentle wave through the stops, and each stop sits ON it.
+       Flown (gold) up to the furthest stop anybody has reached. */
+    var W = 1000, HH = 110, pts = [];
+    for (var i = 0; i < n; i++) pts.push([W * (i + .5) / n, i % 2 ? 58 : 44]);
+    var dpath = pts.map(function (p, i) {
+      if (!i) return 'M' + p[0] + ' ' + p[1];
+      var a = pts[i - 1], mx = (a[0] + p[0]) / 2;
+      return 'C' + mx + ' ' + a[1] + ' ' + mx + ' ' + p[1] + ' ' + p[0] + ' ' + p[1];
+    }).join(' ');
+    var svg = $('#line'), box = svg.getBoundingClientRect();
+    var stops = document.querySelectorAll('#stops .stop');
+    if (box.width) {
+      [].forEach.call(stops, function (el, i) {
+        el.style.left = (pts[i][0] / W * box.width) + 'px';
+        el.style.top = (pts[i][1] / HH * box.height) + 'px';
+      });
+    }
+    var far = -1; J.forEach(function (p, i) { if (p.students) far = i; });
+    $('#pBase').setAttribute('d', dpath);
+    var flown = $('#pFlown'), plane = $('#plane');
+    flown.setAttribute('d', far >= 0 ? dpath : '');
+    if (far < 0 || !box.width) { plane.style.opacity = 0; return; }
+    plane.style.opacity = 1;
+    var len = flown.getTotalLength();
+    /* The length along the path at which x reaches the furthest stop. */
+    var lo = 0, hi = len, tx = pts[far][0];
+    for (var it = 0; it < 30; it++) { var mid = (lo + hi) / 2; if (flown.getPointAtLength(mid).x < tx) lo = mid; else hi = mid; }
+    var stopAt = hi;
+    flown.style.strokeDasharray = len;
+    function place(at) {
+      var pt = flown.getPointAtLength(at);
+      plane.style.left = (pt.x / W * box.width) + 'px';
+      plane.style.top = (pt.y / HH * box.height - 22) + 'px';
+    }
+    if (flewOnce || reduce) { flown.style.strokeDashoffset = len - stopAt; place(stopAt); return; }
+    flewOnce = true;
+    var t0 = null, DUR = 1800;
+    function step(ts) {
+      if (!t0) t0 = ts;
+      var k = Math.min(1, (ts - t0) / DUR), e = 1 - Math.pow(1 - k, 3), at = stopAt * e;
+      flown.style.strokeDashoffset = len - at; place(at);
+      if (k < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  /* ----------------------------------------------------------- queues */
+  function paintQueues(d) {
+    $('#lanes').innerHTML = LANES.map(function (L) {
+      var qs = d.queues.filter(function (q) { return q.group === L.key; });
+      return '<div class="lane"><h3><i></i>' + esc(L.label) + '</h3>' + qs.map(function (q) {
+        var ok = q.total - q.late - q.soon;
+        return '<button type="button" class="q' + (q.late ? ' is-late' : '') + (q.total ? '' : ' zero') + '" data-q="' + esc(q.key) + '">'
+          + '<div class="row1"><div><div class="name">' + esc(q.label) + '</div><div class="sla">SLA ' + esc(q.sla) + '</div></div><div class="n">' + q.total + '</div></div>'
+          + '<div class="bar" aria-hidden="true"><i class="l" style="flex-grow:' + q.late + '"></i><i class="s" style="flex-grow:' + q.soon + '"></i><i class="o" style="flex-grow:' + (q.total ? ok : 1) + '"></i></div>'
+          + '<div class="foot">' + (q.total
+              ? (q.late ? '<span class="tag l">' + q.late + ' late</span>' : '')
+                + (q.soon ? '<span class="tag s">' + q.soon + ' close</span>' : '')
+                + (ok ? '<span class="tag o">' + ok + ' on time</span>' : '')
+                + (q.worst ? '<span class="worst">worst ' + esc(q.worst) + '</span>' : '')
+              : '<span class="tag o">Clear</span>') + '</div></button>';
+      }).join('') + '</div>';
+    }).join('');
+  }
+
+  /* ------------------------------------------------------- counsellors */
+  function ring(p) {
+    if (p == null) return '<span class="muted">No steps closed yet</span>';
+    var C = 113.1, col = p >= 90 ? 'var(--ok)' : p >= 70 ? 'var(--soon)' : 'var(--late)';
+    return '<span class="ring"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="18" stroke="#eef2f7"/><circle cx="21" cy="21" r="18" stroke="' + col + '" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C - C * p / 100) + '"/></svg><b>' + p + '%</b></span>';
+  }
+  function paintCrew(d) {
+    var words = { behind: 'Behind', watch: 'Close to SLA', good: 'On track' };
+    $('#crew').innerHTML = d.counsellors.length ? d.counsellors.map(function (c) {
+      return '<tr><td><div class="person"><span class="av" style="background:' + colour(c.id) + '">' + esc(initials(c.name)) + '</span><div><b>' + esc(c.name) + '</b><small>' + esc(c.email || '') + '</small></div></div></td>'
+        + '<td><span class="pill ' + c.health + '">' + words[c.health] + '</span></td>'
+        + '<td class="num">' + c.students + '</td>'
+        + '<td class="num">' + c.open + '</td>'
+        + '<td class="num' + (c.late ? ' bad' : '') + '">' + c.late + '</td>'
+        + '<td>' + (c.oldestLateDays ? '<b style="color:var(--late)">' + c.oldestLateDays + (c.oldestLateDays === 1 ? ' day' : ' days') + '</b>' : '<span class="muted">—</span>') + '</td>'
+        + '<td class="num' + (c.lateMessages ? ' bad' : '') + '">' + c.waitingMessages + '</td>'
+        + '<td>' + (c.longestWaitHours ? '<b' + (c.lateMessages ? ' style="color:var(--late)"' : '') + '>' + hours(c.longestWaitHours) + '</b>' : '<span class="muted">—</span>') + '</td>'
+        + '<td class="num">' + c.docs + '</td>'
+        + '<td>' + ring(c.onTime) + '</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="none">No counsellors yet. Add one on Organisation.</td></tr>';
+  }
+
+  /* ------------------------------------------------------------ drawer */
+  function openQueue(key) {
+    var q = (DATA.queues || []).find(function (x) { return x.key === key; });
+    if (!q) return;
+    OPEN = { kind: 'queue', key: key }; FILTER = q.late ? 'late' : 'all';
+    $('#dTitle').textContent = q.label;
+    $('#dSub').textContent = q.total + ' waiting · SLA ' + q.sla + (q.late ? ' · ' + q.late + ' past it' : '');
+    drawRows(q.rows, q.total);
+    document.body.classList.add('open'); $('#drawer').focus();
+  }
+  function drawRows(rows, total) {
+    var counts = { all: rows.length, late: 0, soon: 0, ok: 0 };
+    rows.forEach(function (r) { counts[r.state]++; });
+    var names = { all: 'All', late: 'Late', soon: 'Close', ok: 'On time' };
+    $('#dFilters').innerHTML = ['all', 'late', 'soon', 'ok'].map(function (k) {
+      return '<button type="button" data-f="' + k + '" aria-pressed="' + (FILTER === k) + '">' + names[k] + ' ' + counts[k] + '</button>';
+    }).join('');
+    var shown = rows.filter(function (r) { return FILTER === 'all' || r.state === FILTER; });
+    $('#dList').innerHTML = shown.length ? shown.map(function (r) {
+      var t = timerOf(r);
+      var link = r.leadId ? '<a class="go" href="leads.html?lead=' + r.leadId + '">Open lead</a>'
+        : r.studentId ? '<a class="go" href="counsellor.html?student=' + r.studentId + '">Open file</a>' : '';
+      var who = r.counsellor && r.counsellor.name ? r.counsellor.name : 'Nobody assigned';
+      return '<div class="item"><span class="av" style="background:' + colour(r.studentId || r.leadId) + '">' + esc(initials(r.student)) + '</span>'
+        + '<div class="who2"><b>' + esc(r.student || 'Unknown') + '</b><span>' + esc(r.what) + '</span><small>' + esc(who) + (r.source ? ' · ' + esc(r.source) : '') + '</small></div>'
+        + '<div class="timer ' + r.state + '"><b>' + esc(t.big) + '</b><small>' + esc(t.small) + '</small><br>' + link + '</div></div>';
+    }).join('') + (total > rows.length ? '<p class="none">Showing the first ' + rows.length + ' of ' + total + '.</p>' : '')
+      : '<div class="none"><b>Nothing here</b>No student in this queue is ' + (FILTER === 'all' ? 'waiting.' : names[FILTER].toLowerCase() + '.') + '</div>';
+  }
+  function closeDrawer() { document.body.classList.remove('open'); OPEN = null; }
+  document.addEventListener('click', function (e) {
+    var q = e.target.closest('[data-q]'); if (q) return openQueue(q.dataset.q);
+    var st = e.target.closest('[data-phase]');
+    if (st) { location.href = 'admin.html?view=tasks&phase=' + encodeURIComponent(st.dataset.phase); return; }
+    var f = e.target.closest('[data-f]');
+    if (f && OPEN) { FILTER = f.dataset.f; var qq = DATA.queues.find(function (x) { return x.key === OPEN.key; }); drawRows(qq.rows, qq.total); }
+  });
+  $('#dx').onclick = closeDrawer; $('#scrim').onclick = closeDrawer;
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+
+  /* ------------------------------------------------------------- load */
+  function load() {
+    return api('/api/staff/command').then(function (d) {
+      DATA = d; $('#error').hidden = true;
+      paintTop(d); paintRoute(d); paintQueues(d); paintCrew(d);
+      if (OPEN) { var q = d.queues.find(function (x) { return x.key === OPEN.key; }); if (q) drawRows(q.rows, q.total); }
+    }).catch(function (e) {
+      if (e.message === 'signed out') return;
+      $('#error').textContent = e.message + ' Press Refresh to try again.'; $('#error').hidden = false;
+    });
+  }
+  function tick() {
+    $('#now').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+  }
+  $('#refresh').onclick = load;
+  window.addEventListener('resize', function () { if (DATA) paintRoute(DATA); });
+
+  api('/api/staff/me').then(function (me) {
+    var u = me.user || me;
+    $('#meName').textContent = u.name || ''; $('#meRole').textContent = u.role || '';
+    if (u.role !== 'admin') $('#navOrg').hidden = true;
+    tick(); setInterval(tick, 15000);
+    load(); setInterval(function () { if (!document.hidden) load(); }, 60000);
+  }).catch(function (e) {
+    if (e.message !== 'signed out') { $('#error').textContent = 'This screen is for the Glovels team.'; $('#error').hidden = false; }
+  });
+  $('#out').onclick = function () {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = 'login.html'; });
+  };
+})();
+</script>
+</body>
+</html>

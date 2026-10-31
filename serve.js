@@ -592,6 +592,7 @@ function robotsTxt() {
     'Disallow: /visa?',
     'Disallow: /admin',
     'Disallow: /counsellor',
+    'Disallow: /ops',
     'Disallow: /chat',
     'Disallow: /home',
     'Disallow: /catalogue',
@@ -715,6 +716,7 @@ function appleSiteAssociation() {
         appIDs: [id],
         components: [
           { '/': '/admin*', exclude: true }, { '/': '/counsellor*', exclude: true },
+          { '/': '/ops*', exclude: true },
           { '/': '/api/*', exclude: true }, { '/': '/images/*', exclude: true },
           { '/': '/*' },
         ],
@@ -728,7 +730,7 @@ function appleSiteAssociation() {
    404.html, which exists to be reached by accident. */
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
-  'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404']);
+  'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops']);
 
 /*
  * Round 178 (A): the day a page's WORDS last changed, for <lastmod>.
@@ -2800,7 +2802,7 @@ const SIGNED_IN_NAV = `<script>
   fetch('/api/auth/me',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(m){
     var u=m&&m.user; if(!u)return;
     var role=u.role, perms=u.perms||[];
-    var home=role==='admin'?'admin.html':role==='editor'?(perms.indexOf('content')>=0?'home.html':'catalogue.html')
+    var home=role==='admin'?'ops.html':role==='editor'?(perms.indexOf('content')>=0?'home.html':'catalogue.html')
       :role==='counsellor'?'counsellor.html':role==='partner'?'partner.html':'dashboard.html';
     var label=role==='student'?'My dashboard':role==='partner'?'My students':'My office';
     var first=String(u.name||'').trim().split(/\s+/)[0];

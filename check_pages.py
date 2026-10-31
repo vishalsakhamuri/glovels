@@ -70,7 +70,7 @@ TAG = {
 NOT_INDEXED = {
     'dashboard', 'profile', 'documents', 'messages', 'applications',
     'universities', 'scholarships', 'visa', 'admin', 'counsellor', 'chat',
-    'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404',
+    'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops',
 }
 
 

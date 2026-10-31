@@ -314,7 +314,7 @@ function forgotBox(message, bad){
       const u = d && d.user;
       if (!u || d.mustChange) return;
       const perms = u.perms || [];
-      const home = u.role === 'admin' ? 'admin.html'
+      const home = u.role === 'admin' ? 'ops.html'
         : u.role === 'editor' ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
         : u.role === 'counsellor' ? 'counsellor.html'
         : u.role === 'partner' ? 'partner.html' : 'dashboard.html';
@@ -455,7 +455,7 @@ function forgotBox(message, bad){
          on this page then does nothing at all, silently. */
       const who = d.user && d.user.role;
       const pm = (d.user && d.user.perms) || [];
-      location.href = who === 'admin' ? 'admin.html'
+      location.href = who === 'admin' ? 'ops.html'
         : who === 'editor' ? (pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
         : who === 'counsellor' ? 'counsellor.html'
         : who === 'partner' ? 'partner.html' : 'dashboard.html';
@@ -635,7 +635,7 @@ $('#authForm').addEventListener('submit', async e => {
        shows them an empty portal and no way to find their actual work. */
     const role = data.user && data.user.role;
     const perms = (data.user && data.user.perms) || [];
-    const home = role === 'admin' ? 'admin.html'
+    const home = role === 'admin' ? 'ops.html'
                : role === 'editor'
                  ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
                : role === 'counsellor' ? 'counsellor.html'

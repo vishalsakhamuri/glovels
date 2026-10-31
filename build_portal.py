@@ -202,6 +202,8 @@ function mustChangeScreen() {
 """
 
 STAFF_NAV = [
+    # Patch 198: the command centre leads the menu.
+    ("ops",        "i-pulse",  "Command centre"),
     ("counsellor", "i-chat",   "Conversations"),
     ("chat",       "i-globe",  "Website chat"),
     ("leads",      "i-chart",  "Leads"),
@@ -223,9 +225,12 @@ def staff_sidebar(active, role_note, nav=None, brand=True):
     """The staff rail. `nav` overrides the menu — a partner is not staff and
     must not be offered a single screen that would refuse them."""
     on = ' class="on"'
+    pulse = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+             'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')
     links = "".join(
         f'<a href="{slug}.html"{on if slug == active else ""}>'
-        f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg> {label}</a>'
+        + (pulse if icon == "i-pulse" else f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg>')
+        + f' {label}</a>'
         for slug, icon, label in (nav if nav is not None else STAFF_NAV)
     )
     mark = ('<span class="logo-img" role="img" aria-label="Glovels"></span>'

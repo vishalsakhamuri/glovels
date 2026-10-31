@@ -8122,6 +8122,215 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   }
 
   /*
+   * Patch 198 (owner, 31 Oct 2026): THE COMMAND CENTRE.
+   *
+   * "I want to clearly know the status of the students waiting for a
+   *  counsellor, for universities, for visa processing, for university
+   *  confirmations, any private university application, any open messages to
+   *  address, any counsellor not owning and taking a long time — having SLAs
+   *  for each task."
+   *
+   * One answer, computed here, so the screen only draws it. Every queue says
+   * how many are in it, how many are past their SLA, how many are close, and
+   * the oldest — and lists the students, worst first. Built from the same
+   * tasks, messages, documents and leads every other screen reads; nothing
+   * here is a second copy of the truth.
+   *
+   * Admins see everybody. A counsellor sees their own students (and the
+   * leads that are theirs or nobody's), so the same screen works as "my day".
+   */
+  const COMMAND_SLA = {
+    counsellor: 24,    // hours a paying student may wait to be given a counsellor
+    messages: 24,      // hours a student's message may wait for a reply
+    docs: 48,          // hours an uploaded document may wait to be checked
+    leads: 24,         // hours a new lead may wait for a first call
+  };
+  const COMMAND_QUEUES = [
+    { key: 'counsellor', label: 'Waiting for a counsellor', group: 'start', sla: '24 h' },
+    { key: 'welcome', label: 'Welcome call', group: 'start', tasks: ['welcome'] },
+    { key: 'messages', label: 'Students waiting for a reply', group: 'start', sla: '24 h' },
+    { key: 'leads', label: 'New leads nobody has called', group: 'start', sla: '24 h' },
+    { key: 'docs', label: 'Documents to check', group: 'file', sla: '48 h' },
+    { key: 'profile', label: 'Profile and documents', group: 'file', tasks: ['profile'] },
+    { key: 'shortlist', label: 'University shortlist', group: 'file', tasks: ['shortlist'] },
+    { key: 'writing', label: 'SOP and LOR', group: 'file', tasks: ['sop', 'lor'] },
+    { key: 'private', label: 'Private university applications', group: 'apply', tasks: ['submit'], only: 'private' },
+    { key: 'public', label: 'Public university applications', group: 'apply', tasks: ['submit', 'appdocs'], only: 'public' },
+    { key: 'decisions', label: 'Waiting on university decisions', group: 'apply', tasks: ['offer'] },
+    { key: 'visa', label: 'Visa processing', group: 'visa', tasks: ['visadocs', 'visa', 'visadecision'] },
+    { key: 'departure', label: 'Pre-departure', group: 'visa', tasks: ['predeparture'] },
+    { key: 'services', label: 'Services and extra work', group: 'visa', tasks: ['*'] },
+  ];
+  const TEMPLATE_KEYS = new Set(COMMAND_QUEUES.reduce((a, q) => a.concat(q.tasks || []), []).filter(k => k !== '*'));
+
+  function commandCentre(s, now) {
+    const H = 36e5;
+    const admin = s.role === 'admin';
+    const people = peopleMap();
+    const nameOf = id => (id && people.get(Number(id))) ? people.get(Number(id)).name : '';
+    const files = (db.allStudents() || []).filter(st => st.role === 'student' && db.openFile(st)
+      && (admin || db.canSee(s, Number(st.id))));
+    const fileIds = new Set(files.map(st => Number(st.id)));
+    const byId = new Map(files.map(st => [Number(st.id), st]));
+    const counsellorOf = st => { const c = db.liveCounsellorOf(st); return c ? { id: c.id, name: c.name } : null; };
+    const hoursSince = at => (at ? Math.max(0, Math.floor((now - new Date(at).getTime()) / H)) : 0);
+    /* state: late (past the SLA), soon (within the last quarter of it, or due
+       in two days), ok. `over` is in hours for the clock queues and in days
+       for task queues — the row says which. */
+    const clockRow = (st, what, at, slaH, extra) => {
+      const h = hoursSince(at);
+      return Object.assign({
+        studentId: st ? st.id : null, student: st ? st.name : '',
+        counsellor: st ? counsellorOf(st) : null, what, since: at || '',
+        ageHours: h, slaHours: slaH, overHours: h - slaH,
+        state: h > slaH ? 'late' : h >= slaH * 0.75 ? 'soon' : 'ok',
+      }, extra || {});
+    };
+    const out = {};
+    COMMAND_QUEUES.forEach(q => { out[q.key] = []; });
+
+    /* Waiting for a counsellor: an open file with work on it and nobody live
+       holding it. */
+    let tasksAll = [];
+    try { tasksAll = TASKS.effectiveAll(db, db.allTasks(), now); } catch (e) { tasksAll = []; }
+    const withWork = new Set(tasksAll.filter(t => String(t.status) !== 'dropped').map(t => Number(t.student_id)));
+    files.forEach(st => {
+      if (!withWork.has(Number(st.id))) return;
+      if (counsellorOf(st)) return;
+      out.counsellor.push(clockRow(st, 'No counsellor assigned', st.created_at, COMMAND_SLA.counsellor));
+    });
+
+    /* Messages a student is waiting on. */
+    files.forEach(st => {
+      let msgs = [];
+      try { msgs = db.getMessages(st.id) || []; } catch (e) { msgs = []; }
+      const since = ALERTS.waitingSince(msgs);
+      if (!since) return;
+      const last = msgs[msgs.length - 1] || {};
+      out.messages.push(clockRow(st, String(last.body || 'A message').slice(0, 90), since, COMMAND_SLA.messages));
+    });
+
+    /* Documents uploaded and not yet looked at — the oldest one per student. */
+    files.forEach(st => {
+      let docs = [];
+      try { docs = (db.getDocuments(st.id) || []).filter(d => String(d.status) === 'wait'); } catch (e) { docs = []; }
+      if (!docs.length) return;
+      const oldest = docs.map(d => d.uploaded_at).sort()[0];
+      out.docs.push(clockRow(st, docs.length + (docs.length === 1 ? ' document' : ' documents') + ' to check',
+        oldest, COMMAND_SLA.docs, { count: docs.length }));
+    });
+
+    /* Leads nobody has called: new, no follow-up, not the office's own tests. */
+    try {
+      const counts = db.leadNoteCounts();
+      const internal = db.internalEnquiryTest();
+      leadBook(s).forEach(e => {
+        const l = leadShape(e, counts, people, internal);
+        if (l.internal || l.followUps || (l.status && l.status !== 'new')) return;
+        out.leads.push(Object.assign(clockRow(null, (l.name || 'Somebody') + (l.note ? ' — ' + String(l.note).slice(0, 70) : ''),
+          l.at, COMMAND_SLA.leads), { leadId: l.id, student: l.name || '', source: l.source || 'website',
+          counsellor: l.ownerId ? { id: l.ownerId, name: l.owner } : null }));
+      });
+    } catch (e) { /* the rest of the board still stands */ }
+
+    /* Task queues: open, not derived, on an open file this reader may see. */
+    const pubCache = new Map();
+    const isPublicProg = id => {
+      if (!id) return false;
+      if (!pubCache.has(id)) { let p = null; try { p = lookup(id); } catch (e) { p = null; } pubCache.set(id, !!(p && p.isPublic)); }
+      return pubCache.get(id);
+    };
+    tasksAll.forEach(t => {
+      if (t.derived || TASKS.CLOSED.has(String(t.status))) return;
+      const sid = Number(t.student_id);
+      if (!fileIds.has(sid)) return;
+      const st = byId.get(sid);
+      const key = String(t.task_key || '');
+      let q = null;
+      if (key === 'submit') q = isPublicProg(t.prog_id) ? 'public' : 'private';
+      else if (key === 'appdocs') q = 'public';
+      else q = (COMMAND_QUEUES.find(x => (x.tasks || []).includes(key)) || {}).key || (TEMPLATE_KEYS.has(key) ? null : 'services');
+      if (!q) return;
+      const over = TASKS.lateness(t, now);            // days past the date; negative = still to come
+      const ownerId = TASKS.ownerOf(db, t);
+      let uni = '';
+      if (t.prog_id) { try { const p = lookup(t.prog_id); uni = p ? (p.university || '') + (p.name ? ' — ' + p.name : '') : ''; } catch (e) { uni = ''; } }
+      out[q].push({
+        studentId: sid, student: st.name, taskId: t.id,
+        counsellor: ownerId ? { id: ownerId, name: nameOf(ownerId) } : counsellorOf(st),
+        what: t.title + (uni ? ' · ' + uni : ''), due: t.due_at || '', status: t.status,
+        overDays: over == null ? null : over,
+        state: over == null ? 'ok' : over > 0 ? 'late' : over >= -2 ? 'soon' : 'ok',
+      });
+    });
+
+    const rank = { late: 0, soon: 1, ok: 2 };
+    const queues = COMMAND_QUEUES.map(q => {
+      const rows = out[q.key].sort((a, b) => rank[a.state] - rank[b.state]
+        || (b.overHours != null ? b.overHours - a.overHours : 0)
+        || ((b.overDays == null ? -1e9 : b.overDays) - (a.overDays == null ? -1e9 : a.overDays)));
+      const worst = rows.find(r => r.state === 'late') || null;
+      return {
+        key: q.key, label: q.label, group: q.group,
+        sla: q.sla || 'per step',
+        total: rows.length,
+        late: rows.filter(r => r.state === 'late').length,
+        soon: rows.filter(r => r.state === 'soon').length,
+        worst: worst ? (worst.overHours != null ? Math.round(worst.overHours) + ' h over'
+          : worst.overDays + (worst.overDays === 1 ? ' day' : ' days') + ' over') : '',
+        rows: rows.slice(0, 80),
+      };
+    });
+
+    /* Counsellors: what they hold, what is late, and how fast they answer. */
+    const staff = (db.activeCaseworkers() || []).filter(c => admin || Number(c.id) === Number(s.id));
+    const board = scoreboard(tasksAll.filter(t => fileIds.has(Number(t.student_id))), now);
+    const counsellors = staff.map(c => {
+      const sb = board.find(r => String(r.id) === String(c.id)) || { open: 0, late: 0, percent: null, done: 0 };
+      const mine = qk => out[qk].filter(r => r.counsellor && Number(r.counsellor.id) === Number(c.id));
+      const lateTasks = Object.keys(out).filter(k => !COMMAND_SLA[k]).reduce((a, k) => a.concat(mine(k).filter(r => r.state === 'late')), []);
+      const oldestLate = lateTasks.reduce((m, r) => Math.max(m, r.overDays || 0), 0);
+      const msgs = mine('messages');
+      return {
+        id: c.id, name: c.name, email: c.email,
+        students: files.filter(st => Number(st.counsellor_id) === Number(c.id)).length,
+        open: sb.open, late: lateTasks.length, oldestLateDays: oldestLate,
+        done: sb.done, onTime: sb.percent,
+        waitingMessages: msgs.length, lateMessages: msgs.filter(r => r.state === 'late').length,
+        longestWaitHours: msgs.reduce((m, r) => Math.max(m, r.ageHours || 0), 0),
+        docs: mine('docs').reduce((n, r) => n + (r.count || 0), 0),
+        health: (lateTasks.length || msgs.some(r => r.state === 'late')) ? 'behind'
+          : (mine('messages').some(r => r.state === 'soon') || Object.keys(out).some(k => mine(k).some(r => r.state === 'soon'))) ? 'watch' : 'good',
+      };
+    }).sort((a, b) => (b.late + b.lateMessages) - (a.late + a.lateMessages) || b.open - a.open);
+
+    /* The journey, left to right, as the tasks board counts it. */
+    let journey = [];
+    try {
+      journey = TASKS.funnel(db, now, admin ? null : fileIds)
+        .map(p => ({ key: p.key, label: p.short || p.label, students: p.students, late: p.late }));
+    } catch (e) { journey = []; }
+
+    const lateAll = queues.reduce((n, q) => n + q.late, 0);
+    const openAll = queues.reduce((n, q) => n + q.total, 0);
+    return {
+      at: new Date(now).toISOString(), admin, me: { id: s.id, name: s.name },
+      headline: {
+        students: files.length,
+        late: lateAll,
+        open: openAll,
+        onTrack: openAll ? Math.round(((openAll - lateAll) / openAll) * 100) : 100,
+        waitingCounsellor: out.counsellor.length,
+        waitingReply: out.messages.length,
+      },
+      queues, counsellors, journey,
+    };
+  }
+
+  route('GET', '/api/staff/command', caseworkOnly(async (req, res, s) =>
+    json(res, 200, commandCentre(s, Date.now()))));
+
+  /*
    * Round 178 (BUG-087 / 088 / 089): THE BOARD, ONE ROW PER STUDENT.
    *
    *   GET /api/staff/tasks?view=students[&need=live|now|late|upcoming|done|all]
