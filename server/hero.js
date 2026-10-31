@@ -36,7 +36,8 @@ const unattr = s => String(s || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'
 const TAILS = { 'Find your university': 'abroad' };
 
 const OFFICE = [['Mon–Sat', '9:30am–7:30pm IST'], ['Hyderabad', 'office, or online']];
-const COUNSEL = [['Free', 'first counselling call'], ['Hyderabad', 'office, or online']];
+/* 31 Oct (owner): a global site — the office is on the contact page only. */
+const COUNSEL = [['Free', 'first counselling call'], ['Online', 'from anywhere in the world']];
 
 /* Per address. Steps are the page's own, in its own order. */
 const PAGES = {

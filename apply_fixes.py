@@ -8342,9 +8342,9 @@ MARKETING_HEADS = {
         "Fachsprachprüfung in detail, what happens if your curriculum does not "
         "match, and the visa route."),
     "index": (
-        "Study Abroad from Hyderabad — Public University Admissions",
-        "Glovels matches Indian students to public universities abroad where "
-        "tuition is ₹0–₹3L, then runs the applications, the funding and the visa. "
+        "Study Abroad — Public University Admissions Worldwide",
+        "Glovels matches students to public universities abroad — many with "
+        "little or no tuition — then runs the applications, the funding and the visa. "
         "First session free."),
     # The seven destination pages all ran to 70-83 characters, so every one of
     # them was cut off mid-phrase in a search result — on the pages that carry

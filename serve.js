@@ -485,7 +485,7 @@ function send(res, code, body, type, extra) {
     }
     if (!staffHere) traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
     /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
-    if (typeof body === 'string') body = globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname))));
+    if (typeof body === 'string') body = withMobileKit(globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)))));
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -2955,6 +2955,102 @@ function withHeaderNav(html) {
   return html.replace(/(<a href="(?:\.\.\/|\/)?contact-us(?:\.html)?">Contact<\/a>)(<\/nav>|\s*<a href="(?:\.\.\/|\/)?login(?:\.html)?">Sign in<\/a>)/g,
     '$1<a class="nav-find" href="/find-university">Find University</a>$2');
 }
+/*
+ * 31 Oct (owner: "most people will open from a phone"): the phone kit, on
+ * every public page from one place.
+ *
+ *  - A bar along the bottom of the screen on phones — Find University,
+ *    Packages, WhatsApp — in place of the floating WhatsApp bubble, which sat
+ *    on top of prices and buttons. The page gets room for it at the bottom.
+ *  - The menu opens full-screen on a phone rather than as a side panel.
+ *  - The home page's journey is one compact row instead of two big rows, so
+ *    the university search starts higher up.
+ *  - The finder's "I also have an MOI letter" tick box is a tick box again
+ *    (the form's input style was turning it into a tall empty box).
+ * Hidden while a checkout or other sheet is open (html.glv-modal).
+ */
+const MOBILE_CSS = '<style data-mobile-kit>'
+  + '.fmoil input[type=checkbox]{width:18px !important;height:18px !important;min-height:0 !important;padding:0 !important;'
+  + 'flex:0 0 18px;border-radius:4px;box-shadow:none !important}'
+  + '.glv-mbar{display:none}'
+  /* The menu stays in the header on a laptop (owner, 31 Oct) — signed in or
+     not — from 900px up. It tightens and drops Blog/Contact/About into the
+     ☰ menu, which stays beside it for those, before it ever folds away. */
+  + '@media (min-width:900px) and (max-width:1600px){'
+  + 'html.signed nav.menu,html:has(a.signin.signed) nav.menu{display:flex !important}'
+  + 'html.signed .nav-cta,html:has(a.signin.signed) .nav-cta{margin-left:0 !important}}'
+  + '@media (min-width:900px) and (max-width:1160px){'
+  + 'header.site nav.menu{display:flex !important}'
+  + 'header.site .nav-cta{margin-left:0 !important}'
+  + 'header.site .nav-cta .signin.signed{display:inline-flex !important}}'
+  + '@media (min-width:900px) and (max-width:1400px){'
+  + 'header.site .nav{gap:14px !important}'
+  + 'header.site nav.menu{gap:12px !important}'
+  + 'header.site nav.menu>a,header.site .ndt{font-size:12.6px !important}'
+  + 'header.site nav.menu>a[href*="blog"],header.site nav.menu>a[href*="contact"],header.site nav.menu>a[href*="about"]{display:none !important}'
+  + 'header.site .burger{display:flex !important}'
+  + 'header.site .nav-cta{gap:8px !important}'
+  + 'header.site .nav-cta .btn{padding:10px 13px !important;font-size:12.6px !important}'
+  + 'header.site .signin{padding:10px 12px !important;font-size:12.6px !important}}'
+  + '@media (min-width:900px) and (max-width:1120px){'
+  + 'header.site .nav-cta .btn-green{font-size:0 !important}'
+  + 'header.site .nav-cta .btn-green::after{content:"Free counselling";font-size:12.6px}'
+  + 'header.site .logo-img{width:96px !important}'
+  + 'header.site nav.menu{gap:10px !important}}'
+  + '@media (min-width:900px) and (max-width:1060px){'
+  + 'header.site nav.menu>a[href*="services"]{display:none !important}'
+  + 'header.site nav.menu{gap:9px !important}header.site .nav{gap:10px !important}'
+  + 'header.site nav.menu>a,header.site .ndt{font-size:12.2px !important}}'
+  + '@media (max-width:640px){'
+  + 'body{padding-bottom:calc(66px + env(safe-area-inset-bottom,0px))}'
+  + '.wa-launch,.gv-corner{display:none !important}'
+  + '.glv-mbar{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;z-index:118;'
+  + 'background:rgba(255,255,255,.97);backdrop-filter:saturate(1.4) blur(8px);-webkit-backdrop-filter:saturate(1.4) blur(8px);'
+  + 'border-top:1px solid #e3e7ec;box-shadow:0 -6px 20px rgba(11,30,49,.08);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}'
+  + '.glv-mbar a,.glv-mbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'
+  + 'min-height:50px;border:0;background:none;color:#0b1e31;font:700 11.5px/1.15 Inter,-apple-system,system-ui,sans-serif;'
+  + 'text-decoration:none;border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}'
+  + '.glv-mbar a:active,.glv-mbar button:active{background:#eef2f6}'
+  + '.glv-mbar svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}'
+  + '.glv-mbar .wa{color:#128c4b}.glv-mbar .wa svg{fill:currentColor;stroke:none}'
+  + '.glv-mbar .go{color:#fff;background:#0b1e31;margin:0 2px}.glv-mbar .go:active{background:#1a3350}'
+  + 'html.glv-modal .glv-mbar,html:has(.modal.on) .glv-mbar,html:has(.apsheet.on) .glv-mbar,'
+  + 'html:has(.fmodal:not([hidden])) .glv-mbar,html:has(.mobile-menu.open) .glv-mbar,html:has(.svc-co.on) .glv-mbar{display:none}'
+  + '.mobile-menu{width:100vw !important;max-width:none !important;border-radius:0 !important}'
+  + '.journey{margin-top:14px}.jrow{display:flex !important;gap:2px !important;grid-template-columns:none !important}'
+  + '.jstep{flex:1 1 0;min-width:0}.jdot{width:34px !important;height:34px !important}'
+  + '.jdot .ico{width:15px;height:15px}.jbadge{transform:scale(.82)}'
+  + '.jlbl{font-size:10.2px !important;line-height:1.2 !important;margin-top:6px !important;word-break:normal;hyphens:auto}'
+  + '.jflight{display:none !important}.jhead{margin-bottom:8px !important}'
+  + '.hero-rate{gap:6px !important}.hero-rate .hchip{font-size:12px !important;padding:5px 10px !important}'
+  + '}'
+  + '</style>';
+
+function mobileBar(waNumber) {
+  const wa = 'https://wa.me/' + String(waNumber || '').replace(/\D/g, '')
+    + '?text=' + encodeURIComponent('Hi Glovels, I would like help with studying abroad.');
+  return '<nav class="glv-mbar" aria-label="Quick actions">'
+    + '<a href="/find-university"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Find University</a>'
+    + '<a class="go" href="/#packages" data-mbar-packages><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>Packages</a>'
+    + '<a class="wa" href="' + wa + '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.7-1.2s.2-1.1.2-1.2-.2-.2-.4-.3z"/></svg>WhatsApp</a>'
+    + '</nav>'
+    + '<script>(function(){var b=document.querySelector("[data-mbar-packages]");if(!b)return;'
+    + 'function show(){var s=document.querySelector("[data-show-packages]");if(s&&document.getElementById("packages")&&document.getElementById("packages").hidden){s.click();}'
+    + 'var p=document.getElementById("packages");if(p){setTimeout(function(){p.scrollIntoView({behavior:"smooth",block:"start"});},60);return true;}return false;}'
+    + 'b.addEventListener("click",function(e){if(show())e.preventDefault();});'
+    + 'if(location.hash==="#packages"){var t=0,i=setInterval(function(){if(show()||++t>20)clearInterval(i);},250);}})();</script>';
+}
+
+function withMobileKit(html) {
+  if (html.indexOf('<header class="site"') < 0 || html.indexOf('data-mobile-kit') >= 0) return html;
+  let wa = '';
+  try { wa = String(((content.get('finder') || {}).contact || {}).whatsapp || ((content.get('finder') || {}).contact || {}).phone || ''); } catch (e) { wa = ''; }
+  wa = wa || '917839399999';
+  html = html.replace('</head>', MOBILE_CSS + '</head>');
+  const at = html.lastIndexOf('</body>');
+  return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + '\n' + html.slice(at);
+}
+
 function globalFooter(html) {
   const fi = html.lastIndexOf('<footer class="site"');
   if (fi < 0) return html;
