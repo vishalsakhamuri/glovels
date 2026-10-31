@@ -29,7 +29,8 @@ const get = async p => {
   ok('nav: an open menu closes on scroll', /addEventListener\('scroll', \(\) => \$\$\('\.nav-drop\.open'\)/.test(r.text));
   /* Patch 159 (C1): the proof line is three trust chips under the subtitle. */
   ok('hero: two trust chips under the subtitle (the Hyderabad one removed, 31 Oct)', (r.text.match(/class="hchip"/g) || []).length === 2 && !/Counsellors in Hyderabad/.test(r.text) && !/class="avatars"/.test(r.text));
-  ok('footer: the map box with its Google address', /id="fMap" data-src="https:\/\/www\.google\.com\/maps\?q=Metro\+Pillar\+C1734/.test(r.text));
+  /* 31 Oct (owner): the map and address moved to the contact page. */
+  ok('footer: no map box or office address (they are on the contact page)', !/id="fMap"/.test(r.text) && !/<footer class="site"[\s\S]*Metro Pillar/.test(r.text));
   ok('footer: the map loads only when the footer is in view', /IntersectionObserver/.test(r.text) && /box\.replaceChildren\(f\)/.test(r.text));
   const csp = r.h.get('content-security-policy') || '';
   ok('CSP lets the Google frame in, and nothing else new', /frame-src https:\/\/\*\.razorpay\.com https:\/\/www\.google\.com https:\/\/maps\.google\.com/.test(csp), csp.slice(0, 120));

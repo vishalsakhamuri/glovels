@@ -303,41 +303,107 @@
     PHONE_MSG: 'A mobile number, please — add the country code if you are outside India' };
 
   /*
-   * Patch 187: every price on the page in the visitor's own money too.
-   * "₹49,999" on a package card gets a quiet "≈ ₦715,000" under it for a
-   * visitor in Nigeria. The rupee price stays the price; this is a guide,
-   * and the checkout shows the exact charge.
+   * Patch 188: every price on the page in the visitor's own money, as THE
+   * price. For a visitor in Germany a card reads "€97" in the big figure with
+   * "₹9,999" small beside it; in India nothing changes. The rupee price is
+   * still what is charged (converted at checkout, where the exact amount is
+   * shown), so it is never hidden. A "Prices in" menu above the packages
+   * lets anyone switch.
    */
+  var RUPEE = /₹\s*([\d,]+)/;
+  function rupeeNode(el) {
+    /* The bare "₹9,999" text node directly inside a .price — wrapped once so
+       it can be restyled and put back. */
+    var w = el.querySelector(':scope > .glv-inr');
+    if (w) return w;
+    for (var k = 0; k < el.childNodes.length; k++) {
+      var n = el.childNodes[k];
+      if (n.nodeType === 3 && RUPEE.test(n.textContent)) {
+        w = document.createElement('span');
+        w.className = 'glv-inr';
+        w.textContent = n.textContent;
+        el.replaceChild(w, n);
+        return w;
+      }
+    }
+    return null;
+  }
+  function inrIn(text) { var m = RUPEE.exec(text || ''); return m ? Number(m[1].replace(/,/g, '')) : 0; }
+
   function localPrices() {
     if (!CFG) return;
     var code = current(CFG);
+    var foreign = code !== 'INR';
+    picker();
+
+    /* Package and service prices: the local amount becomes the main figure. */
     var els = document.querySelectorAll('.price, [data-inr]');
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
-      var tag = el.querySelector(':scope > .glv-local');
-      if (code === 'INR') { if (tag) tag.remove(); continue; }
+      var old = el.querySelector(':scope > .glv-local'); if (old) old.remove();   // patch 187's line
       var inr = Number(el.getAttribute('data-inr')) || 0;
-      if (!inr) {
-        var t = '';
-        for (var k = 0; k < el.childNodes.length; k++) {
-          var n = el.childNodes[k];
-          if (n.nodeType === 3 || (n.nodeType === 1 && !n.classList.contains('glv-local'))) t += n.textContent;
-        }
-        var m = /\u20b9\s*([\d,]+)/.exec(t);
-        inr = m ? Number(m[1].replace(/,/g, '')) : 0;
-      }
+      var rn = inr ? null : rupeeNode(el);
+      if (!inr && rn) inr = inrIn(rn.textContent);
       if (!inr) continue;
-      var text = '\u2248 ' + money(convert(inr, code, CFG), code);
-      if (tag && tag.textContent === text) continue;
-      if (!tag) {
-        tag = document.createElement('span');
-        tag.className = 'glv-local';
-        tag.style.cssText = 'display:block;font:600 12px/1.35 var(--sans,system-ui,sans-serif);color:#5a6b80;'
-          + 'margin-top:2px;letter-spacing:0';
-        el.appendChild(tag);
+      var main = el.querySelector(':scope > .glv-main');
+      if (!foreign) {
+        if (main) main.remove();
+        if (rn) rn.removeAttribute('style');
+        continue;
       }
-      tag.textContent = text;
+      var text = money(convert(inr, code, CFG), code);
+      if (!main) {
+        main = document.createElement('span');
+        main.className = 'glv-main';
+        main.style.cssText = 'display:block';
+        if (rn) el.insertBefore(main, rn); else el.insertBefore(main, el.firstChild);
+      }
+      if (main.textContent !== text) main.textContent = text;
+      if (rn) rn.style.cssText = 'display:inline-block;font:600 11.5px/1.3 var(--sans,system-ui,sans-serif);'
+        + 'color:var(--muted,#5a6b80);margin-top:5px;letter-spacing:0';
     }
+
+    /* "Part payment possible — ₹20,000 to start": the local figure beside it. */
+    var parts = document.querySelectorAll('.partline > span');
+    for (var j = 0; j < parts.length; j++) {
+      var sp = parts[j];
+      var tag = sp.querySelector('.glv-local');
+      if (!foreign) { if (tag) tag.remove(); continue; }
+      var base = sp.getAttribute('data-glv-text');
+      if (!base) { base = sp.textContent; sp.setAttribute('data-glv-text', base); }
+      var p = inrIn(base); if (!p) continue;
+      var t2 = ' (≈ ' + money(convert(p, code, CFG), code) + ')';
+      if (!tag) { tag = document.createElement('span'); tag.className = 'glv-local'; sp.appendChild(tag); }
+      if (tag.textContent !== t2) tag.textContent = t2;
+    }
+  }
+
+  /* "Prices in [EUR — Euro ▾]" above the packages: the visitor's own choice,
+     shared with the checkout. */
+  function picker() {
+    var sec = document.getElementById('packages');
+    if (!sec || !CFG || sec.querySelector('.glv-prices-in')) return;
+    var head = sec.querySelector('.sec-head');
+    if (!head) return;
+    var box = document.createElement('div');
+    box.className = 'glv-prices-in';
+    box.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;margin:-6px 0 16px;'
+      + 'font:600 12.6px/1.4 var(--sans,system-ui,sans-serif);color:var(--navy-800,#25344a)';
+    var opt = function (c) { return '<option value="' + c + '">' + c + ' — ' + nameOf(c) + '</option>'; };
+    var opts = Array.isArray(CFG.regions) && CFG.regions.length
+      ? CFG.regions.map(function (g) { return '<optgroup label="' + g.name + '">' + g.currencies.map(opt).join('') + '</optgroup>'; }).join('')
+      : CFG.currencies.map(opt).join('');
+    box.innerHTML = '<label for="glvPricesIn">Prices in</label><select id="glvPricesIn" class="glv-cur-sel" '
+      + 'style="padding:6px 8px;border:1.5px solid #d8dde4;border-radius:8px;background:#fff;font:inherit;max-width:260px">'
+      + opts + '</select>';
+    head.parentNode.insertBefore(box, head.nextSibling);
+    var sel = box.querySelector('select');
+    sel.value = current(CFG);
+    sel.onchange = function () {
+      set(sel.value);
+      try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: sel.value })); } catch (e) {}
+    };
+    document.addEventListener('glv-currency', function (ev) { if (ev.detail && sel.value !== ev.detail) sel.value = ev.detail; });
   }
 
   /* Every checkout button the pages know about, whenever it appears. */

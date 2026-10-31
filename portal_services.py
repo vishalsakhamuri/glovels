@@ -51,7 +51,7 @@ SCRIPT = r"""
    "Pay in" currency line. It was only ever on the home page before. */
 (function () {
   if (window.__glovelsCollect || document.querySelector('script[src^="/glovels-pay.js"]')) return;
-  var s = document.createElement('script'); s.src = '/glovels-pay.js?v=187'; document.head.appendChild(s);
+  var s = document.createElement('script'); s.src = '/glovels-pay.js?v=188'; document.head.appendChild(s);
 }());
 /* The services the office is actually selling today, not a copy frozen into
    this page at build time. Same endpoint the home page reads. */
