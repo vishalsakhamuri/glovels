@@ -3052,7 +3052,7 @@ function withMobileKit(html, pathname) {
   if (html.indexOf('<header class="site"') < 0) {
     if (STUDENT_PAGES.test(String(pathname || '')) && html.indexOf('<script src="/glovels-pay.js') < 0) {
       const end = html.lastIndexOf('</body>');
-      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=195" defer></script>\n' + html.slice(end);
+      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=196" defer></script>\n' + html.slice(end);
     }
     return html;
   }
@@ -3064,7 +3064,7 @@ function withMobileKit(html, pathname) {
   const at = html.lastIndexOf('</body>');
   /* Patch 194: the currency script on every public page, so every rupee
      figure is shown in the visitor's own money (it also runs the checkout). */
-  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=195" defer></script>';
+  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=196" defer></script>';
   return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + pay + '\n' + html.slice(at);
 }
 
@@ -3844,6 +3844,9 @@ ${newTiers ? `  ${newTiers} entry package(s) added and live — the machine deli
       ? 'Brevo not configured — mail is queued in the outbox'
       : 'configured (' + (mail.mode === 'api' ? (mail.status().providerLabel || 'HTTPS provider') : 'SMTP ' + (mail.status().host || '')) + ')'));
     console.log('  [golive] payments: ' + ps.label + (ps.state === 'off' ? '' : (CFG.razorpay.webhookSecret ? ', webhook secret set' : ', NO webhook secret')));
+    { const ss = require('./server/stripe.js').stripeState(CFG.stripe);
+      console.log('  [golive] payments abroad (Stripe, ' + ((CFG.stripe && CFG.stripe.seller) || 'Glovels UG') + '): ' + ss.label
+        + (ss.state === 'off' ? ' — buyers outside India pay through Razorpay' : (CFG.stripe.webhookSecret ? ', webhook secret set' : ', NO webhook secret'))); }
     console.log('  [golive] analytics: ' + (gaId() ? 'GA id ' + gaId() + ' on public pages' : 'no GA id'));
     if (missing.length) console.log('  [golive] legal details missing: ' + missing.join(', '));
     else console.log('  [golive] legal details: complete');

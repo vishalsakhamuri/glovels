@@ -32,6 +32,8 @@ const OPAQUE_SALTED = (nonce, kind, v) => 'x' + kind + crypto.createHmac('sha256
 const FX = require('./fx.js');
 const GEO = require('./geo.js');
 const PAY = require('./pay.js');
+/* Patch 195: Stripe, for buyers outside India (Glovels UG). */
+const STRIPE = require('./stripe.js');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
@@ -396,6 +398,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
   const pay = PAY.makePay((config && config.razorpay) || {});
+  /* Patch 195 (owner): "for India it's Razorpay and anywhere else in the world
+     it's Stripe." Stripe is the German company's (Glovels UG) gateway; off
+     until STRIPE_SECRET_KEY is set, and then buyers abroad pay via Razorpay. */
+  const stripe = STRIPE.makeStripe((config && config.stripe) || {});
 
   /*
    * Paying in your own currency (patches 185, 186).
@@ -442,6 +448,81 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return { orderId: made.id, keyId: pay.keyId, amountPaise: Math.round(inrPaise),
       amountMinor: c.amountMinor, currency: c.currency };
   }
+  /*
+   * Patch 195: which gateway takes this buyer. India — a rupee price, or a
+   * connection from India whatever the currency — is Razorpay (Glovels
+   * Consultants Private Limited). Anywhere else, paying in their own currency,
+   * is Stripe (Glovels UG) when Stripe is switched on. Exactly the test that
+   * makes a sale an export (no GST), so a Stripe sale is always an export.
+   */
+  const viaStripeFor = (currency, req) => {
+    if (!stripe.enabled) return false;
+    const c = String(currency || '').toUpperCase();
+    return !!c && c !== 'INR' && FX.currencies().includes(c) && geoFor(req).country !== 'IN';
+  };
+  /** Where Stripe sends the buyer back: our own route, which asks Stripe. */
+  const baseFor = req => String(siteUrl || ('http://' + String((req && req.headers && req.headers.host) || 'localhost:8080'))).replace(/\/+$/, '');
+  const safeBack = p => (/^\/[A-Za-z0-9\-_/.]*$/.test(String(p || '')) && !/^\/\//.test(String(p)) ? String(p) : '/');
+  /** One Stripe Checkout Session for `inrPaise` of ours, in the buyer's
+   *  currency, recorded (currency + Stripe's own minor units) so the return
+   *  and the webhook check against exactly what was asked for. */
+  async function stripeOrderFor({ req, reference, partN, inrPaise, currency, email, description, back }) {
+    const c = FX.convert(inrPaise, currency);
+    if (c.currency === 'INR') throw new Error('Stripe is for buyers abroad; ' + currency + ' is not offered.');
+    const minor = STRIPE.minorFor(c.currency, c.units);
+    const base = baseFor(req);
+    const ref = encodeURIComponent(reference);
+    const made = await stripe.createSession({
+      amountMinor: minor, currency: c.currency, reference, partN, email, description,
+      successUrl: base + '/api/stripe/return?ref=' + ref + '&session_id={CHECKOUT_SESSION_ID}',
+      cancelUrl: base + '/api/stripe/return?ref=' + ref + '&cancel=1&back=' + encodeURIComponent(safeBack(back)),
+    });
+    db.putGatewayOrder({ gatewayOrderId: made.id, reference, partN: partN == null ? null : partN,
+      currency: c.currency, amountMinor: minor, inrPaise: Math.round(inrPaise) });
+    db.setOrderGateway(reference, made.id);
+    return { url: made.url, sessionId: made.id, currency: c.currency, amountMinor: minor,
+      units: minor / Math.pow(10, STRIPE.exponentFor(c.currency)), amountPaise: Math.round(inrPaise),
+      seller: stripe.seller };
+  }
+  /**
+   * A Checkout Session Stripe itself reported (by the API or the signed
+   * webhook). Settles the order — or its part — only when it was paid, in the
+   * currency and for the exact amount we asked for. Safe to call twice: the
+   * return and the webhook both arrive for the same payment.
+   */
+  function settleStripe(session) {
+    const id = String((session && session.id) || '');
+    let rec = null;
+    try { rec = id ? db.gatewayOrder(id) : null; } catch (e) { rec = null; }
+    if (!rec) return { state: 'unknown' };
+    const order = db.orderByReference(rec.reference);
+    if (!order) return { state: 'unknown' };
+    const meta = session.metadata || {};
+    if (meta.reference && meta.reference !== rec.reference) {
+      db.log('system', 'Stripe session refused', rec.reference + ' — session belongs to ' + meta.reference);
+      return { state: 'refused', order };
+    }
+    if (session.payment_status !== 'paid') return { state: session.status === 'expired' ? 'expired' : 'pending', order };
+    const cur = String(session.currency || '').toUpperCase();
+    const amount = Number(session.amount_total);
+    if (cur !== String(rec.currency) || amount !== Number(rec.amount_minor)) {
+      db.log('system', 'Stripe amount mismatch', order.reference + ': Stripe says ' + cur + ' ' + amount
+        + ', we asked for ' + rec.currency + ' ' + rec.amount_minor);
+      return { state: 'refused', order };
+    }
+    const plan = planOf(order);
+    const partN = rec.part_n != null && plan ? Number(rec.part_n) : null;
+    const already = partN != null
+      ? (plan.find(p => Number(p.n) === partN) || {}).status === 'paid'
+      : order.status === 'paid';
+    if (already) return { state: 'paid', order };
+    const done = recordPayment(order, String(session.payment_intent || id), partN, 'Stripe');
+    db.log('system', 'Payment captured (Stripe)', order.reference + ' — ' + inrOf(Number(rec.inr_paise))
+      + ' (charged ' + cur + ' ' + (amount / Math.pow(10, STRIPE.exponentFor(cur))) + ', ' + stripe.seller + ')'
+      + (done.outstanding ? ' (' + inrOf(done.outstanding) + ' still to come)' : ''));
+    return { state: 'paid', order };
+  }
+
   /* Prices are read per request, never captured. A package edited at 11:02 is
      charged at the new price at 11:03, without a restart. */
   const PACKAGES = () => (content ? content.priceList() : FALLBACK_PACKAGES);
@@ -2593,7 +2674,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     try { return order.plan ? JSON.parse(order.plan) : null; } catch (e) { return null; }
   };
 
-  function recordPayment(order, paymentId, which) {
+  function recordPayment(order, paymentId, which, via) {
     const plan = planOf(order);
     /* 8 Oct (F2): the gateway's money goes in the same ledger as the office's,
        so GET /api/staff/order/:ref lists a card payment beside a bank
@@ -2602,7 +2683,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       try {
         db.addPayment({ orderRef: order.reference, studentId: order.student_id, paise,
           at: new Date().toISOString(), method: 'card', reference: paymentId || '',
-          note: 'Razorpay', byStaff: 'razorpay', kind: 'payment', partN: null });
+          note: via || 'Razorpay', byStaff: String(via || 'Razorpay').toLowerCase(), kind: 'payment', partN: null });
       } catch (e) { /* the order is marked paid either way */ }
     };
     if (!plan) {
@@ -2876,7 +2957,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      *
      * Anything over ₹10,000 may be spread (placeOrder works the schedule out).
      */
-    const collecting = pay.enabled;
+    /* Patch 195: abroad → Stripe (Glovels UG); India → Razorpay. */
+    const viaStripe = viaStripeFor(b.currency, req);
+    const collecting = pay.enabled || viaStripe;
     /* Whose order this is — decided BEFORE the row is written, so the row
        never carries a staff id even for a moment. */
     const ref = newReference();
@@ -2900,7 +2983,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        which got it from here, so there is no number in this flow that a page
        could have tampered with. */
     let rzp = null;
-    if (collecting && chargeNow > 0) {
+    let st = null;
+    if (viaStripe && chargeNow > 0) {
+      try {
+        st = await stripeOrderFor({ req, reference, partN: plan ? plan[0].n : null, inrPaise: chargeNow,
+          currency: b.currency, email, back: b.sourcePage,
+          description: label + (plan ? ' — part 1 of ' + plan.length : '') });
+      } catch (e) {
+        /* Stripe refused (a currency it does not take, a bad minute): Razorpay
+           takes it if it can, a counsellor otherwise. */
+        db.log('system', 'Stripe session could not be created', reference + ': ' + e.message);
+        if (!pay.enabled) db.setOrderStatus(reference, 'owing');
+      }
+    }
+    if (!st && pay.enabled && chargeNow > 0) {
       try {
         rzp = await gatewayOrderFor({
           reference, partN: plan ? plan[0].n : null, inrPaise: chargeNow,
@@ -2984,7 +3080,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     /* The receipt is the message that tells a guest how to get into the portal
        they just paid for, so it goes out whether or not they have an account. */
-    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({ exportSale,
+    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({ exportSale, seller: st ? stripe.seller : '',
       name, email, reference, packageName: label, grossPaise: gross,
       /* An account made for this order counts — the email said "create your
          account" to people whose account was made seven milliseconds earlier. */
@@ -3015,7 +3111,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       /* Present only when there is genuinely a card form to open. The page
          decides which confirmation to show from this and nothing else. */
       razorpay: rzp,
-      status: rzp ? 'awaiting' : 'owing',
+      /* Patch 195: present when the buyer pays on Stripe's page instead. */
+      stripe: st,
+      status: (rzp || st) ? 'awaiting' : 'owing',
       /* The schedule, so the confirmation can say what was charged now and
          what is left rather than showing the full price against a payment that
          was a fraction of it. */
@@ -3174,7 +3272,68 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     geo: geoFor(req),
     /* Patch 190: a foreign-currency (export) sale is priced without GST. */
     gstRate: GST_RATE, exportNoGst: true,
+    /* Patch 195: whether buyers abroad pay on Stripe (Glovels UG). */
+    stripe: stripe.enabled,
+    sellerAbroad: stripe.enabled ? stripe.seller : '',
   }), { open: true });
+
+  /*
+   * Patch 195: back from Stripe's payment page.
+   *
+   * The address says which session it was; it does not say whether it was
+   * paid, and nothing here believes the address. We ask Stripe, with the
+   * secret key, then send the buyer on: to the dashboard when it is paid, back
+   * where they came from when they cancelled.
+   */
+  route('GET', '/api/stripe/return', async (req, res) => {
+    const q = url.parse(req.url, true).query || {};
+    const reference = String(q.ref || '').slice(0, 30);
+    const go = to => { res.writeHead(303, { Location: to, 'Cache-Control': 'no-store' }); res.end(); };
+    if (q.cancel) return go(safeBack(q.back) + '?payment=cancelled&ref=' + encodeURIComponent(reference));
+    if (!stripe.enabled) return go('/dashboard');
+    try {
+      const sess = await stripe.session(String(q.session_id || ''));
+      const out = settleStripe(sess);
+      if (out.order && out.order.reference !== reference) return go('/dashboard');
+      if (out.state === 'paid') return go('/dashboard?paid=' + encodeURIComponent(reference));
+      return go('/dashboard?payment=processing&ref=' + encodeURIComponent(reference));
+    } catch (e) {
+      db.log('system', 'Stripe return could not be checked', reference + ': ' + e.message);
+      /* The webhook still settles it; say it is on its way, never that it failed. */
+      return go('/dashboard?payment=processing&ref=' + encodeURIComponent(reference));
+    }
+  }, { open: true });
+
+  /*
+   * Patch 195: Stripe tells us directly — the authority, as Razorpay's is.
+   * Signed over the RAW bytes with a timestamp; see server/stripe.js.
+   */
+  route('POST', '/api/stripe/webhook', async (req, res) => {
+    const raw = await readRaw(req);
+    if (!stripe.webhookReady) return json(res, 503, { error: 'No Stripe webhook secret is configured.' });
+    if (!stripe.verifyWebhook(raw, req.headers['stripe-signature'])) {
+      db.log('system', 'Stripe webhook refused', 'signature did not verify');
+      return json(res, 400, { error: 'Signature did not verify.' });
+    }
+    let body = {};
+    try { body = JSON.parse(raw.toString('utf8') || '{}'); } catch (e) { body = {}; }
+    const type = String(body.type || '');
+    const sess = (body.data || {}).object || {};
+    if (type === 'checkout.session.completed' || type === 'checkout.session.async_payment_succeeded') {
+      settleStripe(sess);
+    } else if (type === 'checkout.session.async_payment_failed' || type === 'checkout.session.expired') {
+      let rec = null;
+      try { rec = sess.id ? db.gatewayOrder(sess.id) : null; } catch (e) { rec = null; }
+      const order = rec ? db.orderByReference(rec.reference) : null;
+      /* Only a whole order that is still waiting, and only for the session
+         that order is currently waiting on — never a part already paid. */
+      if (order && order.status === 'awaiting' && order.gateway_order_id === sess.id) {
+        db.setOrderStatus(order.reference, 'failed');
+        db.log('system', 'Payment failed (Stripe)', order.reference + ' — ' + type);
+      }
+    }
+    return json(res, 200, { ok: true });
+  }, { open: true });
 
   /*
    * What you accepted, shown back to you.
@@ -3235,14 +3394,31 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!plan) return json(res, 409, { error: 'That order is not being paid in parts.' });
     const part = PLANS.nextDue(plan);
     if (!part) return json(res, 409, { error: 'It is all paid.' });
-    if (!pay.enabled) {
+    const b0 = await readJson(req).catch(() => ({}));
+    const partStripe = viaStripeFor(b0 && b0.currency, req);
+    if (!pay.enabled && !partStripe) {
       return json(res, 409, {
         error: 'Card payment is not switched on yet. Your counsellor can take this part '
              + 'and record it against your order.',
       });
     }
     try {
-      const b = await readJson(req).catch(() => ({}));
+      const b = b0 || {};
+      if (partStripe) {
+        let stp = null;
+        try {
+          stp = await stripeOrderFor({ req, reference: order.reference, partN: part.n, inrPaise: part.paise,
+            currency: b.currency, email: order.email, back: '/dashboard',
+            description: (order.package || 'Glovels') + ' — part ' + part.n + ' of ' + plan.length });
+        } catch (e) {
+          db.log('system', 'Stripe session could not be created', order.reference + '-' + part.n + ': ' + e.message);
+          if (!pay.enabled) throw e;
+        }
+        if (stp) {
+          return json(res, 200, { reference: order.reference, razorpay: null, stripe: stp,
+            part: { n: part.n, label: part.label, paise: part.paise } });
+        }
+      }
       /* The gateway id is stored (with what it charges) so the webhook can find
          this order when it arrives — it has only the gateway's identifiers. */
       const rzp = await gatewayOrderFor({

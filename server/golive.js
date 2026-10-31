@@ -14,6 +14,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const STRIPE = require('./stripe');
 
 /* The legal particulars every one of the four pages quotes. Kept in step
    with LEGAL_FIELDS on the Home page screen (home.html). */
@@ -97,6 +98,13 @@ function report(deps) {
   add('payments', ps.state === 'live' ? (hook ? 'ok' : 'warn') : ps.state === 'off' ? 'warn' : 'bad', 'Payments',
     ps.label + (ps.state === 'off' ? ' — orders are recorded, a counsellor collects' : hook ? ', webhook secret set' : ', NO webhook secret'),
     ps.state === 'live' && hook ? '' : 'Set RAZORPAY_KEY_ID (rzp_live_…), RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET on Render; point the webhook at /api/razorpay/webhook.');
+
+  /* Patch 195: Stripe, for buyers outside India (Glovels UG). */
+  const ss = STRIPE.stripeState(cfg.stripe);
+  const shook = !!(cfg.stripe && cfg.stripe.webhookSecret);
+  add('stripe', ss.state === 'live' ? (shook ? 'ok' : 'warn') : ss.state === 'off' ? 'warn' : 'bad', 'Payments abroad (Stripe)',
+    ss.label + (ss.state === 'off' ? ' — buyers outside India pay through Razorpay' : shook ? ', webhook secret set' : ', NO webhook secret'),
+    ss.state === 'live' && shook ? '' : 'Set STRIPE_SECRET_KEY (sk_live_…) and STRIPE_WEBHOOK_SECRET on Render; point a Stripe webhook at /api/stripe/webhook (checkout.session.completed, checkout.session.async_payment_succeeded, checkout.session.async_payment_failed, checkout.session.expired).');
 
   /* Analytics */
   let ga = '';

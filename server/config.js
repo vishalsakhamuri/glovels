@@ -85,6 +85,17 @@ function load(env) {
          unverifiable webhook is ignored rather than trusted. */
       webhookSecret: (env.RAZORPAY_WEBHOOK_SECRET || '').trim(),
     },
+
+    /*
+     * Patch 195: Stripe, for buyers outside India, sold by the German company
+     * (Glovels UG). Off until STRIPE_SECRET_KEY is set — a buyer abroad then
+     * pays through Razorpay as before. Webhook: /api/stripe/webhook.
+     */
+    stripe: {
+      secretKey: (env.STRIPE_SECRET_KEY || '').trim(),
+      webhookSecret: (env.STRIPE_WEBHOOK_SECRET || '').trim(),
+      seller: (env.STRIPE_SELLER_NAME || 'Glovels UG (haftungsbeschränkt)').trim(),
+    },
   };
 
   /*
@@ -123,6 +134,14 @@ function load(env) {
     if (r.keyId && /^rzp_test_/.test(r.keyId)) {
       problems.push('RAZORPAY_KEY_ID is a TEST key (rzp_test_…) and this is production. '
         + 'Real cards will be declined and test cards will appear to work.');
+    }
+    const st = cfg.stripe;
+    if (st.secretKey && /^(sk|rk)_test_/.test(st.secretKey)) {
+      problems.push('STRIPE_SECRET_KEY is a TEST key (sk_test_…) and this is production. '
+        + 'Real cards abroad would be declined and test cards would appear to work.');
+    }
+    if (st.secretKey && /^pk_/.test(st.secretKey)) {
+      problems.push('STRIPE_SECRET_KEY holds a publishable key (pk_…). It needs the SECRET key (sk_live_…).');
     }
     if (!cfg.siteUrl) {
       problems.push('GLOVELS_URL is not set, and the host did not supply one either. '
@@ -179,7 +198,11 @@ function describe(cfg) {
              + (cfg.razorpay.webhookSecret ? ', webhook verified.' : ' — NO webhook secret set, '
                + 'so a payment whose browser never came back will not be recorded.')
            : '  Payments: not collected online — an order is recorded and a counsellor '
-             + 'collects. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to change that.');
+             + 'collects. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to change that.')
+       + (cfg.stripe && cfg.stripe.secretKey
+           ? '\n  Abroad: Stripe is live (' + cfg.stripe.seller + ')'
+             + (cfg.stripe.webhookSecret ? ', webhook verified.' : ' — NO STRIPE_WEBHOOK_SECRET set.')
+           : '\n  Abroad: Stripe not configured — buyers outside India pay through Razorpay.');
 }
 
 module.exports = { load, describe, DEV_PASSWORD };

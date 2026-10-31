@@ -236,3 +236,25 @@ the finder, asks a question in the chat box, becomes a lead in the enquiry book,
 is answered by the office, buys a package, signs up, finds the purchase waiting
 on their dashboard, writes an SOP, and messages their counsellor — then a
 sentence typed in the office appears on the public page.
+
+## Patch 195 — Stripe for buyers outside India (Glovels UG)
+
+India pays through Razorpay (Glovels Consultants Private Limited, rupees, GST).
+A buyer outside India paying in their own currency pays on Stripe's page,
+sold by Glovels UG (haftungsbeschränkt) — an export sale, no GST. A buyer whose
+connection is in India always goes to Razorpay, whatever currency they pick.
+
+On Render:
+
+| Variable | Value |
+|---|---|
+| `STRIPE_SECRET_KEY` | `sk_live_…` from the Glovels UG Stripe account (Developers → API keys) |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` from the webhook below |
+| `STRIPE_SELLER_NAME` | optional; defaults to `Glovels UG (haftungsbeschränkt)` |
+
+Stripe → Developers → Webhooks → add endpoint `https://www.glovels.com/api/stripe/webhook`
+with `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, `checkout.session.expired`.
+
+Without `STRIPE_SECRET_KEY`, buyers abroad pay through Razorpay exactly as before.
+Test: one small purchase from outside India (or with a VPN) in USD, then refund it in Stripe.

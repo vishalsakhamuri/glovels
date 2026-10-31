@@ -51,7 +51,7 @@ SCRIPT = r"""
    "Pay in" currency line. It was only ever on the home page before. */
 (function () {
   if (window.__glovelsCollect || document.querySelector('script[src^="/glovels-pay.js"]')) return;
-  var s = document.createElement('script'); s.src = '/glovels-pay.js?v=195'; document.head.appendChild(s);
+  var s = document.createElement('script'); s.src = '/glovels-pay.js?v=196'; document.head.appendChild(s);
 }());
 /* The services the office is actually selling today, not a copy frozen into
    this page at build time. Same endpoint the home page reads. */
@@ -262,7 +262,7 @@ function svcCheckout(s) {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'That did not go through.');
-      if (d.razorpay && window.__glovelsCollect) await window.__glovelsCollect(d);
+      if ((d.razorpay || d.stripe) && window.__glovelsCollect) await window.__glovelsCollect(d);
       BOUGHT.add(String(s.id));
       svcPaint();
       box.innerHTML = '<div class="svc-co-sheet" id="svcCoDone" style="background:var(--paper,#fff);border-radius:16px;'
@@ -270,7 +270,7 @@ function svcCheckout(s) {
         + '<h3 style="margin:0 0 8px;font-size:17px;color:var(--navy-900)">Booked — ' + esc(d.reference || '') + '</h3>'
         + '<p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:var(--navy-800)">' + esc(s.name)
         + ' is on your account. It is on your dashboard with the reference above, and your counsellor '
-        + 'will be in touch about it.' + (d.razorpay && !window.__glovelsCollect
+        + 'will be in touch about it.' + ((d.razorpay || d.stripe) && !window.__glovelsCollect
           ? ' Payment is collected from your dashboard.' : '') + '</p>'
         + '<div style="display:flex;gap:10px;justify-content:flex-end">'
         + '<a class="btn btn-ghost" href="dashboard.html">Go to my dashboard</a>'

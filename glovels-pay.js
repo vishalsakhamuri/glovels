@@ -225,6 +225,15 @@
    * means no `d.razorpay`, and then there is nothing to collect.
    */
   window.__glovelsCollect = function (d) {
+    /* Patch 195: a buyer outside India pays on Stripe's own page (Glovels
+       UG). We go there; the server asks Stripe when they come back, so this
+       promise never resolves on this page — the next page says what happened. */
+    if (d && d.stripe && d.stripe.url) {
+      if (window.glvTrack) try { window.glvTrack('begin_checkout', { transaction_id: d.reference, currency: 'INR',
+        value: Math.round(Number(d.stripe.amountPaise || 0) / 100) || undefined }); } catch (e) {}
+      location.assign(d.stripe.url);
+      return new Promise(function () {});
+    }
     if (!d || !d.razorpay) return Promise.resolve(d);
     var cur = d.razorpay.currency || 'INR';
     var amount = d.razorpay.amountMinor != null ? d.razorpay.amountMinor : d.razorpay.amountPaise;
@@ -295,6 +304,35 @@
       });
     });
   };
+
+  /* Patch 195: back from Stripe — say what happened, in words, once. */
+  (function backFromStripe() {
+    var q; try { q = new URLSearchParams(location.search); } catch (e) { return; }
+    var ref = q.get('ref') || q.get('paid') || '';
+    var state = q.get('paid') ? 'paid' : q.get('payment');
+    if (!state || !/^(paid|processing|cancelled)$/.test(state)) return;
+    var text = state === 'paid'
+      ? 'Payment received — thank you. Your order ' + ref + ' is paid.'
+      : state === 'processing'
+        ? 'Your payment for ' + ref + ' is being confirmed. It shows as paid here as soon as Stripe confirms it — no need to pay again.'
+        : 'The payment was cancelled, so nothing has been charged. Your order ' + ref + ' is held if you would like to try again.';
+    var show = function () {
+      var bar = document.createElement('div');
+      bar.setAttribute('role', 'status');
+      bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;max-width:560px;margin:0 auto;'
+        + 'padding:12px 40px 12px 14px;border-radius:12px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.18);'
+        + 'background:' + (state === 'cancelled' ? '#fff4e5;color:#5a3a00' : '#e9f7ef;color:#0b3d22');
+      bar.textContent = text;
+      var x = document.createElement('button');
+      x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.textContent = '\u00d7';
+      x.style.cssText = 'position:absolute;right:8px;top:6px;border:0;background:none;font-size:20px;cursor:pointer;color:inherit';
+      x.onclick = function () { bar.remove(); };
+      bar.appendChild(x);
+      document.body.appendChild(bar);
+      try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    };
+    if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
+  })();
 
   /* A mobile from anywhere: digits with + ( ) - and spaces, 8 to 15 digits —
      the same rule the server applies. */

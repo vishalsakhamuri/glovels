@@ -4944,7 +4944,7 @@ $('#planCta').onclick = () => {
 
        A failure here is NOT swallowed the way the fetch above is: an order that
        was never paid must not show a confirmation. */
-    if (placed && placed.razorpay) {
+    if (placed && (placed.razorpay || placed.stripe)) {
       try {
         await window.__glovelsCollect(Object.assign({}, placed, {
           buyerName: $('#scName').value.trim(),
@@ -6779,7 +6779,7 @@ if (location.protocol === 'file:') {
     .catch(function () {});
 }());
 </script>
-<script src="/glovels-pay.js?v=195"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+<script src="/glovels-pay.js?v=196"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 <script>/* GLOVELS-PKG-CONNECTORS */
 (function () {
   /* Each package gets its own icon. They were all the same compass, which on a

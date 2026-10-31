@@ -176,7 +176,7 @@ Glovels
   },
 
   orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl,
-    hasAccount, services, matchedOnly, exportSale }) {
+    hasAccount, services, matchedOnly, exportSale, seller }) {
     const first = String(name || '').split(' ')[0] || 'there';
     const tax = exportSale ? 0 : Math.round(grossPaise - grossPaise / 1.18);
     /* A receipt for services has to name them. "2 services — ₹4,498" is not a
@@ -212,7 +212,9 @@ ${(services || []).length
   ? `You have booked:${bought}`
   : `Your ${packageName} package is active.`}
 Order reference   ${reference}
-Amount            ${money(grossPaise)} ${exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${publicUnis
+Amount            ${money(grossPaise)} ${exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${seller
+  ? `
+Sold by           ${seller} — card payment taken by Stripe` : ''}${publicUnis
   ? `
 Universities      ${publicUnis} public universities, named in your account` : ''}
 
@@ -246,11 +248,15 @@ Glovels
         rows([
           ['Order reference', reference],
           ['Package', packageName],
-          ['Amount paid', money(grossPaise) + ' incl. GST'],
-          ['GST @ 18%', money(tax)],
+          /* Patch 195: an export sale carries no GST — the HTML said "incl.
+             GST" for those too — and a Stripe sale names the German seller. */
+        ].concat(exportSale
+          ? [['Amount paid', money(grossPaise) + ' — export of services, no GST']]
+          : [['Amount paid', money(grossPaise) + ' incl. GST'], ['GST @ 18%', money(tax)]]
+        ).concat(seller ? [['Sold by', seller]] : []).concat([
           /* Only when there is a number. "Universities unlocked: 0" on a
              receipt for an SOP rewrite is a line that answers nothing. */
-        ].concat(publicUnis ? [['Universities', String(publicUnis)]] : [])) +
+        ]).concat(publicUnis ? [['Universities', String(publicUnis)]] : [])) +
         (hasAccount
           ? button(siteUrl + '/dashboard', 'Open my dashboard')
           : p('Create your account with <b>' + esc(email) + '</b> and your universities are attached straight away.')
