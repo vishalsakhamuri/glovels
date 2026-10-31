@@ -29,6 +29,7 @@ const OPAQUE = (kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY)
    "12 public universities" still counts — and says nothing outside it. */
 const OPAQUE_NONCE = () => crypto.randomBytes(12).toString('hex');
 const OPAQUE_SALTED = (nonce, kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY).update(nonce + ':' + kind + ':' + String(v)).digest('hex').slice(0, 14);
+const FX = require('./fx.js');
 const PAY = require('./pay.js');
 const fs = require('fs');
 const path = require('path');
@@ -219,6 +220,12 @@ const readJson = async (req, max) => {
    order and whitespace both move — so a re-serialised body never verifies. */
 const readRaw = req => readBody(req, MAX_WEBHOOK_BODY);
 
+/* Patch 186: a request from the Glovels app (it sends X-Glovels-Client:
+   app/<platform>/<version>). Sign-in answers it with the session token in the
+   body, since it cannot read an HttpOnly cookie. */
+const fromApp = req => /^app\b/i.test(String(req.headers['x-glovels-client'] || ''));
+const withToken = (req, body, token) => (fromApp(req) ? Object.assign({}, body, { token }) : body);
+
 const inrOf = paise => '\u20b9' + Math.round(Number(paise || 0) / 100).toLocaleString('en-IN');
 
 function cookies(req) {
@@ -227,6 +234,14 @@ function cookies(req) {
     const i = p.indexOf('=');
     if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
   });
+  /* Patch 186: the Android and iPhone apps sign in with the same session, sent
+     as `Authorization: Bearer <token>` because an app keeps no cookie jar.
+     A browser cannot attach this header to another site's request without a
+     CORS grant this server never gives, so it opens no cross-site hole. */
+  if (!out.glovels_session) {
+    const m = /^Bearer\s+([A-Za-z0-9._~+\/=-]{16,200})$/.exec(String(req.headers.authorization || '').trim());
+    if (m) out.glovels_session = m[1];
+  }
   return out;
 }
 
@@ -289,6 +304,16 @@ const validPhone = p => /^[6-9]\d{9}$/.test(tenDigits(p));
    with a leading +, spaces, hyphens and brackets allowed; 8 to 15 digits
    once those are stripped; and not a single letter, because
    "$%qwere13123123456" was accepted as a mobile number and stored. */
+/* Patch 186: how a number is stored. An Indian mobile as +91 and ten
+   digits, as before; anything else as typed, + and digits only — a Lagos
+   number must not come back as +91 and the last ten of its digits. */
+const storePhone = p => {
+  const v = String(p == null ? '' : p).trim();
+  if (!v) return '';
+  if (validPhone(v) && !(/^\+/.test(v) && !/^\+\s*91/.test(v))) return '+91' + tenDigits(v);
+  const d = v.replace(/\D/g, '');
+  return d ? (/^\+/.test(v) ? '+' : '') + d : '';
+};
 const anyPhone = p => {
   const v = String(p == null ? '' : p).trim();
   if (!/^\+?[\d\s().-]+$/.test(v)) return false;
@@ -372,41 +397,19 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   const pay = PAY.makePay((config && config.razorpay) || {});
 
   /*
-   * Patch 185: paying in your own currency.
+   * Paying in your own currency (patches 185, 186).
    *
    * Prices are set in rupees and the rupee figure stays the order's truth. A
-   * buyer abroad is charged the same price in their currency, converted with
-   * the office's own rates (Finder settings → exchange rates, rupees per unit)
-   * and rounded UP to a whole unit, so the office never collects less than the
-   * rupee price. Razorpay settles to the bank in rupees. Only currencies the
-   * office has a rate for are offered, and the browser only ever names one —
-   * every amount is worked out here.
+   * buyer abroad is charged the same price in their own currency — about 50
+   * of them, the ones Razorpay accepts across South and South-East Asia, the
+   * Middle East, Africa and South America — at the day's market rate plus a
+   * 2% cushion, rounded UP (server/fx.js). Razorpay settles in rupees. The
+   * browser only ever names a currency; every amount is worked out here.
    */
-  const PAY_CURRENCY_ORDER = ['INR', 'USD', 'EUR', 'GBP', 'AUD', 'CAD'];
-  const payFx = () => {
-    let fx = null;
-    try { const f = content && content.get('finder'); fx = f && f.fx; } catch (e) { fx = null; }
-    const out = { INR: 1 };
-    Object.keys(fx || {}).forEach(k => {
-      const code = String(k).toUpperCase();
-      const r = Number(fx[k]);
-      if (/^[A-Z]{3}$/.test(code) && code !== 'INR' && r > 0) out[code] = r;
-    });
-    return out;
-  };
-  const payCurrencies = () => {
-    const fx = payFx();
-    const known = PAY_CURRENCY_ORDER.filter(c => fx[c]);
-    return known.concat(Object.keys(fx).filter(c => !known.includes(c)).sort());
-  };
-  /** What `inrPaise` is in `currency`, in its smallest unit. */
-  const inCurrency = (inrPaise, currency) => {
-    const fx = payFx();
-    const cur = String(currency || 'INR').toUpperCase();
-    if (cur === 'INR' || !fx[cur]) return { currency: 'INR', amountMinor: Math.round(inrPaise), rate: 1 };
-    const units = Math.max(1, Math.ceil((Number(inrPaise) / 100) / fx[cur]));
-    return { currency: cur, amountMinor: units * 100, rate: fx[cur] };
-  };
+  FX.start(db);
+  const payFx = () => FX.rates();
+  const payCurrencies = () => FX.currencies();
+  const inCurrency = (inrPaise, currency) => FX.convert(inrPaise, currency);
   /** One gateway order for `inrPaise` of ours, in the buyer's currency, and a
    *  record of exactly what it asked for — the webhook checks against that. */
   async function gatewayOrderFor({ reference, partN, inrPaise, currency, receipt, notes }) {
@@ -1696,7 +1699,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (name.length > 100) return json(res, 422, { error: 'That name is too long — 100 characters at most.', fields: [{ field: 'name', why: 'too long' }] });
     if (!/\p{L}/u.test(name)) return json(res, 422, { error: 'A name needs at least one letter.', fields: [{ field: 'name', why: 'no letter' }] });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
-    if (phone && !validPhone(phone)) return json(res, 422, { error: 'A 10-digit Indian mobile, please' });
+    /* Patch 186: a mobile from any country (the apps are for South Asia and beyond). */
+    if (phone && !anyPhone(phone)) return json(res, 422, { error: 'A mobile number, please \u2014 add the country code if you are outside India' });
     if (pw.length < 8) return json(res, 422, { error: 'Use at least 8 characters' });
     /*
      * THE TERMS BOX WAS A GATE IN THE BROWSER AND NOWHERE ELSE.
@@ -1716,7 +1720,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (db.studentByEmail(email)) return json(res, 409, { error: 'That email already has an account. Sign in instead.' });
 
     const salt = newSalt();
-    const s = db.createStudent(email, name, tenDigits(phone) ? '+91' + tenDigits(phone) : '',
+    const s = db.createStudent(email, name, storePhone(phone),
       hashPassword(pw, salt), salt, 'student', new Date().toISOString());
     const claimed = db.claimOrders(s.id, email);
     seedMessages(s);
@@ -1726,7 +1730,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     const token = newToken();
     db.createSession(token, s.id, 30);
-    return json(res, 200, { user: publicStudent(s), claimedOrders: claimed },
+    return json(res, 200, withToken(req, { user: publicStudent(s), claimedOrders: claimed }, token),
       { 'Set-Cookie': sessionCookie(token, 30) });
   }, { open: true });
 
@@ -1779,7 +1783,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const token = newToken();
     const days = b.remember === false ? 1 : 30;
     db.createSession(token, s.id, days);
-    return json(res, 200, { user: publicStudent(s) }, { 'Set-Cookie': sessionCookie(token, days) });
+    return json(res, 200, withToken(req, { user: publicStudent(s) }, token), { 'Set-Cookie': sessionCookie(token, days) });
   }, { open: true });
 
   route('POST', '/api/auth/logout', async (req, res) => {
@@ -1898,7 +1902,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const p = prof;
     if (p.fullName || p.phone) {
       db.updateStudent(s.id, p.fullName || s.name,
-        validPhone(p.phone) ? '+91' + tenDigits(p.phone) : s.phone);
+        anyPhone(p.phone) || validPhone(p.phone) ? storePhone(p.phone) : s.phone);
     }
     /* The usual order of events: somebody buys ₹99 at eleven at night, fills
        the profile in afterwards, and their universities are waiting when they
@@ -2073,12 +2077,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (name.length > 100) return json(res, 422, { error: 'That name is too long — 100 characters at most.' });
     if (!/\p{L}/u.test(name)) return json(res, 422, { error: 'A name needs at least one letter.' });
     if (!validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
-    if (!validPhone(phone)) return json(res, 422, { error: 'That does not look like an Indian mobile number' });
+    if (!anyPhone(phone)) return json(res, 422, { error: 'That does not look like a mobile number \u2014 add the country code if you are outside India' });
 
     const where = (p.university || '') + (p.program ? ' — ' + p.program : '');
     const from = sourceOf(req, b);
     const record = {
-      name, email, phone: '+91' + tenDigits(phone),
+      name, email, phone: storePhone(phone),
       destination: p.country || '',
       consent: b.consent || '',
       note: 'Wants to apply: ' + where,
@@ -2750,7 +2754,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        weak default sitting on it. */
     const salt = newSalt();
     const temp = newPassword();
-    const created = db.createStudent(email, name, tenDigits(phone) ? '+91' + tenDigits(phone) : '',
+    const created = db.createStudent(email, name, storePhone(phone),
       hashPassword(temp, salt), salt);
     db.setMustChange(created.id, true);
     db.claimOrders(created.id, email);
@@ -3098,7 +3102,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
           const which = rec.part_n != null && parts ? rec.part_n : null;
           const done = recordPayment(order, entity.id || '', which);
           db.log('system', 'Payment captured', order.reference + ' — ' + inrOf(Number(rec.inr_paise))
-            + (cur !== 'INR' ? ' (charged ' + cur + ' ' + (amount / 100).toFixed(2) + ')' : '')
+            + (cur !== 'INR' ? ' (charged ' + cur + ' ' + (amount / Math.pow(10, FX.exponent(cur))) + ')' : '')
             + (done.outstanding ? ' (' + inrOf(done.outstanding) + ' still to come)' : ''));
         }
         return json(res, 200, { ok: true });
@@ -3132,6 +3136,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        the card sheet opens. The server works the charged amount out again. */
     currencies: payCurrencies(),
     fx: payFx(),
+    regions: FX.regions(),
+    exponents: Object.fromEntries(payCurrencies().map(c => [c, FX.exponent(c)])),
+    ratesAt: FX.status().at,
   }), { open: true });
 
   /*
@@ -3337,7 +3344,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const consentWording = String(b.consentWording || '').replace(/\s+/g, ' ').trim().slice(0, 400)
       || 'I agree that Glovels may contact me about my enquiry.';
     if (!validEmail(email)) return json(res, 422, { ok: false, error: 'That email address is not valid' });
-    if (!validPhone(phone)) return json(res, 422, { ok: false, error: 'That does not look like an Indian mobile number' });
+    if (!anyPhone(phone)) return json(res, 422, { ok: false, error: 'That does not look like a mobile number \u2014 add the country code if you are outside India' });
     /* What it is about, in their words or in the page's.
        Every form on the site writes here, and until now they all wrote the
        same shape: a name, a number and a country. A lead from a blog post that
@@ -3351,7 +3358,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const about = String(b.note || '').trim().slice(0, 200);
     const from = sourceOf(req, b);
     const record = {
-      name, email, phone: '+91' + tenDigits(phone),
+      name, email, phone: storePhone(phone),
       destination: b.destination, consent: 'yes', consentAt: new Date().toISOString(), consentWording,
       note: about && said && said !== about ? about + ' — “' + said + '”' : (about || said),
       source: from.source, campaign: from.campaign,
@@ -4410,7 +4417,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const token = newToken();
     db.createSession(token, s.id, 30);
     db.log(s.name, 'chose their own password', '');
-    return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(token, 30) });
+    return json(res, 200, withToken(req, { ok: true }, token), { 'Set-Cookie': sessionCookie(token, 30) });
   });
 
   route('POST', '/api/auth/forgot', async (req, res) => {
@@ -4460,7 +4467,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     db.setMustChange(s.id, false);
     const token = newToken();
     db.createSession(token, s.id, 30);
-    return json(res, 200, { user: publicStudent(db.studentById(s.id)) },
+    return json(res, 200, withToken(req, { user: publicStudent(db.studentById(s.id)) }, token),
       { 'Set-Cookie': sessionCookie(token, 30) });
   }, { open: true });
 
@@ -4783,7 +4790,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         db.updatePerson(st.id, {
           name: String(prof.fullName || st.name).slice(0, 80),
           email: st.email,
-          phone: validPhone(prof.phone) ? '+91' + tenDigits(prof.phone) : st.phone,
+          phone: anyPhone(prof.phone) || validPhone(prof.phone) ? storePhone(prof.phone) : st.phone,
         });
       }
       db.log(s.email, 'partner updated a profile', s.name + ' \u2192 ' + st.name);
@@ -6874,6 +6881,54 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       live: !!(pkg && prints.length),
     });
   }));
+
+  /*
+   * Patch 186: the iPhone app. Universal links (a glovels.com address opening
+   * in the app) need /.well-known/apple-app-site-association naming the app
+   * as TEAMID.bundle.id. Both come from App Store Connect / the developer
+   * account once the app exists, so they live in a box here, like Android's.
+   */
+  route('GET', '/api/staff/ios', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const cfg = db.content('iosApp') || {};
+    return json(res, 200, { teamId: cfg.teamId || '', bundleId: cfg.bundleId || '',
+      live: !!(cfg.teamId && cfg.bundleId) });
+  }));
+
+  route('PUT', '/api/staff/ios', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const teamId = String(b.teamId || '').trim().toUpperCase();
+    const bundleId = String(b.bundleId || '').trim();
+    if (teamId && !/^[A-Z0-9]{10}$/.test(teamId)) {
+      return json(res, 422, { error: 'A Team ID is 10 letters and digits, e.g. A1B2C3D4E5 — it is on the Membership page of the Apple developer account.' });
+    }
+    if (bundleId && !/^[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z0-9-]+)+$/.test(bundleId)) {
+      return json(res, 422, { error: 'A bundle ID looks like com.glovels.app — at least one dot, no spaces.' });
+    }
+    db.setContent('iosApp', { teamId, bundleId }, s.name);
+    db.log(s.name, 'iphone app settings', teamId && bundleId ? teamId + '.' + bundleId : 'cleared');
+    return json(res, 200, { teamId, bundleId, live: !!(teamId && bundleId) });
+  }));
+
+  /*
+   * Patch 186: what an app asks first. The same server, the same prices, the
+   * same payments as the website — and the oldest app version still allowed
+   * (office setting `appConfig.minVersion`), so an app that has fallen too far
+   * behind can say "please update" instead of breaking.
+   */
+  route('GET', '/api/app/config', async (req, res) => {
+    let app = {};
+    try { app = db.content('appConfig') || {}; } catch (e) { app = {}; }
+    return json(res, 200, {
+      api: 1,
+      site: siteUrl || '',
+      minVersion: { android: String(app.minAndroid || ''), ios: String(app.minIos || '') },
+      pay: { enabled: pay.enabled, keyId: pay.keyId, currencies: payCurrencies(), fx: payFx(),
+        regions: FX.regions(), ratesAt: FX.status().at },
+      phone: { defaultCountry: '+91' },
+    });
+  }, { open: true });
 
   route('PUT', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
@@ -8980,7 +9035,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const source = SOURCES.has(String(b.source || '').toLowerCase())
       ? String(b.source).toLowerCase() : 'phone';
     const row = db.addEnquiry({
-      name, email, phone: phone ? '+91' + tenDigits(phone) : '',
+      name, email, phone: storePhone(phone),
       destination: String(b.destination || '').slice(0, 60),
       consent: 'staff', note: String(b.note || '').trim().slice(0, 400),
       source, campaign: String(b.campaign || '').trim().slice(0, 90),

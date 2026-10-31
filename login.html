@@ -204,7 +204,7 @@
         <div class="field signup-only">
           <label for="lPhone">Mobile number</label>
           <input type="tel" id="lPhone" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" />
-          <span class="err">A 10-digit Indian mobile, please</span>
+          <span class="err">A mobile number, please — add the country code if you are outside India</span>
         </div>
         <div class="field">
           <div class="pw-row">
@@ -554,7 +554,7 @@ $('#authForm').addEventListener('submit', async e => {
     const nm = $('#lName') ? $('#lName').value.trim() : '';
     if ($('#lNameErr')) $('#lNameErr').textContent = nm ? 'A name needs at least one letter' : 'Tell us your name';
     checks.unshift(['#lName', v => /[A-Za-zÀ-ɏऀ-ॿ]/.test(v.trim())]);
-    checks.push(['#lPhone', v => /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10))]);
+    checks.push(['#lPhone', v => (function (s) { s = String(s == null ? '' : s).trim(); var n = s.replace(/\D/g, '').length; return /^\+?[\d\s().-]+$/.test(s) && n >= 8 && n <= 15; }(v))]);
   }
   checks.forEach(([sel, test]) => {
     const f = $(sel);

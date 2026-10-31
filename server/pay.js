@@ -122,11 +122,12 @@ function makePay(cfg) {
          worked out by this server, never sent by a browser. */
       const cur = /^[A-Z]{3}$/.test(String(currency || '')) ? String(currency) : 'INR';
       const amount = Math.round(Number(amountMinor != null ? amountMinor : amountPaise) || 0);
-      if (amount < 100) {
+      /* Patch 186: some currencies have no minor unit (VND, CLP, UGX); the
+         one-rupee floor applies to rupee orders only. */
+      if (cur === 'INR' ? amount < 100 : amount < 1) {
         /* Razorpay's own floor is 1 unit (₹1, $1). Sending less returns a 400
            that reads like a server fault; refusing here says what happened. */
-        throw new Error('That amount is too small to charge: ' + cur + ' '
-          + (amount / 100).toFixed(2) + '.');
+        throw new Error('That amount is too small to charge: ' + cur + ' ' + amount + ' (minor units).');
       }
       return request('POST', '/v1/orders', keyId + ':' + keySecret, {
         amount,

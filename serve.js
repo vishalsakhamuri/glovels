@@ -485,7 +485,7 @@ function send(res, code, body, type, extra) {
     }
     if (!staffHere) traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
     /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
-    if (typeof body === 'string') body = withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)));
+    if (typeof body === 'string') body = globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname))));
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -696,6 +696,28 @@ function assetLinks() {
       sha256_cert_fingerprints: prints,
     },
   }];
+}
+
+/* Patch 186: which addresses open in the iPhone app. Everything except the
+   office screens and the files; with no app configured, an empty list, which
+   is valid and claims nothing. */
+function appleSiteAssociation() {
+  let cfg = null;
+  try { cfg = db.content('iosApp'); } catch (e) { cfg = null; }
+  const id = cfg && cfg.teamId && cfg.bundleId ? cfg.teamId + '.' + cfg.bundleId : '';
+  return {
+    applinks: {
+      details: id ? [{
+        appIDs: [id],
+        components: [
+          { '/': '/admin*', exclude: true }, { '/': '/counsellor*', exclude: true },
+          { '/': '/api/*', exclude: true }, { '/': '/images/*', exclude: true },
+          { '/': '/*' },
+        ],
+      }] : [],
+    },
+    webcredentials: { apps: id ? [id] : [] },
+  };
 }
 
 /* The public pages only: everything behind a sign-in is left out, and so is
@@ -2933,6 +2955,17 @@ function withHeaderNav(html) {
   return html.replace(/(<a href="(?:\.\.\/|\/)?contact-us(?:\.html)?">Contact<\/a>)(<\/nav>|\s*<a href="(?:\.\.\/|\/)?login(?:\.html)?">Sign in<\/a>)/g,
     '$1<a class="nav-find" href="/find-university">Find University</a>$2');
 }
+function globalFooter(html) {
+  const fi = html.lastIndexOf('<footer class="site"');
+  if (fi < 0) return html;
+  let foot = html.slice(fi);
+  foot = foot
+    .replace(/\s*<div class="office"><b>(?:Hyderabad|Phone)<\/b>[\s\S]*?<\/div>/g, '')
+    .replace(/\s*<div class="fmap"[^>]*>[\s\S]*?<\/div>/g, '')
+    .replace(/\s*<div class="mapbox">[\s\S]*?<\/button>\s*<\/div>/g, '')
+    .replace(/(class="fbot">\s*(?:©|&copy;)[^<]*?)Glovels Consultants Private Limited\./, '$1Glovels.');
+  return html.slice(0, fi) + foot;
+}
 function withPublicChrome(html) {
   if (html.indexOf('<style data-chrome>') >= 0 || html.indexOf('<header class="site"') < 0) return html;
   html = withHeaderNav(html);
@@ -2940,20 +2973,10 @@ function withPublicChrome(html) {
   html = withMain(html);
   if (!/id="main"/.test(html)) html = html.replace(/<main(?=[\s>])/, '<main id="main" tabindex="-1"');
   if (/id="main"/.test(html)) html = html.replace(/(<body[^>]*>)/, '$1<a class="skip-link" href="#main">Skip to content</a>');
-  /* The phone, beside the email in the footer. */
-  if (!/<footer class="site"[\s\S]*href="tel:/.test(html)) {
-    let phone = '';
-    try { phone = String(((content.get('finder') || {}).contact || {}).phone || ''); } catch (e) { phone = ''; }
-    phone = phone || '+917839399999';
-    const tel = phone.replace(/[^0-9+]/g, '');
-    const row = '<div class="office"><b>Phone</b><a href="tel:' + tel + '" style="color:#c8d6e4">' + prettyPhone(phone) + '</a></div>';
-    const fi = html.lastIndexOf('<footer class="site"');
-    const m = fi >= 0 ? /<div class="office"><b>Email<\/b>[\s\S]*?<\/div>/.exec(html.slice(fi)) : null;
-    if (m) {
-      const at = fi + m.index + m[0].length;
-      html = html.slice(0, at) + '\n      ' + row + html.slice(at);
-    }
-  }
+  /* 31 Oct (owner): a global footer. No office address, map or Indian phone
+     number on every page — the contact page carries all of that — and the
+     name is just Glovels. The company's legal particulars stay on the
+     contact page and in the Terms. */
   return html.replace('</head>', CHROME_CSS + '</head>');
 }
 function socialsHtml(links) {
@@ -3199,7 +3222,7 @@ function canonicalRedirect(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const { pathname, query } = url.parse(req.url);
+  let { pathname, query } = url.parse(req.url);
 
   const canon = canonicalRedirect(req);
   if (canon) return send(res, 301, '', 'text/html', { Location: canon });
@@ -3216,6 +3239,14 @@ const server = http.createServer(async (req, res) => {
   }
   const findJs = /^\/js\/(find\.js|reqs\.js|find-page\.js|tags\.js)$/.exec(pathname);
   if (findJs) return send(res, 200, FIND_SRC[findJs[1]](), TYPES['.js'], { 'Cache-Control': 'no-cache' });
+
+  /* Patch 186: /api/v1/… is the address the apps are built against — the same
+     endpoints as /api/…, so a later change on the website side can move
+     /api/ without breaking an app already on somebody's phone. */
+  if (pathname.startsWith('/api/v1/')) {
+    pathname = '/api/' + pathname.slice(8);
+    req.url = '/api/' + req.url.slice(8);
+  }
 
   // The API first — it owns /api/* and the form endpoint.
   if (pathname.startsWith('/api/') || pathname === '/send.php') {
@@ -3258,6 +3289,12 @@ const server = http.createServer(async (req, res) => {
    * With nothing configured this is an empty array — which is valid, and
    * verifies nothing, which is the honest answer before there is an app.
    */
+  /* Patch 186: the iPhone app's universal links — the twin of assetlinks.
+     Served at both addresses Apple checks, as JSON, without a redirect. */
+  if (pathname === '/.well-known/apple-app-site-association' || pathname === '/apple-app-site-association') {
+    return send(res, 200, JSON.stringify(appleSiteAssociation(), null, 2) + '\n',
+      'application/json', { 'Cache-Control': 'public, max-age=3600' });
+  }
   if (pathname === '/.well-known/assetlinks.json') {
     return send(res, 200, JSON.stringify(assetLinks(), null, 2) + '\n',
       TYPES['.json']);

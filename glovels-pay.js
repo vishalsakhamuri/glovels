@@ -55,18 +55,43 @@
     return cfgP;
   }
 
-  /* A first guess from the clock the visitor's device keeps. India (90% of
-     buyers) and anything unknown stay in rupees. */
+  /* A first guess from the clock the visitor's device keeps (time zone →
+     country → currency). India, and anything unknown, stays in rupees; a
+     country whose money Razorpay does not take (Argentina, Venezuela) gets
+     US dollars. */
+  var TZ = {
+    'Asia/Kolkata': 'INR', 'Asia/Calcutta': 'INR', 'Asia/Kathmandu': 'NPR', 'Asia/Katmandu': 'NPR',
+    'Asia/Colombo': 'LKR', 'Asia/Dhaka': 'BDT', 'Asia/Dacca': 'BDT', 'Asia/Karachi': 'PKR',
+    'Indian/Maldives': 'MVR', 'Asia/Thimphu': 'INR',
+    'Asia/Kuala_Lumpur': 'MYR', 'Asia/Kuching': 'MYR', 'Asia/Jakarta': 'IDR', 'Asia/Pontianak': 'IDR',
+    'Asia/Makassar': 'IDR', 'Asia/Jayapura': 'IDR', 'Asia/Ho_Chi_Minh': 'VND', 'Asia/Saigon': 'VND',
+    'Asia/Bangkok': 'THB', 'Asia/Manila': 'PHP', 'Asia/Singapore': 'SGD', 'Asia/Phnom_Penh': 'KHR',
+    'Asia/Dubai': 'AED', 'Asia/Riyadh': 'SAR', 'Asia/Qatar': 'QAR', 'Asia/Kuwait': 'KWD',
+    'Asia/Bahrain': 'BHD', 'Asia/Muscat': 'OMR', 'Asia/Amman': 'JOD', 'Asia/Baghdad': 'IQD',
+    'Africa/Cairo': 'EGP', 'Europe/Istanbul': 'TRY', 'Asia/Istanbul': 'TRY',
+    'Africa/Lagos': 'NGN', 'Africa/Nairobi': 'KES', 'Africa/Accra': 'GHS', 'Africa/Johannesburg': 'ZAR',
+    'Africa/Dar_es_Salaam': 'TZS', 'Africa/Kampala': 'UGX', 'Africa/Kigali': 'RWF',
+    'Africa/Addis_Ababa': 'ETB', 'Africa/Lusaka': 'ZMW', 'Africa/Blantyre': 'MWK', 'Africa/Maputo': 'MZN',
+    'Africa/Gaborone': 'BWP', 'Africa/Windhoek': 'NAD', 'Indian/Mauritius': 'MUR',
+    'Africa/Casablanca': 'MAD', 'Africa/Algiers': 'DZD', 'Africa/Tunis': 'TND',
+    'Africa/Dakar': 'XOF', 'Africa/Abidjan': 'XOF', 'Africa/Bamako': 'XOF', 'Africa/Ouagadougou': 'XOF',
+    'Africa/Niamey': 'XOF', 'Africa/Lome': 'XOF', 'Africa/Porto-Novo': 'XOF',
+    'Africa/Douala': 'XAF', 'Africa/Libreville': 'XAF', 'Africa/Brazzaville': 'XAF',
+    'Africa/Ndjamena': 'XAF', 'Africa/Bangui': 'XAF', 'Africa/Malabo': 'XAF',
+    'America/Sao_Paulo': 'BRL', 'America/Manaus': 'BRL', 'America/Fortaleza': 'BRL',
+    'America/Recife': 'BRL', 'America/Bahia': 'BRL', 'America/Belem': 'BRL', 'America/Cuiaba': 'BRL',
+    'America/Santiago': 'CLP', 'America/Bogota': 'COP', 'America/Lima': 'PEN',
+    'America/Montevideo': 'UYU', 'America/La_Paz': 'BOB', 'America/Asuncion': 'PYG',
+    'Europe/London': 'GBP', 'Europe/Zurich': 'CHF', 'Pacific/Auckland': 'NZD'
+  };
   function guess() {
     var tz = '';
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
-    if (!tz || /^Asia\/(Kolkata|Calcutta)$/.test(tz)) return 'INR';
-    if (tz === 'Europe/London' || tz === 'Europe/Belfast' || tz === 'Europe/Guernsey'
-        || tz === 'Europe/Jersey' || tz === 'Europe/Isle_of_Man') return 'GBP';
+    if (!tz) return 'INR';
+    if (TZ[tz]) return TZ[tz];
     if (/^Europe\//.test(tz) || tz === 'Atlantic/Canary' || tz === 'Atlantic/Madeira') return 'EUR';
     if (/^Australia\//.test(tz)) return 'AUD';
     if (/^America\/(Toronto|Vancouver|Edmonton|Winnipeg|Halifax|St_Johns|Regina|Montreal|Moncton|Whitehorse|Yellowknife|Iqaluit|Glace_Bay|Goose_Bay|Swift_Current|Dawson_Creek|Fort_Nelson)$/.test(tz)) return 'CAD';
-    if (/^Asia\/(Dhaka|Kathmandu|Colombo|Thimphu)$/.test(tz)) return 'USD';
     return 'USD';
   }
 
@@ -79,26 +104,39 @@
   function current(cfg) {
     var list = (cfg && cfg.currencies) || ['INR'];
     var pick = stored() || guess();
-    return list.indexOf(pick) >= 0 ? pick : 'INR';
+    if (list.indexOf(pick) >= 0) return pick;
+    return pick !== 'INR' && list.indexOf('USD') >= 0 ? 'USD' : 'INR';
   }
 
   function set(code) {
     try { localStorage.setItem(KEY, String(code || 'INR')); } catch (e) { /* this visit only */ }
   }
 
-  var nfIn = function (n) { try { return n.toLocaleString('en-IN'); } catch (e) { return String(n); } };
-  var nfAny = function (n) { try { return n.toLocaleString('en-US'); } catch (e) { return String(n); } };
-
-  /** The same sum the server does: rupees over rupees-per-unit, rounded UP to
-   *  a whole unit, so the office never takes less than the rupee price. */
+  /** The same sum the server does (server/fx.js): rupees over rupees-per-
+   *  unit, rounded UP to a whole unit and to about four significant figures,
+   *  so the office never takes less than the rupee price. */
+  function nice(x) {
+    var units = Math.max(1, Math.ceil(x - 1e-9));
+    var step = units >= 10000 ? Math.pow(10, Math.floor(Math.log10(units)) - 3) : 1;
+    return Math.ceil(units / step) * step;
+  }
   function convert(inr, code, cfg) {
     var r = Number(((cfg && cfg.fx) || {})[code]);
     if (code === 'INR' || !(r > 0)) return inr;
-    return Math.max(1, Math.ceil(inr / r));
+    return nice(inr / r);
   }
 
   function money(n, code) {
-    return (SYMBOL[code] || code + ' ') + (code === 'INR' ? nfIn(n) : nfAny(n));
+    try {
+      return new Intl.NumberFormat(code === 'INR' ? 'en-IN' : 'en',
+        { style: 'currency', currency: code, maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(n);
+    } catch (e) {
+      return (SYMBOL[code] || code + ' ') + String(n);
+    }
+  }
+  function nameOf(code) {
+    try { return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || NAME[code] || code; }
+    catch (e) { return NAME[code] || code; }
   }
 
   /* The rupee figure a "Confirm — ₹74,999" button is showing. */
@@ -122,9 +160,12 @@
       box.className = 'glv-cur';
       box.style.cssText = 'margin:12px 0 0;padding:10px 12px;border:1px solid #e3e7ec;border-radius:10px;'
         + 'background:#f8fafc;font:500 12.6px/1.5 var(--sans,system-ui,sans-serif);color:#25344a';
-      var opts = cfg.currencies.map(function (c) {
-        return '<option value="' + c + '">' + c + (NAME[c] ? ' — ' + NAME[c] : '') + '</option>';
-      }).join('');
+      var opt = function (c) { return '<option value="' + c + '">' + c + ' — ' + nameOf(c) + '</option>'; };
+      var opts = Array.isArray(cfg.regions) && cfg.regions.length
+        ? cfg.regions.map(function (g) {
+            return '<optgroup label="' + g.name + '">' + g.currencies.map(opt).join('') + '</optgroup>';
+          }).join('')
+        : cfg.currencies.map(opt).join('');
       box.innerHTML = '<label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
         + '<span style="font-weight:600">Pay in</span>'
         + '<select class="glv-cur-sel" aria-label="Currency to pay in" style="padding:6px 8px;border:1.5px solid #d8dde4;'
@@ -139,12 +180,12 @@
         var inr = rupeesOn(btn);
         if (!inr) { q.textContent = ''; return; }
         if (code === 'INR') {
-          q.textContent = 'You pay ' + money(inr, 'INR') + '. UPI, cards, netbanking and wallets.';
+          q.textContent = 'You pay ' + money(inr, 'INR') + '. UPI, cards, netbanking and wallets — cards from any country work too.';
           return;
         }
         q.textContent = 'You’ll be charged ' + money(convert(inr, code, cfg), code)
-          + ' (the ' + money(inr, 'INR') + ' price at ₹' + cfg.fx[code] + ' = 1 ' + code
-          + '). International cards and PayPal. Your bank may add its own conversion fee.';
+          + ' for the ' + money(inr, 'INR') + ' price, at today’s rate. International cards'
+          + ' and PayPal. Your bank may add its own conversion fee.';
       };
       sel.onchange = function () {
         set(sel.value); paint();

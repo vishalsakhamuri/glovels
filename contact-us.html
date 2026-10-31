@@ -471,6 +471,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <div class="factbox"><div><span><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Hyderabad</span><b>Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor, behind Big C Mobiles, Madhapur, Hyderabad, Telangana 500081</b></div>
     <div><span><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg> Email</span><b><a href="mailto:info@glovels.com">info@glovels.com</a></b></div>
     <div><span><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg> Hours</span><b>Mon–Sat, 9:30–19:30 IST</b></div>
+    <div><span><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Map</span><b><a href="https://maps.app.goo.gl/FupmGzddk48TJkPR9" target="_blank" rel="noopener">Our Hyderabad office on Google Maps</a></b></div>
   </div>
   <p>The fastest route is the counselling form — a counsellor calls you back within one
     working day with your profile already in front of them.</p>
@@ -1080,8 +1081,8 @@ if (location.protocol === 'file:') {
       ['ctName', function (v) { return v.length > 1 && hasLetter(v); },
         function (v) { return v.length > 1 ? 'A name needs at least one letter.' : 'Tell us your name.'; }],
       ['ctPhone', function (v) {
-        return /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10));
-      }, 'A 10-digit Indian mobile, please.'],
+        return (function (s) { s = String(s == null ? '' : s).trim(); var n = s.replace(/\D/g, '').length; return /^\+?[\d\s().-]+$/.test(s) && n >= 8 && n <= 15; }(v));
+      }, 'A mobile number, please — add the country code if you are outside India.'],
       ['ctMail', function (v) { return /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v); },
         'A valid email, please.']
     ];

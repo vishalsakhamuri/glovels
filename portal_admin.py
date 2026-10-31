@@ -700,6 +700,33 @@ BODY = """
         <p class="ferr" id="appErr" hidden></p>
         <button type="button" class="btn btn-primary btn-sm" id="appSave">Save</button>
       </div>
+
+      <!-- Patch 186: the iPhone app. Universal links (a glovels.com address
+           opening in the app) need /.well-known/apple-app-site-association
+           naming the app; both values come from the Apple developer account. -->
+      <div class="p-card" id="iosCard" style="margin-top:14px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:15px">iPhone</h3>
+          <span class="st" id="iosMode">checking&hellip;</span>
+          <span style="flex:1"></span>
+          <a class="btn btn-ghost btn-sm" href="/.well-known/apple-app-site-association"
+            target="_blank" rel="noopener">See what Apple is served</a>
+        </div>
+        <p style="margin:10px 0 0;font-size:12.6px;line-height:1.65;color:var(--navy-800)"
+          id="iosSays"></p>
+        <div class="two" style="margin-top:14px">
+          <div class="field"><label for="iTeam">Team ID</label>
+            <input id="iTeam" placeholder="A1B2C3D4E5" autocomplete="off" maxlength="10"></div>
+          <div class="field"><label for="iBundle">Bundle ID</label>
+            <input id="iBundle" placeholder="com.glovels.app" autocomplete="off"></div>
+        </div>
+        <p style="margin:-2px 0 12px;font-size:11.8px;color:var(--muted);line-height:1.6">
+          The Team ID is on the <b>Membership</b> page of the Apple developer account; the
+          bundle ID is the app's identifier in <b>App Store Connect</b>. Saved here and in
+          force immediately, with no redeploy.</p>
+        <p class="ferr" id="iosErr" hidden></p>
+        <button type="button" class="btn btn-primary btn-sm" id="iosSave">Save</button>
+      </div>
     </div>
     </div><!-- /o-app -->
 
@@ -2751,6 +2778,34 @@ $('#appSave').addEventListener('click', async () => {
 });
 
 paintApp();
+
+/* Patch 186: the iPhone twin of the Android card. */
+async function paintIos() {
+  let a = null;
+  try { a = await api('GET', '/api/staff/ios'); }
+  catch (e) { return; }
+  $('#iTeam').value = a.teamId || '';
+  $('#iBundle').value = a.bundleId || '';
+  const mode = $('#iosMode');
+  mode.textContent = a.live ? 'verifying' : 'not set up';
+  mode.className = 'st ' + (a.live ? 'ok' : 'none');
+  $('#iosSays').textContent = a.live
+    ? 'Apple is being told that ' + a.teamId + '.' + a.bundleId + ' may open glovels.com links.'
+    : 'Nothing is being served yet, which is the right answer until there is an app.';
+}
+$('#iosSave').addEventListener('click', async () => {
+  const btn = $('#iosSave'), err = $('#iosErr');
+  err.hidden = true; btn.disabled = true;
+  const was = btn.textContent; btn.textContent = 'Saving…';
+  try {
+    await api('PUT', '/api/staff/ios', { teamId: $('#iTeam').value, bundleId: $('#iBundle').value });
+    await paintIos();
+    toast('Saved — Apple is being served the new file now.');
+  } catch (e) {
+    err.textContent = e.message || 'That did not save.'; err.hidden = false;
+  } finally { btn.disabled = false; btn.textContent = was; }
+});
+paintIos();
 
 /* --------------------------------------------------------- success stories */
 /* Admin only, like everything on this screen; the server asks for the

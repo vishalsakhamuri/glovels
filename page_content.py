@@ -2233,6 +2233,8 @@ PAGES["disclaimers"] = {
                 "This page sets out the limits of what the information on this website "
                 "is, and what it is not. It sits alongside our Terms of Service, "
                 "Privacy Policy and Refund Policy rather than replacing any of them.",
+                "Glovels is operated by Glovels Consultants Private Limited; the company's "
+                "registered details are on the Terms of Service and Contact pages.",
             ],
         },
         {

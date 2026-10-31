@@ -2521,8 +2521,8 @@ CONTACT_SCRIPT = """<script>/* GLOVELS-CONTACT-FORM-JS */
     var checks = [
       ['ctName', function (v) { return v.length > 1; }, 'Tell us your name.'],
       ['ctPhone', function (v) {
-        return /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10));
-      }, 'A 10-digit Indian mobile, please.'],
+        return (function (s) { s = String(s == null ? '' : s).trim(); var n = s.replace(/\D/g, '').length; return /^\+?[\d\s().-]+$/.test(s) && n >= 8 && n <= 15; }(v));
+      }, 'A mobile number, please — add the country code if you are outside India.'],
       ['ctMail', function (v) { return /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v); },
         'A valid email, please.']
     ];
@@ -3436,10 +3436,12 @@ function askToApply(id, uni, prog){
   $('#apGo').onclick = async () => {
     const name = $('#apName').value.trim();
     const email = $('#apMail').value.trim();
-    const phone = $('#apPhone').value.trim().replace(/\D/g, '').slice(-10);
+    const phoneIn = $('#apPhone').value.trim();
+    /* Patch 186: keep a country code; an Indian number still works without one. */
+    const phone = (/^\+/.test(phoneIn) ? '+' : '') + phoneIn.replace(/\D/g, '');
     if (!name) return say('Tell us your name.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
-    if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
+    if (phone.replace(/\D/g, '').length < 8 || phone.replace(/\D/g, '').length > 15) return say('A mobile number, please — add the country code if you are outside India.');
     const btn = $('#apGo');
     btn.disabled = true;
     btn.textContent = 'Sending…';
@@ -10274,9 +10276,13 @@ patch(
 patch(
     "index.html",
     "footer: the map's frame and lazy load",
-    """$('#mapBtn').onclick = () =>
+    """/* 31 Oct: the map and the address moved to the contact page; guarded so an
+   older copy of the footer still works. */
+if ($('#mapBtn')) $('#mapBtn').onclick = () =>
   open('https://maps.app.goo.gl/FupmGzddk48TJkPR9', '_blank', 'noopener');""",
-    """$('#mapBtn').onclick = () =>
+    """/* 31 Oct: the map and the address moved to the contact page; guarded so an
+   older copy of the footer still works. */
+if ($('#mapBtn')) $('#mapBtn').onclick = () =>
   open('https://maps.app.goo.gl/FupmGzddk48TJkPR9', '_blank', 'noopener');
 /* The embedded map, when the footer comes into view. Not on page load: it
    is a third-party frame and the home page's speed score is measured there. */

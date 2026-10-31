@@ -228,8 +228,9 @@ function problems(profile) {
     out.push({ field, label, said: String(said).slice(0, 40), why: label + ' does not look right. ' + why });
 
   const phone = String(p.phone == null ? '' : p.phone).trim();
-  if (phone && !indianMobile(phone)) {
-    say('phone', 'Mobile number', phone, 'Ten digits, starting 6 to 9.');
+  /* Patch 186: an Indian mobile, or any number written with its country code. */
+  if (phone && !indianMobile(phone) && !(/^\+/.test(phone) && anyNumber(phone))) {
+    say('phone', 'Mobile number', phone, 'An Indian mobile (ten digits), or any number with its country code, e.g. +49 151 2345 6789.');
   }
   /* The two that may be anybody's, anywhere. */
   for (const [key, label] of [['alt_phone', 'Alternate contact number'],

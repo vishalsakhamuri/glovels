@@ -71,7 +71,8 @@ const nProg = h => (h.match(/<article class="frow/g) || []).length;
     ok(p + ': About Us is not in the header', !/About Us/.test(nav));
     ok(p + ': the phone menu has it too, after Contact', /Contact<\/a><a class="nav-find" href="\/find-university">Find University<\/a>\s*<a href="[^"]*login[^"]*">Sign in/.test(h));
     ok(p + ': a skip-to-content link aimed at the main landmark', /<a class="skip-link" href="#main">Skip to content<\/a>/.test(h) && /<main id="main"/.test(h));
-    ok(p + ': the office phone in the footer', /<footer class="site"[\s\S]*<b>Phone<\/b><a href="tel:\+\d+/.test(h));
+    /* 31 Oct (owner): a global footer — no phone, address or map; those are on the contact page. */
+    ok(p + ': no phone, office address or map in the footer', !/<footer class="site"[\s\S]*(?:<b>Phone<\/b>|Metro Pillar|class="fmap"|class="mapbox")/.test(h));
   }
   ok('the About Us page itself is still there', (await fetch(BASE + '/about-us')).status === 200);
   ok('and the footer still links to it', /<footer class="site"[\s\S]*about-us[^>]*>About Us<\/a>/.test(await page('/')));

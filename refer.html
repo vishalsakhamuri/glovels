@@ -468,7 +468,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   var $ = function (id) { return document.getElementById(id); };
   var err = $('rfErr');
   var letter = /[A-Za-zÀ-ɏऀ-ॿ]/;
-  var mobile = function (v) { return /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g, '').slice(-10)); };
+  var mobile = function (v) { return (function (s) { s = String(s == null ? '' : s).trim(); var n = s.replace(/\D/g, '').length; return /^\+?[\d\s().-]+$/.test(s) && n >= 8 && n <= 15; }(v)); };
   var checks = [
     ['rfName', function (v) { return v.length > 1 && letter.test(v); }, function (v) { return v.length > 1 ? 'Your friend’s name needs at least one letter.' : 'Tell us your friend’s name.'; }],
     ['rfPhone', mobile, 'Your friend’s 10-digit Indian mobile, please.'],
