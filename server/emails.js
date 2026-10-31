@@ -176,9 +176,9 @@ Glovels
   },
 
   orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl,
-    hasAccount, services, matchedOnly }) {
+    hasAccount, services, matchedOnly, exportSale }) {
     const first = String(name || '').split(' ')[0] || 'there';
-    const tax = Math.round(grossPaise - grossPaise / 1.18);
+    const tax = exportSale ? 0 : Math.round(grossPaise - grossPaise / 1.18);
     /* A receipt for services has to name them. "2 services — ₹4,498" is not a
        receipt, it is a bank statement line. */
     const bought = (services || []).length
@@ -212,7 +212,7 @@ ${(services || []).length
   ? `You have booked:${bought}`
   : `Your ${packageName} package is active.`}
 Order reference   ${reference}
-Amount            ${money(grossPaise)} (including ${money(tax)} GST)${publicUnis
+Amount            ${money(grossPaise)} ${exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${publicUnis
   ? `
 Universities      ${publicUnis} public universities, named in your account` : ''}
 

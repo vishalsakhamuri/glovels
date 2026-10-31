@@ -128,6 +128,18 @@
     return nice(inr / r);
   }
 
+  /* Patch 190 (owner): outside India there is no GST — an export of
+     services. Every foreign-currency figure is the price WITHOUT the 18%,
+     the same sum the server charges (api.js exGstBasket). */
+  function exg(inr, cfg) {
+    /* A visitor in India pays GST whatever currency they pick (the server
+       applies the same rule). */
+    if (cfg && cfg.geo && cfg.geo.country === 'IN') return Math.round(Number(inr || 0));
+    var g = Number((cfg && cfg.gstRate) || 0.18);
+    return Math.round(Number(inr || 0) / (1 + g));
+  }
+  function local(inr, code, cfg) { return money(convert(exg(inr, cfg), code, cfg), code); }
+
   function money(n, code) {
     try {
       return new Intl.NumberFormat(code === 'INR' ? 'en-IN' : 'en',
@@ -143,6 +155,8 @@
 
   /* The rupee figure a "Confirm — ₹74,999" button is showing. */
   function rupeesOn(btn) {
+    var kept = Number(btn && btn.getAttribute && btn.getAttribute('data-glv-inr'));
+    if (kept) return kept;
     var t = String((btn && btn.textContent) || '');
     var m = /₹\s*([\d,]+)/.exec(t);
     return m ? Number(m[1].replace(/,/g, '')) : 0;
@@ -185,9 +199,9 @@
           q.textContent = 'You pay ' + money(inr, 'INR') + '. UPI, cards, netbanking and wallets — cards from any country work too.';
           return;
         }
-        q.textContent = 'You’ll be charged ' + money(convert(inr, code, cfg), code)
-          + ' for the ' + money(inr, 'INR') + ' price, at today’s rate. International cards'
-          + ' and PayPal. Your bank may add its own conversion fee.';
+        q.textContent = 'You’ll be charged ' + local(inr, code, cfg)
+          + ' — no GST for buyers outside India (export of services), at today’s rate.'
+          + ' International cards and PayPal. Your bank may add its own conversion fee.';
       };
       sel.onchange = function () {
         set(sel.value); paint();
@@ -335,9 +349,12 @@
     var code = current(CFG);
     var foreign = code !== 'INR';
     picker();
+    sheets();
 
     /* Package and service prices: the local amount becomes the main figure. */
-    var els = document.querySelectorAll('.price, [data-inr]');
+    /* .price: packages; .svc-now: the home page's service cards; #planTotal:
+       "your plan" total; .sl-meta > b: the Services page in the portal. */
+    var els = document.querySelectorAll('.price, .svc-now, #planTotal, .sl-meta > b, [data-inr]');
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
       var old = el.querySelector(':scope > .glv-local'); if (old) old.remove();   // patch 187's line
@@ -348,10 +365,22 @@
       var main = el.querySelector(':scope > .glv-main');
       if (!foreign) {
         if (main) main.remove();
-        if (rn) rn.removeAttribute('style');
+        if (rn) {
+          rn.removeAttribute('style');
+          if (rn.getAttribute('data-glv-orig')) { rn.textContent = rn.getAttribute('data-glv-orig'); rn.removeAttribute('data-glv-orig'); }
+        }
         continue;
       }
-      var text = money(convert(inr, code, CFG), code);
+      if (rn) {
+        /* The rupee figure beside it is the export price too (no GST). */
+        if (!rn.getAttribute('data-glv-orig')) rn.setAttribute('data-glv-orig', rn.textContent);
+        var exText = rn.getAttribute('data-glv-orig').replace(RUPEE, function (m0, a) {
+          return '\u20b9' + exg(Number(a.replace(/,/g, '')), CFG).toLocaleString('en-IN');
+        }) + ' + no GST';
+        if (rn.textContent !== exText) rn.textContent = exText;
+      }
+      var pre = rn ? rn.textContent.slice(0, rn.textContent.indexOf('\u20b9')).trim() : '';
+      var text = (pre ? pre + ' ' : '') + local(inr, code, CFG);
       if (!main) {
         main = document.createElement('span');
         main.className = 'glv-main';
@@ -372,16 +401,79 @@
       var base = sp.getAttribute('data-glv-text');
       if (!base) { base = sp.textContent; sp.setAttribute('data-glv-text', base); }
       var p = inrIn(base); if (!p) continue;
-      var t2 = ' (≈ ' + money(convert(p, code, CFG), code) + ')';
+      var t2 = ' (\u2248 ' + local(p, code, CFG) + ', no GST)';
       if (!tag) { tag = document.createElement('span'); tag.className = 'glv-local'; sp.appendChild(tag); }
       if (tag.textContent !== t2) tag.textContent = t2;
     }
   }
 
+  /*
+   * The two checkout sheets on the home page, for a buyer abroad: every
+   * figure in their currency without GST, the GST lines taken out, the total
+   * labelled as an export, and the "+91" box hidden. Put back as they were
+   * when the buyer picks rupees.
+   */
+  var SHEETS = ['buyModal', 'svcCheckout'];
+  function sheets() {
+    if (!CFG) return;
+    var code = current(CFG), foreign = code !== 'INR';
+    SHEETS.forEach(function (id) {
+      var root = document.getElementById(id);
+      if (!root) return;
+      /* Every ₹ figure in the sheet's text (but not the currency menu). */
+      var walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      var nodes = [], n;
+      while ((n = walk.nextNode())) {
+        if (n.parentNode && n.parentNode.closest && n.parentNode.closest('.glv-cur, select, option, script, style')) continue;
+        if (n.__glvOrig != null || /\u20b9\s*[\d,]+/.test(n.textContent)) nodes.push(n);
+      }
+      nodes.forEach(function (t) {
+        if (foreign) {
+          if (t.__glvOrig == null || t.textContent !== t.__glvShown) {
+            if (!/\u20b9\s*[\d,]+/.test(t.textContent)) return;
+            t.__glvOrig = t.textContent;
+            /* The button keeps its rupee figure for the "Pay in" line. */
+            var host = t.parentNode && t.parentNode.closest && t.parentNode.closest('#buyPay, #scPay');
+            if (host) host.setAttribute('data-glv-inr', String(inrIn(t.__glvOrig)));
+          }
+          var shown = t.__glvOrig.replace(/\u20b9\s*([\d,]+)/g, function (m0, a) {
+            return local(Number(a.replace(/,/g, '')), code, CFG);
+          });
+          if (t.textContent !== shown) { t.textContent = shown; }
+          t.__glvShown = shown;
+        } else if (t.__glvOrig != null) {
+          if (t.textContent === t.__glvShown) t.textContent = t.__glvOrig;
+          t.__glvOrig = null; t.__glvShown = null;
+        }
+      });
+      if (!foreign) ['#buyPay', '#scPay'].forEach(function (sel) { var b = root.querySelector(sel); if (b) b.removeAttribute('data-glv-inr'); });
+      /* The GST lines, the total's label, the lead, the +91 box. */
+      [].forEach.call(root.querySelectorAll('.co-line.sub'), function (el) { el.style.display = foreign ? 'none' : ''; });
+      [].forEach.call(root.querySelectorAll('.phone-row .cc'), function (el) { el.style.display = foreign ? 'none' : ''; });
+      var tot = root.querySelector('.co-total > span');
+      if (tot) {
+        if (foreign) {
+          if (!tot.__glvOrig) tot.__glvOrig = tot.textContent;
+          var lbl = 'Total payable \u00b7 no GST (export of services)';
+          if (tot.textContent !== lbl) tot.textContent = lbl;
+        } else if (tot.__glvOrig) { tot.textContent = tot.__glvOrig; tot.__glvOrig = null; }
+      }
+      var lead = root.querySelector('#buyLead, #scLead');
+      if (lead) {
+        if (foreign) {
+          if (!lead.__glvOrig) lead.__glvOrig = lead.textContent;
+          var lt = 'Prices in ' + nameOf(code) + '. Buying from outside India carries no GST \u2014 it is an export of services.';
+          if (lead.textContent !== lt) lead.textContent = lt;
+        } else if (lead.__glvOrig) { lead.textContent = lead.__glvOrig; lead.__glvOrig = null; }
+      }
+    });
+  }
+
   /* "Prices in [EUR — Euro ▾]" above the packages: the visitor's own choice,
      shared with the checkout. */
-  function picker() {
-    var sec = document.getElementById('packages');
+  function picker() { ['packages', 'services'].forEach(pickerIn); }
+  function pickerIn(id) {
+    var sec = document.getElementById(id);
     if (!sec || !CFG || sec.querySelector('.glv-prices-in')) return;
     var head = sec.querySelector('.sec-head');
     if (!head) return;
@@ -393,7 +485,7 @@
     var opts = Array.isArray(CFG.regions) && CFG.regions.length
       ? CFG.regions.map(function (g) { return '<optgroup label="' + g.name + '">' + g.currencies.map(opt).join('') + '</optgroup>'; }).join('')
       : CFG.currencies.map(opt).join('');
-    box.innerHTML = '<label for="glvPricesIn">Prices in</label><select id="glvPricesIn" class="glv-cur-sel" '
+    box.innerHTML = '<label for="glvPricesIn-' + id + '">Prices in</label><select id="glvPricesIn-' + id + '" class="glv-cur-sel" '
       + 'style="padding:6px 8px;border:1.5px solid #d8dde4;border-radius:8px;background:#fff;font:inherit;max-width:260px">'
       + opts + '</select>';
     head.parentNode.insertBefore(box, head.nextSibling);

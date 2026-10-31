@@ -129,6 +129,8 @@ function summarise(students, orders, now, payments) {
     out.orders++;
     out.expected += gross;
     out.received += got;
+    /* Patch 190: export of services carries no GST. */
+    if (o.tax_mode === 'export') out.receivedExport = (out.receivedExport || 0) + got;
 
     /* Line items exist on itemised orders; a package order counts as one piece
        of work. Only counted when the order is settled — "services performed"
@@ -183,7 +185,7 @@ function summarise(students, orders, now, payments) {
     });
   }
 
-  out.gst = gstIn(out.received);
+  out.gst = gstIn(out.received - (out.receivedExport || 0));
   out.owing.sort((a, b) => b.overdue - a.overdue || b.outstanding - a.outstanding);
   return out;
 }

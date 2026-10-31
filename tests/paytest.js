@@ -253,6 +253,10 @@ async function boot(port, env) {
     check('the gateway is asked in USD, rounded up to a whole dollar',
       usdMade.currency === 'USD' && usdMade.amount === wantCents,
       usdMade.currency + ' ' + usdMade.amount + ' vs ' + wantCents);
+    check('a buyer paying in dollars is not charged GST (export of services)',
+      usd.body.exportSale === true && usd.body.taxPaise === 0
+        && usd.body.grossPaise === Math.round(made.body.grossPaise / 1.18),
+      usd.body.grossPaise + ' vs ' + made.body.grossPaise);
     check('the page is told the currency and amount it will be charged',
       usd.body.razorpay && usd.body.razorpay.currency === 'USD'
         && usd.body.razorpay.amountMinor === wantCents && usd.body.razorpay.amountPaise === usd.body.grossPaise);
@@ -270,6 +274,13 @@ async function boot(port, env) {
     r = await post(PORT, '/api/razorpay/webhook', usdBody,
       { 'x-razorpay-signature': sign(HOOK_SECRET, usdBody) });
     check('the dollar amount we asked for settles it', r.status === 200 && r.body.ok === true && !r.body.note);
+    const fromIndia = await post(PORT, '/api/orders', {
+      packageId: 'pkg-roadmap', name: 'Ravi K', currency: 'USD',
+      email: 'inusd@example.com', phone: '9812345672', acceptedTerms: true,
+    }, { 'CF-IPCountry': 'IN' });
+    check('but a buyer in India picking dollars still pays GST',
+      fromIndia.body.exportSale === false && fromIndia.body.grossPaise === made.body.grossPaise,
+      fromIndia.body.grossPaise);
     const bogus = await post(PORT, '/api/orders', {
       packageId: 'pkg-roadmap', name: 'Odd Coin', currency: 'XYZ',
       email: 'xyz@example.com', phone: '9812345671', acceptedTerms: true,

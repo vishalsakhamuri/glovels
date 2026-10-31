@@ -855,6 +855,9 @@ function sqliteDriver(file) {
       un-pay a part — the part WAS paid, on a date, by a method — so what came
       back is its own figure and "received" is the difference. */
    'ALTER TABLE orders ADD COLUMN refunded_paise INTEGER NOT NULL DEFAULT 0',
+   /* Patch 190: 'export' for a buyer abroad paying in foreign currency —
+      export of services, zero-rated, so the price carries no GST. */
+   "ALTER TABLE orders ADD COLUMN tax_mode TEXT NOT NULL DEFAULT ''",
    /* 10 Oct: the office's tags on a programme — "No German Required;
       MOI Accepted; TU Munich; Data" — semicolon-separated values from the
       tag dictionary (assets/tags-de.json, server/tags.js). Blank means
@@ -1882,6 +1885,8 @@ function open(dir) {
         String(gatewayOrderId), String(reference), partN == null ? null : Number(partN), String(currency || 'INR'),
         Math.round(Number(amountMinor) || 0), Math.round(Number(inrPaise) || 0), new Date().toISOString());
     },
+    setOrderTaxMode: (reference, mode) =>
+      db.run('UPDATE orders SET tax_mode = ? WHERE reference = ?', String(mode || ''), String(reference)),
     gatewayOrder: id => db.one('SELECT * FROM gateway_orders WHERE gateway_order_id = ?', String(id)),
     setOrderGateway: (reference, gatewayOrderId) =>
       db.run('UPDATE orders SET gateway_order_id = ? WHERE reference = ?',

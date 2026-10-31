@@ -80,7 +80,7 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
 
   /* ------------------------------------------------------- and on the page */
   const browser = await chromium.launch();
-  const guest = await browser.newContext({ viewport: { width: 1500, height: 1050 } });
+  const guest = await browser.newContext({ viewport: { width: 1500, height: 1050 }, timezoneId: 'Asia/Kolkata' });
   const page = await guest.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
@@ -184,7 +184,7 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
   check('and it cannot be collected a fourth time', over.status() === 409, over.status());
 
   /* ------------------------------------------- the student sees the schedule */
-  const stu = await browser.newContext();
+  const stu = await browser.newContext({ timezoneId: 'Asia/Kolkata' });
   await stu.request.post(BASE + '/api/auth/login',
     { data: { email: 'student@glovels.com', password: 'glovels123' } });
   const mine = await (await stu.request.post(BASE + '/api/orders', {

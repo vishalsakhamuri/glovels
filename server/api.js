@@ -2643,6 +2643,19 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      administrator may book a service priced "on request" at the price they
      quoted ({id, priceInr}). The public checkout never passes it, so a
      browser cannot name its own price. */
+  /* Patch 190: an export sale is one paid in a foreign currency we take. */
+  const isExport = currency => {
+    const c = String(currency || '').toUpperCase();
+    return !!c && c !== 'INR' && FX.currencies().includes(c);
+  };
+  /* The same basket at its taxable value — every price without the 18%. */
+  const exGst = paise => Math.round(Number(paise || 0) / (1 + GST_RATE));
+  const exGstBasket = bk => Object.assign({}, bk, {
+    pkg: bk.pkg ? Object.assign({}, bk.pkg, { paise: exGst(bk.pkg.paise) }) : null,
+    items: bk.items.map(x => Object.assign({}, x, { paise: exGst(x.paise) })),
+    gross: (bk.pkg ? exGst(bk.pkg.paise) : 0) + bk.items.reduce((t, x) => t + exGst(x.paise), 0),
+  });
+
   function basketFrom(b, opts) {
     const pkg = b.packageId ? PACKAGES()[b.packageId] : null;
     if (b.packageId && !pkg) return { error: 'No such package', code: 400 };
@@ -2797,8 +2810,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('POST', '/api/orders', async (req, res) => {
     const b = await readJson(req);
 
-    const basket = basketFrom(b);
-    if (basket.error) return json(res, basket.code, { error: basket.error });
+    const basket0 = basketFrom(b);
+    if (basket0.error) return json(res, basket0.code, { error: basket0.error });
+    /* Patch 190 (owner): a buyer abroad paying in their own currency is an
+       export of services — zero-rated, so they pay the price WITHOUT GST
+       (the taxable value), and the order is marked as an export. Paying in
+       rupees is an Indian sale, GST included, as before. */
+    /* Not for a buyer whose connection is in India: paying in dollars from
+       Hyderabad is still an Indian sale, GST included. */
+    const exportSale = isExport(b.currency) && geoFor(req).country !== 'IN';
+    const basket = exportSale ? exGstBasket(basket0) : basket0;
     const { pkg, items, gross, label } = basket;
 
     /* ADM-06 / STU-07: a signed-in STUDENT buys as themselves. The order
@@ -2872,6 +2893,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       payIn: b.payIn, accepted,
     });
     const { order, reference, plan, chargeNow, canSplit } = placed;
+    if (exportSale) { try { db.setOrderTaxMode(reference, 'export'); } catch (e) { /* receipt still says so */ } }
     if (linked.created) seedMessages(linked.created);
     if (linked.buyer && who && who.role !== 'student') {
       db.log(who.name, 'placed an order for a student',
@@ -2963,11 +2985,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     const matched = buyer ? deliverMatches(buyer) : { owed: 0, added: 0, needsProfile: false };
 
-    const tax = Math.round(gross - gross / (1 + GST_RATE));
+    const tax = exportSale ? 0 : Math.round(gross - gross / (1 + GST_RATE));
 
     /* The receipt is the message that tells a guest how to get into the portal
        they just paid for, so it goes out whether or not they have an account. */
-    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({
+    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({ exportSale,
       name, email, reference, packageName: label, grossPaise: gross,
       /* An account made for this order counts — the email said "create your
          account" to people whose account was made seven milliseconds earlier. */
@@ -2985,7 +3007,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
          questions and they appear" rather than nothing at all. */
       matched,
       reference, package: label, publicUnis: pkg ? pkg.publicUnis : 0,
-      grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax,
+      grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax, exportSale,
       services: items.map(x => ({ id: x.id, name: x.name, level: x.level, priceInr: x.paise / 100 })),
       linkedToAccount: !!buyer,
       /* So the confirmation can say "your dashboard is ready" rather than
@@ -3155,6 +3177,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     ratesAt: FX.status().at,
     /* Patch 187: where this visitor is, from their IP — never stored. */
     geo: geoFor(req),
+    /* Patch 190: a foreign-currency (export) sale is priced without GST. */
+    gstRate: GST_RATE, exportNoGst: true,
   }), { open: true });
 
   /*
