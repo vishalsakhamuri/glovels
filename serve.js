@@ -176,6 +176,13 @@ function hiddenUniversitySlugs() {
   } catch (e) { /* none */ }
   return out;
 }
+/* Patch 184 (owner: "15 destination countries"): every destination the
+   office keeps, switched on or not — the home page's "15" — not only the
+   ones switched on (which read "10 countries"). */
+function destinationCount() {
+  try { const all = db.countries(true) || []; if (all.length) return all.length; } catch (e) { /* below */ }
+  return Object.keys(liveCountries()).length;
+}
 function liveCountries() {
   const out = {};
   db.countries().forEach(c => {
@@ -2037,7 +2044,7 @@ function universitiesIndexPage() {
 
   const page = fill(t.page, Object.assign(metaHoles({
     title: 'Universities abroad for Indian students — fees, intakes & how to apply',
-    desc: 'Universities across ' + Object.keys(countries).length + ' countries that Glovels places '
+    desc: 'Universities across ' + destinationCount() + ' countries that Glovels places '
       + 'students at: public and private, what each costs in total, when to apply, and which '
       + 'ones you can apply to free through us.',
     canonical: absolute('/university'),
@@ -2053,7 +2060,7 @@ function universitiesIndexPage() {
   }), {
     H1: 'Universities we place students at',
     /* Patch 183: the destinations (owner: "15 destination countries"). */
-    DATELINE: 'Universities in ' + Object.keys(countries).length + ' countries'
+    DATELINE: 'Universities in ' + destinationCount() + ' countries'
       + (unlisted ? ', and more you can search for' : '') + '. Every one has its own page '
       + 'with the programmes we track, what they cost in total, and a way to apply.',
     CRUMBS: '<a href="index.html">Home</a> / Universities',
@@ -3145,7 +3152,7 @@ function findFacetLists() {
 }
 const findPage = FINDPAGE.makeFindPage({
   templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg: DEFAULT_OG, content, slugOf: UNIS.slugOf,
-  candidates: findCandidateRows, facetLists: findFacetLists,
+  candidates: findCandidateRows, facetLists: findFacetLists, destinationCount,
 });
 /* Round 178 (Part D): a page per NAMED programme, the university FAQ and the
    Germany master's guides — server/guides.js. */

@@ -54,7 +54,7 @@ function heroFields() {
   } catch (e) { return heroCache.list; }
 }
 
-function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg, content, slugOf, candidates, facetLists }) {
+function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg, content, slugOf, candidates, facetLists, destinationCount }) {
 
   /* The rows as a signed-out visitor is allowed to see them — the same
      withholding /api/catalogue does with no package: a public university's
@@ -269,7 +269,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
         /* Patch 183: the destinations on offer (owner: "15 destination
            countries"), not the countries of the rows on this address — the
            rows are narrowed in the database now, so that read "1 country". */
-        [(() => { const n = Object.keys(countries || {}).length; return n + ' countr' + (n === 1 ? 'y' : 'ies'); })(), 'to choose from'],
+        [(() => { const n = typeof destinationCount === 'function' ? destinationCount() : Object.keys(countries || {}).length; return n + ' countr' + (n === 1 ? 'y' : 'ies'); })(), 'to choose from'],
         ['Public', 'and private universities'],
         ['Free', 'to apply at affiliated universities'],
       ] }),
