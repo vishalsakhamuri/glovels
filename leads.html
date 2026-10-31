@@ -1090,6 +1090,7 @@ select.assign.none:hover{border-color:#a5342b}
           <div id="leadPager"></div>
         </div>
 
+        <div class="lscrim" id="leadScrim" hidden></div>
         <div class="p-card det" id="leadPane">
           <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.7">
             Pick a lead to see what has been said to them, write down what happened on
@@ -1784,6 +1785,36 @@ function ownerCell(l) {
     (has ? esc(String(l.ownerId)) : '') + '">' + opts + '</select></span>';
 }
 
+/* Patch 200: the lead opens in a panel that slides in from the right, so the
+   book keeps the whole width. The panel is "open" whenever it holds a lead or
+   the Log-a-lead form — anything more than a single line of text. */
+(function leadDrawer() {
+  const pane = document.getElementById('leadPane');
+  const scrim = document.getElementById('leadScrim');
+  if (!pane || !window.MutationObserver) return;
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'lclose'; x.setAttribute('aria-label', 'Close'); x.textContent = '\u00d7';
+  const sync = () => {
+    const kids = [].filter.call(pane.children, c => c !== x);
+    const full = !(kids.length === 1 && kids[0].tagName === 'P') && kids.length > 0;
+    pane.classList.toggle('open', full);
+    if (pane.parentNode) pane.parentNode.classList.toggle('has-open', full);
+    /* No scrim: the book stays clickable beside the panel, so picking the
+       next lead is one click, and the tabs and filters keep working. */
+    if (full && x.parentNode !== pane) pane.insertBefore(x, pane.firstChild);
+    document.body.classList.toggle('lead-open', full);
+  };
+  const close = () => {
+    openId = null;
+    pane.innerHTML = '<p class="lhint">Pick a lead to see its history.</p>';
+    if (typeof paint === 'function') paint();
+  };
+  x.onclick = close;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && pane.classList.contains('open')) close(); });
+  new MutationObserver(sync).observe(pane, { childList: true });
+  sync();
+})();
+
 async function setOwner(id, value) {
   try {
     await api('PUT', '/api/staff/lead/' + id, { ownerId: value || null });
@@ -1794,6 +1825,17 @@ async function setOwner(id, value) {
     toast(p ? 'Given to ' + p.name : 'Taken off ' + (was || 'everybody'));
     paint();
   } catch (e) { toast(e.message); await load(); }
+}
+
+/* Patch 200: small helpers for the redesigned rows. */
+const AVC = ['#1a4fb4', '#7a3fb0', '#0f8a7a', '#c0582b', '#2e6f9e', '#9c3d64', '#4d7a1f', '#a4741c'];
+function avColour(id) { return AVC[Math.abs(Number(id) || 0) % AVC.length]; }
+function initials(n) { return String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?'; }
+function ago(at) {
+  const d = daysAgo(at);
+  if (d == null || isNaN(d)) return '';
+  if (d < 1) { const h = Math.max(0, Math.floor((Date.now() - new Date(at).getTime()) / 36e5)); return h < 1 ? 'just now' : h + ' h ago'; }
+  return d === 1 ? 'yesterday' : d + ' days ago';
 }
 
 function paint() {
@@ -1821,7 +1863,7 @@ function paint() {
       && daysAgo(l.at) >= 1;
     return '<tr class="lrow' + (l.id === openId ? ' on' : '') + (cold ? ' cold' : '')
       + '" data-lead="' + l.id + '">'
-      + '<td><b>' + esc(l.name || 'no name') + '</b>'
+      + '<td><div class="lwho"><span class="lav" style="background:' + avColour(l.id) + '">' + esc(initials(l.name)) + '</span><div class="lwho-t"><b>' + esc(l.name || 'no name') + '</b>'
         /* Round 175 (item 7): from a staff member's or a test account's own
            number or email — the office testing its form. No alert is raised
            for it; it stays here, marked, so it can be archived. */
@@ -1829,8 +1871,8 @@ function paint() {
           + 'style="font:700 9.6px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;'
           + 'border-radius:999px;background:#eef2f6;color:#5d6b7a;vertical-align:middle">Internal</span>' : '')
         + (l.note ? '<span class="lnote">' + esc(l.note.slice(0, 160)) + '</span>' : '')
-        + '<span style="display:block;font-size:11.6px;color:var(--muted)">'
-        + esc(l.phone || l.email || 'nothing given') + '</span></td>'
+        + '<span class="lcontact">'
+        + esc(l.phone || l.email || 'nothing given') + '</span></div></div></td>'
       + '<td><span class="' + srcClass(l.source) + '">'
         + esc(SOURCE_LABEL[l.source] || l.source) + '</span>'
         + (l.campaign ? '<br><span style="font-size:11.2px;color:var(--muted)">'
@@ -1851,11 +1893,11 @@ function paint() {
          made that a ten-second job printed the answer in red and offered
          nothing. It writes on change now, from the row. */
       + '<td>' + ownerCell(l) + '</td>'
-      + '<td style="font-size:12.4px">' + (l.followUps
-        ? l.followUps + '<br><span style="font-size:11.2px;color:var(--muted)">last '
-          + fmtWhen(l.lastTouch) + '</span>'
-        : '<span style="color:#b03a2e;font-weight:700">none</span>') + '</td>'
-      + '<td style="font-size:12.4px;white-space:nowrap">' + fmtWhen(l.at) + '</td></tr>';
+      + '<td>' + (l.followUps
+        ? '<span class="lfu">' + l.followUps + '</span><span class="lsub">last ' + fmtWhen(l.lastTouch) + '</span>'
+        : (l.status === 'converted' || l.status === 'lost' ? '<span class="lsub">\u2014</span>'
+          : '<span class="lnocall' + (cold ? ' cold' : '') + '">' + (cold ? 'Not called' : 'Call today') + '</span>')) + '</td>'
+      + '<td><span class="lwhen">' + fmtWhen(l.at) + '</span><span class="lsub">' + ago(l.at) + '</span></td></tr>';
   }).join('')
     || '<tr><td colspan="6" style="padding:22px;color:var(--muted)">'
        + (LEADS.length ? 'Nothing matches those filters.' : 'Nothing yet.') + '</td></tr>';
