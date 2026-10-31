@@ -5,7 +5,7 @@
   "description": "Glovels — the website, the student portal and the operations site, in one Node process with no dependencies.",
   "main": "serve.js",
   "scripts": {
-    "start": "node serve.js"
+    "start": "node --max-old-space-size=300 serve.js"
   },
   "engines": {
     "node": ">=22.5"

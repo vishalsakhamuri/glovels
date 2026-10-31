@@ -1208,4 +1208,17 @@ function screen(catalogue, profile, countries, opts) {
   return out;
 }
 
-module.exports = { pick, plan, promise, wants, usable, score, shortfall, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen, holdReasons, partsFor, normField, ASK_SAID, deadlineInfo, SOON_DAYS, isoDay: iso };
+/* Patch 179 (memory): the catalogue levels a profile can ever be matched at
+   — its level and the neighbours it may bend to (LEVEL_NEAR). The server asks
+   the database for only these rows; a student after a master's in the UK no
+   longer pulls twenty thousand bachelor's rows into memory to throw away.
+   null: no level stated, every level is in play. */
+function levelsFor(profile) {
+  const lv = wants(profile).level;
+  if (!lv) return null;
+  const out = new Set([lv].concat(LEVEL_NEAR[lv] || []));
+  if (lv === 'master') out.add('mba');
+  return [...out];
+}
+
+module.exports = { levelsFor, pick, plan, promise, wants, usable, score, shortfall, barOf, RELAX, answersOf, germanOf, fieldsWanted, relevance, clears, uniKeys, termOf, termStatus, visaFriendly, subjectFits, FIELD_WORDS, SUBJECT_NEAR, screen, holdReasons, partsFor, normField, ASK_SAID, deadlineInfo, SOON_DAYS, isoDay: iso };

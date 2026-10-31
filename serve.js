@@ -762,8 +762,8 @@ function sitemapXml(part, partNo) {
      page marks any other filter set noindex itself. */
   pages.push('find-university');
   try {
-    const cs = {};
-    liveCatalogue().forEach(p => { if (p.searchOnly || !p.level || !p.field) return; cs[p.country] = cs[p.country] || new Set(); cs[p.country].add(String(p.level).toLowerCase()); });
+    /* Patch 179: asked of the database (DISTINCT country, level), not every row mapped. */
+    const cs = typeof db.levelsOnSite === 'function' ? db.levelsOnSite() : {};
     Object.keys(cs).forEach(c => { pages.push('find-university?country=' + c); cs[c].forEach(l => pages.push('find-university?country=' + c + '&amp;level=' + l)); });
   } catch (e) { /* no catalogue, no extra addresses */ }
   addedDestinations().forEach(c => pages.push('study-in-' + studySlugOf(c)));
@@ -2213,9 +2213,8 @@ function withLiveDestinationFacts(html, slug) {
        public universities" kept the 153 it was written with (patch 143). */
     let pubN = 0;
     try { pubN = Number(db.countProgrammes({ country: code, isPublic: true }) || 0); } catch (e) { pubN = 0; }
-    if (!pubN) {
-      try { pubN = (db.rowsForCountries ? db.rowsForCountries([code]) : []).filter(r => r.is_public && r.active && !r.search_only).length; } catch (e) { pubN = 0; }
-    }
+    /* Patch 179: no fall-back that read the whole country to count it again —
+       countProgrammes is a COUNT(*), and zero is an answer. */
     if (pubN) html = html.replace(/(programmes, )[\d,]+( at public universit)/g,
       (m, a, b) => a + pubN.toLocaleString('en-IN') + b);
   }
@@ -2235,9 +2234,8 @@ function withLiveDestinationFacts(html, slug) {
 function destinationWords(html, code, progs) {
   let pubN = 0;
   try { pubN = Number(db.countProgrammes({ country: code, isPublic: true }) || 0); } catch (e) { pubN = 0; }
-  if (!pubN) {
-    try { pubN = (db.rowsForCountries ? db.rowsForCountries([code]) : []).filter(r => r.is_public && r.active && !r.search_only).length; } catch (e) { pubN = 0; }
-  }
+  /* Patch 179: no fall-back that read the whole country to count it again —
+     countProgrammes is a COUNT(*), and zero is an answer. */
   /* Round 176 (owner, go-live): NO COUNTS on a destination page. "Students
      should not know how many universities are in the filter at the back
      end" — and "158 programmes, 153 at public universities" was exactly
@@ -2423,7 +2421,7 @@ function studyPage(c) {
   const f = c.facts || c;
   const money = n => UNIS.money(n);
   const n = db.countUniversities({ country: c.code });
-  const free = db.rowsOnSite(c.code).some(r => r.fee_model === 'free');
+  const free = typeof db.hasFeeModel === 'function' ? db.hasFeeModel(c.code, 'free') : db.rowsOnSite(c.code).some(r => r.fee_model === 'free');
   const title = 'Study in ' + c.name + ' for Indian students — requirements, universities & how to apply';
   const desc = 'Study in ' + c.name + ' from India: '
     + (f.minCgpaPublic || f.minCgpaPrivate ? 'the CGPA you need (' + (f.minCgpaPublic || f.minCgpaPrivate) + '+ on 10), ' : '')

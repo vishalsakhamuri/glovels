@@ -167,7 +167,13 @@ function makeGuides(d) {
   function catalogue() {
     const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
     if (CACHE && CACHE.v === v && Date.now() - CACHE.at < 5 * 60 * 1000) return CACHE;
-    const raw = db.rowsForCountries([]) || [];
+    /* Patch 179 (memory): the guides are about Germany, so only Germany's
+       rows are read and held. This read every live row in every country —
+       seventy thousand once the UK and USA came in — on the first page view
+       after any catalogue write, and kept them all, which on a 512 MB server
+       was the restart loop of 31 Oct. Programme pages elsewhere are found
+       one university at a time (sitemapEntries). */
+    const raw = db.rowsForCountries(['DE']) || [];
     const stamp = new Map(raw.map(r => [String(r.id), String(r.updated_at || '')]));
     const rows = raw.map(UNIS.fromRow);
     const hidden = d.hiddenUniversitySlugs ? d.hiddenUniversitySlugs() : new Set();
@@ -668,6 +674,21 @@ function makeGuides(d) {
       if (isLockedUni(u)) return;
       for (const [id, s] of slugTable(u)) out.push({ path: 'university/' + u.slug + '/' + s, lastmod: cat.stamp.get(id) || '' });
     });
+    /* Patch 179: every other country's named programmes, one university at a
+       time — never the whole catalogue in memory at once. */
+    try {
+      const seen = new Set(cat.unis.map(u => u.slug));
+      const mods = typeof db.uniLastmods === 'function' ? db.uniLastmods() : new Map();
+      const hidden = d.hiddenUniversitySlugs ? d.hiddenUniversitySlugs() : new Set();
+      const slugs = typeof db.uniSlugs === 'function' ? db.uniSlugs({}) : [];
+      for (const slug of slugs) {
+        if (seen.has(slug) || hidden.has(slug)) continue;
+        const u = d.universityOf ? d.universityOf(slug) : null;
+        if (!u || String(u.country).toUpperCase() === 'DE' || isLockedUni(u)) continue;
+        const lm = mods.get(slug) || '';
+        for (const [, s] of slugTable(u)) out.push({ path: 'university/' + u.slug + '/' + s, lastmod: lm });
+      }
+    } catch (e) { /* the guides and German pages are listed; the rest wait */ }
     return out;
   }
   const hubLive = () => { try { return [...catalogue().pages.values()].some(p => p.hits.length); } catch (e) { return false; } };

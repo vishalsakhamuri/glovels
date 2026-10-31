@@ -1976,11 +1976,43 @@ function open(dir) {
       return db.all('SELECT * FROM programmes WHERE uni_slug = ?', String(slug));
     },
     /** Live rows in these countries — what the matcher works from. */
-    rowsForCountries(codes) {
+    rowsForCountries(codes, opts) {
       const cs = [...new Set((codes || []).map(c => String(c || '').toUpperCase()).filter(Boolean))];
-      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && (!cs.length || cs.includes(r.country)));
-      if (!cs.length) return db.all('SELECT * FROM programmes WHERE active = 1');
-      return db.all('SELECT * FROM programmes WHERE active = 1 AND country IN (' + cs.map(() => '?').join(',') + ')', ...cs);
+      /* Patch 179: `levels` narrows to those catalogue levels (lower case) —
+         the matcher's rows, read by level in the database rather than every
+         level read and most of it thrown away. */
+      const lv = opts && Array.isArray(opts.levels) && opts.levels.length
+        ? [...new Set(opts.levels.map(l => String(l || '').toLowerCase()).filter(Boolean))] : null;
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && (!cs.length || cs.includes(r.country))
+        && (!lv || lv.includes(String(r.level || '').toLowerCase())));
+      const w = ['active = 1']; const a = [];
+      if (cs.length) { w.push('country IN (' + cs.map(() => '?').join(',') + ')'); a.push(...cs); }
+      if (lv) { w.push('LOWER(level) IN (' + lv.map(() => '?').join(',') + ')'); a.push(...lv); }
+      return db.all('SELECT * FROM programmes WHERE ' + w.join(' AND '), ...a);
+    },
+    /** Patch 179: the rows baked into the build (ids gated-… and 9000…), three columns. */
+    bakedProgrammes() {
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => /^(gated-|9000)/.test(String(r.id))).map(r => ({ id: r.id, country: r.country, active: r.active }));
+      return db.all("SELECT id, country, active FROM programmes WHERE id LIKE 'gated-%' OR id LIKE '9000%'");
+    },
+    /** Patch 179: id, fee and band of every priced row — the start-up band check, without whole rows. */
+    programmeBands() {
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => Number(r.total_inr) > 0).map(r => ({ id: r.id, total_inr: r.total_inr, band: r.band }));
+      return db.all('SELECT id, total_inr, band FROM programmes WHERE total_inr > 0');
+    },
+    /** Patch 179: the levels each country offers on the site (lower case) — the sitemap's finder addresses. */
+    levelsOnSite() {
+      const out = {};
+      const rows = db.kind !== 'sqlite'
+        ? db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => r.active && !r.search_only && r.level && r.field)
+        : db.all("SELECT DISTINCT country, level FROM programmes WHERE active = 1 AND search_only = 0 AND COALESCE(level, '') <> '' AND COALESCE(field, '') <> ''");
+      rows.forEach(r => { (out[r.country] = out[r.country] || new Set()).add(String(r.level).toLowerCase()); });
+      return out;
+    },
+    /** Patch 179: does this country have a live programme with this fee model? */
+    hasFeeModel(country, model) {
+      if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').some(r => r.active && !r.search_only && r.country === country && r.fee_model === model);
+      return !!db.one('SELECT 1 AS x FROM programmes WHERE active = 1 AND search_only = 0 AND country = ? AND fee_model = ? LIMIT 1', String(country), String(model));
     },
     /** Live universities, counted. listed: on the site only. */
     /* Programmes, counted the way the site counts universities: only what is
@@ -2232,6 +2264,12 @@ function open(dir) {
       return db.all("SELECT * FROM programmes WHERE instr(program, '&') > 0 OR instr(university, '&') > 0 OR instr(COALESCE(city, ''), '&') > 0 OR instr(COALESCE(field, ''), '&') > 0");
     },
     /** Every row of one country (or all), for the sheet download. */
+    /** Patch 179: one country's rows a slice at a time, in rowsAll's order — the CSV download. */
+    rowsAllPage(country, offset, limit) {
+      if (db.kind !== 'sqlite') return this.rowsAll(country).slice(offset, offset + limit);
+      return db.all('SELECT * FROM programmes WHERE country = ? ORDER BY university ASC, program ASC, id ASC LIMIT ? OFFSET ?',
+        String(country), Number(limit), Number(offset));
+    },
     rowsAll(country) {
       if (!country) return db.all('SELECT * FROM programmes WHERE id > ? ORDER BY university asc', '');
       if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE country = ?', country).sort((a, b) => a.university.localeCompare(b.university));
@@ -2508,7 +2546,10 @@ function open(dir) {
       db.run('INSERT INTO audit (who, what, detail, created_at) VALUES (?, ?, ?, ?)',
         who, what, detail || '', now());
     },
-    auditTrail: n => db.all('SELECT * FROM audit WHERE id > ? ORDER BY id desc', 0).slice(0, n || 40),
+    /* Patch 179: the newest n in the database, not the whole trail read and sliced. */
+    auditTrail: n => (db.kind === 'sqlite'
+      ? db.all('SELECT * FROM audit ORDER BY id DESC LIMIT ?', Number(n || 40))
+      : db.all('SELECT * FROM audit WHERE id > ? ORDER BY id desc', 0).slice(0, n || 40)),
 
     /* ---- staff: roles, caseload, assignment ---- */
     /* Who a counsellor may see is decided here and nowhere else. The rule is the
@@ -3421,6 +3462,7 @@ function open(dir) {
      the office screen all ask for it, and it is the same number until
      somebody saves a programme (catVersion moves on every write). */
   const memo = new Map();
+  const MEMO_MAX_ROWS = 300;
   ['catalogueStats', 'countUniversities', 'countByCountry', 'uniSlugs', 'fieldCounts', 'filterOptions',
    'rowsForCountryPage', 'filterUniversities', 'programmesPage', 'universitiesPage'].forEach(name => {
     const fn = store[name];
@@ -3429,7 +3471,13 @@ function open(dir) {
       if (memo.has(k)) return memo.get(k);
       if (memo.size > 200) memo.clear();
       const v = fn.apply(store, a);
-      memo.set(k, v);
+      /* Patch 179 (memory): only small answers are remembered — counts,
+         slugs, a screen's page of rows. A 2,000-row page, or the 12,000 rows
+         of a country page, kept 200 deep was the memory that restarted the
+         site on 31 Oct (70,000 programmes, 512 MB). Big answers are read
+         again when asked for, which the indexes make quick. */
+      const size = Array.isArray(v) ? v.length : (v && Array.isArray(v.rows) ? v.rows.length : 0);
+      if (size <= MEMO_MAX_ROWS) memo.set(k, v);
       return v;
     };
   });

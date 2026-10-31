@@ -28,7 +28,10 @@ services:
     branch: main
     numInstances: 1
     buildCommand: "echo 'nothing to build — this app has no dependencies'"
-    startCommand: "node serve.js"
+    # Patch 179: a 300 MB JavaScript heap on the 512 MB Starter plan, so Node
+    # tidies up before Render's limit instead of growing into it and being
+    # killed (the restart loop of 31 Oct 2026).
+    startCommand: "node --max-old-space-size=300 serve.js"
     healthCheckPath: /api/health
 
     disk:

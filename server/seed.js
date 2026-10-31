@@ -889,13 +889,38 @@ function foldUniversity(name) {
 const levelBucket = l => { const x = String(l || '').toLowerCase(); return x === 'mba' ? 'master' : x || 'master'; };
 function retireSeedDuplicates({ db, force }) {
   if (!force && db.content(SEED_DUPES)) return 0;
-  const rows = db.programmes(true);
+  /* Patch 179 (memory): the baked rows are read whole (a couple of hundred),
+     and the rest of their countries is walked 3,000 rows at a time, keeping
+     only office rows at the baked rows' own universities. This ran after
+     every sheet import and read the whole catalogue — 70,000 rows once the
+     UK and USA were in — which pushed the 512 MB server over after a big
+     upload. Same answer: an office row can only duplicate a baked row at the
+     same university, in the same country. */
+  const bakedIds = typeof db.bakedProgrammes === 'function' ? db.bakedProgrammes().filter(r => r.active).map(r => r.id) : null;
+  const all = bakedIds ? null : db.programmes(true);
+  const baked = bakedIds ? bakedIds.map(id => db.programme(id)).filter(r => r && r.active)
+    : all.filter(r => BAKED_ID.test(String(r.id)) && r.active);
+  const uniFolds = new Set(baked.map(r => foldUniversity(r.university)));
+  const codes = [...new Set(baked.map(r => String(r.country || '').toUpperCase()).filter(Boolean))];
   const office = new Map();
-  rows.forEach(r => {
+  const consider = r => {
     if (BAKED_ID.test(String(r.id)) || !r.active) return;
-    const k = foldUniversity(r.university) + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
+    const fu = foldUniversity(r.university);
+    if (!uniFolds.has(fu)) return;
+    const k = fu + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
     if (!office.has(k)) office.set(k, r);
-  });
+  };
+  if (all) all.forEach(consider);
+  else if (baked.length) {
+    for (const code of codes) {
+      for (let off = 0; ; off += 3000) {
+        const slice = typeof db.rowsAllPage === 'function' ? db.rowsAllPage(code, off, 3000) : (off ? [] : db.rowsForCountries([code]));
+        slice.forEach(consider);
+        if (slice.length < 3000) break;
+      }
+    }
+  }
+  const rows = baked;
   let retired = 0, moved = 0;
   const detail = [];
   db.transaction(() => {

@@ -396,7 +396,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   const rowsFor = profile => {
     const cs = (profile && profile.countries && profile.countries.length) ? profile.countries : null;
     if (typeof db.rowsForCountries !== 'function') return cat();
-    return (cs ? db.rowsForCountries(cs) : db.rowsOnSite()).map(UNIS.fromRow);
+    /* Patch 179: only the levels this profile can be matched at (its own and
+       the neighbours it may bend to) come out of the database. */
+    const levels = MATCHES.levelsFor ? MATCHES.levelsFor(profile) : null;
+    if (!cs) return db.rowsOnSite().map(UNIS.fromRow).filter(p => !levels || levels.includes(String(p.level || '').toLowerCase()));
+    return db.rowsForCountries(cs, { levels }).map(UNIS.fromRow);
   };
   /* One programme by id — any live one, including the search-only rows that
      never reach the finder (a student shortlists from a university page). */
@@ -9362,6 +9366,26 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     return out;
   }
 
+  /* Patch 179 (memory): a tag filter over the catalogue, read 2,000 rows at
+     a time. Tags are partly derived, so the database cannot filter on them;
+     reading every matching row in one go (per: 'all') was the whole table —
+     70,000 rows, 200 MB — when no destination was chosen. Only the page asked
+     for (and up to `keepIds` ids) is kept; the rest is counted and let go. */
+  const taggedScan = (args, tagList, from, to, keepIds) => {
+    let total = 0; const rows = []; const ids = [];
+    for (let pg = 1; pg < 1000; pg++) {
+      const chunk = db.programmesPage(Object.assign({}, args, { page: pg, per: 2000 }));
+      for (const r of chunk.rows) {
+        if (!TAGS.match(UNIS.fromRow(r), tagList, '')) continue;
+        if (total >= from && total < to) rows.push(r);
+        if (keepIds && ids.length < keepIds) ids.push(r.id);
+        total++;
+      }
+      if (chunk.rows.length < 2000) break;
+    }
+    return { rows, ids, total };
+  };
+
   route('GET', '/api/staff/catalogue', staffOnly(async (req, res) => {
     /* A page of programmes, filtered and searched by the database — the
        screen used to take every row and filter in the browser, which at the
@@ -9394,11 +9418,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     let page;
     if (tagList.length) {
       const perN = Math.max(1, Math.min(2000, Number(qs.per) || 100)), pageN = Math.max(1, Number(qs.page) || 1);
-      const wide = db.programmesPage({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
+      const got = taggedScan({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
         type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
-        status: qs.status == null ? '' : String(qs.status), page: 1, per: 'all' });
-      const kept = wide.rows.filter(r => TAGS.match(UNIS.fromRow(r), tagList, ''));
-      page = { rows: kept.slice((pageN - 1) * perN, pageN * perN), total: kept.length, page: pageN, per: perN };
+        status: qs.status == null ? '' : String(qs.status) }, tagList, (pageN - 1) * perN, pageN * perN, 0);
+      page = { rows: got.rows, total: got.total, page: pageN, per: perN };
     } else {
       page = db.programmesPage({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
         type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
@@ -9458,11 +9481,15 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        covers the rows the screen counts, not the first 2,000 before the
        tag was looked at. */
     const tagList = TAGS.parseList(qs.tags);
-    const page = db.programmesPage({ q: qs.q, country: qs.country, level: qs.level, field: qs.field,
+    const args = { q: qs.q, country: qs.country, level: qs.level, field: qs.field,
       type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
-      status: qs.status == null ? '' : String(qs.status), page: 1, per: tagList.length ? 'all' : 2000 });
-    const rows = tagList.length ? page.rows.filter(r => TAGS.match(UNIS.fromRow(r), tagList, '')) : page.rows;
-    return json(res, 200, { ids: rows.slice(0, 2000).map(r => r.id), total: tagList.length ? rows.length : page.total });
+      status: qs.status == null ? '' : String(qs.status) };
+    if (tagList.length) {
+      const got = taggedScan(args, tagList, 0, 0, 2000);
+      return json(res, 200, { ids: got.ids, total: got.total });
+    }
+    const page = db.programmesPage(Object.assign(args, { page: 1, per: 2000 }));
+    return json(res, 200, { ids: page.rows.slice(0, 2000).map(r => r.id), total: page.total });
   }));
 
   /* ------------------------------------------------- search by name */
@@ -10041,7 +10068,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     ['tags', 'tags'],
   ];
 
-  const sheetRows = country => (country && typeof db.rowsAll === 'function' ? db.rowsAll(country) : db.programmes(true)).map(r => {
+  const sheetRows = (country, given) => (given || (country && typeof db.rowsAll === 'function' ? db.rowsAll(country) : db.programmes(true))).map(r => {
     let ins = [];
     try { ins = JSON.parse(r.intakes) || []; } catch (e) {}
     return [
@@ -10101,10 +10128,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
   route('POST', '/api/staff/linkcheck', needs('catalogue', async (req, res) => {
     const qs = url.parse(req.url, true).query;
     const country = String(qs.country || '').toUpperCase().slice(0, 3);
-    const rows = (country && typeof db.rowsAll === 'function' ? db.rowsAll(country) : db.programmes(true))
-      .filter(r => r.active !== 0 && r.active !== false)
-      .filter(r => !country || r.country === country)
+    /* Patch 179: a country at a time, keeping four short fields of each row. */
+    const slim = list => list.filter(r => r.active !== 0 && r.active !== false)
       .map(r => ({ id: r.id, program: r.program, university: r.university, url: r.url }));
+    let rows;
+    if (typeof db.rowsAll !== 'function') rows = slim(db.programmes(true).filter(r => !country || r.country === country));
+    else if (country) rows = slim(db.rowsAll(country));
+    else { rows = []; Object.keys(db.countByCountry()).sort().forEach(code => { rows.push(...slim(db.rowsAll(code))); }); }
     LINKS.start(rows, { scope: country || 'all', allowLocal: process.env.LINKCHECK_ALLOW_LOCAL === 'true' });
     return json(res, 202, LINKS.status());
   }));
@@ -10136,12 +10166,42 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        memory and opened by nobody); the CSV has no cap. */
     const qs = url.parse(req.url, true).query;
     const country = String(qs.country || '').toUpperCase().slice(0, 3);
-    const rows = sheetRows(country);
     const stamp = new Date().toISOString().slice(0, 10) + (country ? '-' + country : '');
-    if (m[1] === 'xlsx' && rows.length > 60000) {
-      return json(res, 413, { error: 'That is ' + rows.length.toLocaleString('en-IN')
+    /* Patch 179 (memory): counted before anything is read. An Excel file is
+       built whole in memory, so the whole catalogue (70,000 rows) is refused
+       up front rather than read, built and then refused — on the 512 MB
+       server that read alone restarted the site. */
+    const n = country ? Number(db.countByCountry()[country] || 0)
+      : (typeof db.catalogueStats === 'function' ? Number(db.catalogueStats().total || 0) : 0);
+    if (m[1] === 'xlsx' && n > 20000) {
+      return json(res, 413, { error: 'That is ' + n.toLocaleString('en-IN')
         + ' rows — too many for one Excel file. Download the CSV, or one country at a time.' });
     }
+    /* The whole catalogue as CSV: written one country at a time, so only one
+       country's rows are ever in memory. */
+    if (m[1] === 'csv' && typeof db.rowsAllPage === 'function') {
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="glovels-catalogue-${stamp}.csv"`,
+        'Cache-Control': 'no-store',
+      });
+      /* 3,000 rows at a time, a country at a time: the header once, then
+         each slice's lines. Nothing larger than a slice is ever in memory. */
+      const codes = country ? [country] : Object.keys(db.countByCountry()).sort();
+      res.write(SHEET.writeCsv(headers, []));
+      for (const code of codes) {
+        for (let off = 0; ; off += 3000) {
+          const slice = db.rowsAllPage(code, off, 3000);
+          if (!slice.length) break;
+          const part = SHEET.writeCsv(headers, sheetRows(code, slice));
+          const i = part.indexOf('\r\n');
+          if (i >= 0) res.write(part.slice(i));
+          if (slice.length < 3000) break;
+        }
+      }
+      return res.end();
+    }
+    const rows = sheetRows(country);
     if (m[1] === 'csv') {
       const body = Buffer.from(SHEET.writeCsv(headers, rows), 'utf8');
       res.writeHead(200, {
@@ -11912,7 +11972,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
      (the v8 import left 29 like that). The top band is left alone. */
   try {
     const top = topBand();
-    const wrong = db.programmes(true).filter(r => Number(r.total_inr) > 0 && r.band !== top && r.band !== bandFor(r.total_inr));
+    /* Patch 179: three columns, not every whole row (70,000 rows of it was
+       200 MB at start-up on a 512 MB server). */
+    const wrong = (typeof db.programmeBands === 'function' ? db.programmeBands() : db.programmes(true))
+      .filter(r => Number(r.total_inr) > 0 && r.band !== top && r.band !== bandFor(r.total_inr));
     if (wrong.length) {
       if (typeof db.setBand === 'function') wrong.forEach(r => db.setBand(r.id, bandFor(r.total_inr), 'system'));
       console.log('  re-banded', wrong.length, 'programme(s) whose band disagreed with the fee');
