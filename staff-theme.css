@@ -1,0 +1,197 @@
+/* =============================================================================
+   Patch 199 — the staff theme.
+   One stylesheet, loaded last on every staff screen, so Organisation, Leads,
+   Conversations, Website chat, Home page, Blog and Catalogue share the
+   Command centre's look: a cool sky canvas, Glovels navy and gold, Bricolage
+   Grotesque for numbers and headings, Manrope for everything you read.
+   It restyles the components those screens already share (block 0) — it
+   changes no markup and no behaviour.
+   ============================================================================= */
+
+:root{
+  --cream:#eaf0f7;               /* the canvas, was warm cream */
+  --paper:#ffffff;
+  --line:#d9e2ee;
+  --muted:#6b7d93;
+  --ink:#0b1e31;
+  --disp:'Bricolage Grotesque','Manrope',system-ui,sans-serif;
+  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --st-gold:#c9a24b;
+  --st-late:#d64545;
+  --st-soon:#e39a2d;
+  --st-ok:#2e9e6a;
+  --st-r:16px;
+  --st-shadow:0 1px 2px rgba(11,30,49,.04),0 8px 24px -12px rgba(11,30,49,.12);
+}
+body{font-family:var(--sans);background:var(--cream);color:var(--ink);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--disp);letter-spacing:-.015em}
+:focus-visible{outline:3px solid var(--st-gold)!important;outline-offset:2px}
+
+/* ------------------------------------------------------------------ rail */
+.p-shell{grid-template-columns:240px minmax(0,1fr)}
+.p-side{background:#0b1e31;padding:22px 14px;gap:0;
+  background-image:radial-gradient(circle at 0 0,rgba(201,162,75,.10),transparent 45%)}
+.p-logo{background:rgba(255,255,255,.96);border-radius:14px;padding:9px 13px;margin:0 6px 18px;box-shadow:0 6px 20px -8px rgba(0,0,0,.5)}
+.plan-badge{background:rgba(255,255,255,.06)!important;border:0!important;border-radius:14px!important;padding:12px 14px!important;margin:0 0 16px!important}
+.plan-badge b{color:#fff!important;font:700 14px/1.3 var(--sans)!important}
+.plan-badge span{color:#93a6bd!important;font:500 12px/1.4 var(--sans)!important;text-transform:capitalize}
+.p-out{color:#93a6bd!important;background:none!important;border:0!important;padding:6px 0 0!important;font:600 12px var(--sans)!important}
+.p-out:hover{color:#fff!important}
+.p-nav{gap:2px}
+.p-nav a{padding:10px 12px;border-radius:11px;font:600 13.5px/1.2 var(--sans);color:#c7d4e3;transition:background .15s,color .15s}
+.p-nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+.p-nav a.on{background:linear-gradient(90deg,rgba(201,162,75,.24),rgba(201,162,75,.04));color:#fff;box-shadow:inset 3px 0 0 var(--st-gold)}
+.p-nav a .ico{width:18px;height:18px;font-size:18px}
+
+/* --------------------------------------------------------- page header */
+.p-main{background:var(--cream);padding:26px clamp(16px,3vw,40px) 60px}
+.p-bar{margin-bottom:8px}
+.p-bar-title{font:700 13px/1 var(--sans)!important;letter-spacing:0!important;text-transform:none!important;color:var(--muted)!important}
+.p-top{margin-bottom:20px}
+.p-top h1{font:800 clamp(26px,3vw,36px)/1.08 var(--disp)!important;letter-spacing:-.025em!important;color:var(--ink)!important}
+.p-top p{font:500 14.5px/1.55 var(--sans)!important;color:#3c5168!important;max-width:70ch}
+.p-av{background:var(--ink)!important;color:#fff!important;font-family:var(--disp)!important}
+.bell{border-radius:12px!important;border-color:var(--line)!important;background:#fff!important}
+.sla{border-radius:999px}
+
+/* notification offer */
+#pushBar{background:#fff!important;border:1px solid var(--line)!important;border-left:4px solid var(--st-gold)!important;
+  border-radius:14px!important;color:var(--ink)!important;box-shadow:var(--st-shadow);font-family:var(--sans)!important}
+
+/* ------------------------------------------------------ the number tiles */
+.out{gap:12px}
+.out > div,.out .outgo{background:#fff!important;border:1px solid var(--line)!important;border-radius:var(--st-r)!important;
+  box-shadow:var(--st-shadow);text-align:left!important;padding:16px 18px!important;position:relative;overflow:hidden}
+.out .outgo::after,.out > div::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--st-gold);opacity:0;transition:opacity .15s}
+.out .outgo:hover::after,.out .outgo.on::after{opacity:1}
+.out .outgo.on{box-shadow:0 0 0 2px var(--ink),var(--st-shadow)!important}
+.out b{font:800 30px/1 var(--disp)!important;letter-spacing:-.02em;color:var(--ink)!important}
+.out span{font:600 13px/1.3 var(--sans)!important;letter-spacing:0!important;text-transform:none!important;color:var(--muted)!important;margin-top:8px;display:block}
+
+/* ------------------------------------------------------------------ cards */
+.p-card,.card,.pane,.opane,.ord-card,.todo-card{background:#fff;border:1px solid var(--line)!important;border-radius:20px!important;box-shadow:var(--st-shadow)}
+.p-card h3,.p-sec-head h2{font-family:var(--disp)!important;font-weight:800!important;letter-spacing:-.015em}
+.p-sec-head h2{font-size:21px!important}
+
+/* ------------------------------------------------------------------- tabs */
+.tabs{gap:6px;background:rgba(255,255,255,.6);padding:5px;border-radius:999px;width:fit-content;max-width:100%;
+  border:1px solid var(--line);flex-wrap:wrap}
+.tab,.otab{border:0!important;background:transparent!important;border-radius:999px!important;padding:9px 15px!important;
+  font:700 13px/1 var(--sans)!important;color:#3c5168!important;transition:background .15s,color .15s}
+.tab:hover,.otab:hover{background:#fff!important;color:var(--ink)!important}
+.tab[aria-selected="true"],.otab[aria-selected="true"],.otab.on,.tab.on{background:var(--ink)!important;color:#fff!important;box-shadow:0 6px 16px -8px rgba(11,30,49,.6)}
+.tab .n,.otab .n{background:rgba(11,30,49,.08)!important;color:inherit!important;border-radius:999px}
+.tab[aria-selected="true"] .n{background:rgba(255,255,255,.18)!important}
+
+/* ---------------------------------------------------------------- buttons */
+.btn{border-radius:12px!important;font-family:var(--sans)!important;font-weight:700!important;letter-spacing:0!important}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary,.btn-navy{background:var(--ink)!important;border-color:var(--ink)!important;color:#fff!important;box-shadow:0 8px 18px -10px rgba(11,30,49,.7)}
+.btn-primary:hover,.btn-navy:hover{background:#13385c!important;border-color:#13385c!important}
+.btn-gold{background:linear-gradient(160deg,#d9b462,#b98f34)!important;color:#0b1e31!important}
+.btn-ghost{background:#fff!important;border:1px solid var(--line)!important;color:var(--ink)!important}
+.btn-ghost:hover{border-color:var(--ink)!important;background:#fff!important;color:var(--ink)!important}
+.btn-sm{border-radius:10px!important}
+
+/* ------------------------------------------------------------ form fields */
+.p-main input[type="text"],.p-main input[type="search"],.p-main input[type="email"],.p-main input[type="tel"],
+.p-main input[type="number"],.p-main input[type="date"],.p-main input[type="password"],.p-main input:not([type]),
+.p-main select,.p-main textarea,.sheet input:not([type="checkbox"]):not([type="radio"]),.sheet select,.sheet textarea{
+  border:1px solid var(--line)!important;border-radius:12px!important;background-color:#fff!important;
+  font-family:var(--sans)!important;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+.p-main input:focus,.p-main select:focus,.p-main textarea:focus,.sheet input:focus,.sheet select:focus,.sheet textarea:focus{
+  outline:0!important;border-color:var(--ink)!important;box-shadow:0 0 0 4px rgba(201,162,75,.25)!important}
+.field label,.fld label{font:700 12px/1.2 var(--sans)!important;letter-spacing:0!important;text-transform:none!important;color:#3c5168!important}
+
+/* ----------------------------------------------------------------- tables */
+.p-main table{border-collapse:separate!important;border-spacing:0}
+.p-main th{font:700 12px/1.3 var(--sans)!important;color:var(--muted)!important;text-transform:none!important;letter-spacing:0!important;
+  background:transparent;border-bottom:1px solid var(--line)!important;padding-top:12px;padding-bottom:12px;text-align:left}
+.p-main td{border-bottom:1px solid #eef2f7!important;font-variant-numeric:tabular-nums}
+.p-main tbody tr{transition:background .12s}
+.p-main tbody tr:hover{background:#f6f9fc}
+
+/* ------------------------------------------------------------ pills, chips */
+.pill{border-radius:999px!important;font:700 11.5px/1 var(--sans)!important;letter-spacing:0!important;text-transform:none!important;padding:5px 10px!important}
+.eyebrow{letter-spacing:0!important;text-transform:none!important;font:700 12.5px/1 var(--sans)!important}
+
+/* ----------------------------------------------------------------- modals */
+.modal{background:rgba(11,30,49,.42)!important;backdrop-filter:blur(3px)}
+.sheet{border-radius:22px!important;border:0!important;box-shadow:0 30px 80px -20px rgba(11,30,49,.45)!important;padding:24px!important;
+  animation:st-in .22s cubic-bezier(.2,.8,.2,1)}
+.sheet h3{font:800 21px/1.2 var(--disp)!important;letter-spacing:-.015em}
+@keyframes st-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+
+/* ------------------------------------------------------------- small bits */
+.p-main a:not(.btn){text-underline-offset:3px}
+::selection{background:rgba(201,162,75,.35)}
+
+@media (max-width:860px){
+  .p-shell{grid-template-columns:minmax(0,1fr)}
+  .tabs{border-radius:16px}
+}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}.btn:hover{transform:none}}
+
+/* ------------------------------------------------- Organisation: the team */
+#counsellors{list-style:none;margin:14px 0 0!important;padding:0;display:grid;gap:10px}
+#counsellors li.tm-card{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 14px;align-items:center;
+  padding:14px!important;border:1px solid var(--line)!important;border-radius:16px;background:#fbfcfe;transition:border-color .15s,box-shadow .15s}
+#counsellors li.tm-card:hover{border-color:#b9c7d8!important;box-shadow:var(--st-shadow)}
+.tm-av{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;color:#fff;font:800 15px var(--disp);grid-row:span 2}
+.tm-who{min-width:0}
+.tm-who b{display:block;font:700 15px/1.3 var(--sans);color:var(--ink)}
+.tm-who span{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-you{display:inline-block!important;font:700 11px/1 var(--sans)!important;color:#7a5a12!important;background:#f6ecd2;border-radius:999px;padding:4px 8px;margin-left:6px;vertical-align:2px}
+.tm-role{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.tm-role small{color:var(--muted);font-size:12px;font-weight:600}
+.tm-badge,.tm-select{font:700 12.5px/1 var(--sans)!important;border-radius:999px!important;padding:8px 12px!important;border:0!important}
+.tm-select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:30px!important;height:auto!important;width:auto!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b1e31' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;background-position:right 10px center!important;background-size:12px!important}
+.r-admin{background-color:#0b1e31!important;color:#fff!important}
+.tm-select.r-admin{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")!important}
+.r-counsellor{background-color:#e3edfb!important;color:#123a7b!important}
+.r-editor{background-color:#efe6f8!important;color:#5b2d8a!important}
+.r-partner{background-color:#f6ecd2!important;color:#7a5a12!important}
+.tm-perms{grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tm-all{font:600 12.5px/1.4 var(--sans);color:#1e7a50}
+.tm-all.muted{color:var(--muted)}
+.tm-perm{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 11px 6px 6px;
+  font:700 12px/1 var(--sans);color:var(--muted);cursor:pointer;transition:all .15s}
+.tm-perm i{width:26px;height:16px;border-radius:999px;background:#d5dde8;position:relative;transition:background .2s}
+.tm-perm i::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tm-perm.on{color:var(--ink);border-color:#bfe0cd;background:#f1f9f4}
+.tm-perm.on i{background:var(--st-ok)}
+.tm-perm.on i::after{transform:translateX(10px)}
+.tm-acts{grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;border-top:1px dashed var(--line);padding-top:8px;margin-top:2px}
+.tm-act{background:none;border:0;padding:6px 10px;border-radius:9px;font:700 12.5px/1 var(--sans);color:#3c5168;cursor:pointer}
+.tm-act:hover{background:#eef3f9;color:var(--ink)}
+.tm-act.danger{color:var(--st-late)}
+.tm-act.danger:hover{background:#fde8e8}
+@media (max-width:640px){
+  #counsellors li.tm-card{grid-template-columns:auto minmax(0,1fr)}
+  .tm-role{grid-column:1 / -1;flex-direction:row;align-items:center;justify-content:space-between}
+  .tm-perms,.tm-acts{grid-column:1 / -1}
+}
+
+/* -------------------------------------------- calmer labels, everywhere
+   Tiny tracked-out capitals were the tell of the old screens. Every label
+   reads in sentence case at a size you can read. */
+.p-main *:not(svg):not(code):not(pre),.sheet *,.bell-panel *,.p-side *{text-transform:none!important;letter-spacing:normal!important}
+.p-main h1,.p-main h2,.p-main h3,.sheet h3{letter-spacing:-.02em!important}
+.badge,.st,.pill,.coun .lbl,.c-lbl,.creds span,.ord-st,.tr-tag,.sl-chip{font-size:11.5px!important;font-weight:700!important}
+
+/* Organisation's section tabs: one pill rail, scrolls sideways when narrow */
+.otabs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:4px!important;background:rgba(255,255,255,.7);border:1px solid var(--line)!important;
+  border-radius:999px;padding:5px!important;width:fit-content;max-width:100%;scrollbar-width:none;border-bottom:1px solid var(--line)!important}
+.otabs::-webkit-scrollbar{display:none}
+.otab{white-space:nowrap;border-bottom:0!important;margin:0!important}
+@media (max-width:430px){
+  .out.tiles,.out{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .out > div,.out .outgo{padding:13px 14px!important}
+  .out b{font-size:24px!important}
+}
+
+/* Leads: the owner picker reads as a chip, and fits its words */
+select.assign{border-radius:999px!important;font:700 12.5px/1 var(--sans)!important;padding:8px 28px 8px 12px!important;min-width:132px;height:auto!important}
+select.assign.none{background-color:#fff4e5!important;border-color:#f1d2a3!important;color:#9a6312!important}

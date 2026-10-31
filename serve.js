@@ -3703,7 +3703,7 @@ const server = http.createServer(async (req, res) => {
     if (segs.length === 1) {
       const name = segs[0];
       const PUBLIC_TOP = /\.(html|ico|png|svg|jpg|jpeg|webp|webmanifest|txt|xml)$/i;
-      const PUBLIC_FILES = ['fitpanel.js', 'sw.js', 'glovels-pay.js'];
+      const PUBLIC_FILES = ['fitpanel.js', 'sw.js', 'glovels-pay.js', 'staff-theme.css'];
       const hasExt = /\.[a-z0-9]+$/i.test(name);
       if (hasExt && !PUBLIC_TOP.test(name) && !PUBLIC_FILES.includes(name)) return notFound(res);
       if (!hasExt && /^(Dockerfile|LICENSE|Makefile|Procfile)$/i.test(name)) return notFound(res);

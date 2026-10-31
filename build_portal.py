@@ -284,6 +284,12 @@ def staff_page(slug, title, h1, sub, body, script, role_note, nav=None, tools=Tr
         bell_panel = ('<div class="bell-panel" id="bellPanel" hidden role="dialog"\n'
                       '      aria-label="What needs doing"></div>')
 
+    # Patch 199: the staff theme, loaded last so it wins (brand pages only —
+    # the white-labelled partner screen keeps the agency's look).
+    if brand:
+        extra += ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:'
+                  'opsz,wght@12..96,600;12..96,800&family=Manrope:wght@400;500;600;700;800&display=swap">'
+                  '<link rel="stylesheet" href="/staff-theme.css?v=199">')
     return f"""{head_for(title, brand).replace("</head>", extra + "</head>")}
 <body>
 {SPRITE}
