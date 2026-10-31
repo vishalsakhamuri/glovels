@@ -8344,7 +8344,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         total: rows.length,
         late: rows.filter(r => r.state === 'late').length,
         soon: rows.filter(r => r.state === 'soon').length,
-        worst: worst ? (worst.overHours != null ? Math.round(worst.overHours) + ' h over'
+        worst: worst ? (worst.overHours != null
+          ? (worst.overHours >= 48 ? Math.round(worst.overHours / 24) + ' days over' : Math.round(worst.overHours) + ' h over')
           : worst.overDays + (worst.overDays === 1 ? ' day' : ' days') + ' over') : '',
         rows: rows.slice(0, 80),
       };
@@ -8402,8 +8403,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       });
       const rankS = { late: 0, soon: 1, ok: 2 };
       journey = TASKS.funnel(db, now, admin ? null : fileIds)
-        .map(p => ({ key: p.key, label: p.short || p.label, students: p.students, late: p.late,
-          rows: (byPhase[p.key] || []).sort((x, y) => rankS[x.state] - rankS[y.state] || (y.late - x.late)).slice(0, 100) }));
+        .map(p => {
+          const rows = (byPhase[p.key] || []).sort((x, y) => rankS[x.state] - rankS[y.state] || (y.late - x.late));
+          /* Counted from the same open files the list shows, so the number on
+             the stop and the list it opens always agree. */
+          return { key: p.key, label: p.short || p.label, students: rows.length,
+            late: rows.filter(r => r.state === 'late').length, rows: rows.slice(0, 100) };
+        });
     } catch (e) { journey = []; }
 
     const lateAll = queues.reduce((n, q) => n + q.late, 0);

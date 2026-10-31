@@ -120,6 +120,13 @@ button{font:inherit;color:inherit}
 .tag::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .tag.l{color:var(--late)}.tag.s{color:#b9771a}.tag.o{color:var(--ok)}
 .q .worst{margin-left:auto;color:var(--late)}
+.qgo{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px dashed var(--rule);
+  font:700 12.5px var(--sans);color:var(--ink)}
+.qgo i{font-style:normal;transition:transform .15s}
+.q:hover .qgo i{transform:translateX(4px)}
+.q.zero .qgo{color:var(--mute)}
+.sgo{font-style:normal;font:700 11px var(--sans);color:var(--gold);opacity:.85;min-height:14px}
+.stop:hover .sgo{opacity:1}
 
 /* ------------------------------------------------------- the counsellors */
 .crew{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);overflow:auto}
@@ -354,11 +361,11 @@ body.open .drawer{transform:none}
     var n = J.length || 1;
     $('#stops').style.setProperty('--n', n);
     var total = J.reduce(function (a, p) { return a + p.students; }, 0);
-    $('#routeNote').textContent = total ? total + ' students on the way' : 'No students on a journey yet';
+    $('#routeNote').textContent = total ? total + (total === 1 ? ' student' : ' students') + ' on the way' : 'No students on a journey yet';
     $('#stops').innerHTML = J.map(function (p) {
       return '<button type="button" class="stop ' + (p.students ? 'has' : 'empty') + '" data-phase="' + esc(p.key) + '" aria-label="' + esc(p.label + ': ' + p.students + ' students, ' + p.late + ' late') + '">'
         + '<div class="dot">' + p.students + (p.late ? '<em class="late">' + p.late + '</em><i class="pulse"></i>' : '') + '</div>'
-        + '<span>' + esc(p.label) + '</span></button>';
+        + '<span>' + esc(p.label) + '</span><em class="sgo">' + (p.students ? 'See who \u2192' : '') + '</em></button>';
     }).join('');
     /* The line: a gentle wave through the stops, and each stop sits ON it.
        Flown (gold) up to the furthest stop anybody has reached. */
@@ -420,7 +427,8 @@ body.open .drawer{transform:none}
                 + (q.soon ? '<span class="tag s">' + q.soon + ' close</span>' : '')
                 + (ok ? '<span class="tag o">' + ok + ' on time</span>' : '')
                 + (q.worst ? '<span class="worst">worst ' + esc(q.worst) + '</span>' : '')
-              : '<span class="tag o">Clear</span>') + '</div></button>';
+              : '<span class="tag o">Clear</span>') + '</div>'
+          + '<span class="qgo">' + (q.total ? 'See ' + q.total + (q.total === 1 ? ' student' : ' students') : 'Open') + ' <i aria-hidden="true">\u2192</i></span></button>';
       }).join('') + '</div>';
     }).join('');
   }
