@@ -125,7 +125,7 @@ const DEMO = {
   w_has:'Yes — internship', w_emp:'Qualcomm India', w_role:'Intern, Embedded Systems', w_months:'6',
   g_level:"Master's", g_field:'Data Science',
   g_field2:'Artificial Intelligence', g_field3:'Computer Science',
-  g_country:'Germany', g_intake:'Winter 2026',
+  g_country:'Germany', g_intake:'Winter 2027',   /* Patch 183: an upcoming intake */
   g_why:'I built a fault-detection model for my final-year project and want to take it further where the research and the industry sit close together.',
   b_total:'Under ₹10 Lakhs', b_fund:'A mix', b_loan:'Yes', b_spons:'Parent',
   r1_name:'Prof. S. Raghavan', r1_role:'Head of Department, ECE', r1_mail:'raghavan@jntuh.ac.in',

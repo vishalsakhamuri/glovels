@@ -464,10 +464,29 @@ const SECTIONS = [
     {k:'g_field5', l:'Another field', t:'text', opt:()=>true},
     /* More than one. A student deciding between Germany and Poland was being
        made to pick one before we would show them anything. */
+    /* Patch 183 (31 Oct): all fifteen destinations the site has, not the
+       eight it started with (was o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],).
+       Names, not codes — server/matches.js destinations() maps each one
+       (COUNTRY_CODE, then ISO.byName) and the browse filter matches them
+       against COUNTRIES[c].name. */
     {k:'g_country',l:'Preferred destinations', t:'multi',
-     o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy','Open to advice'],
+     o:['Germany','France','Canada','United Kingdom','Ireland','Poland','Spain','Italy',
+        'United States','Australia','New Zealand','Japan','Singapore','Czech Republic','Finland',
+        'Open to advice'],
      help:'Choose as many as you are considering. Your matches cover all of them.'},
-    {k:'g_intake', l:'Target intake', t:'select', o:['','Winter 2026','Summer 2027','Winter 2027','Summer 2028']},
+    /* Patch 183: the intakes from today, not a fixed list — "Winter 2026" was
+       still offered after it had started. Summer terms start in April and
+       winter terms in October, so a term is offered until the first of its
+       month; the next four. A stored past answer is still kept by the
+       select's "what you answered before" rule. */
+    {k:'g_intake', l:'Target intake', t:'select', o:(() => {
+      const now = new Date(), out = [''];
+      for (let y = now.getFullYear(); out.length < 5; y++) {
+        if (now < new Date(y, 3, 1)) out.push('Summer ' + y);
+        if (now < new Date(y, 9, 1) && out.length < 5) out.push('Winter ' + y);
+      }
+      return out;
+    })()},
     /* Two the finder reads. A German programme that asks for A2 and a
        student who has none is a fact worth knowing before the shortlist, not
        after; and a handful ask for a published paper. Both optional — the

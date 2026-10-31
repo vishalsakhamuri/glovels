@@ -737,6 +737,46 @@ function pageContentDate(rel, file) {
   return date;
 }
 
+/* Patch 183: GUIDES.sitemapEntries() split into the guide pages and the
+   programme pages, remembered per catalogue version (and for an hour). It
+   walks every university, which is seconds of work with 70,000 rows. */
+let sitemapGuideMemo = null, sitemapBuilding = false;
+function rebuildSitemapGuides() {
+  if (sitemapBuilding || typeof GUIDES.sitemapEntriesAsync !== 'function') return;
+  sitemapBuilding = true;
+  const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+  GUIDES.sitemapEntriesAsync().then(all => {
+    sitemapGuideMemo = { v, at: Date.now(),
+      guides: all.filter(e => !/^university\/[^/]+\/./.test(e.path)),
+      programmes: all.filter(e => /^university\/[^/]+\/./.test(e.path)) };
+  }).catch(() => {}).then(() => { sitemapBuilding = false; });
+}
+/* The last list built; a newer one is started in the background when the
+   catalogue has changed or it is an hour old. Before the first build ends,
+   the guides alone (cheap) are listed and the programme files are empty. */
+function sitemapGuideEntries() {
+  const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+  /* A catalogue small enough to walk in a moment (under 15,000 rows) is
+     walked now, so a programme added a minute ago is in the very next
+     sitemap. The large one (70,000) is walked in the background. */
+  let total = 0;
+  try { total = Number((db.catalogueStats() || {}).total || 0); } catch (e) { total = 0; }
+  if (total <= 15000) {
+    let all = [];
+    try { all = GUIDES.sitemapEntries(); } catch (e) { all = []; }
+    return { guides: all.filter(e => !/^university\/[^/]+\/./.test(e.path)), programmes: all.filter(e => /^university\/[^/]+\/./.test(e.path)) };
+  }
+  if (!sitemapGuideMemo || sitemapGuideMemo.v !== v || Date.now() - sitemapGuideMemo.at > 60 * 60 * 1000) rebuildSitemapGuides();
+  if (sitemapGuideMemo) return sitemapGuideMemo;
+  /* Before the first background walk ends: the guides themselves (built from
+     Germany's rows, which are cached and quick) — never an empty list. */
+  let guides = [];
+  try { guides = (GUIDES.guideSitemapEntries ? GUIDES.guideSitemapEntries() : []); } catch (e) { guides = []; }
+  return { guides, programmes: [] };
+}
+/* Built once shortly after start, so the first crawler visit finds it ready. */
+setTimeout(() => { try { if (CFG.allowIndexing) rebuildSitemapGuides(); } catch (e) { /* later */ } }, 60 * 1000).unref();
+
 function sitemapXml(part, partNo) {
   let pages = [];
   const walk = (dir, prefix) => {
@@ -820,7 +860,13 @@ function sitemapXml(part, partNo) {
   });
   /* Round 178 (Part D): the Germany master's guides, their hub and every
      NAMED programme page, dated by their rows' newest change (server/guides.js). */
-  try { GUIDES.sitemapEntries().forEach(e => { pages.push(e.path); if (e.lastmod) LM.set(e.path, day(e.lastmod)); }); } catch (e) { /* no catalogue */ }
+  /* Patch 183: the programme pages (university/<uni>/<programme>, 68,000 with
+     the UK and USA) go in their own files of 40,000 — in the pages file they
+     took it past Google's 50,000-address limit — and the list is worked out
+     once per catalogue version, not on every sitemap request. */
+  const guideAll = sitemapGuideEntries();
+  guideAll.guides.forEach(e => { pages.push(e.path); if (e.lastmod) LM.set(e.path, day(e.lastmod)); });
+  const progs = guideAll.programmes;
   const lmOf = p => LM.get(p) || (p.startsWith('university/') ?day(uniLm.get(p.slice(11))) : '');
   const urlset = list => '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -835,16 +881,22 @@ function sitemapXml(part, partNo) {
   const hidden = hiddenUniversitySlugs();
   const nUnis = db.countUniversities({});
   const PER = 40000;
+  progs.forEach(e => { if (e.lastmod) LM.set(e.path, day(e.lastmod)); });
   if (part === 'universities') {
     const slugs = db.uniSlugs({ limit: PER, offset: (Math.max(1, Number(partNo) || 1) - 1) * PER }).filter(sl => !hidden.has(sl));
     return urlset(slugs.map(sl => 'university/' + sl));
   }
-  if (nUnis + pages.length <= 45000) {
-    return urlset(pages.concat(db.uniSlugs({}).filter(sl => !hidden.has(sl)).map(sl => 'university/' + sl)));
+  if (part === 'programmes') {
+    const from = (Math.max(1, Number(partNo) || 1) - 1) * PER;
+    return urlset(progs.slice(from, from + PER).map(e => e.path));
+  }
+  if (nUnis + pages.length + progs.length <= 45000) {
+    return urlset(pages.concat(db.uniSlugs({}).filter(sl => !hidden.has(sl)).map(sl => 'university/' + sl), progs.map(e => e.path)));
   }
   if (part === 'pages') return urlset(pages);
   const files = ['sitemap-pages.xml'];
   for (let n = 1; (n - 1) * PER < nUnis; n++) files.push('sitemap-universities-' + n + '.xml');
+  for (let n = 1; (n - 1) * PER < progs.length; n++) files.push('sitemap-programmes-' + n + '.xml');
   return '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     + files.map(f => '  <sitemap><loc>' + base + '/' + f + '</loc></sitemap>').join('\n')
@@ -1623,7 +1675,9 @@ function universityPage(u, req) {
      programmes are locked (uniAccess — decided below, before the body). */
   const lockedDesc = isLockedKind(u) && !uniAccess(u, req).names;
   const desc = x.metaDesc
-    || u.name + (u.city ? ' in ' + u.city : '') + ', ' + c.name + ': ' + (lockedDesc ? 'programmes' : n + ' programme'
+    /* Patch 183 (owner): no count in the description either (it is what
+       Google and every share preview show a visitor). */
+    || u.name + (u.city ? ' in ' + u.city : '') + ', ' + c.name + ': ' + (lockedDesc || true ? 'programmes' : n + ' programme'
       + (n === 1 ? '' : 's')) + ' for Indian students — ' + feeLine.toLowerCase()
       + (u.seasons.length ? ', ' + u.seasons.map(SEASON).join(' and ').toLowerCase() + ' intake' + (u.seasons.length > 1 ? 's' : '') : '')
       + ', the CGPA you need, and how to apply' + (free ? ' free through Glovels.' : ' with Glovels.');
@@ -1656,7 +1710,8 @@ function universityPage(u, req) {
     ? PROSE.render(x.about)
     : '<p>' + esc(u.name) + ' is a ' + (UNIS.typeLabel(u) ? UNIS.typeLabel(u).toLowerCase() + ' ' : '') + 'university'
       + (u.city ? ' in ' + esc(u.city) : '') + ', ' + esc(c.name) + '. Glovels tracks '
-      + (lockedDesc ? 'programmes' : n + ' programme' + (n === 1 ? '' : 's')) + ' here'
+      /* Patch 183 (owner): no counts for a visitor — "programmes", not "445 programmes". */
+      + 'programmes here'
       + (u.fields.length ? ' in ' + esc(u.fields.slice(0, 4).join(', ')) : '') + ', with '
       + (u.tuitionFree ? 'no tuition fees' : u.feeOnRequest ? 'fees from a counsellor' : u.feeMin == null ? 'fees to be confirmed' : 'total costs from ' + esc(UNIS.money(u.feeMin)))
       + (u.seasons.length ? ' and ' + esc(u.seasons.map(SEASON).join(' and ').toLowerCase())
@@ -1684,7 +1739,10 @@ function universityPage(u, req) {
   const LOCKED_CAP = require('./server/find.js').LOCKED_CAP;
   const lockedPage = !access.names;
   const ordered = u.programmes.slice().sort((a, b) => (!!a.searchOnly - !!b.searchOnly)).slice(0, lockedPage ? LOCKED_CAP : undefined);
-  const nShown = lockedPage ? null : n;
+  /* Patch 183 (owner: no counts for visitors or students): the number goes
+     only to the office (staff keep "Show all N programmes"). */
+  const staffViewer = (() => { try { const w = req ? whoIsIt(req) : null; return !!(w && w.role && w.role !== 'student' && w.role !== 'partner'); } catch (e) { return false; } })();
+  const nShown = lockedPage || !staffViewer ? null : n;
   /* Patch 170: a locked row — level, field and what it asks for (CGPA,
      German grade: requirements, not identities, as on the finder's locked
      row); the name, fee and deadlines blurred placeholders; no id, no course
@@ -1757,7 +1815,7 @@ function universityPage(u, req) {
     + (UNIS.typeLabel(u) ? '<span class="pill ' + (u.isPublic ? 'pub' : 'priv') + '">' + UNIS.typeLabel(u) + '</span>' : '')
     + '<span class="pill">' + (require('./server/find.js').flagImg(u.country, c.name, 20) || esc(c.flag || '')) + ' ' + esc(c.name) + '</span>'
     + (u.city ? '<span class="pill">' + esc(u.city) + '</span>' : '')
-    + (nShown == null ? '' : '<span class="pill">' + nShown + ' programme' + (nShown === 1 ? '' : 's') + '</span>')
+    /* Patch 183 (owner): no programme-count pill. */
     /* Round 169 (WEB-05): the office's address for the university when set
        (University pages → Official website), otherwise the domain most of
        its course pages sit on; no chip when neither exists. */
@@ -1979,7 +2037,7 @@ function universitiesIndexPage() {
 
   const page = fill(t.page, Object.assign(metaHoles({
     title: 'Universities abroad for Indian students — fees, intakes & how to apply',
-    desc: 'Universities across ' + byCountry.size + ' countries that Glovels places '
+    desc: 'Universities across ' + Object.keys(countries).length + ' countries that Glovels places '
       + 'students at: public and private, what each costs in total, when to apply, and which '
       + 'ones you can apply to free through us.',
     canonical: absolute('/university'),
@@ -1994,7 +2052,8 @@ function universitiesIndexPage() {
     },
   }), {
     H1: 'Universities we place students at',
-    DATELINE: 'Universities in ' + byCountry.size + ' countries'
+    /* Patch 183: the destinations (owner: "15 destination countries"). */
+    DATELINE: 'Universities in ' + Object.keys(countries).length + ' countries'
       + (unlisted ? ', and more you can search for' : '') + '. Every one has its own page '
       + 'with the programmes we track, what they cost in total, and a way to apply.',
     CRUMBS: '<a href="index.html">Home</a> / Universities',
@@ -2274,6 +2333,18 @@ function destinationWords(html, code, progs) {
      that number. The baked sentences are rewritten in words; the two count
      tiles come off the fact box. */
   void progs;
+  /* Patch 183 (review): a destination built before its programmes arrived
+     still said "We are adding the United States to the catalogue… until the
+     programmes are on the finder" above a list of them. Once the country has
+     programmes on the site, the lead says what is true now. */
+  let listed = 0;
+  try { listed = Number(db.countProgrammes({ country: code, listed: true }) || 0); } catch (e) { listed = 0; }
+  if (listed) {
+    const nm = ((liveCountries()[code] || {}).name) || code;
+    html = html.replace(/<p class="lead">We are adding [^<]*<\/p>/,
+      '<p class="lead">Universities in ' + esc(nm) + ' are on our finder — filter them by level, field and budget below. '
+      + 'Or have a counsellor shortlist for you: the same honest reading of your marksheets, and no charge.</p>');
+  }
   html = html.replace(/(<h1>Study in [^<]*<\/h1><p>)([\d,]+) programmes?, [\d,]+ at public universit(?:y|ies)\./, (m, a) => {
     return a + (pubN ? 'Public and private universities.' : 'Universities we place students at.');
   });
@@ -3037,7 +3108,7 @@ const FINDPAGE = require('./server/findpage.js');
    the catalogue changes. */
 function findCandidateRows(f) {
   if (typeof db.findCandidates !== 'function') return liveCatalogue();
-  const base = { country: f.country, level: f.level, field: f.field, apply: f.apply, limit: 4000 };
+  const base = { country: f.country, level: f.level, field: f.field, apply: f.apply, sort: f.sort, limit: 4000 };
   let got = db.findCandidates(base);
   if (got.more && f.q) {
     const ix = findUniIndex();
@@ -3235,10 +3306,11 @@ const server = http.createServer(async (req, res) => {
     if (!CFG.allowIndexing) return notFound(res);
     return send(res, 200, sitemapXml(), TYPES['.xml']);
   }
-  const smPart = /^\/sitemap-(pages|universities-(\d{1,3}))\.xml$/.exec(pathname);
+  const smPart = /^\/sitemap-(pages|universities-(\d{1,3})|programmes-(\d{1,3}))\.xml$/.exec(pathname);
   if (smPart) {
     if (!CFG.allowIndexing) return notFound(res);
-    return send(res, 200, sitemapXml(smPart[1] === 'pages' ? 'pages' : 'universities', Number(smPart[2] || 1)), TYPES['.xml']);
+    const kind = smPart[1] === 'pages' ? 'pages' : smPart[2] ? 'universities' : 'programmes';
+    return send(res, 200, sitemapXml(kind, Number(smPart[2] || smPart[3] || 1)), TYPES['.xml']);
   }
 
   /*

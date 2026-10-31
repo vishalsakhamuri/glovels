@@ -1261,13 +1261,18 @@ document.addEventListener('click', e => {
 let ES = null;
 function connectLive(handlers) {
   ES = new EventSource('/api/live');
+  /* Patch 183 (31 Oct): the dot is gone when staffBoot has replaced the
+     page with "not for your account" — a student opening /chat threw
+     "Cannot set properties of null" here. */
   ES.addEventListener('hello', () => {
     const d = $('#liveDot');
+    if (!d) return;
     d.textContent = 'live';
     d.className = 'sla';
   });
   ES.onerror = () => {
     const d = $('#liveDot');
+    if (!d) return;
     d.textContent = 'reconnecting…';
     d.className = 'sla late';
   };
@@ -1305,6 +1310,9 @@ async function staffBoot(run) {
     if (side) side.remove();
     const shell = document.querySelector('.p-shell');
     if (shell) shell.style.gridTemplateColumns = '1fr';
+    /* Patch 183: nothing on this screen listens any more — the staff
+       stream's handlers would write into elements that are gone. */
+    if (typeof ES !== 'undefined' && ES) { ES.close(); ES = null; }
     document.querySelector('.p-main').innerHTML =
       '<div class="sl-empty" style="margin-top:40px"><b>This screen is not for your account</b>' +
       '<p>' + esc(e.message) + '</p><a class="btn btn-primary" href="dashboard.html">Go to my dashboard</a></div>';

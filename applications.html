@@ -990,13 +990,15 @@ select.assign.none:hover{border-color:#a5342b}
       both hiding inside "Decisions in", which counted them together with
       offers and therefore counted nothing anybody wanted to know.
     -->
+    <!-- Patch 183 (31 Oct): "–" until the list arrives — a 0 for 1.5 s read as
+         "no applications" on a phone. -->
     <div class="out tiles" style="--tiles:6;margin:0 0 20px">
-      <div><b id="kTotal">0</b><span>Shortlisted</span></div>
-      <div><b id="kPrep">0</b><span>In prep</span></div>
-      <div><b id="kSent">0</b><span>Submitted</span></div>
-      <div><b id="kWait">0</b><span>Waitlisted</span></div>
-      <div><b id="kRej">0</b><span>Rejections</span></div>
-      <div><b id="kOffer">0</b><span>Offers</span></div>
+      <div><b id="kTotal">–</b><span>Shortlisted</span></div>
+      <div><b id="kPrep">–</b><span>In prep</span></div>
+      <div><b id="kSent">–</b><span>Submitted</span></div>
+      <div><b id="kWait">–</b><span>Waitlisted</span></div>
+      <div><b id="kRej">–</b><span>Rejections</span></div>
+      <div><b id="kOffer">–</b><span>Offers</span></div>
     </div>
 
     <div class="warnbox" style="background:#eaf1fd;border:1px solid #c2d6f5;color:var(--blue-deep);

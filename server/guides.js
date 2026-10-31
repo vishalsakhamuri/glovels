@@ -691,6 +691,38 @@ function makeGuides(d) {
     } catch (e) { /* the guides and German pages are listed; the rest wait */ }
     return out;
   }
+  /* Patch 183: the same list, built a few universities at a time with a
+     pause between batches, so building it never holds the server for the
+     seconds it takes over 70,000 rows (Render restarts a server that does
+     not answer its health check within 5 s). */
+  async function sitemapEntriesAsync() {
+    const cat = catalogue();
+    const out = [];
+    const live = [...cat.pages.values()].filter(p => p.hits.length);
+    if (live.length) out.push({ path: 'germany-masters-guides', lastmod: live.map(p => p.lastmod).filter(Boolean).sort().pop() || '' });
+    live.forEach(p => out.push({ path: p.g.path, lastmod: p.lastmod }));
+    cat.unis.forEach(u => {
+      if (isLockedUni(u)) return;
+      for (const [id, s] of slugTable(u)) out.push({ path: 'university/' + u.slug + '/' + s, lastmod: cat.stamp.get(id) || '' });
+    });
+    const pause = () => new Promise(r => setImmediate(r));
+    try {
+      const seen = new Set(cat.unis.map(u => u.slug));
+      const mods = typeof db.uniLastmods === 'function' ? db.uniLastmods() : new Map();
+      const hidden = d.hiddenUniversitySlugs ? d.hiddenUniversitySlugs() : new Set();
+      const slugs = typeof db.uniSlugs === 'function' ? db.uniSlugs({}) : [];
+      let i = 0;
+      for (const slug of slugs) {
+        if (++i % 10 === 0) await pause();
+        if (seen.has(slug) || hidden.has(slug)) continue;
+        const u = d.universityOf ? d.universityOf(slug) : null;
+        if (!u || String(u.country).toUpperCase() === 'DE' || isLockedUni(u)) continue;
+        const lm = mods.get(slug) || '';
+        for (const [, s] of slugTable(u)) out.push({ path: 'university/' + u.slug + '/' + s, lastmod: lm });
+      }
+    } catch (e) { /* the guides and German pages are listed; the rest wait */ }
+    return out;
+  }
   const hubLive = () => { try { return [...catalogue().pages.values()].some(p => p.hits.length); } catch (e) { return false; } };
   /** The hub in the footer (beside "All universities") and on /study-in-germany. */
   function withLinks(html, slug) {
@@ -714,7 +746,16 @@ function makeGuides(d) {
     return [...catalogue().pages.values()].filter(p => p.hits.length).map(p => '- [' + p.g.title + '](' + base + '/' + p.g.path + ')');
   }
 
-  return { css: GUIDE_CSS, route, rebuild, sitemapEntries, withLinks, progTitleLink, progPath, slugTable, uniAnswer, uniFaq, llmsLines,
+  /* Patch 183: the guide pages and their hub only (no programme pages) — cheap. */
+  function guideSitemapEntries() {
+    const cat = catalogue();
+    const live = [...cat.pages.values()].filter(p => p.hits.length);
+    const out = [];
+    if (live.length) out.push({ path: 'germany-masters-guides', lastmod: live.map(p => p.lastmod).filter(Boolean).sort().pop() || '' });
+    live.forEach(p => out.push({ path: p.g.path, lastmod: p.lastmod }));
+    return out;
+  }
+  return { css: GUIDE_CSS, route, rebuild, sitemapEntries, sitemapEntriesAsync, guideSitemapEntries, withLinks, progTitleLink, progPath, slugTable, uniAnswer, uniFaq, llmsLines,
     GUIDE_PAGES, isHiddenRow, isLockedUni, landingPage, hubPage, programmePage };
 }
 

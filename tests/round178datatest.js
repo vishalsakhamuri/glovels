@@ -224,7 +224,7 @@ const money = n => (n >= 1e7 ? '₹' + (n / 1e7).toFixed(n % 1e7 ? 1 : 0).replac
   ok('title is the brief\'s, cut to 65', /<title>Success stories — 109 admits &amp; visa approvals \| Glovels<\/title>/.test(ss),
     (/<title>[^<]*<\/title>/.exec(ss) || [])[0]);
   const descM = /<meta name="description" content="([^"]*)">/.exec(ss);
-  ok('description keeps the brief\'s facts within 160', descM && descM[1] === '69 students, 109 admission offers at 51 universities, plus Germany Opportunity Cards, an EU Blue Card and UK Young Professionals visa approvals.'
+  ok('description keeps the brief\'s facts within 160', descM && descM[1] === '69 students, 109 admission offers at 51 universities, plus 10 Germany Opportunity Cards, an EU Blue Card and UK Young Professionals visa approvals.'
     && descM[1].length <= 160, descM && descM[1]);
   const ogT = /<meta property="og:title" content="([^"]*)"/.exec(ss);
   ok('og:title in step with the title', !ogT || /109 admits &amp; visa approvals/.test(ogT[1]), ogT && ogT[1]);

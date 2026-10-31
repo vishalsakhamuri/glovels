@@ -95,6 +95,16 @@ const rows = S.readXlsx(zip);
 check('an empty styled cell reads as blank', rows[1][1] === '', JSON.stringify(rows[1]));
 check('and the cell after it keeps its own column', rows[1][2] === '71', JSON.stringify(rows[1]));
 
+/* Patch 183 (Developer Prompt F4): not mentioned = met, per English test. */
+{
+  const toeflOnly = R.clean({ toeflMin: '90' }).reqs, ieltsOnly = R.clean({ ieltsMin: '6.5' }).reqs;
+  check('F4: IELTS 6.5 clears a programme that states only TOEFL', !R.check(toeflOnly, { ielts: 6.5 }).fails.length,
+    JSON.stringify(R.check(toeflOnly, { ielts: 6.5 }).fails));
+  check('F4: TOEFL 95 clears a programme that states only IELTS', !R.check(ieltsOnly, { toefl: 95 }).fails.length);
+  check('F4: a stated IELTS minimum is still compared', R.check(ieltsOnly, { ielts: 6 }).fails.length === 1);
+  check('F4: no score at all is a question, not a pass', R.check(toeflOnly, {}).unknown.includes('english'));
+}
+
 console.log('reqsunit: ' + ok.length + ' passed, ' + bad.length + ' failed');
 bad.forEach(b => console.log('  FAIL ' + b));
 process.exit(bad.length ? 1 : 0);

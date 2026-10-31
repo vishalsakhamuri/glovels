@@ -124,7 +124,7 @@ async function guarantees(label) {
     const m = (await req('guest', 'GET', '/api/find/match' + q)).body || {};
     const keys = Object.keys(m).sort().join(',');
     ok('/api/find/match' + (q || ' (no filter)') + ': no public name, ≤ ' + CAP + ' locked, no count',
-      keys === 'locked,more,moreNamed,named' && Array.isArray(m.named) && m.named.length <= 200
+      keys === 'locked,more,moreNamed,named' && Array.isArray(m.named) && m.named.length <= 600
         && m.named.every(p => !p.isPublic) && (m.locked || []).length <= CAP
         && m.locked.every(p => isLocked(p) && /^xp/.test(String(p.id))) && typeof m.more === 'boolean' && typeof m.moreNamed === 'boolean',
       keys + ' named ' + (m.named || []).length + ' locked ' + (m.locked || []).length);

@@ -1974,7 +1974,7 @@ function open(dir) {
      * own rules (find.js run) then run over these rows only, so the UK and
      * USA (60,000 rows) are never all in memory for one visitor.
      */
-    findCandidates({ country, level, field, apply, match, universities, publicOnly, privateOnly, limit } = {}) {
+    findCandidates({ country, level, field, apply, match, universities, publicOnly, privateOnly, limit, sort } = {}) {
       const lim = Math.max(1, Math.min(20000, Number(limit) || 4000));
       const lv = String(level || '').toLowerCase();
       const levels = !lv ? null : (lv === 'master' || lv === 'mba') ? ['master', 'mba'] : [lv];
@@ -2003,8 +2003,16 @@ function open(dir) {
         a.push(m, ...unis);
       } else if (m) { w.push('rowid IN (SELECT rowid FROM prog_fts WHERE prog_fts MATCH ?)'); a.push(m); }
       else if (unis.length) { w.push('university IN (' + unis.map(() => '?').join(',') + ')'); a.push(...unis); }
+      /* Patch 183 (review): which rows survive when the set is cut follows
+         the sort asked for — A–Z by programme, cost by the known fee — and
+         otherwise spreads across universities (a fixed shuffle of rowid)
+         instead of taking the alphabetical front: UK searches came back as
+         "Aston" to "Coventry" only. */
+      const order = sort === 'az' ? 'program ASC, university ASC'
+        : sort === 'cost' ? "CASE WHEN fee_indicative = 1 OR total_inr <= 0 THEN 1 ELSE 0 END ASC, total_inr ASC, university ASC"
+        : 'featured DESC, feature_sort ASC, COALESCE(fit, 0) DESC, ((rowid * 7919) % 10007) ASC';
       const rows = db.all('SELECT rowid AS _rid, * FROM programmes WHERE ' + w.join(' AND ')
-        + ' ORDER BY featured DESC, feature_sort ASC, COALESCE(fit, 0) DESC, university ASC, program ASC LIMIT ?', ...a, lim + 1);
+        + ' ORDER BY ' + order + ' LIMIT ?', ...a, lim + 1);
       const kept = rows.slice(0, lim);
       /* Handed back in the order the finder always had them (rowsOnSite's,
          by university) — its sorts are stable, so ties keep falling the way
@@ -2017,6 +2025,11 @@ function open(dir) {
       if (db.kind !== 'sqlite') return this.rowsOnSite().filter(r => r.is_public).map(r => ({ id: r.id, university: r.university, uni_slug: r.uni_slug, is_public: r.is_public }));
       return db.all('SELECT id, university, uni_slug, is_public FROM programmes WHERE active = 1 AND search_only = 0 AND is_public = 1 ORDER BY university');
     },
+    /** Patch 183: distinct programme names on the site, with university and kind — the suggestion filter. */
+    programmeNamesOnSite() {
+      if (db.kind !== 'sqlite') return this.rowsOnSite().map(r => ({ program: r.program, university: r.university, is_public: r.is_public }));
+      return db.all('SELECT DISTINCT program, university, is_public FROM programmes WHERE active = 1 AND search_only = 0');
+    },
     /** Patch 180: one line per on-site university, city and kind — the search box's index. */
     uniNamesOnSite() {
       if (db.kind !== 'sqlite') {
@@ -2024,7 +2037,8 @@ function open(dir) {
         return this.rowsOnSite().filter(r => { const k = [r.university, r.short_name, r.city, r.is_public].join('|'); if (seen.has(k)) return false; seen.add(k); return true; })
           .map(r => ({ university: r.university, short_name: r.short_name, city: r.city, is_public: r.is_public }));
       }
-      return db.all('SELECT DISTINCT university, short_name, city, is_public FROM programmes WHERE active = 1 AND search_only = 0 ORDER BY university');
+      /* Only rows the finder can show (a level and a field), as findCandidates. */
+      return db.all("SELECT DISTINCT university, short_name, city, is_public FROM programmes WHERE active = 1 AND search_only = 0 AND COALESCE(level, '') <> '' AND COALESCE(field, '') <> '' ORDER BY university");
     },
     /** Patch 180: country, level, field and intakes of every on-site row — the finder's facet lists, nothing else. */
     facetRowsOnSite() {

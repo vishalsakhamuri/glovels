@@ -175,6 +175,7 @@ SCRIPT = r"""
 /* POSTS is the page the database sent, not the whole blog — at ten thousand
    posts the list is searched and paged there, a hundred at a time. */
 let POSTS = [], POST_TOTAL = 0, STATS = {}, openId = null, dirty = false;
+const DISK_WORDS = {};   /* Patch 183: id → words, original pages still served from disk */
 
 const fmtWhen = iso => {
   if (!iso) return '';
@@ -268,7 +269,16 @@ function paintList() {
   $('#kLive').textContent = STATS.live == null ? '—' : STATS.live;
   $('#kDraft').textContent = STATS.draft == null ? '—' : STATS.draft;
   $('#kEmpty').textContent = STATS.empty == null ? '—' : STATS.empty;
-  $('#kWords').textContent = (STATS.words || 0).toLocaleString('en-IN');
+  /* Patch 183 (31 Oct): the server's stats.words sums status 'published'
+     only, so the six original posts (drafts still served from post/*.html,
+     counted as live above) added nothing and the tile read 0. Their words
+     are added here from the rows this screen has been sent. */
+  POSTS.forEach(p => {
+    if (p.onDisk && p.status !== 'published' && p.status !== 'archived') DISK_WORDS[p.id] = p.words || 0;
+    else delete DISK_WORDS[p.id];
+  });
+  const diskWords = Object.values(DISK_WORDS).reduce((n, w) => n + w, 0);
+  $('#kWords').textContent = ((STATS.words || 0) + diskWords).toLocaleString('en-IN');
   $('#postPager').innerHTML = pagerHtml('post', POST_TOTAL, 'posts', () => { load().catch(e => toast(e.message)); });
 
   $('#postList').innerHTML = POSTS.map(p =>

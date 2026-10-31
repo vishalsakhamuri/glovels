@@ -20,7 +20,16 @@ BODY = """
     <section class="pane" id="pane-browse">
       <div class="p-card" style="margin-bottom:16px">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+          <!-- Patch 183 (31 Oct): a search and the level, both asked of the server
+               (/api/find/match) — the catalogue sent with the page is a sample. -->
+          <div class="field" style="grid-column:1/-1"><label for="fQ">Search</label>
+            <input id="fQ" type="search" maxlength="80" autocomplete="off" style="cursor:text"
+              placeholder="University, programme or city"></div>
           <div class="field"><label>Destination</label><select id="fCountry"></select></div>
+          <div class="field"><label for="fLevel">Level</label><select id="fLevel">
+            <option value="">Any level</option><option value="bachelor">Bachelor’s</option>
+            <option value="master">Master’s &amp; MBA</option><option value="phd">PhD</option>
+            <option value="diploma">Diploma</option><option value="foundation">Foundation</option></select></div>
           <div class="field"><label>Budget band</label><select id="fBand">
             <option value="">Any budget</option><option value="u10">Under ₹10L</option>
             <option value="u20">Under ₹20L</option><option value="above20">₹20L+</option>
@@ -64,7 +73,8 @@ function feeTbc(p) {
 }
 /* Round 178 (owner): a fee from an agent portal is indicative — never
    shown to a student, filtered or sorted on. */
-const feeIndicative = p => !!(p && (p.feeIndicative === true || /agent/i.test(String(p.feeSource || p.fee_source || ''))));
+/* Patch 183: /api/find/match marks the same rows feeHidden (totalInr 0). */
+const feeIndicative = p => !!(p && (p.feeIndicative === true || p.feeHidden === true || /agent/i.test(String(p.feeSource || p.fee_source || ''))));
 function money(p) {
   if (feeIndicative(p)) return 'Fee on request';
   if (feeTbc(p) || p.totalInr == null || isNaN(Number(p.totalInr))) return 'Fee to be confirmed';
@@ -584,12 +594,22 @@ function paintMine() {
 
 let shown = 12;
 let outOfReach = 0;
+let Q_HITS = null, MORE_NAMED = false;   /* Patch 183: the server's answer to the search, and whether it held rows back */
 function filtered() {
   const c = $('#fCountry').value, b = $('#fBand').value, t = $('#fType').value, s = $('#fSort').value;
   const r = ($('#fReach') || {}).value || 'mine';
+  /* Patch 183: the level (Master's takes the MBAs too) and the search box.
+     A row the server matched for these words counts even when the words
+     are not in its name; offline, the words are looked for in the row. */
+  const lv = ($('#fLevel') || {}).value || '';
+  const words = (($('#fQ') || {}).value || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const levelOk = p => !lv || !p.level || p.level === lv || (lv === 'master' && p.level === 'mba');
+  const qOk = p => !words.length || (Q_HITS && Q_HITS.has(String(p.id))) ||
+    words.every(w => [p.university, p.program, p.city, p.field, p.shortName]
+      .join(' ').toLowerCase().includes(w));
   let l = POOL.filter(p =>
     (!c || p.country === c) && (!b || p.band === b) &&
-    (!t || feeOf(p) === t));
+    (!t || feeOf(p) === t) && levelOk(p) && qOk(p));
   /* Counted before it is applied, so the line under the filters can say how
      many were held back rather than leaving the student to wonder why a
      country they know has fifty universities is showing four. Hiding them
@@ -632,6 +652,11 @@ function paintBrowse() {
           ? '  Some ask for a higher CGPA than ' + mine + ', or more than your profile shows' +
             ' — switch to “Show every programme” to see them.'
           : ''));
+  /* Patch 183: the server sends the first screens of a big destination; at
+     the end of them, say how to reach the rest — never how many there are. */
+  if (MORE_NAMED && l.length && shown >= l.length) {
+    $('#cCount').textContent += '  There are more — search or narrow the filters to find them.';
+  }
   $('#allGrid').innerHTML = l.slice(0, shown).map(p => card(p, ids.includes(p.id))).join('');
   $('#moreBtn').style.display = shown >= l.length ? 'none' : '';
 }
@@ -712,15 +737,88 @@ document.addEventListener('click', e => {
     return;
   }
 });
-['fCountry','fBand','fType','fReach','fSort'].forEach(id =>
+/* Patch 183 (31 Oct): BROWSE ASKS THE SERVER.
+   /api/catalogue now sends a sample (a few hundred private rows a
+   destination), so most UK and US programmes were never in POOL and could
+   not be found. Each change of destination, level, search, way of applying
+   or sort asks /api/find/match for that set and merges its named rows into
+   POOL by id — shortlist rows stay, and qualifies(), the band and the sort
+   above still decide what is shown. The level opens on the profile's. */
+const MATCH_SORT = { fit: 'fit', cost: 'cost', dl: 'deadline', uni: 'az' };
+const MATCH_SEEN = new Map();
+let matchReq = 0;
+function mergeNamed(rows) {
+  const built = Object.fromEntries(CAT.map(p => [String(p.id), p]));
+  const at = new Map(POOL.map((p, i) => [String(p.id), i]));
+  rows.forEach(r => {
+    const id = String(r.id);
+    const was = (at.has(id) ? POOL[at.get(id)] : built[id]) || {};
+    const row = Object.assign({}, was, r);
+    /* A masked row carries no name — as buildPool does. */
+    if (!r.university) row.university = was.university || '';
+    if (!r.program) row.program = was.program || '';
+    if (!row.university) return;
+    if (at.has(id)) POOL[at.get(id)] = row; else { at.set(id, POOL.length); POOL.push(row); }
+    byId[row.id] = row;
+  });
+}
+async function askServer() {
+  const c = $('#fCountry').value, lv = $('#fLevel').value, q = $('#fQ').value.trim();
+  const t = $('#fType').value, s = MATCH_SORT[$('#fSort').value] || '';
+  const mine = ++matchReq;
+  if (!c && !lv && !q) { Q_HITS = null; MORE_NAMED = false; return false; }   /* the sample is the answer */
+  const qs = new URLSearchParams();
+  if (c) qs.set('country', c);
+  if (lv) qs.set('level', lv);
+  if (q) qs.set('q', q);
+  if (t) qs.set('apply', t);
+  if (s) qs.set('sort', s);
+  const key = qs.toString();
+  let d = MATCH_SEEN.get(key);
+  if (!d) {
+    try {
+      const r = await fetch('/api/find/match?' + key, { credentials: 'same-origin' });
+      d = r.ok ? await r.json() : null;
+    } catch (e) { d = null; }   /* offline: the sample and the words in the row */
+    if (d) {
+      MATCH_SEEN.set(key, d);
+      if (MATCH_SEEN.size > 30) MATCH_SEEN.delete(MATCH_SEEN.keys().next().value);
+    }
+  }
+  if (mine !== matchReq) return false;   /* a newer question is on its way */
+  if (!d) { Q_HITS = null; MORE_NAMED = false; return true; }
+  mergeNamed(Array.isArray(d.named) ? d.named : []);
+  Q_HITS = q ? new Set((d.named || []).map(r => String(r.id))) : null;
+  MORE_NAMED = !!d.moreNamed;
+  return true;
+}
+async function refreshBrowse() {
+  if (await askServer()) { paintTypeChoices(); paintBrowse(); }
+}
+$('#fLevel').value = (function (v) {
+  const s = String(v || '');
+  return /master|mba/i.test(s) ? 'master' : /bachelor/i.test(s) ? 'bachelor'
+    : /phd|doctor/i.test(s) ? 'phd' : /foundation|pathway/i.test(s) ? 'foundation'
+    : /diploma/i.test(s) ? 'diploma' : '';
+})(((typeof DB !== 'undefined' && DB.profile) || {}).g_level);
+let qTimer = null;
+$('#fQ').addEventListener('input', () => {
+  Q_HITS = null; shown = 12; paintBrowse();
+  clearTimeout(qTimer);
+  qTimer = setTimeout(refreshBrowse, 300);
+});
+
+['fCountry','fLevel','fBand','fType','fReach','fSort'].forEach(id =>
   $('#' + id).addEventListener('change', () => {
     /* The destination decides which of the other questions are worth asking,
        so it repaints them before the list is redrawn. */
     if (id === 'fCountry') paintTypeChoices();
     shown = 12; paintBrowse();
+    if (id !== 'fBand' && id !== 'fReach') refreshBrowse();
   }));
 $('#moreBtn').addEventListener('click', () => { shown += 12; paintBrowse(); });
 
 paintTypeChoices();
 paintMine(); paintBrowse();
+refreshBrowse();
 """

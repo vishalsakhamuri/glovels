@@ -106,7 +106,10 @@ try { chromium = require('playwright').chromium; } catch (e) { /* node-only run 
   r = await j('/api/tags?q=x');
   check('/api/tags: one letter answers nothing', r.body.suggestions.length === 0);
   r = await j('/api/tags?q=it%20security');
-  check('/api/tags: falls back to programme names when the dictionary has none', r.body.suggestions.some(x => x.type === 'Programme' && /it security/i.test(x.value)), JSON.stringify(r.body.suggestions.slice(0, 2)));
+  /* Patch 183 (secrecy): "IT Security" is a German PUBLIC programme — a
+     signed-out visitor is not offered its name (nor any count). */
+  check('/api/tags: a public programme name is not offered to a visitor, and no counts', !r.body.suggestions.some(x => x.type === 'Programme' && /it security/i.test(x.value))
+    && r.body.suggestions.every(x => x.count === undefined), JSON.stringify(r.body.suggestions.slice(0, 2)));
 
   r = await j('/api/catalogue');
   const rows = r.body.programmes || [];

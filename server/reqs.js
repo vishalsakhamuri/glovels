@@ -297,8 +297,13 @@ function check(reqs, student) {
   const wantI = num(r.ieltsMin), wantT = num(r.toeflMin);
   if (wantI != null || wantT != null) {
     const haveI = num(s.ielts), haveT = num(s.toefl);
-    const okI = wantI != null && haveI != null && haveI >= wantI;
-    const okT = wantT != null && haveT != null && haveT >= wantT;
+    /* Patch 183 (Developer Prompt F4, review 31 Oct): "not mentioned = met",
+       per test. A student with IELTS clears a programme that states no IELTS
+       minimum (only TOEFL, say), and the same the other way round; a stated
+       minimum is compared. Before, IELTS 6.5 failed "TOEFL 90" and the row
+       was hidden from them on the public side. */
+    const okI = haveI != null && (wantI == null || haveI >= wantI);
+    const okT = haveT != null && (wantT == null || haveT >= wantT);
     const wantTxt = [wantI != null ? 'IELTS ' + wantI : null, wantT != null ? 'TOEFL ' + wantT : null].filter(Boolean).join(' or ');
     const haveTxt = [haveI != null ? 'IELTS ' + haveI : null, haveT != null ? 'TOEFL ' + haveT : null].filter(Boolean).join(', ');
     if (okI || okT) { /* clears */ }

@@ -483,7 +483,8 @@ function render(deps) {
   const title = 'Success stories — ' + data.admits.length + ' admits & visa approvals';
   const desc = students + ' students, ' + n(data.admits.length, 'admission offer', 'admission offers')
     + ' at ' + n(unis, 'university', 'universities')
-    + (cards ? ', plus ' + (cards === 1 ? 'a Germany Opportunity Card' : 'Germany Opportunity Cards') : '')
+    /* Patch 183 (review): the number, as the brief has it ("10 Germany Opportunity Cards"). */
+    + (cards ? ', plus ' + (cards === 1 ? 'a Germany Opportunity Card' : cards + ' Germany Opportunity Cards') : '')
     + (blue ? ', ' + (blue === 1 ? 'an EU Blue Card' : blue + ' EU Blue Cards') : '')
     + (yps ? ' and UK Young Professionals visa approvals' : '')
     + '.';

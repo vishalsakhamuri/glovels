@@ -3656,7 +3656,17 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const limit = Math.max(1, Math.min(60, Number(qs.limit) || 24));
     const types = String(qs.types || '').split(',').map(t => t.trim()).filter(Boolean);
     if (q.length < 2) return json(res, 200, { suggestions: [] });
-    let suggestions = TAGS.suggest(q, { limit, types: types.length ? types : null });
+    /* Patch 183 (secrecy, review 31 Oct): this box is open to anyone, and it
+       handed a signed-out visitor German PUBLIC programme names ("Manuscript
+       Cultures · 1") with counts. Now, unless the viewer is staff or the
+       office has published names: no count on any suggestion, and a
+       programme name is offered only when a row the viewer may see named
+       carries it (a private one, or a public one their package names). */
+    const ent = entitlement(req);
+    const open = ent.staff || ent.gate === 'open' || ent.gate === 'names';
+    const namedProg = open ? null : namedProgrammeKeys(ent);
+    const allowed = sg => sg.type !== 'Programme' || open || namedProg.has(TAGS.fold(sg.value));
+    let suggestions = TAGS.suggest(q, { limit: Math.min(60, limit * 2), types: types.length ? types : null }).filter(allowed).slice(0, limit);
     if (!suggestions.length && (!types.length || types.includes('Programme'))) {
       const seen = new Set();
       const rows = (typeof db.searchRows === 'function' ? db.searchRows(q, 200).map(UNIS.fromRow) : cat().filter(p => TAGS.match(p, [], q)));
@@ -3664,11 +3674,13 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         const name = String(p.program || '').trim();
         const k = TAGS.fold(name);
         if (!name || !k || seen.has(k) || p.searchOnly) return;
+        if (p.isPublic && !ent.mayName(p)) return;
         seen.add(k);
         suggestions.push({ value: name, type: 'Programme', count: 1 });
       });
       suggestions = suggestions.slice(0, limit);
     }
+    if (!ent.staff) suggestions = suggestions.map(sg => { const o = Object.assign({}, sg); delete o.count; return o; });
     return json(res, 200, { suggestions });
   }, { open: true });
 
@@ -3689,6 +3701,29 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    *          order — the same walk /api/catalogue takes, so the two agree
    *   mayName(p)  whether a public row comes back with its name
    */
+  /* Patch 183: the folded programme names a viewer may be offered — every
+     private on-site programme, plus the public ones at universities their
+     package names. The private list is remembered per catalogue version. */
+  let progNameMemo = null;
+  function namedProgrammeKeys(ent) {
+    const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+    if (!progNameMemo || progNameMemo.v !== v) {
+      const rows = typeof db.programmeNamesOnSite === 'function' ? db.programmeNamesOnSite()
+        : cat().filter(p => !p.searchOnly).map(p => ({ program: p.program, university: p.university, is_public: p.isPublic }));
+      const priv = new Set(), pubByUni = new Map();
+      rows.forEach(r => {
+        const k = TAGS.fold(r.program);
+        if (!k) return;
+        if (!r.is_public) priv.add(k);
+        else { const u = UNIS.uKeyOf(r.university); if (!pubByUni.has(u)) pubByUni.set(u, []); pubByUni.get(u).push(k); }
+      });
+      progNameMemo = { v, priv, pubByUni };
+    }
+    if (!ent.named || !ent.named.size) return progNameMemo.priv;
+    const out = new Set(progNameMemo.priv);
+    ent.named.forEach(u => (progNameMemo.pubByUni.get(u) || []).forEach(k => out.add(k)));
+    return out;
+  }
   /* Patch 180: { id, uKey } of every public on-site row, in rowsOnSite order. */
   const publicWalk = () => (typeof db.publicOnSite === 'function'
     ? db.publicOnSite().map(r => ({ id: r.id, uKey: UNIS.uKeyOf(r.university) }))
@@ -3702,7 +3737,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (typeof db.findCandidates !== 'function') {
       return { rows: cat().filter(p => !p.searchOnly && (!extra || !extra.publicOnly || p.isPublic)), more: false };
     }
-    const base = Object.assign({ country: f.country, level: f.level, field: f.field, apply: f.apply, limit: CAND_MAX }, extra || {});
+    const base = Object.assign({ country: f.country, level: f.level, field: f.field, apply: f.apply, sort: f.sort, limit: CAND_MAX }, extra || {});
     let got = db.findCandidates(base);
     if (got.more && f.q) {
       const ix = uniIndex();
@@ -4076,9 +4111,12 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * the same lockedMatches() /api/find/locked uses. `moreNamed` says the
    * named list was cut — never by how much.
    */
-  const NAMED_CAP = 200;
+  /* Patch 183 (review): 600 named rows a response (a UK master's search in
+     one field is ~465) — the page shows 40 and "Show more" walks the rest
+     without asking again. The cache holds 20 answers at that size. */
+  const NAMED_CAP = 600;
   const matchCache = new Map();
-  const MATCH_CACHE_MAX = 50, MATCH_TTL_MS = 2 * 60 * 1000;
+  const MATCH_CACHE_MAX = 20, MATCH_TTL_MS = 2 * 60 * 1000;
   route('GET', '/api/find/match', async (req, res) => {
     if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
     const f = FIND.parse(url.parse(req.url).query || '');
@@ -4104,7 +4142,24 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const strip = p => { const o = {}; Object.keys(p).forEach(k => { if (k[0] !== '_') o[k] = p[k]; }); return o; };
       const lf = Object.assign({}, f); delete lf.sort;
       const capped = FIND.capLocked(lockedMatches(ent, lf).map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
-      hit = { v, at: now, named: R.rows.slice(0, NAMED_CAP).map(strip), lockedReal: capped.rows,
+      /* Patch 183 (review): when the list has to be cut, take the universities
+         in turn (each one's rows in the finder's order) so a wide search shows
+         every university it matched — "london" was 600 rows of three. The
+         page sorts what it receives, so this decides only WHICH rows travel. */
+      let keep = R.rows;
+      if (keep.length > NAMED_CAP) {
+        const groups = new Map();
+        keep.forEach(p => { const k = p.uKey || p.university || p.id; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+        const lists = [...groups.values()], picked = [];
+        for (let round = 0; picked.length < NAMED_CAP; round++) {
+          let any = false;
+          for (const g of lists) { if (picked.length >= NAMED_CAP) break; if (round < g.length) { picked.push(g[round]); any = true; } }
+          if (!any) break;
+        }
+        const chosen = new Set(picked);
+        keep = R.rows.filter(p => chosen.has(p));
+      }
+      hit = { v, at: now, named: keep.slice(0, NAMED_CAP).map(strip), lockedReal: capped.rows,
         more: capped.more, moreNamed: cand.more || R.rows.length > NAMED_CAP };
       matchCache.delete(key);
       matchCache.set(key, hit);
@@ -5416,7 +5471,9 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       const indicative = !!(raw.fee_indicative || p.feeIndicative === true || /agent/i.test(String(raw.fee_source || p.feeSource || '')));
       const t = q.tuitionEurSem;
       let fee = t === 0 ? 'No tuition fee' : (t != null && t !== '') ? '€' + Number(t).toLocaleString('en-IN') + ' / semester'
-        : Number(p.totalInr || r.total_inr || 0) > 0 ? inr(p.totalInr || r.total_inr) + ' total' : (p.isPublic || r.is_public ? 'No tuition fee' : 'Not stated');
+        /* Patch 183: the catalogue row's fee as fromRow reads it (a sub-₹2 lakh
+           portal figure is "not stated"), not the raw column behind it. */
+        : Number(raw.id ? UNIS.fromRow(raw).totalInr : (p.totalInr || r.total_inr || 0)) > 0 ? inr(raw.id ? UNIS.fromRow(raw).totalInr : (p.totalInr || r.total_inr)) + ' total' : (p.isPublic || r.is_public ? 'No tuition fee' : 'Not stated');
       if (indicative && fee !== 'Not stated') fee += ' (indicative)';
       const eng = [q.ieltsMin != null ? 'IELTS ' + q.ieltsMin : '', q.toeflMin != null ? 'TOEFL ' + q.toeflMin : ''].filter(Boolean).join(' / ')
         + (q.moiAccepted === true ? '; MOI accepted' : q.moiAccepted === 'maybe' ? '; MOI possibly accepted' : '');
@@ -10328,13 +10385,14 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
        server that read alone restarted the site. */
     const n = country ? Number(db.countByCountry()[country] || 0)
       : (typeof db.catalogueStats === 'function' ? Number(db.catalogueStats().total || 0) : 0);
-    if (m[1] === 'xlsx' && n > 20000) {
-      return json(res, 413, { error: 'That is ' + n.toLocaleString('en-IN')
-        + ' rows — too many for one Excel file. Download the CSV, or one country at a time.' });
-    }
+    /* Patch 183 (review): over 20,000 rows an Excel file is not built at all —
+       the UK's 34,000 peaked at 500 MB and held the server for seconds — and
+       the same rows come back as a CSV file, which Excel opens, instead of a
+       page of JSON the office's download link showed raw. */
+    const asCsv = m[1] === 'csv' || n > 20000;
     /* The whole catalogue as CSV: written one country at a time, so only one
        country's rows are ever in memory. */
-    if (m[1] === 'csv' && typeof db.rowsAllPage === 'function') {
+    if (asCsv && typeof db.rowsAllPage === 'function') {
       res.writeHead(200, {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="glovels-catalogue-${stamp}.csv"`,

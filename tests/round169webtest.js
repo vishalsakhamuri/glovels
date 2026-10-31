@@ -142,6 +142,11 @@ const nProg = h => (h.match(/<article class="frow/g) || []).length;
   const namedKeys = new Set(anonCat.filter(p => p.university).map(p => String(p.uKey)));
   for (const q of ['TU Munich', 'TUM', 'TU München', 'Bremen']) {
     const keys = (await req('anon', 'GET', '/api/find/unis?q=' + encodeURIComponent(q))).body.keys || [];
+    /* Patch 183: /api/catalogue is a sample now (300 private rows a
+       destination); the universities a visitor sees named for these words
+       also come from /api/find/match, so those count as shown by name too. */
+    (((await req('anon', 'GET', '/api/find/match?q=' + encodeURIComponent(q))).body || {}).named || [])
+      .filter(p => p.university).forEach(p => namedKeys.add(String(p.uKey)));
     const h = await page('/find-university?q=' + encodeURIComponent(q));
     const locked = (h.match(/frow locked/g) || []).length;
     ok('"' + q + '": every key handed to a visitor belongs to a university shown by name (round 175)', keys.every(k => namedKeys.has(String(k))), keys.length + ' keys, ' + locked + ' locked; ' + summary(h));

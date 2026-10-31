@@ -267,7 +267,12 @@ function fromRow(r) {
   return {
     id: r.id, program: spaceDegree(r.program), university: r.university, city: r.city || '',
     country: r.country, level: r.level || '', field: r.field || '', band: r.band || '',
-    isPublic: !!r.is_public, fit: r.fit || null, totalInr: r.total_inr || 0,
+    isPublic: !!r.is_public, fit: r.fit || null,
+    /* Patch 183 (review): an agent-portal total under ₹2 lakh is not a degree's
+       cost — it is an application or per-credit fee the import took for
+       tuition (The New School MS at ₹5,510; 1,087 such rows). Read as not
+       known, so it never wins a budget match or reaches the shortlist sheet. */
+    totalInr: (r.fee_indicative && Number(r.total_inr) > 0 && Number(r.total_inr) < 200000) ? 0 : (r.total_inr || 0),
     feeModel: r.fee_model === 'free' || r.fee_model === 'package' ? r.fee_model : (r.is_public ? 'package' : 'free'),
     minCgpa: r.min_cgpa == null ? null : Number(r.min_cgpa),
     germanGpa: r.german_gpa == null ? null : Number(r.german_gpa),

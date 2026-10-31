@@ -229,13 +229,18 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
        and the list is run AGAIN on the named rows plus the kept dozen, so
        the 70/30 mix and the ranking are made of what the page will draw. */
     rows.forEach((p, i) => { p._ix = i; });
-    let R = FIND.run(rows, f, REQS, { countries, uniKeys });
+    /* Patch 183 (review): over a large set (a word typed with no destination)
+       the option counts were most of the 4-7 s this page took; the options
+       come from facetLists anyway, so they are skipped there. */
+    const noFacets = typeof facetLists === 'function' && rows.length > 1500;
+    let R = FIND.run(rows, f, REQS, { countries, uniKeys, noFacets });
     const capped = FIND.capLocked(R.rows, FIND.LOCKED_CAP);
     let more = capped.more;
     if (more) {
       const kept = new Set(capped.rows.filter(p => p._locked).map(p => p._ix));
-      R = FIND.run(rows.filter(p => !FIND.locked(p) || kept.has(p._ix)), f, REQS, { countries, uniKeys });
+      R = FIND.run(rows.filter(p => !FIND.locked(p) || kept.has(p._ix)), f, REQS, { countries, uniKeys, noFacets });
     }
+    if (!R.facets) R.facets = { country: {}, level: {}, field: {}, intake: {}, apply: { free: 1, package: 1 }, tuition0: 1 };
     /* Patch 180: the rows were narrowed in the database, so the rail's
        options come from the whole catalogue's lists (facetLists); an option
        this address's rows do not hold is offered, not dimmed. */
@@ -261,7 +266,10 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
       /* Round 15 Oct (6): the banner's eyebrow and chips. Owner rule: no
          programme or university counts in it — how many countries is fine. */
       HERO: HERO.attrs({ eyebrow: 'Find university', chips: [
-        [(() => { const n = new Set(rows.map(p => p.country)).size; return n + ' countr' + (n === 1 ? 'y' : 'ies'); })(), 'to choose from'],
+        /* Patch 183: the destinations on offer (owner: "15 destination
+           countries"), not the countries of the rows on this address — the
+           rows are narrowed in the database now, so that read "1 country". */
+        [(() => { const n = Object.keys(countries || {}).length; return n + ' countr' + (n === 1 ? 'y' : 'ies'); })(), 'to choose from'],
         ['Public', 'and private universities'],
         ['Free', 'to apply at affiliated universities'],
       ] }),
@@ -499,7 +507,7 @@ function render(){
   else if (ml) ml.remove();
   /* Patch 180: the server sent the first screen of a very wide search. */
   var mn = $('#fmoreNamed'), wantNamed = namedMore && lockedFor === lk && slice.length && capped.rows.length <= shown;
-  if (wantNamed) { if (!mn) { mn = document.createElement('div'); mn.className = 'fmore-locked'; mn.id = 'fmoreNamed'; ($('#fmoreLocked') || list).after(mn); } mn.textContent = 'These are the closest matches — choose a level or a field to see more.'; }
+  if (wantNamed) { if (!mn) { mn = document.createElement('div'); mn.className = 'fmore-locked'; mn.id = 'fmoreNamed'; ($('#fmoreLocked') || list).after(mn); } mn.textContent = (f.level && f.field) ? 'These are the closest matches — add a budget, an intake or a search word to narrow them.' : 'These are the closest matches — choose a level or a field to see more.'; }
   else if (mn) mn.remove();
   var pg = $('.fpage');
   if (capped.rows.length > shown) {
