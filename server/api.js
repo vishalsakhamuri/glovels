@@ -2648,13 +2648,6 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     const c = String(currency || '').toUpperCase();
     return !!c && c !== 'INR' && FX.currencies().includes(c);
   };
-  /* The same basket at its taxable value — every price without the 18%. */
-  const exGst = paise => Math.round(Number(paise || 0) / (1 + GST_RATE));
-  const exGstBasket = bk => Object.assign({}, bk, {
-    pkg: bk.pkg ? Object.assign({}, bk.pkg, { paise: exGst(bk.pkg.paise) }) : null,
-    items: bk.items.map(x => Object.assign({}, x, { paise: exGst(x.paise) })),
-    gross: (bk.pkg ? exGst(bk.pkg.paise) : 0) + bk.items.reduce((t, x) => t + exGst(x.paise), 0),
-  });
 
   function basketFrom(b, opts) {
     const pkg = b.packageId ? PACKAGES()[b.packageId] : null;
@@ -2812,14 +2805,16 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
 
     const basket0 = basketFrom(b);
     if (basket0.error) return json(res, basket0.code, { error: basket0.error });
-    /* Patch 190 (owner): a buyer abroad paying in their own currency is an
-       export of services — zero-rated, so they pay the price WITHOUT GST
-       (the taxable value), and the order is marked as an export. Paying in
-       rupees is an Indian sale, GST included, as before. */
+    /* Patch 190/192 (owner): a buyer abroad paying in their own currency is
+       an export of services — zero-rated: the order is marked as an export
+       and carries no GST. The price itself does not change. Paying in rupees
+       is an Indian sale, GST included, as before. */
     /* Not for a buyer whose connection is in India: paying in dollars from
        Hyderabad is still an Indian sale, GST included. */
     const exportSale = isExport(b.currency) && geoFor(req).country !== 'IN';
-    const basket = exportSale ? exGstBasket(basket0) : basket0;
+    /* Patch 192 (owner): the PRICE is the same for everyone — an export sale
+       is not cheaper; the whole amount is simply revenue with no GST in it. */
+    const basket = basket0;
     const { pkg, items, gross, label } = basket;
 
     /* ADM-06 / STU-07: a signed-in STUDENT buys as themselves. The order

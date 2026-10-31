@@ -253,9 +253,9 @@ async function boot(port, env) {
     check('the gateway is asked in USD, rounded up to a whole dollar',
       usdMade.currency === 'USD' && usdMade.amount === wantCents,
       usdMade.currency + ' ' + usdMade.amount + ' vs ' + wantCents);
-    check('a buyer paying in dollars is not charged GST (export of services)',
+    check('a buyer paying in dollars pays the same price, with no GST in it (export of services)',
       usd.body.exportSale === true && usd.body.taxPaise === 0
-        && usd.body.grossPaise === Math.round(made.body.grossPaise / 1.18),
+        && usd.body.grossPaise === made.body.grossPaise,
       usd.body.grossPaise + ' vs ' + made.body.grossPaise);
     check('the page is told the currency and amount it will be charged',
       usd.body.razorpay && usd.body.razorpay.currency === 'USD'

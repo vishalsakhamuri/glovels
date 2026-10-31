@@ -128,16 +128,9 @@
     return nice(inr / r);
   }
 
-  /* Patch 190 (owner): outside India there is no GST — an export of
-     services. Every foreign-currency figure is the price WITHOUT the 18%,
-     the same sum the server charges (api.js exGstBasket). */
-  function exg(inr, cfg) {
-    /* A visitor in India pays GST whatever currency they pick (the server
-       applies the same rule). */
-    if (cfg && cfg.geo && cfg.geo.country === 'IN') return Math.round(Number(inr || 0));
-    var g = Number((cfg && cfg.gstRate) || 0.18);
-    return Math.round(Number(inr || 0) / (1 + g));
-  }
+  /* Patch 192 (owner): the price is the same for a buyer abroad — no GST is
+     charged, but nothing is taken off either. */
+  function exg(inr) { return Math.round(Number(inr || 0)); }
   function local(inr, code, cfg) { return money(convert(exg(inr, cfg), code, cfg), code); }
 
   function money(n, code) {
@@ -378,11 +371,9 @@
         continue;
       }
       if (rn) {
-        /* The rupee figure beside it is the export price too (no GST). */
+        /* The rupee figure beside it, marked GST-free for this buyer. */
         if (!rn.getAttribute('data-glv-orig')) rn.setAttribute('data-glv-orig', rn.textContent);
-        var exText = rn.getAttribute('data-glv-orig').replace(RUPEE, function (m0, a) {
-          return '\u20b9' + exg(Number(a.replace(/,/g, '')), CFG).toLocaleString('en-IN');
-        }) + ' + no GST';
+        var exText = rn.getAttribute('data-glv-orig').trim() + ' \u00b7 no GST';
         if (rn.textContent !== exText) rn.textContent = exText;
       }
       var pre = rn ? rn.textContent.slice(0, rn.textContent.indexOf('\u20b9')).trim() : '';
@@ -407,7 +398,7 @@
       var base = sp.getAttribute('data-glv-text');
       if (!base) { base = sp.textContent; sp.setAttribute('data-glv-text', base); }
       var p = inrIn(base); if (!p) continue;
-      var t2 = ' (\u2248 ' + local(p, code, CFG) + ', no GST)';
+      var t2 = ' (\u2248 ' + local(p, code, CFG) + ')';
       if (!tag) { tag = document.createElement('span'); tag.className = 'glv-local'; sp.appendChild(tag); }
       if (tag.textContent !== t2) tag.textContent = t2;
     }
