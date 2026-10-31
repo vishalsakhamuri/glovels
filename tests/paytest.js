@@ -96,6 +96,8 @@ async function boot(port, env) {
       RAZORPAY_KEY_SECRET: KEY_SECRET,
       RAZORPAY_WEBHOOK_SECRET: HOOK_SECRET,
       RAZORPAY_API_BASE: 'http://localhost:' + FAKE_PORT,
+      /* Patch 196: as if a CDN set the country header. */
+      GEO_TRUST_HEADER: 'cf-ipcountry',
     }));
 
     /* --------------------------------------------------- it says it is on */

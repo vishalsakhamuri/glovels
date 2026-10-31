@@ -139,8 +139,16 @@ const HEADERS = ['cf-ipcountry', 'cloudfront-viewer-country', 'x-vercel-ip-count
 
 /** { country, currency, source } for a request. `ip` is the caller's
  *  idea of the client address (the API's clientIp). */
+/* Patch 196: a country header is only as honest as whoever sets it. With no
+   CDN in front (Render on its own) ANY visitor can send `cf-ipcountry: US` —
+   and that decided GST, the seller and the gateway. So these headers are
+   believed only when GEO_TRUST_HEADER names the one our CDN sets (e.g.
+   cf-ipcountry once Cloudflare is in front); otherwise the IP decides —
+   the IP Render itself appends, which a visitor cannot forge. */
+const trusted = () => String(process.env.GEO_TRUST_HEADER || '').trim().toLowerCase();
 function forRequest(req, ip) {
-  for (const h of HEADERS) {
+  const t = trusted();
+  for (const h of (t && HEADERS.includes(t) ? [t] : [])) {
     const v = String((req.headers && req.headers[h]) || '').trim().toUpperCase();
     if (/^[A-Z]{2}$/.test(v) && v !== 'XX' && v !== 'T1') return { country: v, currency: currencyFor(v), source: 'cdn' };
   }

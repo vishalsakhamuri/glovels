@@ -101,7 +101,7 @@ const hook = obj => {
     env: Object.assign({}, process.env, { PORT: String(PORT), DATA_DIR: dir,
       RAZORPAY_KEY_ID: 'rzp_test_x', RAZORPAY_KEY_SECRET: 'rzs', RAZORPAY_WEBHOOK_SECRET: 'rzh',
       RAZORPAY_API_BASE: 'http://localhost:' + RZP_PORT,
-      STRIPE_SECRET_KEY: SK, STRIPE_WEBHOOK_SECRET: HOOK, STRIPE_API_BASE: 'http://localhost:' + ST_PORT }) });
+      STRIPE_SECRET_KEY: SK, STRIPE_WEBHOOK_SECRET: HOOK, GEO_TRUST_HEADER: 'cf-ipcountry', STRIPE_API_BASE: 'http://localhost:' + ST_PORT }) });
   try {
     for (let i = 0; i < 50; i++) { await new Promise(r => setTimeout(r, 400)); if ((await call('/api/health')).status === 200) break; }
 

@@ -52,15 +52,22 @@ const get = (port, p, headers) => new Promise(r => http.get({ host: 'localhost',
   check('an IPv4-mapped IPv6 address', GEO.countryOfIp('::ffff:200.0.3.4') === 'BR');
   check('rubbish is nobody', GEO.countryOfIp('not-an-ip') === '');
   check('and a packed copy is kept on disk', fs.existsSync(dir + '/geo-country.bin'));
+  /* Patch 196: a header a visitor can type is ignored unless we said our CDN sets it. */
+  const forged = GEO.forRequest({ headers: { 'cf-ipcountry': 'pk' } }, '41.58.1.1');
+  check('a country header nobody vouched for is ignored — the IP decides', forged.country === 'NG' && forged.source === 'ip', JSON.stringify(forged));
+  process.env.GEO_TRUST_HEADER = 'cf-ipcountry';
   const cdn = GEO.forRequest({ headers: { 'cf-ipcountry': 'pk' } }, '41.58.1.1');
-  check('a CDN country header wins over the IP', cdn.country === 'PK' && cdn.currency === 'PKR' && cdn.source === 'cdn');
+  check('the CDN header we trust (GEO_TRUST_HEADER) wins over the IP', cdn.country === 'PK' && cdn.currency === 'PKR' && cdn.source === 'cdn');
+  const other = GEO.forRequest({ headers: { 'x-country-code': 'us' } }, '41.58.1.1');
+  check('but a different header is still ignored', other.country === 'NG', JSON.stringify(other));
+  delete process.env.GEO_TRUST_HEADER;
 
   /* ------------------------------------------ the server, from disk */
   const dataDir = '/tmp/db-187';
   fs.rmSync(dataDir, { recursive: true, force: true }); fs.mkdirSync(dataDir);
   fs.copyFileSync(dir + '/geo-country.bin', dataDir + '/geo-country.bin');
   const kid = spawn('node', ['serve.js'], { cwd: ROOT, detached: true, stdio: 'ignore',
-    env: Object.assign({}, process.env, { PORT: '8187', DATA_DIR: dataDir, FX_AUTO: 'off', GEO_AUTO: 'off' }) });
+    env: Object.assign({}, process.env, { PORT: '8187', DATA_DIR: dataDir, FX_AUTO: 'off', GEO_AUTO: 'off', GEO_TRUST_HEADER: 'cf-ipcountry' }) });
   try {
     for (let i = 0; i < 50; i++) { await new Promise(r => setTimeout(r, 400)); if ((await get(8187, '/api/health')).ok !== undefined || (await get(8187, '/api/pay/config')).currencies) break; }
     const ng = await get(8187, '/api/pay/config', { 'X-Forwarded-For': '41.58.77.1' });

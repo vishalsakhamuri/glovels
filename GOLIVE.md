@@ -258,3 +258,11 @@ with `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
 
 Without `STRIPE_SECRET_KEY`, buyers abroad pay through Razorpay exactly as before.
 Test: one small purchase from outside India (or with a VPN) in USD, then refund it in Stripe.
+
+## Patch 196 — the visitor's country comes from their IP, not a header they can type
+
+Before this, any visitor could send `CF-IPCountry: US` and be treated as abroad:
+no GST, Stripe, Glovels UG. Render has no CDN in front, so nobody strips that header.
+Now the country comes from the IP address Render appends (which a visitor cannot
+forge), looked up in the monthly DB-IP file. If Cloudflare is ever put in front,
+set `GEO_TRUST_HEADER=cf-ipcountry` on Render — only then is that header believed.
