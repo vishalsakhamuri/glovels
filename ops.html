@@ -169,6 +169,31 @@ tr:last-child td{border-bottom:0}
 .slasave button{background:var(--ink);color:#fff;border:0;border-radius:12px;padding:11px 18px;font:700 14px var(--sans);cursor:pointer}
 .slasave span{color:var(--mute);font-size:12.5px}
 
+/* counsellor board: every row and number opens what it counts */
+.crew th[data-sort]{cursor:pointer;user-select:none;white-space:nowrap}
+.crew th[data-sort]:hover{color:var(--ink)}
+.crew th[aria-sort]::after{content:" \2193";color:var(--gold)}
+.crew th[aria-sort="ascending"]::after{content:" \2191"}
+.crew td{white-space:nowrap}
+.crew th,.crew td{padding-left:12px;padding-right:12px}
+.crew th{font-size:11px;letter-spacing:.02em}
+.crew td:nth-child(n+3),.crew th:nth-child(n+3){text-align:right}
+.crew td:first-child{min-width:200px}
+.crew tbody tr{cursor:pointer;transition:background .12s}
+.crew tbody tr:hover{background:#f4f8fc}
+.crew tbody tr:hover .person b{text-decoration:underline;text-underline-offset:3px}
+.cell{background:none;border:0;padding:6px 8px;margin:-6px -8px;border-radius:9px;cursor:pointer;font:inherit;color:inherit}
+.cell:hover{background:#e8eef6}
+.cell:disabled{cursor:default;background:none}
+.rowgo{color:var(--mute);font-weight:800}
+.crew tbody tr:hover .rowgo{color:var(--ink)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 0 10px;flex:0 0 100%;width:100%}
+.kpi{border:1px solid var(--rule);border-radius:12px;padding:10px 12px;cursor:pointer;background:#fff;text-align:left}
+.kpi b{display:block;font:800 22px/1 var(--disp)}
+.kpi span{font-size:11.5px;color:var(--mute);font-weight:600}
+.kpi.bad b{color:var(--late)}
+.kpi[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+
 /* ------------------------------------------------------------ the drawer */
 .scrim{position:fixed;inset:0;background:rgba(11,30,49,.38);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--panel);z-index:21;transform:translateX(102%);transition:transform .32s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(11,30,49,.18)}
@@ -270,9 +295,9 @@ body.open .drawer{transform:none}
       <div><div class="sk"></div><div class="sk"></div></div><div><div class="sk"></div><div class="sk"></div></div>
     </div>
 
-    <div class="sec"><h2 id="crewH">Counsellors</h2><p>Behind means a step or a reply is past its SLA right now.</p></div>
+    <div class="sec"><h2 id="crewH">Counsellors</h2><p>Click a person or any number to see the work behind it. Click a heading to sort.</p></div>
     <div class="crew"><table>
-      <thead><tr><th>Counsellor</th><th>Status</th><th>Students</th><th>Open steps</th><th>Late steps</th><th>Oldest late</th><th>Replies owed</th><th>Longest wait</th><th>Docs to check</th><th>On time</th></tr></thead>
+      <thead><tr><th data-sort="name">Counsellor</th><th data-sort="health">Status</th><th data-sort="students">Students</th><th data-sort="open">Open steps</th><th data-sort="late">Late steps</th><th data-sort="oldestLateDays">Oldest late</th><th data-sort="waitingMessages">Replies owed</th><th data-sort="longestWaitHours">Longest wait</th><th data-sort="docs">Docs to check</th><th data-sort="onTime">On time</th></tr></thead>
       <tbody id="crew"><tr><td colspan="10"><div class="sk" style="height:40px"></div></td></tr></tbody>
     </table></div>
   </main>
@@ -435,23 +460,36 @@ body.open .drawer{transform:none}
 
   /* ------------------------------------------------------- counsellors */
   function ring(p) {
-    if (p == null) return '<span class="muted">No steps closed yet</span>';
+    if (p == null) return '<span class="muted" title="No steps closed yet">—</span>';
     var C = 113.1, col = p >= 90 ? 'var(--ok)' : p >= 70 ? 'var(--soon)' : 'var(--late)';
     return '<span class="ring"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="18" stroke="#eef2f7"/><circle cx="21" cy="21" r="18" stroke="' + col + '" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C - C * p / 100) + '"/></svg><b>' + p + '%</b></span>';
   }
   function paintCrew(d) {
-    var words = { behind: 'Behind', watch: 'Close to SLA', good: 'On track' };
-    $('#crew').innerHTML = d.counsellors.length ? d.counsellors.map(function (c) {
-      return '<tr><td><div class="person"><span class="av" style="background:' + colour(c.id) + '">' + esc(initials(c.name)) + '</span><div><b>' + esc(c.name) + '</b><small>' + esc(c.email || '') + '</small></div></div></td>'
+    var words = { behind: 'Behind', watch: 'Close', good: 'On track' };
+    var list = d.counsellors.slice();
+    if (SORT.key) list.sort(function (a, b) {
+      var x = a[SORT.key], y = b[SORT.key];
+      if (SORT.key === 'health') { var o = { behind: 0, watch: 1, good: 2 }; x = o[x]; y = o[y]; }
+      if (x == null) x = -1; if (y == null) y = -1;
+      return (typeof x === 'string' ? x.localeCompare(y) : x - y) * (SORT.dir === 'ascending' ? 1 : -1);
+    });
+    [].forEach.call(document.querySelectorAll('.crew th[data-sort]'), function (th) {
+      if (th.dataset.sort === SORT.key) th.setAttribute('aria-sort', SORT.dir); else th.removeAttribute('aria-sort');
+    });
+    var cell = function (c, view, html, n) {
+      return '<button type="button" class="cell" data-cv="' + c.id + '" data-view="' + view + '"' + (n ? '' : ' disabled') + '>' + html + '</button>';
+    };
+    $('#crew').innerHTML = list.length ? list.map(function (c) {
+      return '<tr data-cid="' + c.id + '" title="Open ' + esc(c.name) + '\u2019s work"><td><div class="person"><span class="av" style="background:' + colour(c.id) + '">' + esc(initials(c.name)) + '</span><div><b>' + esc(c.name) + '</b><small>' + esc(c.email || '') + '</small></div></div></td>'
         + '<td><span class="pill ' + c.health + '">' + words[c.health] + '</span></td>'
-        + '<td class="num">' + c.students + '</td>'
-        + '<td class="num">' + c.open + '</td>'
-        + '<td class="num' + (c.late ? ' bad' : '') + '">' + c.late + '</td>'
-        + '<td>' + (c.oldestLateDays ? '<b style="color:var(--late)">' + c.oldestLateDays + (c.oldestLateDays === 1 ? ' day' : ' days') + '</b>' : '<span class="muted">—</span>') + '</td>'
-        + '<td class="num' + (c.lateMessages ? ' bad' : '') + '">' + c.waitingMessages + '</td>'
-        + '<td>' + (c.longestWaitHours ? '<b' + (c.lateMessages ? ' style="color:var(--late)"' : '') + '>' + hours(c.longestWaitHours) + '</b>' : '<span class="muted">—</span>') + '</td>'
-        + '<td class="num">' + c.docs + '</td>'
-        + '<td>' + ring(c.onTime) + '</td></tr>';
+        + '<td class="num">' + cell(c, 'students', c.students, c.students) + '</td>'
+        + '<td class="num">' + cell(c, 'open', c.open, c.open) + '</td>'
+        + '<td class="num' + (c.late ? ' bad' : '') + '">' + cell(c, 'late', c.late, c.late) + '</td>'
+        + '<td>' + (c.oldestLateDays ? cell(c, 'late', '<b style="color:var(--late)">' + c.oldestLateDays + (c.oldestLateDays === 1 ? ' day' : ' days') + '</b>', 1) : '<span class="muted">—</span>') + '</td>'
+        + '<td class="num' + (c.lateMessages ? ' bad' : '') + '">' + cell(c, 'messages', c.waitingMessages, c.waitingMessages) + '</td>'
+        + '<td>' + (c.longestWaitHours ? cell(c, 'messages', '<b' + (c.lateMessages ? ' style="color:var(--late)"' : '') + '>' + hours(c.longestWaitHours) + '</b>', 1) : c.waitingMessages ? cell(c, 'messages', '<b>&lt; 1 h</b>', 1) : '<span class="muted">—</span>') + '</td>'
+        + '<td class="num">' + cell(c, 'docs', c.docs, c.docs) + '</td>'
+        + '<td>' + ring(c.onTime) + ' <span class="rowgo" aria-hidden="true">\u2192</span></td></tr>';
     }).join('') : '<tr><td colspan="10" class="none">No counsellors yet. Add one on Organisation.</td></tr>';
   }
 
@@ -465,6 +503,41 @@ body.open .drawer{transform:none}
     drawRows(q.rows, q.total);
     document.body.classList.add('open'); $('#drawer').focus();
   }
+  /* -------------------------------------------------- one counsellor */
+  var SORT = { key: 'late', dir: 'descending' };
+  function rowsFor(cid, view) {
+    var mine = function (r) { return r.counsellor && Number(r.counsellor.id) === Number(cid); };
+    var Q = DATA.queues || [];
+    var from = function (keys) { return Q.filter(function (q) { return keys.indexOf(q.key) >= 0; })
+      .reduce(function (a, q) { return a.concat(q.rows.filter(mine)); }, []); };
+    var steps = ['welcome', 'profile', 'shortlist', 'writing', 'private', 'public', 'decisions', 'visa', 'departure', 'services'];
+    if (view === 'late') return from(steps).filter(function (r) { return r.state === 'late'; });
+    if (view === 'open') return from(steps);
+    if (view === 'messages') return from(['messages']);
+    if (view === 'docs') return from(['docs']);
+    /* students: who they hold, from the journey */
+    return (DATA.journey || []).reduce(function (a, p) {
+      return a.concat((p.rows || []).filter(mine).map(function (r) { return Object.assign({}, r, { what: p.label + ' \u00b7 ' + r.what }); }));
+    }, []);
+  }
+  function openCounsellor(cid, view) {
+    var c = (DATA.counsellors || []).find(function (x) { return Number(x.id) === Number(cid); });
+    if (!c) return;
+    view = view || (c.late ? 'late' : c.waitingMessages ? 'messages' : 'students');
+    OPEN = { kind: 'counsellor', key: cid, view: view }; FILTER = 'all';
+    $('#dTitle').textContent = c.name;
+    $('#dSub').innerHTML = esc(c.email || '') + ' \u00b7 ' + c.students + (c.students === 1 ? ' student' : ' students')
+      + (c.onTime != null ? ' \u00b7 ' + c.onTime + '% of steps closed on time' : '');
+    var K = [['late', c.late, 'Late steps', c.late], ['messages', c.waitingMessages, 'Replies owed', c.lateMessages],
+      ['docs', c.docs, 'Docs to check', 0], ['students', c.students, 'Students', 0]];
+    var rows = rowsFor(cid, view);
+    drawRows(rows, rows.length);
+    $('#dFilters').insertAdjacentHTML('afterbegin', '<div class="kpis">' + K.map(function (k) {
+      return '<button type="button" class="kpi' + (k[3] ? ' bad' : '') + '" data-cview="' + k[0] + '" aria-pressed="' + (view === k[0]) + '"><b>' + k[1] + '</b><span>' + k[2] + '</span></button>';
+    }).join('') + '</div>');
+    document.body.classList.add('open'); $('#drawer').focus();
+  }
+
   /* A stop on the route opens the students at that stage, worst first. */
   function openPhase(key) {
     var p = (DATA.journey || []).find(function (x) { return x.key === key; });
@@ -505,8 +578,20 @@ body.open .drawer{transform:none}
     var q = e.target.closest('[data-q]'); if (q) return openQueue(q.dataset.q);
     var st = e.target.closest('[data-phase]');
     if (st) return openPhase(st.dataset.phase);
+    var cv = e.target.closest('[data-cview]');
+    if (cv && OPEN && OPEN.kind === 'counsellor') return openCounsellor(OPEN.key, cv.dataset.cview);
+    var cl = e.target.closest('[data-cv]');
+    if (cl) { e.stopPropagation(); return openCounsellor(cl.dataset.cv, cl.dataset.view); }
+    var th = e.target.closest('.crew th[data-sort]');
+    if (th) { SORT = { key: th.dataset.sort, dir: SORT.key === th.dataset.sort && SORT.dir === 'descending' ? 'ascending' : 'descending' }; paintCrew(DATA); return; }
+    var tr = e.target.closest('tr[data-cid]');
+    if (tr) return openCounsellor(tr.dataset.cid);
     var f = e.target.closest('[data-f]');
-    if (f && OPEN) { FILTER = f.dataset.f; var qq = rowsOpen(); if (qq) drawRows(qq.rows || [], qq.total != null ? qq.total : qq.students); }
+    if (f && OPEN) {
+      FILTER = f.dataset.f;
+      if (OPEN.kind === 'counsellor') { var rr = rowsFor(OPEN.key, OPEN.view); var kp = $('#dFilters .kpis'); drawRows(rr, rr.length); if (kp) $('#dFilters').insertBefore(kp, $('#dFilters').firstChild); return; }
+      var qq = rowsOpen(); if (qq) drawRows(qq.rows || [], qq.total != null ? qq.total : qq.students);
+    }
   });
   $('#dx').onclick = closeDrawer; $('#scrim').onclick = closeDrawer;
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
@@ -575,7 +660,8 @@ body.open .drawer{transform:none}
     return api('/api/staff/command').then(function (d) {
       DATA = d; $('#error').hidden = true;
       paintTop(d); paintRoute(d); paintQueues(d); paintCrew(d);
-      if (OPEN && OPEN.kind !== 'sla') { var q = rowsOpen(); if (q) drawRows(q.rows || [], q.total != null ? q.total : q.students); }
+      if (OPEN && OPEN.kind === 'counsellor') openCounsellor(OPEN.key, OPEN.view);
+      else if (OPEN && OPEN.kind !== 'sla') { var q = rowsOpen(); if (q) drawRows(q.rows || [], q.total != null ? q.total : q.students); }
     }).catch(function (e) {
       if (e.message === 'signed out') return;
       $('#error').textContent = e.message + ' Press Refresh to try again.'; $('#error').hidden = false;

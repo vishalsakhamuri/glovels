@@ -108,6 +108,23 @@ const login = async (email) => {
     await p.click('[data-q="messages"]'); await p.waitForTimeout(500);
     check('a queue opens with the student in it', /SOP/.test(await p.textContent('#dList')));
     check('with a way into the file', !!(await p.$('#dList a[href^="counsellor.html?student="]')));
+    /* Patch 203: the counsellor board drills down, like any KPI table. */
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    const row = await p.$('#crew tr[data-cid]');
+    if (row) { await row.click(); await p.waitForTimeout(500); }
+    check('a counsellor row opens their work', !!row && /Kavya/.test(await p.textContent('#dTitle'))
+      && (await p.$$('#dFilters .kpi')).length === 4, row ? await p.textContent('#dTitle') : 'no row');
+    await p.click('#dFilters .kpi[data-cview="messages"]'); await p.waitForTimeout(400);
+    await p.screenshot({ path: '/tmp/ops-kavya.png' });
+    check('and its "Replies owed" tile lists the message waiting', /Open file/.test(await p.textContent('#dList'))
+      && (await p.getAttribute('#dFilters .kpi[data-cview="messages"]', 'aria-pressed')) === 'true');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    await p.click('.crew th[data-sort="name"]'); await p.waitForTimeout(200);
+    check('a column heading sorts the board', (await p.getAttribute('.crew th[data-sort="name"]', 'aria-sort')) === 'descending');
+    const wraps = await p.$$eval('#crew td:not(:first-child)', tds => tds.filter(td => {
+      const r = document.createRange(); r.selectNodeContents(td); return r.getClientRects().length > 0 && r.getBoundingClientRect().height > 40; }).map(td => td.textContent));
+    check('no number or pill in the board wraps onto several lines', wraps.length === 0, wraps.join(' | '));
+    await p.screenshot({ path: '/tmp/ops-crew.png', fullPage: true });
     /* Out of search: not crawlable here (the whole dev site is), and named
        among the private pages the live robots.txt lists. */
     const robots = await call('/robots.txt');
