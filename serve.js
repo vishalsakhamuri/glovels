@@ -293,7 +293,11 @@ const guard = require('./server/guard.js').open({ db, log: console,
   limits: Object.fromEntries([['guest', 'GUARD_GUEST'], ['member', 'GUARD_MEMBER'], ['hourly', 'GUARD_HOURLY']]
     .filter(([, k]) => Number(process.env[k]) > 0).map(([n, k]) => [n, Number(process.env[k])])),
   enabled: process.env.GUARD ? /^(on|1|true|yes)$/i.test(process.env.GUARD) : !!CFG.production });
-const api = makeApi({ guard, marketing, db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
+/* Patch 221: the lead watch — an alert to every phone the moment a lead
+   arrives, and a second one when nobody has called (server/leadwatch.js). */
+const leadwatch = require('./server/leadwatch.js').open({ db, live, push, mail,
+  emails: require('./server/emails.js'), siteUrl: SITE_URL, log: console });
+const api = makeApi({ leadwatch, guard, marketing, db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
   /* Round 176: the go-live readiness report, for /api/staff/golive. */
@@ -420,6 +424,8 @@ const docSweep = () => { try { FILECHECK.sweep(db, UPLOADS, line => console.log(
 docSweep();
 const docSweepTimer = setInterval(docSweep, 10 * 60 * 1000);
 if (docSweepTimer.unref) docSweepTimer.unref();
+
+leadwatch.start();
 
 const sla = require('./server/sla.js');
 sla.start({
@@ -644,6 +650,7 @@ function robotsTxt() {
     'Disallow: /catalogue',
     'Disallow: /blog-admin',
     'Disallow: /leads',
+    'Disallow: /leads-command',
     'Disallow: /acceptance/',
     'Disallow: /login',
     'Disallow: /app/',
@@ -777,7 +784,8 @@ function appleSiteAssociation() {
    404.html, which exists to be reached by accident. */
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
-  'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops', 'marketing']);
+  'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops', 'marketing',
+  'leads-command']);
 
 /*
  * Round 178 (A): the day a page's WORDS last changed, for <lastmod>.

@@ -961,5 +961,12 @@ connectLive({ chat: () => load() });
    whatever was baked into its markup — and somebody whose password must be
    changed reaches a working screen instead of the screen that makes them
    change it. */
-staffBoot(async me => { ROLE = (me && me.user && me.user.role) || ''; await load(); });
+staffBoot(async me => {
+  ROLE = (me && me.user && me.user.role) || '';
+  await load();
+  /* Patch 221: a notification, the command centre and the Leads command
+     centre all link to leads.html?lead=<id> — open that lead. */
+  const want = Number(new URLSearchParams(location.search).get('lead') || 0);
+  if (want) { try { await open_(want); } catch (e) { toast(e.message); } }
+});
 """

@@ -404,7 +404,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
+function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -3725,6 +3725,8 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
       mail.send(Object.assign({ to: mail.office, replyTo: email }, EMAILS.enquiryToOffice(record))).catch(() => {});
       if (owner) { const c = db.studentById(owner); if (c) callToCounsellor(bk, c); }
       try { notify && notify.staff && notify.staff('New call booked: ' + name + ' — ' + BOOK.say(slot, S.tz)); } catch (e) {}
+      /* Patch 221: every phone in the office, now. */
+      leadArrived({ kind: 'booking', row: filed, name });
       return json(res, 200, { ok: true, booking: { at: slot, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) } });
     }
 
@@ -3736,6 +3738,9 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
       EMAILS.enquiryToOffice(record))).catch(() => {});
     mail.send(Object.assign({ to: email },
       EMAILS.enquiryToStudent({ name, destination: b.destination }))).catch(() => {});
+    /* Patch 221: every phone in the office, now — combined when they come in
+       a burst (server/leadwatch.js). */
+    leadArrived({ kind: record.source === 'no-match' ? 'finder' : 'form', row: filed, name });
 
     return json(res, 200, { ok: true });
   };
@@ -3893,9 +3898,10 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
 
     /* A chat is a lead. It goes in the enquiries book the same as the form, so
        nobody has to remember to look in two places for the same person. */
+    let chatLead = null;
     try {
       const from = sourceOf(req, { consent: 'chat', referrer: b.referrer });
-      db.fileEnquiry({
+      chatLead = db.fileEnquiry({
         name, phone: phone ? '+91' + phone : '', email: isEmail ? contact.toLowerCase() : '',
         destination: '', consent: 'chat', sourcePage: String(b.page || '').slice(0, 200),
         source: from.source, campaign: from.campaign,
@@ -3904,6 +3910,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     } catch (e) { /* a lead that could not be filed must not lose the chat */ }
 
     live.toAllStaff('chat', { id: c.id, name: c.name, at: c.created_at, kind: 'started' });
+    leadArrived({ kind: 'chat', row: chatLead && chatLead.id ? chatLead : null, chatId: c.id, name: c.name });
     return json(res, 200, Object.assign({ signedIn: false }, chatShape(c)),
       { 'Set-Cookie': chatCookie(token) });
   }, { open: true, soft: true });
@@ -3944,10 +3951,17 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
 
     const c = chatOf(req);
     if (!c) return json(res, 409, { error: 'Tell us your name first.' });
+    /* Patch 221: somebody answered in the last five minutes — they are on
+       it, and the screens hear the message without a phone buzzing. Read
+       before this message is added. */
+    const prior = db.chatMessages(c.id) || [];
+    const lastReply = prior.filter(x => x.sender === 'them').map(x => x.created_at).sort().pop() || '';
     const m = db.addChatMessage(c.id, 'me', body, c.name);
     live.toAllStaff('chat', {
       id: c.id, name: c.name, kind: 'message', t: body, at: m.created_at,
     });
+    leadArrived({ kind: 'chat-msg', row: leadForChat(c), chatId: c.id, name: c.name, text: body,
+      quiet: !!lastReply && Date.now() - new Date(lastReply).getTime() < 5 * 60 * 1000 });
     return json(res, 200, Object.assign({ signedIn: false }, chatShape(db.chatById(c.id))));
   }, { open: true, soft: true });
 
@@ -8845,6 +8859,9 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
         waitingReply: out.messages.length,
       },
       queues, counsellors, journey,
+      /* Patch 221: the lead SLA, on the main board too — the tile links to
+         the Leads command centre. */
+      leadWatch: (() => { try { return leadCommand(s, now, true); } catch (e) { return null; } })(),
     };
   }
 
@@ -10068,6 +10085,227 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     });
   }));
 
+
+  /*
+   * ================================================ Patch 221: the lead watch
+   *
+   * "Similar build like command centre, we need for leads." The arrivals and
+   * the escalation live in server/leadwatch.js; these are the three places
+   * the API tells it something happened, and the screen it feeds.
+   */
+  const LW = leadwatch || null;
+  const LWM = require('./leadwatch.js');
+  function leadArrived(ev) {
+    if (!LW) return;
+    try { LW.arrived(ev); } catch (e) { /* an alert that fails is not a lost lead */ }
+  }
+  function leadResponded(row, who, how) {
+    if (!LW || !row) return;
+    try { LW.responded(row, who, how); } catch (e) { /* the note is saved either way */ }
+  }
+  /* The open lead a website chat filed: same phone (last ten) or email. */
+  function leadForChat(c) {
+    if (!c) return null;
+    const d = String(c.phone || '').replace(/\D/g, '').slice(-10);
+    const m = String(c.email || '').trim().toLowerCase();
+    if (d.length !== 10 && !m) return null;
+    return db.allEnquiries().find(e => !['converted', 'lost'].includes(String(e.status || 'new'))
+      && ((d.length === 10 && String(e.phone || '').replace(/\D/g, '').slice(-10) === d)
+        || (m && String(e.email || '').trim().toLowerCase() === m))) || null;
+  }
+
+  /*
+   * GET /api/staff/leads/command — the Leads command centre, computed here so
+   * the screen only draws it. The same book the Leads screen reads (leadBook:
+   * a counsellor sees their own and the unowned, an administrator all of it),
+   * the office's own test enquiries left out. One pass over the notes, one
+   * over the enquiries — a few thousand leads is a few milliseconds.
+   */
+  function leadCommand(s, now, summaryOnly) {
+    const S = LW ? LW.settings() : LWM.clean(null);
+    const MINMS = LW ? LW.minuteMs : 60000;
+    const minsBetween = (a, b) => (LW ? LW.waitMins(a, typeof b === 'number' ? b : new Date(b).getTime(), S)
+      : Math.max(0, Math.floor(((typeof b === 'number' ? b : new Date(b).getTime()) - new Date(a).getTime()) / MINMS)));
+    const admin = s.role === 'admin';
+    const people = peopleMap();
+    const counts = db.leadNoteCounts();
+    const internal = db.internalEnquiryTest();
+    const book = leadBook(s).filter(e => !internal(e));
+    const visible = new Set(book.map(e => Number(e.id)));
+    const today = DAYS.istDay(now);
+    const firstTouch = new Map(), touchedToday = new Set(), convertedAt = new Map();
+    (db.allLeadNotes() || []).forEach(n => {
+      const id = Number(n.lead_id);
+      if (!visible.has(id)) return;
+      if (String(n.kind) === 'converted' && (!convertedAt.has(id) || n.created_at < convertedAt.get(id))) convertedAt.set(id, n.created_at);
+      if (!LWM.isTouch(n)) return;
+      const was = firstTouch.get(id);
+      if (!was || String(n.created_at) < was.at) firstTouch.set(id, { at: String(n.created_at), who: n.who, kind: n.kind });
+      if (DAYS.istDay(n.created_at) === today) touchedToday.add(id);
+    });
+    const booked = new Set();
+    try { (db.allBookings() || []).forEach(b => { if (b.enquiry_id) booked.add(Number(b.enquiry_id)); }); } catch (e) { /* no bookings table yet */ }
+    const ownerName = id => (id && people.get(Number(id)) ? people.get(Number(id)).name : (id ? 'Somebody who has left' : ''));
+    const isOpen = e => !['converted', 'lost'].includes(String(e.status || 'new'));
+    const waitingOf = e => (e.status || 'new') === 'new' && String(e.consent || '') !== 'staff'
+      && !firstTouch.has(Number(e.id)) && !((counts[String(e.id)] || {}).n);
+    const waNum = p => { const d = String(p || '').replace(/\D/g, ''); return d.length === 10 ? '91' + d : d; };
+    const card = (e, extra) => Object.assign({
+      id: e.id, name: e.name || '', phone: e.phone || '', email: e.email || '', wa: waNum(e.phone),
+      destination: e.destination || '', destinationName: destName(e.destination),
+      channel: LWM.channelOf(e, booked), channelLabel: LWM.CHANNEL_LABEL[LWM.channelOf(e, booked)],
+      source: e.source || 'website', campaign: e.campaign || '', status: e.status || 'new',
+      note: String(e.note || '').slice(0, 160), ownerId: e.owner_id || null, owner: ownerName(e.owner_id),
+      at: e.created_at, nextAt: e.next_at || '', returning: Number(e.returns || 0) > 0,
+    }, extra || {});
+
+    /* ------------------------------------------------- needs a call now */
+    const queue = [];
+    book.forEach(e => {
+      if (waitingOf(e)) {
+        const age = minsBetween(e.created_at, now);
+        const state = age >= S.escalateMins ? 'escalated' : age >= S.firstMins ? 'late' : age * 2 >= S.firstMins ? 'soon' : 'ok';
+        queue.push(card(e, { type: 'first', ageMins: age, overMins: age - S.firstMins, state }));
+        return;
+      }
+      if (!isOpen(e) || !e.next_at) return;
+      const raw = String(e.next_at);
+      const due = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? Date.parse(raw + 'T' + S.from + ':00+05:30') : Date.parse(raw);
+      if (!Number.isFinite(due) || due > now) return;
+      const over = Math.floor((now - due) / MINMS);
+      queue.push(card(e, { type: 'followup', ageMins: over, overMins: over - S.firstMins, dueAt: new Date(due).toISOString(),
+        state: over > S.firstMins ? 'late' : 'soon' }));
+    });
+    const rank = { escalated: 0, late: 1, soon: 2, ok: 3 };
+    queue.sort((a, b) => rank[a.state] - rank[b.state] || (a.type === b.type ? 0 : a.type === 'first' ? -1 : 1) || b.overMins - a.overMins);
+    const firstQ = queue.filter(q => q.type === 'first');
+    const late = queue.filter(q => q.state === 'late' || q.state === 'escalated');
+    const summary = {
+      waiting: firstQ.length,
+      overdue: late.length,
+      overdueFirst: firstQ.filter(q => q.state === 'late' || q.state === 'escalated').length,
+      overdueFollowups: queue.filter(q => q.type === 'followup' && q.state === 'late').length,
+      escalated: firstQ.filter(q => q.state === 'escalated').length,
+      queue: queue.length,
+      firstMins: S.firstMins, escalateMins: S.escalateMins,
+      worst: queue[0] ? { id: queue[0].id, name: queue[0].name, ageMins: queue[0].ageMins, state: queue[0].state, type: queue[0].type } : null,
+    };
+    if (summaryOnly) return summary;
+
+    /* ------------------------------------------------------------- KPIs */
+    const D = 864e5;
+    const respMins = e => { const t = firstTouch.get(Number(e.id)); return t ? minsBetween(e.created_at, t.at) : null; };
+    const recent = book.filter(e => String(e.consent || '') !== 'staff' && now - new Date(e.created_at).getTime() <= 30 * D);
+    const times = recent.map(respMins).filter(v => v != null).sort((a, b) => a - b);
+    const median = times.length ? (times.length % 2 ? times[(times.length - 1) / 2]
+      : Math.round((times[times.length / 2 - 1] + times[times.length / 2]) / 2)) : null;
+    const wd = new Date(Date.parse(today + 'T00:00:00Z')).getUTCDay();
+    const weekStart = DAYS.addDays(today, -((wd + 6) % 7));
+    const monthStart = today.slice(0, 8) + '01';
+    const convDay = e => { const at = convertedAt.get(Number(e.id)) || (String(e.status) === 'converted' ? e.updated_at : ''); return at ? DAYS.istDay(at) : ''; };
+    const won = book.filter(e => String(e.status) === 'converted');
+    const last90 = book.filter(e => now - new Date(e.created_at).getTime() <= 90 * D);
+    const kpis = Object.assign({}, summary, {
+      newToday: book.filter(e => DAYS.istDay(e.created_at) === today).length,
+      medianFirstMins: median,
+      respondedSample: times.length,
+      withinSla: times.length ? Math.round(100 * times.filter(m => m <= S.firstMins).length / times.length) : null,
+      contactedToday: touchedToday.size,
+      convertedWeek: won.filter(e => convDay(e) >= weekStart).length,
+      convertedMonth: won.filter(e => convDay(e) >= monthStart).length,
+      conversionRate: last90.length ? Math.round(1000 * last90.filter(e => String(e.status) === 'converted').length / last90.length) / 10 : null,
+      leads90: last90.length,
+      open: book.filter(isOpen).length,
+    });
+
+    /* --------------------------------------------- where they come from */
+    const chan = {}, src = {};
+    recent.concat(book.filter(e => String(e.consent || '') === 'staff' && now - new Date(e.created_at).getTime() <= 30 * D)).forEach(e => {
+      const c = LWM.channelOf(e, booked), k = e.source || 'website';
+      const m = respMins(e);
+      chan[c] = chan[c] || { key: c, label: LWM.CHANNEL_LABEL[c], leads: 0, converted: 0, inSla: 0, responded: 0, waiting: 0 };
+      src[k] = src[k] || { key: k, leads: 0, converted: 0 };
+      chan[c].leads++; src[k].leads++;
+      if (String(e.status) === 'converted') { chan[c].converted++; src[k].converted++; }
+      if (m != null) { chan[c].responded++; if (m <= S.firstMins) chan[c].inSla++; }
+      if (waitingOf(e)) chan[c].waiting++;
+    });
+
+    /* ------------------------------------------------------ the board */
+    const crew = new Map();
+    const addP = p => { if (p && !crew.has(Number(p.id))) crew.set(Number(p.id), { id: Number(p.id), name: p.name, email: p.email || '', role: p.role }); };
+    db.activeCaseworkers().forEach(addP);
+    (db.staffByRole('admin') || []).filter(a => (a.status || 'active') === 'active').forEach(addP);
+    book.forEach(e => { if (e.owner_id && !crew.has(Number(e.owner_id))) crew.set(Number(e.owner_id), { id: Number(e.owner_id), name: ownerName(e.owner_id), email: '', role: '' }); });
+    const board = [...crew.values()].concat([{ id: 0, name: 'Unassigned', email: 'Leads nobody has picked up', role: '' }]).map(p => {
+      const mine = book.filter(e => Number(e.owner_id || 0) === p.id);
+      const rs = mine.filter(e => String(e.consent || '') !== 'staff' && now - new Date(e.created_at).getTime() <= 30 * D).map(respMins).filter(v => v != null);
+      const conv = mine.filter(e => String(e.status) === 'converted').length;
+      const ov = late.filter(q => Number(q.ownerId || 0) === p.id).length;
+      return {
+        id: p.id, name: p.name, email: p.email, role: p.role,
+        assigned: mine.length, open: mine.filter(isOpen).length, waiting: firstQ.filter(q => Number(q.ownerId || 0) === p.id).length,
+        overdue: ov,
+        avgResponseMins: rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length) : null,
+        inSla: rs.length ? Math.round(100 * rs.filter(m => m <= S.firstMins).length / rs.length) : null,
+        conversions: conv, rate: mine.length ? Math.round(1000 * conv / mine.length) / 10 : null,
+        devices: p.id ? db.countPushSubscriptions(p.id) : null,
+      };
+    }).filter(r => admin || r.id === 0 || r.id === Number(s.id));
+
+    /* ----------------------------------------------------- the trend */
+    const trend = [];
+    for (let i = 13; i >= 0; i--) {
+      const day = DAYS.addDays(today, -i);
+      const on = book.filter(e => DAYS.istDay(e.created_at) === day && String(e.consent || '') !== 'staff');
+      const ms = on.map(respMins);
+      trend.push({ day, leads: on.length, responded: ms.filter(v => v != null).length,
+        inSla: ms.filter(v => v != null && v <= S.firstMins).length });
+    }
+
+    /* ------------------------------------------------------ the feed */
+    const feed = (LW ? LW.log() : []).filter(f => !f.leadId || visible.has(Number(f.leadId))
+      || (admin && !f.leadId)).slice(0, 40).map(f => Object.assign({
+      n: f.n, at: f.at, kind: f.kind, leadId: f.leadId || null, chatId: f.chatId || null, name: f.name || '',
+      destination: f.destination ? destName(f.destination) : '', text: f.text || '', minutes: f.minutes || null,
+      by: f.by || '', how: f.how || '', count: f.count || 1, pushed: (f.pushed || []).length, emailed: !!f.emailed, pending: !!f.pending,
+    }, admin ? { pushedTo: f.pushed || [] } : {}));
+
+    const open = book.filter(isOpen).slice(0, 600).map(e => card(e, {
+      waiting: waitingOf(e), followUps: (counts[String(e.id)] || {}).n || 0,
+      responseMins: respMins(e),
+    }));
+    const team = LW ? LW.team() : [];
+    return {
+      at: new Date(now).toISOString(), admin, me: { id: s.id, name: s.name },
+      settings: S, minuteMs: MINMS, officeOpen: LW ? LW.officeOpen(now) : true,
+      kpis, queue: queue.slice(0, 150), channels: Object.values(chan).sort((a, b) => b.leads - a.leads),
+      sources: Object.values(src).sort((a, b) => b.leads - a.leads), board, trend, feed, open,
+      won: won.filter(e => convDay(e) >= monthStart).slice(0, 60).map(e => card(e, { convertedOn: convDay(e) })),
+      alerting: { team: team.length, withPush: team.filter(p => db.countPushSubscriptions(p.id) > 0).length,
+        without: admin ? team.filter(p => !db.countPushSubscriptions(p.id)).map(p => p.name) : [] },
+    };
+  }
+
+  route('GET', '/api/staff/leads/command', caseworkOnly(async (req, res, s) =>
+    json(res, 200, leadCommand(s, Date.now(), /^(1|yes|true)$/i.test(String(url.parse(req.url, true).query.summary || ''))))));
+
+  /* The two clocks, set by an administrator (Leads command → SLAs). */
+  route('GET', '/api/staff/leads/sla', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    return json(res, 200, { settings: LW ? LW.settings() : LWM.clean(null), defaults: LWM.DEFAULTS });
+  }));
+  route('PUT', '/api/staff/leads/sla', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (!LW) return json(res, 503, { error: 'The lead watch is not running' });
+    const b = await readJson(req);
+    const out = LW.save(b, s.name);
+    if (out.error) return json(res, 422, { error: out.error });
+    db.log(s.name, 'changed the lead SLAs', 'first response ' + out.settings.firstMins + ' min, escalate ' + out.settings.escalateMins
+      + ' min, combine ' + out.settings.burstMins + ' min' + (out.settings.officeHoursOnly ? ', office hours only' : ''));
+    return json(res, 200, { settings: out.settings });
+  }));
+
   route('GET', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const e = db.enquiryById(Number(m[1]));
     if (!e) return json(res, 404, { error: 'No such enquiry' });
@@ -10207,6 +10445,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
       said.push('Next follow-up ' + row.next_at);
     }
     if (said.length) db.addLeadNote(e.id, s.name, 'change', said.join('. '));
+    if ((e.status || 'new') === 'new' && status !== 'new') leadResponded(row, s.name, status);
 
     return json(res, 200, {
       lead: leadShape(row, db.leadNoteCounts(), peopleMap()),
@@ -10375,6 +10614,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
       if (bad0) return json(res, 422, { error: bad0, fields: [{ field: 'nextAt', why: bad0 }] });
     }
     db.addLeadNote(e.id, s.name, kind, body);
+    if ((e.status || 'new') === 'new') leadResponded(Object.assign({}, e, { owner_id: e.owner_id || s.id }), s.name, kind);
 
     /* Writing down what you said to somebody IS contacting them — a lead that
        has a call logged against it is not "new" any more, and leaving it as
@@ -10525,6 +10765,21 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     live.toGuest(c.token, 'chat', { who: 'them', t: body, name: s.name, at: msg.created_at });
     live.toAllStaff('chat', { id: c.id, kind: 'replied', at: msg.created_at });
     db.log(s.name, 'chat replied', c.name + (c.phone ? ' (' + c.phone + ')' : ''));
+    /* Patch 221: a reply in the chat IS the first response. The lead the chat
+       filed is moved off "new" and noted, so the queue, the SLA clock and the
+       escalation all stop for it. */
+    try {
+      const lead = leadForChat(c);
+      if (lead && (lead.status || 'new') === 'new') {
+        db.addLeadNote(lead.id, s.name, 'chat', 'Replied in the website chat: \u201c' + body.slice(0, 300) + '\u201d');
+        const row = db.updateEnquiry(lead.id, {
+          source: lead.source, campaign: lead.campaign, ownerId: lead.owner_id || s.id,
+          status: 'contacted', lostReason: lead.lost_reason, nextAt: lead.next_at,
+          studentId: lead.student_id, note: lead.note, destination: lead.destination,
+        });
+        leadResponded(row, s.name, 'chat');
+      }
+    } catch (e) { /* the reply went; the book catches up on the next one */ }
     return json(res, 200, { chat: chatShape(db.chatById(c.id)) });
   }));
 

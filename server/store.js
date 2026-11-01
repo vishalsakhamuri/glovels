@@ -3474,6 +3474,9 @@ function open(dir) {
       });
       return out;
     },
+    /* Patch 221: every note on every lead, in one read — the Leads command
+       centre and the lead watch work out first-response times from it. */
+    allLeadNotes: () => db.all('SELECT * FROM lead_notes WHERE id > ?', 0),
     /* 8 Oct (F6): a duplicate lead folded into the one that stays. The notes
        move across — the account of a phone call is about the person, not the
        row — and the duplicate goes. */

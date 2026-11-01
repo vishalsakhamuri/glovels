@@ -157,6 +157,8 @@ def head_for(title, brand=True):
 
 def sidebar(active):
     on = ' class="on"'
+    radar = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+             'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3"/><circle cx="12" cy="12" r="4"/></svg>')
     trend = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>')
     links = "".join(
@@ -209,6 +211,8 @@ STAFF_NAV = [
     ("counsellor", "i-chat",   "Conversations"),
     ("chat",       "i-globe",  "Website chat"),
     ("leads",      "i-chart",  "Leads"),
+    # Patch 221: the Leads command centre (hand-written, like ops.html).
+    ("leads-command", "i-radar", "Leads command"),
     # Patch 204: the marketing dashboard (admins, and anyone given it).
     ("marketing",  "i-trend",  "Marketing"),
     ("home",       "i-file",   "Home page"),
@@ -231,11 +235,13 @@ def staff_sidebar(active, role_note, nav=None, brand=True):
     on = ' class="on"'
     pulse = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')
+    radar = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+             'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3"/><circle cx="12" cy="12" r="4"/></svg>')
     trend = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>')
     links = "".join(
         f'<a href="{slug}.html"{on if slug == active else ""}>'
-        + (pulse if icon == "i-pulse" else trend if icon == "i-trend" else f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg>')
+        + (pulse if icon == "i-pulse" else trend if icon == "i-trend" else radar if icon == "i-radar" else f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg>')
         + f' {label}</a>'
         for slug, icon, label in (nav if nav is not None else STAFF_NAV)
     )
@@ -624,6 +630,7 @@ async function staffBoot(run) {{
     /* The lead book is casework — an editor is on this site to change the
        website, not to be handed somebody's phone number. */
     leads: me.user.role !== 'editor',
+    'leads-command': me.user.role !== 'editor',
     admin: me.user.role === 'admin',
     /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
     catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',

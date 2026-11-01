@@ -114,8 +114,10 @@ self.addEventListener('notificationclick', event => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     /* If the screen is already open somewhere, focus it rather than opening a
        second copy of the same caseload. */
+    /* Patch 221: a lead alert opens the lead — a staff screen already open
+       is moved there rather than a second window opened. */
     for (const c of all) {
-      if (c.url.includes('/counsellor') || c.url.includes('/admin')) {
+      if (c.url.includes('/counsellor') || c.url.includes('/admin') || c.url.includes('/leads') || c.url.includes('/ops')) {
         await c.focus();
         if ('navigate' in c) await c.navigate(url);
         return;

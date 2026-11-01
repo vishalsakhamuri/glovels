@@ -150,6 +150,9 @@ function send(endpoint, headers, body) {
     const u = new URL(endpoint);
     const req = https.request({
       hostname: u.hostname,
+      /* The endpoint's own port when it names one (patch 221) — every real
+         push service is on 443, but a URL that says otherwise means it. */
+      port: u.port || 443,
       path: u.pathname + u.search,
       method: 'POST',
       headers: Object.assign({
