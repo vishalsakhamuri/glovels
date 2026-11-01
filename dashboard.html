@@ -1204,6 +1204,26 @@ async function __dashBoot(main) {
       window.__GLOVELS = s;
       __dashTodo(s);
       __dashOrders(s);
+      /* Patch 227 (owner, 1 Nov): universities first, the password second.
+         An account made at checkout carries a password we generated; it can
+         look and message, and this banner asks for its own password. */
+      fetch('/api/auth/me', { credentials: 'same-origin' }).then(function (x) { return x.json(); })
+        .then(function (m) {
+          if (!m || !m.mustChange || document.getElementById('pwBanner')) return;
+          var b = document.createElement('div');
+          b.id = 'pwBanner';
+          b.setAttribute('role', 'status');
+          b.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;'
+            + 'margin:0 0 16px;padding:14px 18px;border-radius:14px;background:#0f2a4a;color:#fff;font:500 13.5px/1.5 var(--sans)';
+          var mail = (m.user && m.user.email) || 'your email';
+          b.innerHTML = '<span><b>Your universities are below.</b> We have emailed your login details to <b></b>. '
+            + 'Choose your own password to keep using your account from any device.</span>'
+            + '<a href="login.html?change=1&amp;next=%2Fdashboard" style="background:#c9a24b;color:#0f2a4a;'
+            + 'font-weight:800;padding:9px 16px;border-radius:10px;text-decoration:none;white-space:nowrap">Set my password</a>';
+          b.querySelector('span b + b, span b:nth-of-type(2)').textContent = mail;
+          var top = document.querySelector('.p-top');
+          if (top && top.parentNode) top.parentNode.insertBefore(b, top);
+        }).catch(function () {});
     }
   } catch (e) {
     /* Server down: fall through to whatever this browser last saw, and say so

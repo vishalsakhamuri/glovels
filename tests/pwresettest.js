@@ -76,7 +76,9 @@ const stamp = Date.now();
   check('the new one signs them in', newTry.ok(), newTry.status());
 
   /* A password somebody else chose is not private, so it cannot stay. */
-  const gated = await back.request.get(BASE + '/api/state');
+  /* Patch 227: a student may LOOK before choosing a password (their
+     universities first); anything that writes is still held. */
+  const gated = await back.request.put(BASE + '/api/profile', { data: { profile: { g_field: 'X' } } });
   check('and the portal holds them at "choose your own" first',
     gated.status() === 403, gated.status());
   check('saying so, rather than failing blankly',

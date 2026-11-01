@@ -15,9 +15,12 @@ const ans=await p.evaluate(()=>window.glvFinderAnswers());console.log('answers',
 const mail='buyer'+Date.now()+'@example.com';
 const r=await p.evaluate(async([a,m])=>{const x=await fetch('/api/orders',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({packageId:'pkg-roadmap',name:'Ravi Kumar',email:m,phone:'+919811112222',acceptedTerms:true,answers:a})});return x.status+' '+JSON.stringify((await x.json()).matched||{})},[ans,mail]);
 console.log('order',r);check('paying delivers the universities straight away', /"delivered":[1-9]/.test(r) && /"needsProfile":false/.test(r), r);
-const ch=await p.evaluate(async()=>{const x=await fetch('/api/auth/change',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({password:'NewPass12345!'})});return x.status+' '+(await x.text()).slice(0,100)});console.log('change',ch);
+/* Patch 227: no password screen first — the universities, with a banner. */
+const wr=await p.evaluate(async()=>{const x=await fetch('/api/profile',{method:'PUT',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({profile:{g_field:'X'}})});return x.status});
+check('before a password is chosen, the record cannot be changed', wr===403, wr);
 await p.goto(BASE+'/dashboard.html');await p.waitForTimeout(2500);
-if(/login/.test(p.url())){console.log('on login (must change password) ->',p.url());}
+check('paying lands on the dashboard, not a password form', !/login/.test(p.url()), p.url());
+await p.waitForSelector('#pwBanner',{timeout:5000}).catch(()=>{});check('a banner asks for a password and says the login was emailed', /emailed your login details/.test(await p.textContent('#pwBanner').catch(()=>'')));
 const head=await p.$$eval('main h2',h=>h.map(x=>x.textContent.trim()).slice(0,3));console.log('first headings',head);
 const rows=await p.$$eval('#slWrap tbody tr',r=>r.length).catch(()=>0);check('the dashboard opens on Your universities', head[0]==='Your universities', head.join('|'));check('with the universities listed', rows>0, rows);check('and the first-assessment note with ask buttons', !!(await p.$('#slAsk')));console.log('rows',await p.$$eval('#slWrap tbody tr',r=>r.length).catch(()=>0),'askBox',!!(await p.$('#slAsk')));
 const st=await p.evaluate(async()=>{const s=await (await fetch('/api/state')).json();return {prof:Object.keys(s.profile||{}).filter(k=>/^(d_|e_|a_|w_|g_)/.test(k)).join(','),short:(s.shortlist||[]).length}});console.log('state',JSON.stringify(st));

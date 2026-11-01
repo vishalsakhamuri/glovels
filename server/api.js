@@ -13834,7 +13834,16 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
          * is cleared this account can change its password, read who it is, and
          * sign out. Nothing else.
          */
-        if (s.must_change && !CHANGE_ALLOWED.has(pathname)) {
+        /* Patch 227 (owner, 1 Nov): a STUDENT whose password we generated —
+           made at checkout, the login emailed to them — may LOOK at their own
+           universities and message their counsellor before choosing one. They
+           paid; the first thing they see is what they paid for, with a banner
+           asking for a password, not a password form. Anything that changes
+           their record still waits for their own password. Staff accounts
+           are unchanged. */
+        const lookOnly = s.role === 'student'
+          && (req.method === 'GET' || req.method === 'HEAD' || pathname === '/api/messages');
+        if (s.must_change && !CHANGE_ALLOWED.has(pathname) && !lookOnly) {
           json(res, 403, {
             error: 'Choose your own password before you go any further.',
             mustChange: true,
