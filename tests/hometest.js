@@ -174,7 +174,7 @@ const homeText = async ctx => {
   /* ------------------------------------------------------- page text */
   await page.click('.tab[data-t="txt"]');
   await page.waitForSelector('#txtRows textarea');
-  await page.fill('#tq', 'Find your university');
+  await page.fill('#tq', 'Search. Click.');
   await page.waitForTimeout(350);
   const box = page.locator('#txtRows textarea').first();
   check('search finds the line', await box.count() > 0,
@@ -209,7 +209,7 @@ const homeText = async ctx => {
   await page.waitForTimeout(800);
   home = await homeText(ctx);
   check('back to original really puts it back',
-    !home.includes('Find your course, anywhere') && home.includes('Find your university'));
+    !home.includes('Find your course, anywhere') && home.includes('Search. Click.'));
 
   /* ------------------------------------------------------ spreadsheet */
   await page.click('.tab[data-t="sheet"]');
@@ -226,9 +226,9 @@ const homeText = async ctx => {
   const iNow = head.indexOf('what it says now');
   check('the sheet has the columns the import needs', iKey === 0 && iNew > 0, head.join('|'));
 
-  const target = rows.findIndex((r, n) => n > 0 && String(r[iNow]).indexOf('Find your university') === 0);
+  const target = rows.findIndex((r, n) => n > 0 && String(r[iNow]).indexOf('Search. Click.') === 0);
   check('the sheet contains the line', target > 0, target);
-  rows[target][iNew] = 'Find your university — from a sheet';
+  rows[target][iNew] = 'Search. Click. — from a sheet';
   fs.writeFileSync('/tmp/text-edited.xlsx', SHEET.writeXlsx(head, rows.slice(1), 'text'));
 
   await page.selectOption('#sWhat', 'text');
@@ -239,7 +239,7 @@ const homeText = async ctx => {
   check('the preview says one line will be reworded', /1toreword/.test(plan.replace(/\s+/g, '')),
     plan.replace(/\s+/g, ' ').slice(0, 120));
   check('the preview shows the new wording',
-    plan.includes('Find your university — from a sheet'));
+    plan.includes('Search. Click. — from a sheet'));
 
   const midHome = await homeText(ctx);
   check('the preview wrote nothing', !midHome.includes('from a sheet'));
@@ -247,7 +247,7 @@ const homeText = async ctx => {
   await page.click('#sApply');
   await page.waitForTimeout(1200);
   home = await homeText(ctx);
-  check('applying the sheet changes the home page', home.includes('Find your university — from a sheet'));
+  check('applying the sheet changes the home page', home.includes('Search. Click. — from a sheet'));
 
   /* -------------------------------------------------------- a bad sheet */
   const bogus = head.slice();

@@ -2627,31 +2627,49 @@
    "sectionLabel": ""
   },
   {
-   "key": "section-1|h1|0104ff17|0",
+   "key": "section-1|h1|d60fd6dd|0",
    "section": "section-1",
    "kind": "text",
    "element": "h1",
-   "original": "Find your university",
+   "original": "Search. Click.",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
-   "key": "section-1|em|bd8499af|0",
+   "key": "section-1|em|f52b9cc4|0",
    "section": "section-1",
    "kind": "text",
    "element": "em",
-   "original": "in seconds",
+   "original": "Fly.",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
-   "key": "section-1|p|636cb7f8|0",
+   "key": "section-1|p|2981f71a|0",
    "section": "section-1",
    "kind": "text",
    "element": "p",
-   "original": "Your country, level and CGPA — instant matches, including public universities.",
+   "original": "Study or work abroad — thousands of programmes matched to your profile in seconds, with a plan our research team builds around you.",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
+  },
+  {
+   "key": "section-1|a|06674dc0|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "a",
+   "original": "Find my university",
+   "note": "",
+   "sectionLabel": "Hero — Search. Click. Fly."
+  },
+  {
+   "key": "section-1|a|fc60a90d|0",
+   "section": "section-1",
+   "kind": "text",
+   "element": "a",
+   "original": "Talk to an expert",
+   "note": "",
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "section-1|span|be305a18|0",
@@ -2660,7 +2678,7 @@
    "element": "span",
    "original": "· 3,200+ students placed abroad",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "section-1|div|d36224ee|0",
@@ -2669,7 +2687,7 @@
    "element": "div",
    "original": "Your journey",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "section-1|div|3aa3c271|0",
@@ -2678,7 +2696,7 @@
    "element": "div",
    "original": "Shortlist",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "section-1|div|0af310ac|0",
@@ -2687,7 +2705,7 @@
    "element": "div",
    "original": "Application Processing",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "section-1|div|1bea756d|0",
@@ -2696,7 +2714,7 @@
    "element": "div",
    "original": "Financial Planning",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "section-1|div|41fdab89|0",
@@ -2705,7 +2723,7 @@
    "element": "div",
    "original": "Visa Filing",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "section-1|div|7ecc6bac|0",
@@ -2714,7 +2732,7 @@
    "element": "div",
    "original": "Post-Visa Support",
    "note": "",
-   "sectionLabel": "Find your university"
+   "sectionLabel": "Hero — Search. Click. Fly."
   },
   {
    "key": "page|label|04f4fe71|0",
