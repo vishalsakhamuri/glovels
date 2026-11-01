@@ -1572,6 +1572,20 @@ async function staffBoot(run) {
   $('#staffName').textContent = me.user.name;
   $('#staffRole').textContent = me.user.role === 'admin' ? 'Administrator'
     : me.user.role === 'editor' ? 'Website editor' : 'Counsellor';
+  /* Patch 211: a country admin changes their own countries only — said up
+     front, so a refusal is never a surprise. The server checks every change. */
+  if (me.user.role !== 'admin' && (me.user.scope || []).length) {
+    const flag = c => String(c).toUpperCase().replace(/./g, ch => String.fromCodePoint(127397 + ch.charCodeAt(0)));
+    let nm = c => c; try { const dn = new Intl.DisplayNames(['en'], { type: 'region' }); nm = c => dn.of(c) || c; } catch (e) {}
+    const note = document.createElement('div');
+    note.className = 'scope-note';
+    note.setAttribute('role', 'note');
+    note.style.cssText = 'margin:0 0 14px;padding:11px 14px;border-radius:12px;background:#fff8e6;border:1px solid #f1d9a0;font:600 13.4px/1.5 var(--sans);color:#0b1f3a';
+    note.innerHTML = '<b>Your countries:</b> ' + me.user.scope.map(c => flag(c) + ' ' + esc(nm(c))).join(', ')
+      + '. You can add, change and import programmes and universities for these. Other destinations are view-only.';
+    const main = document.querySelector('.p-main');
+    if (main) main.insertBefore(note, main.firstChild);
+  }
 
   /* The menu shows what this account can actually open. A link to a screen that
      answers "not your workspace" is worse than no link: it reads as something

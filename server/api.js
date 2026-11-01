@@ -4965,6 +4965,19 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     return handler(req, res, s, m);
   });
 
+  /* Patch 211 (owner): "country admins upload country-level data". Anyone
+     who is not an administrator and has countries (a country admin, or a
+     counsellor limited to countries) changes the catalogue for those
+     countries only. null = no limit. */
+  const catScope = s => {
+    if (!s || s.role === 'admin') return null;
+    const sc = (db.scopeOf(s) || []).map(c => String(c).toUpperCase());
+    return sc.length ? sc : null;
+  };
+  const catAllows = (s, country) => { const sc = catScope(s); return !sc || sc.includes(String(country || '').toUpperCase()); };
+  const scopeRefusal = (s, country) => ({ error: 'You look after ' + catScope(s).map(c => (ISO_COUNTRIES.byCode(c) || { name: c }).name).join(', ')
+    + ' — ' + ((ISO_COUNTRIES.byCode(String(country || '').toUpperCase()) || {}).name || 'that destination') + ' is for its own country admin or an administrator.', scope: catScope(s) });
+
   /** For routes that change the website. */
   const needs = (perm, handler) => staffOnly(async (req, res, s, m) => {
     if (!can(s, perm)) {
@@ -11042,6 +11055,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
   route('PUT', /^\/api\/staff\/university\/([a-z0-9-]{1,90})$/, needs('catalogue', async (req, res, s, m) => {
     const u = uniOf(m[1]);
     if (!u) return json(res, 404, { error: 'No university at that address' });
+    if (!catAllows(s, u.country)) return json(res, 403, scopeRefusal(s, u.country));
     const rawX = await readJson(req);
     const x = UNIS.cleanExtras(rawX);
     if (rawX && String(rawX.website || '').trim() && !x.website) {
@@ -11113,6 +11127,8 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     }
     const existing = b.id ? db.programme(b.id) : null;
     const p = cleanProgramme(b, existing);
+    if (existing && !catAllows(s, existing.country)) return json(res, 403, scopeRefusal(s, existing.country));
+    if (!catAllows(s, p.country)) return json(res, 403, scopeRefusal(s, p.country));
 
     if (!p.program) return json(res, 422, { error: 'The programme needs a name' });
     if (!p.university) return json(res, 422, { error: 'The programme needs a university' });
@@ -11132,6 +11148,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     const id = decodeURIComponent(m[1]);
     const p = db.programme(id);
     if (!p) return json(res, 404, { error: 'No such programme' });
+    if (!catAllows(s, p.country)) return json(res, 403, scopeRefusal(s, p.country));
     /* Deactivate rather than delete when a student has it shortlisted: removing
        the row would blank out their shortlist card and their application. */
     const inUse = db.allStudents().some(st => db.getShortlist(st.id).some(r => r.prog_id === id));
@@ -11165,6 +11182,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     const code = String(b.code || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
     let name = String(b.name || '').trim().slice(0, 60);
     if (code.length !== 2) return json(res, 422, { error: 'A destination needs a two-letter code, like AU' });
+    if (!catAllows(s, code)) return json(res, 403, scopeRefusal(s, code));
     /* A REAL country, and only one row of it.
      *
      * "In admin we can add any country with any code" — a code that is not a
@@ -11218,6 +11236,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
 
   route('DELETE', /^\/api\/staff\/country\/([A-Za-z]{2})$/, needs('catalogue', async (req, res, s, m) => {
     const code = m[1].toUpperCase();
+    if (!catAllows(s, code)) return json(res, 403, scopeRefusal(s, code));
     const n = db.countByCountry()[code] || 0;
     if (n) return json(res, 409, {
       error: n + ' programme' + (n === 1 ? '' : 's') + ' still use that destination. '
@@ -11254,9 +11273,11 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     const inUse = action === 'delete' ? db.programmesInUse() : null;
     const out = { deleted: 0, hidden: 0, shown: 0, searchOnly: 0, missing: 0, keptNames: [] };
 
+    out.outOfScope = 0;
     ids.forEach(id => {
       const p = db.programme(id);
       if (!p) { out.missing++; return; }
+      if (!catAllows(s, p.country)) { out.outOfScope++; return; }
 
       const asDraft = extra => Object.assign({
         id: p.id, program: p.program, university: p.university, city: p.city,
@@ -11775,6 +11796,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
           : String(g('university') || '') + ' — ' + String(g('program') || '');
         if (!id) { plan.rejected.push({ line, what, why: ['a tags-only sheet needs the id of every row — a blank id cannot add a programme here'] }); return; }
         if (!row) { plan.rejected.push({ line, what, why: [`there is no programme with id ${id}`] }); return; }
+        if (!catAllows(s, row.country)) { plan.rejected.push({ line, what, why: [row.country + ' is not one of your countries'] }); return; }
         if (seenIds.has(id)) { plan.rejected.push({ line, what, why: [`id ${id} appears twice in this file`] }); return; }
         seenIds.add(id);
         if (tags === undefined) { plan.unchanged.push({ line, id, what, note: 'no tags on this line' }); return; }
@@ -12108,6 +12130,12 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
          quietly turn "asks for B1" into "not stated", which the finder then
          reads as "no German needed". */
       if (draft.reqs) REQS.problems(draft.reqs).forEach(x => why.push(x.why));
+      /* Patch 211: a country admin's sheet changes their own countries only. */
+      if (draft.country && !catAllows(s, draft.country)) {
+        why.push(String(draft.country).toUpperCase() + ' is not one of your countries (' + catScope(s).join(', ') + ')');
+      } else if (draft.id && db.programme(draft.id) && !catAllows(s, db.programme(draft.id).country)) {
+        why.push('that programme belongs to ' + db.programme(draft.id).country + ', not one of your countries');
+      }
       if (why.length) {
         plan.rejected.push({ line, what: draft.university + ' — ' + draft.program, why });
         return;
