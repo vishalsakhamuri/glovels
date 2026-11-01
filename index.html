@@ -3207,9 +3207,11 @@ function needBox(list){
     /* Round 176: no "N of these M" \u2014 a count of the list is not for the visitor. */
     + `<p>${withNames === list.length ? 'Every one of these asks' : 'Some of these ask'} for something you have not told us. We can show you the list, not which of them would take you \u2014 and a counsellor will ask the same ${keys.length === 1 ? 'question' : 'questions'} by phone.</p>`
     + `<div class="need-chips">${keys.map(k => `<button type="button" data-need="${k}">${esc(REQ_LABEL[k] || k)} \u2192</button>`).join('')}${done.map(k => `<span>${esc(REQ_LABEL[k] || k)} \u2014 done</span>`).join('')}</div></div>`
-    + (PROFILE && PROFILE.__signedIn
-        ? `<a class="btn btn-navy btn-sm" href="profile.html">Finish my profile ${ico('arrow')}</a>`
-        : `<button type="button" class="btn btn-navy btn-sm" data-need="${keys[0]}">Answer ${keys.length === 1 ? 'it' : 'them'} ${ico('arrow')}</button>`);
+    /* Patch 224 (owner, 1 Nov): signed in or not, the button opens the
+       questions here on the finder. It used to send a signed-in student to
+       the full profile form, which asks for passport and documents that are
+       only needed once a package is bought. */
+    + `<button type="button" class="btn btn-navy btn-sm" data-need="${keys[0]}">Answer ${keys.length === 1 ? 'it' : 'them'} here ${ico('arrow')}</button>`;
   el.hidden = false;
   $$('[data-need]', el).forEach(b => b.onclick = () => {
     const box = $(REQ_BOX[b.dataset.need]); if(!box) return;
