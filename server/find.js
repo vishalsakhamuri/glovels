@@ -183,7 +183,12 @@
   const today = () => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; };
   const termStart = (season, y) => new Date(y, /summer|spring/i.test(season) ? 3 : 9, 1);
   const seasonOf = i => /summer|spring/i.test(String((i && i.season) || '')) ? 'summer' : 'winter';
-  const termByKey = k => { const m = /^(summer|winter)-(\d{4})$/.exec(String(k || '')); return m ? { key: k, season: m[1], year: Number(m[2]), start: termStart(m[1], Number(m[2])) } : null; };
+  const termByKey = k => { const m = /^(summer|winter)-(\d{4})$/.exec(String(k || '')); if (!m) return null;
+    /* Patch 218 (owner): a term that has already started rolls on to the next
+       one of the same season — an old link or a saved "Winter 2026" reads as
+       Winter 2027, never as a term nothing is open for. */
+    let y = Number(m[2]); const now = new Date(); while (termStart(m[1], y) <= now) y++;
+    return { key: m[1] + '-' + y, season: m[1], year: y, start: termStart(m[1], y) }; };
   function upcomingTerms(n) {
     const out = [], T = today();
     for (let y = T.getFullYear(); out.length < n; y++) {

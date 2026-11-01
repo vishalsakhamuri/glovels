@@ -557,7 +557,12 @@ function termOf(text) {
   const m = /(summer|spring|winter|fall|autumn)\D{0,3}(\d{4})/i.exec(String(text || ''));
   if (!m) return null;
   const season = /summer|spring/i.test(m[1]) ? 'summer' : 'winter';
-  const year = Number(m[2]);
+  let year = Number(m[2]);
+  /* Patch 218 (owner): a saved intake that has already started means the
+     next one of that season — "Winter 2026" on a profile filled last year
+     is matched as Winter 2027, not against a term that has begun. */
+  const now = new Date();
+  while (new Date(year, season === 'summer' ? 3 : 9, 1) <= now) year++;
   return { season, year, start: new Date(year, season === 'summer' ? 3 : 9, 1) };
 }
 function termDeadline(i, term) {

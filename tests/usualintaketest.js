@@ -13,6 +13,12 @@ check('a stated intake is kept as it is', de.intakes.length === 1 && de.intakes[
 check('the UK row is kept for ' + win.key, F.keep(gb, { intake: win.key }) === true);
 check('and not for ' + sum.key, F.keep(gb, { intake: sum.key }) === false);
 check('Australia is kept for both', F.keep(au, { intake: win.key }) && F.keep(au, { intake: sum.key }));
+const M = require('../server/matches.js');
+const past = F.termByKey('winter-' + (new Date().getFullYear() - 1));
+check('a past term key rolls forward to an upcoming one of the same season', past && past.season === 'winter' && past.start > new Date(), past && past.key);
+const pt = M.termOf('Winter ' + (new Date().getFullYear() - 1));
+check('a saved "Winter <last year>" profile intake is matched as the next winter', pt && pt.season === 'winter' && pt.start > new Date(), pt && pt.year);
+check('a future term is left exactly as it is', F.termByKey('summer-2031').key === 'summer-2031');
 check('an unknown country gets no invented intake', row('ZZ').intakes.length === 0);
 ok.forEach(x => console.log('  ✓ ' + x)); bad.forEach(x => console.log('  ✗ ' + x));
 console.log('\nusualintaketest: ' + ok.length + ' passed, ' + bad.length + ' failed'); process.exit(bad.length ? 1 : 0);

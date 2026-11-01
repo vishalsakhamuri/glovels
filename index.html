@@ -3001,7 +3001,12 @@ function upcomingTerms(n){
   }
   return out;
 }
-const termByKey = k => { const m = /^(summer|winter)-(\d{4})$/.exec(String(k || '')); return m ? { key: k, season: m[1], year: Number(m[2]), start: termStart(m[1], Number(m[2])) } : null; };
+const termByKey = k => { const m = /^(summer|winter)-(\d{4})$/.exec(String(k || '')); if (!m) return null;
+    /* Patch 218 (owner): a term that has already started rolls on to the next
+       one of the same season — an old link or a saved "Winter 2026" reads as
+       Winter 2027, never as a term nothing is open for. */
+    let y = Number(m[2]); const now = new Date(); while (termStart(m[1], y) <= now) y++;
+    return { key: m[1] + '-' + y, season: m[1], year: y, start: termStart(m[1], y) }; };
 
 /* This intake's deadline for that term, or null if it is not that season. */
 function termDeadline(i, term){
@@ -3031,7 +3036,8 @@ const SEASON = s => String(s || '').charAt(0).toUpperCase() + String(s || '').sl
 function rebuildIntakes(){
   const sel = $('#fIntake');
   if(!sel) return;
-  const keep = sel.value;
+  /* Patch 218: a remembered term that has started rolls to the next one. */
+  const keep = (termByKey(sel.value) || {}).key || sel.value;
   const terms = upcomingTerms(4);
   /* Round 176: a term is offered when the server's facet list (every row,
      locked ones included) or a row here is open for it — the page no
