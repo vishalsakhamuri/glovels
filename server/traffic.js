@@ -180,8 +180,7 @@ function open({ db, log = console }) {
       if (bot) {
         Object.assign(row, { kind: 'bot', bot: bot.bot, source: bot.group });
       } else {
-        const ip = String(req.headers['x-forwarded-for'] || '').split(',').pop().trim()
-          || (req.socket && req.socket.remoteAddress) || '';
+        const ip = GEO.clientIpOf(req);   // Patch 214: not the Cloudflare edge
         const visitor = crypto.createHmac('sha256', secret).update(ip + '|' + ua + '|' + day).digest('hex').slice(0, 16);
         /* Patch 187: the country only — the address itself is not kept. */
         let country = '';

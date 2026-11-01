@@ -304,4 +304,53 @@ function _install(rows) {
   loadedMonth = 'test';
 }
 
-module.exports = { forRequest, countryOfIp, currencyFor, start, refresh, status, _install, CURRENCY_OF };
+
+/* ---------------------------------------------------- who is the visitor */
+/* Patch 214: Render puts Cloudflare in front of every service, so
+   X-Forwarded-For arrives as `<anything the client sent>, <visitor>,
+   <Cloudflare edge>`. Taking the rightmost hop gave every visitor the
+   country of the edge (Singapore, beside the server) — so a visitor in Italy
+   saw SGD, every guest behind one edge shared one search limit, and the
+   marketing dashboard put everybody in Singapore. Cloudflare's own addresses
+   are skipped like private ones; the hop before them is the one Cloudflare
+   wrote, which a visitor cannot forge. Ranges from cloudflare.com/ips
+   (checked 1 Nov 2026) — keep them in line with that page. */
+const CF4 = ['173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+  '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+  '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+  '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22'];
+const CF6 = ['2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+  '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32'];
+const cf4 = CF4.map(r => { const [a, b] = r.split('/'); const bits = Number(b);
+  const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0; return [(v4ToInt(a) & mask) >>> 0, mask]; });
+const cf6 = CF6.map(r => { const [a, b] = r.split('/'); const bits = Number(b);
+  const mask = bits === 0 ? 0n : ((1n << 64n) - 1n) ^ ((1n << BigInt(64 - bits)) - 1n);
+  return [v6Prefix(a) & mask, mask]; });
+function isCloudflare(ip) {
+  ip = String(ip || '').trim().replace(/^::ffff:/i, '');
+  if (net.isIPv4(ip)) { const n = v4ToInt(ip); return n >= 0 && cf4.some(([base, mask]) => ((n & mask) >>> 0) === base); }
+  if (net.isIPv6(ip)) { const n = v6Prefix(ip); return n != null && cf6.some(([base, mask]) => (n & mask) === base); }
+  return false;
+}
+const PRIVATE = /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|::1$|fc|fd|fe80)/i;
+const isPrivate = ip => PRIVATE.test(String(ip || '').replace(/^::ffff:/i, ''));
+/** The visitor's address: the rightmost forwarded hop that is neither
+ *  private nor Cloudflare. With nothing else to go on, Cloudflare's own
+ *  CF-Connecting-IP — believed only when the request came through Cloudflare. */
+function clientIpOf(req) {
+  const hops = String((req.headers && req.headers['x-forwarded-for']) || '').split(',')
+    .map(x => x.trim().replace(/^::ffff:/i, '')).filter(Boolean);
+  let viaCf = false;
+  for (let i = hops.length - 1; i >= 0; i--) {
+    if (isPrivate(hops[i])) continue;
+    if (isCloudflare(hops[i])) { viaCf = true; continue; }
+    return hops[i];
+  }
+  if (viaCf) {
+    const c = String(req.headers['cf-connecting-ip'] || req.headers['true-client-ip'] || '').trim();
+    if (net.isIP(c)) return c;
+  }
+  return hops[0] || (req.socket && req.socket.remoteAddress) || '';
+}
+
+module.exports = { clientIpOf, isCloudflare, forRequest, countryOfIp, currencyFor, start, refresh, status, _install, CURRENCY_OF };

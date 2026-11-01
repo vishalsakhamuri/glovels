@@ -1765,11 +1765,8 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
       marketing.search(req, Object.assign({}, x, { studentId: who ? who.id : null }), country);
     } catch (e) { /* a search is never worth a failed answer */ }
   };
-  const clientIp = req => {
-    const hops = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
-    for (let i = hops.length - 1; i >= 0; i--) if (!privateIp(hops[i])) return hops[i];
-    return hops[0] || (req.socket && req.socket.remoteAddress) || 'unknown';
-  };
+  /* Patch 214: the hop before Cloudflare's, not Cloudflare's own (server/geo.js). */
+  const clientIp = req => GEO.clientIpOf(req) || 'unknown';
 
   const ROUTES = [];
   /*

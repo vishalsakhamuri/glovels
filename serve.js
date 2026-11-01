@@ -1529,7 +1529,7 @@ const UNI_JS = `<div class="apsheet" id="apSheet" role="dialog" aria-modal="true
 <form id="apForm" novalidate>
 <label for="apName">Your name</label><input id="apName" autocomplete="name" required>
 <label for="apEmail">Email</label><input id="apEmail" type="email" autocomplete="email" required>
-<label for="apPhone">Mobile (India)</label><input id="apPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98xxxxxxxx" required>
+<label for="apPhone">Mobile (with country code outside India)</label><input id="apPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98xxxxxxxx or +39 312 345 6789" required>
 <div class="row"><button class="btn btn-primary" type="submit" id="apGo">Send</button>
 <button class="btn btn-ghost" type="button" id="apClose">Cancel</button></div>
 <div class="said" id="apSaid" role="status"></div>
@@ -3097,7 +3097,7 @@ function withMobileKit(html, pathname) {
   if (html.indexOf('<header class="site"') < 0) {
     if (STUDENT_PAGES.test(String(pathname || '')) && html.indexOf('<script src="/glovels-pay.js') < 0) {
       const end = html.lastIndexOf('</body>');
-      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=209" defer></script>\n' + html.slice(end);
+      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=214" defer></script>\n' + html.slice(end);
     }
     return html;
   }
@@ -3109,7 +3109,7 @@ function withMobileKit(html, pathname) {
   const at = html.lastIndexOf('</body>');
   /* Patch 194: the currency script on every public page, so every rupee
      figure is shown in the visitor's own money (it also runs the checkout). */
-  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=209" defer></script>';
+  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=214" defer></script>';
   return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + pay + '\n' + html.slice(at);
 }
 

@@ -129,8 +129,7 @@ function open({ db, fx, log = console }) {
   /** The same daily visitor key traffic.js writes on a page view. */
   function visitorOf(req) {
     const ua = String(req.headers['user-agent'] || '');
-    const ip = String(req.headers['x-forwarded-for'] || '').split(',').pop().trim()
-      || (req.socket && req.socket.remoteAddress) || '';
+    const ip = require('./geo').clientIpOf(req);
     const day = new Date().toISOString().slice(0, 10);
     return crypto.createHmac('sha256', secret).update(ip + '|' + ua + '|' + day).digest('hex').slice(0, 16);
   }

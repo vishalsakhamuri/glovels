@@ -660,6 +660,13 @@
         + '.glv-loc-pop h4{margin:0 0 10px;font:800 15px var(--sans,system-ui);color:#0b1f3a}'
         + '.glv-loc-pop label{display:block;font:700 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:#6b7a8c;margin:10px 0 4px}'
         + '.glv-loc-pop select{width:100%;padding:9px 10px;border:1.5px solid #d8dde4;border-radius:10px;background:#fff;font:600 14px var(--sans,system-ui);color:#0b1f3a}'
+        + '.glv-pick input{width:100%;box-sizing:border-box;padding:9px 10px;border:1.5px solid #d8dde4;border-radius:10px 10px 0 0;font:600 14px var(--sans,system-ui);color:#0b1f3a}'
+        + '.glv-pick input:focus{outline:none;border-color:#0b1f3a}'
+        + '.glv-pick-l{max-height:150px;overflow-y:auto;border:1.5px solid #d8dde4;border-top:0;border-radius:0 0 10px 10px;-webkit-overflow-scrolling:touch}'
+        + '.glv-pick-l button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:8px 10px;font:600 13.5px var(--sans,system-ui);color:#0b1f3a;cursor:pointer}'
+        + '.glv-pick-l button:hover{background:#f1f4f8}.glv-pick-l button[aria-selected]{background:#0b1f3a;color:#fff}'
+        + '.glv-pick-l button[hidden]{display:none}.glv-pick-none{padding:8px 10px;color:#6b7a8c;font:500 13px var(--sans,system-ui)}'
+        + '.glv-loc-pop{max-height:calc(100vh - 90px);overflow-y:auto}'
         + '.glv-loc-pop small{display:block;color:#6b7a8c;font:500 11.5px var(--sans,system-ui);margin-top:4px}'
         + '.glv-loc-pop .go{margin-top:14px;width:100%;border:0;border-radius:10px;padding:11px;background:#0b1f3a;color:#fff;font:800 13.5px var(--sans,system-ui);cursor:pointer}'
         + '.glv-locale.in-menu{display:flex;margin:4px 0 12px}.glv-locale.in-menu .glv-loc-btn{width:100%;justify-content:center;padding:11px 14px;font-size:14px}'
@@ -681,39 +688,76 @@
         + '<span class="f" aria-hidden="true">' + flagOf(c) + '</span><span class="n">' + (inMenu && c ? countryName(c) + ' \u00b7 ' : '') + cur + ' \u00b7 EN</span><span aria-hidden="true">\u25be</span></button>';
       box.querySelector('button').onclick = open;
     }
+    /* Patch 214 (owner): "there is no option to search country or language or
+       currency" — each is now a type-to-find list rather than a 250-line select. */
+    function picker(id, label, items, value, ph) {
+      return '<label for="' + id + 'Q">' + label + '</label>'
+        + '<div class="glv-pick" data-id="' + id + '"><input id="' + id + 'Q" type="search" autocomplete="off" spellcheck="false" placeholder="' + ph + '" role="combobox" aria-expanded="true" aria-controls="' + id + 'L">'
+        + '<div class="glv-pick-l" id="' + id + 'L" role="listbox">'
+        + items.map(function (x) { return '<button type="button" role="option" data-v="' + x[0] + '" data-s="' + (x[0] + ' ' + x[1] + ' ' + (x[2] || '')).toLowerCase().replace(/"/g, '') + '"' + (x[0] === value ? ' aria-selected="true"' : '') + '>' + x[1] + '</button>'; }).join('')
+        + '<div class="glv-pick-none" hidden>Nothing matches</div></div></div>';
+    }
+    function wire(pop, id, onPick) {
+      var root = pop.querySelector('.glv-pick[data-id="' + id + '"]'), q = root.querySelector('input'), list = root.querySelector('.glv-pick-l');
+      var none = list.querySelector('.glv-pick-none');
+      function filter() {
+        var t = q.value.trim().toLowerCase(), shown = 0;
+        list.querySelectorAll('button').forEach(function (b) { var ok = !t || b.getAttribute('data-s').indexOf(t) >= 0; b.hidden = !ok; if (ok) shown++; });
+        none.hidden = shown > 0;
+      }
+      function choose(b) {
+        list.querySelectorAll('[aria-selected]').forEach(function (x) { x.removeAttribute('aria-selected'); });
+        b.setAttribute('aria-selected', 'true'); root.setAttribute('data-value', b.getAttribute('data-v'));
+        if (onPick) onPick(b.getAttribute('data-v'));
+      }
+      q.oninput = filter;
+      q.onkeydown = function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); var f = list.querySelector('button:not([hidden])'); if (f) { choose(f); q.value = ''; filter(); f.scrollIntoView({ block: 'nearest' }); } }
+      };
+      list.onclick = function (e) { var b = e.target.closest('button'); if (b) choose(b); };
+      var sel = list.querySelector('[aria-selected]');
+      root.setAttribute('data-value', sel ? sel.getAttribute('data-v') : '');
+      if (sel) setTimeout(function () { sel.scrollIntoView({ block: 'nearest' }); }, 0);
+      return {
+        get: function () { return root.getAttribute('data-value') || ''; },
+        set: function (v) { var b = list.querySelector('button[data-v="' + v + '"]'); if (b) { choose(b); b.scrollIntoView({ block: 'nearest' }); } }
+      };
+    }
     function open() {
       if (box.querySelector('.glv-loc-pop')) return close();
-      var codes = (CFG.countries || []).slice().map(function (k) { return [k, countryName(k)]; })
-        .sort(function (a, b) { return a[1].localeCompare(b[1]); });
       var c = country(), cur = current(CFG);
-      var curOpts = Array.isArray(CFG.regions) && CFG.regions.length
-        ? CFG.regions.map(function (g) { return '<optgroup label="' + g.name + '">' + g.currencies.map(function (k) { return '<option value="' + k + '">' + k + ' \u2014 ' + nameOf(k) + '</option>'; }).join('') + '</optgroup>'; }).join('')
-        : (CFG.currencies || ['INR']).map(function (k) { return '<option value="' + k + '">' + k + '</option>'; }).join('');
+      var cItems = (CFG.countries || []).map(function (k) { return [k, flagOf(k) + ' ' + countryName(k), countryName(k)]; })
+        .sort(function (x, y) { return x[2].localeCompare(y[2]); });
+      var kList = Array.isArray(CFG.regions) && CFG.regions.length
+        ? [].concat.apply([], CFG.regions.map(function (g) { return g.currencies; })) : (CFG.currencies || ['INR']);
+      var seen = {};
+      var kItems = kList.filter(function (k) { if (seen[k]) return false; seen[k] = 1; return true; })
+        .map(function (k) { return [k, k + ' — ' + nameOf(k), nameOf(k)]; });
       var pop = document.createElement('div');
       pop.className = 'glv-loc-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Country, currency and language');
       pop.innerHTML = '<h4>Your country and currency</h4>'
-        + '<label for="glvLocC">Country</label><select id="glvLocC"><option value="">Choose your country</option>'
-        + codes.map(function (x) { return '<option value="' + x[0] + '">' + flagOf(x[0]) + ' ' + x[1] + '</option>'; }).join('') + '</select>'
-        + '<label for="glvLocCur">Currency</label><select id="glvLocCur">' + curOpts + '</select>'
+        + picker('glvLocC', 'Country', cItems, c, 'Search country — e.g. Italy')
+        + picker('glvLocCur', 'Currency', kItems, cur, 'Search currency — e.g. EUR, euro')
         + '<small>Prices and fees are shown in this currency, and you pay in it.</small>'
-        + '<label for="glvLocL">Language</label><select id="glvLocL"><option value="en">English</option></select>'
+        + picker('glvLocL', 'Language', [['en', 'English']], 'en', 'Search language')
         + '<small>More languages are coming.</small>'
         + '<button type="button" class="go">Save</button>';
       box.appendChild(pop);
       box.querySelector('.glv-loc-btn').setAttribute('aria-expanded', 'true');
-      var cs = pop.querySelector('#glvLocC'), ks = pop.querySelector('#glvLocCur');
-      cs.value = c; ks.value = cur;
-      cs.onchange = function () { var m = CFG.currencyOf && CFG.currencyOf[cs.value]; if (m) ks.value = m; };
+      var ks = wire(pop, 'glvLocCur');
+      var cs = wire(pop, 'glvLocC', function (v) { var m = CFG.currencyOf && CFG.currencyOf[v]; if (m) ks.set(m); });
+      wire(pop, 'glvLocL');
       pop.querySelector('.go').onclick = function () {
-        try { if (cs.value) localStorage.setItem(CKEY, cs.value); } catch (e) {}
-        try { if (cs.value) document.cookie = 'glv_country=' + cs.value + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
-        set(ks.value);
-        try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: ks.value })); } catch (e) {}
-        try { document.dispatchEvent(new CustomEvent('glv-country', { detail: cs.value })); } catch (e) {}
-        if (window.glvTrack) try { glvTrack('locale', { label: (cs.value || '') + ' ' + ks.value }); } catch (e) {}
+        var cv = cs.get(), kv = ks.get() || cur;
+        try { if (cv) localStorage.setItem(CKEY, cv); } catch (e) {}
+        try { if (cv) document.cookie = 'glv_country=' + cv + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
+        set(kv);
+        try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: kv })); } catch (e) {}
+        try { document.dispatchEvent(new CustomEvent('glv-country', { detail: cv })); } catch (e) {}
+        if (window.glvTrack) try { glvTrack('locale', { label: (cv || '') + ' ' + kv }); } catch (e) {}
         close(); paint();
       };
-      setTimeout(function () { cs.focus(); }, 30);
+      setTimeout(function () { var i = pop.querySelector('#glvLocCQ'); if (i && !inMenu) i.focus(); }, 30);
     }
     function close() { var p = box.querySelector('.glv-loc-pop'); if (p) p.remove(); var b = box.querySelector('.glv-loc-btn'); if (b) b.setAttribute('aria-expanded', 'false'); }
     document.addEventListener('click', function (e) { if (!box.contains(e.target)) close(); });

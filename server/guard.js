@@ -49,8 +49,8 @@ function open({ db, enabled, log = console, limits }) {
   const sign = v => crypto.createHmac('sha256', secret + '|guard').update(String(v)).digest('base64url').slice(0, 16);
 
   /* ------------------------------------------------------------ who */
-  const ipOf = req => String(req.headers['x-forwarded-for'] || '').split(',').pop().trim()
-    || (req.socket && req.socket.remoteAddress) || '';
+  /* Patch 214: the visitor, not the Cloudflare edge every guest shares. */
+  const ipOf = req => require('./geo').clientIpOf(req);
   const netKey = req => 'n:' + crypto.createHmac('sha256', secret).update(ipOf(req) + '|' + new Date().toISOString().slice(0, 10)).digest('hex').slice(0, 16);
   function cookieOf(req, name) {
     const m = String(req.headers.cookie || '').match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));

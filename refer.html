@@ -430,14 +430,14 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <fieldset><legend>Your friend</legend>
       <div class="rf-row">
         <label for="rfName">Their name<input id="rfName" autocomplete="off" required></label>
-        <label for="rfPhone">Their mobile<input id="rfPhone" type="tel" inputmode="numeric" placeholder="98xxxxxxxx" autocomplete="off" required></label>
+        <label for="rfPhone">Their mobile<input id="rfPhone" type="tel" inputmode="tel" placeholder="98xxxxxxxx or +355 69 123 4567" autocomplete="off" required></label>
       </div>
       <label for="rfMail">Their email<input id="rfMail" type="email" autocomplete="off" required></label>
     </fieldset>
     <fieldset><legend>You</legend>
       <div class="rf-row">
         <label for="rfMyName">Your name<input id="rfMyName" autocomplete="name" required></label>
-        <label for="rfMyPhone">Your mobile<input id="rfMyPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98xxxxxxxx" required></label>
+        <label for="rfMyPhone">Your mobile<input id="rfMyPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98xxxxxxxx or +39 312 345 6789" required></label>
       </div>
     </fieldset>
     <input id="rfTrap" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
@@ -471,10 +471,10 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   var mobile = function (v) { return (function (s) { s = String(s == null ? '' : s).trim(); var n = s.replace(/\D/g, '').length; return /^\+?[\d\s().-]+$/.test(s) && n >= 8 && n <= 15; }(v)); };
   var checks = [
     ['rfName', function (v) { return v.length > 1 && letter.test(v); }, function (v) { return v.length > 1 ? 'Your friend’s name needs at least one letter.' : 'Tell us your friend’s name.'; }],
-    ['rfPhone', mobile, 'Your friend’s 10-digit Indian mobile, please.'],
+    ['rfPhone', mobile, 'Your friend’s mobile, please — with the country code if they are outside India.'],
     ['rfMail', function (v) { return /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v); }, 'Your friend’s email, please.'],
     ['rfMyName', function (v) { return v.length > 1 && letter.test(v); }, function (v) { return v.length > 1 ? 'Your name needs at least one letter.' : 'Tell us your name.'; }],
-    ['rfMyPhone', mobile, 'Your 10-digit Indian mobile, please.']
+    ['rfMyPhone', mobile, 'Your mobile, please — with the country code if you are outside India.']
   ];
   form.addEventListener('input', function (e) { if (e.target.classList) e.target.classList.remove('bad'); err.hidden = true; });
   form.addEventListener('submit', function (e) {
