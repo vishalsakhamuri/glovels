@@ -93,14 +93,15 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
 
   /* ============================== 3. family details is optional, not finished */
   const fam = nav.find(n => /family details/i.test(n)) || '';
-  ok(/optional/i.test(fam),
+  /* Patch 225: before a package these read "later" — not asked yet. */
+  ok(/optional|later/i.test(fam),
     'an empty section with nothing required in it reads as optional — ' + fam);
   ok(!/100%/.test(fam),
     'and NOT as 100% complete, which is what it said — ' + fam);
   /* The rest of the form is untouched: a section that really does have
      required fields still counts them. */
   const personal = nav.find(n => /personal details/i.test(n)) || '';
-  ok(/%$/.test(personal),
+  ok(/%$|later$/.test(personal),
     'a section that does have required fields still shows a percentage — ' + personal);
 
   ok(errs.length === 0, 'no page errors on the profile — ' + errs.slice(0, 2).join(' | '));

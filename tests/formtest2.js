@@ -65,7 +65,10 @@ const W = 850;
   const nav = () => page.$$eval('#secNav button',
     b => b.map(x => x.textContent.replace(/\s+/g, ' ').trim()));
   const go = async re => {
-    const i = (await nav()).findIndex(x => re.test(x));
+    /* Patch 225: shortlist sections are listed first; use the button's data-i. */
+    const i = await page.$$eval('#secNav [data-i]', (bs, src) => {
+      const r = new RegExp(src.s, src.f); const b = bs.find(x => r.test(x.textContent.replace(/\s+/g, ' ').trim()));
+      return b ? +b.dataset.i : -1; }, { s: re.source, f: re.flags });
     await page.click('#secNav [data-i="' + i + '"]');
     await page.waitForTimeout(W);
     return (await page.textContent('#pForm h3') || '').replace(/\s+/g, ' ').trim();
@@ -128,7 +131,7 @@ const W = 850;
   ok(!(await has('m_uni')),
     'answering No keeps the other eight fields off the screen');
   const navNow = await nav();
-  ok(/100%/.test(navNow.find(x => /master/i.test(x)) || ''),
+  ok(/100%|later/.test(navNow.find(x => /master/i.test(x)) || ''),
     'and completes the section — ' + navNow.find(x => /master/i.test(x)));
   await pick('m_has', 'Yes');
   for (const k of ['m_uni', 'm_course', 'm_year', 'm_cgpa', 'm_max', 'm_pass', 'm_backlog']) {

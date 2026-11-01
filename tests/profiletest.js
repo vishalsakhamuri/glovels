@@ -56,8 +56,10 @@ let seq = 0;
   await page.waitForTimeout(1200);
 
   const go = async name => {
+    /* Patch 225: the nav lists the shortlist sections first, so a button's
+       place in the list is no longer its section number — read data-i. */
     const i = await page.$$eval('#secNav [data-i]',
-      (bs, n) => bs.findIndex(b => b.textContent.includes(n)), name);
+      (bs, n) => { const b = bs.find(x => x.textContent.includes(n)); return b ? +b.dataset.i : -1; }, name);
     check('there is a "' + name + '" section', i >= 0);
     if (i >= 0) { await page.click('#secNav [data-i="' + i + '"]'); await page.waitForTimeout(450); }
   };

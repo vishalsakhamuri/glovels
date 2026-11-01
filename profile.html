@@ -2016,8 +2016,19 @@ function pctOf(sec) {
 
 /* Whether an optional section has anything in it at all. */
 function anyFilled(sec) { return sec.fields.some(filled); }
+/* Patch 225 (owner, 1 Nov): "no student will buy the package if you ask him
+   to fill everything". Before a package is bought only the questions the
+   university filter reads are asked for; the rest — passport, address,
+   Class 10/12, recommenders — waits until there is an application to file. */
+const SHORTLIST_SECS = ['degree', 'english', 'aptitude', 'work', 'goals'];
+function hasPackage() {
+  return (typeof ORDERS !== 'undefined' && ORDERS || []).some(o =>
+    /^(paid|part|owing)$/.test(String(o.status || '')));
+}
+const isLater = sec => !hasPackage() && SHORTLIST_SECS.indexOf(sec.id) < 0;
 function overall() {
-  const req = SECTIONS.flatMap(s => s.fields).filter(needed);
+  const req = SECTIONS.filter(x => !isLater(x)).flatMap(s => s.fields).filter(needed);
+  if (!req.length) return 100;
   return Math.round(req.filter(filled).length / req.length * 100);
 }
 
@@ -2067,14 +2078,23 @@ function groupSummary(g, rows) {
 }
 
 function drawNav() {
-  $('#secNav').innerHTML = SECTIONS.map((s, i) => {
+  const order = SECTIONS.map((s, i) => i);
+  if (!hasPackage()) order.sort((a, b) => isLater(SECTIONS[a]) - isLater(SECTIONS[b]) || a - b);
+  const head = t => '<div style="font:800 9.6px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:12px 10px 6px">' + t + '</div>';
+  $('#secNav').innerHTML = order.map((i, n) => {
+    const s = SECTIONS[i];
+    const later = isLater(s);
+    const prevLater = n > 0 && isLater(SECTIONS[order[n - 1]]);
+    const lead = hasPackage() ? '' : n === 0 ? head('Needed now — for your shortlist')
+      : (later && !prevLater ? head('Later — when you apply') : '');
     const p = pctOf(s);
     /* An optional section earns its tick by being answered, not by having
        nothing to answer. */
     const done = p === null ? anyFilled(s) : p === 100;
     const mark = done ? ico('check')
       : '<span style="width:15px;height:15px;border-radius:50%;border:2px solid var(--line);display:inline-block"></span>';
-    return '<button type="button" data-i="' + i + '" style="' +
+    return lead + '<button type="button" data-i="' + i + '" style="' +
+      (later ? 'opacity:.62;' : '') +
       'display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;' +
       'border:0;background:' + (i === cur ? 'var(--cream)' : 'transparent') + ';' +
       'border-radius:10px;padding:9px 10px;font:' + (i === cur ? '700' : '600') +
@@ -2082,7 +2102,7 @@ function drawNav() {
       '<span style="color:' + (done ? 'var(--green)' : 'var(--muted)') + ';display:grid;place-items:center;width:15px">' +
       mark + '</span>' + esc(s.name.replace('&amp;','&')) +
       '<span style="margin-left:auto;font:800 9.6px/1 var(--sans);color:var(--muted)">' +
-      (p === null ? 'optional' : p + '%') + '</span>' +
+      (later ? 'later' : p === null ? 'optional' : p + '%') + '</span>' +
       '</button>';
   }).join('')
     /* And Account, last, which is where deleting one lives. It is not a
@@ -2245,7 +2265,9 @@ function drawForm() {
        screen claiming 100% of an empty form left the same heading claiming
        null% of it. One reading of the number, both places. */
     '<span class="pill">' + (pctOf(s) === null ? 'optional' : pctOf(s) + '% done')
-      + '</span></h3>' + body + '</div>';
+      + '</span></h3>'
+    + (isLater(s) ? '<p style="margin:0 0 14px;padding:10px 12px;border-radius:10px;background:var(--cream);font-size:12.8px;line-height:1.5;color:var(--navy-800)"><b>Not needed yet.</b> You can choose a package or apply free to a private university without this. Your counsellor will ask you to fill it in when your application is being prepared.</p>' : '')
+    + body + '</div>';
 
   /* Answering "GRE: not required" has to re-score the section on the spot,
      not on the next save — otherwise the meter argues with the form. The date
@@ -2432,7 +2454,10 @@ function paint() {
   const lead = $('#pcLead');
   if (lead) {
     const n = (typeof SHORT_ROWS !== 'undefined' && SHORT_ROWS) ? SHORT_ROWS.length : 0;
-    lead.textContent = n
+    lead.textContent = !hasPackage()
+      ? (p >= 100 ? 'That is all we need for now. Pick a package or press Apply free on a private university — the rest (passport, address, school marks, recommenders) is asked only when you apply.'
+        : 'Only five short sections are needed now: your degree, English test, GRE, work experience and goals. The rest is asked only when you apply.')
+      : n
       ? 'Your shortlist is under way (' + n + ' programme' + (n === 1 ? '' : 's') + '). Keep this up to date — your counsellor uses it for every application.'
       : (p >= 100 ? 'Your profile is complete — your counsellor can start your shortlist.'
         : 'Your counsellor starts the shortlist once this reaches 100%.');
@@ -2480,7 +2505,12 @@ const goTo = i => {
   if (cur === -1) { showForm(); cur = 0; drawForm(); paint();
     window.scrollTo({top: 0, behavior: 'smooth'}); return; }
   readForm(); save();
-  cur = (i + SECTIONS.length) % SECTIONS.length;
+  /* Patch 225: Next and Previous walk the sections in the order the nav shows
+     them — the shortlist ones first when there is no package yet. */
+  const order = SECTIONS.map((x, k) => k);
+  if (!hasPackage()) order.sort((a, b) => isLater(SECTIONS[a]) - isLater(SECTIONS[b]) || a - b);
+  const step = i - cur, at = order.indexOf(cur);
+  cur = order[(at + (step < 0 ? -1 : 1) + order.length) % order.length];
   drawForm(); paint();
   window.scrollTo({top: 0, behavior: 'smooth'});
 };
@@ -2613,6 +2643,11 @@ $('#delGo').addEventListener('click', async () => {
   }
 });
 
+/* Patch 225: before a package, open on the first question the shortlist needs. */
+if (!hasPackage() && !/[?&]sec=/.test(location.search)) {
+  const first = SECTIONS.findIndex(x => SHORTLIST_SECS.indexOf(x.id) >= 0);
+  if (first >= 0) cur = first;
+}
 drawForm(); paint();
 
 });
