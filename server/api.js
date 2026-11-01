@@ -3608,7 +3608,37 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
     /* 2 Oct: a second enquiry from a number or email that already has an
        open lead is filed on that lead as a note, not as a ninth row. The
        response is the same either way — the form does not need to know. */
-    db.fileEnquiry(record);
+    /* Patch 206: a call booked with the enquiry. The slot is checked first:
+       one that filled while they were typing is refused with a sentence. */
+    const BOOK = require('./booking.js');
+    const bset = db.content('booking') || {};
+    let slot = null;
+    if (b.slot) {
+      const ok = BOOK.check(bset, Date.now(), at => db.bookingsHeld(at), String(b.slot));
+      if (!ok.ok) {
+        return json(res, 409, { ok: false, slotTaken: true, fields: [{ field: 'slot', why: ok.why }],
+          error: ok.why === 'taken' ? 'That time was just taken — please pick another.' : 'That time is no longer offered — please pick another.' });
+      }
+      slot = String(b.slot);
+      const S0 = BOOK.settingsOf(bset);
+      record.note = ('Call booked for ' + BOOK.say(slot, S0.tz) + ' office time' + (record.note ? ' — ' + record.note : '')).slice(0, 2000);
+    }
+    const filed = db.fileEnquiry(record);
+    if (slot) {
+      const S = BOOK.settingsOf(bset);
+      let tz = String(b.tz || '').slice(0, 60);
+      try { new Intl.DateTimeFormat('en', { timeZone: tz }); } catch (e) { tz = ''; }
+      tz = tz || 'Asia/Kolkata';
+      const owner = filed && filed.owner_id ? Number(filed.owner_id) : null;
+      const bk = db.addBooking({ at: slot, minutes: S.minutes, enquiryId: filed && filed.id, name, email, phone: storePhone(phone),
+        destination: String(b.destination || '').replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim().slice(0, 60), tz, ownerId: owner });
+      if (filed && filed.id) db.setEnquiryNext(filed.id, slot, null);
+      mail.send(Object.assign({ to: email, replyTo: mail.office }, EMAILS.callBooked({ name, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) }))).catch(() => {});
+      mail.send(Object.assign({ to: mail.office, replyTo: email }, EMAILS.enquiryToOffice(record))).catch(() => {});
+      if (owner) { const c = db.studentById(owner); if (c) callToCounsellor(bk, c); }
+      try { notify && notify.staff && notify.staff('New call booked: ' + name + ' — ' + BOOK.say(slot, S.tz)); } catch (e) {}
+      return json(res, 200, { ok: true, booking: { at: slot, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) } });
+    }
 
     /* Two messages: the office gets the lead, the enquirer gets an
        acknowledgement. A form that goes quiet is a lead that calls a competitor
@@ -7076,6 +7106,101 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
   route('GET', '/api/marketing/meta', marketingOnly(async (req, res) => {
     const q = new URL(req.url, 'http://x').searchParams;
     return json(res, 200, await CONN.meta(q.get('days') || 30, q.get('refresh') === '1'));
+  }));
+
+  /* ============================================ Patch 206: booked calls */
+  const BOOKING = require('./booking.js');
+  const callToCounsellor = (bk, c) => {
+    const S = BOOKING.settingsOf(db.content('booking'));
+    mail.send(Object.assign({ to: c.email }, EMAILS.callAssigned({ counsellor: String(c.name || '').split(' ')[0], student: bk.name,
+      phone: bk.phone, email: bk.email, destination: bk.destination, when: BOOKING.say(bk.at, bk.tz || 'Asia/Kolkata'),
+      whenOffice: BOOKING.say(bk.at, S.tz), link: (siteUrl || '') + '/ops#calls' }))).catch(() => {});
+  };
+  route('GET', '/api/booking/slots', async (req, res) => {
+    const r = BOOKING.slots(db.content('booking'), Date.now(), at => db.bookingsHeld(at));
+    return json(res, 200, Object.assign({ ok: true }, r), { 'Cache-Control': 'no-store' });
+  }, { open: true });
+
+  const callShape = (b, people, S) => {
+    const o = b.owner_id ? people.get(Number(b.owner_id)) : null;
+    return { id: b.id, at: b.at, minutes: b.minutes, name: b.name, email: b.email, phone: b.phone, destination: b.destination,
+      tz: b.tz, enquiryId: b.enquiry_id, ownerId: b.owner_id || null, owner: o ? o.name : '', status: b.status, mode: b.mode,
+      link: b.link, sentAt: b.sent_at, note: b.note,
+      whenOffice: BOOKING.say(b.at, S.tz), whenTheirs: BOOKING.say(b.at, b.tz || 'Asia/Kolkata'), whenIndia: BOOKING.say(b.at, 'Asia/Kolkata') };
+  };
+  route('GET', '/api/staff/calls', caseworkOnly(async (req, res, s) => {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const when = q.get('when') || 'upcoming';
+    const S = BOOKING.settingsOf(db.content('booking'));
+    const cut = new Date(Date.now() - 2 * 3600000).toISOString();
+    const people = new Map(db.activeCaseworkers().concat(db.staffByRole('admin')).map(p => [Number(p.id), p]));
+    const boss = s.role === 'admin' || Number(s.manager) === 1;
+    let rows = db.allBookings().filter(b => boss || Number(b.owner_id) === Number(s.id));
+    rows = when === 'past' ? rows.filter(b => b.at < cut).reverse() : when === 'all' ? rows : rows.filter(b => b.at >= cut);
+    return json(res, 200, { ok: true, admin: s.role === 'admin', officeTz: S.tz, calls: rows.slice(0, 300).map(b => callShape(b, people, S)),
+      counsellors: s.role === 'admin' ? db.activeCaseworkers().map(c => ({ id: c.id, name: c.name })) : [],
+      unassigned: db.allBookings().filter(b => b.status === 'booked' && !b.owner_id && b.at >= cut).length });
+  }));
+  route('PUT', /^\/api\/staff\/calls\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    const bk = db.bookingById(Number(m[1]));
+    if (!bk) return json(res, 404, { error: 'No such call' });
+    const boss = s.role === 'admin';
+    if (!boss && Number(bk.owner_id) !== Number(s.id)) return json(res, 403, { error: 'That call is not yours. An administrator can give it to you.' });
+    const b = await readJson(req);
+    const f = {};
+    if (b.ownerId !== undefined) {
+      if (!boss) return json(res, 403, { error: 'Only an administrator can assign a call.' });
+      const c = b.ownerId ? db.studentById(Number(b.ownerId)) : null;
+      if (b.ownerId && (!c || !['counsellor', 'admin'].includes(c.role))) return json(res, 422, { error: 'Pick a counsellor.' });
+      f.owner_id = c ? c.id : null;
+    }
+    if (b.status !== undefined) {
+      if (!['booked', 'done', 'noshow', 'cancelled'].includes(b.status)) return json(res, 422, { error: 'Status is booked, done, no-show or cancelled.' });
+      f.status = b.status;
+    }
+    if (b.mode !== undefined) {
+      if (!['', 'video', 'phone'].includes(b.mode)) return json(res, 422, { error: 'A video link or a phone call.' });
+      f.mode = b.mode;
+    }
+    if (b.link !== undefined) {
+      const l = String(b.link || '').trim();
+      if (l && !/^https:\/\/[^\s<>"']{4,300}$/.test(l)) return json(res, 422, { error: 'Paste the whole meeting link, starting with https://' });
+      f.link = l;
+    }
+    if (b.note !== undefined) f.note = String(b.note || '').slice(0, 500);
+    const mode = f.mode !== undefined ? f.mode : bk.mode;
+    const link = f.link !== undefined ? f.link : bk.link;
+    if (b.send) {
+      if (mode === 'video' && !link) return json(res, 422, { error: 'Paste the meeting link first.' });
+      if (!mode) return json(res, 422, { error: 'Say whether it is a video link or a phone call.' });
+    }
+    let n = db.updateBooking(bk.id, f);
+    if (f.owner_id && Number(f.owner_id) !== Number(bk.owner_id)) {
+      if (bk.enquiry_id) db.setEnquiryNext(bk.enquiry_id, bk.at, f.owner_id);
+      const c = db.studentById(f.owner_id); if (c) callToCounsellor(n, c);
+      db.log(s.name, 'call assigned', bk.name + ' → ' + (c ? c.name : ''));
+    }
+    if (f.status && bk.enquiry_id && f.status !== 'booked') db.setEnquiryNext(bk.enquiry_id, '', null);
+    if (b.send) {
+      const owner = n.owner_id ? db.studentById(n.owner_id) : s;
+      mail.send(Object.assign({ to: n.email, replyTo: owner && owner.email }, EMAILS.callLink({ name: n.name,
+        when: BOOKING.say(n.at, n.tz || 'Asia/Kolkata'), link: n.link, mode: n.mode, counsellor: owner ? String(owner.name || '').split(' ')[0] : 'Your counsellor' }))).catch(() => {});
+      n = db.updateBooking(n.id, { sent_at: new Date().toISOString() });
+      if (n.enquiry_id) try { db.addLeadNote(n.enquiry_id, s.name, 'email', (n.mode === 'video' ? 'Sent the call link: ' + n.link : 'Told them we will ring') + ' for ' + BOOKING.say(n.at, 'Asia/Kolkata') + ' IST'); } catch (e) {}
+    }
+    const S = BOOKING.settingsOf(db.content('booking'));
+    const people = new Map(db.activeCaseworkers().concat(db.staffByRole('admin')).map(p => [Number(p.id), p]));
+    return json(res, 200, { ok: true, call: callShape(n, people, S) });
+  }));
+  route('GET', '/api/staff/booking-settings', caseworkOnly(async (req, res) =>
+    json(res, 200, { ok: true, settings: BOOKING.settingsOf(db.content('booking')) })));
+  route('PUT', '/api/staff/booking-settings', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const clean = BOOKING.settingsOf(Object.assign({}, db.content('booking') || {}, b));
+    db.setContent('booking', clean, s.name);
+    db.log(s.name, 'call slots changed', clean.times.join(', ') + ' ' + clean.tz);
+    return json(res, 200, { ok: true, settings: clean });
   }));
 
   route('GET', '/api/marketing/spend', marketingOnly(async (req, res) =>

@@ -1058,6 +1058,36 @@ html.review-copy .build-strip{display:block !important}
 .cform{background:var(--paper);padding:28px}
 .cform h3{font-size:18px;margin-bottom:4px}
 .cform p.small{font-size:12.6px;color:var(--muted);margin:0 0 16px}
+/* Patch 206: Schedule a call — its own section, its own form */
+.book{display:grid;grid-template-columns:.9fr 1.1fr;border-radius:20px;overflow:hidden;border:1px solid var(--line,#e2e7ee);background:#fff;box-shadow:0 18px 40px rgba(11,31,58,.08)}
+.bleft{padding:32px;background:linear-gradient(160deg,#f7f2e4,#fffaf0);border-right:1px solid #efe4c6}
+.bleft h2{font-size:clamp(23px,2.5vw,31px);line-height:1.16;margin:8px 0 10px}
+.bleft p{color:var(--muted);font-size:14px}
+.bleft .cl-list li{color:#0b1f3a;opacity:1;font-weight:600}
+.bleft .cl-list .ico{color:#b8913a;stroke:#b8913a}
+.bright{padding:28px}
+.bright h3{font-size:18px;margin:0 0 4px}
+.bright p.small{font-size:12.6px;color:var(--muted);margin:0 0 14px}
+.bgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bgrid .fld{margin:0}
+.slotbox{margin:0 0 14px;border:1px solid var(--line,#e2e7ee);border-radius:14px;padding:12px;background:#fbfcfd}
+.slotbox .sl-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:800;font-size:13px;margin-bottom:8px}
+.slotbox .sl-h small{font-weight:600;color:var(--muted);font-size:11.5px}
+.sl-days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.sl-days button{flex:none;border:1px solid var(--line,#dfe5ec);background:#fff;border-radius:10px;padding:6px 11px;font:700 12px var(--sans);cursor:pointer;line-height:1.2;text-align:center;color:#0b1f3a}
+.sl-days button small{display:block;font-weight:600;color:var(--muted);font-size:10.5px}
+.sl-days button[aria-pressed="true"]{background:#0b1f3a;color:#fff;border-color:#0b1f3a}
+.sl-days button[aria-pressed="true"] small{color:#c8d6e4}
+.sl-days button:disabled{opacity:.4;cursor:not-allowed}
+.sl-times{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+.sl-times button{border:1px solid var(--line,#dfe5ec);background:#fff;border-radius:10px;padding:9px 6px;font:800 15px var(--sans);cursor:pointer;color:#0b1f3a}
+.sl-times button small{display:block;font:600 10.5px var(--sans);color:var(--muted)}
+.sl-times button:hover:not(:disabled){border-color:#0b1f3a}
+.sl-times button[aria-pressed="true"]{background:linear-gradient(160deg,#d4ad55,#b8913a);border-color:#b8913a}
+.sl-times button:disabled{opacity:.45;cursor:not-allowed;text-decoration:line-through}
+.sl-err{display:none;color:#b42318;font-weight:700;font-size:12.4px;margin-top:6px}
+@media (max-width:1000px){.book{grid-template-columns:1fr}.bleft{border-right:0;border-bottom:1px solid #efe4c6}}
+@media (max-width:560px){.bgrid{grid-template-columns:1fr}.bleft,.bright{padding:22px}}
 .fld{margin-bottom:12px}
 .fld label .req{color:#c0392b;font-size:12px;margin-left:2px}
 .fld label{display:block;font:800 10.4px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
@@ -1360,7 +1390,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   <div class="wrap hero-in">
     <h1>Search. Click. <em>Fly.</em></h1>
     <p class="hero-sub">Study or work abroad — thousands of programmes matched to your profile in seconds, with a plan our research team builds around you.</p>
-    <div class="hero-cta"><a class="btn btn-gold" href="#finder" data-track="cta" data-track-label="Find my university">Find my university <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a><a class="btn btn-ghost-light" href="#counsel" data-track="cta" data-track-label="Talk to an expert">Talk to an expert</a></div>
+    <div class="hero-cta"><a class="btn btn-gold" href="#finder" data-track="cta" data-track-label="Find my university">Find my university <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a><a class="btn btn-ghost-light" href="#book" data-track="cta" data-track-label="Schedule a call">Schedule a call</a></div>
     <div class="hero-rate">
       <span class="hchip"><b aria-hidden="true">✓</b>Prices published upfront</span>
       <span class="hchip"><b aria-hidden="true">✓</b>Free to apply at affiliated universities</span>
@@ -1692,6 +1722,55 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <div class="sec-head"><span class="eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> Common questions</span>
       <h2>The four things everyone asks first</h2></div>
     <div id="faqList"><details class="faq"><summary>Can I study abroad for free?</summary><p>In Germany, public universities charge no tuition — you pay only a semester contribution of roughly €150–350. You still need living costs and a blocked account, so &quot;free&quot; means free tuition, not a free degree.</p></details><details class="faq"><summary>What CGPA do I need for a public university in Germany?</summary><p>Most public universities look for 7.5 or above on 10. Between 7.0 and 7.5 a smaller set stays open, and below 7.0 a pathway or a private university is usually the realistic route.</p></details><details class="faq"><summary>How much does a study abroad consultant cost in India?</summary><p>Individual services start at a few hundred rupees; packages run from ₹4,999 to ₹74,999 depending on how many universities are covered and whether visa filing is included.</p></details><details class="faq"><summary>How long does a German student visa take?</summary><p>Six to twelve weeks from the appointment, and appointments themselves can take weeks to get. The APS certificate adds six to eight more, so start early.</p></details></div>
+  </div>
+</section>
+
+<section class="block" id="book">
+  <div class="wrap">
+    <div class="book">
+      <div class="bleft">
+        <span class="eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Schedule a call</span>
+        <h2>Book a time with a counsellor</h2>
+        <p>Choose the day and time that suits you. Your counsellor calls you on video or phone at
+          exactly that time — no waiting for a call back.</p>
+        <ul class="cl-list">
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Times shown in your own time zone</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>30 minutes, one-to-one, with the counsellor who will handle your file</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>A video link is emailed to you before the call</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Need another time? Just reply to the confirmation email</span></li>
+        </ul>
+      </div>
+      <div class="bright">
+        <h3>Pick your time</h3>
+        <p class="small">Free, no obligation.</p>
+        <form id="bForm" novalidate>
+          <div class="slotbox" id="slotBox">
+            <div class="sl-h"><span>Day and time</span><small id="slTz"></small></div>
+            <div class="sl-days" id="slDays" role="group" aria-label="Day"></div>
+            <div class="sl-times" id="slTimes" role="group" aria-label="Time"><span class="small" style="color:var(--muted)">Loading the free times…</span></div>
+            <div class="sl-err" id="slErr"></div>
+          </div>
+          <div class="bgrid">
+            <div class="fld"><label for="bName">Full name <span class="req" aria-hidden="true">*</span></label>
+              <input id="bName" autocomplete="name" placeholder="Your name"><span class="err"></span></div>
+            <div class="fld"><label for="bPhone">Mobile number <span class="req" aria-hidden="true">*</span></label>
+              <input id="bPhone" inputmode="tel" autocomplete="tel" placeholder="With country code"><span class="err"></span></div>
+            <div class="fld"><label for="bMail">Email <span class="req" aria-hidden="true">*</span></label>
+              <input id="bMail" inputmode="email" autocomplete="email"><span class="err"></span></div>
+            <div class="fld"><label for="bDest">Where are you thinking of going?</label>
+              <select id="bDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="FR">🇫🇷 France</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>
+          </div>
+          <input type="text" id="bHoney" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
+            style="position:absolute;left:-9999px;width:1px;height:1px">
+          <label class="consent" style="margin-top:12px"><input type="checkbox" id="bOk">
+            <span>I agree that Glovels may contact me about this call. I can ask for my details to
+              be deleted at any time.</span></label>
+          <span class="err" id="bOkErr">Please tick the box so we can confirm your call.</span>
+          <button class="btn btn-gold" id="bGo" type="submit" style="width:100%" data-track="cta" data-track-label="Schedule a call">Pick a time above</button>
+          <div id="bFail" class="formfail"></div>
+        </form>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -5568,6 +5647,88 @@ const PHONE = "+917839399999";
 /* The only place on the site that writes anything. Three states a visitor must
    see: sending, sent, and failed — because a form that silently does nothing is
    a lost customer with no trace on either side. */
+/* Patch 206: Schedule a call — the slots on the visitor's own clock. */
+(function () {
+  const SLOT = { at: '', label: '', tz: '', data: null, day: 0 };
+  const escH = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  try { SLOT.tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { SLOT.tz = ''; }
+  const fmt = (iso, o) => { try { return new Intl.DateTimeFormat(undefined, Object.assign({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }, o || {})).format(new Date(iso)); } catch (e) { return iso.slice(11, 16); } };
+  function paint() {
+    const d = SLOT.data; if (!d || !d.days.length) return;
+    let short = 'CET';
+    try { short = new Intl.DateTimeFormat('en-GB', { timeZone: d.tz, timeZoneName: 'short' }).formatToParts(new Date()).find(p => p.type === 'timeZoneName').value; } catch (e) {}
+    $('#slTz').textContent = 'In your time' + (SLOT.tz ? ' (' + SLOT.tz.replace(/_/g, ' ') + ')' : '');
+    $('#slDays').innerHTML = d.days.map((day, i) => {
+      const free = day.slots.some(x => x.free), dt = new Date(day.date + 'T12:00:00Z');
+      return '<button type="button" data-sday="' + i + '" aria-pressed="' + (i === SLOT.day) + '"' + (free ? '' : ' disabled') + '>'
+        + dt.toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }) + '<small>' + dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' }) + '</small></button>';
+    }).join('');
+    const day = d.days[SLOT.day] || d.days[0];
+    $('#slTimes').innerHTML = day.slots.map(x => '<button type="button" data-slot="' + x.at + '" aria-pressed="' + (SLOT.at === x.at) + '"' + (x.free ? '' : ' disabled title="Taken"') + '>'
+      + fmt(x.at) + '<small>' + x.local + ' ' + escH(short) + '</small></button>').join('');
+  }
+  async function load() {
+    try {
+      const d = await (await fetch('/api/booking/slots', { headers: { Accept: 'application/json' } })).json();
+      if (!d.on || !d.days || !d.days.length) { const sec = document.getElementById('book'); if (sec) sec.hidden = true; return; }
+      SLOT.data = d;
+      const first = d.days.findIndex(x => x.slots.some(s => s.free));
+      SLOT.day = first < 0 ? 0 : first;
+      paint();
+    } catch (e) { const sec = document.getElementById('book'); if (sec) sec.hidden = true; }
+  }
+  document.addEventListener('click', e => {
+    const dy = e.target.closest('[data-sday]');
+    if (dy) { SLOT.day = Number(dy.dataset.sday); paint(); return; }
+    const sl = e.target.closest('[data-slot]');
+    if (sl && !sl.disabled) {
+      SLOT.at = sl.dataset.slot; $('#slErr').style.display = 'none';
+      SLOT.label = fmt(SLOT.at, { weekday: 'short', day: 'numeric', month: 'short' });
+      $('#bGo').textContent = 'Book my call · ' + SLOT.label;
+      paint();
+    }
+  });
+  $('#bForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if ($('#bHoney').value) return;
+    let ok = true;
+    [['#bName', 'Tell us your name', v => !!v && /\p{L}/u.test(v)],
+     ['#bPhone', 'A mobile number with the country code, please', v => { const n = String(v).replace(/\D/g, '').length; return /^\+?[\d\s().-]+$/.test(v) && n >= 8 && n <= 15; }],
+     ['#bMail', 'A valid email, please', v => /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v)]].forEach(([sel, msg, test]) => {
+      const f = $(sel), bad = !test(f.value.trim());
+      f.closest('.fld').classList.toggle('bad', bad); f.closest('.fld').querySelector('.err').textContent = msg;
+      if (bad) ok = false;
+    });
+    const consent = $('#bOk').checked;
+    $('#bOkErr').style.display = consent ? 'none' : 'block';
+    if (!SLOT.at) { $('#slErr').textContent = 'Pick a day and a time first.'; $('#slErr').style.display = 'block'; ok = false; }
+    if (!ok || !consent) return;
+    const dest = $('#bDest');
+    const btn = $('#bGo'); btn.disabled = true; btn.textContent = 'Booking…';
+    $('#bFail').style.display = 'none';
+    try {
+      const r = await fetch('/send.php', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ form: 'Scheduled call', name: $('#bName').value.trim(), phone: $('#bPhone').value.trim(), email: $('#bMail').value.trim(),
+          destination: dest.value ? dest.options[dest.selectedIndex].textContent : 'Not sure yet', consent: 'yes',
+          consentWording: $('#bOk').closest('label').textContent.trim(), note: 'Scheduled call',
+          sourcePage: location.pathname + location.search, referrer: document.referrer || 'direct', slot: SLOT.at, tz: SLOT.tz }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        btn.disabled = false; btn.textContent = SLOT.label ? 'Book my call · ' + SLOT.label : 'Pick a time above';
+        if (j.slotTaken) { SLOT.at = ''; btn.textContent = 'Pick a time above'; await load(); $('#slErr').textContent = j.error; $('#slErr').style.display = 'block'; return; }
+        $('#bFail').textContent = j.error || 'That did not go through — please try again, or WhatsApp us.'; $('#bFail').style.display = 'block'; return;
+      }
+      if (window.glvTrack) glvTrack('generate_lead', { form: 'scheduled-call' });
+      $('#bForm').innerHTML = '<div class="sent">' + ico('check') + '<div><b>Your call is booked</b><span>' + escH(SLOT.label) + ' (your time). '
+        + 'We have emailed you the details; your counsellor sends a video link before the call, or rings you.</span></div></div>';
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'Book my call · ' + SLOT.label;
+      $('#bFail').textContent = 'That did not go through — please try again, or WhatsApp us.'; $('#bFail').style.display = 'block';
+    }
+  });
+  load();
+})();
+
 $('#cForm').addEventListener('submit', async e => {
   e.preventDefault();
   let ok = true;

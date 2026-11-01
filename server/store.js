@@ -974,6 +974,28 @@ function sqliteDriver(file) {
       channel     TEXT NOT NULL DEFAULT ''
     )`,
    'CREATE INDEX IF NOT EXISTS idx_searches_day ON searches(day)',
+   /* Patch 206: a call booked from the website. `at` is the instant (UTC);
+      the office and the student each read it on their own clock. */
+   `CREATE TABLE IF NOT EXISTS bookings (
+      id          INTEGER PRIMARY KEY,
+      at          TEXT NOT NULL,
+      minutes     INTEGER NOT NULL DEFAULT 30,
+      enquiry_id  INTEGER,
+      name        TEXT NOT NULL DEFAULT '',
+      email       TEXT NOT NULL DEFAULT '',
+      phone       TEXT NOT NULL DEFAULT '',
+      destination TEXT NOT NULL DEFAULT '',
+      tz          TEXT NOT NULL DEFAULT '',
+      owner_id    INTEGER,
+      status      TEXT NOT NULL DEFAULT 'booked',
+      mode        TEXT NOT NULL DEFAULT '',
+      link        TEXT NOT NULL DEFAULT '',
+      sent_at     TEXT NOT NULL DEFAULT '',
+      note        TEXT NOT NULL DEFAULT '',
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL DEFAULT ''
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_bookings_at ON bookings(at)',
    /* What a month of advertising cost, per channel (and campaign/country). */
    `CREATE TABLE IF NOT EXISTS ad_spend (
       id           INTEGER PRIMARY KEY,
@@ -1041,7 +1063,7 @@ function jsonDriver(file) {
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
-    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches'];
+    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -3738,6 +3760,32 @@ function open(dir) {
       if (db.kind === 'sqlite') return db.run('DELETE FROM searches WHERE day < ?', day);
       db.all('SELECT * FROM searches WHERE id > ?', 0).filter(h => h.day < day)
         .forEach(h => db.run('DELETE FROM searches WHERE id = ?', h.id));
+    },
+    /* ---- booked calls (patch 206) ---- */
+    bookingsHeld: at => db.all("SELECT * FROM bookings WHERE at = ? AND status = ?", String(at), 'booked').length,
+    addBooking(b) {
+      const t = now();
+      const r = db.run(`INSERT INTO bookings (at, minutes, enquiry_id, name, email, phone, destination, tz, owner_id, status, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        String(b.at), Number(b.minutes) || 30, b.enquiryId == null ? null : Number(b.enquiryId), b.name || '', String(b.email || '').toLowerCase(),
+        b.phone || '', b.destination || '', b.tz || '', b.ownerId == null ? null : Number(b.ownerId), 'booked', t, t);
+      return db.one('SELECT * FROM bookings WHERE id = ?', Number(r.lastInsertRowid));
+    },
+    bookingById: id => db.one('SELECT * FROM bookings WHERE id = ?', Number(id)),
+    allBookings: () => db.all('SELECT * FROM bookings WHERE id > ? ORDER BY at asc', 0),
+    updateBooking(id, f) {
+      const b = db.one('SELECT * FROM bookings WHERE id = ?', Number(id));
+      if (!b) return null;
+      const n = Object.assign({}, b, f);
+      db.run(`UPDATE bookings SET owner_id = ?, status = ?, mode = ?, link = ?, sent_at = ?, note = ?, at = ?, updated_at = ? WHERE id = ?`,
+        n.owner_id == null ? null : Number(n.owner_id), n.status, n.mode || '', n.link || '', n.sent_at || '', n.note || '', n.at, now(), Number(id));
+      return db.one('SELECT * FROM bookings WHERE id = ?', Number(id));
+    },
+    setEnquiryNext(id, nextAt, ownerId) {
+      const e = db.one('SELECT * FROM enquiries WHERE id = ?', Number(id));
+      if (!e) return;
+      db.run('UPDATE enquiries SET next_at = ?, updated_at = ? WHERE id = ?', String(nextAt || ''), now(), Number(id));
+      if (ownerId && !e.owner_id) db.run('UPDATE enquiries SET owner_id = ? WHERE id = ?', Number(ownerId), Number(id));
     },
     adSpend: () => db.all('SELECT * FROM ad_spend WHERE id > ? ORDER BY month desc, id desc', 0),
     addSpend(x) {

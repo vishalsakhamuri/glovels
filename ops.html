@@ -194,6 +194,37 @@ tr:last-child td{border-bottom:0}
 .kpi.bad b{color:var(--late)}
 .kpi[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 
+/* booked calls */
+.callbar{display:flex;gap:8px;align-items:center}
+.seg2{display:inline-flex;background:var(--panel);border:1px solid var(--rule);border-radius:999px;padding:3px}
+.seg2 button{border:0;background:none;border-radius:999px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer;color:var(--ink-2)}
+.seg2 button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.cnt-pill{display:inline-block;margin-left:8px;background:#fde8e8;color:var(--late);border-radius:999px;padding:1px 9px;font:800 12px var(--sans);vertical-align:3px}
+.calls td{white-space:normal;vertical-align:top}
+.calls .when b{display:block;font:800 14px var(--disp);white-space:nowrap}
+.calls .when small,.calls .cust small{display:block;color:var(--mute);font-size:11.5px;white-space:nowrap}
+.calls .cust b{display:block}
+.calls .cust a{color:var(--ink-2)}
+.calls select,.calls input{border:1px solid var(--rule);border-radius:9px;padding:6px 8px;font:600 12.5px var(--sans);background:#fff;max-width:100%}
+.calls input.lnk{width:220px}
+.calls .meet{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.calls .sendb{border:0;background:var(--ink);color:#fff;border-radius:9px;padding:7px 12px;font-weight:800;font-size:12px;cursor:pointer}
+.calls .sent{font-size:11.5px;color:var(--ok);font-weight:700}
+.calls tr.unassigned td:first-child{box-shadow:inset 3px 0 0 var(--late)}
+.calls .unas{color:var(--late);font-weight:800}
+.calls .soonchip{display:inline-block;background:#fff3d6;color:#8a6412;border-radius:6px;padding:1px 6px;font-size:10.5px;font-weight:800;margin-left:6px}
+.slotsm{position:fixed;inset:0;background:rgba(11,30,49,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+.slotsm.on{display:flex}
+.slotsm form{background:#fff;border-radius:18px;padding:22px;width:min(460px,100%)}
+.slotsm h3{margin:0 0 10px;font:800 19px var(--disp)}
+.slotsm label{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin:10px 0 4px}
+.slotsm input,.slotsm select{width:100%;border:1px solid var(--rule);border-radius:10px;padding:8px 10px;font-size:14px}
+.slotsm .days{display:flex;gap:6px;flex-wrap:wrap}
+.slotsm .days label{display:flex;gap:4px;align-items:center;margin:0;font-weight:700}
+.slotsm .days input{width:auto}
+.slotsm .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.slotsm .err{color:var(--late);font-weight:700;font-size:12.5px}
+
 /* ------------------------------------------------------------ the drawer */
 .scrim{position:fixed;inset:0;background:rgba(11,30,49,.38);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--panel);z-index:21;transform:translateX(102%);transition:transform .32s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(11,30,49,.18)}
@@ -296,12 +327,36 @@ body.open .drawer{transform:none}
       <div><div class="sk"></div><div class="sk"></div></div><div><div class="sk"></div><div class="sk"></div></div>
     </div>
 
+    <div class="sec" id="calls"><h2>Booked calls <span class="cnt-pill" id="callsUn" hidden></span></h2>
+      <div class="callbar"><div class="seg2" role="group" aria-label="Which calls"><button type="button" data-cw="upcoming" aria-pressed="true">Upcoming</button><button type="button" data-cw="past" aria-pressed="false">Past</button></div>
+        <button type="button" class="refresh" id="slotsBtn" hidden>Call slots</button></div></div>
+    <div class="crew calls"><table>
+      <thead><tr><th>When</th><th>Customer</th><th>Counsellor</th><th>Meeting</th><th>Outcome</th></tr></thead>
+      <tbody id="callRows"><tr><td colspan="5"><div class="sk" style="height:40px"></div></td></tr></tbody>
+    </table></div>
+
     <div class="sec"><h2 id="crewH">Counsellors</h2><p>Click a person or any number to see the work behind it. Click a heading to sort.</p></div>
     <div class="crew"><table>
       <thead><tr><th data-sort="name">Counsellor</th><th data-sort="health">Status</th><th data-sort="students">Students</th><th data-sort="open">Open steps</th><th data-sort="late">Late steps</th><th data-sort="oldestLateDays">Oldest late</th><th data-sort="waitingMessages">Replies owed</th><th data-sort="longestWaitHours">Longest wait</th><th data-sort="docs">Docs to check</th><th data-sort="onTime">On time</th></tr></thead>
       <tbody id="crew"><tr><td colspan="10"><div class="sk" style="height:40px"></div></td></tr></tbody>
     </table></div>
   </main>
+</div>
+<div class="slotsm" id="slotsM" role="dialog" aria-modal="true" aria-labelledby="slH">
+  <form id="slotsF">
+    <h3 id="slH">Call slots on the website</h3>
+    <label for="slOn"><input type="checkbox" id="slOn" style="width:auto"> Offer booking on the website</label>
+    <label for="slTimes">Start times (office time, comma separated)</label><input id="slTimes" placeholder="09:00, 09:45, 10:30, 11:15">
+    <label for="slTzI">Office time zone</label><input id="slTzI" placeholder="Europe/Berlin">
+    <label>Days</label><div class="days" id="slDaysI"></div>
+    <label for="slMin">Call length (minutes)</label><input id="slMin" type="number" min="10" max="120">
+    <label for="slCap">Calls per slot (how many counsellors take calls at once)</label><input id="slCap" type="number" min="1" max="20">
+    <label for="slAhead">Working days offered</label><input id="slAhead" type="number" min="1" max="20">
+    <label for="slNotice">Notice needed (hours)</label><input id="slNotice" type="number" min="0" max="72">
+    <label for="slClosed">Closed dates (YYYY-MM-DD, comma separated)</label><input id="slClosed" placeholder="2026-12-24, 2026-12-25">
+    <div class="err" id="slErrM" hidden></div>
+    <div class="acts"><button type="button" class="refresh" id="slCancel">Cancel</button><button class="refresh" style="background:var(--ink);color:#fff" type="submit">Save</button></div>
+  </form>
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -674,12 +729,89 @@ body.open .drawer{transform:none}
   $('#refresh').onclick = load;
   window.addEventListener('resize', function () { if (DATA) paintRoute(DATA); });
 
+  /* ------------------------------------------------ booked calls (206) */
+  var CALLS = { when: 'upcoming', data: null, admin: false };
+  function send(method, path, body) {
+    return fetch(path, { method: method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || 'That did not save.'); return j; }); });
+  }
+  function flash(t) { var el = document.getElementById('opsToast'); if (!el) { el = document.createElement('div'); el.id = 'opsToast'; el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0b1e31;color:#fff;padding:10px 16px;border-radius:12px;font-weight:700;z-index:70'; document.body.appendChild(el); } el.textContent = t; el.style.display = 'block'; clearTimeout(flash.t); flash.t = setTimeout(function () { el.style.display = 'none'; }, 2600); }
+  function loadCalls() {
+    return api('/api/staff/calls?when=' + CALLS.when).then(function (d) {
+      CALLS.data = d; CALLS.admin = d.admin;
+      /* never repaint under someone typing a link */
+      if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#callRows')) return;
+      paintCalls(); }).catch(function (e) {
+      $('#callRows').innerHTML = '<tr><td colspan="5" class="muted">' + esc(e.message) + '</td></tr>'; });
+  }
+  function paintCalls() {
+    var d = CALLS.data, rows = d.calls || [];
+    $('#callsUn').hidden = !d.unassigned; $('#callsUn').textContent = d.unassigned + ' unassigned';
+    if (!rows.length) { $('#callRows').innerHTML = '<tr><td colspan="5" class="muted" style="padding:20px">' + (CALLS.when === 'past' ? 'No past calls yet.' : 'No calls booked yet. Students book from the free-counselling form on the home page.') + '</td></tr>'; return; }
+    var now = Date.now();
+    $('#callRows').innerHTML = rows.map(function (c) {
+      var mins = Math.round((Date.parse(c.at) - now) / 60000);
+      var soon = c.status === 'booked' && mins >= -30 && mins <= 24 * 60 ? '<span class="soonchip">' + (mins < 0 ? 'now' : mins < 60 ? 'in ' + mins + ' min' : 'in ' + Math.round(mins / 60) + ' h') + '</span>' : '';
+      var who = CALLS.admin
+        ? '<select data-cown="' + c.id + '" aria-label="Counsellor for ' + esc(c.name) + '"><option value="">Unassigned</option>' + d.counsellors.map(function (p) { return '<option value="' + p.id + '"' + (Number(c.ownerId) === Number(p.id) ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select>'
+        : (c.owner ? esc(c.owner) : '<span class="unas">Unassigned</span>');
+      var meet = '<div class="meet"><select data-cmode="' + c.id + '" aria-label="How"><option value="">How?</option><option value="video"' + (c.mode === 'video' ? ' selected' : '') + '>Video link</option><option value="phone"' + (c.mode === 'phone' ? ' selected' : '') + '>Phone call</option></select>'
+        + '<input class="lnk" data-clink="' + c.id + '" value="' + esc(c.link) + '" placeholder="https://meet.google.com/…"' + (c.mode === 'phone' ? ' hidden' : '') + '>'
+        + '<button type="button" class="sendb" data-csend="' + c.id + '">' + (c.sentAt ? 'Send again' : 'Send to customer') + '</button>'
+        + (c.sentAt ? '<span class="sent">\u2713 sent ' + esc(new Date(c.sentAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</span>' : '') + '</div>';
+      var out = '<select data-cstat="' + c.id + '" aria-label="Outcome">' + [['booked', 'Booked'], ['done', 'Done'], ['noshow', 'No-show'], ['cancelled', 'Cancelled']].map(function (o) { return '<option value="' + o[0] + '"' + (c.status === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+      return '<tr class="' + (c.ownerId ? '' : 'unassigned') + '"><td class="when"><b>' + esc(c.whenOffice) + soon + '</b><small>India ' + esc(c.whenIndia.replace(/^\w+ \d+ \w+, /, '')) + (c.tz && c.whenTheirs !== c.whenIndia ? ' \u00b7 theirs ' + esc(c.whenTheirs.replace(/^\w+ \d+ \w+, /, '')) + ' (' + esc(c.tz) + ')' : '') + '</small><small>' + c.minutes + ' min</small></td>'
+        + '<td class="cust"><b>' + esc(c.name) + '</b><small><a href="tel:' + esc(c.phone) + '">' + esc(c.phone) + '</a> \u00b7 <a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a></small><small>' + esc(c.destination || '') + (c.enquiryId ? ' \u00b7 <a href="leads.html?lead=' + c.enquiryId + '">Open lead</a>' : '') + '</small></td>'
+        + '<td>' + who + '</td><td>' + meet + '</td><td>' + out + '</td></tr>';
+    }).join('');
+  }
+  document.addEventListener('click', function (e) {
+    var w = e.target.closest('[data-cw]');
+    if (w) { CALLS.when = w.dataset.cw; [].forEach.call(document.querySelectorAll('[data-cw]'), function (b) { b.setAttribute('aria-pressed', String(b === w)); }); return loadCalls(); }
+    var sb = e.target.closest('[data-csend]');
+    if (sb) {
+      var id = sb.dataset.csend, mode = $('[data-cmode="' + id + '"]').value, link = $('[data-clink="' + id + '"]').value.trim();
+      sb.disabled = true;
+      return send('PUT', '/api/staff/calls/' + id, { mode: mode, link: link, send: true }).then(function () { flash(mode === 'video' ? 'Link sent to the customer.' : 'Customer told you will ring.'); loadCalls(); })
+        .catch(function (er) { flash(er.message); sb.disabled = false; });
+    }
+    if (e.target.id === 'slotsBtn') return openSlots();
+    if (e.target.id === 'slCancel') $('#slotsM').classList.remove('on');
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.dataset.cown !== undefined) return send('PUT', '/api/staff/calls/' + t.dataset.cown, { ownerId: t.value ? Number(t.value) : null }).then(function () { flash(t.value ? 'Assigned — they have been emailed.' : 'Unassigned.'); loadCalls(); }).catch(function (er) { flash(er.message); loadCalls(); });
+    if (t.dataset.cstat !== undefined) return send('PUT', '/api/staff/calls/' + t.dataset.cstat, { status: t.value }).then(function () { flash('Saved.'); }).catch(function (er) { flash(er.message); loadCalls(); });
+    if (t.dataset.cmode !== undefined) { var inp = $('[data-clink="' + t.dataset.cmode + '"]'); if (inp) inp.hidden = t.value === 'phone'; return send('PUT', '/api/staff/calls/' + t.dataset.cmode, { mode: t.value }).catch(function (er) { flash(er.message); }); }
+    if (t.dataset.clink !== undefined && t.value.trim()) return send('PUT', '/api/staff/calls/' + t.dataset.clink, { link: t.value.trim(), mode: 'video' }).then(function () { flash('Link saved. Press "Send to customer" to email it.'); }).catch(function (er) { flash(er.message); });
+  });
+  var DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function openSlots() {
+    api('/api/staff/booking-settings').then(function (d) {
+      var x = d.settings;
+      $('#slOn').checked = x.on; $('#slTimes').value = x.times.join(', '); $('#slTzI').value = x.tz; $('#slMin').value = x.minutes;
+      $('#slCap').value = x.capacity; $('#slAhead').value = x.ahead; $('#slNotice').value = x.noticeHours; $('#slClosed').value = x.closed.join(', ');
+      $('#slDaysI').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(function (i) { return '<label><input type="checkbox" value="' + i + '"' + (x.days.indexOf(i) >= 0 ? ' checked' : '') + '> ' + DAYN[i] + '</label>'; }).join('');
+      $('#slErrM').hidden = true; $('#slotsM').classList.add('on');
+    });
+  }
+  $('#slotsF').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var days = [].map.call(document.querySelectorAll('#slDaysI input:checked'), function (i) { return Number(i.value); });
+    send('PUT', '/api/staff/booking-settings', { on: $('#slOn').checked, times: $('#slTimes').value, tz: $('#slTzI').value.trim(), days: days,
+      minutes: Number($('#slMin').value), capacity: Number($('#slCap').value), ahead: Number($('#slAhead').value), noticeHours: Number($('#slNotice').value), closed: $('#slClosed').value })
+      .then(function (r) { $('#slotsM').classList.remove('on'); flash('Saved: ' + r.settings.times.join(', ') + ' ' + r.settings.tz); })
+      .catch(function (er) { $('#slErrM').textContent = er.message; $('#slErrM').hidden = false; });
+  });
+
   api('/api/staff/me').then(function (me) {
     var u = me.user || me;
     $('#meName').textContent = u.name || ''; $('#meRole').textContent = u.role || '';
     if (u.role !== 'admin' && (u.perms || []).indexOf('marketing') < 0) $('#navMkt').hidden = true;
     if (u.role !== 'admin') $('#navOrg').hidden = true;
-    else $('#slaBtn').hidden = false;
+    else { $('#slaBtn').hidden = false; $('#slotsBtn').hidden = false; }
+    loadCalls(); setInterval(function () { if (!document.hidden) loadCalls(); }, 60000);
+    if (location.hash === '#calls') setTimeout(function () { $('#calls').scrollIntoView({ behavior: 'smooth' }); }, 600);
     tick(); setInterval(tick, 15000);
     load(); setInterval(function () { if (!document.hidden) load(); }, 60000);
   }).catch(function (e) {

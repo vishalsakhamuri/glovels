@@ -513,4 +513,42 @@ Open the file: ${siteUrl}/counsellor`,
    other email this site sends. */
 T.shell = shell;
 
+/* Patch 206: a booked call. `when` is already worded on the reader's clock. */
+T.callBooked = ({ name, when, whenOffice }) => {
+  const first = String(name || '').split(' ')[0] || 'there';
+  return {
+    subject: 'Your call with Glovels is booked — ' + when,
+    text: `Hi ${first},\n\nYour free counselling call is booked for ${when} (${whenOffice} office time).\n\nYour counsellor will send you a video link before the call, or ring you on the number you gave. Keep your marksheets and any test scores to hand — it makes the half hour count.\n\nNeed another time? Just reply to this email.\n\nGlovels`,
+    html: shell('Your call is booked',
+      p(`Hi ${esc(first)},`) +
+      p(`Your free counselling call is booked for <b>${esc(when)}</b> <span style="color:#5b6b7e">(${esc(whenOffice)} office time)</span>.`) +
+      p('Your counsellor will send you a video link before the call, or ring you on the number you gave. Keep your marksheets and any test scores to hand — it makes the half hour count.') +
+      small('Need another time? Just reply to this email.')),
+  };
+};
+T.callAssigned = ({ counsellor, student, phone, email, when, whenOffice, destination, link }) => ({
+  subject: 'Call booked with you: ' + student + ' — ' + whenOffice,
+  text: `Hi ${counsellor},\n\n${student} has a call with you on ${whenOffice} (${when} their time).\nPhone: ${phone}\nEmail: ${email}${destination ? '\nDestination: ' + destination : ''}\n\nSend them a meeting link, or plan to ring them: ${link}\n\nGlovels`,
+  html: shell('A call is booked with you',
+    p(`Hi ${esc(counsellor)},`) +
+    p(`<b>${esc(student)}</b> has a call with you on <b>${esc(whenOffice)}</b> <span style="color:#5b6b7e">(${esc(when)} their time)</span>.`) +
+    p(`Phone: ${esc(phone)}<br>Email: ${esc(email)}${destination ? '<br>Destination: ' + esc(destination) : ''}`) +
+    button(link, 'Open the call') + small('Send them a meeting link from there, or plan to ring them.')),
+});
+T.callLink = ({ name, when, link, counsellor, mode, phoneOffice }) => {
+  const first = String(name || '').split(' ')[0] || 'there';
+  const video = mode === 'video' && link;
+  return {
+    subject: video ? 'Your Glovels call link — ' + when : 'Your Glovels call — ' + when,
+    text: video
+      ? `Hi ${first},\n\nHere is the link for your call with ${counsellor} on ${when}:\n${link}\n\nOpen it a minute early. Glovels`
+      : `Hi ${first},\n\n${counsellor} will ring you on ${when} on the number you gave us${phoneOffice ? ', from ' + phoneOffice : ''}.\n\nGlovels`,
+    html: shell(video ? 'Your call link' : 'We will ring you',
+      p(`Hi ${esc(first)},`) +
+      (video
+        ? p(`Here is the link for your call with <b>${esc(counsellor)}</b> on <b>${esc(when)}</b>.`) + button(link, 'Join the call') + small('Open it a minute early so you are ready on time.')
+        : p(`<b>${esc(counsellor)}</b> will ring you on <b>${esc(when)}</b> on the number you gave us${phoneOffice ? ', from ' + esc(phoneOffice) : ''}.`))),
+  };
+};
+
 module.exports = T;
