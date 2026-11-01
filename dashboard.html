@@ -942,6 +942,13 @@ select.assign.none:hover{border-color:#a5342b}
 .prog-sub .sla{font-style:normal;font-size:11.5px;font-weight:700;margin-left:6px;padding:1px 7px;border-radius:999px;white-space:nowrap}
 .prog-sub .sla.ok{background:#e7f6ef;color:#1e7a50}.prog-sub .sla.on{background:#e8f0fb;color:#1f4f9e}
 .prog-sub .sla.late{background:#fff3d6;color:#8a6412}.prog-sub .sla.wait{background:#f1f3f6;color:#6b7a8c}
+.sl-ask{margin:14px 0 0;padding:14px 16px;border-radius:14px;background:#f6f1e4;border:1px solid #eadfc4}
+.sl-ask p{margin:0 0 10px;font-size:13px;line-height:1.55;color:var(--navy-800)}
+.sl-ask .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sl-ask select{min-width:220px;max-width:100%;height:40px;border-radius:10px;border:1px solid var(--line);padding:0 10px;font:600 13px var(--sans);background:#fff}
+.sl-ask button{height:40px;border-radius:10px;padding:0 14px;font:700 13px var(--sans);cursor:pointer;border:1px solid var(--navy-900);background:#fff;color:var(--navy-900)}
+.sl-ask button.pri{background:var(--navy-900);color:#fff}
+.sl-ask .msg{font-size:12.6px;color:var(--green,#1d7a46);font-weight:700}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
@@ -1033,6 +1040,16 @@ select.assign.none:hover{border-color:#a5342b}
       <div class="couns" id="couns"></div>
     </div>
 
+    <!-- Patch 226 (owner, 1 Nov): the universities first — it is what a
+         student who has just paid opened the dashboard to see. -->
+    <section class="p-sec" id="slSec">
+      <div class="p-sec-head">
+        <h2>Your universities</h2>
+        <a href="index.html#results">See all matches <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div id="slWrap"></div>
+    </section>
+
     <div class="steps4" id="steps4"></div>
 
     <div id="receipt" class="p-sec"></div>
@@ -1057,13 +1074,6 @@ select.assign.none:hover{border-color:#a5342b}
       </div>
     </section>
 
-    <section class="p-sec">
-      <div class="p-sec-head">
-        <h2>Your shortlisted universities</h2>
-        <a href="index.html#results">See all matches <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </div>
-      <div id="slWrap"></div>
-    </section>
 
     <section class="p-sec" id="draftsSec" hidden>
       <div class="p-sec-head">
@@ -1630,12 +1640,44 @@ const goneTable = () => shownGone.length
     + SL_HEAD.map(h => '<th>' + h + '</th>').join('')
     + '</tr></thead><tbody>' + shownGone.map((p, i) => card(p, i)).join('') + '</tbody></table></div>'
   : '';
+/* Patch 226 (owner, 1 Nov): "he should not be worried — final unis will be
+   finalised by the counsellor; these are preliminary assessments based on the
+   inputs given." Under the list: that sentence, and two ways to ask — swap
+   one, or ask for better options. Both go to the counsellor as a message. */
+const askBox = () => order.demo || usingSample ? '' :
+  '<div class="sl-ask" id="slAsk"><p><b>This is a first assessment</b>, based on the answers you gave us. '
+  + 'Your counsellor checks every university with you and finalises the list before anything is submitted &mdash; '
+  + 'nothing is filed without your agreement.</p><div class="row">'
+  + '<select id="slRepl" aria-label="University to replace"><option value="">Replace a university&hellip;</option>'
+  + shownLive.map(p => '<option>' + esc(p.program + ' \u2014 ' + p.university) + '</option>').join('') + '</select>'
+  + '<button type="button" id="slReplGo">Ask to replace</button>'
+  + '<button type="button" class="pri" id="slBetter">Ask my counsellor for better options</button>'
+  + '<span class="msg" id="slAskMsg" role="status"></span></div></div>';
+async function askCounsellor(body) {
+  const m = document.getElementById('slAskMsg');
+  try {
+    const r = await fetch('/api/messages', { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'That did not send. Try again.');
+    if (m) { m.style.color = ''; m.textContent = 'Sent to your counsellor \u2014 the reply comes to Messages.'; }
+  } catch (e) { if (m) { m.style.color = '#b42318'; m.textContent = e.message; } }
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('#slBetter')) askCounsellor('Could you suggest better universities for me? I would like to see more options before my list is finalised.');
+  if (e.target.closest('#slReplGo')) {
+    const v = (document.getElementById('slRepl') || {}).value;
+    const m = document.getElementById('slAskMsg');
+    if (!v) { if (m) { m.style.color = '#b42318'; m.textContent = 'Choose the university to replace first.'; } return; }
+    askCounsellor('Please suggest a replacement for: ' + v + '.');
+  }
+});
 const drawShortlist = () => { $('#slWrap').innerHTML = shown.length
   ? (shownLive.length ? '<div class="sl-scroll"><table class="tbl sl-tbl"><thead><tr>'
       + SL_HEAD.map(h => '<th>' + h + '</th>').join('')
       + '</tr></thead><tbody>'
       + shownLive.map((p, i) => card(p, i)).join('')
-      + '</tbody></table></div>' : '') + goneTable() + pending + heldNote
+      + '</tbody></table></div>' + askBox() : '') + goneTable() + pending + heldNote
     + (order.demo
         ? '<p style="font-size:12.4px;color:var(--muted);margin:12px 0 0">'
           + 'The demo student\'s worked example. Pay with <b>' + DEMO_EMAIL + '</b> on the '

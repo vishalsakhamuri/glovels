@@ -3763,6 +3763,36 @@ $('#fMoreBtn') && ($('#fMoreBtn').onclick = () => {
   $('#fMore').hidden = !open;
   $('#fMoreBtn').setAttribute('aria-expanded', String(open));
 });
+/* Patch 226 (owner, 1 Nov): what was answered on the finder, in the profile's
+   own words, sent with an order so the universities bought are picked the
+   moment it is paid — no profile form first. The server fills only blanks. */
+function finderAnswers(){
+  const v = id => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+  const a = {};
+  const c = document.getElementById('fCountry');
+  if (c && c.value) a.g_country = (c.options[c.selectedIndex].text || '').replace(/^[^A-Za-z]+/, '').trim();
+  const L = { bachelor: "Bachelor's", master: "Master's", diploma: 'Diploma / PG Diploma', foundation: 'Foundation / Pathway' };
+  if (L[v('fLevel')]) a.g_level = L[v('fLevel')];
+  if (v('fField')) a.g_field = v('fField');
+  if (v('fCgpa')) { a.d_cgpa = v('fCgpa'); a.d_max = '10'; }
+  const en = v('fEnglish');
+  if (/^(ielts|toefl):/.test(en)) { const [t, sc] = en.split(':'); a.e_test = t === 'ielts' ? 'IELTS' : 'TOEFL'; a.e_score = sc; }
+  else if (en === 'moi') a.e_test = 'Medium of Instruction letter';
+  else if (en === 'none') a.e_test = 'Not taken yet';
+  const gr = v('fGre');
+  if (gr === 'none') a.a_test = 'Not taken yet';
+  else if (gr === 'yes') { a.a_test = 'GRE'; const q = +v('fGreQ'), vb = +v('fGreV'); if (q && vb) a.a_score = String(q + vb); }
+  const wk = v('fWork');
+  if (wk === '0') a.w_has = 'No'; else if (wk) { a.w_has = 'Yes - full time'; a.w_months = wk; }
+  const it = v('fIntake').match(/^(summer|winter)-(\d{4})$/);
+  if (it) a.g_intake = it[1][0].toUpperCase() + it[1].slice(1) + ' ' + it[2];
+  const de = v('fGerman'); if (de) a.g_german = de === 'none' ? 'None yet' : de;
+  const pp = v('fPapers'); if (pp) a.g_papers = pp === 'yes' ? 'Yes' : 'No';
+  const ec = v('fEcts'); if (ec === '180') a.d_dur = '3 years'; else if (ec === '240') a.d_dur = '4 years';
+  if (v('fBach')) a.d_course = v('fBach');
+  return a;
+}
+window.glvFinderAnswers = finderAnswers;
 /* Patch 225 (owner, 1 Nov): with More filters open, Find Programs moves
    below them, so it is pressed after the extra answers rather than above
    them. One button, moved — not two to keep in step. */
@@ -4206,6 +4236,7 @@ $('#buyPay').onclick = () => {
     body: JSON.stringify({
       packageId,
       name: buyer.name, phone: buyer.phone, email: buyer.email,
+      answers: (window.glvFinderAnswers ? window.glvFinderAnswers() : {}),
       /* The tick, and nothing about what it said: the server writes the record
          from its own copy of the words. A page that reports its own consent
          wording could report anything, and this is the part that has to hold
@@ -5038,6 +5069,7 @@ $('#planCta').onclick = () => {
             id: s.id,
             level: s.levels.length ? (levelOf[s.id] || s.levels[0].code) : '',
           })),
+          answers: (window.glvFinderAnswers ? window.glvFinderAnswers() : {}),
           name: $('#scName').value.trim(),
           email: $('#scMail').value.trim(),
           phone: $('#scPhone').value.trim(),

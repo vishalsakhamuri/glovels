@@ -3172,6 +3172,39 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       }
     }
 
+    /* Patch 226 (owner, 1 Nov): the answers given on the finder travel with
+       the order, so the universities just bought are picked straight away
+       instead of waiting for a profile form nobody fills in before paying.
+       Only BLANK fields are filled — anything the student already typed in
+       their profile wins — and a value the grade checks reject is dropped,
+       never stored. Keys outside this list are ignored. */
+    if (buyer && b.answers && typeof b.answers === 'object' && !Array.isArray(b.answers)) {
+      try {
+        const ALLOWED = ['d_cgpa','d_max','d_dur','d_course','e_test','e_score','a_test','a_score',
+          'w_has','w_months','g_level','g_field','g_country','g_intake','g_german','g_papers'];
+        const before = db.getProfile(buyer.id) || {};
+        const blank = v => String(v == null ? '' : v).trim() === '';
+        const add = {};
+        ALLOWED.forEach(k => {
+          const v = b.answers[k];
+          if (v == null || typeof v === 'object' || blank(v) || !blank(before[k])) return;
+          add[k] = String(v).slice(0, 200);
+        });
+        if (Object.keys(add).length) {
+          let { merged, wrong } = mergeProfile(buyer.id, add);
+          if (wrong.length) {
+            wrong.forEach(w => { delete add[w.field]; });
+            ({ merged, wrong } = mergeProfile(buyer.id, add));
+          }
+          if (!wrong.length && Object.keys(add).length) {
+            db.putProfile(buyer.id, merged);
+            db.log('system', 'profile seeded from the finder',
+              buyer.email + ' — ' + Object.keys(add).join(', ') + ' (' + reference + ')');
+          }
+        }
+      } catch (e) { /* the order stands; the profile can be filled later */ }
+    }
+
     const matched = buyer ? deliverMatches(buyer) : { owed: 0, added: 0, needsProfile: false };
 
     const vatNow = String((db.orderByReference ? (db.orderByReference(reference) || {}).tax_mode : '') || '').match(/^eu-vat-(\d+(?:\.\d+)?)$/);

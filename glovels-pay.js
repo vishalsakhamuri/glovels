@@ -388,6 +388,8 @@
     var v = Number(inr || 0) / r;
     /* Rounded up like the checkout, so a figure here never undercuts it. */
     if (v < 1e6) v = Math.ceil(v - 1e-9);
+    /* Patch 226: ceil(0 - tiny) is -0, which printed "-€0 tuition". */
+    v = Math.max(0, v) || 0;
     try {
       return new Intl.NumberFormat('en', { style: 'currency', currency: code,
         notation: v >= 1e6 ? 'compact' : 'standard', maximumFractionDigits: v >= 1e6 ? 1 : 0,
