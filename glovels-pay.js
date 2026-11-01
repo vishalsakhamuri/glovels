@@ -607,8 +607,102 @@
     });
     if (!priceTimer) priceTimer = setTimeout(function () { priceTimer = 0; localPrices(); }, 120);
   }
+  /* Patch 207: the header's "where are you / which currency / language"
+     control, on every page. The country chooses the currency (and can be
+     overridden); English is the only language for now. Remembered on this
+     device; the first visit guesses from the visitor's location. */
+  var CKEY = 'glv-country';
+  function country() {
+    var c = ''; try { c = localStorage.getItem(CKEY) || ''; } catch (e) { c = ''; }
+    return c || (CFG && CFG.geo && CFG.geo.country) || '';
+  }
+  function flagOf(c) { return /^[A-Z]{2}$/.test(c || '') ? c.replace(/./g, function (ch) { return String.fromCodePoint(127397 + ch.charCodeAt(0)); }) : '\uD83C\uDF10'; }
+  function countryName(c) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } }
+  function localeBar() {
+    if (!CFG) return;
+    var hosts = [];
+    var h = document.querySelector('header.site .nav-cta');
+    if (h && !h.querySelector('.glv-locale')) hosts.push([h, false]);
+    var mm = document.getElementById('mm');
+    if (mm && !mm.querySelector('.glv-locale')) hosts.push([mm, true]);
+    if (!hosts.length) return;
+    injectLocaleCss();
+    hosts.forEach(function (x) { mountLocale(x[0], x[1]); });
+  }
+  function injectLocaleCss() {
+    if (!document.getElementById('glvLocaleCss')) {
+      var st = document.createElement('style'); st.id = 'glvLocaleCss';
+      st.textContent = '.glv-locale{position:relative;display:inline-flex}'
+        + '.glv-loc-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(13,35,56,.25);background:#fff;border-radius:999px;padding:7px 11px;font:700 12.6px/1 var(--sans,system-ui);color:var(--navy-800,#0b1f3a);cursor:pointer;white-space:nowrap}'
+        + '.glv-loc-btn:hover{border-color:#0b1f3a}'
+        + '.glv-loc-btn .f{font-size:15px;line-height:1}'
+        + '.glv-loc-pop{position:absolute;right:0;top:calc(100% + 8px);width:300px;background:#fff;border:1px solid #e2e7ee;border-radius:16px;box-shadow:0 24px 60px rgba(11,31,58,.18);padding:16px;z-index:200;text-align:left}'
+        + '.glv-loc-pop h4{margin:0 0 10px;font:800 15px var(--sans,system-ui);color:#0b1f3a}'
+        + '.glv-loc-pop label{display:block;font:700 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:#6b7a8c;margin:10px 0 4px}'
+        + '.glv-loc-pop select{width:100%;padding:9px 10px;border:1.5px solid #d8dde4;border-radius:10px;background:#fff;font:600 14px var(--sans,system-ui);color:#0b1f3a}'
+        + '.glv-loc-pop small{display:block;color:#6b7a8c;font:500 11.5px var(--sans,system-ui);margin-top:4px}'
+        + '.glv-loc-pop .go{margin-top:14px;width:100%;border:0;border-radius:10px;padding:11px;background:#0b1f3a;color:#fff;font:800 13.5px var(--sans,system-ui);cursor:pointer}'
+        + '.glv-locale.in-menu{display:flex;margin:4px 0 12px}.glv-locale.in-menu .glv-loc-btn{width:100%;justify-content:center;padding:11px 14px;font-size:14px}'
+        + '.glv-locale.in-menu .glv-loc-pop{position:static;width:auto;margin-top:8px;box-shadow:none}'
+        + '.glv-locale.in-menu{flex-direction:column}'
+        + '@media (max-width:640px){header.site .nav-cta .glv-locale{display:none}}'
+        + '@media (min-width:641px){.glv-locale.in-menu{display:none}}';
+      document.head.appendChild(st);
+    }
+  }
+  function mountLocale(host, inMenu) {
+    var box = document.createElement('div');
+    box.className = 'glv-locale' + (inMenu ? ' in-menu' : '');
+    if (inMenu) { var top = host.querySelector('.mm-top'); host.insertBefore(box, top ? top.nextSibling : host.firstChild); }
+    else host.insertBefore(box, host.firstChild);
+    function paint() {
+      var c = country(), cur = current(CFG);
+      box.innerHTML = '<button type="button" class="glv-loc-btn" aria-haspopup="dialog" aria-expanded="false" data-track="locale" data-track-label="Country and currency" title="Country, currency and language">'
+        + '<span class="f" aria-hidden="true">' + flagOf(c) + '</span><span class="n">' + (inMenu && c ? countryName(c) + ' \u00b7 ' : '') + cur + ' \u00b7 EN</span><span aria-hidden="true">\u25be</span></button>';
+      box.querySelector('button').onclick = open;
+    }
+    function open() {
+      if (box.querySelector('.glv-loc-pop')) return close();
+      var codes = (CFG.countries || []).slice().map(function (k) { return [k, countryName(k)]; })
+        .sort(function (a, b) { return a[1].localeCompare(b[1]); });
+      var c = country(), cur = current(CFG);
+      var curOpts = Array.isArray(CFG.regions) && CFG.regions.length
+        ? CFG.regions.map(function (g) { return '<optgroup label="' + g.name + '">' + g.currencies.map(function (k) { return '<option value="' + k + '">' + k + ' \u2014 ' + nameOf(k) + '</option>'; }).join('') + '</optgroup>'; }).join('')
+        : (CFG.currencies || ['INR']).map(function (k) { return '<option value="' + k + '">' + k + '</option>'; }).join('');
+      var pop = document.createElement('div');
+      pop.className = 'glv-loc-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Country, currency and language');
+      pop.innerHTML = '<h4>Your country and currency</h4>'
+        + '<label for="glvLocC">Country</label><select id="glvLocC"><option value="">Choose your country</option>'
+        + codes.map(function (x) { return '<option value="' + x[0] + '">' + flagOf(x[0]) + ' ' + x[1] + '</option>'; }).join('') + '</select>'
+        + '<label for="glvLocCur">Currency</label><select id="glvLocCur">' + curOpts + '</select>'
+        + '<small>Prices and fees are shown in this currency, and you pay in it.</small>'
+        + '<label for="glvLocL">Language</label><select id="glvLocL"><option value="en">English</option></select>'
+        + '<small>More languages are coming.</small>'
+        + '<button type="button" class="go">Save</button>';
+      box.appendChild(pop);
+      box.querySelector('.glv-loc-btn').setAttribute('aria-expanded', 'true');
+      var cs = pop.querySelector('#glvLocC'), ks = pop.querySelector('#glvLocCur');
+      cs.value = c; ks.value = cur;
+      cs.onchange = function () { var m = CFG.currencyOf && CFG.currencyOf[cs.value]; if (m) ks.value = m; };
+      pop.querySelector('.go').onclick = function () {
+        try { if (cs.value) localStorage.setItem(CKEY, cs.value); } catch (e) {}
+        set(ks.value);
+        try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: ks.value })); } catch (e) {}
+        try { document.dispatchEvent(new CustomEvent('glv-country', { detail: cs.value })); } catch (e) {}
+        if (window.glvTrack) try { glvTrack('locale', { label: (cs.value || '') + ' ' + ks.value }); } catch (e) {}
+        close(); paint();
+      };
+      setTimeout(function () { cs.focus(); }, 30);
+    }
+    function close() { var p = box.querySelector('.glv-loc-pop'); if (p) p.remove(); var b = box.querySelector('.glv-loc-btn'); if (b) b.setAttribute('aria-expanded', 'false'); }
+    document.addEventListener('click', function (e) { if (!box.contains(e.target)) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    document.addEventListener('glv-currency', function () { if (!box.querySelector('.glv-loc-pop')) paint(); });
+    paint();
+  }
+
   config().then(function (c) {
-    CFG = c; localPrices();
+    CFG = c; localPrices(); localeBar();
     /* The finders draw their fees again now that the currency is known. */
     try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: current(CFG) })); } catch (e) {}
   });

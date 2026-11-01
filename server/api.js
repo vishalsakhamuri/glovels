@@ -3296,6 +3296,11 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
     currencies: payCurrencies(),
     fx: payFx(),
     regions: FX.regions(),
+    /* Patch 207: the header's country picker — every country, and the
+       currency each one pays in (USD where the office cannot take theirs). */
+    countries: ISO_COUNTRIES.all().map(c => c.code),
+    currencyOf: Object.fromEntries(ISO_COUNTRIES.all().map(c => [c.code, payCurrencies().includes(GEO.currencyFor(c.code)) ? GEO.currencyFor(c.code) : 'USD'])),
+    languages: [{ code: 'en', name: 'English' }],
     exponents: Object.fromEntries(payCurrencies().map(c => [c, FX.exponent(c)])),
     ratesAt: FX.status().at,
     /* Patch 187: where this visitor is, from their IP — never stored. */
@@ -4403,7 +4408,22 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
      * changes. No total travels, and nothing says how many were left out.
      */
     const capped = FIND.capLocked(lockedReal.map(p => Object.assign({}, p, { _locked: true })), LOCKED_CAP);
-    const programmes = named_.concat(capped.rows.map(p => lockedPlaceholder(p, nonce)));
+    /* Patch 207: "one search output should bring at most 30 records for the
+       home page, so the site is faster; in the counsellor login, everything."
+       The home page asks with ?limit=30; a visitor gets that many named rows,
+       taken across destinations in turn, and the page asks the server for
+       what fits each search. Staff are never capped. */
+    let namedOut = named_;
+    const homeLimit = Number(url.parse(req.url, true).query.limit) || 0;
+    if (homeLimit > 0 && !ent.staff && named_.length > homeLimit) {
+      /* A student's unlocked (public, named) universities are never cut. */
+      const mine = named_.filter(p => p.isPublic);
+      const rest = named_.filter(p => !p.isPublic);
+      const room = Math.max(10, Math.min(200, homeLimit)) - mine.length;
+      namedOut = mine.concat(room > 0 ? takeAcross(rest, room, p => p.country) : []);
+      sampled = true;
+    }
+    const programmes = namedOut.concat(capped.rows.map(p => lockedPlaceholder(p, nonce)));
 
     return json(res, 200, {
       programmes,
@@ -4476,6 +4496,19 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
      one field is ~465) — the page shows 40 and "Show more" walks the rest
      without asking again. The cache holds 20 answers at that size. */
   const NAMED_CAP = 600;
+  /* Patch 207: `n` rows from `list`, one group at a time in turn, keeping
+     each group's own order — so a short answer still shows the spread. */
+  function takeAcross(list, n, keyOf) {
+    const groups = new Map();
+    list.forEach(p => { const k = keyOf(p); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+    const lists = [...groups.values()], picked = new Set();
+    for (let round = 0; picked.size < n; round++) {
+      let any = false;
+      for (const g of lists) { if (picked.size >= n) break; if (round < g.length) { picked.add(g[round]); any = true; } }
+      if (!any) break;
+    }
+    return list.filter(p => picked.has(p));
+  }
   const matchCache = new Map();
   const MATCH_CACHE_MAX = 20, MATCH_TTL_MS = 2 * 60 * 1000;
   route('GET', '/api/find/match', async (req, res) => {
@@ -4531,9 +4564,16 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
       logSearch(req, { kind: 'finder', q: f.q, dest: f.country, level: f.level, field: f.field,
         filters: FIND.toQuery(rest), results: hit.named.length + hit.lockedReal.length });
     }
+    /* Patch 207: a visitor's search brings at most `limit` named rows (the
+       home page asks for 30), taken across universities in turn; staff get
+       the whole answer. */
+    const lim = Number(url.parse(req.url, true).query.limit) || 0;
+    const cut = lim > 0 && !ent.staff && hit.named.length > lim;
+    const keepMine = hit.named.filter(p => p.isPublic);
+    const namedOut = cut ? keepMine.concat(takeAcross(hit.named.filter(p => !p.isPublic), Math.max(0, Math.max(10, Math.min(200, lim)) - keepMine.length), p => p.uKey || p.university || p.id)) : hit.named;
     return json(res, 200, {
-      named: hit.named, locked: hit.lockedReal.map(p => lockedPlaceholder(p, nonce)),
-      more: hit.more, moreNamed: hit.moreNamed,
+      named: namedOut, locked: hit.lockedReal.map(p => lockedPlaceholder(p, nonce)),
+      more: hit.more, moreNamed: hit.moreNamed || cut,
     }, { 'Cache-Control': 'private, no-store' });
   }, { open: true });
 

@@ -2066,7 +2066,7 @@ async function loadUnlocked(){
   try {
     /* Whatever came back with a name is what this visitor is entitled to see —
        the entitlement is the server's decision, not a filter applied here. */
-    const r = await fetch('/api/catalogue', {credentials: 'same-origin'});
+    const r = await fetch('/api/catalogue?limit=30', {credentials: 'same-origin'});
     if(!r.ok) return;
     const d = await r.json();
     const out = {};
@@ -2530,7 +2530,7 @@ function askLocked(){
   /* Patch 180: the named rows that fit come back too, and join D.programs —
      a destination with tens of thousands of programmes is searched on the
      server; the opening catalogue carries only a sample of it. */
-  fetch('/api/find/match' + key, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(d => {
+  fetch('/api/find/match' + (key ? key + '&' : '?') + 'limit=30', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(d => {
     if (LOCKED_ASKING !== key) return;
     LOCKED_ASKING = null; LOCKED_FOR = key;
     LOCKED_POOL = ((d && d.locked) || []).map(liveLockedRow).filter(Boolean);
@@ -4614,7 +4614,8 @@ function liveRowOf(p){
 (async function liveCatalogue(){
   let data;
   try {
-    const r = await fetch('/api/catalogue', {headers: {Accept: 'application/json'}});
+    /* Patch 207: at most 30 programmes for the home page; each search asks for its own. */
+    const r = await fetch('/api/catalogue?limit=30', {headers: {Accept: 'application/json'}});
     if (!r.ok) return;
     data = await r.json();
   } catch (e) { return; }
@@ -6423,7 +6424,7 @@ shortOnPhones('faqList', 4, 'questions', 'details.faq');
     try {
       var setCat = window.__glovelsSetCatalogue;
       if (typeof setCat === 'function') {
-        fetch('/api/catalogue', { credentials: 'same-origin' })
+        fetch('/api/catalogue?limit=30', { credentials: 'same-origin' })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (c) {
             if (!c || !c.programmes || !c.programmes.length) return;
@@ -6946,7 +6947,7 @@ if (location.protocol === 'file:') {
     .catch(function () {});
 }());
 </script>
-<script src="/glovels-pay.js?v=196"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+<script src="/glovels-pay.js?v=207"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 <script>/* GLOVELS-PKG-CONNECTORS */
 (function () {
   /* Each package gets its own icon. They were all the same compass, which on a
