@@ -892,7 +892,7 @@ if (location.protocol === 'file:') {
      * it. The contact page carries a form that writes an enquiry, and the
      * counselling form on the home page always has.
      */
-    if (MODE !== 'site') corner.appendChild(fab);
+    if (MODE !== 'site' || window.__glvSiteChat !== false) corner.appendChild(fab);  /* Patch 219: the chat box is back on the website (owner) */
     document.body.appendChild(corner);
     /* The home page's older WhatsApp launcher sat underneath this one, so
        a phone had two overlapping buttons in the corner and a screen reader

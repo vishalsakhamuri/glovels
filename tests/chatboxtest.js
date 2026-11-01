@@ -36,8 +36,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
    * contact form and the counselling form, both of which write an enquiry.
    */
   check('WhatsApp is in the corner of the home page', await v.isVisible('.gv-wa'));
-  check('and it is the only thing there',
-    (await v.$$eval('.gv-chat-fab', els => els.filter(e => e.offsetParent !== null).length)) === 0);
+  /* Patch 219 (owner, 1 Nov): the website chat box is back beside WhatsApp. */
+  check('and the "Send a message" chat button is beside it',
+    (await v.$$eval('.gv-chat-fab', els => els.filter(e => e.offsetParent !== null).length)) === 1);
 
   /* It has to be on the other marketing pages too — the person reading about
      Germany at eleven at night is the one with the question. */

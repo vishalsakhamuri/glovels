@@ -509,8 +509,12 @@ function withGuard(html) {
   return html.slice(0, at) + '<meta name="glv-t" content="' + guard.pageToken() + '"><script data-glvt>' + GUARD_JS + '</script>' + html.slice(at);
 }
 
+/* Patch 219: the website chat box is on (owner, 1 Nov). SITE_CHAT=off puts
+   the visitor's button away again without touching a page. */
+const SITE_CHAT_OFF = String(process.env.SITE_CHAT || '').toLowerCase() === 'off';
 function send(res, code, body, type, extra) {
   if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = withGuard(body);
+  if (SITE_CHAT_OFF && code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = body.replace('</head>', '<script>window.__glvSiteChat=false</script></head>');
   if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
     const u = url.parse(res.req.url, true);
     /* Round 176: the office's own visits are not traffic. A request carrying
@@ -3053,7 +3057,7 @@ const MOBILE_CSS = '<style data-mobile-kit>'
   + '@media (max-width:640px){'
   + 'body{padding-bottom:calc(66px + env(safe-area-inset-bottom,0px))}'
   + '.wa-launch,.gv-corner{display:none !important}'
-  + '.glv-mbar{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;z-index:118;'
+  + '.glv-mbar{display:grid;grid-template-columns:repeat(' + (SITE_CHAT_OFF ? 3 : 4) + ',1fr);position:fixed;left:0;right:0;bottom:0;z-index:118;'
   + 'background:rgba(255,255,255,.97);backdrop-filter:saturate(1.4) blur(8px);-webkit-backdrop-filter:saturate(1.4) blur(8px);'
   + 'border-top:1px solid #e3e7ec;box-shadow:0 -6px 20px rgba(11,30,49,.08);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}'
   + '.glv-mbar a,.glv-mbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'
@@ -3082,7 +3086,11 @@ function mobileBar(waNumber) {
     + '<a href="/find-university"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Find University</a>'
     + '<a class="go" href="/#packages" data-mbar-packages><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>Packages</a>'
     + '<a class="wa" href="' + wa + '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.7-1.2s.2-1.1.2-1.2-.2-.2-.4-.3z"/></svg>WhatsApp</a>'
+    /* Patch 219: the website chat on a phone — the corner is hidden there, so
+       the bar carries a Chat button that opens the same chat window. */
+    + (SITE_CHAT_OFF ? '' : '<button type="button" data-mbar-chat><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg>Chat</button>')
     + '</nav>'
+    + '<script>(function(){var c=document.querySelector("[data-mbar-chat]");if(c)c.addEventListener("click",function(){var f=document.querySelector(".gv-chat-fab");if(f){f.click();}else{location.href="/contact-us";}});})();</script>'
     + '<script>(function(){var b=document.querySelector("[data-mbar-packages]");if(!b)return;'
     + 'function show(){var s=document.querySelector("[data-show-packages]");if(s&&document.getElementById("packages")&&document.getElementById("packages").hidden){s.click();}'
     + 'var p=document.getElementById("packages");if(p){setTimeout(function(){p.scrollIntoView({behavior:"smooth",block:"start"});},60);return true;}return false;}'
