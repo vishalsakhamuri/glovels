@@ -662,6 +662,8 @@
     var c = ''; try { c = localStorage.getItem(CKEY) || ''; } catch (e) { c = ''; }
     return c || ((CFG && CFG.geo && geoOk(CFG)) ? (CFG.geo.country || '') : '');
   }
+  /* Patch 228: the checkout's phone box picks its country code from this. */
+  if (window.glovelsPay) window.glovelsPay.visitorCountry = country;
   function flagOf(c) { return /^[A-Z]{2}$/.test(c || '') ? c.replace(/./g, function (ch) { return String.fromCodePoint(127397 + ch.charCodeAt(0)); }) : '\uD83C\uDF10'; }
   function countryName(c) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } }
   function localeBar() {

@@ -161,7 +161,7 @@ section.block.alt{background:var(--paper);border-top:1px solid var(--line);
 /* ------------------------------------------------------------------- modals */
 .modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;
   justify-content:center;padding:20px;background:rgba(11,30,49,.5)}
-.modal.on{display:flex}
+.modal.on{display:flex}html:has(.modal.on),html:has(.modal.on) body{overflow:hidden}.modal,.modal .sheet{overscroll-behavior:contain}
 .sheet{width:min(560px,100%);max-height:88vh;overflow-y:auto;background:var(--paper);
   border-radius:var(--r-lg);padding:22px 24px;box-shadow:0 30px 70px rgba(11,30,49,.4)}
 .sheet h3{font-size:19px;margin-bottom:5px}
@@ -519,6 +519,7 @@ section[id]{scroll-margin-top:92px}
   color:var(--navy-900);background:#eef0f3;border:1.5px solid #d8dde4;border-right:0;
   border-radius:11px 0 0 11px}
 .phone-row input{border-radius:0 11px 11px 0!important}
+select.cc{appearance:auto;padding:0 6px 0 10px;cursor:pointer;max-width:110px;font:700 14px/1 var(--sans)}
 .req-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .req-sum div{background:var(--cream);border:1px solid var(--line);border-radius:var(--r);
   padding:10px 11px}
@@ -819,6 +820,7 @@ html.review-copy .build-strip{display:block !important}
   color:var(--navy-900);background:#eef0f3;border:1.5px solid #d8dde4;border-right:0;
   border-radius:11px 0 0 11px}
 .phone-row input{border-radius:0 11px 11px 0!important}
+select.cc{appearance:auto;padding:0 6px 0 10px;cursor:pointer;max-width:110px;font:700 14px/1 var(--sans)}
 .paid-head{display:flex;gap:12px;align-items:center;background:#eef8f2;border:1px solid #bfe0cc;
   border-radius:var(--r);padding:14px 15px;color:#14603a}
 .paid-head .ico{font-size:22px;flex:none;background:var(--green);color:#fff;border-radius:50%;padding:5px}
@@ -3763,6 +3765,26 @@ $('#fMoreBtn') && ($('#fMoreBtn').onclick = () => {
   $('#fMore').hidden = !open;
   $('#fMoreBtn').setAttribute('aria-expanded', String(open));
 });
+/* Patch 228 (owner, 1 Nov): "only Indian number is accepted" — the box
+   showed a fixed +91. Now a country-code list, set to the visitor's country,
+   and a number typed with its own + code keeps it. Leading 0s (a German
+   0151…) are dropped when the code is added. */
+const DIAL = [['IN', '+91'], ['NP', '+977'], ['LK', '+94'], ['BD', '+880'], ['PK', '+92'], ['NG', '+234'], ['GH', '+233'], ['KE', '+254'], ['PH', '+63'], ['AE', '+971'], ['SA', '+966'], ['QA', '+974'], ['KW', '+965'], ['OM', '+968'], ['DE', '+49'], ['IT', '+39'], ['FR', '+33'], ['ES', '+34'], ['GB', '+44'], ['IE', '+353'], ['NL', '+31'], ['BE', '+32'], ['AT', '+43'], ['CH', '+41'], ['PL', '+48'], ['SE', '+46'], ['FI', '+358'], ['CZ', '+420'], ['PT', '+351'], ['AL', '+355'], ['RS', '+381'], ['BA', '+387'], ['MK', '+389'], ['ME', '+382'], ['XK', '+383'], ['US', '+1'], ['CA', '+1'], ['AU', '+61'], ['NZ', '+64'], ['SG', '+65'], ['MY', '+60'], ['JP', '+81']];
+function ccSelect(id){
+  const mine = (window.glovelsPay && window.glovelsPay.visitorCountry && window.glovelsPay.visitorCountry()) || 'IN';
+  const at = DIAL.some(d => d[0] === mine) ? mine : 'IN';
+  return '<select class="cc" id="' + id + '" aria-label="Country code">' + DIAL.map(d =>
+    '<option value="' + d[1] + '"' + (d[0] === at ? ' selected' : '') + '>'
+    + d[0].replace(/./g, ch => String.fromCodePoint(127397 + ch.charCodeAt(0))) + ' ' + d[1] + '</option>').join('') + '</select>';
+}
+function fullPhone(inputSel, ccId){
+  const v = (document.querySelector(inputSel) || {}).value || '';
+  const t = v.trim(); if (!t || /^\+/.test(t) || /^00/.test(t)) return t.replace(/^00/, '+');
+  const cc = (document.getElementById(ccId) || {}).value || '+91';
+  return cc + ' ' + t.replace(/^0+/, '');
+}
+window.glvFullPhone = fullPhone;
+window.glvCcSelect = ccSelect;
 /* Patch 226 (owner, 1 Nov): what was answered on the finder, in the profile's
    own words, sent with an order so the universities bought are picked the
    moment it is paid — no profile form first. The server fills only blanks. */
@@ -4153,8 +4175,8 @@ document.addEventListener('click', e => {
       + '<input id="rqName" style="cursor:text" placeholder="Your name">'
       + '<span class="err"></span></div>'
     + '<div class="fld"><label for="rqPhone">Mobile number *</label>'
-      + '<div class="phone-row"><span class="cc">+91</span>'
-      + '<input id="rqPhone" inputmode="tel" style="cursor:text" placeholder="98765 43210 or +49 151 2345 6789"></div>'
+      + '<div class="phone-row">' + (window.glvCcSelect ? window.glvCcSelect('rqCc') : '<span class="cc">+91</span>') + ''
+      + '<input id="rqPhone" inputmode="tel" style="cursor:text" placeholder="Mobile number"></div>'
       + '<span class="err"></span></div>'
     + '<div class="fld"><label for="rqMail">Email *</label>'
       + '<input id="rqMail" inputmode="email" style="cursor:text">'
@@ -4188,8 +4210,8 @@ document.addEventListener('click', e => {
 $('#buyPay').onclick = () => {
   let ok = true;
   [['#rqName','Tell us your name', v => !!v],
-   ['#rqPhone','A mobile number, please — add the country code if you are outside India',
-     v => (window.glovelsPay ? window.glovelsPay.phoneOk(v) : /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g,'').slice(-10)))],
+   ['#rqPhone','A mobile number, please',
+     v => (v = window.glvFullPhone ? window.glvFullPhone('#rqPhone','rqCc') : v, window.glovelsPay ? window.glovelsPay.phoneOk(v) : /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g,'').slice(-10)))],
    ['#rqMail','A valid email, please', v => /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v)]]
   .forEach(([sel, msg, test]) => {
     const f = $(sel), bad = !test(f.value.trim());
@@ -4216,7 +4238,7 @@ $('#buyPay').onclick = () => {
      That silently broke the hand-off to the portal once already. */
   const buyer = {
     name: $('#rqName').value.trim(),
-    phone: $('#rqPhone').value.trim(),
+    phone: window.glvFullPhone ? window.glvFullPhone('#rqPhone','rqCc') : $('#rqPhone').value.trim(),
     email: $('#rqMail').value.trim()
   };
 
@@ -4996,8 +5018,8 @@ $('#planCta').onclick = () => {
     + '<div class="fld"><label for="scName">Full name *</label>'
       + '<input id="scName" placeholder="Your name"><span class="err"></span></div>'
     + '<div class="fld"><label for="scPhone">Mobile number *</label>'
-      + '<div class="phone-row"><span class="cc">+91</span>'
-      + '<input id="scPhone" inputmode="tel" placeholder="98765 43210 or +49 151 2345 6789"></div>'
+      + '<div class="phone-row">' + (window.glvCcSelect ? window.glvCcSelect('scCc') : '<span class="cc">+91</span>') + ''
+      + '<input id="scPhone" inputmode="tel" placeholder="Mobile number"></div>'
       + '<span class="err"></span></div>'
     + '<div class="fld"><label for="scMail">Email *</label>'
       + '<input id="scMail" inputmode="email"><span class="err"></span></div></div>'
@@ -5040,8 +5062,8 @@ $('#planCta').onclick = () => {
   $('#scPay').onclick = async () => {
     let ok = true;
     [['#scName','Tell us your name', v => !!v],
-     ['#scPhone','A mobile number, please — add the country code if you are outside India',
-       v => (window.glovelsPay ? window.glovelsPay.phoneOk(v) : /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g,'').slice(-10)))],
+     ['#scPhone','A mobile number, please',
+       v => (v = window.glvFullPhone ? window.glvFullPhone('#scPhone','scCc') : v, window.glovelsPay ? window.glovelsPay.phoneOk(v) : /^[6-9][0-9]{9}$/.test(v.replace(/[^0-9]/g,'').slice(-10)))],
      ['#scMail','A valid email, please', v => /^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(v)]]
     .forEach(([sel, msg, test]) => {
       const f = $(sel), bad = !test(f.value.trim());
@@ -5072,7 +5094,7 @@ $('#planCta').onclick = () => {
           answers: (window.glvFinderAnswers ? window.glvFinderAnswers() : {}),
           name: $('#scName').value.trim(),
           email: $('#scMail').value.trim(),
-          phone: $('#scPhone').value.trim(),
+          phone: (window.glvFullPhone ? window.glvFullPhone('#scPhone','scCc') : $('#scPhone').value.trim()),
           /* The tick, and nothing about what it said: the server writes the
              record from its own copy of the words. */
           acceptedTerms: true,
@@ -5101,7 +5123,7 @@ $('#planCta').onclick = () => {
         await window.__glovelsCollect(Object.assign({}, placed, {
           buyerName: $('#scName').value.trim(),
           buyerEmail: $('#scMail').value.trim(),
-          buyerPhone: $('#scPhone').value.trim(),
+          buyerPhone: (window.glvFullPhone ? window.glvFullPhone('#scPhone','scCc') : $('#scPhone').value.trim()),
         }));
       } catch (e) {
         const err = $('#scLegal') || $('#scBody');
@@ -5124,7 +5146,7 @@ $('#planCta').onclick = () => {
             + (s.levels.length ? ' (' + (levelOf[s.id] || s.levels[0].code) + ')' : '')
             + ' ' + inr(price(s))).join('; '),
           amount: inr(gross), gst: inr(tax),
-          name: $('#scName').value.trim(), phone: $('#scPhone').value.trim(),
+          name: $('#scName').value.trim(), phone: (window.glvFullPhone ? window.glvFullPhone('#scPhone','scCc') : $('#scPhone').value.trim()),
           email: $('#scMail').value.trim(),
           consent: 'yes', consentAt: new Date().toISOString(),
           consentWording: 'Placed an order; Glovels contacts me to deliver it.',

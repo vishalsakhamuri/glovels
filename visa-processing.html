@@ -168,7 +168,7 @@ section.block.alt{background:var(--paper);border-top:1px solid var(--line);
 /* ------------------------------------------------------------------- modals */
 .modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;
   justify-content:center;padding:20px;background:rgba(11,30,49,.5)}
-.modal.on{display:flex}
+.modal.on{display:flex}html:has(.modal.on),html:has(.modal.on) body{overflow:hidden}.modal,.modal .sheet{overscroll-behavior:contain}
 .sheet{width:min(560px,100%);max-height:88vh;overflow-y:auto;background:var(--paper);
   border-radius:var(--r-lg);padding:22px 24px;box-shadow:0 30px 70px rgba(11,30,49,.4)}
 .sheet h3{font-size:19px;margin-bottom:5px}

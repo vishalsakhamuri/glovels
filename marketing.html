@@ -154,7 +154,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
 .badge.new{background:#fde8e8;color:var(--late)}
 
 .modal{position:fixed;inset:0;background:rgba(11,30,49,.45);display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
-.modal.on{display:flex}
+.modal.on{display:flex}html:has(.modal.on),html:has(.modal.on) body{overflow:hidden}.modal,.modal .sheet{overscroll-behavior:contain}
 .box{background:#fff;border-radius:18px;padding:22px;width:min(460px,100%);box-shadow:0 30px 80px rgba(11,30,49,.35)}
 .box h3{margin:0 0 12px;font:800 19px var(--disp)}
 .box label{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin:10px 0 4px}
