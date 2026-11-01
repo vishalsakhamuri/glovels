@@ -350,8 +350,11 @@ function forgotBox(message, bad){
     } catch (e) { /* ask for it, which is the stricter of the two */ }
 
     card.innerHTML =
-      '<h2 id="form-title">Choose your own password</h2>' +
-      '<p class="sub">' + (firstTime
+      '<h2 id="form-title">' + (q.get('ordered') && firstTime ? 'Order ' + String(q.get('ordered')).replace(/[^A-Z0-9-]/gi, '') + ' is placed' : 'Choose your own password') + '</h2>' +
+      '<p class="sub">' + (q.get('ordered') && firstTime
+        ? 'Your account is ready. Choose a password and your universities open straight away. '
+          + 'Your login details are also on their way to your email.'
+        : firstTime
         ? 'Your account is ready \u2014 pick a password and everything opens. This takes ' +
           'one moment and you will not be asked again.'
         : 'The one you signed in with was made for you and sent by email, so it ' +
@@ -498,6 +501,20 @@ function switchTab(which){
   if (t) t.addEventListener('change', () => { if (t.checked) { const te = document.getElementById('termsErr'); if (te) te.style.display = 'none'; } });
 })();
 switchTab('signin');
+
+/* Patch 229: arriving from a checkout for an email that already has an
+   account — say the order is on it, fill the email, and sign in. */
+(function () {
+  const q = new URLSearchParams(location.search);
+  const ref = q.get('ordered'); if (!ref || q.get('signup') || q.get('change')) return;
+  const mail = q.get('email'); const f = document.getElementById('lEmail');
+  if (mail && f) f.value = mail;
+  const t = document.getElementById('form-title'), sub = document.getElementById('form-sub');
+  if (t) t.textContent = 'Order ' + ref + ' is placed';
+  if (sub) sub.textContent = 'This email already has a Glovels account. Sign in and your universities are on your dashboard.';
+  const pw = document.getElementById('lPass') || document.querySelector('#authForm input[type=password]');
+  if (pw) setTimeout(function () { pw.focus(); }, 50);
+})();
 
 /* Arriving from a checkout: open the sign-up tab with the email the order was
    filed under already in the box, so the two cannot drift apart by a typo. */

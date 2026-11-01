@@ -1953,5 +1953,15 @@ if (location.protocol === 'file:') {
 }());
 </script>
 <!-- /GLOVELS-PW-EYE -->
+<script>
+/* Patch 229: arriving from "Message my counsellor" on the dashboard — the box
+   starts with a line about their universities, ready to finish and send. */
+(function(){
+  var d = new URLSearchParams(location.search).get('draft'); if (!d) return;
+  var put = function(){ var b = document.getElementById('box'); if (!b) return setTimeout(put, 200);
+    if (!b.value) b.value = d.slice(0, 300); b.focus(); try { b.setSelectionRange(b.value.length, b.value.length); } catch(e){} };
+  put();
+})();
+</script>
 </body>
 </html>

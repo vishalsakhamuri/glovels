@@ -22,11 +22,8 @@ await p.goto(BASE+'/dashboard.html');await p.waitForTimeout(2500);
 check('paying lands on the dashboard, not a password form', !/login/.test(p.url()), p.url());
 await p.waitForSelector('#pwBanner',{timeout:5000}).catch(()=>{});check('a banner asks for a password and says the login was emailed', /emailed your login details/.test(await p.textContent('#pwBanner').catch(()=>'')));
 const head=await p.$$eval('main h2',h=>h.map(x=>x.textContent.trim()).slice(0,3));console.log('first headings',head);
-const rows=await p.$$eval('#slWrap tbody tr',r=>r.length).catch(()=>0);check('the dashboard opens on Your universities', head[0]==='Your universities', head.join('|'));check('with the universities listed', rows>0, rows);check('and the first-assessment note with ask buttons', !!(await p.$('#slAsk')));console.log('rows',await p.$$eval('#slWrap tbody tr',r=>r.length).catch(()=>0),'askBox',!!(await p.$('#slAsk')));
+const rows=await p.$$eval('#slWrap tbody tr',r=>r.length).catch(()=>0);check('the dashboard opens on Your universities', head[0]==='Your universities', head.join('|'));check('with the universities listed', rows>0, rows);check('and the counsellor-confirms note with a message button', !!(await p.$('#slAsk')) && /counsellor will confirm/i.test(await p.textContent('#slAsk')));console.log('rows',await p.$$eval('#slWrap tbody tr',r=>r.length).catch(()=>0),'askBox',!!(await p.$('#slAsk')));
 const st=await p.evaluate(async()=>{const s=await (await fetch('/api/state')).json();return {prof:Object.keys(s.profile||{}).filter(k=>/^(d_|e_|a_|w_|g_)/.test(k)).join(','),short:(s.shortlist||[]).length}});console.log('state',JSON.stringify(st));
-if(await p.$('#slBetter')){await p.click('#slBetter');await p.waitForTimeout(800);const bm=await p.textContent('#slAskMsg');check('asking for better options reaches the counsellor', /Sent to your counsellor/.test(bm), bm);
- await p.click('#slReplGo');await p.waitForTimeout(300);console.log('replace empty ->',await p.textContent('#slAskMsg'));
- const o=await p.$$eval('#slRepl option',o=>o.map(x=>x.textContent));await p.selectOption('#slRepl',{index:1});await p.click('#slReplGo');await p.waitForTimeout(800);console.log('replace ->',await p.textContent('#slAskMsg'),'| opt',o[1]);
- const msgs=await p.evaluate(async()=>{const s=await (await fetch('/api/state')).json();return (s.messages||[]).filter(m=>m.who==='me').map(m=>m.t||m.body).slice(-2)});console.log('sent',JSON.stringify(msgs).slice(0,300));
- }
+if(await p.$('#slBetter')){await p.click('#slBetter');await p.waitForURL(/messages/,{timeout:6000}).catch(()=>{});
+ const draft=await p.inputValue('#box').catch(()=>'');check('Message my counsellor opens Messages with a starter line', /About my universities/.test(draft), draft);}
 check('no page errors', errs.length===0, errs.join('; '));console.log(bad?bad+' failed':'payflowtest: all passed');await b.close();process.exit(bad?1:0);})();

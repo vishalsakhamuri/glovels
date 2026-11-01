@@ -3238,6 +3238,12 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
          "now go and make an account", which is what it said to somebody whose
          account had just been made for them. */
       accountCreated: !!created,
+      /* Patch 229: whether the buyer can see their dashboard in THIS browser
+         right now — a new account signed in here, or the student who was
+         already signed in. False when a staff member placed it (their own
+         session stays theirs) or the email already had an account. */
+      signedInHere: !!sessionCookieHeader || (!!acct && !!buyer && acct.id === buyer.id),
+      placedByStaff: !!(who && who.role && who.role !== 'student'),
       /* Whose it is (F1) — never the staff account that pressed the button. */
       studentId: buyer ? buyer.id : null,
       createdAt: order.created_at,

@@ -1204,6 +1204,37 @@ async function __dashBoot(main) {
       window.__GLOVELS = s;
       __dashTodo(s);
       __dashOrders(s);
+      /* Patch 229: arriving straight from the checkout. */
+      (function () {
+        var ref = new URLSearchParams(location.search).get('ordered');
+        if (!ref || document.getElementById('paidBanner')) return;
+        var n = (s.shortlist || []).length;
+        var o = (s.orders || []).find(function (x) { return x.reference === ref; }) || {};
+        var paid = /^(paid|part)$/.test(String(o.status || ''));
+        var part = o.plan && o.plan.length > 1 ? 'Part 1 of ' + o.plan.length + '. ' : '';
+        var d = document.createElement('div');
+        d.id = 'paidBanner'; d.setAttribute('role', 'status');
+        d.style.cssText = 'margin:0 0 12px;padding:14px 18px;border-radius:14px;background:#eaf6ee;'
+          + 'border:1px solid #bfe0cc;color:#14603a;font:600 14px/1.5 var(--sans)';
+        d.textContent = 'Order ' + ref + ' is placed. ' + part + (n ? 'Your ' + n + ' universit' + (n === 1 ? 'y is' : 'ies are')
+          + ' below. ' : 'Your counsellor is building your list. ')
+          + (paid ? 'Payment received. ' : 'Nothing has been charged yet \u2014 your counsellor will confirm the amount and how to pay when they call. ')
+          + 'A counsellor calls you within one working day. ';
+        var a = document.createElement('a');
+        a.href = '/acceptance/' + encodeURIComponent(ref);
+        a.textContent = 'What you accepted';
+        a.style.cssText = 'color:#14603a;text-decoration:underline;font-weight:800';
+        d.appendChild(a);
+        /* After the page has drawn itself — the first paint rebuilds the
+           top of the screen, which took an early banner with it. */
+        var place = function () {
+          if (document.getElementById('paidBanner')) return;
+          var top = document.querySelector('.p-top');
+          if (top && top.parentNode) top.parentNode.insertBefore(d, top);
+        };
+        setTimeout(place, 400); setTimeout(place, 1500);
+        try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      })();
       /* Patch 227 (owner, 1 Nov): universities first, the password second.
          An account made at checkout carries a password we generated; it can
          look and message, and this banner asks for its own password. */
@@ -1665,14 +1696,10 @@ const goneTable = () => shownGone.length
    inputs given." Under the list: that sentence, and two ways to ask — swap
    one, or ask for better options. Both go to the counsellor as a message. */
 const askBox = () => order.demo || usingSample ? '' :
-  '<div class="sl-ask" id="slAsk"><p><b>This is a first assessment</b>, based on the answers you gave us. '
-  + 'Your counsellor checks every university with you and finalises the list before anything is submitted &mdash; '
-  + 'nothing is filed without your agreement.</p><div class="row">'
-  + '<select id="slRepl" aria-label="University to replace"><option value="">Replace a university&hellip;</option>'
-  + shownLive.map(p => '<option>' + esc(p.program + ' \u2014 ' + p.university) + '</option>').join('') + '</select>'
-  + '<button type="button" id="slReplGo">Ask to replace</button>'
-  + '<button type="button" class="pri" id="slBetter">Ask my counsellor for better options</button>'
-  + '<span class="msg" id="slAskMsg" role="status"></span></div></div>';
+  '<div class="sl-ask" id="slAsk"><p><b>Your counsellor will confirm these universities with you</b> and start the next steps. '
+  + 'This list is a first assessment from the answers you gave us. Would you like more universities, or a different one in place of any of these? Just tell your counsellor.</p>'
+  + '<div class="row"><button type="button" class="pri" id="slBetter">Message my counsellor</button>'
+  + '<span class="msg" id="slAskMsg" role="status" hidden></span></div></div>';
 async function askCounsellor(body) {
   const m = document.getElementById('slAskMsg');
   try {
@@ -1680,16 +1707,14 @@ async function askCounsellor(body) {
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'That did not send. Try again.');
-    if (m) { m.style.color = ''; m.textContent = 'Sent to your counsellor \u2014 the reply comes to Messages.'; }
-  } catch (e) { if (m) { m.style.color = '#b42318'; m.textContent = e.message; } }
+    if (m) { m.hidden = false; m.style.color = ''; m.textContent = 'Sent \u2014 your counsellor replies in Messages.'; }
+  } catch (e) { if (m) { m.hidden = false; m.style.color = '#b42318'; m.textContent = e.message; } }
 }
 document.addEventListener('click', e => {
-  if (e.target.closest('#slBetter')) askCounsellor('Could you suggest better universities for me? I would like to see more options before my list is finalised.');
-  if (e.target.closest('#slReplGo')) {
-    const v = (document.getElementById('slRepl') || {}).value;
-    const m = document.getElementById('slAskMsg');
-    if (!v) { if (m) { m.style.color = '#b42318'; m.textContent = 'Choose the university to replace first.'; } return; }
-    askCounsellor('Please suggest a replacement for: ' + v + '.');
+  if (e.target.closest('#slBetter')) {
+    /* Opens the message box with a starter line rather than sending one —
+       the student says what they want: more universities, or a swap. */
+    location.assign('messages.html?draft=' + encodeURIComponent('About my universities: '));
   }
 });
 const drawShortlist = () => { $('#slWrap').innerHTML = shown.length

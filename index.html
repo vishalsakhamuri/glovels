@@ -4286,6 +4286,30 @@ $('#buyPay').onclick = () => {
   })
   .then(d => {
     ref = d.reference;                       /* the server's reference, not ours */
+    /* Patch 229 (owner, 1 Nov): "the pop-up is not good — open a proper
+       screen and login". Paid and signed in (a new account is signed in on
+       this device at once) → the dashboard, universities first. An existing
+       account that was not signed in → the sign-in screen, which comes back
+       to the dashboard. The pop-up below stays only as the fallback when the
+       page cannot move. */
+    /* A staff member testing or placing an order for a student stays here:
+       the order is on the student's account, not theirs, and the confirmation
+       below says so. */
+    if (!d.placedByStaff) try {
+      /* Owner, 1 Nov: "pay, then the login — a new user is asked for a new
+         password in the same place". A new account is signed in on this
+         device already, so its first screen is "choose your password", and
+         that opens the dashboard. */
+      const go = d.signedInHere && d.accountCreated
+        ? '/login?change=1&ordered=' + encodeURIComponent(ref)
+          + '&next=' + encodeURIComponent('/dashboard?ordered=' + ref)
+        : d.signedInHere
+        ? '/dashboard?ordered=' + encodeURIComponent(ref)
+        : '/login?next=' + encodeURIComponent('/dashboard') + '&ordered=' + encodeURIComponent(ref)
+          + '&email=' + encodeURIComponent(buyer.email);
+      location.assign(go);
+      return;
+    } catch (e) { /* fall through to the confirmation below */ }
     /* Patch 215 (QA): the tax this order was actually sold under — 19% VAT in
        the EU, none on an export — from the server, not "GST" for everybody. */
     if ($('#buyTaxLine') && (d.vatRate || d.exportSale)) {
@@ -4322,7 +4346,11 @@ $('#buyPay').onclick = () => {
     }
     const acct = $('#buyAcct');
     if (acct) {
-      acct.innerHTML = d.accountCreated
+      acct.innerHTML = d.placedByStaff
+        ? '<b>Placed on the student\u2019s account</b><span>You are signed in as staff, so this order and its '
+          + (buying.publicUnis || '') + ' universities are on <b>' + esc(buyer.email) + '</b>\u2019s account, not yours. '
+          + 'To see what the student sees, sign out and use a private window.</span>'
+        : d.accountCreated
         ? '<b>Your dashboard is ready</b><span>We made your account with <b>'
           + esc(buyer.email) + '</b> and you are signed in on this device now. '
           + 'A link to choose your password is on its way to that address, so you can get '
@@ -4420,10 +4448,7 @@ $('#buyPay').onclick = () => {
       + '</div>';
   $('#buyPay').style.display = 'none';
   $('.co-legal') && ($('.co-legal').style.display = 'none');
-  $('#seeMatches').onclick = () => {
-    $('#buyModal').classList.remove('on');
-    $('#results').scrollIntoView({behavior:'smooth', block:'start'});
-  };
+  $('#seeMatches').onclick = () => { location.assign('/dashboard'); };
 };
 
 /* Reopening checkout must reset the sheet out of its confirmed state. */

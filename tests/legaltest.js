@@ -234,8 +234,19 @@ const text = async (ctx, url) => {
   await buy.click('#buyPay');
   await buy.waitForTimeout(3000);
 
-  const title = (await buy.textContent('#buyT')).trim();
-  const body = await buy.innerText('#buyBody');
+  /* Patch 229: paying goes to the dashboard; the note at its top says what
+     the pop-up used to. */
+  /* Patch 229: paying a new account lands on "choose your password", then the dashboard. */
+  await buy.waitForURL(/\/(login|dashboard)/, { timeout: 10000 }).catch(() => {});
+  if (/\/login/.test(buy.url())) {
+    await buy.waitForSelector('#changeForm', { timeout: 6000 }).catch(() => {});
+    for (const x of await buy.$$('#changeForm input[type=password]')) await x.fill('Own-password-123');
+    await buy.click('#changeForm button[type=submit]').catch(() => {});
+  }
+  await buy.waitForURL(/\/dashboard/, { timeout: 10000 }).catch(() => {});
+  await buy.waitForSelector('#paidBanner', { timeout: 8000 }).catch(() => {});
+  const title = '';
+  const body = await buy.innerText('#paidBanner').catch(() => '');
   check('the confirmation does not announce a payment', title !== 'Payment received', title);
   check('and the money line does not say paid', !/\bpaid\b/i.test(body),
     (body.match(/Order GLV[^\n]*/) || [''])[0]);

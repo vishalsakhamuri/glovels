@@ -121,15 +121,24 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
   await page.fill('#rqMail', email);
   await page.check('#rqOk');
   await page.click('#buyPay');
-  await page.waitForTimeout(2400);
-  check('the confirmation says which part this was',
-    /Part 1 of 3/.test(await page.textContent('#buyT')), await page.textContent('#buyT'));
-  const ref = (await page.textContent('#buyModal .sheet') || '').match(/GLV-\d+/);
+  /* Patch 229: paying goes to the dashboard, whose note says which part. */
+  /* Patch 229: paying a new account lands on "choose your password", then the dashboard. */
+  await page.waitForURL(/\/(login|dashboard)/, { timeout: 10000 }).catch(() => {});
+  if (/\/login/.test(page.url())) {
+    await page.waitForSelector('#changeForm', { timeout: 6000 }).catch(() => {});
+    for (const x of await page.$$('#changeForm input[type=password]')) await x.fill('Own-password-123');
+    await page.click('#changeForm button[type=submit]').catch(() => {});
+  }
+  await page.waitForURL(/\/dashboard/, { timeout: 10000 }).catch(() => {});
+  await page.waitForSelector('#paidBanner', { timeout: 8000 }).catch(() => {});
+  const note = await page.textContent('#paidBanner').catch(() => '') || '';
+  check('the confirmation says which part this was', /Part 1 of 3/.test(note), note.slice(0, 120));
+  const ref = note.match(/GLV-\d+/);
   check('with a reference', !!ref, ref && ref[0]);
   check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   /* --------------------------------------------- a small package is not split */
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2600);
   await page.click('[data-show-packages]');
   await page.waitForTimeout(600);

@@ -155,10 +155,19 @@ const stamp = Date.now();
 
   await buy.check('#rqOk');
   await buy.click('#buyPay');
-  await buy.waitForTimeout(2200);
-  const done = await buy.textContent('#buyModal .sheet');
+  /* Patch 229: paying goes to the dashboard, whose note carries the order. */
+  /* Patch 229: paying a new account lands on "choose your password", then the dashboard. */
+  await buy.waitForURL(/\/(login|dashboard)/, { timeout: 10000 }).catch(() => {});
+  if (/\/login/.test(buy.url())) {
+    await buy.waitForSelector('#changeForm', { timeout: 6000 }).catch(() => {});
+    for (const x of await buy.$$('#changeForm input[type=password]')) await x.fill('Own-password-123');
+    await buy.click('#changeForm button[type=submit]').catch(() => {});
+  }
+  await buy.waitForURL(/\/dashboard/, { timeout: 10000 }).catch(() => {});
+  await buy.waitForSelector('#paidBanner', { timeout: 8000 }).catch(() => {});
+  const done = await buy.textContent('#paidBanner').catch(() => '') || '';
   check('ticking it lets the order through', /GLV-\d+/.test(done), done.slice(0, 120));
-  const proof = await buy.$$eval('a[href^="/acceptance/"]', els => els.map(e => e.getAttribute('href')));
+  const proof = await buy.$$eval('#paidBanner a[href^="/acceptance/"]', els => els.map(e => e.getAttribute('href')));
   check('and the confirmation links to what they accepted', proof.length >= 1,
     proof.join(' '));
   check('no page errors on the way through', berrs.length === 0, berrs.slice(0, 2).join(' | '));
