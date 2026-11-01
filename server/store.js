@@ -3102,6 +3102,9 @@ function open(dir) {
         String(endpoint));
       return rows.length ? Number(rows[0].staff_id) : null;
     },
+    /* Patch 212: every student who has turned notifications on. */
+    pushAudience: () => [...new Set(db.all('SELECT * FROM push_subs WHERE staff_id > ?', 0).map(r => Number(r.staff_id)))]
+      .filter(id => { const st = db.one('SELECT * FROM students WHERE id = ?', id); return st && st.role === 'student'; }),
     pushSubscriptions: staffId => db.all(
       'SELECT * FROM push_subs WHERE staff_id = ?', Number(staffId))
       .map(r => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth },

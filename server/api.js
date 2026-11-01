@@ -13243,6 +13243,66 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     return json(res, 200, { deleted: true });
   }));
 
+  /* ===================== Patch 212: publish everywhere, and the news desk */
+  const SOCIAL = require('./social.js');
+  const sharesOf = () => { try { return db.content('postShares') || {}; } catch (e) { return {}; } };
+  /* A post written by the news desk, saved like any other. */
+  const newsPost = (p, status) => {
+    const base0 = PROSE.slugify(p.title).slice(0, 90) || ('news-' + Date.now().toString(36));
+    let slug = base0;
+    for (let i = 2; db.postBySlug(slug); i++) slug = base0 + '-' + i;
+    const body = String(p.body || '');
+    const row = db.addPost({ slug, title: p.title, body, excerpt: p.excerpt || PROSE.summarise(body, 200), cover: '',
+      author: 'Glovels News Desk', tag: p.tag || 'News', status, metaTitle: p.metaTitle || '', metaDesc: p.metaDesc || '',
+      keywords: p.keywords || '', ogImage: '', related: '', readMins: PROSE.readingMinutes(body),
+      publishedAt: status === 'published' ? new Date().toISOString() : '' });
+    return row;
+  };
+  const NEWSDESK = require('./newsdesk.js').open({ db, social: SOCIAL, push, siteUrl, log: console, savePost: newsPost });
+  try { NEWSDESK.start(); } catch (e) { /* the site runs without it */ }
+
+  route('GET', '/api/staff/social', needs('content', async (req, res) => json(res, 200, {
+    ok: true, channels: SOCIAL.status(), pushPeople: (db.pushAudience ? db.pushAudience() : []).length,
+    newsdesk: NEWSDESK.status(), shares: sharesOf() })));
+
+  route('POST', /^\/api\/staff\/post\/(\d+)\/share$/, needs('content', async (req, res, s, m) => {
+    const p = db.postById(Number(m[1]));
+    if (!p) return json(res, 404, { error: 'No such post' });
+    if (p.status !== 'published') return json(res, 409, { error: 'Publish the post on the website first — then share it.' });
+    const b = await readJson(req);
+    const want = { facebook: !!b.facebook, instagram: !!b.instagram, push: !!b.push };
+    if (!want.facebook && !want.instagram && !want.push) return json(res, 422, { error: 'Tick at least one place to share it.' });
+    const out = await SOCIAL.share({ db, push, siteUrl, post: p, want });
+    const all = sharesOf();
+    const mine = all[p.id] || {};
+    Object.keys(out).forEach(k => { mine[k] = Object.assign({ at: new Date().toISOString(), by: s.name }, out[k]); });
+    all[p.id] = mine;
+    db.setContent('postShares', all, s.name);
+    db.log(s.name, 'shared a post', p.title + ' → ' + Object.keys(out).map(k => k + (out[k].ok ? ' ✓' : ' ✗')).join(', '));
+    return json(res, 200, { ok: true, results: out });
+  }));
+
+  route('GET', '/api/staff/newsdesk', needs('content', async (req, res) => json(res, 200, Object.assign({ ok: true }, NEWSDESK.status()))));
+  route('PUT', '/api/staff/newsdesk', needs('content', async (req, res, s) => {
+    const b = await readJson(req);
+    const patch = {};
+    if (b.on !== undefined) patch.on = !!b.on;
+    if (b.auto !== undefined) patch.auto = !!b.auto;
+    if (b.perWeek !== undefined) patch.perWeek = Math.max(1, Math.min(5, Number(b.perWeek) || 3));
+    if (b.share && typeof b.share === 'object') patch.share = { facebook: !!b.share.facebook, instagram: !!b.share.instagram, push: !!b.share.push };
+    NEWSDESK.save(patch, s.name);
+    db.log(s.name, 'changed the news desk', JSON.stringify(patch));
+    return json(res, 200, Object.assign({ ok: true }, NEWSDESK.status()));
+  }));
+  route('POST', '/api/staff/newsdesk/run', needs('content', async (req, res, s) => {
+    const st = NEWSDESK.status();
+    if (!st.connected) return json(res, 409, { error: 'Add ANTHROPIC_API_KEY on Render to switch the news desk on.' });
+    if (st.running) return json(res, 409, { error: 'The news desk is already writing.' });
+    db.log(s.name, 'asked the news desk to write now', '');
+    const out = await NEWSDESK.run('asked by ' + s.name);
+    return json(res, out.ok ? 200 : 502, out);
+  }));
+
   /* Round 178 (B3/B4): the two lists the office reads before go-live — test /
      dummy posts and off-topic ones — from every post, whatever its status.
      Read-only; see server/blogreview.js. */

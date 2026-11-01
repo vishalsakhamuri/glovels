@@ -2333,6 +2333,103 @@ async function drop(p) {
   $('#pDropYes').focus();
 }
 
+/* ============ Patch 212: share a live post everywhere, and the news desk */
+let SOCIAL = null;
+async function socialState(force) {
+  if (SOCIAL && !force) return SOCIAL;
+  try { SOCIAL = await api('GET', '/api/staff/social'); } catch (e) { SOCIAL = null; }
+  return SOCIAL;
+}
+const _editorBase = editor;
+editor = function (p) { _editorBase(p); paintShare(p); };
+async function paintShare(p) {
+  const host = $('#editor');
+  if (!host || !p || !p.id) return;
+  const S = await socialState();
+  if (!S || openId !== p.id) return;
+  const old = document.getElementById('shareBox'); if (old) old.remove();
+  const box = document.createElement('div');
+  box.id = 'shareBox';
+  box.style.cssText = 'margin-top:16px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#fbfcfe';
+  const live = p.status === 'published';
+  const done = (S.shares || {})[p.id] || {};
+  const ch = [['facebook', 'Facebook', S.channels.facebook.connected, 'add META_PAGE_ID and META_PAGE_TOKEN on Render'],
+    ['instagram', 'Instagram', S.channels.instagram.connected, 'add META_IG_USER and META_PAGE_TOKEN on Render'],
+    ['push', 'Push notification', true, '']];
+  box.innerHTML = '<b style="font:800 14px var(--sans)">Share this post</b>'
+    + '<p style="margin:4px 0 10px;font-size:12.6px;color:var(--muted)">' + (live
+      ? 'It is on the website. Send it to the places below as well — once, from here.'
+      : 'Publish it on the website first; then share it from here.') + '</p>'
+    + ch.map(function (c) {
+      const last = done[c[0]];
+      const said = last ? (last.ok ? ' <span style="color:#1e7a50;font-weight:700">\u2713 shared ' + esc(new Date(last.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + (c[0] === 'push' && last.people != null ? ' to ' + last.people + ' people' : '') + '</span>'
+        : ' <span style="color:#b42318;font-weight:700">\u2717 ' + esc(last.error || 'failed') + '</span>') : '';
+      return '<label style="display:flex;flex-wrap:wrap;justify-content:flex-start;text-align:left;gap:6px 8px;align-items:center;margin:6px 0;width:auto;font:600 13px var(--sans);text-transform:none;letter-spacing:0' + (c[2] ? '' : ';color:var(--muted)') + '">'
+        + '<input type="checkbox" style="width:auto;margin:0;flex:none" data-share="' + c[0] + '"' + (c[2] && live ? '' : ' disabled') + '> <span>' + c[1] + '</span>'
+        + (c[0] === 'push' ? ' <small style="color:var(--muted)">(' + S.pushPeople + ' students with notifications on)</small>' : '')
+        + (c[2] ? '' : ' <small>— not connected: ' + c[3] + '</small>') + said + '</label>';
+    }).join('')
+    + '<button type="button" class="btn btn-primary btn-sm" id="shareGo" style="margin-top:8px"' + (live ? '' : ' disabled') + '>Share now</button>'
+    + ' <span id="shareMsg" style="font-size:12.6px;font-weight:700"></span>';
+  host.appendChild(box);
+  $('#shareGo').onclick = async function () {
+    const want = {};
+    [].forEach.call(box.querySelectorAll('[data-share]'), function (i) { want[i.dataset.share] = i.checked; });
+    $('#shareMsg').textContent = 'Sharing…';
+    try {
+      const r = await api('POST', '/api/staff/post/' + p.id + '/share', want);
+      const bad = Object.keys(r.results).filter(function (k) { return !r.results[k].ok; });
+      $('#shareMsg').textContent = bad.length ? 'Not everywhere: ' + bad.map(function (k) { return k + ' — ' + r.results[k].error; }).join('; ') : 'Shared.';
+      await socialState(true); paintShare(p);
+    } catch (e) { $('#shareMsg').textContent = e.message; }
+  };
+}
+
+async function paintNewsDesk() {
+  const S = await socialState(true);
+  if (!S) return;
+  let box = document.getElementById('newsDesk');
+  if (!box) {
+    box = document.createElement('section');
+    box.id = 'newsDesk';
+    box.className = 'p-card';
+    box.style.cssText = 'margin-bottom:14px;padding:16px 18px';
+    const listCard = document.getElementById('postList') && document.getElementById('postList').closest('.p-card');
+    const anchor = listCard && listCard.parentNode;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(box, anchor);
+    else { const main = document.querySelector('.p-main'); if (main) main.appendChild(box); }
+  }
+  const N = S.newsdesk, L = N.last;
+  const ch = function (k, label) { return '<label style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><input type="checkbox" data-nd-share="' + k + '"' + (N.share[k] ? ' checked' : '') + '> ' + label + '</label>'; };
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">'
+    + '<b style="font:800 16px var(--sans)">News desk — the week\u2019s study-abroad news, written for you</b>'
+    + '<span style="font-size:12.4px;color:var(--muted)">' + (N.connected ? 'Every Monday from 06:00 (Rome)' : '<b style="color:#b42318">Off — add ANTHROPIC_API_KEY on Render to switch it on</b>') + '</span></div>'
+    + '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font:600 13px var(--sans)">'
+    + '<label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="ndOn"' + (N.on ? ' checked' : '') + '> Write every week</label>'
+    + '<label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="ndAuto"' + (N.auto ? ' checked' : '') + '> <b>Auto-publish</b> (off = saved as drafts to check first)</label>'
+    + '<label style="display:inline-flex;gap:6px;align-items:center">Posts a week <select id="ndN">' + [1, 2, 3, 4, 5].map(function (n) { return '<option' + (n === N.perWeek ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>'
+    + '<div style="margin-top:8px;font:600 13px var(--sans)">When it publishes, also share to: ' + ch('facebook', 'Facebook') + ch('instagram', 'Instagram') + ch('push', 'Push') + '</div>'
+    + '<div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn btn-ghost btn-sm" id="ndSave">Save</button>'
+    + '<button type="button" class="btn btn-primary btn-sm" id="ndRun"' + (N.connected && !N.running ? '' : ' disabled') + '>' + (N.running ? 'Writing…' : 'Write this week\u2019s news now') + '</button>'
+    + '<span id="ndMsg" style="font-size:12.6px;font-weight:700"></span></div>'
+    + (L ? '<p style="margin:10px 0 0;font-size:12.6px;color:var(--muted)">Last run ' + esc(new Date(L.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + ': '
+      + (L.ok ? esc(L.posts.map(function (x) { return '\u201c' + x.title + '\u201d (' + (x.status === 'published' ? 'published' : 'draft') + ')'; }).join(', ')) : '<b style="color:#b42318">' + esc(L.error) + '</b>') + '</p>' : '');
+  $('#ndSave').onclick = async function () {
+    const share = {};
+    [].forEach.call(box.querySelectorAll('[data-nd-share]'), function (i) { share[i.dataset.ndShare] = i.checked; });
+    try {
+      await api('PUT', '/api/staff/newsdesk', { on: $('#ndOn').checked, auto: $('#ndAuto').checked, perWeek: Number($('#ndN').value), share: share });
+      $('#ndMsg').textContent = 'Saved.';
+    } catch (e) { $('#ndMsg').textContent = e.message; }
+  };
+  $('#ndRun').onclick = async function () {
+    $('#ndRun').disabled = true; $('#ndMsg').textContent = 'Researching and writing — this takes a few minutes…';
+    try { const r = await api('POST', '/api/staff/newsdesk/run'); $('#ndMsg').textContent = 'Done: ' + r.posts.length + ' posts.'; load(); }
+    catch (e) { $('#ndMsg').textContent = e.message; }
+    paintNewsDesk();
+  };
+}
+
 async function open_(id) {
   if (dirty && !confirm('You have unsaved changes. Leave them?')) return;
   const r = await api('GET', '/api/staff/post/' + id);
@@ -2343,7 +2440,9 @@ async function open_(id) {
 }
 
 let loadReq = 0, loadTimer = null;
+let ndPainted = false;
 async function load() {
+  if (!ndPainted) { ndPainted = true; paintNewsDesk().catch(function () {}); }
   const q = ($('#pq').value || '').trim(), st = $('#pst').value;
   const mine = ++loadReq;
   const r = await api('GET', '/api/staff/posts?page=' + (pageOf('post') + 1) + '&per=' + sizeOf('post')
