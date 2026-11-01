@@ -287,7 +287,13 @@ const backup = require('./server/backup.js').open({ db, dataDir: DATA, log: cons
 const traffic = require('./server/traffic.js').open({ db, log: console });
 /* Patch 204: where each lead, account and payment came from (server/marketing.js). */
 const marketing = require('./server/marketing.js').open({ db, fx: require('./server/fx.js'), log: console });
-const api = makeApi({ marketing, db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
+/* Patch 208: the guard — on in production (GUARD=off turns it off), off on a
+   laptop and in the test suites unless GUARD=on. */
+const guard = require('./server/guard.js').open({ db, log: console,
+  limits: Object.fromEntries([['guest', 'GUARD_GUEST'], ['member', 'GUARD_MEMBER'], ['hourly', 'GUARD_HOURLY']]
+    .filter(([, k]) => Number(process.env[k]) > 0).map(([n, k]) => [n, Number(process.env[k])])),
+  enabled: process.env.GUARD ? /^(on|1|true|yes)$/i.test(process.env.GUARD) : !!CFG.production });
+const api = makeApi({ guard, marketing, db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
   /* Round 176: the go-live readiness report, for /api/staff/golive. */
@@ -475,7 +481,36 @@ const PUBLIC_VISIT = req => {
   return !PORTAL_PAGES.has(first) && first !== 'acceptance' && first !== 'app';
 };
 
+/* Patch 208: every page carries a short-lived signed token, and a few lines
+   that send it with the site's own searches and forms — and, when a guest
+   has used their free searches, ask them to sign in. */
+const GUARD_JS = `(function(){if(window.__glvT)return;var m=document.querySelector('meta[name="glv-t"]');var t=m&&m.content;if(!t)return;window.__glvT=t;
+var own=function(u){try{var x=new URL(u,location.href);return x.origin===location.origin&&/^\\/(api\\/|send\\.php)/.test(x.pathname);}catch(e){return false;}};
+var shown=0;function wall(j){if(shown)return;shown=1;var here=location.pathname+location.search+'#finder';var d=document.createElement('div');
+d.setAttribute('role','dialog');d.setAttribute('aria-modal','true');d.style.cssText='position:fixed;inset:0;background:rgba(11,31,58,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+d.innerHTML='<div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:26px;font-family:system-ui,sans-serif;color:#0b1f3a;box-shadow:0 30px 80px rgba(0,0,0,.3)"><div style="font:800 20px/1.25 system-ui;margin-bottom:8px">Keep searching for free</div><p style="margin:0 0 18px;color:#4a5b70;font-size:14.5px;line-height:1.55">'+String(j.error||'').replace(/[<>&]/g,'')+'</p><a href="login.html?signup=1&next='+encodeURIComponent(here)+'" style="display:block;text-align:center;background:linear-gradient(160deg,#d4ad55,#b8913a);color:#0b1f3a;font-weight:800;border-radius:12px;padding:13px;text-decoration:none;margin-bottom:8px">Create a free account</a><a href="login.html?next='+encodeURIComponent(here)+'" style="display:block;text-align:center;border:1px solid #d8dde4;color:#0b1f3a;font-weight:800;border-radius:12px;padding:12px;text-decoration:none">I have an account — sign in</a><button type="button" style="display:block;margin:12px auto 0;background:none;border:0;color:#6b7a8c;cursor:pointer;font-size:13px">Not now</button></div>';
+d.querySelector('button').onclick=function(){d.remove();shown=0;};document.body.appendChild(d);if(window.glvTrack)try{glvTrack('search_wall',{label:'login asked'})}catch(e){}}
+var F=window.fetch;if(F){window.fetch=function(u,o){var url=typeof u==='string'?u:(u&&u.url)||'';if(own(url)){o=Object.assign({},o||{});var h=new Headers(o.headers||(typeof u!=='string'&&u.headers)||{});h.set('X-Glv-T',t);o.headers=h;}
+return F.call(this,u,o).then(function(r){if(r.status===401&&own(url)){r.clone().json().then(function(j){if(j&&j.loginRequired)wall(j);}).catch(function(){});}return r;});};}
+var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(mt,u){this.__glvOwn=own(u);return O.apply(this,arguments);};X.send=function(){if(this.__glvOwn)try{this.setRequestHeader('X-Glv-T',t);}catch(e){}return S.apply(this,arguments);};})();`;
+/* Patch 208: copying friction on the lists of programmes — no selecting,
+   no copy, no right-click save. It stops casual copying, not a determined
+   one; the server-side allowance is what stops that. */
+const NOCOPY = '<style data-nocopy>#results,#rows,#flist,.uni-progs,.prog-list,.uni-list{-webkit-user-select:none;user-select:none}</style>'
+  + '<script data-nocopy>(function(){var sel="#results,#rows,#flist,.uni-progs,.prog-list,.uni-list";'
+  + '["copy","cut","contextmenu","dragstart"].forEach(function(ev){document.addEventListener(ev,function(e){var t=e.target;'
+  + 'if(t&&t.closest&&t.closest(sel)&&!t.closest("input,textarea,select")){e.preventDefault();}},true);});})();</script>';
+function withGuard(html) {
+  if (!guard.enabled || html.indexOf('name="glv-t"') >= 0) return html;
+  if (html.indexOf('data-nocopy') < 0 && /id="(results|rows|flist)"|class="(uni-progs|prog-list|uni-list)"/.test(html)) html = html.replace('</head>', NOCOPY + '</head>');
+  const m = /<head[^>]*>/i.exec(html);
+  if (!m) return html;
+  const at = m.index + m[0].length;
+  return html.slice(0, at) + '<meta name="glv-t" content="' + guard.pageToken() + '"><script data-glvt>' + GUARD_JS + '</script>' + html.slice(at);
+}
+
 function send(res, code, body, type, extra) {
+  if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = withGuard(body);
   if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
     const u = url.parse(res.req.url, true);
     /* Round 176: the office's own visits are not traffic. A request carrying

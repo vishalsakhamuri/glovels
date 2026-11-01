@@ -974,6 +974,8 @@ function sqliteDriver(file) {
       channel     TEXT NOT NULL DEFAULT ''
     )`,
    'CREATE INDEX IF NOT EXISTS idx_searches_day ON searches(day)',
+   /* Patch 208: whose search, when they were signed in. */
+   'ALTER TABLE searches ADD COLUMN student_id INTEGER',
    /* Patch 206: a call booked from the website. `at` is the instant (UTC);
       the office and the student each read it on their own clock. */
    `CREATE TABLE IF NOT EXISTS bookings (
@@ -3748,10 +3750,10 @@ function open(dir) {
         .forEach(h => db.run('DELETE FROM events WHERE id = ?', h.id));
     },
     addSearch(x) {
-      db.run(`INSERT INTO searches (day, ts, visitor, kind, q, dest, level, field, filters, results, country, channel)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      db.run(`INSERT INTO searches (day, ts, visitor, kind, q, dest, level, field, filters, results, country, channel, student_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         x.day, x.ts, x.visitor || '', x.kind || 'finder', x.q || '', x.dest || '', x.level || '', x.field || '',
-        x.filters || '', Number(x.results) || 0, x.country || '', x.channel || '');
+        x.filters || '', Number(x.results) || 0, x.country || '', x.channel || '', x.studentId == null ? null : Number(x.studentId));
     },
     searchesSince: day => db.kind === 'sqlite'
       ? db.all('SELECT * FROM searches WHERE day >= ? ORDER BY id', day)

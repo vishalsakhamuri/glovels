@@ -393,7 +393,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
+function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -1724,6 +1724,30 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
    * wrote before it, and it still works with no proxy at all.
    */
   const privateIp = a => /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80|::ffff:(10\.|127\.|192\.168\.))/i.test(a);
+  /* Patch 208: the guard — allowance, pattern and robots (server/guard.js).
+     Answers and returns true when the request must stop here. */
+  const actorOf = req => {
+    const s = me(req);
+    if (!s) return null;
+    return { staff: s.role !== 'student', userId: s.role === 'student' ? s.id : null, name: s.name, email: s.email };
+  };
+  const guardSearch = (req, res, sig, combo) => {
+    if (!guard || !guard.enabled) return false;
+    const g = guard.search(req, actorOf(req), String(sig || ''), combo || '');
+    if (g.setCookie) res.setHeader('Set-Cookie', g.setCookie);
+    if (g.ok) return false;
+    json(res, g.status, Object.assign({ ok: false }, g.body));
+    return true;
+  };
+  const guardForm = (req, res) => {
+    if (!guard || !guard.enabled) return false;
+    const s = me(req);
+    if (s && s.role !== 'student') return false;
+    const g = guard.form(req);
+    if (g.ok) return false;
+    json(res, g.status, Object.assign({ ok: false }, g.body));
+    return true;
+  };
   /* Patch 204: a search a visitor ran, with what it found — never a staff
      member's, never a crawler's. */
   const logSearch = (req, x) => {
@@ -1735,7 +1759,7 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
       if (who && who.role !== 'student') return;
       let country = '';
       try { country = GEO.forRequest(req, clientIp(req)).country || ''; } catch (e) { country = ''; }
-      marketing.search(req, x, country);
+      marketing.search(req, Object.assign({}, x, { studentId: who ? who.id : null }), country);
     } catch (e) { /* a search is never worth a failed answer */ }
   };
   const clientIp = req => {
@@ -1794,6 +1818,7 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
   /* ---------------------------------------------------------------- auth */
 
   route('POST', '/api/auth/signup', async (req, res) => {
+    if (guardForm(req, res)) return true;
     const b = await readJson(req);
     /* Every account made here sends a welcome email. Ten an hour from one
        address is a family or a college lab; a hundred is a script. */
@@ -3560,6 +3585,7 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
      /api/assist turns a finder's filter set into an enquiry (patch 153). One
      validator, one rate limit, one record shape for every form on the site. */
   const enquiry = async (req, res, shape) => {
+    if (guardForm(req, res)) return true;
     let b = await readJson(req);
     if (b.website) return json(res, 200, { ok: true });          // honeypot
     /* Round 177 (item 17): ONE limit, 2,000 characters — the form's own
@@ -3775,6 +3801,7 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
   }, { open: true, soft: true });
 
   route('POST', '/api/chat/start', async (req, res, s) => {
+    if (guardForm(req, res)) return true;
     if (s && s.role === 'student') return json(res, 200, studentThread(s));
 
     const b = await readJson(req);
@@ -4267,6 +4294,7 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
   }
 
   route('GET', '/api/find/unis', async (req, res) => {
+    if (guard && guard.enabled && !(actorOf(req) || {}).staff && guard.robot(req)) return json(res, 403, { keys: [] });
     const q = String(url.parse(req.url, true).query.q || '').trim().slice(0, 80);
     if (q.length < 2) return json(res, 200, { keys: [] });
     /* Round 175: only the universities this viewer would see NAMED. A locked
@@ -4279,6 +4307,7 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
   }, { open: true });
 
   route('GET', '/api/catalogue', async (req, res) => {
+    if (guard && guard.enabled && !(actorOf(req) || {}).staff && guard.robot(req)) return json(res, 403, { error: 'This is for people using a browser.' });
     /*
      * The home page reads this, so a university added on the operations screen
      * shows up in the finder without a rebuild.
@@ -4469,6 +4498,8 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
     if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
     const f = FIND.parse(url.parse(req.url).query || '');
     delete f.sort; delete f.view;
+    if (guardSearch(req, res, 'm|' + [f.country, f.level, f.field, f.spec, f.q, f.tags].map(v => String(v || '').toLowerCase()).join('|'),
+      [f.country || '', f.field || '', f.level || ''].join('|'))) return true;
     const ent = entitlement(req);
     const nonce = OPAQUE_NONCE();
     const matched = lockedMatches(ent, f);
@@ -4515,6 +4546,10 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
     if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
     const f = FIND.parse(url.parse(req.url).query || '');
     delete f.view;
+    /* Patch 208: a "search" is what they looked FOR — destination, level,
+       subject, words, tags. Changing their CGPA or scores is not a new one. */
+    if (guardSearch(req, res, 'm|' + [f.country, f.level, f.field, f.spec, f.q, f.tags].map(v => String(v || '').toLowerCase()).join('|'),
+      [f.country || '', f.field || '', f.level || ''].join('|'))) return true;
     const ent = entitlement(req);
     const nonce = OPAQUE_NONCE();
     /* Patch 182: the same boxes asked again within two minutes (a visitor
@@ -7241,6 +7276,22 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
     db.setContent('booking', clean, s.name);
     db.log(s.name, 'call slots changed', clean.times.join(', ') + ' ' + clean.tz);
     return json(res, 200, { ok: true, settings: clean });
+  }));
+
+  /* Patch 208: who searched what, signed in; who is blocked. Admins only —
+     these carry names, which the marketing board never does. */
+  route('GET', '/api/staff/search-activity', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const q = new URL(req.url, 'http://x').searchParams;
+    return json(res, 200, { ok: true, accounts: marketing ? marketing.activity(q.get('days') || 7) : [],
+      guard: guard ? guard.status() : { enabled: false, blocked: [] } });
+  }));
+  route('POST', '/api/staff/search-activity/unblock', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const n = guard ? guard.unblock(String(b.key || '')) : 0;
+    db.log(s.name, 'unblocked searching', String(b.key || ''));
+    return json(res, 200, { ok: true, unblocked: n });
   }));
 
   route('GET', '/api/marketing/spend', marketingOnly(async (req, res) =>
@@ -10780,6 +10831,8 @@ function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, uni
    * university's page. Names are public here as they are on the pages.
    */
   route('GET', '/api/universities/search', async (req, res) => {
+    { const qq = String(url.parse(req.url, true).query.q || '').trim().toLowerCase();
+      if (qq.length >= 2 && guardSearch(req, res, 'q|' + qq, 'q|' + qq.slice(0, 3))) return true; }
     const q = String(url.parse(req.url, true).query.q || '').trim().toLowerCase()
       .normalize('NFKD').replace(/[̀-ͯ]/g, '');
     if (q.length < 2) return json(res, 200, { universities: [], programmes: [] });

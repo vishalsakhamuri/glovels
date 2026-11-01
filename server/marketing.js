@@ -443,7 +443,31 @@ function open({ db, fx, log = console }) {
     return true;
   }
 
-  return { touchOf, cookieFor, within, stamp, event, search, visitorOf, report, gaps, setGap, GAP_STATUS, channelOf, inrPerUnit };
+  /** Patch 208: what each signed-in account searched — for administrators. */
+  function activity(days) {
+    days = Math.max(1, Math.min(90, Number(days) || 7));
+    const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = db.searchesSince(since).filter(r => r.student_id);
+    const m = new Map();
+    rows.forEach(r => {
+      const k = Number(r.student_id);
+      const x = m.get(k) || { studentId: k, searches: 0, today: 0, zero: 0, last: '', recent: [], dests: {} };
+      x.searches++; if (r.day === today) x.today++; if (!Number(r.results)) x.zero++;
+      if (r.ts > x.last) x.last = r.ts;
+      x.recent.push({ at: r.ts, what: [r.q ? '"' + r.q + '"' : '', r.dest, r.level, r.field].filter(Boolean).join(' · ') || r.filters || 'all', results: Number(r.results) || 0 });
+      if (r.dest) x.dests[r.dest] = (x.dests[r.dest] || 0) + 1;
+      m.set(k, x);
+    });
+    return [...m.values()].map(x => {
+      const st = db.studentById(x.studentId) || {};
+      return { studentId: x.studentId, name: st.name || '', email: st.email || '', searches: x.searches, today: x.today, zero: x.zero, last: x.last,
+        destinations: Object.entries(x.dests).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c]) => c),
+        recent: x.recent.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 12) };
+    }).sort((a, b) => (a.last < b.last ? 1 : -1));
+  }
+
+  return { touchOf, cookieFor, within, stamp, event, search, visitorOf, report, gaps, setGap, GAP_STATUS, channelOf, inrPerUnit, activity };
 }
 
 /* ------------------------------------------------- what they browse */

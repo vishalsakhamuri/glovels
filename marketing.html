@@ -238,6 +238,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
       <button type="button" role="tab" data-tab="meta" aria-selected="false">Facebook &amp; Instagram</button>
       <button type="button" role="tab" data-tab="ai" aria-selected="false">AI assistants</button>
       <button type="button" role="tab" data-tab="spend" aria-selected="false">Ad spend</button>
+      <button type="button" role="tab" data-tab="who" aria-selected="false" id="tabWho" hidden>Signed-in activity</button>
     </div>
     <div id="pane" role="tabpanel"></div>
   </main>
@@ -581,6 +582,25 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
         + table('aicr', [['name', 'Reader', function (r) { return '<b>' + esc(r.name) + '</b>'; }], ['hits', 'Pages read', function (r) { return n(r.hits); }], ['pages', 'Different pages', function (r) { return n(r.pages); }]], A.crawls || [], { empty: 'No AI readers yet.' })
         + '</section></div>';
     },
+    who: function () {
+      if (!WHO) { loadWho(); return '<div class="empty">Loading…</div>'; }
+      var G = WHO.guard || {}, B = G.blocked || [];
+      return '<p class="sub">Every search a signed-in student ran in the last 7 days, and anyone the guard has paused for copying. '
+        + (G.enabled ? 'Guests get ' + G.limits.guest + ' searches a day before they must sign in; accounts ' + G.limits.member + ' a day; anyone ' + G.limits.hourly + ' an hour.' : '<b class="bad">The guard is off on this server (GUARD=off, or not production).</b>') + '</p>'
+        + '<h2 style="font:800 17px var(--disp);margin:12px 0 6px">Paused for copying</h2>'
+        + table('blocked', [['who', 'Who', function (r) { return '<b>' + esc(r.who) + '</b><small>' + esc(r.why) + '</small>'; }],
+          ['at', 'When', function (r) { return esc(new Date(r.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })); }],
+          ['sample', 'Last searches', function (r) { return esc((r.sample || []).join(' · ')); }, function (r) { return (r.sample || []).length; }],
+          ['key', '', function (r) { return '<button type="button" class="btn" data-unblock="' + esc(r.key) + '" style="padding:3px 10px">Unblock</button>'; }]], B,
+          { emptyTitle: 'Nobody is paused', empty: 'When someone works through the catalogue destination by destination, they are paused for 24 hours and listed here.' })
+        + '<h2 style="font:800 17px var(--disp);margin:20px 0 6px">Signed-in students searching</h2>'
+        + table('who', [['name', 'Student', function (r) { return '<b>' + esc(r.name || 'Account #' + r.studentId) + '</b><small>' + esc(r.email) + '</small>'; }],
+          ['today', 'Today', function (r) { return n(r.today); }], ['searches', '7 days', function (r) { return n(r.searches); }],
+          ['zero', 'Found nothing', function (r) { return r.zero ? '<span class="bad">' + n(r.zero) + '</span>' : '0'; }],
+          ['destinations', 'Looking at', function (r) { return r.destinations.map(function (c) { return flag(c) + ' ' + esc(c); }).join(' '); }, function (r) { return r.destinations.length; }],
+          ['last', 'Last search', function (r) { return '<span title="' + esc(r.recent.map(function (x) { return x.what + ' (' + x.results + ')'; }).join('\n')) + '">' + esc(r.recent[0] ? r.recent[0].what : '') + '</span><small>' + esc(new Date(r.last).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</small>'; }]],
+          WHO.accounts || [], { sort: { key: 'last', dir: 'descending' }, emptyTitle: 'No signed-in searches yet', empty: 'Searches by students who are signed in appear here, with what they looked for.' });
+    },
     spend: function () {
       return '<p class="sub">What was spent on each channel, by month. Facebook and Instagram fill themselves once Meta is connected; add Google Ads and the rest here. Shown in rupees on the board.</p>'
         + table('spendT', [['month', 'Month', function (r) { return '<b>' + esc(r.month) + '</b>'; }], ['channel', 'Channel', function (r) { return esc(r.channel); }, function (r) { return r.channel; }],
@@ -612,6 +632,8 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
   }
   function loadSeo(force) { api('/api/marketing/seo?days=' + Math.min(90, Math.max(7, ST.days)) + (force ? '&refresh=1' : '')).then(function (j) { SEO = j; if (ST.tab === 'seo') paintTab(); }).catch(function (e) { SEO = { connected: true, error: e.message }; if (ST.tab === 'seo') paintTab(); }); }
   function loadMeta(force) { api('/api/marketing/meta?days=' + Math.min(90, ST.days) + (force ? '&refresh=1' : '')).then(function (j) { META = j; if (ST.tab === 'meta') paintTab(); }).catch(function (e) { META = { connected: true, error: e.message }; if (ST.tab === 'meta') paintTab(); }); }
+  var WHO = null;
+  function loadWho() { api('/api/staff/search-activity?days=7').then(function (j) { WHO = j; if (ST.tab === 'who') paintTab(); }).catch(function (e) { WHO = { accounts: [], guard: { blocked: [] } }; toast(e.message); }); }
   function loadGaps() { api('/api/product/gaps?days=' + Math.max(30, ST.days)).then(function (j) { GAPS = j; paintTabCounts(); if (ST.tab === 'gaps') paintTab(); }).catch(function (e) { GAPS = { items: [], byStatus: [], open: 0, days: 90 }; toast(e.message); }); }
 
   function paintTabCounts() {
@@ -643,6 +665,8 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
       return paintTab();
     }
     var rf = t.closest('[data-refresh]'); if (rf) { if (rf.dataset.refresh === 'seo') { SEO = null; loadSeo(true); } else { META = null; loadMeta(true); } return paintTab(); }
+    var ub = t.closest('[data-unblock]');
+    if (ub) return api('/api/staff/search-activity/unblock', { method: 'POST', body: { key: ub.dataset.unblock } }).then(function () { toast('Unblocked.'); WHO = null; paintTab(); }).catch(function (er) { toast(er.message); });
     var ds = t.closest('[data-delspend]');
     if (ds) { if (!confirm('Remove this spend line?')) return; return api('/api/marketing/spend/' + ds.dataset.delspend, { method: 'DELETE' }).then(function () { toast('Removed.'); load(); }).catch(function (er) { toast(er.message); }); }
   });
@@ -660,7 +684,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
       .then(function () { toast('Saved.'); GAPS.open = GAPS.items.filter(function (g) { return g.status !== 'added' && g.status !== 'wont'; }).length; paintTabCounts(); })
       .catch(function (er) { toast(er.message); });
   }
-  $('#refresh').onclick = function () { GAPS = null; SEO = null; META = null; load(); };
+  $('#refresh').onclick = function () { GAPS = null; SEO = null; META = null; WHO = null; load(); };
 
   /* spend */
   function openSpend() {
@@ -694,6 +718,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
       var ok = ME.role === 'admin' || (need === 'staff' && ME.role !== 'editor') || (need === 'casework' && ME.role !== 'editor') || perms.indexOf(need) >= 0;
       if (!ok) a.hidden = true;
     });
+    if (ME.role === 'admin') $('#tabWho').hidden = false;
     if (ME.role !== 'admin' && perms.indexOf('marketing') < 0) {
       $('#main').innerHTML = '<div class="empty" style="margin-top:60px"><b>The marketing dashboard is not on your account</b>An administrator can give it to you on the Organisation screen.</div>';
       return;
