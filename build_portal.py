@@ -231,6 +231,8 @@ def staff_sidebar(active, role_note, nav=None, brand=True):
     on = ' class="on"'
     pulse = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')
+    trend = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+             'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>')
     links = "".join(
         f'<a href="{slug}.html"{on if slug == active else ""}>'
         + (pulse if icon == "i-pulse" else trend if icon == "i-trend" else f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg>')

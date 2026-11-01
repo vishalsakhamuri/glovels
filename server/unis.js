@@ -255,6 +255,12 @@ const money = n => {
  * consumer or none — the shape of bug that column-by-column mapping breeds.
  */
 const crypto = require('crypto');
+/* The intake most programmes in a destination start at, when a row states
+   none: winter = the autumn start (Sept/Oct), summer = the spring start
+   (Jan-Apr). Australia's two semesters (Feb, Jul) are both main intakes. */
+const USUAL_INTAKES = { GB: ['winter'], US: ['winter'], CA: ['winter'], IE: ['winter'], FR: ['winter'],
+  DE: ['winter'], IT: ['winter'], ES: ['winter'], PL: ['winter'], NL: ['winter'], AU: ['summer', 'winter'], NZ: ['summer', 'winter'] };
+const usualIntakes = code => (USUAL_INTAKES[String(code || '').toUpperCase()] || []).map(season => ({ season, deadline: '', usual: true }));
 const REQS = require('./reqs.js');
 const uKeyOf = name => 'u' + crypto.createHash('sha1').update(String(name || '').trim().toLowerCase()).digest('hex').slice(0, 8);
 /* CNS-07 (7): "MEngEngineering and Sustainable…" came in from the sheet with
@@ -281,7 +287,12 @@ function fromRow(r) {
     uKey: uKeyOf(r.university),
     featured: !!r.featured, featureSort: r.feature_sort || 0,
     searchOnly: !!r.search_only,
-    intakes: (() => { try { return JSON.parse(r.intakes) || []; } catch (e) { return []; } })(),
+    intakes: (() => { let ins = []; try { ins = JSON.parse(r.intakes) || []; } catch (e) { ins = []; }
+      /* Patch 215b (owner: "filters not happening as fields are blank"): 66,000
+         programmes outside Germany carry no intake, so choosing any intake hid
+         them all. With none on file, the destination's usual intake stands in —
+         a season with NO deadline and `usual: true`, never a date we made up. */
+      return ins.length ? ins : usualIntakes(r.country); })(),
     /* What it asks for beyond a grade. One record, every field present,
        null where nobody has stated it — server/reqs.js owns the list. */
     reqs: REQS.parse(r.reqs),
@@ -323,4 +334,4 @@ function typeLabel(x) {
   return (x.isPublic || x.is_public) ? 'Public' : 'Private';
 }
 
-module.exports = { slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf, spaceDegree, publicFee, typeLabel, indicativeRow };
+module.exports = { usualIntakes, USUAL_INTAKES, slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf, spaceDegree, publicFee, typeLabel, indicativeRow };

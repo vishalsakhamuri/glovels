@@ -201,7 +201,11 @@
     while (at > limit) at.setFullYear(at.getFullYear() - 1);
     return at;
   }
-  const openFor = (p, term) => (p.intakes || []).some(i => { const at = termDeadline(i, term); return at && at >= today(); });
+  /* Patch 215b: a destination's usual intake (no deadline, `usual`) is open
+     for any upcoming term of its season. */
+  const openFor = (p, term) => (p.intakes || []).some(i => {
+    if (i && i.usual && !i.deadline) return seasonOf(i) === term.season && term.start > today();
+    const at = termDeadline(i, term); return at && at >= today(); });
   /* The next deadline still ahead, for the row and for sorting. */
   function nextDeadline(p) {
     const T = today();

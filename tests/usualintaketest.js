@@ -1,0 +1,18 @@
+/** Patch 217: a programme with no intake on file takes its destination's usual intake for the filter. */
+const U = require('../server/unis.js');
+const F = require('../server/find.js');
+const ok = [], bad = [];
+const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + note : ''));
+const row = (country, intakes) => U.fromRow({ country, intakes: JSON.stringify(intakes || []), reqs: '{}', university: 'X University', program: 'MSc X', level: 'master' });
+const terms = F.upcomingTerms(4);
+const win = terms.find(t => t.season === 'winter'), sum = terms.find(t => t.season === 'summer');
+const gb = row('GB'), au = row('AU'), de = row('DE', [{ season: 'summer', deadline: '2027-01-15' }]);
+check('UK with no intake gets the autumn (winter) intake, no deadline', gb.intakes.length === 1 && gb.intakes[0].season === 'winter' && gb.intakes[0].usual && !gb.intakes[0].deadline);
+check('Australia gets both semesters', au.intakes.map(i => i.season).sort().join() === 'summer,winter');
+check('a stated intake is kept as it is', de.intakes.length === 1 && de.intakes[0].deadline === '2027-01-15' && !de.intakes[0].usual);
+check('the UK row is kept for ' + win.key, F.keep(gb, { intake: win.key }) === true);
+check('and not for ' + sum.key, F.keep(gb, { intake: sum.key }) === false);
+check('Australia is kept for both', F.keep(au, { intake: win.key }) && F.keep(au, { intake: sum.key }));
+check('an unknown country gets no invented intake', row('ZZ').intakes.length === 0);
+ok.forEach(x => console.log('  ✓ ' + x)); bad.forEach(x => console.log('  ✗ ' + x));
+console.log('\nusualintaketest: ' + ok.length + ' passed, ' + bad.length + ' failed'); process.exit(bad.length ? 1 : 0);
