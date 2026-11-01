@@ -341,13 +341,51 @@ function saveRules(db, body, who) {
     try { had = (db.content('taskRules') || {}).serviceSla; } catch (e) { had = undefined; }
     if (had != null) keep.serviceSla = had;
   }
+  /* Patch 210: the one step clock, in hours — carried through when not sent. */
+  const askedH = body && body.stepHours;
+  if (askedH != null && askedH !== '') {
+    const n = Number(askedH);
+    if (Number.isFinite(n) && n >= 0 && n <= 24 * 60) keep.stepHours = Math.round(n * 100) / 100;
+  } else {
+    let had;
+    try { had = (db.content('taskRules') || {}).stepHours; } catch (e) { had = undefined; }
+    if (had != null) keep.stepHours = had;
+  }
   db.setContent('taskRules', keep, who || '');
   return rules(db);
 }
 
+/*
+ * Patch 210 (owner, 1 Nov): "SLA for now is 24 hours for all tasks — we can
+ * later change to 5 days or 5 hours."
+ *
+ * ONE clock for every step: once a step STARTS — the step before it on the
+ * journey is finished (or, for the first, the file opened) — it is due that
+ * many hours later. Every task is made the day a student buys, so a clock
+ * from the purchase would make the whole journey late the next morning; a
+ * clock from when the step can actually begin is what "24 hours a task"
+ * means. Two steps wait on somebody outside the office — the university's
+ * offer and the consulate's visa decision — and keep their own timing.
+ * A service bought separately is due that many hours after it was bought.
+ * 0 switches the step clock off (the per-step days are used, as before).
+ */
+const STEP_HOURS_DEFAULT = 24;
+const OUTSIDE = new Set(['offer', 'visadecision']);
+function stepHoursOf(db) {
+  let v;
+  try { v = (db.content('taskRules') || {}).stepHours; } catch (e) { v = undefined; }
+  const n = Number(v);
+  /* TASK_STEP_HOURS sets the default (the older test suites run the per-step
+     day rules with TASK_STEP_HOURS=0); the office's own setting wins. */
+  const envDefault = process.env.TASK_STEP_HOURS != null && process.env.TASK_STEP_HOURS !== ''
+    ? Math.max(0, Number(process.env.TASK_STEP_HOURS) || 0) : STEP_HOURS_DEFAULT;
+  return v == null || v === '' || !Number.isFinite(n) ? envDefault : Math.max(0, Math.min(24 * 60, n));
+}
+const plusHours = (iso, h) => new Date(Date.parse(iso) + h * 3600000).toISOString();
+
 /** The whole standard list as a screen needs it: the steps and the service SLA. */
 function ruleSettings(db) {
-  return { rules: rules(db), serviceSla: serviceSlaOf(db) };
+  return { rules: rules(db), serviceSla: serviceSlaOf(db), stepHours: stepHoursOf(db), outside: [...OUTSIDE] };
 }
 
 /**
@@ -528,9 +566,48 @@ function syncTasks(db, student, now) {
          Slicing the whole string cut " — delivered" off the end of any long
          one, leaving a truncated name and no verb. */
       title: name ? (name.slice(0, 126) + ' — delivered') : null,
+      boughtOn: boughtOn || start,
       due: { dueAt: plus(boughtOn || start, svcDays), basis: 'sla' },
     });
   });
+
+  /* Patch 210: the step clock. In journey order, a step starts when every
+     step before it is closed; it is due `hours` after that. */
+  const hours = stepHoursOf(db);
+  if (hours > 0) {
+    const orderOf = w => (ORDER_AT.has(w.tpl.key) ? ORDER_AT.get(w.tpl.key) : 500);
+    /* Closed as the board sees it — a step the file's facts have already
+       overtaken (an application sent, an offer recorded) counts as done. */
+    const eff = new Map();
+    try { effectiveTasks(db, st, db.tasksFor(sid), T).forEach(r => eff.set(String(r.task_key) + '\u0000' + String(r.prog_id || ''), r)); }
+    catch (e) { have.forEach((r, k) => eff.set(k, r)); }
+    const closedAt = k => { const r = eff.get(k) || have.get(k); return r && CLOSED.has(String(r.status)) ? String(r.done_at || r.updated_at || start) : null; };
+    const sortedW = want.slice().sort((a, b) => orderOf(a) - orderOf(b));
+    sortedW.forEach(w => {
+      if (OUTSIDE.has(w.tpl.key)) return;
+      if (w.tpl.source === 'service') {
+        const svcStart = (w.boughtOn || start);
+        w.due = { dueAt: plusHours(new Date(Date.parse(svcStart) || T).toISOString(), hours), basis: 'step' };
+        return;
+      }
+      const me = orderOf(w);
+      const before = sortedW.filter(x => orderOf(x) < me && x.tpl.source !== 'service' && !OUTSIDE.has(x.tpl.key));
+      let begun = String(start);
+      let blocked = false;
+      for (const x of before) {
+        const c = closedAt(x.tpl.key + '\u0000' + x.progId);
+        if (c == null) { blocked = true; break; }
+        if (c > begun) begun = c;
+      }
+      /* A university's deadline still wins: work due a week before the
+         application closes is due then, even if the step clock would allow
+         later — and it has that date even before the step starts. */
+      const hard = w.due && w.due.basis === 'deadline' && w.due.dueAt ? String(w.due.dueAt) : '';
+      const clock = blocked ? '' : plusHours(new Date(Date.parse(begun) || T).toISOString(), hours);
+      w.due = hard && (!clock || hard < clock.slice(0, 10)) ? { dueAt: hard, basis: 'deadline' }
+        : clock ? { dueAt: clock, basis: 'step' } : { dueAt: null, basis: 'waiting' };
+    });
+  }
 
   want.forEach(w => {
     const key = w.tpl.key + '\u0000' + w.progId;
@@ -596,6 +673,11 @@ function syncAll(db, now) {
  */
 function lateness(row, now) {
   if (!row || !row.due_at || CLOSED.has(String(row.status))) return null;
+  /* Patch 210: a due time (the step clock) is late the moment it passes. */
+  if (String(row.due_at).length > 10 && String(row.due_basis) === 'step') {
+    const diff = (now ? new Date(now).getTime() : Date.now()) - Date.parse(row.due_at);
+    return diff > 0 ? Math.max(1, Math.ceil(diff / 86400000)) : -Math.floor(-diff / 86400000);
+  }
   return DAYS.daysPast(String(row.due_at).slice(0, 10), now);
 }
 
@@ -1542,7 +1624,7 @@ function timeline(db, student, now, effRows) {
       status: String(t.status), note: t.note || '',
       state: isDone ? 'done' : lockReason ? 'locked' : (over != null && over > 0) ? 'overdue' : 'upcoming',
       current: false, overdue: !isDone && !lockReason && over != null && over > 0,
-      due: t.due_at ? String(t.due_at).slice(0, 10) : '', basis: t.due_basis || '',
+      due: t.due_at ? (String(t.due_basis) === 'step' ? String(t.due_at) : String(t.due_at).slice(0, 10)) : '', basis: t.due_basis || '',
       over: lockReason ? null : over,
       doneAt: isDone && t.done_at ? DAYS.istDay(t.done_at) : '',
       doneBy: isDone && !t.derived ? name(t.done_by) : '',

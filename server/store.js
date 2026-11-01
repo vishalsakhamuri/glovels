@@ -3545,7 +3545,8 @@ function open(dir) {
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         Number(t.studentId), t.ownerId == null ? null : Number(t.ownerId),
         String(t.key || 'custom'), String(t.title || ''), String(t.progId || ''),
-        t.dueAt ? String(t.dueAt).slice(0, 10) : null, String(t.basis || 'sla'),
+        /* Patch 210: a step-clock due keeps its hour. */
+        t.dueAt ? (String(t.basis) === 'step' ? String(t.dueAt).slice(0, 24) : String(t.dueAt).slice(0, 10)) : null, String(t.basis || 'sla'),
         String(t.status || 'open'), String(t.note || ''), String(t.source || 'manual'),
         now(), now());
       const rows = db.all('SELECT * FROM tasks WHERE student_id = ? ORDER BY id desc',
@@ -3562,7 +3563,7 @@ function open(dir) {
       const v = {
         owner_id: has('ownerId') ? (p.ownerId == null ? null : Number(p.ownerId)) : row.owner_id,
         title: has('title') ? String(p.title) : row.title,
-        due_at: has('dueAt') ? (p.dueAt ? String(p.dueAt).slice(0, 10) : null) : row.due_at,
+        due_at: has('dueAt') ? (p.dueAt ? (String(has('basis') ? p.basis : row.due_basis) === 'step' ? String(p.dueAt).slice(0, 24) : String(p.dueAt).slice(0, 10)) : null) : row.due_at,
         due_basis: has('basis') ? String(p.basis) : row.due_basis,
         status: has('status') ? String(p.status) : row.status,
         note: has('note') ? String(p.note) : row.note,

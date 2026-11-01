@@ -939,6 +939,9 @@ select.assign.none:hover{border-color:#a5342b}
 @media (max-width:560px){
   select.assign{min-width:150px;padding:9px 30px 9px 11px;font-size:12.6px}
 }
+.prog-sub .sla{font-style:normal;font-size:11.5px;font-weight:700;margin-left:6px;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.prog-sub .sla.ok{background:#e7f6ef;color:#1e7a50}.prog-sub .sla.on{background:#e8f0fb;color:#1f4f9e}
+.prog-sub .sla.late{background:#fff3d6;color:#8a6412}.prog-sub .sla.wait{background:#f1f3f6;color:#6b7a8c}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
@@ -1819,16 +1822,24 @@ $('#nextUp').innerHTML =
       ? 'Everything we agreed to do is finished.'
       : 'Step ' + J.step + ' of ' + J.of + ' · ' + esc(J.stages[J.step - 1].detail)) + '</span>';
     document.getElementById('progFill').style.width = J.percent + '%';
-    document.getElementById('progCount').textContent = J.done + ' of ' + J.of + ' done';
+    document.getElementById('progCount').textContent = J.done + ' of ' + J.of + ' done'
+      + (J.stepHours ? ' \u00b7 each step is done within ' + (J.stepHours % 24 === 0 && J.stepHours >= 24 ? (J.stepHours / 24) + (J.stepHours === 24 ? ' day' : ' days') : J.stepHours + ' hours') + ' of starting' : '');
     const WORD = { done: ['done', 'Done'], doing: ['doing', 'In hand now'], next: ['next', 'To come'] };
     document.getElementById('progList').innerHTML = J.stages.map(function (x) {
       const w = WORD[x.state] || WORD.next;
       const when = x.state === 'done' ? (x.on ? ' · ' + esc(x.on) : '')
         : x.confirm ? ' · your counsellor will confirm the date'
         : x.by ? ' · aiming for ' + esc(x.by) : '';
-      const sub = x.state !== 'done' && x.items && x.items.length > 1
+      /* Patch 210: every step with its time — due by, on time or running
+         late, or when it was done — on the student's own clock. */
+      const fmtT = function (iso) { try { return new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso.slice(0, 16).replace('T', ' '); } };
+      const sub = x.items && x.items.length && (x.state === 'doing' || x.items.length > 1)
         ? '<ul class="prog-sub">' + x.items.map(function (it) {
-            return '<li class="' + it.state + '">' + esc(it.title) + '</li>'; }).join('') + '</ul>'
+            const tag = it.doneAt ? '<em class="sla ok">Done ' + esc(fmtT(it.doneAt)) + '</em>'
+              : it.late ? '<em class="sla late">Due ' + esc(fmtT(it.due)) + ' \u00b7 we are on it</em>'
+              : it.due ? '<em class="sla on">Due by ' + esc(fmtT(it.due)) + '</em>'
+              : it.waiting ? '<em class="sla wait">Starts after the step before</em>' : '';
+            return '<li class="' + it.state + '">' + esc(it.title) + (tag ? ' ' + tag : '') + '</li>'; }).join('') + '</ul>'
         : '';
       return '<li class="' + w[0] + '" data-stage="' + x.key + '"><span class="dot" aria-hidden="true"></span>' +
         '<div><b>' + esc(x.label) + '</b>' +

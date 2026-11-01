@@ -171,12 +171,23 @@ function of(db, st, now) {
       by: nextDue && nextDue >= today ? day(nextDue) : '',
       confirm: !!(nextDue && nextDue < today),
       on: day(lastDone),
-      /* The work under the stage, by title only. */
-      items: rows.map(t => ({
-        title: String(t.title || '').replace(/\s+—\s+delivered$/, ''),
-        state: String(t.status) === 'done' ? 'done'
-          : ['doing', 'blocked'].includes(String(t.status)) ? 'doing' : 'next',
-      })),
+      /* The work under the stage — and, patch 210 (owner: "in the student
+         dashboard they see the same"), when each is due, whether it is on
+         time, and when it was done. */
+      items: rows.map(t => {
+        const closed = ['done', 'dropped'].includes(String(t.status));
+        const dueIso = t.due_at && String(t.due_basis) === 'step' ? String(t.due_at) : '';
+        const late = !closed && !!dueIso && Date.parse(dueIso) < Date.now();
+        return {
+          title: String(t.title || '').replace(/\s+—\s+delivered$/, ''),
+          state: String(t.status) === 'done' ? 'done'
+            : ['doing', 'blocked'].includes(String(t.status)) ? 'doing' : 'next',
+          due: closed ? '' : dueIso,
+          waiting: !closed && String(t.due_basis) === 'waiting',
+          late,
+          doneAt: String(t.status) === 'done' ? String(t.done_at || '') : '',
+        };
+      }),
     };
   });
 
@@ -244,8 +255,10 @@ function of(db, st, now) {
     by: i < at ? '' : x.by, confirm: i < at ? false : x.confirm,
     on: i < at ? x.on : '',
   }));
+  let stepHours = 24;
+  try { const TK = require('./tasks.js'); stepHours = TK.ruleSettings(db).stepHours; } catch (e) { stepHours = 24; }
   return {
-    stages,
+    stages, stepHours,
     step: finished ? stages.length : at + 1,
     of: stages.length,
     done: finished ? stages.length : at,

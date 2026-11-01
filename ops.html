@@ -669,7 +669,9 @@ body.open .drawer{transform:none}
         + CL.map(function (x) {
           return '<label class="slar"><span><b>' + x[1] + '</b></span><span class="in"><input type="number" min="1" max="1440" name="c_' + x[0] + '" value="' + c[x[0]] + '"> hours</span></label>';
         }).join('')
-        + '<h3>Steps of the journey</h3><p>Each step is due a number of days after the student starts, or before (minus: after) their application deadline. Switch off a step the office does not do.</p>'
+        + '<h3>Every step</h3><p>Once a step starts — the step before it is done — it is due this many hours later. 24 = a day, 120 = five days. 0 uses the per-step days below instead. The university\u2019s offer and the visa decision are not ours to time, so they keep their own dates.</p>'
+        + '<label class="slar"><span><b>Time for each step</b><small>hours from when it starts</small></span><span class="in"><input type="number" min="0" max="1440" step="0.5" name="stepHours" value="' + (RULES.stepHours != null ? RULES.stepHours : 24) + '"> hours</span></label>'
+        + '<h3>Steps of the journey</h3><p>Used when the step time above is 0: each step is due a number of days after the student starts, or before (minus: after) their application deadline. Switch off a step the office does not do.</p>'
         + (RULES.rules || []).map(function (t) {
           var isSla = t.due && Object.prototype.hasOwnProperty.call(t.due, 'sla');
           var n = isSla ? t.due.sla : t.due.before;
@@ -703,7 +705,7 @@ body.open .drawer{transform:none}
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error); }); })
       .then(function () {
         return fetch('/api/staff/task-rules', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rules: rules, serviceSla: f.svc.value }) })
+          body: JSON.stringify({ rules: rules, serviceSla: f.svc.value, stepHours: f.stepHours.value }) })
           .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error); }); });
       })
       .then(function () { $('#slaMsg').textContent = 'Saved. Every queue now counts with these.'; load(); })

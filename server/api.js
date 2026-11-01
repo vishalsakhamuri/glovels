@@ -9297,6 +9297,12 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
       }
       asked.serviceSla = Math.round(n);
     }
+    /* Patch 210: the one step clock, in hours. */
+    if (b.stepHours != null && b.stepHours !== '') {
+      const h = Number(b.stepHours);
+      if (!Number.isFinite(h) || h < 0 || h > 1440) return json(res, 422, { error: 'Give the step time in hours, between 0 and 1440 (60 days).' });
+      asked.stepHours = h;
+    }
     const rules = TASKS.saveRules(db, asked, s.name);
     /* The new days apply to work not yet done, at once rather than tomorrow:
        an administrator who shortens an SLA and sees nothing change assumes it

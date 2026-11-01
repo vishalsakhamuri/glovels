@@ -8,6 +8,9 @@
 # are not. Each suite gets a fresh process and a fresh database.
 cd "$(dirname "$0")/.."
 PORT=${PORT:-8099}
+# Patch 210: these suites test the per-step day rules; the 24-hour step clock
+# (the default now) is tested by tests/steptest.js.
+export TASK_STEP_HOURS=${TASK_STEP_HOURS:-0}
 FAILED=0
 for t in tasktest phasetest servicetasktest servicecatalogtest asktest slatest taskhardtest taskuitest phaseuitest; do
   rm -rf "/tmp/db-$PORT"

@@ -292,7 +292,7 @@ run round178historytest.js 8131
 # urgency with an Overdue state; done steps say when and by whom (or ticked
 # automatically); the counsellor's Tasks tab is the same timeline; the bell
 # groups alerts by student.
-run round178taskstest.js 8130
+run round178taskstest.js 8130 TASK_STEP_HOURS=0
 run round178labelstest.js 8136
 run traffictest.js  8099
 run socialtest.js   8099
