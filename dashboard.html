@@ -949,6 +949,11 @@ select.assign.none:hover{border-color:#a5342b}
 .sl-ask button{height:40px;border-radius:10px;padding:0 14px;font:700 13px var(--sans);cursor:pointer;border:1px solid var(--navy-900);background:#fff;color:var(--navy-900)}
 .sl-ask button.pri{background:var(--navy-900);color:#fff}
 .sl-ask .msg{font-size:12.6px;color:var(--green,#1d7a46);font-weight:700}
+.sum-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;align-items:start}
+.sum-grid:empty,.sum-grid>div:empty{display:none}
+@media (max-width:860px){.sum-grid{grid-template-columns:1fr}}
+.rc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.rc-actions button{border:1px solid var(--navy-900);background:#fff;color:var(--navy-900);border-radius:10px;padding:8px 14px;font:700 12.8px var(--sans);cursor:pointer}
 </style>
 <style>/* GLOVELS-HIDDEN-RULE */
 [hidden]{display:none !important}
@@ -1042,6 +1047,10 @@ select.assign.none:hover{border-color:#a5342b}
 
     <!-- Patch 226 (owner, 1 Nov): the universities first — it is what a
          student who has just paid opened the dashboard to see. -->
+    <!-- Patch 230 (owner, 1 Nov): "we need a summary — package, what he paid,
+         invoice". The order and the answers side by side, above the list. -->
+    <div class="sum-grid p-sec"><div id="receipt"></div><div id="searchHost"></div></div>
+
     <section class="p-sec" id="slSec">
       <div class="p-sec-head">
         <h2>Your universities</h2>
@@ -1052,7 +1061,6 @@ select.assign.none:hover{border-color:#a5342b}
 
     <div class="steps4" id="steps4"></div>
 
-    <div id="receipt" class="p-sec"></div>
 
     <!-- WHERE THEIR APPLICATION HAS GOT TO.
          What is finished, what is in hand, what is coming, and the date each
@@ -1204,6 +1212,40 @@ async function __dashBoot(main) {
       window.__GLOVELS = s;
       __dashTodo(s);
       __dashOrders(s);
+      /* Patch 230 (owner, 1 Nov): "where is the data I gave" — one line above
+         the universities with the answers they were picked from, and Edit. */
+      (function () {
+        var p = s.profile || {};
+        var bits = [];
+        if (p.g_country) bits.push(String(p.g_country).split(',')[0]);
+        if (p.g_level) bits.push(p.g_level);
+        if (p.g_field) bits.push(p.g_field);
+        if (p.d_cgpa) bits.push('CGPA ' + p.d_cgpa + (p.d_max && p.d_max !== '10' ? ' of ' + p.d_max : ''));
+        if (p.e_test) bits.push(p.e_score ? p.e_test + ' ' + p.e_score : p.e_test);
+        if (p.a_test && /GRE|GMAT/.test(p.a_test)) bits.push(p.a_test + (p.a_score ? ' ' + p.a_score : ''));
+        if (p.w_has) bits.push(/^no$/i.test(p.w_has) ? 'No work experience' : (p.w_months ? p.w_months + ' months work' : 'Work experience'));
+        if (p.g_intake) bits.push(p.g_intake);
+        var place = function () {
+          if (document.getElementById('searchCard')) return;
+          var sec = document.getElementById('slSec'); if (!sec) return;
+          var c = document.createElement('div');
+          c.id = 'searchCard';
+          c.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;'
+            + 'margin:0 0 12px;padding:12px 16px;border-radius:12px;background:#fff;border:1px solid var(--line,#e3e6ec);font:500 13.4px/1.5 var(--sans)';
+          var t = document.createElement('span');
+          var h = document.createElement('b'); h.textContent = 'Your answers: ';
+          t.appendChild(h);
+          t.appendChild(document.createTextNode(bits.length ? bits.join(' \u00b7 ') : 'Not given yet \u2014 add them and your universities are picked from them.'));
+          var e = document.createElement('a');
+          e.href = 'profile.html'; e.textContent = bits.length ? 'Edit' : 'Add my answers';
+          e.style.cssText = 'font-weight:800;color:var(--blue-deep,#1e4fa3);white-space:nowrap';
+          c.appendChild(t); c.appendChild(e);
+          var host = document.getElementById('searchHost');
+          if (host) { c.style.margin = '0'; c.style.flexDirection = 'column'; c.style.alignItems = 'flex-start'; host.appendChild(c); }
+          else { var head = sec.querySelector('.p-sec-head'); if (head && head.nextSibling) sec.insertBefore(c, head.nextSibling); else sec.appendChild(c); }
+        };
+        setTimeout(place, 300); setTimeout(place, 1500);
+      })();
       /* Patch 229: arriving straight from the checkout. */
       (function () {
         var ref = new URLSearchParams(location.search).get('ordered');
@@ -1356,7 +1398,9 @@ function __dashTodo(s) {
  */
 function __dashOrders(s) {
   const orders = (s && s.orders) || [];
-  if (!orders.length) return;
+  /* Patch 230: one order is already the "Your order" card in the summary row;
+     this list is for a student with several. */
+  if (orders.length < 2) return;
   const main = document.querySelector('.p-main') || document.body;
   const host = main.querySelector('.todo-card')
     || main.querySelector('.p-top') || main.firstElementChild;
@@ -1646,7 +1690,7 @@ const heldNote = __held
 
 /* Someone who has just paid should be able to see what they paid. Without this
    the only trace of a 74,999 rupee order is a package name on a progress bar. */
-if(paid && order.grossPaise){
+if(order.grossPaise){
   /* Patch 215 (QA): the receipt says what actually happened — the tax the
      order was sold under (GST in India, VAT in the EU, none on an export),
      the currency the gateway charged, and "To pay" while nothing has been
@@ -1673,9 +1717,42 @@ if(paid && order.grossPaise){
       + (isPaid ? when(order.paidAt) : '<b style="color:#b45309">To pay</b> · ordered ' + when(order.placedAt || Date.now())) + '</span></div>'
     + '<p style="font-size:11.6px;color:var(--muted);margin:12px 0 0">'
     + (isPaid
-        ? (vat ? 'A VAT invoice from Glovels UG' : rate ? 'A GST invoice' : 'An invoice') + ' is emailed to ' + esc(order.email || 'you') + '.'
+        ? 'Your ' + (vat ? 'VAT invoice from Glovels UG' : rate ? 'GST invoice' : 'invoice') + ' is issued by our accounts team and sent to ' + esc(order.email || 'you') + '.'
         : 'Your universities are named here as soon as the payment arrives. Your counsellor will tell you how to pay.')
-    + '</p></div>';
+    + '</p><div class="rc-actions"><button type="button" id="rcPrint">' + (isPaid ? 'Download receipt (PDF)' : 'Download order summary (PDF)') + '</button>'
+    + '<a class="ord-a" style="align-self:center;font-weight:700;font-size:12.8px" href="/acceptance/' + encodeURIComponent(order.reference || '') + '">What I accepted</a></div></div>';
+  /* Patch 230: a printable receipt — "Save as PDF" in the print dialog. The
+     company's own details come from the Legal settings, so they match the
+     legal pages. A numbered tax invoice is issued by accounts. */
+  document.getElementById('rcPrint').onclick = async function () {
+    let L = {};
+    try { L = ((await (await fetch('/api/content')).json()) || {}).legal || {}; } catch (e) {}
+    const e = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+    const seller = vat ? 'Glovels UG (haftungsbeschr\u00e4nkt), Germany' : (L.entity || 'Glovels Consultants Private Limited');
+    const rows = '<tr><td>' + e(order.package) + '</td><td class="n">' + e(money(total)) + '</td></tr>'
+      + (rate ? '<tr class="s"><td>Taxable value</td><td class="n">' + e(money(total - tax)) + '</td></tr>'
+        + '<tr class="s"><td>' + (vat ? 'VAT @ ' + rate + '%' : 'GST @ 18%') + '</td><td class="n">' + e(money(tax)) + '</td></tr>'
+        : '<tr class="s"><td>Tax</td><td class="n">None (export of services)</td></tr>');
+    const w = window.open('', '_blank');
+    if (!w) return alert('Allow pop-ups for this site to download the receipt.');
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + (isPaid ? 'Receipt ' : 'Order summary ') + e(order.reference) + '</title>'
+      + '<style>body{font:14px/1.5 system-ui,sans-serif;color:#0f2a4a;max-width:720px;margin:40px auto;padding:0 24px}'
+      + 'h1{font-size:22px;margin:0 0 4px}.m{color:#5b6b80;font-size:12.5px}table{width:100%;border-collapse:collapse;margin:22px 0}'
+      + 'td{padding:9px 0;border-bottom:1px solid #e3e6ec}.n{text-align:right}.s td{color:#5b6b80;font-size:13px}'
+      + '.t td{font-weight:800;font-size:16px;border-bottom:2px solid #0f2a4a}.g{display:flex;justify-content:space-between;gap:20px;margin-top:22px}'
+      + '@media print{button{display:none}}</style></head><body>'
+      + '<button onclick="print()" style="float:right;padding:8px 14px;border-radius:8px;border:1px solid #0f2a4a;background:#fff;font-weight:700;cursor:pointer">Save as PDF / Print</button>'
+      + '<h1>' + (isPaid ? 'Payment receipt' : 'Order summary \u2014 not yet paid') + '</h1>'
+      + '<div class="m">Order ' + e(order.reference) + ' \u00b7 ordered ' + e(when(order.placedAt || Date.now()))
+      + (isPaid ? ' \u00b7 paid ' + e(when(order.paidAt)) : '') + '</div>'
+      + '<div class="g"><div><b>From</b><br>' + e(seller) + (vat ? '' : (L.gstin ? '<br>GSTIN ' + e(L.gstin) : '') + (L.address ? '<br>' + e(L.address).replace(/\n/g, '<br>') : '')) + '</div>'
+      + '<div style="text-align:right"><b>To</b><br>' + e(user.name || order.name || '') + '<br>' + e(order.email || user.email || '') + '</div></div>'
+      + '<table>' + rows + '<tr class="t"><td>' + (isPaid ? 'Total paid' : 'Total to pay') + '</td><td class="n">' + e(money(total)) + '</td></tr></table>'
+      + '<p class="m">' + (isPaid ? 'This receipt confirms the payment above. Your ' + (vat ? 'VAT' : rate ? 'GST' : 'tax') + ' invoice is issued separately by our accounts team.'
+          : 'Nothing has been charged yet. Your counsellor confirms the amount and how to pay.') + '</p>'
+      + '</body></html>');
+    w.document.close();
+  };
 }
 
 /* Patch 169 (STU-03): withdrawn programmes in their own group, as on My

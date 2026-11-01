@@ -3178,6 +3178,26 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
        Only BLANK fields are filled — anything the student already typed in
        their profile wins — and a value the grade checks reject is dropped,
        never stored. Keys outside this list are ignored. */
+    /* Patch 230: the name, mobile and email typed at checkout are the
+       student's own — into the profile's blank boxes, so the dashboard does
+       not ask for them again a minute later. */
+    if (buyer) {
+      try {
+        const before0 = db.getProfile(buyer.id) || {};
+        const blank0 = v => String(v == null ? '' : v).trim() === '';
+        const nm = String(buyer.name || name || '').trim().split(/\s+/);
+        const add0 = {};
+        if (blank0(before0.firstName) && blank0(before0.fullName) && nm[0]) {
+          add0.lastName = nm.length > 1 ? nm.pop() : ''; add0.firstName = nm.join(' ');
+        }
+        if (blank0(before0.phone) && buyer.phone) add0.phone = String(buyer.phone);
+        if (blank0(before0.email) && buyer.email) add0.email = String(buyer.email);
+        if (Object.keys(add0).length) {
+          const r0 = mergeProfile(buyer.id, add0);
+          if (!r0.wrong.length) db.putProfile(buyer.id, r0.merged);
+        }
+      } catch (e) { /* the order stands */ }
+    }
     if (buyer && b.answers && typeof b.answers === 'object' && !Array.isArray(b.answers)) {
       try {
         const ALLOWED = ['d_cgpa','d_max','d_dur','d_course','e_test','e_score','a_test','a_score',

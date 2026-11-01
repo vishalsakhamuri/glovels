@@ -182,7 +182,8 @@ const stamp = Date.now();
   await dash.goto(BASE + '/dashboard', { waitUntil: 'domcontentloaded' });
   await dash.waitForTimeout(2600);
   check('their orders are listed on the screen they land on',
-    await dash.isVisible('.ord-card'));
+    /* Patch 230: one order shows as the "Your order" card; several as a list. */
+    await dash.isVisible('.ord-card') || await dash.isVisible('#receipt .p-card'));
   check('each one with a way back to what they accepted',
     (await dash.$$('.ord-a')).length > 0,
     (await dash.$$eval('.ord-a', a => a.map(x => x.getAttribute('href')))).join(' '));
