@@ -176,9 +176,10 @@ Glovels
   },
 
   orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl,
-    hasAccount, services, matchedOnly, exportSale, seller }) {
+    hasAccount, services, matchedOnly, exportSale, seller, vatRate }) {
     const first = String(name || '').split(' ')[0] || 'there';
-    const tax = exportSale ? 0 : Math.round(grossPaise - grossPaise / 1.18);
+    const tax = vatRate ? Math.round(grossPaise - grossPaise / (1 + vatRate / 100))
+      : exportSale ? 0 : Math.round(grossPaise - grossPaise / 1.18);
     /* A receipt for services has to name them. "2 services — ₹4,498" is not a
        receipt, it is a bank statement line. */
     const bought = (services || []).length
@@ -212,7 +213,7 @@ ${(services || []).length
   ? `You have booked:${bought}`
   : `Your ${packageName} package is active.`}
 Order reference   ${reference}
-Amount            ${money(grossPaise)} ${exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${seller
+Amount            ${money(grossPaise)} ${vatRate ? '(including ' + money(tax) + ' VAT at ' + vatRate + '%)' : exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${seller
   ? `
 Sold by           ${seller} — card payment taken by Stripe` : ''}${publicUnis
   ? `
@@ -250,7 +251,9 @@ Glovels
           ['Package', packageName],
           /* Patch 195: an export sale carries no GST — the HTML said "incl.
              GST" for those too — and a Stripe sale names the German seller. */
-        ].concat(exportSale
+        ].concat(vatRate
+          ? [['Amount paid', money(grossPaise) + ' incl. VAT'], ['VAT @ ' + vatRate + '%', money(tax)]]
+          : exportSale
           ? [['Amount paid', money(grossPaise) + ' — export of services, no GST']]
           : [['Amount paid', money(grossPaise) + ' incl. GST'], ['GST @ 18%', money(tax)]]
         ).concat(seller ? [['Sold by', seller]] : []).concat([

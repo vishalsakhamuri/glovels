@@ -198,6 +198,29 @@ const hook = obj => {
     check('cancel → back to the page they came from', cx.status === 303 && /^\/services\?payment=cancelled/.test(cx.headers.location || ''), cx.headers.location);
     const cy = await call('/api/stripe/return?ref=GLV-1&cancel=1&back=%2F%2Fevil.example');
     check('and never to another site', /^\/\?payment=cancelled/.test(cy.headers.location || ''), cy.headers.location);
+
+    /* Patch 209: EU buyers pay the price plus 19% VAT. */
+    {
+      const ng = await order('USD', 'NG', 'vat-ng@example.com');
+      const de = await order('EUR', 'DE', 'vat-de@example.com');
+      const base = ng.body.grossPaise;
+      check('a buyer in Germany paying in euros pays the price + 19% VAT', de.body.grossPaise === Math.round(base * 1.19) && de.body.vatRate === 19,
+        base + ' → ' + de.body.grossPaise + ' rate ' + de.body.vatRate);
+      check('and the VAT is shown as such', de.body.taxPaise === Math.round(de.body.grossPaise - de.body.grossPaise / 1.19), String(de.body.taxPaise));
+      const sDe = sessions[de.body.stripe.sessionId] || {};
+      const sNg = sessions[ng.body.stripe.sessionId] || {};
+      check('Stripe is asked for the VAT-inclusive amount', sDe.currency === 'eur' && sDe.amount_total === de.body.stripe.amountMinor && sDe.amount_total > 0, sDe.currency + ' ' + sDe.amount_total);
+      check('a buyer in Nigeria pays no VAT', !ng.body.vatRate && ng.body.taxPaise === 0 && sNg.amount_total > 0);
+      const at = await call('/api/orders', { method: 'POST', headers: { 'cf-ipcountry': 'US', Cookie: 'glv_country=AT' },
+        body: JSON.stringify({ packageId: 'pkg-roadmap', name: 'Test Buyer', email: 'vat-at@example.com', phone: '+43 660 1234567', acceptedTerms: true, currency: 'EUR', sourcePage: '/' }) });
+      check('a buyer who chose Austria in the header pays VAT too', at.body.vatRate === 19);
+      const inr = await order('INR', 'IN', 'vat-in@example.com');
+      check('an Indian buyer in rupees is unchanged (GST, no VAT)', !inr.body.vatRate && inr.body.grossPaise === base && inr.body.taxPaise > 0);
+      const cfg = await call('/api/pay/config');
+      check('the page is told the VAT rule', cfg.body.euVat && cfg.body.euVat.on && cfg.body.euVat.rate === 19 && cfg.body.euVat.countries.includes('DE') && !cfg.body.euVat.countries.includes('CH'));
+      const ch = await order('CHF', 'CH', 'vat-ch@example.com');
+      check('Switzerland is not in the EU — no VAT', !ch.body.vatRate);
+    }
   } catch (err) {
     bad.push('crashed: ' + err.message);
   } finally {

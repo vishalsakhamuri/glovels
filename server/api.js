@@ -139,6 +139,9 @@ const SLOT_SAID = {
 const YES_TERMS = v => v === true || /^(true|on|yes|y|1|accepted)$/i.test(String(v == null ? '' : v).trim());
 
 const GST_RATE = 0.18;
+/* Patch 209: EU buyers pay the price plus VAT (default 19%, Glovels UG). */
+const EU27 = new Set(['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU',
+  'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE']);
 
 /*
  * The order states that have bought something.
@@ -2780,6 +2783,21 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
      quoted ({id, priceInr}). The public checkout never passes it, so a
      browser cannot name its own price. */
   /* Patch 190: an export sale is one paid in a foreign currency we take. */
+  /* Patch 209: EU VAT — on, at 19%, unless the office changes it. */
+  const euVatSettings = () => Object.assign({ on: true, rate: 19 }, db.content('euVat') || {});
+  const chosenCountry = req => { const m = String(req.headers.cookie || '').match(/(?:^|;\s*)glv_country=([A-Z]{2})/); return m ? m[1] : ''; };
+  function euVatFor(req, exportSale) {
+    const v = euVatSettings();
+    if (!v.on || !exportSale) return null;
+    const g = String(geoFor(req).country || '').toUpperCase();
+    if (g === 'IN') return null;
+    return EU27.has(g) || EU27.has(chosenCountry(req)) ? { rate: Number(v.rate) || 19 } : null;
+  }
+  function withVat(basket, rate) {
+    const k = 1 + rate / 100;
+    const items = (basket.items || []).map(x => Object.assign({}, x, { paise: Math.round(Number(x.paise || 0) * k) }));
+    return Object.assign({}, basket, { items, gross: Math.round(Number(basket.gross || 0) * k), vatRate: rate });
+  }
   const isExport = currency => {
     const c = String(currency || '').toUpperCase();
     return !!c && c !== 'INR' && FX.currencies().includes(c);
@@ -2950,7 +2968,12 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     const exportSale = isExport(b.currency) && geoFor(req).country !== 'IN';
     /* Patch 192 (owner): the PRICE is the same for everyone — an export sale
        is not cheaper; the whole amount is simply revenue with no GST in it. */
-    const basket = basket0;
+    /* Patch 209 (owner, 1 Nov): "add 19% to the existing prices and show for
+       EU". A buyer in the EU — by their connection, or the country they chose
+       — paying in a foreign currency pays the price plus VAT. Every part of a
+       plan is a share of the total, so the VAT is in each part too. */
+    const vat = euVatFor(req, exportSale);
+    const basket = vat ? withVat(basket0, vat.rate) : basket0;
     const { pkg, items, gross, label } = basket;
 
     /* ADM-06 / STU-07: a signed-in STUDENT buys as themselves. The order
@@ -3026,7 +3049,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
       payIn: b.payIn, accepted,
     });
     const { order, reference, plan, chargeNow, canSplit } = placed;
-    if (exportSale) { try { db.setOrderTaxMode(reference, 'export'); } catch (e) { /* receipt still says so */ } }
+    if (exportSale) { try { db.setOrderTaxMode(reference, vat ? 'eu-vat-' + vat.rate : 'export'); } catch (e) { /* receipt still says so */ } }
     if (linked.created) seedMessages(linked.created);
     if (linked.buyer && who && who.role !== 'student') {
       db.log(who.name, 'placed an order for a student',
@@ -3131,11 +3154,13 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
 
     const matched = buyer ? deliverMatches(buyer) : { owed: 0, added: 0, needsProfile: false };
 
-    const tax = exportSale ? 0 : Math.round(gross - gross / (1 + GST_RATE));
+    const vatNow = String((db.orderByReference ? (db.orderByReference(reference) || {}).tax_mode : '') || '').match(/^eu-vat-(\d+(?:\.\d+)?)$/);
+    const vatRate = vatNow ? Number(vatNow[1]) : 0;
+    const tax = vatRate ? Math.round(gross - gross / (1 + vatRate / 100)) : exportSale ? 0 : Math.round(gross - gross / (1 + GST_RATE));
 
     /* The receipt is the message that tells a guest how to get into the portal
        they just paid for, so it goes out whether or not they have an account. */
-    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({ exportSale, seller: st ? stripe.seller : '',
+    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({ exportSale, vatRate, seller: st ? stripe.seller : '',
       name, email, reference, packageName: label, grossPaise: gross,
       /* An account made for this order counts — the email said "create your
          account" to people whose account was made seven milliseconds earlier. */
@@ -3153,7 +3178,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
          questions and they appear" rather than nothing at all. */
       matched,
       reference, package: label, publicUnis: pkg ? pkg.publicUnis : 0,
-      grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax, exportSale,
+      grossPaise: gross, taxablePaise: gross - tax, taxPaise: tax, exportSale, vatRate,
       services: items.map(x => ({ id: x.id, name: x.name, level: x.level, priceInr: x.paise / 100 })),
       linkedToAccount: !!buyer,
       /* So the confirmation can say "your dashboard is ready" rather than
@@ -3332,6 +3357,8 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     geo: geoFor(req),
     /* Patch 190: a foreign-currency (export) sale is priced without GST. */
     gstRate: GST_RATE, exportNoGst: true,
+    /* Patch 209: EU buyers pay the price plus VAT. */
+    euVat: Object.assign({ countries: [...EU27] }, euVatSettings()),
     /* Patch 195: whether buyers abroad pay on Stripe (Glovels UG). */
     stripe: stripe.enabled,
     sellerAbroad: stripe.enabled ? stripe.seller : '',

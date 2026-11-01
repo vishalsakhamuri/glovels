@@ -130,8 +130,24 @@
 
   /* Patch 192 (owner): the price is the same for a buyer abroad — no GST is
      charged, but nothing is taken off either. */
-  function exg(inr) { return Math.round(Number(inr || 0)); }
-  function local(inr, code, cfg) { return money(convert(exg(inr, cfg), code, cfg), code); }
+  /* Patch 209 (owner): a buyer in the EU paying in a foreign currency pays the
+     price plus VAT (19% unless the office changes it) — the same rule the
+     server charges by. Glovels' own prices only; university fees are not ours. */
+  function chosenCountry() { try { return localStorage.getItem('glv-country') || ''; } catch (e) { return ''; } }
+  function vatOf(cfg) {
+    var v = cfg && cfg.euVat;
+    if (!v || !v.on) return 0;
+    var geo = (cfg.geo && cfg.geo.country) || '';
+    if (geo === 'IN') return 0;
+    var eu = v.countries || [];
+    return eu.indexOf(geo) >= 0 || eu.indexOf(chosenCountry()) >= 0 ? Number(v.rate) || 19 : 0;
+  }
+  function exg(inr, cfg, code) {
+    var x = Math.round(Number(inr || 0));
+    var r = code && code !== 'INR' ? vatOf(cfg) : 0;
+    return r ? Math.round(x * (1 + r / 100)) : x;
+  }
+  function local(inr, code, cfg) { return money(convert(exg(inr, cfg, code), code, cfg), code); }
 
   function money(n, code) {
     try {
@@ -421,7 +437,10 @@
       var note = el.querySelector(':scope > .note');
       if (note && /tax/i.test(note.getAttribute('data-glv-note') || note.textContent)) {
         if (!note.getAttribute('data-glv-note')) note.setAttribute('data-glv-note', note.textContent);
-        note.style.display = foreign ? 'none' : '';
+        var vr = foreign ? vatOf(CFG) : 0;
+        note.style.display = foreign && !vr ? 'none' : '';
+        var want = vr ? 'incl. ' + vr + '% VAT' : note.getAttribute('data-glv-note');
+        if (note.textContent !== want) note.textContent = want;
       }
       if (!foreign) {
         if (main) main.remove();
@@ -434,7 +453,7 @@
       if (rn) {
         /* The rupee figure beside it, marked GST-free for this buyer. */
         if (!rn.getAttribute('data-glv-orig')) rn.setAttribute('data-glv-orig', rn.textContent);
-        var exText = rn.getAttribute('data-glv-orig').trim() + ' \u00b7 no GST';
+        var exText = rn.getAttribute('data-glv-orig').trim() + (vatOf(CFG) ? ' + ' + vatOf(CFG) + '% VAT' : ' \u00b7 no GST');
         if (rn.textContent !== exText) rn.textContent = exText;
       }
       var pre = rn ? rn.textContent.slice(0, rn.textContent.indexOf('\u20b9')).trim() : '';
@@ -502,7 +521,7 @@
       if (tot) {
         if (foreign) {
           if (!tot.__glvOrig) tot.__glvOrig = tot.textContent;
-          var lbl = 'Total payable \u00b7 no GST (export of services)';
+          var lbl = vatOf(CFG) ? 'Total payable \u00b7 incl. ' + vatOf(CFG) + '% VAT' : 'Total payable \u00b7 no GST (export of services)';
           if (tot.textContent !== lbl) tot.textContent = lbl;
         } else if (tot.__glvOrig) { tot.textContent = tot.__glvOrig; tot.__glvOrig = null; }
       }
@@ -510,7 +529,8 @@
       if (lead) {
         if (foreign) {
           if (!lead.__glvOrig) lead.__glvOrig = lead.textContent;
-          var lt = 'Prices in ' + nameOf(code) + '. Buying from outside India carries no GST \u2014 it is an export of services.';
+          var lt = vatOf(CFG) ? 'Prices in ' + nameOf(code) + ', including ' + vatOf(CFG) + '% VAT for buyers in the EU (sold by Glovels UG, Germany).'
+            : 'Prices in ' + nameOf(code) + '. Buying from outside India carries no GST \u2014 it is an export of services.';
           if (lead.textContent !== lt) lead.textContent = lt;
         } else if (lead.__glvOrig) { lead.textContent = lead.__glvOrig; lead.__glvOrig = null; }
       }
@@ -686,6 +706,7 @@
       cs.onchange = function () { var m = CFG.currencyOf && CFG.currencyOf[cs.value]; if (m) ks.value = m; };
       pop.querySelector('.go').onclick = function () {
         try { if (cs.value) localStorage.setItem(CKEY, cs.value); } catch (e) {}
+        try { if (cs.value) document.cookie = 'glv_country=' + cs.value + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
         set(ks.value);
         try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: ks.value })); } catch (e) {}
         try { document.dispatchEvent(new CustomEvent('glv-country', { detail: cs.value })); } catch (e) {}
@@ -702,7 +723,9 @@
   }
 
   config().then(function (c) {
-    CFG = c; localPrices(); localeBar();
+    CFG = c;
+    try { var cc = localStorage.getItem('glv-country'); if (cc && document.cookie.indexOf('glv_country=' + cc) < 0) document.cookie = 'glv_country=' + cc + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
+    localPrices(); localeBar();
     /* The finders draw their fees again now that the currency is known. */
     try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: current(CFG) })); } catch (e) {}
   });
