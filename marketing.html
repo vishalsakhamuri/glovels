@@ -34,7 +34,7 @@ button,select,input{font:inherit;color:inherit}
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
 .rail{background:var(--rail);color:#c7d4e3;padding:22px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:22px}
 .brand{display:flex;align-items:center;gap:10px;padding:4px 10px;font:800 19px/1 var(--disp);color:#fff;text-decoration:none}
-.brand i{width:30px;height:30px;border-radius:10px;background:conic-gradient(from 210deg,var(--gold),#f3dfa6,var(--gold));display:grid;place-items:center;font-style:normal;color:var(--ink);font-size:15px}
+.brand{background:#fff;border-radius:14px;padding:8px 14px;align-self:flex-start;box-shadow:0 6px 18px rgba(0,0,0,.18)}.brand img{display:block;height:44px;width:auto}@media (max-width:860px){.brand{padding:5px 10px;border-radius:10px}.brand img{height:30px}}
 .who{padding:12px;border-radius:var(--r-md);background:rgba(255,255,255,.06)}
 .who b{display:block;color:#fff;font-weight:700}
 .who span{font-size:12px;color:#93a6bd}
@@ -171,7 +171,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
 <body>
 <div class="shell">
   <aside class="rail">
-    <a class="brand" href="/ops"><i>G</i> Glovels</a>
+    <a class="brand" href="/ops" aria-label="Glovels — command centre"><img src="/assets/glovels-logo.png" alt="Glovels" width="118" height="53"></a>
     <div class="who"><b id="meName">…</b><span id="meRole"></span><br><button type="button" id="out">Sign out</button></div>
     <nav class="nav" aria-label="Staff">
       <a href="ops.html" data-need="staff"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Command centre</a>
