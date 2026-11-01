@@ -285,7 +285,9 @@ function bakedIds() {
 
 const backup = require('./server/backup.js').open({ db, dataDir: DATA, log: console });
 const traffic = require('./server/traffic.js').open({ db, log: console });
-const api = makeApi({ db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
+/* Patch 204: where each lead, account and payment came from (server/marketing.js). */
+const marketing = require('./server/marketing.js').open({ db, fx: require('./server/fx.js'), log: console });
+const api = makeApi({ marketing, db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
   /* Round 176: the go-live readiness report, for /api/staff/golive. */
@@ -483,7 +485,11 @@ function send(res, code, body, type, extra) {
     if (res.req.headers.cookie) {
       try { const w = whoIsIt(res.req); staffHere = !!(w && w.role && w.role !== 'student'); } catch (e) { staffHere = false; }
     }
-    if (!staffHere) traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
+    if (!staffHere) {
+      const row = traffic.record(res.req, u.pathname === '/index' ? '/' : u.pathname, u.query);
+      /* Patch 204: the visitor's first touch, for crediting a later lead. */
+      try { const ck = marketing.cookieFor(res.req, row); if (ck) extra = Object.assign({}, extra || {}, { 'Set-Cookie': ck }); } catch (e) {}
+    }
     /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
     if (typeof body === 'string') body = withMobileKit(globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)))), u.pathname);
   } else if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || '')) && res.req && res.req.method === 'GET') {
@@ -593,6 +599,7 @@ function robotsTxt() {
     'Disallow: /admin',
     'Disallow: /counsellor',
     'Disallow: /ops',
+    'Disallow: /marketing',
     'Disallow: /chat',
     'Disallow: /home',
     'Disallow: /catalogue',
@@ -717,6 +724,7 @@ function appleSiteAssociation() {
         components: [
           { '/': '/admin*', exclude: true }, { '/': '/counsellor*', exclude: true },
           { '/': '/ops*', exclude: true },
+          { '/': '/marketing*', exclude: true },
           { '/': '/api/*', exclude: true }, { '/': '/images/*', exclude: true },
           { '/': '/*' },
         ],
@@ -730,7 +738,7 @@ function appleSiteAssociation() {
    404.html, which exists to be reached by accident. */
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
-  'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops']);
+  'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops', 'marketing']);
 
 /*
  * Round 178 (A): the day a page's WORDS last changed, for <lastmod>.
@@ -3187,10 +3195,36 @@ function withServiceLd(html, slug) {
   return html.replace('</head>', '<script type="application/ld+json">' + JSON.stringify(ld).replace(/</g, '\\u003c') + '</script></head>');
 }
 
+/* Patch 204: every click on a public page, and every "stayed and read",
+   sent to our own server (server/marketing.js) as well as to Google
+   Analytics when that is set up. No cookies of its own, no person: a name,
+   the button's words, where it pointed, the page. */
+const TRACKER_JS = `(function(){
+var S="/api/t";
+function send(n,l,t){try{var b=JSON.stringify({n:n,l:String(l||"").slice(0,80),t:String(t||"").slice(0,160),p:location.pathname});
+if(navigator.sendBeacon){navigator.sendBeacon(S,new Blob([b],{type:"application/json"}));}
+else{fetch(S,{method:"POST",headers:{"Content-Type":"application/json"},body:b,keepalive:true,credentials:"same-origin"});}}catch(e){}}
+window.glvTrack=function(n,p){try{if(window.gtag)gtag("event",n,p||{})}catch(e){}
+try{var x=p||{};send(String(n).toLowerCase().replace(/[^a-z0-9_]/g,"_").slice(0,40),x.label||x.package||x.item_name||x.value||"",x.page||"")}catch(e){}};
+function kind(el,href){
+var d=el.getAttribute("data-track");if(d)return d.toLowerCase().replace(/[^a-z0-9_]/g,"_").slice(0,40);
+if(/^tel:/i.test(href))return"call";if(/wa\.me|whatsapp/i.test(href))return"whatsapp";if(/^mailto:/i.test(href))return"email";
+if(el.closest("[data-package],[data-buy],.pkg,.package"))return"package";
+if(/[/](login|signup|register)/i.test(href))return"signup";
+if(/^https?:/i.test(href)&&href.indexOf(location.host)<0)return"outbound";
+if(el.closest("header,nav"))return"nav";if(el.closest("footer"))return"footer";
+return el.tagName==="BUTTON"?"button":"link";}
+document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a,button,[data-track]");if(!el)return;
+var href=el.getAttribute("href")||"";var label=el.getAttribute("data-track-label")||el.getAttribute("aria-label")||(el.textContent||"").replace(/\s+/g," ").trim()||el.getAttribute("title")||"";
+send(kind(el,href),label,href.split("?")[0]);},true);
+var q=function(e){var el=e.target;if(!el||!el.matches)return;if(el.matches('input[type="search"],input[name="q"],input[data-search],[role="search"] input')){var v=(el.value||"").trim();if(v.length>1)send("search",v,"");}};
+document.addEventListener("change",q,true);
+var seen=0,on=0;function tick(){if(document.visibilityState==="visible"){seen+=1;if(seen>=15&&!on){on=1;send("engaged","","");}}}
+setInterval(tick,1000);})();`;
 function withAnalytics(html) {
   if (html.includes('<script data-track>')) return html;
   const id = gaId();
-  const hook = '<script data-track>window.glvTrack=function(n,p){try{if(window.gtag)gtag("event",n,p||{})}catch(e){}};</script>';
+  const hook = '<script data-track>' + TRACKER_JS + '</script>';
   const tag = id
     ? '<script async src="https://www.googletagmanager.com/gtag/js?id=' + id + '"></script>'
       + '<script data-ga>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}'

@@ -157,6 +157,8 @@ def head_for(title, brand=True):
 
 def sidebar(active):
     on = ' class="on"'
+    trend = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+             'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>')
     links = "".join(
         f'<a href="{slug}.html"{on if slug == active else ""}>'
         f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg> {label}</a>'
@@ -207,6 +209,8 @@ STAFF_NAV = [
     ("counsellor", "i-chat",   "Conversations"),
     ("chat",       "i-globe",  "Website chat"),
     ("leads",      "i-chart",  "Leads"),
+    # Patch 204: the marketing dashboard (admins, and anyone given it).
+    ("marketing",  "i-trend",  "Marketing"),
     ("home",       "i-file",   "Home page"),
     # The public blog lives at blog.html, so the screen that writes it cannot.
     ("blog-admin", "i-book",   "Blog"),
@@ -229,7 +233,7 @@ def staff_sidebar(active, role_note, nav=None, brand=True):
              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')
     links = "".join(
         f'<a href="{slug}.html"{on if slug == active else ""}>'
-        + (pulse if icon == "i-pulse" else f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg>')
+        + (pulse if icon == "i-pulse" else trend if icon == "i-trend" else f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg>')
         + f' {label}</a>'
         for slug, icon, label in (nav if nav is not None else STAFF_NAV)
     )

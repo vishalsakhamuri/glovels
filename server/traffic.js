@@ -110,7 +110,12 @@ const hostOf = ref => {
  * Where a visit came from: the referrer's host and the UTM fields sorted into
  * one of: ai, search, social, campaign, referral, direct.
  */
-function sourceOf(ref, query, ownHost) {
+/* Patch 204: short names campaigns use for utm_source. */
+const ALIASES = { ig: 'Instagram', insta: 'Instagram', fb: 'Facebook', meta: 'Facebook', yt: 'YouTube',
+  li: 'LinkedIn', wa: 'WhatsApp', tw: 'X', twitter: 'X', google: 'Google', adwords: 'Google', bing: 'Bing' };
+const PAID = /cpc|ppc|paid|ads?$|^ad|display|banner|sponsored|boost/i;
+
+function sourceOf(ref, query, ownHost, ua) {
   const host = hostOf(ref);
   let full = host;
   try { if (host) full = (host + new URL(ref).pathname).toLowerCase(); } catch (e) {}
@@ -127,12 +132,22 @@ function sourceOf(ref, query, ownHost) {
     for (const [k, name] of list) if (name.toLowerCase() === s || k.startsWith(s + '.') || k === s) return name;
     return '';
   };
+  /* Patch 204: the ad networks' own click ids, and the in-app browsers of
+     Instagram and Facebook — which send no referrer at all, so without this
+     every Instagram visitor looked "direct". */
+  const alias = ALIASES[utmSource.toLowerCase()] || '';
+  if (q.gclid || q.gbraid || q.wbraid || q.gad_source) return { source: 'ads', site: 'Google', campaign, medium: medium || 'cpc' };
+  if (q.msclkid) return { source: 'ads', site: 'Bing', campaign, medium: medium || 'cpc' };
   const ai = find(AI_SITES, full) || named(AI_SITES, utmSource.toLowerCase());
   if (ai) return { source: 'ai', site: ai, campaign, medium };
   const search = find(SEARCH_SITES, host);
   if (search) return { source: /cpc|ppc|paid/i.test(medium) ? 'ads' : 'search', site: search, campaign, medium };
-  const social = find(SOCIAL_SITES, host) || named(SOCIAL_SITES, utmSource.toLowerCase());
-  if (social) return { source: 'social', site: social, campaign, medium };
+  const inApp = /Instagram/.test(ua || '') ? 'Instagram' : /FBAN|FBAV|FB_IAB/.test(ua || '') ? 'Facebook'
+    : /LinkedInApp/.test(ua || '') ? 'LinkedIn' : '';
+  const social = find(SOCIAL_SITES, host) || named(SOCIAL_SITES, utmSource.toLowerCase())
+    || (alias && alias !== 'Google' && alias !== 'Bing' ? alias : '') || (q.fbclid ? (inApp || 'Facebook') : '') || inApp;
+  if (social) return { source: PAID.test(medium) ? 'ads' : 'social', site: social, campaign, medium };
+  if (alias === 'Google' || alias === 'Bing') return { source: PAID.test(medium) ? 'ads' : 'search', site: alias, campaign, medium };
   if (campaign || utmSource) return { source: /cpc|ppc|paid|ads?/i.test(medium) ? 'ads' : 'campaign', site: utmSource || 'campaign', campaign, medium };
   if (!host || host === ownHost) return { source: 'direct', site: '', campaign, medium };
   return { source: 'referral', site: host.slice(0, 80), campaign, medium };
@@ -172,9 +187,10 @@ function open({ db, log = console }) {
         let country = '';
         try { country = GEO.forRequest(req, ip).country || ''; } catch (e) { country = ''; }
         Object.assign(row, { kind: 'page', device: deviceOf(ua), visitor, country },
-          sourceOf(String(req.headers.referer || ''), query, ownHost));
+          sourceOf(String(req.headers.referer || ''), query, ownHost, ua));
       }
       db.hit(row);
+      return row;
       if (day !== lastPrune) {
         lastPrune = day;
         const cutoff = new Date(now.getTime() - KEEP_DAYS * 86400000).toISOString().slice(0, 10);

@@ -393,7 +393,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
+function makeApi({ marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -1724,6 +1724,20 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
    * wrote before it, and it still works with no proxy at all.
    */
   const privateIp = a => /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80|::ffff:(10\.|127\.|192\.168\.))/i.test(a);
+  /* Patch 204: a search a visitor ran, with what it found — never a staff
+     member's, never a crawler's. */
+  const logSearch = (req, x) => {
+    if (!marketing) return;
+    try {
+      const ua = String(req.headers['user-agent'] || '');
+      if (!ua || (traffic && traffic.botOf && traffic.botOf(ua)) || /GlovelsQA|glovels-test/i.test(ua)) return;
+      const who = me(req);
+      if (who && who.role !== 'student') return;
+      let country = '';
+      try { country = GEO.forRequest(req, clientIp(req)).country || ''; } catch (e) { country = ''; }
+      marketing.search(req, x, country);
+    } catch (e) { /* a search is never worth a failed answer */ }
+  };
   const clientIp = req => {
     const hops = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
     for (let i = hops.length - 1; i >= 0; i--) if (!privateIp(hops[i])) return hops[i];
@@ -4482,6 +4496,11 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
       matchCache.set(key, hit);
       while (matchCache.size > MATCH_CACHE_MAX) matchCache.delete(matchCache.keys().next().value);
     }
+    {
+      const rest = Object.assign({}, f); ['q', 'country', 'level', 'field', 'sort'].forEach(k => delete rest[k]);
+      logSearch(req, { kind: 'finder', q: f.q, dest: f.country, level: f.level, field: f.field,
+        filters: FIND.toQuery(rest), results: hit.named.length + hit.lockedReal.length });
+    }
     return json(res, 200, {
       named: hit.named, locked: hit.lockedReal.map(p => lockedPlaceholder(p, nonce)),
       more: hit.more, moreNamed: hit.moreNamed,
@@ -4801,7 +4820,8 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     .map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z]{2}$/.test(x) && ISO_COUNTRIES.byCode(x))
     .filter((x, i, a) => a.indexOf(x) === i).slice(0, 40).join(',');
   const levelOf = p => p.role === 'admin' ? (Number(p.super) ? 'super' : 'admin')
-    : p.role === 'counsellor' ? (Number(p.manager) ? 'country-admin' : 'counsellor') : p.role;
+    : p.role === 'counsellor' ? (Number(p.manager) ? 'country-admin' : 'counsellor')
+    : p.role === 'editor' && String(p.perms || '').split(',').includes('marketing') ? 'marketing' : p.role;
 
   /** For routes that read or write a student's own record. */
   const caseworkOnly = handler => staffOnly(async (req, res, s, m) => {
@@ -6983,6 +7003,105 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     if (!traffic) return json(res, 503, { error: 'Traffic counting is not set up on this server.' });
     const q = new URL(req.url, 'http://x').searchParams;
     return json(res, 200, Object.assign({ ok: true }, traffic.summary(q.get('days') || 30)));
+  }));
+
+  /*
+   * ============================================== Patch 204: marketing ===
+   *
+   * Marketing is a PERMISSION, not a role: a counsellor can have it on top of
+   * their students; a marketing-only person is a website account (no student
+   * records, ever) with it ticked. Administrators have it always. What it
+   * opens is counts — channels, countries, campaigns, pages, searches,
+   * spend — never a named student.
+   */
+  const canMarket = s => !!s && (s.role === 'admin' || db.permsOf(s).includes('marketing'));
+  const marketingOnly = handler => staffOnly(async (req, res, s, m) => {
+    if (!canMarket(s)) return json(res, 403, { error: 'You do not have the marketing dashboard. An administrator can give it to you on the Organisation screen.' });
+    return handler(req, res, s, m);
+  });
+  const MKT = require('./marketing.js');
+
+  /* One click or "stayed and read" from a public page. Answered with 204
+     whatever happens — a beacon has nobody to read an error. */
+  route('POST', '/api/t', async (req, res) => {
+    const done = () => { res.writeHead(204, { 'Cache-Control': 'no-store' }); res.end(); return true; };
+    if (!marketing || !traffic) return done();
+    const ua = String(req.headers['user-agent'] || '');
+    if (traffic.botOf && traffic.botOf(ua)) return done();
+    if (/GlovelsQA|glovels-test/i.test(ua)) return done();
+    const who = me(req);
+    if (who && who.role !== 'student') return done();
+    const b = await readJson(req, 4096);
+    let country = '';
+    try { country = GEO.forRequest(req, clientIp(req)).country || ''; } catch (e) { country = ''; }
+    const TR = require('./traffic.js');
+    try { marketing.event(req, b, marketing.visitorOf(req), country, TR.deviceOf(ua)); } catch (e) {}
+    return done();
+  }, { open: true });
+
+  route('GET', '/api/marketing/report', marketingOnly(async (req, res) => {
+    if (!marketing) return json(res, 503, { error: 'Marketing is not set up on this server.' });
+    const q = new URL(req.url, 'http://x').searchParams;
+    const r = marketing.report(q.get('days') || 30, { country: q.get('country') || '', channel: q.get('channel') || '' });
+    let ai = null;
+    try { const t = traffic && traffic.summary(r.days); ai = t ? { visits: t.ai, crawls: t.bots.filter(b => b.group === 'ai'), pages: t.aiPages } : null; } catch (e) { ai = null; }
+    return json(res, 200, Object.assign({ ok: true, ai, spendChannels: MKT.SPEND_CHANNELS,
+      connectors: CONN.status() }, r));
+  }));
+
+  /* The product team's "missing programmes" list: marketing or catalogue. */
+  const gapsOnly = handler => staffOnly(async (req, res, s, m) => {
+    if (!canMarket(s) && !can(s, 'catalogue')) return json(res, 403, { error: 'This list is for marketing and the catalogue team.' });
+    return handler(req, res, s, m);
+  });
+  route('GET', '/api/product/gaps', gapsOnly(async (req, res) => {
+    if (!marketing) return json(res, 503, { error: 'Not set up on this server.' });
+    const q = new URL(req.url, 'http://x').searchParams;
+    return json(res, 200, Object.assign({ ok: true }, marketing.gaps(q.get('days') || 90)));
+  }));
+  route('PUT', '/api/product/gaps', gapsOnly(async (req, res, s) => {
+    const b = await readJson(req);
+    if (!b.key) return json(res, 422, { error: 'Which search?' });
+    if (!marketing.setGap(b.key, String(b.status || ''), b.note, s.name)) return json(res, 422, { error: 'Pick one of: new, adding data, seeking a partnership, added, won\'t add.' });
+    return json(res, 200, { ok: true });
+  }));
+
+  /* The outside channels (server/connectors.js). */
+  const CONN = require('./connectors.js').open({ db, log: console });
+  const connectorStatus = () => CONN.status();
+  route('GET', '/api/marketing/seo', marketingOnly(async (req, res) => {
+    const q = new URL(req.url, 'http://x').searchParams;
+    return json(res, 200, await CONN.seo(q.get('days') || 28, q.get('refresh') === '1'));
+  }));
+  route('GET', '/api/marketing/meta', marketingOnly(async (req, res) => {
+    const q = new URL(req.url, 'http://x').searchParams;
+    return json(res, 200, await CONN.meta(q.get('days') || 30, q.get('refresh') === '1'));
+  }));
+
+  route('GET', '/api/marketing/spend', marketingOnly(async (req, res) =>
+    json(res, 200, { rows: db.adSpend(), channels: MKT.SPEND_CHANNELS })));
+
+  route('POST', '/api/marketing/spend', marketingOnly(async (req, res, s) => {
+    const b = await readJson(req);
+    const month = String(b.month || '').trim();
+    if (!/^20\d\d-(0[1-9]|1[0-2])$/.test(month)) return json(res, 422, { error: 'Pick the month the money was spent in.' });
+    const channel = String(b.channel || '').trim().slice(0, 60);
+    if (!channel) return json(res, 422, { error: 'Say which channel the money went to.' });
+    const amount = Number(String(b.amount == null ? '' : b.amount).replace(/[, ]/g, ''));
+    if (!(amount > 0) || amount > 1e9) return json(res, 422, { error: 'Type the amount spent, more than zero.' });
+    const currency = String(b.currency || 'INR').toUpperCase();
+    if (!['INR', 'EUR', 'USD', 'GBP', 'AED'].includes(currency)) return json(res, 422, { error: 'Use rupees, euros, dollars, pounds or dirhams.' });
+    const country = String(b.country || '').trim().toUpperCase();
+    if (country && !(/^[A-Z]{2}$/.test(country) && ISO_COUNTRIES.byCode(country))) return json(res, 422, { error: 'That is not a country we know.' });
+    const row = db.addSpend({ month, channel, campaign: String(b.campaign || '').trim().slice(0, 80), country,
+      amountMinor: Math.round(amount * 100), currency, note: String(b.note || '').trim().slice(0, 200), by: s.name });
+    try { db.log(s.email, 'marketing.spend', 'Added ' + currency + ' ' + amount + ' for ' + channel + ' (' + month + ')'); } catch (e) {}
+    return json(res, 201, { row });
+  }));
+
+  route('DELETE', /^\/api\/marketing\/spend\/(\d+)$/, marketingOnly(async (req, res, s, m) => {
+    db.deleteSpend(Number(m[1]));
+    return json(res, 200, { ok: true });
   }));
 
   /* The Google Analytics measurement ID (G-XXXXXXX), typed on the same
@@ -10538,6 +10657,7 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
     programmes.sort((a, b) => a._rank - b._rank);
     programmes.length = Math.min(programmes.length, 10);
     programmes.forEach(p => { delete p._rank; });
+    logSearch(req, { kind: 'quick', q, results: universities.length + programmes.length });
     return json(res, 200, { universities, programmes }, { 'Cache-Control': 'public, max-age=60' });
   }, { open: true });
 
@@ -13050,7 +13170,10 @@ function makeApi({ db, uploadDir, imageDir, catalogue, countries, universityRows
         }
       }
       try {
-        await r.handler(req, res, s, m);
+        /* Patch 204: a visitor's (or student's) own request carries their
+           first touch to whatever the store creates — never a staff one. */
+        if (marketing && (!s || s.role === 'student')) await marketing.within(req, () => r.handler(req, res, s, m));
+        else await r.handler(req, res, s, m);
       } catch (e) {
         console.error('  api error', pathname, e && e.message);
         if (!res.headersSent) json(res, 500, { error: 'Something went wrong on the server' });

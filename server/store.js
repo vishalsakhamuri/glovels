@@ -73,6 +73,16 @@ function destCode(v) {
    tasks.CLOSED, and duplicated rather than imported because tasks.js is a
    layer above this one. */
 const CLOSED_TASK = new Set(['done', 'dropped']);
+/* Patch 204: the visitor's channel, copied onto what they create. The API
+   dispatcher puts the touch in reach (server/marketing.js); the store writes
+   it beside the new row. Only ever adds; never fails the record itself. */
+const MKT = require('./marketing.js');
+let stampStore = null;
+function stampTouch(subject, id) {
+  const t = MKT.ctx.getStore();
+  if (!t || !stampStore || id == null) return;
+  try { stampStore.addAttribution(subject, id, t); } catch (e) { /* attribution is never worth a failed sign-up */ }
+}
 const fs = require('fs');
 const path = require('path');
 
@@ -912,6 +922,72 @@ function sqliteDriver(file) {
    "ALTER TABLE students ADD COLUMN manager INTEGER NOT NULL DEFAULT 0",
    "ALTER TABLE students ADD COLUMN staff_kind TEXT NOT NULL DEFAULT ''",
    "ALTER TABLE students ADD COLUMN scope TEXT NOT NULL DEFAULT ''",
+   /* Patch 204 (marketing): the channel, campaign, landing page and country
+      a lead, an account or an order arrived through — copied from the
+      visitor's first-touch cookie when the record is made. */
+   `CREATE TABLE IF NOT EXISTS attribution (
+      id          INTEGER PRIMARY KEY,
+      subject     TEXT NOT NULL,
+      subject_id  INTEGER NOT NULL,
+      source      TEXT NOT NULL DEFAULT '',
+      site        TEXT NOT NULL DEFAULT '',
+      campaign    TEXT NOT NULL DEFAULT '',
+      medium      TEXT NOT NULL DEFAULT '',
+      landing     TEXT NOT NULL DEFAULT '',
+      country     TEXT NOT NULL DEFAULT '',
+      first_day   TEXT NOT NULL DEFAULT '',
+      created_at  TEXT NOT NULL
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_attr_subject ON attribution(subject, subject_id)',
+   /* One click (or one "stayed and read") on a public page. No person in it. */
+   `CREATE TABLE IF NOT EXISTS events (
+      id          INTEGER PRIMARY KEY,
+      day         TEXT NOT NULL,
+      ts          TEXT NOT NULL,
+      visitor     TEXT NOT NULL DEFAULT '',
+      path        TEXT NOT NULL DEFAULT '',
+      name        TEXT NOT NULL,
+      label       TEXT NOT NULL DEFAULT '',
+      target      TEXT NOT NULL DEFAULT '',
+      channel     TEXT NOT NULL DEFAULT '',
+      campaign    TEXT NOT NULL DEFAULT '',
+      country     TEXT NOT NULL DEFAULT '',
+      device      TEXT NOT NULL DEFAULT ''
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_events_day ON events(day)',
+   /* Every search a visitor ran — the finder's boxes or the quick search —
+      and how many programmes it found. The ones that found NOTHING are the
+      product team's list of universities and programmes to add. */
+   `CREATE TABLE IF NOT EXISTS searches (
+      id          INTEGER PRIMARY KEY,
+      day         TEXT NOT NULL,
+      ts          TEXT NOT NULL,
+      visitor     TEXT NOT NULL DEFAULT '',
+      kind        TEXT NOT NULL DEFAULT 'finder',
+      q           TEXT NOT NULL DEFAULT '',
+      dest        TEXT NOT NULL DEFAULT '',
+      level       TEXT NOT NULL DEFAULT '',
+      field       TEXT NOT NULL DEFAULT '',
+      filters     TEXT NOT NULL DEFAULT '',
+      results     INTEGER NOT NULL DEFAULT 0,
+      country     TEXT NOT NULL DEFAULT '',
+      channel     TEXT NOT NULL DEFAULT ''
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_searches_day ON searches(day)',
+   /* What a month of advertising cost, per channel (and campaign/country). */
+   `CREATE TABLE IF NOT EXISTS ad_spend (
+      id           INTEGER PRIMARY KEY,
+      month        TEXT NOT NULL,
+      channel      TEXT NOT NULL,
+      campaign     TEXT NOT NULL DEFAULT '',
+      country      TEXT NOT NULL DEFAULT '',
+      amount_minor INTEGER NOT NULL DEFAULT 0,
+      currency     TEXT NOT NULL DEFAULT 'INR',
+      note         TEXT NOT NULL DEFAULT '',
+      by_name      TEXT NOT NULL DEFAULT '',
+      source       TEXT NOT NULL DEFAULT 'manual',
+      created_at   TEXT NOT NULL
+    )`,
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -965,7 +1041,7 @@ function jsonDriver(file) {
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
-    'push_subs', 'payments', 'application_events'];
+    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1226,6 +1302,7 @@ function open(dir) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         email.toLowerCase(), name, phone || '', hash, salt, role || 'student',
         termsAt ? String(termsAt) : '', now());
+      if ((role || 'student') === 'student') stampTouch('student', Number(r.lastInsertRowid));
       return this.studentById(Number(r.lastInsertRowid));
     },
     /* Somebody accepting the terms later — on an account the office made for
@@ -1250,13 +1327,13 @@ function open(dir) {
     setPerms(id, perms) {
       const clean = [...new Set((Array.isArray(perms) ? perms : String(perms || '').split(','))
         .map(x => String(x).trim().toLowerCase())
-        .filter(x => x === 'catalogue' || x === 'content'))].sort().join(',');
+        .filter(x => x === 'catalogue' || x === 'content' || x === 'marketing'))].sort().join(',');
       db.run('UPDATE students SET perms = ? WHERE id = ?', clean, Number(id));
       return clean;
     },
     permsOf(person) {
       if (!person) return [];
-      if (person.role === 'admin') return ['catalogue', 'content'];
+      if (person.role === 'admin') return ['catalogue', 'content', 'marketing'];
       return String(person.perms || '').split(',').map(x => x.trim()).filter(Boolean);
     },
     setRole(id, role) {
@@ -1876,7 +1953,9 @@ function open(dir) {
         JSON.stringify(o.items || []), o.kind || 'package',
         o.accepted ? JSON.stringify(o.accepted) : '',
         o.plan ? JSON.stringify(o.plan) : '', Number(o.paidPaise || 0));
-      return db.one('SELECT * FROM orders WHERE reference = ?', o.reference);
+      const made = db.one('SELECT * FROM orders WHERE reference = ?', o.reference);
+      if (made) stampTouch('order', made.id);
+      return made;
     },
     ordersFor: id => db.all('SELECT * FROM orders WHERE student_id = ? ORDER BY id desc', Number(id)),
     /* The schedule and the running total, written together — a plan that says
@@ -3215,7 +3294,9 @@ function open(dir) {
         e.ownerId == null ? null : Number(e.ownerId), '', e.nextAt || '',
         e.studentId == null ? null : Number(e.studentId), t, t,
         e.consentAt || '', String(e.consentWording || '').slice(0, 400));
-      return db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)[0] || null;
+      const made = db.all('SELECT * FROM enquiries WHERE id > ? ORDER BY id desc', 0)[0] || null;
+      if (made) stampTouch('enquiry', made.id);
+      return made;
     },
     /* THE SAME PERSON, AGAIN (2 Oct).
      *
@@ -3620,6 +3701,62 @@ function open(dir) {
       return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
     },
 
+    /* ---- marketing (patch 204) ---- */
+    addAttribution(subject, id, t) {
+      if (db.one('SELECT * FROM attribution WHERE subject = ? AND subject_id = ?', String(subject), Number(id))) return;
+      db.run(`INSERT INTO attribution (subject, subject_id, source, site, campaign, medium, landing, country, first_day, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        String(subject), Number(id), String(t.s || 'direct'), String(t.w || ''), String(t.c || ''), String(t.m || ''),
+        String(t.l || ''), String(t.g || ''), String(t.d || ''), now());
+    },
+    attributionAll: () => db.all('SELECT * FROM attribution WHERE id > ? ORDER BY id', 0),
+    attributionOf: (subject, id) => db.one('SELECT * FROM attribution WHERE subject = ? AND subject_id = ?', String(subject), Number(id)),
+    addEvent(e) {
+      db.run(`INSERT INTO events (day, ts, visitor, path, name, label, target, channel, campaign, country, device)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        e.day, e.ts, e.visitor || '', e.path || '', e.name, e.label || '', e.target || '',
+        e.channel || '', e.campaign || '', e.country || '', e.device || '');
+    },
+    eventsSince: day => db.kind === 'sqlite'
+      ? db.all('SELECT * FROM events WHERE day >= ? ORDER BY id', day)
+      : db.all('SELECT * FROM events WHERE id > ?', 0).filter(h => h.day >= day),
+    pruneEvents: day => {
+      if (db.kind === 'sqlite') return db.run('DELETE FROM events WHERE day < ?', day);
+      db.all('SELECT * FROM events WHERE id > ?', 0).filter(h => h.day < day)
+        .forEach(h => db.run('DELETE FROM events WHERE id = ?', h.id));
+    },
+    addSearch(x) {
+      db.run(`INSERT INTO searches (day, ts, visitor, kind, q, dest, level, field, filters, results, country, channel)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        x.day, x.ts, x.visitor || '', x.kind || 'finder', x.q || '', x.dest || '', x.level || '', x.field || '',
+        x.filters || '', Number(x.results) || 0, x.country || '', x.channel || '');
+    },
+    searchesSince: day => db.kind === 'sqlite'
+      ? db.all('SELECT * FROM searches WHERE day >= ? ORDER BY id', day)
+      : db.all('SELECT * FROM searches WHERE id > ?', 0).filter(h => h.day >= day),
+    pruneSearches: day => {
+      if (db.kind === 'sqlite') return db.run('DELETE FROM searches WHERE day < ?', day);
+      db.all('SELECT * FROM searches WHERE id > ?', 0).filter(h => h.day < day)
+        .forEach(h => db.run('DELETE FROM searches WHERE id = ?', h.id));
+    },
+    adSpend: () => db.all('SELECT * FROM ad_spend WHERE id > ? ORDER BY month desc, id desc', 0),
+    addSpend(x) {
+      const r = db.run(`INSERT INTO ad_spend (month, channel, campaign, country, amount_minor, currency, note, by_name, source, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        x.month, x.channel, x.campaign || '', x.country || '', Number(x.amountMinor) || 0,
+        x.currency || 'INR', x.note || '', x.by || '', x.source || 'manual', now());
+      return db.one('SELECT * FROM ad_spend WHERE id = ?', Number(r.lastInsertRowid));
+    },
+    deleteSpend: id => db.run('DELETE FROM ad_spend WHERE id = ?', Number(id)),
+    /* Imported spend (Meta) is replaced month by month, never added twice. */
+    replaceImportedSpend(source, month, rows) {
+      db.all('SELECT * FROM ad_spend WHERE id > ?', 0).filter(r => r.source === source && r.month === month)
+        .forEach(r => db.run('DELETE FROM ad_spend WHERE id = ?', r.id));
+      rows.forEach(x => this.addSpend(Object.assign({}, x, { month, source })));
+    },
+    allStudentsLite: () => db.all("SELECT id, email, created_at FROM students WHERE role = ?", 'student'),
+    allPaymentsLite: () => db.all('SELECT * FROM payments WHERE id > ? ORDER BY id', 0),
+
     /* ---- traffic ---- */
     hit(h) {
       db.run(`INSERT INTO hits (day, ts, path, kind, source, site, campaign, medium, device, bot, visitor, country)
@@ -3721,6 +3858,7 @@ function open(dir) {
       if (code !== was) db.run('UPDATE enquiries SET destination = ? WHERE id = ?', code, Number(r.id));
     });
   } catch (e) { /* an old database with no enquiries table */ }
+  stampStore = store;
   return store;
 }
 

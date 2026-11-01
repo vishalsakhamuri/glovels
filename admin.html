@@ -906,7 +906,7 @@ select.assign.none:hover{border-color:#a5342b}
     <div class="plan-badge"><b id="staffName">—</b><span id="staffRole">—</span>
       <a href="#" id="staffOut" class="p-out">
         <svg class="ico" aria-hidden="true"><use href="#i-out"/></svg> Sign out</a></div>
-    <nav class="p-nav"><a href="ops.html"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg> Command centre</a><a href="counsellor.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Conversations</a><a href="chat.html"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Website chat</a><a href="leads.html"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Leads</a><a href="home.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Home page</a><a href="blog-admin.html"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Blog</a><a href="catalogue.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Catalogue</a><a href="admin.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Organisation</a></nav>
+    <nav class="p-nav"><a href="ops.html"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg> Command centre</a><a href="counsellor.html"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Conversations</a><a href="chat.html"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Website chat</a><a href="leads.html"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg> Leads</a><a href="marketing.html"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg> Marketing</a><a href="home.html"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg> Home page</a><a href="blog-admin.html"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg> Blog</a><a href="catalogue.html"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg> Catalogue</a><a href="admin.html" class="on"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg> Organisation</a></nav>
   </aside>
   <main class="p-main">
     <div class="p-bar">
@@ -1115,6 +1115,7 @@ select.assign.none:hover{border-color:#a5342b}
               <option value="country-admin">Country admin — every student going to their countries</option>
               <option value="admin">Administrator — runs the office, every country</option>
               <option value="super">Super admin — also admins, money, settings and exports</option>
+              <option value="marketing">Marketing — traffic, campaigns, searches and spend; no student records</option>
               <option value="editor">Website editor — the site only, no student records</option>
               <option value="partner">Partner agency (B2B) — a partner who sends us students</option>
               <option value="student">Student — a real student account on this site</option>
@@ -1166,6 +1167,11 @@ select.assign.none:hover{border-color:#a5342b}
               <input type="checkbox" id="pPermCatalogue" style="margin-top:2px">
               <span>Universities and destinations &mdash; adding, editing and removing what the
                 finder offers</span></label>
+            <label style="display:flex;gap:8px;align-items:flex-start;font:600 12.8px/1.45
+              var(--sans);color:var(--navy-800);margin-top:8px">
+              <input type="checkbox" id="pPermMarketing" style="margin-top:2px">
+              <span>Marketing dashboard &mdash; visitors, channels, campaigns, searches and ad spend
+                (counts only, never a student&rsquo;s name). A counsellor can have this too.</span></label>
           </div>
           <p style="margin:8px 0 0;font-size:11.8px;color:var(--muted);line-height:1.55">
             A password is generated and shown once, on the next screen. It is stored hashed, so
@@ -2216,6 +2222,7 @@ async function staffBoot(run) {
     catalogue: perms.indexOf('catalogue') >= 0,
     home: perms.indexOf('content') >= 0,
     'blog-admin': perms.indexOf('content') >= 0,
+    marketing: me.user.role === 'admin' || perms.indexOf('marketing') >= 0,
   };
   $$('.p-nav a').forEach(a => {
     const slug = (a.getAttribute('href') || '').replace('.html', '');
@@ -2456,7 +2463,7 @@ async function bell(me) {
 let STUDENTS = [], COUNSELLORS = [], PEOPLE = [], ME = 0, filter = '';
 
 /* The two things an account can be trusted with beyond its own students. */
-const PERMS = [['content', 'Home page'], ['catalogue', 'Universities']];
+const PERMS = [['content', 'Home page'], ['catalogue', 'Universities'], ['marketing', 'Marketing']];
 
 const inr = p => '₹' + Number(p / 100).toLocaleString('en-IN');
 
@@ -3758,7 +3765,7 @@ async function paintPeople() {
             '<i aria-hidden="true"></i>' + perm[1] + '</button>';
         }).join('');
     const LV = { super: 'Super admin', admin: 'Administrator', 'country-admin': 'Country admin',
-      counsellor: 'Counsellor', editor: 'Website editor', partner: 'Partner agency' };
+      counsellor: 'Counsellor', marketing: 'Marketing', editor: 'Website editor', partner: 'Partner agency' };
     const KD = { employee: 'Employee', external: 'External', b2b: 'B2B' };
     const flags = (p.scope || []).map(c => '<span class="tm-flag" title="' + esc(countryName(c)) + '">' + flagOf(c) + ' ' + esc(countryName(c)) + '</span>').join('');
     const meta = '<div class="tm-meta"><span class="tm-lvl lv-' + esc(p.level || p.role) + '">' + esc(LV[p.level] || p.role) + '</span>' +
@@ -3773,7 +3780,7 @@ async function paintPeople() {
         ? '<span class="tm-badge r-' + esc(p.level || p.role) + '">' + esc(LV[p.level] || ROLE_NAME[p.role] || p.role) + '</span>'
         : '<select class="tm-select r-' + esc(p.level || p.role) + '" data-role="' + p.id + '" aria-label="Role for ' + esc(p.name) + '">' +
           [['super', 'Super admin'], ['admin', 'Administrator'], ['country-admin', 'Country admin'], ['counsellor', 'Counsellor'],
-           ['editor', 'Website editor'], ['partner', 'Partner agency']]
+           ['marketing', 'Marketing'], ['editor', 'Website editor'], ['partner', 'Partner agency']]
             .map(r => '<option value="' + r[0] + '"' + ((p.level || p.role) === r[0] ? ' selected' : '')
               + ((r[0] === 'super' || r[0] === 'admin') && !ME_SUPER ? ' disabled' : '') + '>' + r[1] + '</option>').join('') +
           '</select>') +
@@ -3832,7 +3839,7 @@ function flagOf(c) { return String(c || '').toUpperCase().replace(/./g, ch => St
 function countryName(c) { const x = COUNTRY_LIST.find(k => k.code === c); return x ? x.name : c; }
 const TEAM_GROUPS = [
   ['super', 'Super admins'], ['admin', 'Administrators'], ['country-admin', 'Country admins'],
-  ['counsellor', 'Counsellors'], ['editor', 'Website editors'], ['partner', 'B2B partners'],
+  ['counsellor', 'Counsellors'], ['marketing', 'Marketing'], ['editor', 'Website editors'], ['partner', 'B2B partners'],
 ];
 let TEAM_FILTER = 'all';
 function groupTeam() {
@@ -3883,7 +3890,7 @@ function addScope(code) {
 }
 function syncLevel() {
   const v = $('#pRole').value;
-  const staffish = ['counsellor', 'country-admin', 'admin', 'super', 'editor'].includes(v);
+  const staffish = ['counsellor', 'country-admin', 'admin', 'super', 'editor', 'marketing'].includes(v);
   $('#pKindBox').style.display = staffish ? '' : 'none';
   $('#pScopeBox').style.display = (v === 'counsellor' || v === 'country-admin') ? '' : 'none';
   $('#pScopeLbl').textContent = v === 'country-admin' ? 'Their countries (at least one)' : 'Countries they work on';
@@ -3925,6 +3932,7 @@ function fillCountries(list) {
 }
 function bodyRole(v) {
   return v === 'super' ? { role: 'admin', super: true }
+    : v === 'marketing' ? { role: 'editor', marketing: true }
     : v === 'country-admin' ? { role: 'counsellor', manager: true }
     : { role: v };
 }
@@ -3948,7 +3956,7 @@ function openPersonEdit(p) {
      own picker on the card. */
   KIND = p.kind === 'external' ? 'external' : 'employee';
   SCOPE = (p.scope || []).slice();
-  $('#pRole').value = p.level === 'country-admin' ? 'country-admin' : p.level === 'super' ? 'super' : p.role;
+  $('#pRole').value = p.level === 'country-admin' ? 'country-admin' : p.level === 'super' ? 'super' : p.level === 'marketing' ? 'marketing' : p.role;
   syncLevel(); paintScope();
   if (p.role === 'partner' || p.role === 'student') { $('#pKindBox').style.display = 'none'; $('#pScopeBox').style.display = 'none'; }
   $('#pSave').textContent = 'Save';
@@ -3970,6 +3978,7 @@ function openPersonForm() {
   $('#pRole').value = 'counsellor';
   $('#pPermContent').checked = false;
   $('#pPermCatalogue').checked = false;
+  $('#pPermMarketing').checked = false;
   KIND = 'employee'; SCOPE = [];
   syncRole(); syncLevel(); paintScope();
   $('#personModal').classList.add('on');
@@ -4016,7 +4025,8 @@ document.addEventListener('click', async e => {
       phone: $('#pPhone').value, role: lv.role, super: !!lv.super, manager: !!lv.manager,
       kind: KIND, scope: SCOPE.slice(),
       perms: [$('#pPermContent').checked && 'content',
-              $('#pPermCatalogue').checked && 'catalogue'].filter(Boolean),
+              $('#pPermCatalogue').checked && 'catalogue',
+              ($('#pPermMarketing').checked || $('#pRole').value === 'marketing') && 'marketing'].filter(Boolean),
     };
     $('#pErr').style.display = 'none';
     btn.disabled = true;
@@ -4130,6 +4140,8 @@ document.addEventListener('change', async e => {
   const to = bodyRole(level).role;
   const what = to === 'admin'
     ? 'an administrator — they will be able to see every student and every file, and add people.'
+    : level === 'marketing'
+      ? 'marketing — the marketing dashboard and the website, with no student records.'
     : to === 'editor'
       ? 'a website editor — they lose all student records and see only the parts of the site '
         + 'they are allowed to change.'
@@ -4148,13 +4160,16 @@ document.addEventListener('change', async e => {
       toast('Pick their countries, then Save.');
       return;
     }
+    if (level === 'marketing') {
+      await api('PUT', '/api/staff/people/' + p.id + '/perms', { perms: (p.perms || []).filter(x => x !== 'marketing').concat(['marketing']) });
+    }
     if (to === 'admin' || to === 'counsellor') {
       await api('PUT', '/api/staff/people/' + p.id + '/shape',
         { level: level === 'super' ? 'super' : level === 'country-admin' ? 'country-admin' : to });
     }
     await paintPeople();
     toast(p.name + ' is now ' + ({ super: 'a super admin', admin: 'an administrator', 'country-admin': 'a country admin',
-      counsellor: 'a counsellor', editor: 'a website editor', partner: 'a partner agency' }[level] || level) + '.');
+      counsellor: 'a counsellor', marketing: 'in marketing', editor: 'a website editor', partner: 'a partner agency' }[level] || level) + '.');
   } catch (err) {
     toast(err.message);
     await paintPeople();
@@ -4172,7 +4187,8 @@ function syncRole() {
      purpose, so a tick here was a control that would be silently discarded. */
   $('#pPermBox').style.display =
     (role === 'admin' || role === 'student' || role === 'partner') ? 'none' : '';
-  if (role === 'editor' && !$('#pPermContent').checked && !$('#pPermCatalogue').checked) {
+  if ($('#pRole').value === 'marketing') $('#pPermMarketing').checked = true;
+  else if (role === 'editor' && !$('#pPermContent').checked && !$('#pPermCatalogue').checked) {
     $('#pPermContent').checked = true;
   }
   const note = $('#pStudentNote');
