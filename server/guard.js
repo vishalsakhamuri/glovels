@@ -122,7 +122,7 @@ function open({ db, enabled, log = console, limits }) {
     const net = netKey(req);
     const keys = actor && actor.userId ? [g.id] : [g.id, net];
     const b = blockedNow(keys);
-    if (b) return { ok: false, status: 429, setCookie: g.set, body: { error: 'Searching is paused for this connection until ' + new Date(b.until).toISOString().slice(11, 16) + ' UTC. Write to us if you need help.', blocked: true } };
+    if (b) return { ok: false, status: 429, setCookie: g.set, body: { error: 'Searching is paused for this connection until ' + new Date(b.until).toISOString().slice(0, 16).replace('T', ' ') + ' UTC. Sign in to keep searching, or write to us if you need help.', blocked: true } };
     const me = rec(g.id), nw = rec(net);
     const now = Date.now();
     me.hour = me.hour.filter(t => now - t < HOUR_MS);
@@ -134,12 +134,20 @@ function open({ db, enabled, log = console, limits }) {
           ? { ok: false, status: 429, setCookie: g.set, body: { error: 'You have used today\'s ' + L.member + ' searches. They start again tomorrow — or message your counsellor.', limitReached: true } }
           : { ok: false, status: 401, setCookie: g.set, body: { error: 'You have used your ' + L.guest + ' free searches for today. Sign in or create a free account to keep searching.', loginRequired: true, used: me.keys.size } };
       }
-      if (me.hour.length >= L.hourly) return { ok: false, status: 429, setCookie: g.set, body: { error: 'That is a lot of searching in an hour — take a breather and try again shortly.', slowDown: true } };
+      /* Patch 215 (QA): a signed-in student is known and capped at 150 a
+         day; an hourly cap of 40 and a 24-hour pattern block made those 150
+         unreachable for a student comparing destinations. Members are
+         watched (the pattern is logged for the office), guests are stopped. */
+      const member = !!(actor && actor.userId);
+      if (!member && me.hour.length >= L.hourly) return { ok: false, status: 429, setCookie: g.set, body: { error: 'That is a lot of searching in an hour — take a breather and try again shortly.', slowDown: true } };
       me.keys.add(sig); nw.keys.add(sig); me.hour.push(now);
       if (combo) {
         me.combos = me.combos.filter(x => now - x.at < L.patternMinutes * 60000);
         if (!me.combos.some(x => x.c === combo)) me.combos.push({ at: now, c: combo });
-        if (me.combos.length >= L.patternCombos) {
+        if (member && me.combos.length === L.patternCombos) {
+          try { db.log('guard', 'wide searching (signed in)', actor.name + ' <' + actor.email + '> — ' + me.combos.length + ' destination/subject combinations in ' + L.patternMinutes + ' minutes'); } catch (e) {}
+        }
+        if (!member && me.combos.length >= L.patternCombos) {
           const until = now + L.blockHours * HOUR_MS;
           const why = me.combos.length + ' different destination/subject combinations in ' + L.patternMinutes + ' minutes';
           const entry = { until, why, at: new Date(now).toISOString(), who: actor && actor.userId ? (actor.name + ' <' + actor.email + '>') : 'Guest', key: g.id,

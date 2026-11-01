@@ -207,6 +207,10 @@ const ISO = {
   RE: ["Réunion"],
   RO: ["Romania"],
   RS: ["Serbia", "Republic of Serbia"],
+  /* Patch 215 (QA): not an ISO 3166 code, but the user-assigned XK every
+     bank, visa office and the EU uses — a Western Balkans page with no
+     Kosovo to pick was a dead end. */
+  XK: ["Kosovo", "Kosova", "Republic of Kosovo"],
   RU: ["Russia", "Russian Federation"],
   RW: ["Rwanda", "Rwandese Republic"],
   SA: ["Saudi Arabia", "Kingdom of Saudi Arabia"],

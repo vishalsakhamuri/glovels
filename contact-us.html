@@ -1126,7 +1126,10 @@ if (location.protocol === 'file:') {
         /* D21: a 422 is the server saying what is wrong with what they typed —
            show that, next to the form, and let them fix it. The mail fallback
            below is for a server that cannot be reached, not for a bad name. */
-        if (r.status === 422) {
+        /* Patch 215 (QA): a 429 ("That was quick", "wait a few minutes") or
+           403 ("reload the page") is the server's own sentence, not a failure
+           to reach it — show it and let them send again. */
+        if (r.status === 422 || r.status === 429 || r.status === 403) {
           return r.json().catch(function () { return {}; }).then(function (d) {
             btn.disabled = false;
             btn.textContent = 'Send';

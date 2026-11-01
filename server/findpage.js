@@ -282,7 +282,7 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
        same matcher (find.js logoFor). */
     const boot = '<script>window.FIND_BOOT=' + JSON.stringify({ f, countries, page: PAGE }).replace(/</g, '\\u003c') + ';'
       + 'window.FIND_LOGOS=' + JSON.stringify(LOGOS.index()).replace(/</g, '\\u003c') + '</script>'
-      + '<script src="/js/tags.js" defer></script><script src="/js/find.js" defer></script><script src="/js/reqs.js" defer></script><script src="/js/find-page.js" defer></script><script src="/glovels-pay.js?v=214" defer></script>';
+      + '<script src="/js/tags.js" defer></script><script src="/js/find.js" defer></script><script src="/js/reqs.js" defer></script><script src="/js/find-page.js" defer></script><script src="/glovels-pay.js?v=215" defer></script>';
     return { html: page.replace('</head>', FIND_CSS + '</head>').replace('</body>', boot + '</body>'), indexable };
   }
 
@@ -575,7 +575,20 @@ function profile(){
 function save(id, btn){
   var p = rows.find(function(r){ return String(r.id) === String(id); });
   if (!p) return;
-  if (saved.has(String(id))) { saved.delete(String(id)); persistSaved(); btn.setAttribute('aria-pressed', 'false'); btn.textContent = '♡'; return; }
+  if (saved.has(String(id))) {
+    /* Patch 215 (QA): taking the heart off takes it off the dashboard too —
+       or says why it cannot (a university the counsellor confirmed). */
+    if (me && me.role === 'student' && !p.isPublic) {
+      fetch('/api/shortlist/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin' })
+        .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+        .then(function(x){
+          if (x.ok) { saved.delete(String(id)); persistSaved(); btn.setAttribute('aria-pressed', 'false'); btn.textContent = '♡'; toast('Removed from your shortlist'); }
+          else toast((x.j && x.j.error) || 'Could not remove it — message your counsellor.');
+        }).catch(function(){ toast('Could not remove it — try again.'); });
+      return;
+    }
+    saved.delete(String(id)); persistSaved(); btn.setAttribute('aria-pressed', 'false'); btn.textContent = '♡'; return;
+  }
   if (me && !p.isPublic && me.role === 'student') {
     fetch('/api/shortlist', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) })
       .then(function(r){ return r.json(); }).then(function(j){ if (j && j.error) toast(j.error); else toast('Saved to your shortlist'); }).catch(function(){ toast('Saved here for now'); });
@@ -737,7 +750,16 @@ document.addEventListener('click', function(e){
 });
 
 /* The catalogue as THIS visitor may see it — names where a package covers them. */
-fetch('/api/auth/me', { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ me = j && (j.user || j.me || (j.id ? j : null)); }).catch(function(){});
+fetch('/api/auth/me', { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ me = j && (j.user || j.me || (j.id ? j : null));
+  /* Patch 215 (QA): a signed-in student's hearts are their dashboard
+     shortlist, not only this browser's memory. */
+  if (me && me.role === 'student') return fetch('/api/state', { credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(st){
+    if (!st || !Array.isArray(st.shortlist)) return;
+    st.shortlist.forEach(function(x){ if (x && x.prog_id != null) saved.add(String(x.prog_id)); });
+    persistSaved();
+    document.querySelectorAll('[data-save]').forEach(function(b){ if (saved.has(String(b.getAttribute('data-save')))) { b.setAttribute('aria-pressed', 'true'); b.textContent = '♥'; } });
+  });
+}).catch(function(){});
 fetch('/api/catalogue', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function(r){ return r.json(); }).then(function(d){
   if (d && d.countries) Object.keys(d.countries).forEach(function(k){ countries[k] = countries[k] || d.countries[k]; });
   var all = (d && d.programmes || []).filter(function(p){ return p.level && p.field; });

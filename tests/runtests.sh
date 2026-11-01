@@ -17,6 +17,7 @@
 # A test harness that reads from somewhere other than where the work is done
 # reports on a build nobody has.
 cd "$(cd "$(dirname "$0")" && pwd)" || exit 1
+export UNLOCK_UNPAID=${UNLOCK_UNPAID:-on}   # patch 215: legacy suites expect an unpaid order to unlock; unlocktest checks the live rule
 PASS=0; FAIL=0; REPORT=/tmp/testreport.txt
 : > "$REPORT"
 

@@ -730,9 +730,14 @@ function makeGuides(d) {
     let out = html.replace(/(<a href="((?:\.\.\/|\/)?)university">All universities<\/a>)(<\/div>)/,
       (m, a, pre, end) => a + '<a href="' + (pre === '../' ? '../' : '/') + 'germany-masters-guides">Germany master\'s guides</a>' + end);
     if (slug === 'study-in-germany') {
+      /* Patch 215 (QA): only the guides that have programmes behind them — a
+         guide with none answers 404, and three of these links did. */
+      const live = new Set([...catalogue().pages.values()].filter(p => p.hits.length).map(p => p.g.path));
+      const links = [['masters-in-germany-without-ielts', 'without IELTS'], ['germany-3-year-bachelor-accepted', '3-year bachelor\'s'],
+        ['tuition-free-masters-germany', 'tuition-free'], ['low-cgpa-masters-germany', 'low CGPA'], ['english-taught-masters-germany-no-german', 'English-taught']]
+        .filter(x => live.has(x[0])).map(x => '<a href="/' + x[0] + '">' + x[1] + '</a> · ').join('');
       const box = '<div class="wrap" style="margin-top:22px"><div style="padding:14px 18px;border-radius:12px;background:#eef3fc;border:1px solid #b9cdf0;font:400 14px/1.65 var(--sans)">'
-        + '<b>Germany master\'s guides:</b> <a href="/masters-in-germany-without-ielts">without IELTS</a> · <a href="/germany-3-year-bachelor-accepted">3-year bachelor\'s</a> · '
-        + '<a href="/tuition-free-masters-germany">tuition-free</a> · <a href="/low-cgpa-masters-germany">low CGPA</a> · <a href="/english-taught-masters-germany-no-german">English-taught</a> · '
+        + '<b>Germany master\'s guides:</b> ' + links
         + '<a href="/germany-masters-guides">by branch and deadline month</a></div></div>';
       const i = out.indexOf('<div class="cta-band">');
       const j = i >= 0 ? i : out.indexOf('<footer');

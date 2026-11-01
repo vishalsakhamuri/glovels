@@ -4124,8 +4124,10 @@ document.addEventListener('click', async e => {
     try {
       await api('PUT', '/api/staff/people/' + p.id + '/perms', { perms: next });
       await paintPeople();
-      toast(p.name + (next.indexOf(key) >= 0 ? ' can now change ' : ' can no longer change ') +
-        (key === 'content' ? 'the home page.' : 'the universities.'));
+      toast(key === 'marketing'
+        ? p.name + (next.indexOf(key) >= 0 ? ' can now open Marketing.' : ' can no longer open Marketing.')
+        : p.name + (next.indexOf(key) >= 0 ? ' can now change ' : ' can no longer change ') +
+          (key === 'content' ? 'the home page.' : 'the universities.'));
     } catch (err) { toast(err.message); }
     return;
   }

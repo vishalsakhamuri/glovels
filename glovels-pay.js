@@ -101,11 +101,27 @@
 
   /** The currency to charge in: the buyer's pick, else the guess, if the
    *  office takes it, else rupees. */
+  /* Patch 215 (owner: "why did it not pick my IP"): a second witness. The
+     device clock's continent must agree with the continent of the currency
+     the IP lookup found — a phone set to Europe/Rome is not in Singapore,
+     whatever an address on the way said. When they disagree the clock wins
+     and the country is left for the visitor to pick. */
+  function geoOk(cfg) {
+    var g = cfg && cfg.geo; if (!g || !g.currency) return false;
+    var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
+    var cont = tz.split('/')[0]; if (!cont || tz === 'UTC' || cont === 'Etc') return true;
+    var reg = ''; ((cfg && cfg.regions) || []).forEach(function (r) { if ((r.currencies || []).indexOf(g.currency) >= 0) reg = r.name; });
+    if (!reg || g.currency === 'USD') return true;
+    var fits = { Europe: ['Europe'], Africa: ['Africa', 'Middle East'], America: ['North America', 'South America', 'Central America & Caribbean'],
+      Asia: ['South Asia', 'Middle East', 'South-East Asia', 'East Asia', 'Central Asia & Caucasus'], Australia: ['Oceania'], Pacific: ['Oceania'],
+      Indian: ['South Asia', 'Africa'], Atlantic: ['Europe', 'Africa', 'North America'], Antarctica: [] }[cont];
+    return !fits || fits.indexOf(reg) >= 0;
+  }
   function current(cfg) {
     var list = (cfg && cfg.currencies) || ['INR'];
-    /* Their own pick first; then the country their IP is in (server); then
-       the clock on their device. */
-    var pick = stored() || (cfg && cfg.geo && cfg.geo.currency) || guess();
+    /* Their own pick first; then the country their IP is in (server) — if
+       the device clock agrees; then the clock on their device. */
+    var pick = stored() || (geoOk(cfg) ? cfg.geo.currency : '') || guess();
     if (list.indexOf(pick) >= 0) return pick;
     return pick !== 'INR' && list.indexOf('USD') >= 0 ? 'USD' : 'INR';
   }
@@ -137,7 +153,7 @@
   function vatOf(cfg) {
     var v = cfg && cfg.euVat;
     if (!v || !v.on) return 0;
-    var geo = (cfg.geo && cfg.geo.country) || '';
+    var geo = (cfg.geo && geoOk(cfg) && cfg.geo.country) || '';
     if (geo === 'IN') return 0;
     var eu = v.countries || [];
     return eu.indexOf(geo) >= 0 || eu.indexOf(chosenCountry()) >= 0 ? Number(v.rate) || 19 : 0;
@@ -444,6 +460,7 @@
       }
       if (!foreign) {
         if (main) main.remove();
+        var vb0 = el.querySelector(':scope > .glv-vat'); if (vb0) vb0.remove();
         if (rn) {
           rn.removeAttribute('style');
           if (rn.getAttribute('data-glv-orig')) { rn.textContent = rn.getAttribute('data-glv-orig'); rn.removeAttribute('data-glv-orig'); }
@@ -465,6 +482,13 @@
         if (rn) el.insertBefore(main, rn); else el.insertBefore(main, el.firstChild);
       }
       if (main.textContent !== text) main.textContent = text;
+      /* Patch 215 (QA): an EU buyer sees that VAT is in the price on every
+         card, not only the one that happened to carry a tax note. */
+      var vb = el.querySelector(':scope > .glv-vat'), vrr = vatOf(CFG), hasNote = note && /VAT/.test(note.textContent) && note.style.display !== 'none';
+      if (vrr && !hasNote) {
+        if (!vb) { vb = document.createElement('small'); vb.className = 'glv-vat'; vb.style.cssText = 'display:block;font-size:11.5px;font-weight:600;opacity:.75;margin-top:2px'; main.after(vb); }
+        vb.textContent = 'incl. ' + vrr + '% VAT';
+      } else if (vb) vb.remove();
       /* Patch 195 (owner: "not mixed"): one currency on screen — the rupee
          figure is hidden for a visitor abroad, not shown beside. */
       if (rn) rn.style.cssText = 'display:none';
@@ -634,7 +658,7 @@
   var CKEY = 'glv-country';
   function country() {
     var c = ''; try { c = localStorage.getItem(CKEY) || ''; } catch (e) { c = ''; }
-    return c || (CFG && CFG.geo && CFG.geo.country) || '';
+    return c || ((CFG && CFG.geo && geoOk(CFG)) ? (CFG.geo.country || '') : '');
   }
   function flagOf(c) { return /^[A-Z]{2}$/.test(c || '') ? c.replace(/./g, function (ch) { return String.fromCodePoint(127397 + ch.charCodeAt(0)); }) : '\uD83C\uDF10'; }
   function countryName(c) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } }
@@ -660,9 +684,12 @@
         + '.glv-loc-pop h4{margin:0 0 10px;font:800 15px var(--sans,system-ui);color:#0b1f3a}'
         + '.glv-loc-pop label{display:block;font:700 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:#6b7a8c;margin:10px 0 4px}'
         + '.glv-loc-pop select{width:100%;padding:9px 10px;border:1.5px solid #d8dde4;border-radius:10px;background:#fff;font:600 14px var(--sans,system-ui);color:#0b1f3a}'
-        + '.glv-pick input{width:100%;box-sizing:border-box;padding:9px 10px;border:1.5px solid #d8dde4;border-radius:10px 10px 0 0;font:600 14px var(--sans,system-ui);color:#0b1f3a}'
+        + '.glv-pick{position:relative}.glv-pick input{width:100%;box-sizing:border-box;padding:9px 30px 9px 10px;border:1.5px solid #d8dde4;border-radius:10px;font:600 14px var(--sans,system-ui);color:#0b1f3a;background:#fff;cursor:pointer}'
+        + '.glv-pick input::placeholder{color:#0b1f3a;opacity:1}.glv-pick input:focus::placeholder{color:#8a97a8}'
+        + '.glv-pick-arrow{position:absolute;right:10px;top:8px;font-size:14px;color:#0b1f3a;cursor:pointer}'
+        + '.glv-pick.open input{border-radius:10px 10px 0 0}.glv-pick:not(.open) .glv-pick-l{display:none}'
         + '.glv-pick input:focus{outline:none;border-color:#0b1f3a}'
-        + '.glv-pick-l{max-height:150px;overflow-y:auto;border:1.5px solid #d8dde4;border-top:0;border-radius:0 0 10px 10px;-webkit-overflow-scrolling:touch}'
+        + '.glv-pick-l{display:flex;flex-direction:column;max-height:150px;overflow-y:auto;border:1.5px solid #d8dde4;border-top:0;border-radius:0 0 10px 10px;-webkit-overflow-scrolling:touch}'
         + '.glv-pick-l button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:8px 10px;font:600 13.5px var(--sans,system-ui);color:#0b1f3a;cursor:pointer}'
         + '.glv-pick-l button:hover{background:#f1f4f8}.glv-pick-l button[aria-selected]{background:#0b1f3a;color:#fff}'
         + '.glv-pick-l button[hidden]{display:none}.glv-pick-none{padding:8px 10px;color:#6b7a8c;font:500 13px var(--sans,system-ui)}'
@@ -692,9 +719,9 @@
        currency" — each is now a type-to-find list rather than a 250-line select. */
     function picker(id, label, items, value, ph) {
       return '<label for="' + id + 'Q">' + label + '</label>'
-        + '<div class="glv-pick" data-id="' + id + '"><input id="' + id + 'Q" type="search" autocomplete="off" spellcheck="false" placeholder="' + ph + '" role="combobox" aria-expanded="true" aria-controls="' + id + 'L">'
+        + '<div class="glv-pick" data-id="' + id + '"><input id="' + id + 'Q" type="search" autocomplete="off" spellcheck="false" placeholder="' + ph + '" title="' + ph + '" role="combobox" aria-expanded="false" aria-controls="' + id + 'L"><span class="glv-pick-arrow" aria-hidden="true">\u25be</span>'
         + '<div class="glv-pick-l" id="' + id + 'L" role="listbox">'
-        + items.map(function (x) { return '<button type="button" role="option" data-v="' + x[0] + '" data-s="' + (x[0] + ' ' + x[1] + ' ' + (x[2] || '')).toLowerCase().replace(/"/g, '') + '"' + (x[0] === value ? ' aria-selected="true"' : '') + '>' + x[1] + '</button>'; }).join('')
+        + items.map(function (x) { return '<button type="button" role="option" data-v="' + x[0] + '" data-n="' + String(x[2] || '').toLowerCase().replace(/"/g, '') + '" data-s="' + (x[0] + ' ' + x[1] + ' ' + (x[2] || '')).toLowerCase().replace(/"/g, '') + '"' + (x[0] === value ? ' aria-selected="true"' : '') + '>' + x[1] + '</button>'; }).join('')
         + '<div class="glv-pick-none" hidden>Nothing matches</div></div></div>';
     }
     function wire(pop, id, onPick) {
@@ -702,22 +729,33 @@
       var none = list.querySelector('.glv-pick-none');
       function filter() {
         var t = q.value.trim().toLowerCase(), shown = 0;
-        list.querySelectorAll('button').forEach(function (b) { var ok = !t || b.getAttribute('data-s').indexOf(t) >= 0; b.hidden = !ok; if (ok) shown++; });
+        /* Patch 215 (QA): "india" put British Indian Ocean Territory first —
+           names that START with what was typed come to the top. */
+        list.querySelectorAll('button').forEach(function (b) { var ok = !t || (' ' + b.getAttribute('data-s')).indexOf(' ' + t) >= 0; b.hidden = !ok; if (ok) shown++;
+          b.style.order = t && ((b.getAttribute('data-n') || '').indexOf(t) === 0 || b.getAttribute('data-v').toLowerCase() === t) ? '0' : '1'; });
         none.hidden = shown > 0;
       }
+      /* Patch 215 (owner): "Drop down is better" — each field reads like a
+         dropdown showing the choice; tap it and type to search. */
+      function shut() { root.classList.remove('open'); q.setAttribute('aria-expanded', 'false'); }
+      function openList() { root.classList.add('open'); q.setAttribute('aria-expanded', 'true'); }
       function choose(b) {
         list.querySelectorAll('[aria-selected]').forEach(function (x) { x.removeAttribute('aria-selected'); });
         b.setAttribute('aria-selected', 'true'); root.setAttribute('data-value', b.getAttribute('data-v'));
+        q.value = ''; q.placeholder = b.textContent; filter(); shut();
         if (onPick) onPick(b.getAttribute('data-v'));
       }
-      q.oninput = filter;
+      q.onfocus = openList; q.onclick = openList;
+      root.querySelector('.glv-pick-arrow').onclick = function () { if (root.classList.contains('open')) shut(); else { openList(); q.focus(); } };
+      q.onblur = function () { setTimeout(function () { if (!root.contains(document.activeElement)) shut(); }, 150); };
+      q.oninput = function () { openList(); filter(); };
       q.onkeydown = function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); var f = list.querySelector('button:not([hidden])'); if (f) { choose(f); q.value = ''; filter(); f.scrollIntoView({ block: 'nearest' }); } }
+        if (e.key === 'Enter') { e.preventDefault(); var f = [].filter.call(list.querySelectorAll('button:not([hidden])'), function (x) { return x.style.order === '0'; })[0] || list.querySelector('button:not([hidden])'); if (f) { choose(f); q.value = ''; filter(); f.scrollIntoView({ block: 'nearest' }); } }
       };
       list.onclick = function (e) { var b = e.target.closest('button'); if (b) choose(b); };
       var sel = list.querySelector('[aria-selected]');
       root.setAttribute('data-value', sel ? sel.getAttribute('data-v') : '');
-      if (sel) setTimeout(function () { sel.scrollIntoView({ block: 'nearest' }); }, 0);
+      if (sel) q.placeholder = sel.textContent;
       return {
         get: function () { return root.getAttribute('data-value') || ''; },
         set: function (v) { var b = list.querySelector('button[data-v="' + v + '"]'); if (b) { choose(b); b.scrollIntoView({ block: 'nearest' }); } }
@@ -726,7 +764,7 @@
     function open() {
       if (box.querySelector('.glv-loc-pop')) return close();
       var c = country(), cur = current(CFG);
-      var cItems = (CFG.countries || []).map(function (k) { return [k, flagOf(k) + ' ' + countryName(k), countryName(k)]; })
+      var cItems = (CFG.countries || []).map(function (k) { return [k, flagOf(k) + ' ' + countryName(k), countryName(k) + (k === 'XK' ? ' kosova' : '')]; })
         .sort(function (x, y) { return x[2].localeCompare(y[2]); });
       var kList = Array.isArray(CFG.regions) && CFG.regions.length
         ? [].concat.apply([], CFG.regions.map(function (g) { return g.currencies; })) : (CFG.currencies || ['INR']);

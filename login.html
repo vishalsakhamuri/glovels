@@ -637,7 +637,7 @@ $('#authForm').addEventListener('submit', async e => {
     const perms = (data.user && data.user.perms) || [];
     const home = role === 'admin' ? 'ops.html'
                : role === 'editor'
-                 ? (perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
+                 ? (perms.indexOf('marketing') >= 0 ? 'marketing.html' : perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
                : role === 'counsellor' ? 'counsellor.html'
                : role === 'partner' ? 'partner.html'
                : 'dashboard.html';

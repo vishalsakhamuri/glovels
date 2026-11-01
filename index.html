@@ -1073,6 +1073,8 @@ html.review-copy .build-strip{display:block !important}
 .slotbox{margin:0 0 14px;border:1px solid var(--line,#e2e7ee);border-radius:14px;padding:12px;background:#fbfcfd}
 .slotbox .sl-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:800;font-size:13px;margin-bottom:8px}
 .slotbox .sl-h small{font-weight:600;color:var(--muted);font-size:11.5px}
+.sl-dl{display:block;font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:2px 0 4px}
+.sl-day-sel{width:100%;box-sizing:border-box;padding:11px 10px;font-size:14.5px!important;border:1.5px solid var(--line,#d8dde4);border-radius:10px;background:#fff;font:700 15px var(--sans);color:#0b1f3a}
 .sl-days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
 .sl-days button{flex:none;border:1px solid var(--line,#dfe5ec);background:#fff;border-radius:10px;padding:6px 11px;font:700 12px var(--sans);cursor:pointer;line-height:1.2;text-align:center;color:#0b1f3a}
 .sl-days button small{display:block;font-weight:600;color:var(--muted);font-size:10.5px}
@@ -1746,7 +1748,8 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
         <form id="bForm" novalidate>
           <div class="slotbox" id="slotBox">
             <div class="sl-h"><span>Day and time</span><small id="slTz"></small></div>
-            <div class="sl-days" id="slDays" role="group" aria-label="Day"></div>
+            <label class="sl-dl" for="slDaySel">Day</label>
+            <select class="sl-day-sel" id="slDaySel" aria-label="Day"></select>
             <div class="sl-times" id="slTimes" role="group" aria-label="Time"><span class="small" style="color:var(--muted)">Loading the free times…</span></div>
             <div class="sl-err" id="slErr"></div>
           </div>
@@ -4206,6 +4209,13 @@ $('#buyPay').onclick = () => {
   })
   .then(d => {
     ref = d.reference;                       /* the server's reference, not ours */
+    /* Patch 215 (QA): the tax this order was actually sold under — 19% VAT in
+       the EU, none on an export — from the server, not "GST" for everybody. */
+    if ($('#buyTaxLine') && (d.vatRate || d.exportSale)) {
+      $('#buyTaxLine').innerHTML = 'Order <b id="buyRef">' + esc(ref) + '</b> · ₹' + nf.format(Math.round(d.grossPaise / 100))
+        + (d.vatRate ? ' including ₹' + nf.format(Math.round(d.taxPaise / 100)) + ' VAT at ' + d.vatRate + '% (Glovels UG)' : ' (no GST — export of services)')
+        + ', payable to your counsellor';
+    }
     $('#buyRef') && ($('#buyRef').textContent = ref);
     /* An order paid in parts must not show the full price as if it had been
        taken. The server sends what it charged and what is left. */
@@ -4299,7 +4309,7 @@ $('#buyPay').onclick = () => {
   $('#buyLead').textContent = '';
   $('#buyBody').innerHTML =
       '<div class="paid-head">' + ico('check') + '<div><b>' + esc(buying.name)
-    + ' is active</b><span>Order <b id="buyRef">' + ref + '</b> · ₹' + nf.format(gross)
+    + ' is active</b><span id="buyTaxLine">Order <b id="buyRef">' + ref + '</b> · ₹' + nf.format(gross)
     + ' including ₹' + nf.format(tax) + ' GST, payable to your counsellor</span></div></div>'
     + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
     + '<li id="buyAcct"><b>Setting up your dashboard\u2026</b><span>One moment.</span></li>'
@@ -4445,7 +4455,7 @@ function askToApply(id, uni, prog){
     + '<div class="field"><label for="apMail">Email</label>'
       + '<input id="apMail" type="email" autocomplete="email" placeholder="you@example.com"></div>'
     + '<div class="field"><label for="apPhone">Mobile</label>'
-      + '<input id="apPhone" inputmode="numeric" autocomplete="tel" placeholder="10 digits"></div>'
+      + '<input id="apPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98xxxxxxxx or +39 312 345 6789"></div>'
     + '<p id="apErr" role="alert" style="display:none;margin:10px 0 0;padding:10px 12px;'
       + 'border-radius:10px;font:600 12.8px/1.5 var(--sans);background:#fdf3f2;'
       + 'border:1px solid #f0c8c4;color:#7a2118"></p>'
@@ -5111,7 +5121,9 @@ $('#planCta').onclick = () => {
     $('#scBody').innerHTML =
         '<div class="paid-head">' + ico('check') + '<div><b>' + items.length
       + (items.length === 1 ? ' service' : ' services') + ' booked</b><span>Order ' + ref
-      + ' · ' + inr(gross) + ' including ' + inr(tax) + ' GST, payable to your counsellor</span></div></div>'
+      + ' · ' + (placed && placed.vatRate ? inr(Math.round(placed.grossPaise / 100)) + ' including ' + inr(Math.round(placed.taxPaise / 100)) + ' VAT at ' + placed.vatRate + '% (Glovels UG)'
+        : placed && placed.exportSale ? inr(gross) + ' (no GST — export of services)'
+        : inr(gross) + ' including ' + inr(tax) + ' GST') + ', payable to your counsellor</span></div></div>'
       + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
       + steps.map(([h, b]) => '<li><b>' + h + '</b><span>' + b + '</span></li>').join('')
       + '</ol></div>'
@@ -5659,28 +5671,39 @@ const PHONE = "+917839399999";
     let short = 'CET';
     try { short = new Intl.DateTimeFormat('en-GB', { timeZone: d.tz, timeZoneName: 'short' }).formatToParts(new Date()).find(p => p.type === 'timeZoneName').value; } catch (e) {}
     $('#slTz').textContent = 'In your time' + (SLOT.tz ? ' (' + SLOT.tz.replace(/_/g, ' ') + ')' : '');
-    $('#slDays').innerHTML = d.days.map((day, i) => {
-      const free = day.slots.some(x => x.free), dt = new Date(day.date + 'T12:00:00Z');
-      return '<button type="button" data-sday="' + i + '" aria-pressed="' + (i === SLOT.day) + '"' + (free ? '' : ' disabled') + '>'
-        + dt.toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }) + '<small>' + dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' }) + '</small></button>';
+    /* Patch 215 (owner, from a phone): "Drop down is better" — the row of day
+       buttons ran off the screen. One dropdown of days, free ones only. */
+    $('#slDaySel').innerHTML = d.days.map((day, i) => {
+      const free = day.slots.filter(x => x.free).length, dt = new Date(day.date + 'T12:00:00Z');
+      return '<option value="' + i + '"' + (i === SLOT.day ? ' selected' : '') + (free ? '' : ' disabled') + '>'
+        + dt.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
+        + (free ? ' \u00b7 ' + free + ' free' : ' \u00b7 full') + '</option>';
     }).join('');
     const day = d.days[SLOT.day] || d.days[0];
-    $('#slTimes').innerHTML = day.slots.map(x => '<button type="button" data-slot="' + x.at + '" aria-pressed="' + (SLOT.at === x.at) + '"' + (x.free ? '' : ' disabled title="Taken"') + '>'
-      + fmt(x.at) + '<small>' + x.local + ' ' + escH(short) + '</small></button>').join('');
+    /* The office's time beside the visitor's only when the two differ —
+       "09:00 / 09:00 CET" said the same thing twice to a visitor in Rome. */
+    $('#slTimes').innerHTML = day.slots.map(x => { const mine = fmt(x.at); return '<button type="button" data-slot="' + x.at + '" aria-pressed="' + (SLOT.at === x.at) + '"' + (x.free ? '' : ' disabled title="Taken"') + '>'
+      + mine + (mine === x.local ? '<small>' + (x.free ? 'Free' : 'Taken') + '</small>' : '<small>' + x.local + ' ' + escH(short) + '</small>') + '</button>'; }).join('');
   }
+  document.addEventListener('change', e => {
+    if (e.target && e.target.id === 'slDaySel') { SLOT.day = Number(e.target.value); SLOT.at = ''; $('#bGo').textContent = 'Pick a time above'; paint(); }
+  });
   async function load() {
     try {
       const d = await (await fetch('/api/booking/slots', { headers: { Accept: 'application/json' } })).json();
       if (!d.on || !d.days || !d.days.length) { const sec = document.getElementById('book'); if (sec) sec.hidden = true; return; }
+      /* Patch 215 (QA): reloading after "that time was just taken" keeps the
+         day they were looking at, if it still has a free time. */
+      const had = SLOT.data && SLOT.data.days[SLOT.day] ? SLOT.data.days[SLOT.day].date : '';
       SLOT.data = d;
+      const keep = had ? d.days.findIndex(x => x.date === had && x.slots.some(s => s.free)) : -1;
       const first = d.days.findIndex(x => x.slots.some(s => s.free));
-      SLOT.day = first < 0 ? 0 : first;
+      SLOT.day = keep >= 0 ? keep : first < 0 ? 0 : first;
       paint();
     } catch (e) { const sec = document.getElementById('book'); if (sec) sec.hidden = true; }
   }
   document.addEventListener('click', e => {
-    const dy = e.target.closest('[data-sday]');
-    if (dy) { SLOT.day = Number(dy.dataset.sday); paint(); return; }
+
     const sl = e.target.closest('[data-slot]');
     if (sl && !sl.disabled) {
       SLOT.at = sl.dataset.slot; $('#slErr').style.display = 'none';
@@ -6947,7 +6970,7 @@ if (location.protocol === 'file:') {
     .catch(function () {});
 }());
 </script>
-<script src="/glovels-pay.js?v=214"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+<script src="/glovels-pay.js?v=215"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 <script>/* GLOVELS-PKG-CONNECTORS */
 (function () {
   /* Each package gets its own icon. They were all the same compass, which on a

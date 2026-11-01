@@ -1065,7 +1065,7 @@ function jsonDriver(file) {
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
-    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings'];
+    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings', 'gateway_orders'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1358,7 +1358,12 @@ function open(dir) {
     permsOf(person) {
       if (!person) return [];
       if (person.role === 'admin') return ['catalogue', 'content', 'marketing'];
-      return String(person.perms || '').split(',').map(x => x.trim()).filter(Boolean);
+      const own = String(person.perms || '').split(',').map(x => x.trim()).filter(Boolean);
+      /* Patch 215 (QA): a country admin (a manager with countries) uploads
+         their own countries' data — that is the role (owner, patch 211) —
+         so the catalogue comes with it; the scope still limits what changes. */
+      if (Number(person.manager) === 1 && this.scopeOf(person).length && !own.includes('catalogue')) own.push('catalogue');
+      return own;
     },
     setRole(id, role) {
       db.run('UPDATE students SET role = ? WHERE id = ?', String(role), Number(id));
@@ -3284,14 +3289,20 @@ function open(dir) {
     /* ---- password resets ---- */
     /* One-time and short-lived. A reset link that still works tomorrow, or works
        twice, is a spare key to the account sitting in an inbox. */
+    /* Patch 215 (QA): the token is kept as a hash (a copy of the database is
+       not a drawer of working links), and using one link spends every link
+       the account had — an older email can no longer change the password
+       again after a reset. */
     createReset(token, studentId, minutes) {
+      const h = require('crypto').createHash('sha256').update(String(token)).digest('hex');
       db.run('INSERT INTO password_resets (token, student_id, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)',
-        token, Number(studentId), new Date(Date.now() + minutes * 60000).toISOString(), now());
+        h, Number(studentId), new Date(Date.now() + minutes * 60000).toISOString(), now());
     },
     useReset(token) {
-      const r = db.one('SELECT * FROM password_resets WHERE token = ?', String(token));
+      const h = require('crypto').createHash('sha256').update(String(token)).digest('hex');
+      const r = db.one('SELECT * FROM password_resets WHERE token = ?', h);
       if (!r || r.used || new Date(r.expires_at) < new Date()) return null;
-      db.run('UPDATE password_resets SET used = ? WHERE token = ?', 1, String(token));
+      db.run('UPDATE password_resets SET used = ? WHERE student_id = ?', 1, Number(r.student_id));
       return this.studentById(r.student_id);
     },
     /* Set when we generate a password for somebody; cleared the moment they

@@ -134,8 +134,10 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
      account made on day one, not a problem. */
   const fresh = await browser.newContext();
   const made = await fresh.request.post(BASE + '/api/auth/signup', {
+    /* Patch 215: what is typed at sign-up is carried into the profile, so
+       this account signs up WITHOUT a mobile — the one thing left to ask. */
     data: { name: 'New Person ' + stamp, email: 'new' + stamp + '@example.com',
-      phone: '9876500009', password: 'a-password-here', terms: true },
+      password: 'a-password-here', terms: true },
   });
   check('a new account can be made', made.ok(), made.status());
   const newId = (await made.json()).user.id;
@@ -162,7 +164,8 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
   check('and it is on the screen they land on', await page.isVisible('.todo-card'));
   const card = await page.textContent('.todo-card');
   check('naming what is missing rather than scolding them',
-    /full name/.test(card), card.slice(0, 90));
+    /mobile number/.test(card), card.slice(0, 90));
+  check('and not asking again for the name given at sign-up', !/full name/.test(card), card.slice(0, 90));
   /* No document half for an account that has bought nothing — and a card with
      an empty "0 documents" row would be the screen inventing work. */
   check('with a way to go and fix what there is',

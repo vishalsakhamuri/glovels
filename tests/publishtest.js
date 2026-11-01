@@ -63,7 +63,7 @@ function mock() {
     check('a post is published on the website', live.ok && live.body.post.status === 'published', JSON.stringify(live.body).slice(0, 120));
     const pid = live.body.post.id;
     const sh = await req('admin', 'POST', '/api/staff/post/' + pid + '/share', { facebook: true, instagram: true, push: true });
-    check('it is shared to Facebook, Instagram and push in one go', sh.ok && sh.body.results.facebook.ok && sh.body.results.instagram.ok && sh.body.results.push.ok, JSON.stringify(sh.body));
+    check('it is shared to Facebook, Instagram and push in one go (push says plainly when nobody has notifications on)', sh.ok && sh.body.results.facebook.ok && sh.body.results.instagram.ok && (sh.body.results.push.ok || /Nobody has notifications/.test(sh.body.results.push.error)), JSON.stringify(sh.body));
     const fb = seen.find(x => /\/page_123\/feed$/.test(x.url));
     check('Facebook got the headline and the link to the post', fb && /Blocked\+account/.test(fb.body) && /post%2Fblocked-account-amount-for-2027/.test(fb.body), fb && fb.body.slice(0, 200));
     const ig = seen.find(x => /\/ig_9\/media$/.test(x.url));

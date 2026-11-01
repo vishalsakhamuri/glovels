@@ -155,6 +155,14 @@ const EU27 = new Set(['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR'
  * nothing.
  */
 const EARNED = new Set(['paid', 'owing', 'part']);
+/* Patch 215 (QA, critical): what OPENS the public universities' names. An
+   `owing` order is still money the office expects (EARNED, for the books),
+   but it no longer unlocks anything: with no gateway connected, anyone who
+   pressed Confirm saw every name they were "owed" for free. The names open
+   when money arrives — a gateway payment, or the office recording one. */
+const UNLOCKS = new Set(process.env.UNLOCK_UNPAID === 'on' ? ['paid', 'owing', 'part'] : ['paid', 'part']);
+/* UNLOCK_UNPAID=on: the old rule, for the legacy test suites written before
+   this change (as TASK_STEP_HOURS=0 is for the step clock). Never on Render. */
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -1218,13 +1226,20 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
         return head ? {
           reference: head.reference, package: head.package,
           publicUnis: head.public_unis, grossPaise: head.gross_paise,
-          paidAt: head.created_at,
+          /* Patch 215 (QA): the real state — an unpaid order is not "Paid
+             1 Nov" — the tax it was sold under, and what the gateway charged
+             (a euro buyer's receipt in euros, not today's conversion). */
+          status: head.status, placedAt: head.created_at,
+          paidAt: UNLOCKS.has(head.status) ? (head.paid_at || head.created_at) : '',
+          taxMode: head.tax_mode || '',
+          charged: (() => { try { const g = head.gateway_order_id && db.gatewayOrder ? db.gatewayOrder(head.gateway_order_id) : null;
+            return g && g.currency && g.currency !== 'INR' ? { currency: g.currency, amountMinor: Number(g.amount_minor), exponent: FX.exponent(g.currency) } : null; } catch (e) { return null; } })(),
           addOns: main.addOns,
         } : null;
       })(),
       orders: orders.map(o => ({
         reference: o.reference, package: o.package, grossPaise: o.gross_paise,
-        publicUnis: o.public_unis, status: o.status, paidAt: o.created_at,
+        publicUnis: o.public_unis, status: o.status, paidAt: UNLOCKS.has(o.status) ? (o.paid_at || o.created_at) : '', placedAt: o.created_at,
         kind: o.kind || 'package',
         /* What was in it. An order placed before this column existed has none,
            and shows as it always did — the package name and the total. */
@@ -1291,7 +1306,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     };
 
     db.ordersFor(student.id).forEach(o => {
-      if (!EARNED.has(o.status)) return;
+      if (!UNLOCKS.has(o.status)) return;
 
       /* The package half. By id, and by name only for orders placed before the
          id was recorded. */
@@ -1856,6 +1871,14 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     const salt = newSalt();
     const s = db.createStudent(email, name, storePhone(phone),
       hashPassword(pw, salt), salt, 'student', new Date().toISOString());
+    /* Patch 215 (QA): what they typed at sign-up is the start of their
+       profile — not "2 things still needed: full name, mobile number" a
+       second after giving both. */
+    try {
+      const seed = { fullName: String(name || '').trim(), email: String(email || '').trim() };
+      if (phone) seed.phone = storePhone(phone);
+      db.putProfile(s.id, Object.assign({}, db.getProfile(s.id) || {}, seed));
+    } catch (e) { /* the account stands; the profile screen asks again */ }
     const claimed = db.claimOrders(s.id, email);
     seedMessages(s);
 
@@ -2157,7 +2180,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     if (s && s.role === 'student') {
       if (p.isPublic) {
         const earned = db.ordersFor(s.id)
-          .filter(o => EARNED.has(o.status));
+          .filter(o => UNLOCKS.has(o.status));
         const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
         const list = db.getShortlist(s.id);
         const already = list.some(x => String(x.prog_id) === String(p.id));
@@ -3334,6 +3357,16 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
 
   /* Whether to offer a card at all, and under whose key. The secret is not here
      and never will be — the key id is public by design. */
+  /* Patch 215: "why did it not pick my IP?" — what the server sees for the
+     person asking, and only for them: their own address, the country it maps
+     to, and how each forwarded hop was read. Nothing is stored. */
+  route('GET', '/api/whereami', async (req, res) => {
+    const hops = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean)
+      .map(h => ({ ip: h, kind: GEO.isCloudflare(h) ? 'cloudflare' : privateIp(h) ? 'private' : 'public', country: GEO.countryOfIp(h) || '' }));
+    const ip = clientIp(req);
+    return json(res, 200, { ip, country: GEO.countryOfIp(ip) || '', geo: geoFor(req), hops,
+      cfCountry: String(req.headers['cf-ipcountry'] || ''), geoData: GEO.status ? GEO.status() : null });
+  }, { open: true });
   route('GET', '/api/pay/config', async (req, res) => json(res, 200, {
     enabled: pay.enabled,
     keyId: pay.keyId,
@@ -4192,7 +4225,7 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
   function entitlement(req) {
     const me_ = me(req);
     const me_orders = me_ ? db.ordersFor(me_.id) : [];
-    const earned = me_orders.filter(o => EARNED.has(o.status));
+    const earned = me_orders.filter(o => UNLOCKS.has(o.status));
     const quota = earned.reduce((n, o) => Math.max(n, Number(o.public_unis || 0)), 0);
     let gate = 'gated';
     try {
@@ -7247,8 +7280,21 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     const cut = new Date(Date.now() - 2 * 3600000).toISOString();
     const people = new Map(db.activeCaseworkers().concat(db.staffByRole('admin')).map(p => [Number(p.id), p]));
     const boss = s.role === 'admin' || Number(s.manager) === 1;
-    let rows = db.allBookings().filter(b => boss || Number(b.owner_id) === Number(s.id));
-    rows = when === 'past' ? rows.filter(b => b.at < cut).reverse() : when === 'all' ? rows : rows.filter(b => b.at >= cut);
+    /* Patch 215 (QA): a country admin (a manager with a scope) sees the calls
+       for their own destinations and their own calls — not every caller's
+       phone and email in every country. */
+    const sc = s.role === 'admin' ? null : (db.scopeOf(s) || []).map(c => String(c).toUpperCase());
+    const inScope = b => {
+      if (!sc || !sc.length) return true;
+      const d = String(b.destination || '').trim();
+      const code = d.length === 2 ? d.toUpperCase() : ((ISO_COUNTRIES.byName(d) || {}).code || '');
+      return !!code && sc.includes(code);
+    };
+    let rows = db.allBookings().filter(b => Number(b.owner_id) === Number(s.id) || (boss && inScope(b)));
+    /* Patch 215 (QA): a call marked done, no-show or cancelled is past,
+       whatever its time — it no longer sits under Upcoming. */
+    const closed = b => ['done', 'noshow', 'cancelled'].includes(String(b.status));
+    rows = when === 'past' ? rows.filter(b => b.at < cut || closed(b)).reverse() : when === 'all' ? rows : rows.filter(b => b.at >= cut && !closed(b));
     return json(res, 200, { ok: true, admin: s.role === 'admin', officeTz: S.tz, calls: rows.slice(0, 300).map(b => callShape(b, people, S)),
       counsellors: s.role === 'admin' ? db.activeCaseworkers().map(c => ({ id: c.id, name: c.name })) : [],
       unassigned: db.allBookings().filter(b => b.status === 'booked' && !b.owner_id && b.at >= cut).length });
@@ -8024,6 +8070,8 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
     tellStudentMoney(fresh, 'Received ' + inrOf(paise) + ' for ' + order.reference
       + (settled.length === 1 ? ' — ' + settled[0].label : '') + '. '
       + (fig.outstandingPaise ? inrOf(fig.outstandingPaise) + ' left on this package.' : 'That settles it, thank you.'));
+    /* Patch 215: money in is what opens the names — deliver now. */
+    try { const st = fresh.student_id ? db.studentById(fresh.student_id) : null; if (st) deliverMatches(st); } catch (e) { /* the payment stands */ }
     return { order: fresh, payment, settled, outstanding: fig.outstandingPaise };
   }
 
@@ -11544,7 +11592,16 @@ function makeApi({ guard, marketing, db, uploadDir, imageDir, catalogue, countri
   route('GET', /^\/api\/staff\/catalogue\.(xlsx|csv)$/, needs('catalogue', async (req, res, s, m) => {
     /* Patch 201: the whole catalogue is the business's secret sauce; only a
        super administrator may take a copy of it. */
-    if (superOnly(s, res)) return;
+    /* Patch 215 (QA): a country admin imports by editing the current sheet,
+       so they may download THEIR destinations — one at a time, never the
+       rest of the catalogue. */
+    const qs0 = url.parse(req.url, true).query;
+    const scope0 = catScope(s);
+    if (scope0 && !isSuper(s)) {
+      const want = String(qs0.country || '').toUpperCase().slice(0, 3) || (scope0.length === 1 ? scope0[0] : '');
+      if (!want || !scope0.includes(want)) return json(res, 403, { error: 'You can download ' + scope0.join(', ') + ' — add ?country= with one of them.' });
+      req.url = req.url.replace(/[?].*$/, '') + '?country=' + want + (m[1] === 'csv' ? '' : '');
+    } else if (superOnly(s, res)) return;
     const headers = SHEET_COLUMNS.map(c => c[0]);
     /* ?country=DE — one destination's rows. The whole catalogue as one Excel
        file stops at 60,000 rows (a workbook of a million rows is built in

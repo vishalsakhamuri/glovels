@@ -907,7 +907,9 @@ function retireSeedDuplicates({ db, force }) {
     if (BAKED_ID.test(String(r.id)) || !r.active) return;
     const fu = foldUniversity(r.university);
     if (!uniFolds.has(fu)) return;
-    const k = fu + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
+    /* Patch 215 (QA): the country is part of the key — a Germany import of
+       "Arden University / MSc AI" retired the UK row of the same name. */
+    const k = String(r.country || '').toUpperCase() + '|' + fu + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
     if (!office.has(k)) office.set(k, r);
   };
   if (all) all.forEach(consider);
@@ -926,7 +928,7 @@ function retireSeedDuplicates({ db, force }) {
   db.transaction(() => {
     rows.forEach(r => {
       if (!BAKED_ID.test(String(r.id)) || !r.active) return;
-      const k = foldUniversity(r.university) + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
+      const k = String(r.country || '').toUpperCase() + '|' + foldUniversity(r.university) + '|' + levelBucket(r.level) + '|' + foldProgramme(r.program);
       const keep = office.get(k);
       if (!keep) return;
       moved += db.repointProgramme(r.id, keep.id);

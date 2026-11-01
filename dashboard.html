@@ -1361,7 +1361,7 @@ function __dashOrders(s) {
       if (!window.__glovelsCollect) {
         await new Promise(function (res) {
           const s = document.createElement('script');
-          s.src = '/glovels-pay.js?v=214'; s.onload = res; s.onerror = res;
+          s.src = '/glovels-pay.js?v=215'; s.onload = res; s.onerror = res;
           document.head.appendChild(s);
         });
       }
@@ -1586,21 +1586,35 @@ const heldNote = __held
 /* Someone who has just paid should be able to see what they paid. Without this
    the only trace of a 74,999 rupee order is a package name on a progress bar. */
 if(paid && order.grossPaise){
+  /* Patch 215 (QA): the receipt says what actually happened — the tax the
+     order was sold under (GST in India, VAT in the EU, none on an export),
+     the currency the gateway charged, and "To pay" while nothing has been
+     paid. data-no-fx: a receipt is never re-converted at today's rate. */
   const gross = order.grossPaise / 100;
-  const tax = Math.round(gross - gross / 1.18);
+  const tm = String(order.taxMode || '');
+  const vat = /^eu-vat-(\d+(?:\.\d+)?)$/.exec(tm);
+  const rate = vat ? Number(vat[1]) : tm === 'export' ? 0 : 18;
+  const ch = order.charged;
+  const sym = c => ({EUR:'€',USD:'$',GBP:'£',CHF:'CHF ',AED:'AED ',SGD:'S$',AUD:'A$',CAD:'C$'})[c] || (c + ' ');
+  const money = v => ch ? sym(ch.currency) + nf.format(Math.round(v)) : '₹' + nf.format(Math.round(v));
+  const total = ch ? ch.amountMinor / Math.pow(10, ch.exponent == null ? 2 : ch.exponent) : gross;
+  const tax = rate ? total - total / (1 + rate / 100) : 0;
+  const isPaid = !!order.paidAt;
+  const when = d => new Date(d).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
   $('#receipt').innerHTML =
-      '<div class="p-card"><h3>' + ico('check') + ' Your order'
+      '<div class="p-card" data-no-fx><h3>' + ico('check') + ' Your order'
     + '<span class="pill" style="margin-left:auto">' + (order.reference || '') + '</span></h3>'
-    + '<div class="rc"><span>' + esc(order.package) + '</span><b>₹'
-      + nf.format(gross) + '</b></div>'
-    + '<div class="rc sub"><span>Taxable value</span><span>₹'
-      + nf.format(gross - tax) + '</span></div>'
-    + '<div class="rc sub"><span>GST @ 18%</span><span>₹' + nf.format(tax) + '</span></div>'
-    + '<div class="rc sub"><span>Paid</span><span>'
-      + new Date(order.paidAt || Date.now()).toLocaleDateString('en-GB',
-          {day:'numeric', month:'short', year:'numeric'}) + '</span></div>'
-    + '<p style="font-size:11.6px;color:var(--muted);margin:12px 0 0">A GST invoice is emailed '
-    + 'to ' + esc(order.email || 'you') + '. Demo order — no payment was taken.</p></div>';
+    + '<div class="rc"><span>' + esc(order.package) + '</span><b>' + money(total) + '</b></div>'
+    + (rate ? '<div class="rc sub"><span>Taxable value</span><span>' + money(total - tax) + '</span></div>'
+      + '<div class="rc sub"><span>' + (vat ? 'VAT @ ' + rate + '%' : 'GST @ 18%') + '</span><span>' + money(tax) + '</span></div>'
+      : '<div class="rc sub"><span>Tax</span><span>None (export of services)</span></div>')
+    + '<div class="rc sub"><span>' + (isPaid ? 'Paid' : 'Status') + '</span><span>'
+      + (isPaid ? when(order.paidAt) : '<b style="color:#b45309">To pay</b> · ordered ' + when(order.placedAt || Date.now())) + '</span></div>'
+    + '<p style="font-size:11.6px;color:var(--muted);margin:12px 0 0">'
+    + (isPaid
+        ? (vat ? 'A VAT invoice from Glovels UG' : rate ? 'A GST invoice' : 'An invoice') + ' is emailed to ' + esc(order.email || 'you') + '.'
+        : 'Your universities are named here as soon as the payment arrives. Your counsellor will tell you how to pay.')
+    + '</p></div>';
 }
 
 /* Patch 169 (STU-03): withdrawn programmes in their own group, as on My
@@ -2018,8 +2032,9 @@ __dashBoot(function () { __dashMain();
           money(o.grossPaise) + '</span>' +
       '</div>' +
       '<span style="display:block;margin-top:3px;font-size:12.2px;color:var(--muted)">' +
-        (o.publicUnis ? o.publicUnis + ' public universities unlocked · ' : '') +
-        'Paid ' + day(o.paidAt) + '</span>' +
+        (o.paidAt
+          ? (o.publicUnis ? o.publicUnis + ' public universities unlocked · ' : '') + 'Paid ' + day(o.paidAt)
+          : (o.publicUnis ? o.publicUnis + ' public universities once paid · ' : '') + '<b style="color:#b45309">To pay</b> · ordered ' + day(o.placedAt)) + '</span>' +
       (items.length
         ? '<ul class="doclist" style="margin:12px 0 0">' + items.map(function (it) {
             return '<li><span style="flex:1">' + esc(it.name) +

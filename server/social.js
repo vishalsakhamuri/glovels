@@ -73,6 +73,8 @@ async function instagram({ imageUrl, caption }) {
 async function pushAll({ db, push, title, body, url }) {
   if (!push || typeof push.toPerson !== 'function') return { ok: false, error: 'Push notifications are not set up on this server.' };
   const ids = db.pushAudience ? db.pushAudience() : [];
+  /* Patch 215 (QA): "shared to 0 people" in green read as success. */
+  if (!ids.length) return { ok: false, error: 'Nobody has notifications switched on yet — nothing was sent.' };
   let sent = 0;
   for (const id of ids) {
     try { const r = await push.toPerson(id, { title, body, url, tag: 'news' }); sent += (r && r.sent) || 0; } catch (e) { /* one bad subscription */ }
