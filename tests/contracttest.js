@@ -147,7 +147,8 @@ const stamp = Date.now();
 
   await buy.fill('#rqName', 'Checkout Buyer');
   await buy.fill('#rqPhone', '9876543213');
-  await buy.fill('#rqMail', 'checkout' + stamp + '@example.com');
+  /* Patch 231: a signed-in student's email is fixed to their account. */
+  if (!(await buy.$eval('#rqMail', e => e.readOnly))) await buy.fill('#rqMail', 'checkout' + stamp + '@example.com');
   await buy.click('#buyPay');
   await buy.waitForTimeout(700);
   check('paying without ticking is refused on the page too',

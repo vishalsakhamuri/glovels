@@ -1755,6 +1755,37 @@ if(order.grossPaise){
   };
 }
 
+/* Patch 231 (owner, 2 Nov): "they should be able to select the package after
+   login as well — seamless". A signed-in student with no package sees the
+   packages here, priced from the same list as the website; Choose opens the
+   same checkout already filled in for them, and paying brings them back
+   here with their universities. */
+if (!order.grossPaise && !order.demo && document.getElementById('receipt')) (async function () {
+  let packs = [];
+  try {
+    const c = await (await fetch('/api/content', { credentials: 'same-origin' })).json();
+    const P = (c && c.packages) || {};
+    packs = (Array.isArray(P) ? P : (P.items || [])).filter(x => x && x.active !== false && x.sell !== false
+      && (x.tab || 'study') === 'study' && Number(x.priceInr) > 0)
+      .sort((a, b) => (a.sort || 0) - (b.sort || 0)).slice(0, 4);
+    /* Public universities exist only where the catalogue has them (Germany
+       today); a student aiming elsewhere is not offered a package that would
+       name nothing. */
+    const want = String(((window.__GLOVELS || {}).profile || {}).g_country || '');
+    if (want && !/germany/i.test(want)) packs = packs.filter(x => !(Number(x.unlocks) > 0));
+  } catch (e) { return; }
+  if (!packs.length) return;
+  const nfp = new Intl.NumberFormat('en-IN');
+  const e = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  document.getElementById('receipt').innerHTML = '<div class="p-card"><h3>' + ico('star') + ' Choose your package</h3>'
+    + '<p style="margin:0 0 12px;font-size:13px;color:var(--muted);line-height:1.55">Public universities matched to your answers, named in full, and your counsellor files them with you.</p>'
+    + packs.map(x => '<div class="rc" style="align-items:center;gap:12px"><span><b>' + e(x.title) + '</b>'
+        + (Number(x.unlocks) > 0 ? '<br><small style="color:var(--muted)">' + Number(x.unlocks) + ' public universities</small>' : '')
+        + '</span><span style="display:flex;align-items:center;gap:10px"><b>\u20b9' + nfp.format(Number(x.priceInr)) + '</b>'
+        + '<a class="btn btn-primary btn-sm" href="/?buy=' + encodeURIComponent(x.id) + '">Choose</a></span></div>').join('')
+    + '<p style="margin:10px 0 0;font-size:12px;color:var(--muted)">Your details are filled in for you. Private universities stay free to apply to.</p></div>';
+})();
+
 /* Patch 169 (STU-03): withdrawn programmes in their own group, as on My
    Programs — never under "Matched". */
 const shownLive = shown.filter(p => !p.withdrawn);
