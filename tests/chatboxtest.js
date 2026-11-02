@@ -25,7 +25,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     && !/ERR_TUNNEL|fonts\.googleapis|favicon/.test(m.text()) && errs.push(m.text()));
 
   await v.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
-  await v.waitForSelector('.gv-wa', { timeout: 10000 });
+  await v.waitForSelector('.gv-chat-fab', { timeout: 10000 });
 
   /*
    * ONE button on the marketing pages, and it is WhatsApp.
@@ -35,25 +35,15 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
    * where it is the counsellor thread. Lead capture on the public site is the
    * contact form and the counselling form, both of which write an enquiry.
    */
-  check('WhatsApp is in the corner of the home page', await v.isVisible('.gv-wa'));
-  /* Patch 219 (owner, 1 Nov): the website chat box is back beside WhatsApp. */
-  check('and the "Send a message" chat button is beside it',
+  /* Patch 240 (owner, 2 Nov): the floating WhatsApp button is gone; the chat
+     button is the one thing in the corner. */
+  check('no floating WhatsApp button in the corner', !(await v.isVisible('.gv-wa')));
+  check('and the "Send a message" chat button is there',
     (await v.$$eval('.gv-chat-fab', els => els.filter(e => e.offsetParent !== null).length)) === 1);
-
-  /* It has to be on the other marketing pages too — the person reading about
-     Germany at eleven at night is the one with the question. */
   const other = await guest.newPage();
   await other.goto(BASE + '/study-in-germany', { waitUntil: 'domcontentloaded' });
   await other.waitForTimeout(1200);
-  check('and on the country pages', await other.isVisible('.gv-wa'));
-
-  /* The WhatsApp message says what they were reading, so the counsellor opens
-     the conversation already knowing what it is about. */
-  const href = await other.getAttribute('.gv-wa', 'href');
-  check('WhatsApp carries the office number', /wa\.me\/9\d{10,}/.test(href), href.slice(0, 40));
-  check('and a message naming the page they were on',
-    decodeURIComponent(href).includes('Germany'),
-    decodeURIComponent(href).slice(0, 110));
+  check('and the country pages the same', !(await other.isVisible('.gv-wa')) && await other.isVisible('.gv-chat-fab'));
   await other.close();
 
   /*

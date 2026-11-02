@@ -1795,7 +1795,7 @@ if (location.protocol === 'file:') {
       + 'l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3'
       + 'A8.2 8.2 0 1 1 12 20.2z"/></svg>'
       + '<span>WhatsApp us</span>';
-    corner.appendChild(wa);
+    /* Patch 240 (owner, 2 Nov): no floating WhatsApp button — the chat button stays, and WhatsApp is still in the phone bar and on Contact. */ void wa;
   }
 
   var api = function (path, body) {
