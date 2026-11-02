@@ -139,6 +139,18 @@ h1,h2,h3,h4{font-family:var(--disp);font-weight:600;letter-spacing:-.01em;margin
 .field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6b7e' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 9px center;background-size:16px}
 .field select:hover{border-color:var(--blue)}
+/* Patch 238: a search box on the long dropdowns (subject, destination). */
+.ssel-pop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;background:#fff;border:1.5px solid #c9d3e0;
+  border-radius:var(--r);box-shadow:0 18px 40px rgba(11,30,49,.18);padding:8px;min-width:260px}
+.ssel-pop input{width:100%;height:42px!important;padding:0 12px!important;border:1.5px solid #d8dde4;border-radius:10px;
+  font:600 14px var(--sans);background:#fff!important;cursor:text!important}
+.ssel-list{max-height:320px;overflow-y:auto;margin-top:6px;overscroll-behavior:contain}
+.ssel-list .g{font:800 10.5px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 10px 5px}
+.ssel-list button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;
+  font:600 13.6px/1.35 var(--sans);color:var(--navy-900);cursor:pointer}
+.ssel-list button:hover,.ssel-list button.hi{background:#eef3fc}
+.ssel-list button[aria-selected="true"]{color:var(--blue-deep);font-weight:800}
+.ssel-list .none{padding:12px 10px;color:var(--muted);font-size:13px}
 .field select:focus,.field input:focus{outline:0;border-color:var(--blue);
   box-shadow:0 0 0 4px rgba(26,79,180,.16)}
 .field optgroup{font:800 11px/1 var(--sans);text-transform:uppercase;letter-spacing:.08em;
@@ -3789,6 +3801,61 @@ $('#fGo').onclick = () => { touched = true; render();
 ['#fBach','#fGreQ','#fGreV','#fGreA'].forEach(s => $(s) && $(s).addEventListener('change', () => { showRelevant(); if(touched) render(); }));
 /* The destination changes which questions apply, before anybody presses Find. */
 ['#fCountry','#fLevel','#fField'].forEach(s => $(s) && $(s).addEventListener('change', showRelevant));
+/* Patch 238 (owner, 2 Nov): "we need search here as well". The subject and
+   destination lists get a search box: pressing the box opens the list with a
+   search field on top; typing narrows it (group names count too); Enter
+   picks the first match. The real <select> stays underneath and keeps its
+   value, so everything that reads it is unchanged. On a phone the phone's own
+   picker is kept. */
+function searchableSelect(sel, ph){
+  if (!sel || sel.__ssel) return; sel.__ssel = true;
+  const host = sel.closest('.field') || sel.parentNode;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
+  let pop = null, hi = -1;
+  const close = () => { if (pop) { pop.remove(); pop = null; document.removeEventListener('mousedown', outside, true); } };
+  const outside = e => { if (pop && !pop.contains(e.target) && e.target !== sel) close(); };
+  const pick = v => { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); sel.dispatchEvent(new Event('input', { bubbles: true })); close(); sel.focus(); };
+  const draw = q => {
+    const list = pop.querySelector('.ssel-list'); const n = String(q || '').trim().toLowerCase();
+    let html = '', count = 0;
+    [...sel.children].forEach(ch => {
+      const grp = ch.tagName === 'OPTGROUP' ? ch.label : '';
+      const opts = ch.tagName === 'OPTGROUP' ? [...ch.children] : [ch];
+      const hits = opts.filter(o => !n || o.text.toLowerCase().includes(n) || grp.toLowerCase().includes(n));
+      if (!hits.length) return;
+      if (grp) html += '<div class="g">' + esc(grp) + '</div>';
+      hits.forEach(o => { html += '<button type="button" role="option" data-v="' + esc(o.value) + '" aria-selected="' + (o.value === sel.value) + '">' + esc(o.text) + '</button>'; count++; });
+    });
+    list.innerHTML = count ? html : '<div class="none">Nothing matches — try another word.</div>';
+    hi = -1;
+  };
+  const open = () => {
+    if (pop) return close();
+    pop = document.createElement('div'); pop.className = 'ssel-pop'; pop.setAttribute('role', 'listbox');
+    pop.innerHTML = '<input type="search" placeholder="' + esc(ph || 'Search') + '" aria-label="' + esc(ph || 'Search') + '"><div class="ssel-list"></div>';
+    host.appendChild(pop); draw('');
+    const q = pop.querySelector('input');
+    q.oninput = () => draw(q.value);
+    q.onkeydown = e => {
+      const bs = [...pop.querySelectorAll('.ssel-list button')];
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); sel.focus(); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!bs.length) return;
+        hi = (hi + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length; bs.forEach((b, i) => b.classList.toggle('hi', i === hi)); bs[hi].scrollIntoView({ block: 'nearest' }); }
+      else if (e.key === 'Enter') { e.preventDefault(); const b = bs[hi >= 0 ? hi : 0]; if (b) pick(b.dataset.v); }
+    };
+    pop.querySelector('.ssel-list').onclick = e => { const b = e.target.closest('button[data-v]'); if (b) pick(b.dataset.v); };
+    const cur = pop.querySelector('button[aria-selected="true"]'); if (cur) cur.scrollIntoView({ block: 'center' });
+    q.focus(); setTimeout(() => { if (pop && document.activeElement !== q) q.focus(); }, 0);
+    document.addEventListener('mousedown', outside, true);
+  };
+  if (touch) return;
+  sel.addEventListener('mousedown', e => { e.preventDefault(); open(); });
+  sel.addEventListener('keydown', e => { if (e.key === 'Escape' && pop) { e.preventDefault(); close(); return; } if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown' && e.altKey) { e.preventDefault(); open(); } });
+}
+window.glvSearchableSelect = searchableSelect;
+searchableSelect(document.getElementById('fField'), 'Search subjects — e.g. data, nursing, MBA');
+searchableSelect(document.getElementById('fCountry'), 'Search countries — e.g. Germany');
 $('#fMoreBtn') && ($('#fMoreBtn').onclick = () => {
   const open = $('#fMore').hidden;
   $('#fMore').hidden = !open;
@@ -4351,6 +4418,7 @@ document.addEventListener('click', e => {
      saying who is buying with a way out. Nothing typed here can send the
      order to a different account by mistake. */
   wireResidence('rqRes', () => { const x = document.querySelector('[data-buy="' + buying.id + '"]'); if (x) x.click(); });
+  if (window.glvSearchableSelect) window.glvSearchableSelect(document.getElementById('rqField'), 'Search subjects');
   if (ME && ME.email && ME.role === 'student') {
     const nm = $('#rqName'), ph = $('#rqPhone'), ml = $('#rqMail');
     if (nm && !nm.value) nm.value = ME.name || '';
