@@ -1258,9 +1258,11 @@ async function __dashBoot(main) {
         d.id = 'paidBanner'; d.setAttribute('role', 'status');
         d.style.cssText = 'margin:0 0 12px;padding:14px 18px;border-radius:14px;background:#eaf6ee;'
           + 'border:1px solid #bfe0cc;color:#14603a;font:600 14px/1.5 var(--sans)';
-        d.textContent = 'Order ' + ref + ' is placed. ' + part + (n ? 'Your ' + n + ' universit' + (n === 1 ? 'y is' : 'ies are')
+        var svc = o.kind === 'services' ? (o.items || []).map(function (i) { return i.name; }).filter(Boolean) : [];
+        d.textContent = 'Order ' + ref + ' is placed. ' + part + (svc.length ? svc.join(', ') + ' \u2014 added to your dashboard. '
+          : n ? 'Your ' + n + ' universit' + (n === 1 ? 'y is' : 'ies are')
           + ' below. ' : 'Your counsellor is building your list. ')
-          + (paid ? 'Payment received. ' : 'Nothing has been charged yet \u2014 your counsellor will confirm the amount and how to pay when they call. ')
+          + (paid ? (o.grossPaise ? 'Payment received. ' : 'Free \u2014 nothing to pay. ') : 'Nothing has been charged yet \u2014 your counsellor will confirm the amount and how to pay when they call. ')
           + 'A counsellor calls you within one working day. ';
         var a = document.createElement('a');
         a.href = '/acceptance/' + encodeURIComponent(ref);
@@ -1466,7 +1468,7 @@ function __dashOrders(s) {
       if (!window.__glovelsCollect) {
         await new Promise(function (res) {
           const s = document.createElement('script');
-          s.src = '/glovels-pay.js?v=232'; s.onload = res; s.onerror = res;
+          s.src = '/glovels-pay.js?v=233'; s.onload = res; s.onerror = res;
           document.head.appendChild(s);
         });
       }

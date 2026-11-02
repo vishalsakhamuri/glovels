@@ -3206,6 +3206,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
           add0.lastName = nm.length > 1 ? nm.pop() : ''; add0.firstName = nm.join(' ');
         }
         if (blank0(before0.phone) && buyer.phone) add0.phone = String(buyer.phone);
+        /* Patch 233: "Where do you live?" from the checkout. */
+        const rc = String(b.residence || '').toUpperCase();
+        if (blank0(before0.addr_country) && /^[A-Z]{2}$/.test(rc)) {
+          try { add0.addr_country = new Intl.DisplayNames(['en'], { type: 'region' }).of(rc) || rc; } catch (e) { add0.addr_country = rc; }
+        }
         if (blank0(before0.email) && buyer.email) add0.email = String(buyer.email);
         if (Object.keys(add0).length) {
           const r0 = mergeProfile(buyer.id, add0);

@@ -666,6 +666,30 @@
   }
   /* Patch 228: the checkout's phone box picks its country code from this. */
   if (window.glovelsPay) window.glovelsPay.visitorCountry = country;
+  /* Patch 233 (owner, 2 Nov): "ask the country of residence when a package is
+     selected, so we know which payment to show — India Razorpay, everywhere
+     else Stripe". The checkout's "Where do you live?" calls this: it is the
+     same choice as the header's country picker, so the currency, the tax line
+     and the payment provider all follow it. */
+  if (window.glovelsPay) {
+    window.glovelsPay.setResidence = function (cv) {
+      if (!/^[A-Z]{2}$/.test(cv || '')) return Promise.resolve();
+      return config().then(function (cfg) {
+        var kv = cv === 'IN' ? 'INR' : ((cfg && cfg.currencyOf && cfg.currencyOf[cv]) || 'USD');
+        try { localStorage.setItem(CKEY, cv); } catch (e) {}
+        try { document.cookie = 'glv_country=' + cv + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
+        set(kv);
+        try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: kv })); } catch (e) {}
+        try { document.dispatchEvent(new CustomEvent('glv-country', { detail: cv })); } catch (e) {}
+        try { paint(); } catch (e) {}
+        return kv;
+      });
+    };
+    window.glovelsPay.countries = function () {
+      return config().then(function (cfg) { return Object.keys((cfg && cfg.currencyOf) || {}).sort(function (a, b) { return countryName(a).localeCompare(countryName(b)); })
+        .map(function (c) { return [c, countryName(c)]; }); });
+    };
+  }
   function flagOf(c) { return /^[A-Z]{2}$/.test(c || '') ? c.replace(/./g, function (ch) { return String.fromCodePoint(127397 + ch.charCodeAt(0)); }) : '\uD83C\uDF10'; }
   function countryName(c) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } }
   function localeBar() {

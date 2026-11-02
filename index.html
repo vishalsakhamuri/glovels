@@ -519,6 +519,7 @@ section[id]{scroll-margin-top:92px}
   color:var(--navy-900);background:#eef0f3;border:1.5px solid #d8dde4;border-right:0;
   border-radius:11px 0 0 11px}
 .phone-row input{border-radius:0 11px 11px 0!important}
+.co-res{margin:14px 0 4px}.co-res select{width:100%;height:46px;border-radius:11px;border:1.5px solid #d8dde4;padding:0 10px;font:600 14px var(--sans);background:#fff}.co-payhint{display:block;margin-top:6px;font:600 12.4px/1.45 var(--sans);color:#14603a}
 select.cc{appearance:auto;padding:0 6px 0 10px;cursor:pointer;max-width:110px;font:700 14px/1 var(--sans)}
 .req-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .req-sum div{background:var(--cream);border:1px solid var(--line);border-radius:var(--r);
@@ -3794,6 +3795,58 @@ function fullPhone(inputSel, ccId){
 }
 window.glvFullPhone = fullPhone;
 window.glvCcSelect = ccSelect;
+/* Patch 233 (owner, 2 Nov): "when the user selects a package, ask his country
+   of residence so it is easy to show which payment — India Razorpay, other
+   countries Stripe". The first field of every checkout. Choosing it sets the
+   site's country and currency (the same as the header picker); the checkout
+   is then drawn again in that currency with what was typed kept. */
+function residenceField(id){
+  const mine = (window.glovelsPay && window.glovelsPay.visitorCountry && window.glovelsPay.visitorCountry()) || 'IN';
+  const nameOf = c => { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } };
+  return '<div class="fld co-res"><label for="' + id + '">Where do you live? *</label>'
+    + '<select id="' + id + '" data-res><option value="' + mine + '">' + nameOf(mine) + '</option></select>'
+    + '<span class="co-payhint" id="' + id + 'Hint"></span></div>';
+}
+function payHint(cc){
+  return cc === 'IN'
+    ? 'You pay in Indian rupees with Razorpay — UPI, cards, net banking. GST included.'
+    : 'You pay by card with Stripe, in your own currency.';
+}
+function wireResidence(id, redraw){
+  const sel = document.getElementById(id); if (!sel) return;
+  const hint = document.getElementById(id + 'Hint');
+  const show = () => { if (hint) hint.textContent = payHint(sel.value); };
+  show();
+  if (window.glovelsPay && window.glovelsPay.countries) window.glovelsPay.countries().then(list => {
+    const keep = sel.value;
+    sel.innerHTML = list.map(([c, n]) => '<option value="' + c + '"' + (c === keep ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+  }).catch(() => {});
+  sel.onchange = () => {
+    show();
+    const keep = {};
+    document.querySelectorAll('.modal.on input[id], .modal.on select[id]').forEach(el => {
+      if (el.type === 'checkbox') keep[el.id] = el.checked; else if (el.id !== id) keep[el.id] = el.value; });
+    const cc = sel.value;
+    const done = () => { redraw(); setTimeout(() => {
+      Object.keys(keep).forEach(k => { const el = document.getElementById(k); if (!el || el.readOnly) return;
+        if (el.type === 'checkbox') { if (keep[k]) el.checked = true; } else if (keep[k] !== '' && el.tagName !== 'SELECT') el.value = keep[k]; });
+      const s2 = document.getElementById(id); if (s2) { s2.value = cc; const h = document.getElementById(id + 'Hint'); if (h) h.textContent = payHint(cc); }
+      /* The mobile's country code follows where they live, unless they typed a + number. */
+      const ccSel = document.querySelector('.modal.on select.cc');
+      const dial = (typeof DIAL !== 'undefined' ? DIAL : []).find(d => d[0] === cc);
+      const ph = ccSel && ccSel.parentNode.querySelector('input');
+      if (ccSel && dial && !(ph && /^\+/.test(ph.value.trim()))) ccSel.value = dial[1];
+    }, 60); };
+    (window.glovelsPay && window.glovelsPay.setResidence ? window.glovelsPay.setResidence(cc) : Promise.resolve()).then(done, done);
+  };
+  /* The prices must be in the money of the country shown: if they are not
+     (a visitor whose country we could not tell), set it once now. */
+  const cur = window.glovelsPay && window.glovelsPay.chosen ? window.glovelsPay.chosen() : 'INR';
+  if (!wireResidence.__synced && ((sel.value === 'IN') !== (cur === 'INR'))) { wireResidence.__synced = true; sel.onchange(); }
+}
+window.glvResidenceField = residenceField;
+window.glvWireResidence = wireResidence;
+window.glvResidence = () => { const el = document.querySelector('.modal.on [data-res]'); return el ? el.value : ''; };
 /* Patch 226 (owner, 1 Nov): what was answered on the finder, in the profile's
    own words, sent with an order so the universities bought are picked the
    moment it is paid — no profile form first. The server fills only blanks. */
@@ -4033,6 +4086,7 @@ gradeScale();
       /* Patch 154: who they are, for the special-assistance form — a signed-in
          student should never be asked to type their own name again. */
       ME = (s && s.user) ? { name: s.user.name || '', phone: s.user.phone || '', email: s.user.email || '', role: s.user.role || 'student' } : {};
+      window.glvMe = ME;
       if(touched) render();
       const max = parseFloat(pr.d_max), pass = parseFloat(pr.d_pass),
             now = parseFloat(String(pr.d_cgpa || '').replace(/[^0-9.]/g, ''));
@@ -4179,6 +4233,7 @@ document.addEventListener('click', e => {
           + 'the work it pays for is done, and it is on your dashboard the whole '
           + 'time.</small></div>'
         : '')
+    + residenceField('rqRes')
     + '<div class="co-fields"><b>Where should we send it?</b>'
     + '<div class="fld"><label for="rqName">Full name *</label>'
       + '<input id="rqName" style="cursor:text" placeholder="Your name">'
@@ -4217,6 +4272,7 @@ document.addEventListener('click', e => {
      theirs, so the boxes are theirs: filled in, the email fixed, and a line
      saying who is buying with a way out. Nothing typed here can send the
      order to a different account by mistake. */
+  wireResidence('rqRes', () => { const x = document.querySelector('[data-buy="' + buying.id + '"]'); if (x) x.click(); });
   if (ME && ME.email && ME.role === 'student') {
     const nm = $('#rqName'), ph = $('#rqPhone'), ml = $('#rqMail');
     if (nm && !nm.value) nm.value = ME.name || '';
@@ -4295,6 +4351,7 @@ $('#buyPay').onclick = () => {
       packageId,
       name: buyer.name, phone: buyer.phone, email: buyer.email,
       answers: (window.glvFinderAnswers ? window.glvFinderAnswers() : {}),
+      residence: (window.glvResidence ? window.glvResidence() : ''),
       /* The tick, and nothing about what it said: the server writes the record
          from its own copy of the words. A page that reports its own consent
          wording could report anything, and this is the part that has to hold
@@ -4661,6 +4718,7 @@ function askToApply(id, uni, prog){
         + '&next=' + encodeURIComponent('/') + '" style="font-weight:700">Sign in</a> and press Apply free again.');
       if (!r.ok) throw new Error(j.error || 'That did not go through.');
       ME = { name, phone, email, role: 'student' };
+      window.glvMe = ME;
       if (PROFILE) PROFILE.__signedIn = true;
       /* Their finder answers become their profile, as they would with an order. */
       try {
@@ -5133,6 +5191,7 @@ $('#planCta').onclick = () => {
     + '<div class="co-line sub"><span>GST @ 18%</span><span>' + inr(tax) + '</span></div>'
     + '<div class="co-total"><span>Total payable · GST included</span><b>'
       + inr(gross) + '</b></div>'
+    + (window.glvResidenceField ? window.glvResidenceField('scRes') : '')
     + '<div class="co-fields"><b>Where should we send it?</b>'
     + '<div class="fld"><label for="scName">Full name *</label>'
       + '<input id="scName" placeholder="Your name"><span class="err"></span></div>'
@@ -5177,6 +5236,24 @@ $('#planCta').onclick = () => {
   }
   $('#scLegal').style.display = '';
   $('#svcCheckout').classList.add('on');
+  if (window.glvWireResidence) window.glvWireResidence('scRes', () => $('#planCta').click());
+  /* Patch 233: signed in, the services checkout is theirs too — filled in,
+     the email fixed to the account, and what they buy lands on it. */
+  const ME = window.glvMe || {};
+  if (ME && ME.email && ME.role === 'student') {
+    const nm = $('#scName'), ph = $('#scPhone'), ml = $('#scMail');
+    if (nm && !nm.value) nm.value = ME.name || '';
+    if (ph && !ph.value && ME.phone) ph.value = String(ME.phone);
+    if (ml) { ml.value = ME.email; ml.readOnly = true; ml.style.background = '#f4f6f9'; }
+    const f = document.querySelector('#svcCheckout .co-fields');
+    if (f && !f.querySelector('.co-who')) {
+      const w = document.createElement('p'); w.className = 'co-who';
+      w.style.cssText = 'margin:0 0 10px;font-size:13px;color:var(--navy-800)';
+      w.innerHTML = 'Buying as <b></b> — it goes on your account.';
+      w.querySelector('b').textContent = ME.email;
+      const t = f.querySelector('b'); if (t && t.nextSibling) f.insertBefore(w, t.nextSibling); else f.prepend(w);
+    }
+  }
 
   $('#scPay').onclick = async () => {
     let ok = true;
@@ -5211,6 +5288,7 @@ $('#planCta').onclick = () => {
             level: s.levels.length ? (levelOf[s.id] || s.levels[0].code) : '',
           })),
           answers: (window.glvFinderAnswers ? window.glvFinderAnswers() : {}),
+          residence: (window.glvResidence ? window.glvResidence() : ''),
           name: $('#scName').value.trim(),
           email: $('#scMail').value.trim(),
           phone: (window.glvFullPhone ? window.glvFullPhone('#scPhone','scCc') : $('#scPhone').value.trim()),
@@ -5275,6 +5353,23 @@ $('#planCta').onclick = () => {
       }).catch(() => {});
     }
 
+    /* Patch 233 (owner, 2 Nov): one way after buying anything — services go
+       where packages go. A new account sets its password, an existing one
+       signs in, a signed-in student lands on the dashboard with the order on
+       it. Staff placing an order for someone stay here. */
+    if (placed && placed.reference && !placed.placedByStaff) {
+      try {
+        const r0 = placed.reference;
+        const go = placed.signedInHere && placed.accountCreated
+          ? '/login?change=1&ordered=' + encodeURIComponent(r0) + '&next=' + encodeURIComponent('/dashboard?ordered=' + r0)
+          : placed.signedInHere
+          ? '/dashboard?ordered=' + encodeURIComponent(r0)
+          : '/login?next=' + encodeURIComponent('/dashboard') + '&ordered=' + encodeURIComponent(r0)
+            + '&email=' + encodeURIComponent($('#scMail').value.trim());
+        location.assign(go);
+        return;
+      } catch (e) { /* the confirmation below */ }
+    }
     /* What actually happens next differs per service, so the steps are built
        from what was bought rather than being one generic list. */
     const steps = [];
@@ -7167,7 +7262,7 @@ if (location.protocol === 'file:') {
     .catch(function () {});
 }());
 </script>
-<script src="/glovels-pay.js?v=232"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+<script src="/glovels-pay.js?v=233"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 <script>/* GLOVELS-PKG-CONNECTORS */
 (function () {
   /* Each package gets its own icon. They were all the same compass, which on a

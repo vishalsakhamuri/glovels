@@ -59,7 +59,8 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await p.click('#planCta');
   await p.waitForSelector('#scPay', { timeout: 8000 });
   await p.fill('#scName', 'Vishal Test');
-  await p.fill('#scMail', 'student@glovels.com');
+  /* Patch 233: signed in, the email is the account's and fixed. */
+  if (!(await p.$eval('#scMail', e => e.readOnly))) await p.fill('#scMail', 'student@glovels.com');
   await p.fill('#scPhone', '9876543210');
 
   /* Every checkout records what was accepted now, services included — so the
@@ -69,8 +70,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   await p.click('#scPay');
   await p.waitForTimeout(2500);
 
-  const confirm = await p.textContent('#scBody');
-  check('the confirmation appears', /booked|Payment received/i.test(confirm),
+  /* Patch 233: a signed-in student goes to the dashboard, whose note carries the order. */
+  await p.waitForURL(/\/dashboard/, { timeout: 10000 }).catch(() => {});
+  await p.waitForSelector('#paidBanner', { timeout: 8000 }).catch(() => {});
+  const confirm = await p.textContent('#paidBanner').catch(() => '') || '';
+  check('the confirmation appears', /is placed/i.test(confirm),
     confirm.replace(/\s+/g, ' ').slice(0, 80));
   const ref = (confirm.match(/GLV-\d+/) || [])[0];
   check('it shows a reference', !!ref, ref);
