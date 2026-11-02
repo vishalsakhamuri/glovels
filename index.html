@@ -165,6 +165,24 @@ section.block.alt{background:var(--paper);border-top:1px solid var(--line);
 .sheet{width:min(560px,100%);max-height:88vh;overflow-y:auto;background:var(--paper);
   border-radius:var(--r-lg);padding:22px 24px;box-shadow:0 30px 70px rgba(11,30,49,.4)}
 .sheet h3{font-size:19px;margin-bottom:5px}
+/* Patch 234 (owner, 2 Nov): "still a pop-up" — the checkout and the
+   pick-a-university screens are full pages: the site behind is gone, the
+   page has its own bar with the logo and Back, and the browser's Back button
+   returns to where they were. */
+#buyModal.on,#svcCheckout.on{display:block;background:var(--paper,#f7f5f0);padding:0;overflow-y:auto;z-index:300}
+#buyModal .sheet,#svcCheckout .sheet{width:min(680px,100%);max-height:none;overflow:visible;margin:0 auto 40px;
+  box-shadow:none;border-radius:0;background:transparent;padding:26px 22px 30px}
+#buyModal .sheet-close,#svcCheckout .sheet-close{display:none}
+#buyModal .sheet h3,#svcCheckout .sheet h3{font-size:26px;margin:4px 0 6px}
+.co-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:14px;justify-content:space-between;
+  padding:12px max(18px,calc((100% - 680px)/2 + 22px));background:#fff;border-bottom:1px solid var(--line,#e3e6ec)}
+.co-bar img{height:34px;width:auto;display:block}
+.co-bar button{border:1px solid var(--line,#d8dde4);background:#fff;border-radius:10px;padding:8px 14px;
+  font:700 13.4px var(--sans);color:var(--navy-900);cursor:pointer}
+.co-steps{display:flex;gap:6px;font:700 11.5px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.co-steps b{color:var(--navy-900)}
+@media (max-width:560px){.co-steps{display:none}}
+.co-res{margin:0 0 16px!important}
 .sheet .lead{font-size:13.2px;color:var(--muted);margin:0 0 16px}
 .sheet-close{float:right;background:none;border:1px solid var(--line);border-radius:9px;
   width:34px;height:30px;cursor:pointer;color:var(--muted)}
@@ -3923,6 +3941,31 @@ document.addEventListener('click', e => {
 
 /* --------------------------------------------------------------- CGPA modal */
 const open = id => $(id).classList.add('on');
+/* Patch 234: the checkout as a page. A bar with the logo and Back is put on
+   once; opening it adds a history entry, so the browser's Back closes it,
+   and Back on the bar does the same. */
+(function coPages(){
+  ['#buyModal', '#svcCheckout'].forEach(sel => {
+    const m = document.querySelector(sel); if (!m) return;
+    const bar = document.createElement('div');
+    bar.className = 'co-bar';
+    bar.innerHTML = '<button type="button" data-co-back>\u2190 Back</button>'
+      + '<span class="co-steps"><b>Your details</b> \u00b7 Pay \u00b7 Your dashboard</span>'
+      + '<a href="/" aria-label="Glovels home"><img src="/assets/glovels-logo.png" alt="Glovels"></a>';
+    m.insertBefore(bar, m.firstChild);
+    let pushed = false;
+    new MutationObserver(() => {
+      const on = m.classList.contains('on');
+      if (on && !pushed) { pushed = true; m.__y = window.scrollY; try { history.pushState({ glvCo: sel }, '', location.pathname + location.search + '#checkout'); } catch (e) {} m.scrollTop = 0; }
+      if (!on && m.__y != null) { const y = m.__y; m.__y = null; requestAnimationFrame(() => window.scrollTo(0, y)); }
+      if (!on && pushed) { pushed = false; if (history.state && history.state.glvCo === sel) { try { history.back(); } catch (e) {} } }
+    }).observe(m, { attributes: true, attributeFilter: ['class'] });
+    bar.querySelector('[data-co-back]').onclick = () => m.classList.remove('on');
+  });
+  addEventListener('popstate', () => {
+    ['#buyModal', '#svcCheckout'].forEach(sel => { const m = document.querySelector(sel); if (m && m.classList.contains('on')) m.classList.remove('on'); });
+  });
+})();
 $$('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('on'));
 $$('.modal').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.remove('on'); }));
 addEventListener('keydown', e => { if(e.key === 'Escape') $$('.modal.on').forEach(m => m.classList.remove('on')); });
@@ -4204,6 +4247,7 @@ document.addEventListener('click', e => {
   $('#buyT').textContent = buying.name;
   $('#buyLead').textContent = 'Every price below includes GST.';
   $('#buyBody').innerHTML =
+      residenceField('rqRes') +
       '<div class="co-line"><span>' + esc(buying.name) + '</span>'
     + '<b>₹' + nf.format(gross) + '</b></div>'
     + '<div class="co-line sub"><span>Taxable value</span><span>₹'
@@ -4233,7 +4277,6 @@ document.addEventListener('click', e => {
           + 'the work it pays for is done, and it is on your dashboard the whole '
           + 'time.</small></div>'
         : '')
-    + residenceField('rqRes')
     + '<div class="co-fields"><b>Where should we send it?</b>'
     + '<div class="fld"><label for="rqName">Full name *</label>'
       + '<input id="rqName" style="cursor:text" placeholder="Your name">'
@@ -5184,6 +5227,7 @@ $('#planCta').onclick = () => {
     + (items.length === 1 ? ' service' : ' services');
   $('#scLead').textContent = 'Every price below includes GST.';
   $('#scBody').innerHTML =
+      (window.glvResidenceField ? window.glvResidenceField('scRes') : '') +
       items.map(s => '<div class="co-line"><span>' + esc(s.name)
         + (s.levels.length ? ' · ' + (levelOf[s.id] || s.levels[0].code) : '')
         + '</span><b>' + inr(price(s)) + '</b></div>').join('')
@@ -5191,7 +5235,6 @@ $('#planCta').onclick = () => {
     + '<div class="co-line sub"><span>GST @ 18%</span><span>' + inr(tax) + '</span></div>'
     + '<div class="co-total"><span>Total payable · GST included</span><b>'
       + inr(gross) + '</b></div>'
-    + (window.glvResidenceField ? window.glvResidenceField('scRes') : '')
     + '<div class="co-fields"><b>Where should we send it?</b>'
     + '<div class="fld"><label for="scName">Full name *</label>'
       + '<input id="scName" placeholder="Your name"><span class="err"></span></div>'
