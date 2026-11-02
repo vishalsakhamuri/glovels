@@ -1077,8 +1077,7 @@ select.assign.none:hover{border-color:#a5342b}
         <div class="prog-bar"><i id="progFill"></i></div>
         <ol class="prog" id="progList"></ol>
         <p style="margin:14px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
-          Each date is what we are working to, not a promise from the university. Your
-          counsellor will tell you if one of them has to move.</p>
+          Your counsellor keeps this up to date and tells you what comes next.</p>
       </div>
     </section>
 
@@ -1263,7 +1262,7 @@ async function __dashBoot(main) {
           : n ? 'Your ' + n + ' universit' + (n === 1 ? 'y is' : 'ies are')
           + ' below. ' : 'Your counsellor is building your list. ')
           + (paid ? (o.grossPaise ? 'Payment received. ' : 'Free \u2014 nothing to pay. ') : 'Nothing has been charged yet \u2014 your counsellor will confirm the amount and how to pay when they call. ')
-          + 'A counsellor calls you within one working day. ';
+          + 'Your counsellor will be in touch. ';
         var a = document.createElement('a');
         a.href = '/acceptance/' + encodeURIComponent(ref);
         a.textContent = 'What you accepted';
@@ -2033,23 +2032,24 @@ $('#nextUp').innerHTML =
       ? 'Everything we agreed to do is finished.'
       : 'Step ' + J.step + ' of ' + J.of + ' · ' + esc(J.stages[J.step - 1].detail)) + '</span>';
     document.getElementById('progFill').style.width = J.percent + '%';
-    document.getElementById('progCount').textContent = J.done + ' of ' + J.of + ' done'
-      + (J.stepHours ? ' \u00b7 each step is done within ' + (J.stepHours % 24 === 0 && J.stepHours >= 24 ? (J.stepHours / 24) + (J.stepHours === 24 ? ' day' : ' days') : J.stepHours + ' hours') + ' of starting' : '');
+    /* Patch 235 (owner, 2 Nov): "this statement is wrong". The step time is the
+       office's internal SLA, not a promise to the student — a university or a
+       visa office decides on its own clock. Only the count is shown. */
+    document.getElementById('progCount').textContent = J.done + ' of ' + J.of + ' steps done';
     const WORD = { done: ['done', 'Done'], doing: ['doing', 'In hand now'], next: ['next', 'To come'] };
     document.getElementById('progList').innerHTML = J.stages.map(function (x) {
       const w = WORD[x.state] || WORD.next;
-      const when = x.state === 'done' ? (x.on ? ' · ' + esc(x.on) : '')
-        : x.confirm ? ' · your counsellor will confirm the date'
-        : x.by ? ' · aiming for ' + esc(x.by) : '';
+      /* Patch 235 (owner, 2 Nov): "only generic texts" — no dates or times
+         promised to the student; the office's clocks stay in the office. */
+      const when = '';
       /* Patch 210: every step with its time — due by, on time or running
          late, or when it was done — on the student's own clock. */
       const fmtT = function (iso) { try { return new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso.slice(0, 16).replace('T', ' '); } };
       const sub = x.items && x.items.length && (x.state === 'doing' || x.items.length > 1)
         ? '<ul class="prog-sub">' + x.items.map(function (it) {
-            const tag = it.doneAt ? '<em class="sla ok">Done ' + esc(fmtT(it.doneAt)) + '</em>'
-              : it.late ? '<em class="sla late">Due ' + esc(fmtT(it.due)) + ' \u00b7 we are on it</em>'
-              : it.due ? '<em class="sla on">Due by ' + esc(fmtT(it.due)) + '</em>'
-              : it.waiting ? '<em class="sla wait">Starts after the step before</em>' : '';
+            void fmtT;
+            const tag = it.doneAt ? '<em class="sla ok">Done</em>'
+              : it.state === 'doing' || it.late || it.due ? '<em class="sla on">In hand</em>' : '';
             return '<li class="' + it.state + '">' + esc(it.title) + (tag ? ' ' + tag : '') + '</li>'; }).join('') + '</ul>'
         : '';
       return '<li class="' + w[0] + '" data-stage="' + x.key + '"><span class="dot" aria-hidden="true"></span>' +
@@ -2079,25 +2079,14 @@ $('#nextUp').innerHTML =
   }
   document.getElementById('progFill').style.width = P.percent + '%';
   document.getElementById('progCount').textContent =
-    P.done + ' of ' + P.total + ' done';
+    P.done + ' of ' + P.total + ' steps done';
   const WORD = { done: ['done', 'Done'], doing: ['doing', 'In hand now'],
     next: ['next', 'To come'] };
   document.getElementById('progList').innerHTML = P.steps.map(function (x) {
     const w = WORD[x.state] || WORD.next;
     return '<li class="' + w[0] + '"><span class="dot" aria-hidden="true"></span>' +
       '<div><b>' + esc(x.title) + '</b>' +
-      '<span>' + w[1] +
-        (x.state === 'done'
-          ? (x.on ? ' \u00b7 ' + esc(x.on) : '')
-          : !x.by ? ' \u00b7 date set once your universities are confirmed'
-          /* A target that has gone is not something to still be "aiming for".
-             Said plainly, without naming anybody: running behind is the
-             student's business, whose fault it is is not. */
-          /* Round 30 Sep: five "running behind" lines told the student the
-             office was late without anything they could do about it. */
-          : x.behind ? ' \u00b7 your counsellor will confirm the date'
-          : ' \u00b7 aiming for ' + esc(x.by)) +
-      '</span></div></li>';
+      '<span>' + w[1] + '</span></div></li>';
   }).join('');
 })();
 

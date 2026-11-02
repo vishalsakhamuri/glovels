@@ -93,9 +93,11 @@ const H = 3600000;
     const errs = []; p.on('pageerror', e => errs.push(String(e)));
     await p.goto(BASE + '/dashboard', { waitUntil: 'networkidle' }); await p.waitForTimeout(1200);
     const txt = await p.textContent('#progList').catch(() => '');
-    check('the dashboard shows "Due by" on the current step', /Due by|Due /.test(txt), txt.slice(0, 200));
+    /* Patch 235 (owner): no dates or times on the student's screen. */
+    check('the dashboard shows no due dates to the student', !/Due by|Due \d|aiming for/.test(txt) && /In hand/.test(txt), txt.slice(0, 200));
     check('and "Done" on finished ones', /Done /.test(txt));
-    check('and the promise: each step within a day of starting', /each step is done within 1 day/.test(await p.textContent('#progCount')), await p.textContent('#progCount'));
+    /* Patch 235: the office's step time is not shown to the student. */
+    check('and no internal step time is promised', !/within/.test(await p.textContent('#progCount')) && /steps done/.test(await p.textContent('#progCount')), await p.textContent('#progCount'));
     await p.locator('#progSec').screenshot({ path: '/tmp/student-progress.png' });
     check('no script errors', errs.length === 0, errs.join(' | '));
     await b.close();
