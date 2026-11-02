@@ -1538,13 +1538,17 @@ const signedIn = !!(window.__GLOVELS && window.__GLOVELS.user);
    show while that feature is off. 3 was the machine's picks alone. So the
    count here is the rows the shortlist screen draws, and the card says
    the same total with the machine's share as a detail. */
-const shown = (list.length ? list : (signedIn ? [] : FALLBACK)).filter(r => r.addedBy !== 'student');
+/* Patch 237 (owner, 2 Nov): the universities the student added with "Apply
+   free" are theirs and belong in this list too, marked "Added by you". */
+const shown = (list.length ? list : (signedIn ? [] : FALLBACK));
+/* Ours alone — what a package delivers — for the counts against a package. */
+const shownOurs = shown.filter(r => r.addedBy !== 'student');
 /* THE NUMBER MY PROGRAMS SHOWS. `shown` leaves out the private universities
    the student added themselves — they have their own place — but every count
    on this screen said "17 shortlisted" where My Programs said 18. The count
    is the whole shortlist; the table below is still the one we picked. */
 const slTotal = signedIn ? list.length : shown.length;
-const slMine = Math.max(0, slTotal - shown.length);
+const slMine = Math.max(0, slTotal - shownOurs.length);
 const slSaid = slTotal + ' universit' + (slTotal === 1 ? 'y' : 'ies') + ' shortlisted'
   + (slMine ? ' (' + slMine + ' you added)' : '');
 const usingSample = !list.length && !signedIn;
@@ -1625,6 +1629,7 @@ function card(p, i){
     + cell('Location', where ? esc(where) : '<span class="sl-none">\u2014</span>', 'sl-where')
     + cell('Match', p.withdrawn
         ? '<span class="sl-tag sl-tag-gone" style="background:#fff4ed;color:#9a3412;border-color:#f3c9a8">No longer offered</span>'
+        : p.addedBy === 'student' ? '<span class="sl-tag">' + ico('check') + 'Added by you' + (typeOf(p) ? ' \u00b7 ' + typeOf(p) : '') + '</span>'
         : '<span class="sl-tag">' + ico('check') + 'Matched'
         + (typeOf(p) ? ' \u00b7 ' + typeOf(p) : '') + '</span>')
     + cell('Tuition', '<b>' + money(p) + '</b>', 'sl-fee')
@@ -1663,16 +1668,15 @@ function slaLeft(){
   return {late:false, text: h ? h + 'h ' + m + 'm left' : m + 'm left'};
 }
 
-const remaining = Math.max(0, quota - new Set(shown.map(p => p.university)).size);
+const remaining = Math.max(0, quota - new Set(shownOurs.map(p => p.university)).size);
 const sla = slaLeft();
 const pending = (paid && remaining)
   ? '<article class="sl pending">' + ico('clock')
     + '<b>' + remaining + ' more being finalised</b>'
     + '<p>Your counsellor is checking eligibility for the rest of your ' + quota
     + '. They will appear here and we will message you.</p>'
-    + '<span class="sl-chip' + (sla && sla.late ? ' late' : '') + '">'
-      + (sla ? (sla.late ? 'Overdue — we will chase this' : 'Within 24 hours · '
-               + sla.text) : 'Available within 24 hours') + '</span></article>'
+    /* Patch 237: no times promised on the student's screens. */
+    + '<span class="sl-chip">Being finalised</span></article>'
   : '';
 /* Patch 153: the picks a counsellor is checking before they are named. The
    number and the kind of condition only — a name here would be a name the
@@ -1686,7 +1690,7 @@ const heldNote = __held
     + '<b>' + __held + ' more universit' + (__held === 1 ? 'y is' : 'ies are')
     + ' being checked by your counsellor</b>'
     + '<p>Because of special conditions (restricted admission, English proof) \u2014 '
-    + (__held === 1 ? 'it' : 'they') + ' will be released to your list within 48 hours.</p></article>'
+    + 'your counsellor will add ' + (__held === 1 ? 'it' : 'them') + ' to your list.</p></article>'
   : '';
 
 /* Someone who has just paid should be able to see what they paid. Without this
@@ -1897,7 +1901,7 @@ if (shown.length && !window.GLV_LOGO) (function () {
   } else if (paid) {
     name = 'Assigned after your call';
     av = '—';
-    sub = 'Usually within one working day';
+    sub = 'We will introduce them to you';
   } else {
     name = 'Not assigned yet';
     av = '—';
@@ -1962,9 +1966,9 @@ window.__markPaid = () => { STEPS[1][1] = true; paintSteps(); };
 const __m = (window.__GLOVELS && window.__GLOVELS.matched) || null;
 const next = (__m && __m.delivered > 0)
   ? ['Your shortlist is ready — ' + slTotal + ' universit' + (slTotal === 1 ? 'y' : 'ies'),
-     (shown.length > __m.delivered
+     (shownOurs.length > __m.delivered
         ? __m.delivered + ' picked for your ' + (__m.package || 'package') + ' and '
-          + (shown.length - __m.delivered) + ' added by your counsellor. '
+          + (shownOurs.length - __m.delivered) + ' added by your counsellor. '
         : __m.delivered + ' picked for your ' + (__m.package || 'package') + '. ')
      + 'Named, with the fee, the intake and the deadline on each one. They are yours '
      + 'to keep — and your counsellor can add or drop any of them with you.',
@@ -2099,7 +2103,7 @@ const steps = [
       /* "13 of 3 matched" (patch 145): the list against what the packages
          promised, in universities, and never more than the promise. */
       ? (() => { const owed = ((window.__GLOVELS || {}).matched && window.__GLOVELS.matched.owed) || quota;
-          const n = new Set(shown.map(p => p.university)).size;
+          const n = new Set(shownOurs.map(p => p.university)).size;
           return owed ? Math.min(n, owed) + ' of ' + owed + ' matched' : n + ' on your list'; })()
       : 'After your counsellor call', false],
   ['Applications filed', 'In deadline order', false],

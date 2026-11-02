@@ -1233,7 +1233,9 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
           paidAt: UNLOCKS.has(head.status) ? (head.paid_at || head.created_at) : '',
           taxMode: head.tax_mode || '',
           charged: (() => { try { const g = head.gateway_order_id && db.gatewayOrder ? db.gatewayOrder(head.gateway_order_id) : null;
-            return g && g.currency && g.currency !== 'INR' ? { currency: g.currency, amountMinor: Number(g.amount_minor), exponent: FX.exponent(g.currency) } : null; } catch (e) { return null; } })(),
+            if (g && g.currency && g.currency !== 'INR') return { currency: g.currency, amountMinor: Number(g.amount_minor), exponent: FX.exponent(g.currency) };
+            /* Patch 237: no gateway yet — the currency recorded when it was ordered. */
+            return head.currency && head.currency !== 'INR' && head.local_minor ? { currency: head.currency, amountMinor: Number(head.local_minor), exponent: FX.exponent(head.currency) } : null; } catch (e) { return null; } })(),
           addOns: main.addOns,
         } : null;
       })(),
@@ -2257,7 +2259,13 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       name, email, phone: storePhone(phone),
       destination: p.country || '',
       consent: b.consent || '',
-      note: 'Wants to apply: ' + where,
+      /* Patch 237: what they told the finder, so the counsellor calls knowing it. */
+      note: 'Wants to apply: ' + where + (() => {
+        const a = b.answers && typeof b.answers === 'object' ? b.answers : {};
+        const bits = [a.g_level, a.g_field, a.d_cgpa ? 'CGPA ' + a.d_cgpa : '', a.e_test ? a.e_test + (a.e_score ? ' ' + a.e_score : '') : '',
+          a.w_months ? a.w_months + ' months work' : '', a.g_intake].map(x => String(x || '').slice(0, 60)).filter(Boolean);
+        return bits.length ? ' — ' + bits.join(' · ') : '';
+      })(),
       source: from.source, campaign: from.campaign,
       sourcePage: pageOf(req, b) || '/', referrer: String(b.referrer || '').slice(0, 300),
     };
@@ -3085,6 +3093,13 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     });
     const { order, reference, plan, chargeNow, canSplit } = placed;
     if (exportSale) { try { db.setOrderTaxMode(reference, vat ? 'eu-vat-' + vat.rate : 'export'); } catch (e) { /* receipt still says so */ } }
+    /* Patch 237: the buyer's currency and residence, on the order itself. */
+    try {
+      const cur0 = String(b.currency || 'INR').toUpperCase();
+      const res0 = /^[A-Z]{2}$/.test(String(b.residence || '').toUpperCase()) ? String(b.residence).toUpperCase() : '';
+      const loc0 = cur0 !== 'INR' && FX.currencies().includes(cur0) ? inCurrency(gross, cur0) : null;
+      if (db.setOrderLocal) db.setOrderLocal(reference, loc0 ? loc0.currency : 'INR', loc0 ? loc0.amountMinor : gross, res0);
+    } catch (e) { /* the order stands */ }
     if (linked.created) seedMessages(linked.created);
     if (linked.buyer && who && who.role !== 'student') {
       db.log(who.name, 'placed an order for a student',
@@ -3196,7 +3211,12 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     /* Patch 230: the name, mobile and email typed at checkout are the
        student's own — into the profile's blank boxes, so the dashboard does
        not ask for them again a minute later. */
-    if (buyer) {
+    /* Patch 237: only into an account that is THIS buyer's — one just made at
+       this checkout, or the student signed in on this browser. An email typed
+       at a signed-out checkout that belongs to an existing account still gets
+       the order on that account, but writes nothing into its profile. */
+    const mayFill = !!buyer && (!!created || (!!acct && acct.id === buyer.id));
+    if (mayFill) {
       try {
         const before0 = db.getProfile(buyer.id) || {};
         const blank0 = v => String(v == null ? '' : v).trim() === '';
@@ -3218,7 +3238,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         }
       } catch (e) { /* the order stands */ }
     }
-    if (buyer && b.answers && typeof b.answers === 'object' && !Array.isArray(b.answers)) {
+    if (mayFill && b.answers && typeof b.answers === 'object' && !Array.isArray(b.answers)) {
       try {
         const ALLOWED = ['d_cgpa','d_max','d_dur','d_course','e_test','e_score','a_test','a_score',
           'w_has','w_months','g_level','g_field','g_country','g_intake','g_german','g_papers'];
@@ -8048,6 +8068,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       items,
       publicUnis: o.public_unis || 0,
       grossPaise: o.gross_paise || 0,
+      /* Patch 237: what the buyer chose — currency, the amount in it, where they live, the tax. */
+      currency: o.currency || 'INR', localMinor: o.local_minor || 0, residence: o.residence || '', taxMode: o.tax_mode || '',
       /* Patch 177 (item 18): a row with nothing to collect is settled,
          whatever was written on it when it was placed. */
       status: ['owing', 'part', 'awaiting'].includes(String(o.status || '')) && Number(o.gross_paise || 0) === 0

@@ -120,6 +120,8 @@ const store = require(path.join(__dirname, '..', 'server', 'store.js'));
   await page.fill('#rqPhone', '9876543210');
   await page.fill('#rqMail', email);
   await page.check('#rqOk');
+  /* Patch 237: a package that names universities asks level and subject when the finder was not filled. */
+  for (const sel of ['#rqLevel', '#rqField']) { if (await page.$(sel)) { const v = await page.$$eval(sel + ' option', o => (o.find(x => x.value) || {}).value); if (v) await page.selectOption(sel, v); } }
   await page.click('#buyPay');
   /* Patch 229: paying goes to the dashboard, whose note says which part. */
   /* Patch 229: paying a new account lands on "choose your password", then the dashboard. */

@@ -868,6 +868,12 @@ function sqliteDriver(file) {
    /* Patch 190: 'export' for a buyer abroad paying in foreign currency —
       export of services, zero-rated, so the price carries no GST. */
    "ALTER TABLE orders ADD COLUMN tax_mode TEXT NOT NULL DEFAULT ''",
+   /* Patch 237: the currency the buyer chose, what that came to in it at the
+      time, and where they said they live — so an order in euros is shown in
+      euros even before any payment gateway is switched on. */
+   "ALTER TABLE orders ADD COLUMN currency TEXT NOT NULL DEFAULT ''",
+   "ALTER TABLE orders ADD COLUMN local_minor INTEGER NOT NULL DEFAULT 0",
+   "ALTER TABLE orders ADD COLUMN residence TEXT NOT NULL DEFAULT ''",
    /* 10 Oct: the office's tags on a programme — "No German Required;
       MOI Accepted; TU Munich; Data" — semicolon-separated values from the
       tag dictionary (assets/tags-de.json, server/tags.js). Blank means
@@ -2015,6 +2021,9 @@ function open(dir) {
         String(gatewayOrderId), String(reference), partN == null ? null : Number(partN), String(currency || 'INR'),
         Math.round(Number(amountMinor) || 0), Math.round(Number(inrPaise) || 0), new Date().toISOString());
     },
+    setOrderLocal: (reference, currency, localMinor, residence) =>
+      db.run('UPDATE orders SET currency = ?, local_minor = ?, residence = ? WHERE reference = ?',
+        String(currency || ''), Math.round(Number(localMinor) || 0), String(residence || ''), String(reference)),
     setOrderTaxMode: (reference, mode) =>
       db.run('UPDATE orders SET tax_mode = ? WHERE reference = ?', String(mode || ''), String(reference)),
     gatewayOrder: id => db.one('SELECT * FROM gateway_orders WHERE gateway_order_id = ?', String(id)),

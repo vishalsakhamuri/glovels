@@ -1575,7 +1575,9 @@ document.addEventListener('click', async e => {
       }
       return;
     }
-    svcCheckout(s);
+    /* Patch 237: one checkout for everything — the website's, with "Where do
+       you live?" and the right tax; it returns to the dashboard. */
+    location.assign('/?book=' + encodeURIComponent(s.id));
     return;
   }
 

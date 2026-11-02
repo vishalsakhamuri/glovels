@@ -231,6 +231,8 @@ const text = async (ctx, url) => {
   await buy.fill('#rqMail', 'buy' + stamp + '@example.com');
   const tick = await buy.$('#rqOk');
   if (tick) await tick.check().catch(() => {});
+  /* Patch 237: a package that names universities asks level and subject when the finder was not filled. */
+  for (const sel of ['#rqLevel', '#rqField']) { if (await buy.$(sel)) { const v = await buy.$$eval(sel + ' option', o => (o.find(x => x.value) || {}).value); if (v) await buy.selectOption(sel, v); } }
   await buy.click('#buyPay');
   await buy.waitForTimeout(3000);
 

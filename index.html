@@ -3484,18 +3484,20 @@ function render(){
    * and data-rt="priv" is the one a package unlocks. The names are the old
    * public/private axis and the labels are what a student is told. */
   const bothEmpty = !pubAll.length && !privAll.length;
-  $$('.rtab').forEach(b => {
+  $$('.rtab[data-rt]').forEach(b => {
     const on = b.dataset.rt === resTab;
     b.classList.toggle('on', on);
     b.setAttribute('aria-selected', String(on));
     const mine = b.dataset.rt === 'pub' ? pubAll.length : privAll.length;
-    b.hidden = !mine && !bothEmpty;
+    /* Patch 237: the package tab never shows where there are no public
+       universities — not even over an empty search. */
+    b.hidden = b.dataset.rt === 'priv' ? !mine : (!mine && !bothEmpty);
     b.disabled = b.hidden;
   });
   /* One tab is a label, not a choice — and two tabs where one is the only one
      with anything in it is a choice that does not exist. The strip keeps its
      shape either way; only the live tab shows. */
-  const live = $$('.rtab').filter(b => !b.hidden).length;
+  const live = $$('.rtab[data-rt]').filter(b => !b.hidden).length;
   $('.rtabs') && $('.rtabs').classList.toggle('one', live === 1);
 
   paintRail();
@@ -3812,13 +3814,39 @@ function fullPhone(inputSel, ccId){
 }
 window.glvFullPhone = fullPhone;
 window.glvCcSelect = ccSelect;
+/* Patch 237: a package that names public universities picks them from what
+   the student wants to study. If the finder above was not filled in (and the
+   profile does not say), the checkout asks — level and subject — so the
+   universities can be delivered the moment it is paid. */
+function needWhatField(){
+  if (!buying || !(buying.publicUnis > 0)) return '';
+  const lv = (document.getElementById('fLevel') || {}).value || (PROFILE && PROFILE.g_level) || '';
+  const fd = (document.getElementById('fField') || {}).value || (PROFILE && PROFILE.g_field) || '';
+  if (lv && fd) return '';
+  const lvOpts = (document.getElementById('fLevel') || { innerHTML: '' }).innerHTML;
+  const fdOpts = (document.getElementById('fField') || { innerHTML: '' }).innerHTML;
+  return '<div class="fld co-res"><label for="rqLevel">What do you want to study? *</label>'
+    + (lv ? '' : '<select id="rqLevel" style="margin-bottom:8px">' + lvOpts + '</select>')
+    + (fd ? '' : '<select id="rqField">' + fdOpts + '</select>')
+    + '<span class="co-payhint" style="color:var(--muted)">Your universities are picked from this.</span><span class="err"></span></div>';
+}
+window.glvNeedWhat = () => {
+  const l = document.getElementById('rqLevel'), f = document.getElementById('rqField');
+  if (l && !l.value) return 'Choose the level you want to study.';
+  if (f && !f.value) return 'Choose a subject.';
+  return '';
+};
 /* Patch 233 (owner, 2 Nov): "when the user selects a package, ask his country
    of residence so it is easy to show which payment — India Razorpay, other
    countries Stripe". The first field of every checkout. Choosing it sets the
    site's country and currency (the same as the header picker); the checkout
    is then drawn again in that currency with what was typed kept. */
 function residenceField(id){
-  const mine = (window.glovelsPay && window.glovelsPay.visitorCountry && window.glovelsPay.visitorCountry()) || 'IN';
+  /* Patch 237: a visitor whose country we could not tell starts on the
+     country of the currency they are seeing, not on India. */
+  const byCur = { INR: 'IN', EUR: 'DE', GBP: 'GB', USD: 'US', AED: 'AE', SGD: 'SG', AUD: 'AU', CAD: 'CA', NGN: 'NG', NPR: 'NP', CHF: 'CH', LKR: 'LK', BDT: 'BD', KES: 'KE', GHS: 'GH', PHP: 'PH', NZD: 'NZ', JPY: 'JP', SAR: 'SA', QAR: 'QA' };
+  const curNow = window.glovelsPay && window.glovelsPay.chosen ? window.glovelsPay.chosen() : 'INR';
+  const mine = (window.glovelsPay && window.glovelsPay.visitorCountry && window.glovelsPay.visitorCountry()) || byCur[curNow] || 'IN';
   const nameOf = c => { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } };
   return '<div class="fld co-res"><label for="' + id + '">Where do you live? *</label>'
     + '<select id="' + id + '" data-res><option value="' + mine + '">' + nameOf(mine) + '</option></select>'
@@ -3843,10 +3871,15 @@ function wireResidence(id, redraw){
     const keep = {};
     document.querySelectorAll('.modal.on input[id], .modal.on select[id]').forEach(el => {
       if (el.type === 'checkbox') keep[el.id] = el.checked; else if (el.id !== id) keep[el.id] = el.value; });
+    const radios = {};
+    document.querySelectorAll('.modal.on input[type=radio][name]:checked').forEach(el => { radios[el.name] = el.value; });
     const cc = sel.value;
     const done = () => { redraw(); setTimeout(() => {
       Object.keys(keep).forEach(k => { const el = document.getElementById(k); if (!el || el.readOnly) return;
-        if (el.type === 'checkbox') { if (keep[k]) el.checked = true; } else if (keep[k] !== '' && el.tagName !== 'SELECT') el.value = keep[k]; });
+        if (el.type === 'checkbox') { if (keep[k]) el.checked = true; } else if (keep[k] !== '' && !el.classList.contains('cc')) el.value = keep[k]; });
+      /* Pay in full / in parts, as they had it. */
+      Object.keys(radios).forEach(n => { const r = document.querySelector('.modal.on input[type=radio][name="' + n + '"][value="' + radios[n] + '"]');
+        if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); } });
       const s2 = document.getElementById(id); if (s2) { s2.value = cc; const h = document.getElementById(id + 'Hint'); if (h) h.textContent = payHint(cc); }
       /* The mobile's country code follows where they live, unless they typed a + number. */
       const ccSel = document.querySelector('.modal.on select.cc');
@@ -3859,7 +3892,8 @@ function wireResidence(id, redraw){
   /* The prices must be in the money of the country shown: if they are not
      (a visitor whose country we could not tell), set it once now. */
   const cur = window.glovelsPay && window.glovelsPay.chosen ? window.glovelsPay.chosen() : 'INR';
-  if (!wireResidence.__synced && ((sel.value === 'IN') !== (cur === 'INR'))) { wireResidence.__synced = true; sel.onchange(); }
+  const nowT = Date.now();
+  if ((sel.value === 'IN') !== (cur === 'INR') && !(wireResidence.__last && nowT - wireResidence.__last < 3000)) { wireResidence.__last = nowT; sel.onchange(); }
 }
 window.glvResidenceField = residenceField;
 window.glvWireResidence = wireResidence;
@@ -3873,8 +3907,8 @@ function finderAnswers(){
   const c = document.getElementById('fCountry');
   if (c && c.value) a.g_country = (c.options[c.selectedIndex].text || '').replace(/^[^A-Za-z]+/, '').trim();
   const L = { bachelor: "Bachelor's", master: "Master's", diploma: 'Diploma / PG Diploma', foundation: 'Foundation / Pathway' };
-  if (L[v('fLevel')]) a.g_level = L[v('fLevel')];
-  if (v('fField')) a.g_field = v('fField');
+  if (L[v('fLevel') || v('rqLevel')]) a.g_level = L[v('fLevel') || v('rqLevel')];
+  if (v('fField') || v('rqField')) a.g_field = v('fField') || v('rqField');
   if (v('fCgpa')) { a.d_cgpa = v('fCgpa'); a.d_max = '10'; }
   const en = v('fEnglish');
   if (/^(ielts|toefl):/.test(en)) { const [t, sc] = en.split(':'); a.e_test = t === 'ielts' ? 'IELTS' : 'TOEFL'; a.e_score = sc; }
@@ -3949,8 +3983,8 @@ const open = id => $(id).classList.add('on');
     const bar = document.createElement('div');
     bar.className = 'co-bar';
     bar.innerHTML = '<button type="button" data-co-back>\u2190 Back</button>'
-      + '<span class="co-steps"><b>Your details</b> \u00b7 Pay \u00b7 Your dashboard</span>'
-      + '<a href="/" aria-label="Glovels home"><img src="/assets/glovels-logo.png" alt="Glovels"></a>';
+      + '<span class="co-steps"><b>Your details</b> \u00b7 <span data-co-step2>Pay</span> \u00b7 Your dashboard</span>'
+      + '<span aria-hidden="true"><img src="/assets/glovels-logo.png" alt=""></span>';
     m.insertBefore(bar, m.firstChild);
     let pushed = false;
     new MutationObserver(() => {
@@ -4244,10 +4278,11 @@ document.addEventListener('click', e => {
   const tax = Math.round(gross - gross / 1.18);
   const taxable = gross - tax;
 
+  { const st = document.querySelector('#buyModal [data-co-step2]'); if (st) st.textContent = 'Pay'; }
   $('#buyT').textContent = buying.name;
   $('#buyLead').textContent = 'Every price below includes GST.';
   $('#buyBody').innerHTML =
-      residenceField('rqRes') +
+      residenceField('rqRes') + needWhatField() +
       '<div class="co-line"><span>' + esc(buying.name) + '</span>'
     + '<b>₹' + nf.format(gross) + '</b></div>'
     + '<div class="co-line sub"><span>Taxable value</span><span>₹'
@@ -4359,6 +4394,10 @@ $('#buyPay').onclick = () => {
   /* Always, whatever was bought. The server refuses the order without it, so
      this is the polite half of a rule that is enforced somewhere it cannot be
      skipped by a hand-rolled request. */
+  { const need = window.glvNeedWhat ? window.glvNeedWhat() : '';
+    const host = document.getElementById('rqField') || document.getElementById('rqLevel');
+    if (host) { const fl = host.closest('.fld'); fl.classList.toggle('bad', !!need); fl.querySelector('.err').textContent = need; }
+    if (need) ok = false; }
   const box = $('#rqOk');
   const given = box && box.checked;
   if($('#rqOkErr')) $('#rqOkErr').style.display = given ? 'none' : 'block';
@@ -4386,6 +4425,56 @@ $('#buyPay').onclick = () => {
      payment. */
   const packageId = buying.id;
 
+  /* Patch 237: the confirmation is drawn only when the server has taken the
+     order. It used to be drawn at once, so a refused order (too many from one
+     connection, a lost connection) still read "Order confirmed". */
+  const drawConfirmed = () => {
+    paidName = buying.name;
+    touched = true;
+    render();
+  
+    $('#buyT').textContent = 'Order placed';
+    $('#buyLead').textContent = '';
+    $('#buyBody').innerHTML =
+        '<div class="paid-head">' + ico('check') + '<div><b>' + esc(buying.name)
+      + ' \u2014 order placed</b><span id="buyTaxLine">Order <b id="buyRef">' + ref + '</b> · ₹' + nf.format(gross)
+      + ' including ₹' + nf.format(tax) + ' GST, payable to your counsellor</span></div></div>'
+      + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
+      + '<li id="buyAcct"><b>Setting up your dashboard\u2026</b><span>One moment.</span></li>'
+      + '<li><b>Sign in to see your ' + (buying.publicUnis || 'matched')
+        + ' universities</b><span>They are named on <b>My Programs</b> in your '
+        + 'account, with the fee, the intake and the deadline on each one \u2014 and '
+        + 'they stay there, so you can come back to them without searching again. '
+        + 'They are not shown on this page: the list is yours, not this '
+        + 'browser\u2019s.</span></li>'
+      + (buying.matches
+        ? '<li><b>Nobody needs to ring you</b><span>This is picked and delivered by '
+          + 'the system. If you want a counsellor on it, every bigger package includes '
+          + 'one \u2014 and what you paid today comes off the price within 30 days.'
+          + '</span></li>'
+        : '<li><b>A counsellor calls you</b><span>Mon–Sat '
+        + '9:30–19:30 IST, to agree your shortlist together. That agreed shortlist is '
+        + 'what the guarantee applies to.</span></li>')
+      + '<li><b>Documents and applications</b><span>Upload once in your dashboard; your '
+        + 'counsellor files each application and follows it to a decision.</span></li>'
+      + '<li><b>Funding and visa</b><span>Blocked account, loan and insurance run alongside, '
+        + 'so nothing waits on your offer letter.</span></li>'
+      + '</ol></div>'
+      + '<div class="demo-note" style="margin-top:14px">' + ico('info')
+      + '<span><b>Nothing has been charged yet.</b> Online payment is not open on this site. '
+      + 'Your counsellor will confirm the amount and how to pay it when they call, and your '
+      + 'invoice follows the payment. Your place and your universities are held either '
+      + 'way.</span></div>'
+      + '<div class="paid-cta"><button class="btn btn-primary" id="seeMatches">See my '
+        + (buying.publicUnis || '') + ' universities ' + ico('arrow') + '</button>'
+        + '<a class="btn btn-ghost" href="' + "" + '/login">Go to my dashboard</a>'
+        + '</div>';
+    $('#buyPay').style.display = 'none';
+    $('.co-legal') && ($('.co-legal').style.display = 'none');
+    $('#seeMatches').onclick = () => { location.assign('/dashboard'); };
+  };
+  const payBtn = $('#buyPay'); const payWas = payBtn.innerHTML;
+  payBtn.disabled = true; payBtn.textContent = 'Placing your order…';
   fetch('/api/orders', {
     method: 'POST',
     credentials: 'same-origin',
@@ -4422,6 +4511,7 @@ $('#buyPay').onclick = () => {
   })
   .then(d => {
     ref = d.reference;                       /* the server's reference, not ours */
+    drawConfirmed();
     /* Patch 229 (owner, 1 Nov): "the pop-up is not good — open a proper
        screen and login". Paid and signed in (a new account is signed in on
        this device at once) → the dashboard, universities first. An existing
@@ -4525,70 +4615,24 @@ $('#buyPay').onclick = () => {
       sessionStorage.setItem('glovels_pending_email', buyer.email);
     } catch (e) {}
   })
-  .catch(() => {
-    /* Server unreachable. The purchase still unlocks the page in front of the
-       visitor and the details are held here, rather than showing an error at the
-       moment somebody has just decided to buy. */
-    try {
-      localStorage.setItem('glovels_order', JSON.stringify({
-        reference: ref, package: buying.name, publicUnis: buying.publicUnis || 0,
-        grossPaise: gross * 100, name: buyer.name, email: buyer.email,
-        paidAt: new Date().toISOString()
-      }));
-    } catch (e) {}
+  .catch(e => {
+    /* Patch 237: refused or unreachable — say so, keep the form, nothing is placed. */
+    payBtn.disabled = false; payBtn.innerHTML = payWas;
+    let err = document.getElementById('buyErr');
+    if (!err) { err = document.createElement('p'); err.id = 'buyErr'; err.setAttribute('role', 'alert');
+      err.style.cssText = 'margin:10px 0 0;padding:10px 12px;border-radius:10px;font:600 13px/1.5 var(--sans);background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118';
+      payBtn.parentNode.insertBefore(err, payBtn); }
+    err.textContent = 'Your order was not placed: ' + ((e && e.message && e.message !== 'order refused') ? e.message : 'please check your connection and try again.');
   });
 
   /* Not unlocked here. What they bought is delivered to their account by the
      server — matched against their profile rather than against whatever
      filters this tab happened to have set — and the panel below tells them to
      sign in and look at it. */
-  paidName = buying.name;
-  touched = true;
-  render();
-
-  $('#buyT').textContent = 'Order confirmed';
-  $('#buyLead').textContent = '';
-  $('#buyBody').innerHTML =
-      '<div class="paid-head">' + ico('check') + '<div><b>' + esc(buying.name)
-    + ' is active</b><span id="buyTaxLine">Order <b id="buyRef">' + ref + '</b> · ₹' + nf.format(gross)
-    + ' including ₹' + nf.format(tax) + ' GST, payable to your counsellor</span></div></div>'
-    + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
-    + '<li id="buyAcct"><b>Setting up your dashboard\u2026</b><span>One moment.</span></li>'
-    + '<li><b>Sign in to see your ' + (buying.publicUnis || 'matched')
-      + ' universities</b><span>They are named on <b>My Programs</b> in your '
-      + 'account, with the fee, the intake and the deadline on each one \u2014 and '
-      + 'they stay there, so you can come back to them without searching again. '
-      + 'They are not shown on this page: the list is yours, not this '
-      + 'browser\u2019s.</span></li>'
-    + (buying.matches
-      ? '<li><b>Nobody needs to ring you</b><span>This is picked and delivered by '
-        + 'the system. If you want a counsellor on it, every bigger package includes '
-        + 'one \u2014 and what you paid today comes off the price within 30 days.'
-        + '</span></li>'
-      : '<li><b>A counsellor calls you</b><span>Mon–Sat '
-      + '9:30–19:30 IST, to agree your shortlist together. That agreed shortlist is '
-      + 'what the guarantee applies to.</span></li>')
-    + '<li><b>Documents and applications</b><span>Upload once in your dashboard; your '
-      + 'counsellor files each application and follows it to a decision.</span></li>'
-    + '<li><b>Funding and visa</b><span>Blocked account, loan and insurance run alongside, '
-      + 'so nothing waits on your offer letter.</span></li>'
-    + '</ol></div>'
-    + '<div class="demo-note" style="margin-top:14px">' + ico('info')
-    + '<span><b>Nothing has been charged yet.</b> Online payment is not open on this site. '
-    + 'Your counsellor will confirm the amount and how to pay it when they call, and your '
-    + 'invoice follows the payment. Your place and your universities are held either '
-    + 'way.</span></div>'
-    + '<div class="paid-cta"><button class="btn btn-primary" id="seeMatches">See my '
-      + (buying.publicUnis || '') + ' universities ' + ico('arrow') + '</button>'
-      + '<a class="btn btn-ghost" href="' + "" + '/login">Go to my dashboard</a>'
-      + '</div>';
-  $('#buyPay').style.display = 'none';
-  $('.co-legal') && ($('.co-legal').style.display = 'none');
-  $('#seeMatches').onclick = () => { location.assign('/dashboard'); };
 };
 
 /* Reopening checkout must reset the sheet out of its confirmed state. */
-const resetSheet = () => { $('#buyPay').style.display = ''; $('#buyPay').disabled = false; };
+const resetSheet = () => { $('#buyPay').style.display = ''; $('#buyPay').disabled = false; const e = document.getElementById('buyErr'); if (e) e.remove(); };
 
 /* Adding a university to the shortlist. The shortlist is what the guarantee
    applies to, so it is a deliberate act with a confirmation, not a silent add.
@@ -4690,6 +4734,7 @@ function applyBlocked(message){
    they can come back and add more, choose a package, and see everything in
    one place. */
 function askToApply(id, uni, prog){
+  { const st = document.querySelector('#buyModal [data-co-step2]'); if (st) st.textContent = 'Your list'; }
   $('#buyT').textContent = 'Add ' + (uni || 'this university') + ' to your list';
   $('#buyLead').textContent = 'Free to apply. Create your login and it goes on your list now, or leave your number and a counsellor calls you.';
   const fld = (id2, label, type, ph, ac) => '<div class="field"><label for="' + id2 + '">' + label + '</label>'
@@ -4747,7 +4792,7 @@ function askToApply(id, uni, prog){
     btn.disabled = true; btn.textContent = 'One moment…'; say('');
     try {
       if (mode === 'call') {
-        const d = await postApply({ id, name, email, phone, consent: 'apply' });
+        const d = await postApply({ id, name, email, phone, consent: 'apply', answers: window.glvFinderAnswers ? window.glvFinderAnswers() : {} });
         return applied(false, uni || d.university, prog || d.program, false);
       }
       const pw = $('#apPw').value;
@@ -4828,7 +4873,7 @@ function applied(signedIn, uni, prog, already){
    browser and showed "Demo. Nothing has been filed." applyNow() above does
    the real thing, so this is gone rather than left to be called by mistake. */
 
-$$('.rtab').forEach(b => b.onclick = () => { resTab = b.dataset.rt; render(); });
+$$('.rtab[data-rt]').forEach(b => b.onclick = () => { resTab = b.dataset.rt; render(); });
 $('#relock').onclick = () => { unlocked = 0; paidName = ''; render(); };
 
 /* What this visitor may see, asked once on load. The answer decides how many
@@ -5279,6 +5324,7 @@ $('#planCta').onclick = () => {
   }
   $('#scLegal').style.display = '';
   $('#svcCheckout').classList.add('on');
+  { const e0 = document.getElementById('scErr'); if (e0) e0.remove(); }
   if (window.glvWireResidence) window.glvWireResidence('scRes', () => $('#planCta').click());
   /* Patch 233: signed in, the services checkout is theirs too — filled in,
      the email fixed to the account, and what they buy lands on it. */
@@ -5346,10 +5392,20 @@ $('#planCta').onclick = () => {
       if (r.ok) {
         placed = await r.json();
         ref = placed.reference;
+      } else {
+        const d0 = await r.json().catch(() => ({}));
+        throw new Error(d0.error || 'The order was refused.');
       }
     } catch (e) {
-      /* Offline, or opened from disk. The confirmation below still appears —
-         losing the screen as well as the connection helps nobody. */
+      /* Patch 237: refused or unreachable — no "Order confirmed" with a
+         made-up reference. Say so and keep the form. */
+      let err = document.getElementById('scErr');
+      const pay = $('#scPay');
+      if (!err) { err = document.createElement('p'); err.id = 'scErr'; err.setAttribute('role', 'alert');
+        err.style.cssText = 'margin:10px 0 0;padding:10px 12px;border-radius:10px;font:600 13px/1.5 var(--sans);background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118';
+        pay.parentNode.insertBefore(err, pay); }
+      err.textContent = 'Your order was not placed: ' + (e && e.message && !/fetch/i.test(e.message) ? e.message : 'please check your connection and try again.');
+      return;
     }
 
     /* If a gateway is collecting, the card sheet opens here and this does not
@@ -5770,6 +5826,22 @@ window.__glovelsSetServices = function (list) {
  * visitor to the right part of a grid of thirty-six and hoping they find the
  * card again is not landing them anywhere — the id is in the URL, so put it in
  * the basket and switch to the tab it lives on. */
+/* Patch 237: /?book=<id> — the student portal's "Book" sends here, so a
+   service is bought through the same checkout page as everything else
+   ("Where do you live?", the right tax, then the dashboard). */
+(function () {
+  const id = new URLSearchParams(location.search).get('book');
+  if (!id) return;
+  let tries = 0;
+  const go = () => {
+    const s = (typeof SERVICES !== 'undefined' ? SERVICES : []).find(x => String(x.id) === id);
+    if (!s) { if (++tries < 20) return setTimeout(go, 250); return; }
+    chosen.clear(); chosen.add(s.id);
+    try { render(); plan(); } catch (e) {}
+    setTimeout(() => { const c = document.getElementById('planCta'); if (c) c.click(); }, 150);
+  };
+  setTimeout(go, 300);
+})();
 (function () {
   const m = /^#service-(.+)$/.exec(location.hash || '');
   if (!m) return;

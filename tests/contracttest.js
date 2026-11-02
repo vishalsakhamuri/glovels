@@ -149,12 +149,16 @@ const stamp = Date.now();
   await buy.fill('#rqPhone', '9876543213');
   /* Patch 231: a signed-in student's email is fixed to their account. */
   if (!(await buy.$eval('#rqMail', e => e.readOnly))) await buy.fill('#rqMail', 'checkout' + stamp + '@example.com');
+  /* Patch 237: a package that names universities asks level and subject when the finder was not filled. */
+  for (const sel of ['#rqLevel', '#rqField']) { if (await buy.$(sel)) { const v = await buy.$$eval(sel + ' option', o => (o.find(x => x.value) || {}).value); if (v) await buy.selectOption(sel, v); } }
   await buy.click('#buyPay');
   await buy.waitForTimeout(700);
   check('paying without ticking is refused on the page too',
     await buy.isVisible('#rqOkErr'));
 
   await buy.check('#rqOk');
+  /* Patch 237: a package that names universities asks level and subject when the finder was not filled. */
+  for (const sel of ['#rqLevel', '#rqField']) { if (await buy.$(sel)) { const v = await buy.$$eval(sel + ' option', o => (o.find(x => x.value) || {}).value); if (v) await buy.selectOption(sel, v); } }
   await buy.click('#buyPay');
   /* Patch 229: paying goes to the dashboard, whose note carries the order. */
   /* Patch 229: paying a new account lands on "choose your password", then the dashboard. */
