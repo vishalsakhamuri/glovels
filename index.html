@@ -3717,8 +3717,7 @@ async function asSend(e) {
   const box = $('#rAssist');
   if (box) {
     box.innerHTML = '<b>Thank you — our experts will review your data and call you back with universities that fit.</b>'
-      + 'On ' + esc(phone) + ', with what is open for your profile. Usually the same day, '
-      + 'and always within one working day.';
+      + 'On ' + esc(phone) + ', with what is open for your profile.';
   }
 }
 
@@ -3967,8 +3966,9 @@ const open = id => $(id).classList.add('on');
   });
 })();
 $$('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('on'));
-$$('.modal').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.remove('on'); }));
-addEventListener('keydown', e => { if(e.key === 'Escape') $$('.modal.on').forEach(m => m.classList.remove('on')); });
+/* Patch 236: the checkout pages close only from Back — a click on the page around the form is not a way out. */
+$$('.modal').forEach(m => m.addEventListener('click', e => { if(e.target === m && m.id !== 'buyModal' && m.id !== 'svcCheckout') m.classList.remove('on'); }));
+addEventListener('keydown', e => { if(e.key === 'Escape') $$('.modal.on').forEach(m => { if (m.id !== 'buyModal' && m.id !== 'svcCheckout') m.classList.remove('on'); }); });
 
 /* Both converters filter letters out as they are typed. Filtering alone is a
    field that swallows keystrokes with no explanation; this says why, beside
@@ -4260,7 +4260,7 @@ document.addEventListener('click', e => {
         ? '<div class="co-note">' + ico('unlock') + '<span><b>Reveals '
           + buying.publicUnis + ' public universities.</b> You will get login details for your '
           + 'student dashboard by email, where your shortlist, documents and deadlines live. '
-          + 'A counsellor calls you within one working day.</span></div>'
+          + 'Your counsellor will be in touch.</span></div>'
         : '')
     + (partsFor(gross)
         ? '<div class="paychoice" id="payChoice">'
@@ -4565,7 +4565,7 @@ $('#buyPay').onclick = () => {
         + 'the system. If you want a counsellor on it, every bigger package includes '
         + 'one \u2014 and what you paid today comes off the price within 30 days.'
         + '</span></li>'
-      : '<li><b>A counsellor calls you</b><span>Within one working day, Mon–Sat '
+      : '<li><b>A counsellor calls you</b><span>Mon–Sat '
       + '9:30–19:30 IST, to agree your shortlist together. That agreed shortlist is '
       + 'what the guarantee applies to.</span></li>')
     + '<li><b>Documents and applications</b><span>Upload once in your dashboard; your '
@@ -4809,7 +4809,7 @@ function applied(signedIn, uni, prog, already){
           + '<li><b>Your counsellor has been told</b><span>They check your CGPA and your '
             + 'documents against this university before anything is filed.</span></li>'
         : '<li><b>A counsellor picks it up</b><span>They check you meet the entry '
-            + 'requirements and call you back within one working day.</span></li>'
+            + 'requirements and call you back.</span></li>'
           + '<li><b>Nothing is charged</b><span>Private universities are free to apply '
             + 'to. If a public university is the better route, they will say so and show '
             + 'you what it costs.</span></li>')
@@ -5420,11 +5420,11 @@ $('#planCta').onclick = () => {
       steps.push(['Your AI draft is ready now',
         'Open the studio, answer four questions, and a first draft appears in about a minute.']);
       steps.push(['An admissions writer rewrites it with you',
-        'Final version within 1 business day. A raw AI draft costs you the application.']);
+        'Then the final version. A raw AI draft costs you the application.']);
     }
     if(items.some(s => s.levels.length)) {
       steps.push(['Your class batch is confirmed',
-        'Timings by email within one working day, two live sessions a week.']);
+        'Timings by email, two live sessions a week.']);
     }
     if(items.some(s => s.partners.length)) {
       steps.push(['We open the account with the provider',
@@ -5446,7 +5446,7 @@ $('#planCta').onclick = () => {
         + 'Answer the six profile questions and they are there within the minute.']);
     } else {
       steps.push(['A counsellor confirms the details',
-        'Within one working day, Mon–Sat 9:30–19:30 IST.']);
+        'Mon–Sat 9:30–19:30 IST.']);
     }
     steps.push(['Everything lands in your dashboard and your inbox',
         'Drafts, certificates and receipts, with your reference ' + ref + '.']);
@@ -5487,9 +5487,9 @@ $$('[data-cat]').forEach(t => t.onclick = () => {
 /* ------------------------------------------------------------- AI studio */
 $$('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('on'));
 $$('.modal').forEach(m => m.addEventListener('click', e => {
-  if(e.target === m) m.classList.remove('on'); }));
+  if(e.target === m && m.id !== 'buyModal' && m.id !== 'svcCheckout') m.classList.remove('on'); }));
 addEventListener('keydown', e => { if(e.key === 'Escape')
-  $$('.modal.on').forEach(m => m.classList.remove('on')); });
+  $$('.modal.on').forEach(m => { if (m.id !== 'buyModal' && m.id !== 'svcCheckout') m.classList.remove('on'); }); });
 
 
 /* ------------------------------------------------------- the stories track */
@@ -6159,8 +6159,8 @@ $('#cForm').addEventListener('submit', async e => {
     if(window.glvTrack) glvTrack('generate_lead', { form: 'counselling' });
     $('#cForm').innerHTML =
       '<div class="sent">' + ico('check') + '<div><b>Request received</b>'
-      + '<span>A counsellor calls you back within one working day, Mon–Sat '
-      + '9:30–19:30 IST. Nothing is charged, and there is no obligation.</span></div></div>';
+      + '<span>A counsellor calls you back, Mon–Sat 9:30–19:30 IST. Nothing is charged, '
+      + 'and there is no obligation.</span></div></div>';
   } catch(err) {
     btn.disabled = false; btn.textContent = 'Book Free Counselling';
     const body = Object.entries(payload)
