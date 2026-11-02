@@ -62,6 +62,13 @@ DB.short = DB.short || [];
 DB.apps = DB.apps || {};
 const ids = () => DB.short;
 
+/* Patch 241: a university the student added themselves is not "in prep"
+   until their counsellor confirms it and starts on it. */
+function waiting(id) {
+  const row = (SHORT_ROWS || []).find(r => String(r.id) === String(id));
+  const a = DB.apps[id] || {};
+  return !!(row && row.addedBy === 'student' && !(Number(a.stage || 0) > 0 || a.outcome));
+}
 function stateOf(id) {
   if (!DB.apps[id]) DB.apps[id] = {stage: 0, outcome: ''};
   return DB.apps[id];
@@ -232,9 +239,12 @@ function block(id) {
           '</span>' : '') +
     '</div>' +
 
+    (waiting(id) ? '<p style="margin:0 0 14px;padding:10px 12px;border-radius:10px;background:#f4f7fc;'
+      + 'font:500 13px/1.5 var(--sans);color:var(--navy-700)"><b>You added this one.</b> Your counsellor will '
+      + 'confirm it with you and then start the next steps.</p>' : '') +
     '<ul class="track" style="margin-bottom:16px">' + STAGES.map((st, i) => {
       const cls = (i < s.stage || (done && i === s.stage)) ? 'done'
-                : i === s.stage ? 'now' : '';
+                : (i === s.stage && !waiting(id)) ? 'now' : '';
       const word = cls === 'done' ? 'Done' : cls === 'now' ? 'In progress' : 'Awaiting';
       return '<li class="' + cls + '" title="' + esc(st.d) + '"><span class="dot">'
         + (cls === 'done' ? ico('check') : String(i + 1)) + '</span>'
@@ -290,7 +300,7 @@ function paint() {
      complement of "submitted" rather than a stage test of its own, so the two
      always add up to the shortlist and a stage added later cannot fall
      through the gap between them. */
-  $('#kPrep').textContent  = st.filter(s => !sent(s)).length;
+  $('#kPrep').textContent  = list.filter((id, i) => !sent(st[i]) && !waiting(id)).length;
   $('#kWait').textContent  = st.filter(s => s.outcome === 'waitlist').length;
   $('#kRej').textContent   = st.filter(s => s.outcome === 'rejected').length;
   /* An offer ARRIVED — which is also true of one that was taken up and one

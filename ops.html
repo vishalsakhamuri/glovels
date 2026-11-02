@@ -576,7 +576,7 @@ body.open{overflow:hidden}
     $('#dTitle').textContent = q.label;
     $('#dSub').textContent = q.total + ' waiting · SLA ' + q.sla + (q.late ? ' · ' + q.late + ' past it' : '');
     drawRows(q.rows, q.total);
-    document.body.classList.add('open'); $('#drawer').focus();
+    document.body.classList.add('open'); drawerPush(); $('#drawer').focus();
   }
   /* -------------------------------------------------- one counsellor */
   var SORT = { key: 'late', dir: 'descending' };
@@ -610,7 +610,7 @@ body.open{overflow:hidden}
     $('#dFilters').insertAdjacentHTML('afterbegin', '<div class="kpis">' + K.map(function (k) {
       return '<button type="button" class="kpi' + (k[3] ? ' bad' : '') + '" data-cview="' + k[0] + '" aria-pressed="' + (view === k[0]) + '"><b>' + k[1] + '</b><span>' + k[2] + '</span></button>';
     }).join('') + '</div>');
-    document.body.classList.add('open'); $('#drawer').focus();
+    document.body.classList.add('open'); drawerPush(); $('#drawer').focus();
   }
 
   /* A stop on the route opens the students at that stage, worst first. */
@@ -622,7 +622,7 @@ body.open{overflow:hidden}
     $('#dSub').textContent = p.students + (p.students === 1 ? ' student' : ' students') + ' at this stage'
       + (p.late ? ' · ' + p.late + ' with steps past their date' : '');
     drawRows(p.rows || [], p.students);
-    document.body.classList.add('open'); $('#drawer').focus();
+    document.body.classList.add('open'); drawerPush(); $('#drawer').focus();
   }
   function rowsOpen() {
     if (!OPEN) return null;
@@ -648,7 +648,11 @@ body.open{overflow:hidden}
     }).join('') + (total > rows.length ? '<p class="none">Showing the first ' + rows.length + ' of ' + total + '.</p>' : '')
       : '<div class="none"><b>Nothing here</b>No student in this queue is ' + (FILTER === 'all' ? 'waiting.' : names[FILTER].toLowerCase() + '.') + '</div>';
   }
-  function closeDrawer() { document.body.classList.remove('open'); OPEN = null; }
+  /* Patch 241: the drawer closes only with its X or the browser's Back. */
+  function drawerPush() { if (!(history.state && history.state.drawer)) history.pushState({ drawer: 1 }, ''); }
+  function shutDrawer() { document.body.classList.remove('open'); OPEN = null; }
+  function closeDrawer() { if (history.state && history.state.drawer) history.back(); else shutDrawer(); }
+  window.addEventListener('popstate', function () { if (document.body.classList.contains('open')) shutDrawer(); });
   document.addEventListener('click', function (e) {
     var q = e.target.closest('[data-q]'); if (q) return openQueue(q.dataset.q);
     var st = e.target.closest('[data-phase]');
@@ -668,8 +672,7 @@ body.open{overflow:hidden}
       var qq = rowsOpen(); if (qq) drawRows(qq.rows || [], qq.total != null ? qq.total : qq.students);
     }
   });
-  $('#dx').onclick = closeDrawer; $('#scrim').onclick = closeDrawer;
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+  $('#dx').onclick = closeDrawer;
 
   /* -------------------------------------------------------- SLA editor */
   var RULES = null;
@@ -679,7 +682,7 @@ body.open{overflow:hidden}
     $('#dSub').textContent = 'How long each thing may take before it shows as late. Changes apply to open work at once.';
     $('#dFilters').innerHTML = '';
     $('#dList').innerHTML = '<div class="none">Loading…</div>';
-    document.body.classList.add('open');
+    document.body.classList.add('open'); drawerPush();
     Promise.all([api('/api/staff/command/sla'), api('/api/staff/task-rules')]).then(function (r) {
       var c = r[0].clocks; RULES = r[1];
       var CL = [['counsellor', 'A paying student gets a counsellor'], ['messages', 'A student\u2019s message gets a reply'],
@@ -852,7 +855,7 @@ body.open{overflow:hidden}
     if (pm.indexOf('content') < 0) { $('#navHome').hidden = true; $('#navBlog').hidden = true; }
     if (pm.indexOf('catalogue') < 0) $('#navCat').hidden = true;
     if (u.role === 'editor') { document.querySelectorAll('.nav a[href="ops.html"],.nav a[href="counsellor.html"],.nav a[href="chat.html"],.nav a[href="leads.html"],.nav a[href="leads-command.html"]').forEach(function (a) { a.hidden = true; }); }
-    else { $('#slaBtn').hidden = false; $('#slotsBtn').hidden = false; }
+    else if (u.role === 'admin') { $('#slaBtn').hidden = false; $('#slotsBtn').hidden = false; }
     loadCalls(); setInterval(function () { if (!document.hidden) loadCalls(); }, 60000);
     if (location.hash === '#calls') setTimeout(function () { $('#calls').scrollIntoView({ behavior: 'smooth' }); }, 600);
     tick(); setInterval(tick, 15000);

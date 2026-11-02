@@ -328,7 +328,8 @@ function open({ db, fx, log = console }) {
       const t = a ? touch(a) : studentT[o.student_id || p.student_id]
         || enqByEmail[String(o.email || '').toLowerCase()] || touch(null);
       const who = o.student_id || p.student_id || o.email || p.order_ref;
-      const amt = (p.kind === 'refund' ? -1 : 1) * Number(p.paise || 0) / 100;
+      /* Patch 241: refunds are stored negative already; always subtract them. */
+      const amt = (p.kind === 'refund' ? -Math.abs(Number(p.paise || 0)) : Number(p.paise || 0)) / 100;
       put(p.at || p.created_at, t, (T, now, d) => {
         T.revenue += amt;
         if (p.kind !== 'refund') { if (!T.payers.has(who) && now && T === cur && byDay[d]) byDay[d].paid++; T.payers.add(who); }

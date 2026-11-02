@@ -541,6 +541,7 @@ function send(res, code, body, type, extra) {
     /* Patch 195: a student's portal page — money in their currency too. */
     const pth = String(res.req.url || '').split('?')[0];
     if (STUDENT_PAGES.test(pth)) body = withMobileKit(body, pth);
+    else body = staffGuard(body, pth);
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -1793,7 +1794,7 @@ function universityPage(u, req) {
     ['Next deadline', soonest ? SEASON(soonest.season) + ' · ' + dateShort(soonest.at) : '—'],
     ['CGPA', cgpa],
     u.germanGpa != null ? ['German grade', 'up to ' + u.germanGpa.toFixed(1)] : null,
-    ['City', (u.city ? u.city + ', ' : '') + c.name],
+    u.city ? ['City', u.city + ', ' + c.name] : ['Country', c.name],
   ].filter(Boolean);
 
   const about = x.about
@@ -2857,7 +2858,7 @@ const SIGNED_IN_NAV = `<script>
   fetch('/api/auth/me',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(m){
     var u=m&&m.user; if(!u)return;
     var role=u.role, perms=u.perms||[];
-    var home=role==='admin'?'ops.html':role==='editor'?(perms.indexOf('content')>=0?'home.html':'catalogue.html')
+    var home=role==='admin'?'ops.html':role==='editor'?(perms.indexOf('content')>=0?'home.html':perms.indexOf('marketing')>=0?'marketing.html':'catalogue.html')
       :role==='counsellor'?'counsellor.html':role==='partner'?'partner.html':'dashboard.html';
     var label=role==='student'?'My dashboard':role==='partner'?'My students':'My office';
     var first=String(u.name||'').trim().split(/\s+/)[0];
@@ -3109,7 +3110,32 @@ function mobileBar(waNumber) {
 /* Patch 195: the student's own portal pages show money in their currency
    too (the office's screens stay in rupees). */
 const STUDENT_PAGES = /^\/(dashboard|profile|documents|universities|applications|visa|services|scholarships|messages)(\.html)?\/?$/;
+/* Patch 241: a staff screen opened by an account that cannot use it says so
+   plainly, with the way back to that account's own screen, instead of
+   drawing the staff menu around an empty or broken page. */
+const STAFF_GUARD = {
+  marketing: 'marketing', ops: 'casework', 'leads-command': 'casework',
+  leads: 'casework', chat: 'casework', counsellor: 'casework',
+};
+function staffGuard(html, pathname) {
+  const m = /^\/([a-z-]+?)(\.html)?\/?$/.exec(String(pathname || ''));
+  const need = m && STAFF_GUARD[m[1]];
+  if (!need || html.indexOf('data-staff-guard') >= 0) return html;
+  const js = '<script data-staff-guard>(function(){var need=' + JSON.stringify(need) + ';'
+    + 'fetch("/api/auth/me",{credentials:"same-origin"}).then(function(r){return r.json();}).then(function(d){'
+    + 'var u=d&&d.user;if(!u||d.mustChange)return;var p=u.perms||[];'
+    + 'var ok=u.role==="admin"||(need==="casework"?u.role==="counsellor":p.indexOf("marketing")>=0);if(ok)return;'
+    + 'var home=u.role==="student"?"/dashboard":u.role==="partner"?"/partner":p.indexOf("marketing")>=0?"/marketing":p.indexOf("content")>=0?"/home":p.indexOf("catalogue")>=0?"/catalogue":u.role==="counsellor"?"/ops":"/";'
+    + 'var label=u.role==="student"?"Go to my dashboard":"Go to my screen";'
+    + 'var w=document.createElement("div");w.setAttribute("role","alert");'
+    + 'w.style.cssText="position:fixed;inset:0;z-index:9999;background:#f6f8fb;display:flex;align-items:center;justify-content:center;padding:24px;font:400 15px/1.6 system-ui,sans-serif;color:#0b1e31";'
+    + 'w.innerHTML="<div style=\\"max-width:420px;text-align:center\\"><b style=\\"display:block;font-size:20px;margin-bottom:8px\\">This screen is not for your account</b><p style=\\"margin:0 0 18px;color:#5b6b7d\\">Your account opens a different part of Glovels.</p><a href=\\""+home+"\\" style=\\"display:inline-block;padding:11px 20px;border-radius:10px;background:#1e4fa3;color:#fff;font-weight:700;text-decoration:none\\">"+label+"</a></div>";'
+    + 'document.body.appendChild(w);}).catch(function(){});})();</script>';
+  const at = html.lastIndexOf('</body>');
+  return at < 0 ? html : html.slice(0, at) + js + '\n' + html.slice(at);
+}
 function withMobileKit(html, pathname) {
+  html = staffGuard(html, pathname);
   if (html.indexOf('<header class="site"') < 0) {
     if (STUDENT_PAGES.test(String(pathname || '')) && html.indexOf('<script src="/glovels-pay.js') < 0) {
       const end = html.lastIndexOf('</body>');

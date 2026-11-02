@@ -64,6 +64,12 @@ BODY = """
              left, alongside Class 10 and Passport — shown when somebody goes
              looking for it and not before. -->
         <section class="p-card danger" id="dangerZone" hidden style="margin-top:4px">
+          <!-- Patch 241: a student can change their own password from here. -->
+          <div style="padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid var(--line,#e6e9f0)">
+            <h3 style="color:inherit">Password</h3>
+            <p class="d-say" style="color:inherit">Change the password you sign in with.</p>
+            <a class="btn btn-ghost" id="pwChange" href="login.html?change=1&amp;mine=1&amp;next=profile.html">Change my password</a>
+          </div>
           <h3>Delete my account</h3>
           <p class="d-say">This cannot be undone. Everything personal to you is
             removed from our servers: your profile, the documents you uploaded,

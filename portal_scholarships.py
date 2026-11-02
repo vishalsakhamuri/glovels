@@ -97,7 +97,7 @@ const SCHOLARSHIPS = [
    url:'https://www.inlaksfoundation.org/'},
   {id:'jnmf', name:'JN Tata Endowment Loan Scholarship',
    body:'JN Tata Endowment, India', country:'', level:'', cgpa:7.0, work:0,
-   amount:'₹1–10 Lakhs as a low-interest loan scholarship', deadline:'2027-03-14',
+   amount:'₹1 lakh to ₹10 lakh as a low-interest loan scholarship', deadline:'2027-03-14',
    note:'Open to Indian graduates for any country. Repayable, but at a nominal rate.',
    url:'https://www.jntataendowment.org/'},
   {id:'kfw', name:'Education loan interest subsidy (Padho Pardesh style state schemes)',

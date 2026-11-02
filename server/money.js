@@ -64,7 +64,8 @@ function figures(order) {
     grossPaise: gross,
     receivedPaise: received,
     refundedPaise: refunded(order),
-    outstandingPaise: order.status === 'refunded' ? 0 : Math.max(0, gross - received),
+    /* Patch 241: money given back is not money still owed. */
+    outstandingPaise: order.status === 'refunded' ? 0 : Math.max(0, gross - grossIn(order)),
   };
 }
 

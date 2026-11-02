@@ -402,9 +402,11 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
   function paintFunnel() {
     var f = R.funnel, top = Math.max(1, f[0].n);
     $('#funnel').innerHTML = f.map(function (s, i) {
-      var prev = f[0].n;
+      /* Patch 241: each step against the one before it; a step larger than
+         the one before (leads that came without a tracked visit) says so. */
+      var prev = i ? f[i - 1].n : f[0].n;
       return '<div class="fstep"><span class="lbl">' + esc(s.label) + '</span><div class="track"><div class="fill" style="width:' + (100 * s.n / top).toFixed(2) + '%"></div></div><span class="n">' + compact(s.n) + '</span>'
-        + (i ? '<span class="pc">' + (prev ? pct(100 * s.n / prev, 2) + ' of visitors' : '—') + '</span>' : '') + '</div>';
+        + (i ? '<span class="pc">' + (prev && s.n <= prev ? pct(100 * s.n / prev, 2) + ' of the step before' : prev ? 'more than the step before' : '—') + '</span>' : '') + '</div>';
     }).join('');
   }
 

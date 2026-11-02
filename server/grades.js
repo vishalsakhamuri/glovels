@@ -179,6 +179,20 @@ function problems(profile) {
            + 'entered ' + n + '.' + (r.note ? ' ' + r.note : '') });
     }
   }
+  /* Patch 241: IELTS is scored in whole and half bands — 7.3 is not a score. */
+  [['e_test', ['e_score', 'e_low', 'e_listen', 'e_read', 'e_write', 'e_speak']],
+   ['e2_test', ['e2_score', 'e2_low', 'e2_listen', 'e2_read', 'e2_write', 'e2_speak']]].forEach(([t, keys]) => {
+    if (!/ielts/i.test(String(p[t] || ''))) return;
+    keys.forEach(k => {
+      const raw = p[k];
+      if (raw == null || String(raw).trim() === '') return;
+      const n = num(raw);
+      if (!Number.isFinite(n) || Math.abs(n * 2 - Math.round(n * 2)) < 1e-9) return;
+      if (out.some(w => w.field === k)) return;
+      out.push({ field: k, label: 'IELTS', said: String(raw).slice(0, 40),
+        why: 'IELTS bands go in halves — 6, 6.5, 7, 7.5. You entered ' + n + '.' });
+    });
+  });
   /* A passport number, if there is one, has to look like a passport number.
      "!!!not-a-passport!!!" was saved and read as a passport by the visa
      checklist, the counsellor's file and the university form in turn. */

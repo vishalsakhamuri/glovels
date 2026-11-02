@@ -2050,9 +2050,25 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
      * to 10 would be worse than refusing: it stores a grade they never got and
      * nobody ever finds out where it came from. */
     if (wrong.length) {
+      /* Patch 241: one impossible box no longer blocks every other section.
+         The rest of the save is kept — the refused fields keep what was
+         stored before — and the student is still told which box to fix. */
+      const before = db.getProfile(s.id) || {};
+      const rest = Object.assign({}, b.profile || {});
+      for (const w of wrong) {
+        if (Object.prototype.hasOwnProperty.call(before, w.field)) rest[w.field] = before[w.field];
+        else delete rest[w.field];
+      }
+      const again = mergeProfile(s.id, rest);
+      let keptRest = false;
+      if (!again.wrong.length) {
+        db.putProfile(s.id, again.merged);
+        keptRest = true;
+      }
       return json(res, 422, {
         error: wrong[0].why,
         fields: wrong.map(w => ({ field: w.field, why: w.why })),
+        keptRest,
       });
     }
     db.putProfile(s.id, prof);
@@ -10124,8 +10140,17 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
      numbers used to be computed in two places and disagreed. */
   const leadBook = s => {
     const rows = db.allEnquiries();
-    return s && s.role !== 'admin'
-      ? rows.filter(e => !e.owner_id || Number(e.owner_id) === Number(s.id)) : rows;
+    if (!s || s.role === 'admin') return rows;
+    /* Patch 241: a country admin sees the unowned leads for their own
+       destinations only — plus every lead that is theirs. */
+    const sc = (db.scopeOf(s) || []).map(c => String(c).toUpperCase());
+    const inScope = e => {
+      if (!sc.length) return true;
+      const d = String(e.destination || '').trim();
+      const code = d.length === 2 ? d.toUpperCase() : ((ISO_COUNTRIES.byName(d) || {}).code || '');
+      return !!code && sc.includes(code);
+    };
+    return rows.filter(e => Number(e.owner_id) === Number(s.id) || (!e.owner_id && inScope(e)));
   };
 
   route('GET', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
@@ -12881,6 +12906,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       const key = m[1];
       const b = await readJson(req);
       const value = b && b.value !== undefined ? b.value : b;
+      /* Patch 241: a GSTIN is printed on every invoice — it has to look like one. */
+      if (key === 'legal' && value && String(value.gstin || '').trim()
+          && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(value.gstin).trim().toUpperCase())) {
+        return json(res, 422, { error: 'That GSTIN is not valid. It is 15 characters, like 36AAAAA0000A1Z5.' });
+      }
 
       /* A block arriving empty is almost always a bug in the screen, not an
          intention — and the cost of being wrong is a blank home page section

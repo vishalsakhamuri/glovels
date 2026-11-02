@@ -104,12 +104,16 @@ const login = async (email) => {
     if (stop) { await stop.click(); await p.waitForTimeout(500); }
     check('a stop on the route opens the students at that stage', !!stop && /Vishal Sakhamuri|Open file/.test(await p.textContent('#dList')),
       (await p.textContent('#dTitle')) + ': ' + (await p.textContent('#dList')).slice(0, 80));
-    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    await p.click('#dx'); await p.waitForTimeout(300);
     await p.click('[data-q="messages"]'); await p.waitForTimeout(500);
     check('a queue opens with the student in it', /SOP/.test(await p.textContent('#dList')));
     check('with a way into the file', !!(await p.$('#dList a[href^="counsellor.html?student="]')));
+    /* Patch 241: only the X or Back closes it. */
+    await p.mouse.click(10, 300); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    check('clicking beside the drawer or Escape leaves it open', await p.evaluate(() => document.body.classList.contains('open')));
+    await p.goBack(); await p.waitForTimeout(400);
+    check('Back closes it and stays on the page', !(await p.evaluate(() => document.body.classList.contains('open'))) && /\/ops/.test(p.url()), p.url());
     /* Patch 203: the counsellor board drills down, like any KPI table. */
-    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
     const row = await p.$('#crew tr[data-cid]');
     if (row) { await row.click(); await p.waitForTimeout(500); }
     check('a counsellor row opens their work', !!row && /Kavya/.test(await p.textContent('#dTitle'))
@@ -118,7 +122,7 @@ const login = async (email) => {
     await p.screenshot({ path: '/tmp/ops-kavya.png' });
     check('and its "Replies owed" tile lists the message waiting', /Open file/.test(await p.textContent('#dList'))
       && (await p.getAttribute('#dFilters .kpi[data-cview="messages"]', 'aria-pressed')) === 'true');
-    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    await p.click('#dx'); await p.waitForTimeout(300);
     await p.click('.crew th[data-sort="name"]'); await p.waitForTimeout(200);
     check('a column heading sorts the board', (await p.getAttribute('.crew th[data-sort="name"]', 'aria-sort')) === 'descending');
     const wraps = await p.$$eval('#crew td:not(:first-child)', tds => tds.filter(td => {

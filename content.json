@@ -77,7 +77,7 @@
     "priceNote": "one-time",
     "quote": "",
     "quoteSmall": "",
-    "cta": "Choose Complete",
+    "cta": "Choose Complete — one",
     "ctaHref": "",
     "consent": "This covers one university application written and filed by us and followed up until a decision. It does not include visa work, and no admission is guaranteed.",
     "pledge": null
@@ -107,7 +107,7 @@
     "priceNote": "one-time",
     "quote": "",
     "quoteSmall": "",
-    "cta": "Choose Complete",
+    "cta": "Choose Complete — three",
     "ctaHref": "",
     "consent": "This covers three university applications written and filed by us and followed up until a decision. It does not include visa work, and no admission is guaranteed.",
     "pledge": null
@@ -666,7 +666,7 @@
     "active": true,
     "name": "Book Counselling",
     "desc": "A 1-on-1 session with a counsellor — profile review, a country and course shortlist, a realistic budget and a clear next step. No obligation.",
-    "meta": "45 minutes · call within 24 hours",
+    "meta": "45 minutes with a counsellor",
     "cats": [
      "top",
      "more"

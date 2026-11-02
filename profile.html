@@ -829,11 +829,11 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
    letting the short status pills wrap too turned "Private" into "Privat / e"
    and "On the site" into three lines, which is worse than what it fixed. */
 .tbl .sl-chip, .tbl .chip{display:inline-block;max-width:100%;
-  white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+  white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.45;vertical-align:top}
 .tbl .st{white-space:nowrap}
 /* And a row is read across, so its cells line up at the top rather than
    floating in the middle of whatever the tallest one turned out to be. */
-.tbl td{vertical-align:top;overflow-wrap:anywhere}
+.tbl td{vertical-align:top;overflow-wrap:break-word;word-break:normal}
 
 /* A wide table scrolls sideways INSIDE its card rather than squeezing every
    column until the words break. Without a floor the browser keeps shrinking
@@ -998,6 +998,12 @@ select.assign.none:hover{border-color:#a5342b}
              left, alongside Class 10 and Passport — shown when somebody goes
              looking for it and not before. -->
         <section class="p-card danger" id="dangerZone" hidden style="margin-top:4px">
+          <!-- Patch 241: a student can change their own password from here. -->
+          <div style="padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid var(--line,#e6e9f0)">
+            <h3 style="color:inherit">Password</h3>
+            <p class="d-say" style="color:inherit">Change the password you sign in with.</p>
+            <a class="btn btn-ghost" id="pwChange" href="login.html?change=1&amp;mine=1&amp;next=profile.html">Change my password</a>
+          </div>
           <h3>Delete my account</h3>
           <p class="d-say">This cannot be undone. Everything personal to you is
             removed from our servers: your profile, the documents you uploaded,
@@ -1192,6 +1198,15 @@ async function flush() {
            again once they have fixed it. */
         if (e.status !== 422) throw e;
         outcome = { ok: false, error: e.message, fields: (e.data && e.data.fields) || [] };
+        /* Patch 241: the server kept everything else. */
+        if (e.data && e.data.keptRest) {
+          const bad = (e.data.fields || []).map(f => f.field);
+          const kept = JSON.parse(JSON.stringify(DB.profile));
+          for (const k of bad) { if (SERVER.profile && k in SERVER.profile) kept[k] = SERVER.profile[k]; else delete kept[k]; }
+          SERVER.profile = kept;
+          outcome.keptRest = true;
+          saveState('bad', 'Everything else is saved. Fix this one box — ' + e.message);
+        } else
         saveState('bad', 'Not saved — ' + e.message);
         dispatchEvent(new CustomEvent('glovels:profile-invalid', {
           detail: { fields: (e.data && e.data.fields) || [], error: e.message },
@@ -2645,6 +2660,13 @@ $('#delGo').addEventListener('click', async () => {
   }
 });
 
+/* Patch 241: ?sec=<id> opens that section (links from the dashboard). */
+(function(){
+  const m = /[?&]sec=([a-z_-]+)/i.exec(location.search);
+  if (!m) return;
+  const i = SECTIONS.findIndex(x => x.id === m[1]);
+  if (i >= 0) cur = i;
+})();
 /* Patch 225: before a package, open on the first question the shortlist needs. */
 if (!hasPackage() && !/[?&]sec=/.test(location.search)) {
   const first = SECTIONS.findIndex(x => SHORTLIST_SECS.indexOf(x.id) >= 0);

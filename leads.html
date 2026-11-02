@@ -824,11 +824,11 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
    letting the short status pills wrap too turned "Private" into "Privat / e"
    and "On the site" into three lines, which is worse than what it fixed. */
 .tbl .sl-chip, .tbl .chip{display:inline-block;max-width:100%;
-  white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+  white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.45;vertical-align:top}
 .tbl .st{white-space:nowrap}
 /* And a row is read across, so its cells line up at the top rather than
    floating in the middle of whatever the tallest one turned out to be. */
-.tbl td{vertical-align:top;overflow-wrap:anywhere}
+.tbl td{vertical-align:top;overflow-wrap:break-word;word-break:normal}
 
 /* A wide table scrolls sideways INSIDE its card rather than squeezing every
    column until the words break. Without a floor the browser keeps shrinking
@@ -2341,7 +2341,7 @@ function addForm() {
     /* F6: is this person already here? Filled in on leaving either box. */
     + '<div id="aDup" hidden style="margin:0 0 12px"></div>'
     + '<div class="two">'
-      + '<div class="field"><label for="aSource">Where from</label><select id="aSource">'
+      + '<div class="field"><label for="aSource">Where from</label><select id="aSource"><option value="" selected disabled>Choose where they came from</option>'
         + ['whatsapp', 'phone', 'facebook', 'instagram', 'google', 'walk-in', 'referral',
            'other'].map(v => opt(v, SOURCE_LABEL[v] || v)).join('') + '</select></div>'
       + '<div class="field"><label for="aDest">Destination</label>'
@@ -2366,6 +2366,7 @@ function addForm() {
 
   $('#aGo').onclick = async () => {
     say('');
+    if (!$('#aSource').value) return say('Choose where they came from.');
     /* And again on save — the warning stands, the lead is still written. */
     await checkDup();
     try {
@@ -2405,7 +2406,10 @@ async function load() {
     .concat(ROLE === 'admin' ? [{ v: 'archived', t: 'Archived (' + Number(r.archivedCount || 0) + ')' }] : []));
   fill('#fSource', [...new Set(LEADS.map(l => l.source))]
     .map(v => ({ v, t: SOURCE_LABEL[v] || v })));
-  fill('#fOwner', PEOPLE.map(p => ({ v: String(p.id), t: p.name })));
+  /* Patch 241: anybody who owns a lead, administrators included. */
+  const owners = new Map(PEOPLE.map(p => [String(p.id), p.name]));
+  LEADS.forEach(l => { if (l.ownerId && !owners.has(String(l.ownerId))) owners.set(String(l.ownerId), l.owner || 'Administrator'); });
+  fill('#fOwner', [...owners].map(([v, t]) => ({ v, t })));
   paint();
 }
 

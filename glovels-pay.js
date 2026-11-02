@@ -134,6 +134,8 @@
    *  unit, rounded UP to a whole unit and to about four significant figures,
    *  so the office never takes less than the rupee price. */
   function nice(x) {
+    /* Patch 241: nothing costs nothing — a free service is not 1 unit. */
+    if (!(x > 0)) return 0;
     var units = Math.max(1, Math.ceil(x - 1e-9));
     var step = units >= 10000 ? Math.pow(10, Math.floor(Math.log10(units)) - 3) : 1;
     return Math.ceil(units / step) * step;

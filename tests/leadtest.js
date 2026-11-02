@@ -176,8 +176,13 @@ const stamp = Date.now();
     { data: { email: wonBody.student.email, password: wonBody.password } });
   check('and the student can sign in with it', inOk.ok(), inOk.status());
   const blocked = await login.request.get(BASE + '/api/state');
-  check('but it opens nothing until they choose their own',
-    blocked.status() === 403, blocked.status());
+  /* Patch 227: a must-change student may LOOK (GET) before choosing a
+     password; anything that changes their file still waits for it. */
+  check('they can look before choosing their own password',
+    blocked.status() === 200, blocked.status());
+  const wrote = await login.request.put(BASE + '/api/profile', { data: { profile: { g_city: 'x' } } });
+  check('but nothing is changed until they choose their own',
+    wrote.status() === 403, wrote.status());
   const changed = await login.request.post(BASE + '/api/auth/change',
     { data: { current: wonBody.password, password: 'a-password-they-picked' } });
   check('and once they do, their dashboard opens', changed.ok(), changed.status());

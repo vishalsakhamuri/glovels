@@ -135,6 +135,8 @@ function regions() {
 /** Whole units, rounded UP, to about four significant figures so that
  *  ₹49,999 reads 9,537,000 IDR rather than 9,536,413 IDR. */
 function niceUnits(x) {
+  /* Patch 241: a free item stays free in any currency. */
+  if (!(x > 0)) return 0;
   const units = Math.max(1, Math.ceil(x - 1e-9));
   const step = units >= 10000 ? Math.pow(10, Math.floor(Math.log10(units)) - 3) : 1;
   return Math.ceil(units / step) * step;

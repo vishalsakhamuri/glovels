@@ -169,10 +169,10 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
          hidden set is what it would be. */
       return '<div class="fprof said"><b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
         + (R.turned ? PROF_HIDDEN + ' ' : '')
-        + '<a href="index.html#find">Change your answers →</a></div>';
+        + '<a href="index.html#finder">Change your answers →</a></div>';
     }
     return '<div class="fprof"><b>Tell us your scores to see which of these would take you.</b> Your CGPA, IELTS and bachelor’s length are enough to start — '
-      + '<a href="index.html#find">add them on the finder →</a> or <a href="login.html?signup=1">create a free account</a> and we keep them.</div>';
+      + '<a href="index.html#finder">add them on the finder →</a> or <a href="login.html?signup=1">create a free account</a> and we keep them.</div>';
   }
 
   /* Round 176: the line under the list when locked rows were left out —
@@ -401,7 +401,7 @@ body.fcmp-open .gv-corner{bottom:calc(var(--fcmp-h,64px) + 14px)!important}
 @media (max-width:900px){
   .flayout{grid-template-columns:1fr}
   .fsheet-btn{display:inline-flex;margin:0 0 10px}
-  .frail{display:none;position:fixed;inset:0;z-index:45;border-radius:0;max-height:none;top:0;padding:14px 18px 40px}
+  .frail{display:none;position:fixed;inset:0;z-index:130;overflow-y:auto;border-radius:0;max-height:none;top:0;padding:14px 18px 40px}
   .frail.open{display:block}
   .frail-head{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;font:700 16px/1.3 var(--sans)}
   .frow{grid-template-columns:44px minmax(0,1fr)}
@@ -563,10 +563,10 @@ function profile(){
     el.className = 'fprof said';
     el.innerHTML = '<b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
       + (result.turned ? 'Programmes that ask for more than you told us — a grade, an English score, ECTS credits, the GRE — are not shown. ' : '')
-      + '<a href="index.html#find">Change your answers →</a>';
+      + '<a href="index.html#finder">Change your answers →</a>';
   } else if (me) {
     el.className = 'fprof';
-    el.innerHTML = '<b>Signed in as ' + esc(me.name || me.email || 'you') + '.</b> Your saved profile is read on the home-page finder and your dashboard; here, set your CGPA in the rail or <a href="index.html#find">carry your answers over →</a>';
+    el.innerHTML = '<b>Signed in as ' + esc(me.name || me.email || 'you') + '.</b> Your saved profile is read on the home-page finder and your dashboard; here, set your CGPA in the rail or <a href="index.html#finder">carry your answers over →</a>';
   }
 }
 

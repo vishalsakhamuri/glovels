@@ -829,11 +829,11 @@ tr.late td:first-child{box-shadow:inset 3px 0 0 #c0392b}
    letting the short status pills wrap too turned "Private" into "Privat / e"
    and "On the site" into three lines, which is worse than what it fixed. */
 .tbl .sl-chip, .tbl .chip{display:inline-block;max-width:100%;
-  white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+  white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.45;vertical-align:top}
 .tbl .st{white-space:nowrap}
 /* And a row is read across, so its cells line up at the top rather than
    floating in the middle of whatever the tallest one turned out to be. */
-.tbl td{vertical-align:top;overflow-wrap:anywhere}
+.tbl td{vertical-align:top;overflow-wrap:break-word;word-break:normal}
 
 /* A wide table scrolls sideways INSIDE its card rather than squeezing every
    column until the words break. Without a floor the browser keeps shrinking
@@ -1395,7 +1395,7 @@ const SCHOLARSHIPS = [
    url:'https://www.inlaksfoundation.org/'},
   {id:'jnmf', name:'JN Tata Endowment Loan Scholarship',
    body:'JN Tata Endowment, India', country:'', level:'', cgpa:7.0, work:0,
-   amount:'₹1–10 Lakhs as a low-interest loan scholarship', deadline:'2027-03-14',
+   amount:'₹1 lakh to ₹10 lakh as a low-interest loan scholarship', deadline:'2027-03-14',
    note:'Open to Indian graduates for any country. Repayable, but at a nominal rate.',
    url:'https://www.jntataendowment.org/'},
   {id:'kfw', name:'Education loan interest subsidy (Padho Pardesh style state schemes)',

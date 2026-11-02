@@ -170,7 +170,10 @@ const CHANNEL_LABEL = {
 
 /* A note that is somebody in the office answering. The website's own
    "enquired again" line and "added by hand" are not. */
-const isTouch = n => String(n.who || '') !== 'website' && !['enquiry', 'added'].includes(String(n.kind || ''));
+/* Patch 241: handing a lead to somebody is not answering it — a change note
+   counts only when it moved the lead's status. */
+const isTouch = n => String(n.who || '') !== 'website' && !['enquiry', 'added'].includes(String(n.kind || ''))
+  && !(String(n.kind || '') === 'change' && !/Moved to /.test(String(n.body || '')));
 
 function open({ db, live, push, mail, emails, siteUrl, log }) {
   const say = log || console;

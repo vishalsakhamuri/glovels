@@ -350,18 +350,20 @@ function forgotBox(message, bad){
     } catch (e) { /* ask for it, which is the stricter of the two */ }
 
     card.innerHTML =
-      '<h2 id="form-title">' + (q.get('ordered') && firstTime ? 'Order ' + String(q.get('ordered')).replace(/[^A-Z0-9-]/gi, '') + ' is placed' : 'Choose your own password') + '</h2>' +
+      '<h2 id="form-title">' + (q.get('ordered') && firstTime ? 'Order ' + String(q.get('ordered')).replace(/[^A-Z0-9-]/gi, '') + ' is placed' : (q.get('mine') === '1' && !firstTime) ? 'Change your password' : 'Choose your own password') + '</h2>' +
       '<p class="sub">' + (q.get('ordered') && firstTime
         ? 'Your account is ready. Choose a password and your universities open straight away. '
           + 'Your login details are also on their way to your email.'
         : firstTime
         ? 'Your account is ready \u2014 pick a password and everything opens. This takes ' +
           'one moment and you will not be asked again.'
+        : q.get('mine') === '1'
+        ? 'Type the password you use now, then the new one twice.'
         : 'The one you signed in with was made for you and sent by email, so it ' +
           'is not private. Nothing else opens until this is done.') + '</p>' +
       '<form id="changeForm" novalidate>' +
         (firstTime ? '' :
-        '<div class="field"><label for="cNow">The password you were given</label>' +
+        '<div class="field"><label for="cNow">' + (q.get('mine') === '1' ? 'Your current password' : 'The password you were given') + '</label>' +
           '<input type="password" id="cNow" autocomplete="current-password"></div>') +
         '<div class="field"><label for="cNew">Your new password</label>' +
           '<input type="password" id="cNew" autocomplete="new-password" ' +
