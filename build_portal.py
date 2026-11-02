@@ -166,9 +166,13 @@ def sidebar(active):
         f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg> {label}</a>'
         for slug, icon, label in NAV
     )
+    # Patch 239: a way back to the website from every student screen.
+    links = ('<a href="/" class="p-home"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" '
+             'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+             '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg> Home page &amp; universities</a>') + links
     return f"""<div class="p-shell">
   <aside class="p-side">
-    <div class="p-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
+    <a class="p-logo" href="/" title="Glovels home page"><span class="logo-img" role="img" aria-label="Glovels — home page"></span></a>
     <!-- Sign out belongs where somebody looks for it: beside their own name, at
          the top. At the bottom of a nav it sits below the fold on a laptop and
          under the whole menu on a phone, so the way to leave was the one thing
