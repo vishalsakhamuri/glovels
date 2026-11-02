@@ -48,6 +48,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
   const heading = await page.textContent('#buyT');
   check('and says which university', /\w/.test(heading) && !/checkout/i.test(heading), heading);
 
+  /* Patch 232: two ways on — a login, or "just call me". This part checks
+     the call-me path, which files a lead as before. */
+  check('it offers a login or a call back',
+    await page.isVisible('[data-ap="login"]') && await page.isVisible('[data-ap="call"]'));
+  await page.click('[data-ap="call"]');
   /* Rubbish in is refused on the page, not sent and refused by the server. */
   await page.fill('#apName', 'Test Applicant');
   await page.fill('#apMail', 'not-an-email');
@@ -114,6 +119,11 @@ const check = (n, pass, note) => (pass ? ok : bad).push(n + (note ? ' — ' + no
     !!progId && !/\|/.test(progId), progId);
 
   await btn.click();
+  /* Patch 232: signed in, it asks once before adding. */
+  await sp.waitForSelector('#addYes', { timeout: 5000 }).catch(() => {});
+  check('a signed-in student is asked to confirm the add',
+    /Add this university to your profile/i.test(await sp.textContent('#buyT')));
+  await sp.click('#addYes').catch(() => {});
   await sp.waitForTimeout(1800);
   const body = await sp.textContent('#buyBody');
   check('a signed-in student is not asked who they are',

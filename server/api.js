@@ -2200,6 +2200,21 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         }
       }
       const had = db.getShortlist(s.id).some(x => String(x.prog_id) === String(p.id));
+      /* Patch 232 (owner, 2 Nov): "he can add as many private universities as
+         he wants — up to 15". Counted in universities: a second course at one
+         already on the list is free. Public ones are counted by the package. */
+      if (!p.isPublic && !had) {
+        const PRIVATE_CAP = 15;
+        const mine = db.getShortlist(s.id).filter(x => !x.is_public);
+        const unis = new Set(mine.map(x => x.university));
+        if (!unis.has(p.university) && unis.size >= PRIVATE_CAP) {
+          return json(res, 409, {
+            error: 'You have ' + PRIVATE_CAP + ' private universities on your list, which is the most we file. '
+              + 'Remove one on My Programs, or ask your counsellor to swap it.',
+            atCap: true,
+          });
+        }
+      }
       db.addShortlist(s.id, p, 'student');
       if (!had) {
         /* Round 178: a MESSAGE, not a notice — a request from a person that

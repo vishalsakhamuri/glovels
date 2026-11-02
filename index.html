@@ -4511,6 +4511,8 @@ async function applyNow(btn){
   const id = btn.dataset.apply;
   const uni = btn.dataset.uni || '';
   const prog = btn.dataset.prog || '';
+  if (ME && ME.role === 'student' && !btn.__confirmed) return confirmAdd(btn, uni, prog);
+  btn.__confirmed = false;
   const was = btn.innerHTML;
   btn.disabled = true;
   btn.textContent = 'One moment…';
@@ -4581,60 +4583,116 @@ function applyBlocked(message){
 /* Nobody is signed in. Three fields, because three fields is what a counsellor
    needs to call somebody back, and asking for an account first is how a free
    application turns into a form nobody finishes. */
+/* Patch 232 (owner, 2 Nov): picking a university as a guest opens one
+   screen with two ways on — make a login (name, email, mobile, a password)
+   and the university goes onto their own list straight away, or just leave
+   contact details and a counsellor calls. The login is the default: with it
+   they can come back and add more, choose a package, and see everything in
+   one place. */
 function askToApply(id, uni, prog){
-  $('#buyT').textContent = 'Apply to ' + (uni || 'this university');
-  $('#buyLead').textContent = 'Free. A counsellor checks you meet the requirements and '
-    + 'comes back to you within one working day.';
+  $('#buyT').textContent = 'Add ' + (uni || 'this university') + ' to your list';
+  $('#buyLead').textContent = 'Free to apply. Create your login and it goes on your list now, or leave your number and a counsellor calls you.';
+  const fld = (id2, label, type, ph, ac) => '<div class="field"><label for="' + id2 + '">' + label + '</label>'
+    + '<input id="' + id2 + '" type="' + type + '"' + (ac ? ' autocomplete="' + ac + '"' : '') + ' placeholder="' + ph + '"></div>';
   $('#buyBody').innerHTML =
       (prog ? '<div class="paid-head">' + ico('cap') + '<div><b>' + esc(prog) + '</b>'
         + '<span>' + esc(uni) + '</span></div></div>' : '')
-    + '<div class="field" style="margin-top:12px"><label for="apName">Your name</label>'
-      + '<input id="apName" autocomplete="name" placeholder="As it appears on your marksheet"></div>'
-    + '<div class="field"><label for="apMail">Email</label>'
-      + '<input id="apMail" type="email" autocomplete="email" placeholder="you@example.com"></div>'
-    + '<div class="field"><label for="apPhone">Mobile</label>'
-      + '<input id="apPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98xxxxxxxx or +39 312 345 6789"></div>'
+    + '<div class="rtabs one-of" role="tablist" style="margin:12px 0 4px;display:flex;gap:8px">'
+      + '<button type="button" class="rtab on" data-ap="login" role="tab" aria-selected="true" style="flex:1">Create my login<small>see it in your dashboard</small></button>'
+      + '<button type="button" class="rtab" data-ap="call" role="tab" aria-selected="false" style="flex:1">Just call me<small>no login needed</small></button></div>'
+    + fld('apName', 'Your name', 'text', 'As it appears on your marksheet', 'name')
+    + '<div class="field"><label for="apPhone">Mobile</label><div class="phone-row">'
+      + (window.glvCcSelect ? window.glvCcSelect('apCc') : '<span class="cc">+91</span>')
+      + '<input id="apPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Mobile number"></div></div>'
+    + fld('apMail', 'Email', 'email', 'you@example.com', 'email')
+    + '<div id="apPwBox">' + fld('apPw', 'Choose a password', 'password', 'At least 8 characters', 'new-password')
+      + '<label class="consent-row" style="margin-top:8px"><input type="checkbox" id="apOk"><span>I accept the Terms of Service and the Privacy policy.</span></label></div>'
     + '<p id="apErr" role="alert" style="display:none;margin:10px 0 0;padding:10px 12px;'
       + 'border-radius:10px;font:600 12.8px/1.5 var(--sans);background:#fdf3f2;'
       + 'border:1px solid #f0c8c4;color:#7a2118"></p>'
     + '<div class="paid-cta" style="margin-top:14px">'
-      + '<button class="btn btn-gold" id="apGo">Send my application</button></div>'
-    + '<p style="margin:11px 0 0;font-size:11.4px;color:var(--muted);line-height:1.55">'
-      + 'We use these to call you back about this application. Nothing is charged, and '
-      + 'private universities never need a package.</p>';
+      + '<button class="btn btn-gold" id="apGo">Create my login and add it</button></div>'
+    + '<p id="apFoot" style="margin:11px 0 0;font-size:11.4px;color:var(--muted);line-height:1.55">'
+      + 'Already have a login? <a href="/login?next=' + encodeURIComponent('/') + '" style="font-weight:700">Sign in</a> and press Apply free again. '
+      + 'Nothing is charged — private universities never need a package.</p>';
   $('#buyPay').style.display = 'none';
   $('.co-legal') && ($('.co-legal').style.display = 'none');
   open('#buyModal');
 
+  let mode = 'login';
+  const setMode = m => {
+    mode = m;
+    $$('[data-ap]').forEach(b => { const on = b.dataset.ap === m; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+    $('#apPwBox').hidden = m !== 'login';
+    $('#apGo').textContent = m === 'login' ? 'Create my login and add it' : 'Send — call me back';
+    say('');
+  };
+  $$('[data-ap]').forEach(b => b.onclick = () => setMode(b.dataset.ap));
+
   const say = m => {
     const el = $('#apErr');
-    el.textContent = m;
+    el.innerHTML = m;
     el.style.display = m ? 'block' : 'none';
   };
   $('#apGo').onclick = async () => {
     const name = $('#apName').value.trim();
     const email = $('#apMail').value.trim();
-    const phoneIn = $('#apPhone').value.trim();
-    /* Patch 186: keep a country code; an Indian number still works without one. */
-    const phone = (/^\+/.test(phoneIn) ? '+' : '') + phoneIn.replace(/\D/g, '');
+    const phone = window.glvFullPhone ? window.glvFullPhone('#apPhone', 'apCc') : $('#apPhone').value.trim();
     if (!name) return say('Tell us your name.');
-    /* Round 169 (WEB-15): the contact form's rule — a name has a letter in it. */
     if (!/[A-Za-zÀ-ɏऀ-ॿ]/.test(name)) return say('A name needs at least one letter.');
+    if (phone.replace(/\D/g, '').length < 8 || phone.replace(/\D/g, '').length > 15) return say('A mobile number, please.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
-    if (phone.replace(/\D/g, '').length < 8 || phone.replace(/\D/g, '').length > 15) return say('A mobile number, please — add the country code if you are outside India.');
     const btn = $('#apGo');
-    btn.disabled = true;
-    btn.textContent = 'Sending…';
-    say('');
+    const was = btn.textContent;
+    btn.disabled = true; btn.textContent = 'One moment…'; say('');
     try {
-      const d = await postApply({ id, name, email, phone, consent: 'apply' });
-      applied(false, uni || d.university, prog || d.program, false);
+      if (mode === 'call') {
+        const d = await postApply({ id, name, email, phone, consent: 'apply' });
+        return applied(false, uni || d.university, prog || d.program, false);
+      }
+      const pw = $('#apPw').value;
+      if (pw.length < 8) throw new Error('Choose a password of at least 8 characters.');
+      if (!$('#apOk').checked) throw new Error('Please accept the terms to create your login.');
+      const r = await fetch('/api/auth/signup', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, password: pw, terms: true }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 409) throw new Error('That email already has a login. <a href="/login?email=' + encodeURIComponent(email)
+        + '&next=' + encodeURIComponent('/') + '" style="font-weight:700">Sign in</a> and press Apply free again.');
+      if (!r.ok) throw new Error(j.error || 'That did not go through.');
+      ME = { name, phone, email, role: 'student' };
+      if (PROFILE) PROFILE.__signedIn = true;
+      /* Their finder answers become their profile, as they would with an order. */
+      try {
+        const a = window.glvFinderAnswers ? window.glvFinderAnswers() : {};
+        if (Object.keys(a).length) await fetch('/api/profile', { method: 'PUT', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile: a }) });
+      } catch (e) {}
+      const d = await postApply({ id });
+      applied(true, uni || d.university, prog || d.program, d.already);
     } catch (e) {
-      btn.disabled = false;
-      btn.textContent = 'Send my application';
+      btn.disabled = false; btn.textContent = was;
       say(e.message);
     }
   };
+}
+
+/* Patch 232: signed in, one question before it goes on their list — and the
+   list is theirs to grow, up to 15 private universities. */
+function confirmAdd(btn, uni, prog){
+  $('#buyT').textContent = 'Add this university to your profile?';
+  $('#buyLead').textContent = '';
+  $('#buyBody').innerHTML = '<div class="paid-head">' + ico('cap') + '<div><b>' + esc(prog || '') + '</b>'
+    + '<span>' + esc(uni || '') + '</span></div></div>'
+    + '<p style="margin:12px 0 0;font-size:13.4px;line-height:1.6;color:var(--navy-800)">It goes on your list and your counsellor is told. '
+    + 'Free to apply — you can add up to 15 private universities.</p>'
+    + '<div class="paid-cta" style="margin-top:14px"><button class="btn btn-primary" id="addYes">Yes, add it</button>'
+    + '<button class="btn btn-ghost" id="addNo">Not now</button></div>';
+  $('#buyPay').style.display = 'none';
+  $('.co-legal') && ($('.co-legal').style.display = 'none');
+  open('#buyModal');
+  $('#addNo').onclick = () => $('#buyModal').classList.remove('on');
+  $('#addYes').onclick = () => { $('#buyModal').classList.remove('on'); btn.__confirmed = true; applyNow(btn); };
 }
 
 function applied(signedIn, uni, prog, already){
@@ -7109,7 +7167,7 @@ if (location.protocol === 'file:') {
     .catch(function () {});
 }());
 </script>
-<script src="/glovels-pay.js?v=215"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+<script src="/glovels-pay.js?v=232"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 <script>/* GLOVELS-PKG-CONNECTORS */
 (function () {
   /* Each package gets its own icon. They were all the same compass, which on a

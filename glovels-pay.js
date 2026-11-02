@@ -542,7 +542,7 @@
       if (!foreign) ['#buyPay', '#scPay'].forEach(function (sel) { var b = root.querySelector(sel); if (b) b.removeAttribute('data-glv-inr'); });
       /* The GST lines, the total's label, the lead, the +91 box. */
       [].forEach.call(root.querySelectorAll('.co-line.sub'), function (el) { el.style.display = foreign ? 'none' : ''; });
-      [].forEach.call(root.querySelectorAll('.phone-row .cc'), function (el) { el.style.display = foreign ? 'none' : ''; });
+      [].forEach.call(root.querySelectorAll('.phone-row span.cc'), function (el) { el.style.display = foreign ? 'none' : ''; }); /* Patch 232: the country-code LIST stays — only the old fixed +91 hides */
       var tot = root.querySelector('.co-total > span');
       if (tot) {
         if (foreign) {
@@ -552,7 +552,9 @@
         } else if (tot.__glvOrig) { tot.textContent = tot.__glvOrig; tot.__glvOrig = null; }
       }
       var lead = root.querySelector('#buyLead, #scLead');
-      if (lead) {
+      /* Patch 232: only over a price — not the apply and confirmation screens
+         that share this pop-up. */
+      if (lead && root.querySelector('.co-total')) {
         if (foreign) {
           if (!lead.__glvOrig) lead.__glvOrig = lead.textContent;
           var lt = vatOf(CFG) ? 'Prices in ' + nameOf(code) + ', including ' + vatOf(CFG) + '% VAT for buyers in the EU (sold by Glovels UG, Germany).'
