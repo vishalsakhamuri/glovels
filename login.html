@@ -319,7 +319,7 @@ function forgotBox(message, bad){
         : u.role === 'counsellor' ? 'counsellor.html'
         : u.role === 'partner' ? 'partner.html' : 'dashboard.html';
       const next = q.get('next');
-      location.replace((next && /^\/[a-z0-9/_-]*$/i.test(next)) ? next : home);
+      location.replace((next && /^\/(?!\/)[a-z0-9/_\-?=&%.~+]*$/i.test(next)) ? next : home);
     }).catch(() => {});
 })();
 
@@ -345,7 +345,7 @@ function forgotBox(message, bad){
        the new password was saved, and next=https://evil… walked the person
        off the site right after they typed a password. */
     const asked = q.get('next');
-    const next = (asked && /^\/[a-z0-9/_-]*$/i.test(asked)) ? asked : 'dashboard.html';
+    const next = (asked && /^\/(?!\/)[a-z0-9/_\-?=&%.~+]*$/i.test(asked)) ? asked : 'dashboard.html';
     /* Whether the account is on a password somebody else chose. On those the
        old one is not asked for — it is not proof of anything, and the person
        most likely to be here has never seen it. */
@@ -667,7 +667,7 @@ $('#authForm').addEventListener('submit', async e => {
                : role === 'partner' ? 'partner.html'
                : 'dashboard.html';
     const next = new URLSearchParams(location.search).get('next');
-    location.href = (next && /^\/[a-z0-9/_-]*$/i.test(next)) ? next : home;
+    location.href = (next && /^\/(?!\/)[a-z0-9/_\-?=&%.~+]*$/i.test(next)) ? next : home;
   } catch (err) {
     btn.disabled = false;
     btn.textContent = was;
