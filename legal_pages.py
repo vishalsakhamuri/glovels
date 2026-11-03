@@ -40,8 +40,10 @@ that line just reads as a policy.
 GUARANTEE_TEMPLATE = """\
 What the guarantee covers
 This package includes an admission guarantee. If no university on your agreed \
-shortlist makes you an admission offer, we return the package fee in full, \
-including the GST charged on it.
+shortlist offers you admission for the intake we apply for, we apply again for \
+the next intake, at no extra fee, to a shortlist we agree with you again.
+If there is still no admission offer after that second intake, we return half \
+(50%) of the package fee you paid to Glovels.
 
 What "your agreed shortlist" means
 After you buy, a counsellor calls you and the two of you agree a shortlist in \
@@ -56,17 +58,23 @@ What voids the guarantee
 The guarantee does not apply if an application fails because a deadline we set \
 in writing was missed; because a document supplied to us was false, forged or \
 materially incomplete; because you declined an offer that was made, or let it \
-lapse; or because you insisted on universities outside the agreed shortlist.
+lapse; because you insisted on universities outside the agreed shortlist; or \
+because you chose not to apply again for the next intake.
+
+What the guarantee does not cover
+Only our own package fee is covered. University application fees, tuition, \
+deposits, blocked-account, test, visa, translation and courier costs are not \
+ours to return.
 
 What we do not decide
 Admission is decided by the university and the visa is decided by the \
-consulate. Neither is ours to give, and the guarantee is about the offer, not \
-about the visa or about your arrival.
+consulate. Neither is ours to give, and the guarantee is about the admission \
+offer, not about the visa or about your arrival.
 
 How to claim
 Write to the grievance officer named on this page once the last university on \
-your agreed shortlist has answered. We verify the shortlist and the answers, \
-and pay within 45 working days of that last answer.
+your second-intake shortlist has answered. We verify the shortlists and the \
+answers, and pay half the package fee within 45 working days of that last answer.
 """
 
 REFUND_RULE = """\
@@ -106,8 +114,7 @@ writing — by email or in your dashboard. That written shortlist is what this \
 commitment applies to.
 
 What this package does not include
-This package does not carry a money-back admission guarantee. If you want one, \
-it is on the package that says so on its card. Fees under this package are not \
+This package does not carry an admission guarantee. Fees under this package are not \
 refundable once paid, on the terms set out above.
 
 What we do not decide

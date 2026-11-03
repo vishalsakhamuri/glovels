@@ -107,7 +107,7 @@ const stamp = Date.now();
   const text = await page.textContent('body');
   check('the student can open a page that shows it', /What you accepted/.test(text));
   check('it quotes the sentence they ticked, in full',
-    text.includes('admission guarantee applies to the shortlist'));
+    text.includes('refunds half the package fee'));
   check('it names them and their order', text.includes(email) && text.includes(ref));
   check('it prints the package terms as they read that day',
     /What voids the guarantee/.test(text));

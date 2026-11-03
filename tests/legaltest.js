@@ -90,7 +90,7 @@ const text = async (ctx, url) => {
   await home.waitForTimeout(2400);
   const links = await home.$$eval('#packages a[href*="guarantee-terms"]',
     els => els.length);
-  check('the pledges on the cards still link to those terms', links >= 2, links);
+  check('the Offer Letter pledge still links to those terms (Boarding Pass terms are in the T&C only)', links >= 1, links);
   await home.close();
 
   /* ------------------------------------------------- nothing prints a blank */
