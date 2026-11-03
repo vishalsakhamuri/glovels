@@ -117,8 +117,9 @@ const text = async (ctx, url) => {
 
   const gapsBefore = Number(await s.textContent('#nLegal'));
   check('the office is told what is still blank', gapsBefore > 0, gapsBefore + ' blanks');
+  /* Patches 254-255 seed everything but the GSTIN, which every page prints. */
   check('and told which page each blank is for',
-    /Grievance/.test(await s.textContent('#legalGaps')));
+    /all four pages|Grievance/.test(await s.textContent('#legalGaps')));
 
   await s.fill('#lgCin', CIN);
   await s.fill('#lgGstin', '36AABCG1234M1Z7');
