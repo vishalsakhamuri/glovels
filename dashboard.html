@@ -567,6 +567,12 @@ ol.prog li span{display:block;font:400 12px/1.5 var(--sans);color:var(--muted,#5
   .sl-tbl td::before{content:attr(data-l);flex:0 0 9.5em;font:700 11px/1.5 var(--sans);
     letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
   .sl-tbl td.sl-num{display:none}
+  /* The University cell is label + logo + name on one flex line, and a name
+     like "Deggendorf Institute of Technology (TH Deggendorf)" pushed the
+     page 6px wide on a 360px phone. The name may wrap under the logo, and a
+     long word may break. */
+  .sl-tbl td.sl-u{flex-wrap:wrap}
+  .sl-tbl td.sl-u .sl-uni{flex:1 1 120px;min-width:0;overflow-wrap:anywhere}
   .sl-act{text-align:left}
 }
 
@@ -1034,8 +1040,21 @@ a.p-logo{display:block;text-decoration:none}
       <span class="p-av" id="avatar">—</span>
     </div>
 
-    <div class="p-demo"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> Signed in. Your shortlist, order, documents and messages are stored on the
-      Glovels server against your account — not in this browser.</div>
+    <!-- "Payment is not connected yet, so orders are recorded but nothing is
+         charged" was printed here unconditionally — to a student who had just
+         paid ₹9,999 on Razorpay. The sentence is added below only while no
+         gateway is collecting (GET /api/pay/config). -->
+    <div class="p-demo" id="pDemo"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg> <span id="pDemoTxt">Signed in. Your shortlist, order, documents and messages are stored on the
+      Glovels server against your account — not in this browser.</span></div>
+    <script>(function(){
+      fetch('/api/pay/config', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (c) {
+          if (!c || c.enabled || c.stripe) return;
+          var t = document.getElementById('pDemoTxt');
+          if (t) t.textContent += ' Payment is not connected yet, so orders are recorded but nothing is charged.';
+        }).catch(function () {});
+    })();</script>
 
     <div id="nextUp"></div>
 

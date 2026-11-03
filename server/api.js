@@ -3256,10 +3256,15 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const { order, reference, plan, chargeNow, canSplit } = placed;
     if (exportSale) { try { db.setOrderTaxMode(reference, vat ? 'eu-vat-' + vat.rate : 'export'); } catch (e) { /* receipt still says so */ } }
     /* Patch 237: the buyer's currency and residence, on the order itself. */
+    /* The figure the buyer was shown — "£81", not "₹9,999" — kept for the
+       receipt below. The card is charged in that currency; a receipt that
+       names only the rupee price names a number the buyer never saw. */
+    let local = null;
     try {
       const cur0 = String(b.currency || 'INR').toUpperCase();
       const res0 = /^[A-Z]{2}$/.test(String(b.residence || '').toUpperCase()) ? String(b.residence).toUpperCase() : '';
       const loc0 = cur0 !== 'INR' && FX.currencies().includes(cur0) ? inCurrency(gross, cur0) : null;
+      if (loc0 && loc0.currency !== 'INR') local = { currency: loc0.currency, units: loc0.units };
       if (db.setOrderLocal) db.setOrderLocal(reference, loc0 ? loc0.currency : 'INR', loc0 ? loc0.amountMinor : gross, res0);
     } catch (e) { /* the order stands */ }
     if (linked.created) seedMessages(linked.created);
@@ -3435,7 +3440,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
 
     /* The receipt is the message that tells a guest how to get into the portal
        they just paid for, so it goes out whether or not they have an account. */
-    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({ exportSale, vatRate, seller: st ? stripe.seller : '',
+    mail.send(Object.assign({ to: email }, EMAILS.orderReceipt({ exportSale, vatRate, seller: st ? stripe.seller : '', local,
       name, email, reference, packageName: label, grossPaise: gross,
       /* An account made for this order counts — the email said "create your
          account" to people whose account was made seven milliseconds earlier. */

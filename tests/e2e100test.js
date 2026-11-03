@@ -1204,7 +1204,8 @@ const rssTimer = setInterval(() => { rssPeak = Math.max(rssPeak, rssMb()); }, 20
   /* Marketing. */
   const mk = (await req('mkt', 'GET', '/api/marketing/report?days=7')).body;
   const tot = mk.totals || {};
-  rec('/marketing leads (30d)', leadsMade.length + extraLeads.length, tot.leads);
+  /* Archived (spam) leads are not marketing leads — the spam-test fix. */
+  rec('/marketing leads (30d)', leadsMade.length + extraLeads.length - spamLeads, tot.leads);
   rec('/marketing sign-ups = students who made an account (100 + the seed student)', N + 1, tot.signups);
   const payers = new Set(S.filter(s => s.paidPaise > 0).map(s => s.id)).size;
   rec('/marketing payers = students who paid', payers, tot.payers);

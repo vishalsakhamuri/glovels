@@ -1176,7 +1176,7 @@ PAGES["language-german"] = {
             "p": [
                 "Roughly 95 million people speak German as a first language. It is "
                 "official in Germany, Austria and Liechtenstein and co-official in "
-                "Switzerland, Luxembourg and Belgium — seven countries, and the largest "
+                "Switzerland, Luxembourg and Belgium — six countries, and the largest "
                 "economy in Europe.",
                 "For our students it is rarely about the language itself. A1 gets you "
                 "through the visa interview and the first month. B1 gets you a "

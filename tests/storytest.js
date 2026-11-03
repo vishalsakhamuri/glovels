@@ -58,8 +58,13 @@ const cards = page => page.$$eval('#admit-stories .ss-admit, #visa-work-stories 
   check('no surnames, scores or notes', !PRIVATE.test(body));
   check('no filters, no search, no sort, no stats strip, no per-student links',
     !/<input|<select|class="stats"|View story|href="\/success-stories\//.test(body));
-  check('an empty programme reads "Programme to be confirmed"',
-    DATA.admits.some(a => !a['Programme (as recorded)']) ? body.includes('Programme to be confirmed') : true);
+  /* An admission with no course name on the record shows the degree, or the
+     fact of the admission — never a note to ourselves on a public page. */
+  check('an empty programme never reads "Programme to be confirmed"', !body.includes('to be confirmed'));
+  check('and shows the degree or "Admission confirmed" instead',
+    DATA.admits.filter(a => !a['Programme (as recorded)']).every(a => body.includes(a.Degree ? '<div class="ss-p">' + a.Degree + '</div>' : 'Admission confirmed')));
+  check('no spelling slips in the shipped records',
+    !/engineerig|Sustainabiliy|Automative/.test(JSON.stringify(DATA)));
   check('a university with no logo gets an initials tile', body.includes('class="ss-ini"'));
   check('logo tiles are lazy, described, contained',
     /<img src="\/logos\/[^"]+" alt="[^"]+ logo" loading="lazy"/.test(body));

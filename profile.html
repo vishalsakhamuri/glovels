@@ -2221,8 +2221,15 @@ function drawForm() {
         '" placeholder="' + esc(f.ph || '') + '"' + (req ? ' required' : '') + '>';
     }
 
+    /* The label is wired to its box (for/id), so a screen reader reads
+       "Mobile number" on the box rather than "edit text", and a tap on the
+       label focuses it. A date is three selects with their own aria-labels;
+       a checkbox list labels each choice itself. */
+    const fid = 'pf_' + String(f.k).replace(/[^A-Za-z0-9_-]/g, '_');
+    const labelled = /^<(input|select|textarea)\b/.test(input);
+    if (labelled) input = input.replace(/^<(input|select|textarea)\b/, '<$1 id="' + fid + '"');
     return '<div class="field' + (req ? ' must' : '') + '" data-k="' + f.k +
-      '" style="margin-bottom:15px"><label>' + esc(f.l) +
+      '" style="margin-bottom:15px"><label' + (labelled ? ' for="' + fid + '"' : '') + '>' + esc(f.l) +
       (req ? '<span class="reqmark" title="Required">required</span>' : '') +
       (!req && !needed(f) ? '<span style="margin-left:auto;font-weight:700;color:var(--muted);' +
         'text-transform:none;letter-spacing:0">optional</span>' : '') + '</label>' + input +

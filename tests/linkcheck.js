@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 
 const BASE = process.env.BASE || 'http://localhost:8097';
-const DIR = '/home/claude/glovels/build';
+const DIR = process.env.DIR || require('path').join(__dirname, '..');
 
 (async () => {
   const browser = await chromium.launch();

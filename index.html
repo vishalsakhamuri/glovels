@@ -3907,7 +3907,13 @@ function needWhatField(){
   const fd = (document.getElementById('fField') || {}).value || (PROFILE && PROFILE.g_field) || '';
   if (lv && fd) return '';
   const lvOpts = (document.getElementById('fLevel') || { innerHTML: '' }).innerHTML;
-  const fdOpts = (document.getElementById('fField') || { innerHTML: '' }).innerHTML;
+  /* The finder's lists say "Choose level" and "Any subject" — "any" is a
+     valid answer up there and not here, where a subject is what the
+     universities are picked from. A box that reads "Any subject" and then
+     refuses with "Choose a subject." is the same question asked twice with
+     two different answers, so the placeholder says what is wanted. */
+  const fdOpts = (document.getElementById('fField') || { innerHTML: '' }).innerHTML
+    .replace(/^(\s*<option value="">)[^<]*(<\/option>)/, '$1Choose subject$2');
   return '<div class="fld co-res"><label for="rqLevel">What do you want to study? *</label>'
     + (lv ? '' : '<select id="rqLevel" style="margin-bottom:8px">' + lvOpts + '</select>')
     + (fd ? '' : '<select id="rqField">' + fdOpts + '</select>')
@@ -4876,7 +4882,7 @@ function askToApply(id, uni, prog){
     const email = $('#apMail').value.trim();
     const phone = window.glvFullPhone ? window.glvFullPhone('#apPhone', 'apCc') : $('#apPhone').value.trim();
     if (!name) return say('Tell us your name.');
-    if (!/[A-Za-zÀ-ɏऀ-ॿ]/.test(name)) return say('A name needs at least one letter.');
+    if (!/\p{L}/u.test(name)) return say('A name needs at least one letter.');
     if (phone.replace(/\D/g, '').length < 8 || phone.replace(/\D/g, '').length > 15) return say('A mobile number, please.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
     const btn = $('#apGo');

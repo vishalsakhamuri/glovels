@@ -15,6 +15,12 @@
  */
 
 const money = paise => '₹' + Number(paise / 100).toLocaleString('en-IN');
+/* A whole-unit amount in another currency, the way the checkout printed it. */
+const localMoney = (units, code) => {
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency: code, maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(Number(units || 0));
+  } catch (e) { return code + ' ' + Math.round(Number(units || 0)).toLocaleString('en'); }
+};
 
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -190,8 +196,15 @@ Glovels
   },
 
   orderReceipt({ name, email, reference, packageName, grossPaise, publicUnis, siteUrl,
-    hasAccount, services, matchedOnly, exportSale, seller, vatRate }) {
+    hasAccount, services, matchedOnly, exportSale, seller, vatRate, local }) {
     const first = String(name || '').split(' ')[0] || 'there';
+    /* The amount as the buyer saw it. Abroad the checkout showed "£81" and
+       the card is charged £81; the receipt leads with that, and the rupee
+       price it was converted from follows in brackets. In India it is the
+       rupee figure alone, as it always was. */
+    const paid = local && local.currency && local.currency !== 'INR'
+      ? localMoney(local.units, local.currency) + ' (' + money(grossPaise) + ')'
+      : money(grossPaise);
     const tax = vatRate ? Math.round(grossPaise - grossPaise / (1 + vatRate / 100))
       : exportSale ? 0 : Math.round(grossPaise - grossPaise / 1.18);
     /* A receipt for services has to name them. "2 services — ₹4,498" is not a
@@ -227,7 +240,7 @@ ${(services || []).length
   ? `You have booked:${bought}`
   : `Your ${packageName} package is active.`}
 Order reference   ${reference}
-Amount            ${money(grossPaise)} ${vatRate ? '(including ' + money(tax) + ' VAT at ' + vatRate + '%)' : exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${seller
+Amount            ${paid} ${vatRate ? '(including ' + money(tax) + ' VAT at ' + vatRate + '%)' : exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${seller
   ? `
 Sold by           ${seller} — card payment taken by Stripe` : ''}${publicUnis
   ? `
@@ -266,10 +279,10 @@ Glovels
           /* Patch 195: an export sale carries no GST — the HTML said "incl.
              GST" for those too — and a Stripe sale names the German seller. */
         ].concat(vatRate
-          ? [['Amount paid', money(grossPaise) + ' incl. VAT'], ['VAT @ ' + vatRate + '%', money(tax)]]
+          ? [['Amount paid', paid + ' incl. VAT'], ['VAT @ ' + vatRate + '%', money(tax)]]
           : exportSale
-          ? [['Amount paid', money(grossPaise) + ' — export of services, no GST']]
-          : [['Amount paid', money(grossPaise) + ' incl. GST'], ['GST @ 18%', money(tax)]]
+          ? [['Amount paid', paid + ' — export of services, no GST']]
+          : [['Amount paid', paid + ' incl. GST'], ['GST @ 18%', money(tax)]]
         ).concat(seller ? [['Sold by', seller]] : []).concat([
           /* Only when there is a number. "Universities unlocked: 0" on a
              receipt for an SOP rewrite is a line that answers nothing. */

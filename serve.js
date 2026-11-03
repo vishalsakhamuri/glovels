@@ -639,6 +639,7 @@ function robotsTxt() {
     'Disallow: /documents',
     'Disallow: /messages',
     'Disallow: /applications',
+    'Disallow: /services',
     'Disallow: /universities',
     'Disallow: /scholarships',
     /* Round 178: "/visa" alone is a PREFIX and blocked /visa-processing, a
@@ -787,7 +788,10 @@ function appleSiteAssociation() {
 
 /* The public pages only: everything behind a sign-in is left out, and so is
    404.html, which exists to be reached by accident. */
-const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages',
+/* 'services' is the student's Services screen (it sends a visitor to sign
+   in) — it was missing from this list, so the sitemap offered Google a page
+   that answers with the sign-in form, and robots.txt let it in. */
+const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages', 'services',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
   'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops', 'marketing',
   'leads-command']);
@@ -1645,7 +1649,7 @@ const UNI_JS = `<div class="apsheet" id="apSheet" role="dialog" aria-modal="true
     var phone = document.getElementById('apPhone').value.trim();
     if (!name || !email || !phone) return say('All three are needed to call you back.', 'bad');
     /* Round 169 (WEB-15): the contact form's rule. */
-    if (!/[A-Za-z\\u00C0-\\u024F\\u0900-\\u097F]/.test(name)) return say('A name needs at least one letter.', 'bad');
+    if (!/\\p{L}/u.test(name)) return say('A name needs at least one letter.', 'bad');
     var go = document.getElementById('apGo'); go.disabled = true;
     post({ id: cur.dataset.apply, name: name, email: email, phone: phone, consent: 'apply' })
       .then(function(d){
@@ -2241,9 +2245,9 @@ function noListingBlock(c) {
     + '<p class="nl-lead">Leave your number and a counsellor will come back to you with '
     + 'what is actually available for ' + name + '.</p>'
     + '<form class="nl-form" id="nlForm" novalidate>'
-    +   '<input id="nlName" placeholder="Your name" autocomplete="name">'
-    +   '<input id="nlPhone" placeholder="Mobile" inputmode="tel" autocomplete="tel">'
-    +   '<input id="nlEmail" placeholder="Email" inputmode="email" autocomplete="email">'
+    +   '<input id="nlName" placeholder="Your name" aria-label="Your name" autocomplete="name">'
+    +   '<input id="nlPhone" placeholder="Mobile" aria-label="Mobile number" inputmode="tel" autocomplete="tel">'
+    +   '<input id="nlEmail" placeholder="Email" aria-label="Email" inputmode="email" autocomplete="email">'
     +   '<input class="nl-hp" id="nlWeb" tabindex="-1" autocomplete="off" aria-hidden="true">'
     +   '<label class="nl-ok"><input type="checkbox" id="nlOk"><span>I agree that Glovels may contact me about my enquiry. I can ask for my details to be deleted at any time.</span></label>'
     +   '<button type="submit" class="btn btn-primary" id="nlGo">Send to a counsellor</button>'
@@ -2283,9 +2287,14 @@ const NOLIST_JS = `<script>(function(){
     var email = (document.getElementById('nlEmail').value || '').trim();
     if (!name) return show('Your name, so we know who we are calling.');
     /* Round 15 Oct (9): the contact form's name rule. */
-    if (!/[A-Za-z\\u00C0-\\u024F\\u0900-\\u097F]/.test(name)) return show('A name needs at least one letter.');
-    if (!/^[6-9]\\d{9}$/.test(phone.replace(/\\D/g, '').slice(-10))) {
-      return show('A 10-digit Indian mobile, please.');
+    /* Any script's letter is a letter (the server tests \\p{L} too). */
+    if (!/\\p{L}/u.test(name)) return show('A name needs at least one letter.');
+    /* A mobile from anywhere — the server's rule: digits with + ( ) - and
+       spaces, 8 to 15 of them. "A 10-digit Indian mobile, please" turned
+       away every visitor reading this page from Lagos, London or Dhaka. */
+    var digits = phone.replace(/\\D/g, '').length;
+    if (!/^\\+?[\\d\\s().-]+$/.test(phone) || digits < 8 || digits > 15) {
+      return show('A mobile number, please \\u2014 with the country code if you are outside India.');
     }
     if (!/^[^@\\s]+@[^@\\s.]+\\.[^@\\s]+$/.test(email)) return show('That email does not look right.');
     var okBox = document.getElementById('nlOk');
@@ -3073,6 +3082,10 @@ const MOBILE_CSS = '<style data-mobile-kit>'
   + '@media (max-width:640px){'
   + 'body{padding-bottom:calc(66px + env(safe-area-inset-bottom,0px))}'
   + '.wa-launch,.gv-corner{display:none !important}'
+  /* The finder's compare bar sat at bottom:0 — under this bar, which is
+     z-index 118 to its 40 — so "Compare side by side" was a button nobody
+     on a phone could reach. It sits on top of the quick-actions bar now. */
+  + '.fcmp{bottom:calc(66px + env(safe-area-inset-bottom,0px)) !important}'
   + '.glv-mbar{display:grid;grid-template-columns:repeat(' + (SITE_CHAT_OFF ? 3 : 4) + ',1fr);position:fixed;left:0;right:0;bottom:0;z-index:118;'
   + 'background:rgba(255,255,255,.97);backdrop-filter:saturate(1.4) blur(8px);-webkit-backdrop-filter:saturate(1.4) blur(8px);'
   + 'border-top:1px solid #e3e7ec;box-shadow:0 -6px 20px rgba(11,30,49,.08);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}'
@@ -3344,10 +3357,49 @@ function withLegalNotice(html) {
    built pages never carried one, so www / onrender / ?utm variants of the
    same page had nothing telling Google they are one page. */
 function withCanonical(html, pathname) {
-  if (!CFG.siteUrl || /<link rel="canonical"/i.test(html)) return html;
+  if (!CFG.siteUrl) return html;
+  html = withSiteOrigin(html, pathname);
+  if (/<link rel="canonical"/i.test(html)) return html;
   const i = html.indexOf('</head>');
   if (i < 0) return html;
   return html.slice(0, i) + '<link rel="canonical" href="' + esc(CFG.siteUrl + pathname) + '">\n' + html.slice(i);
+}
+
+/*
+ * The social tags, made to agree with the canonical.
+ *
+ * The pages on disk were written with https://www.glovels.com in og:url,
+ * og:image and twitter:image, and one of them (visa-processing) in its own
+ * canonical. The server then wrote a canonical for GLOVELS_URL under it —
+ * https://glovels.com — so every public page named two origins for itself,
+ * and the one the sharing crawlers read was the one that 301s. In the
+ * <head> only, every glovels.com origin becomes the configured one.
+ *
+ * And a page with no og:image (the six blog posts that predate the editor)
+ * or no og:title (the home page) gets the site's default picture and its
+ * own <title> and description, so a link pasted into WhatsApp shows a
+ * preview rather than a grey box.
+ */
+function withSiteOrigin(html, pathname) {
+  const end = html.indexOf('</head>');
+  if (end < 0) return html;
+  let head = html.slice(0, end);
+  head = head.replace(/https?:\/\/(?:www\.)?glovels\.com(?=[/"'])/gi, CFG.siteUrl);
+  /* Every page's picture is 1200×630; "summary" asks X for a thumbnail. */
+  head = head.replace(/<meta name="twitter:card" content="summary">/i, '<meta name="twitter:card" content="summary_large_image">');
+  const add = [];
+  if (!/property="og:title"/i.test(head)) {
+    const t = /<title>([^<]*)<\/title>/i.exec(head);
+    if (t && t[1].trim()) add.push('<meta property="og:title" content="' + t[1].trim() + '">');
+  }
+  if (!/property="og:description"/i.test(head)) {
+    const d = /<meta name="description" content="([^"]*)"/i.exec(head);
+    if (d && d[1].trim()) add.push('<meta property="og:description" content="' + d[1] + '">');
+  }
+  if (!/property="og:url"/i.test(head)) add.push('<meta property="og:url" content="' + esc(CFG.siteUrl + pathname) + '">');
+  if (!/property="og:image"/i.test(head)) add.push(ogTags(DEFAULT_OG, 'Glovels').trim());
+  if (add.length) head += add.join('\n') + '\n';
+  return head + html.slice(end);
 }
 
 function forIndexing(html, slug) {
@@ -3524,6 +3576,19 @@ async function handleRequest(req, res) {
   }
 
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
+
+  /* A trailing slash is the same page at a second address. /study-in-germany/
+     and /blog/ answered 404 — a link typed with the slash, or copied from a
+     site that adds one, lost the visitor and, to Google, the page. One 301 to
+     the clean address, query kept; the root and the well-known folders are
+     left alone. */
+  /* Not for the folders that are never served: /data/uploads/ answered 301
+     to /data/uploads, which is refused — a refusal needs no redirect. */
+  if (pathname.startsWith('/data/') || pathname.startsWith('/server/')) return send(res, 403, 'Forbidden');
+  if (pathname.length > 1 && pathname.endsWith('/') && !pathname.startsWith('/.well-known/')) {
+    return send(res, 301, '', 'text/html',
+      { Location: pathname.replace(/\/+$/, '') + (query ? '?' + query : '') });
+  }
 
   /*
    * /reset is the sign-in page.

@@ -405,13 +405,16 @@ function admitCardHtml(a, logoFor, esc, extraClass) {
   const logo = src
     ? '<img src="' + esc(src) + '" alt="' + esc(a.University) + ' logo" loading="lazy" decoding="async">'
     : '<span class="ss-ini" aria-hidden="true">' + esc(initials(a.University)) + '</span>';
-  const prog = a['Programme (as recorded)'] || 'Programme to be confirmed';
+  /* No programme on the record: the degree alone, or the fact of the
+     admission. "Programme to be confirmed" read as a note to ourselves on a
+     public page — the admission is real; only the course name is missing. */
+  const prog = [a['Programme (as recorded)'], a.Degree].filter(Boolean).join(' \u00b7 ') || 'Admission confirmed';
   return '<article class="ss-card ss-admit' + (extraClass ? ' ' + extraClass : '') + '">'
     + '<div class="ss-logo">' + logo + '</div>'
     + '<div class="ss-meta"><span class="ss-who">' + esc(a['Display name']) + '</span>'
     + '<span class="ss-badge">' + esc(a.Intake) + '</span></div>'
     + '<div class="ss-u">' + esc(a.University) + '</div>'
-    + '<div class="ss-p">' + esc(prog) + (a.Degree ? ' · ' + esc(a.Degree) : '') + '</div>'
+    + '<div class="ss-p">' + esc(prog) + '</div>'
     + '</article>';
 }
 
@@ -433,7 +436,8 @@ function render(deps) {
       ? '<img src="' + esc(src) + '" alt="' + esc(u) + ' logo" loading="lazy" decoding="async">'
       : '<span class="ss-ini" aria-hidden="true">' + esc(initials(u)) + '</span>';
   };
-  const programme = a => a['Programme (as recorded)'] || 'Programme to be confirmed';
+
+  const programme = a => [a['Programme (as recorded)'], a.Degree].filter(Boolean).join(' \u00b7 ') || 'admission confirmed';
 
   void logoHtml;
   const admitCard = a => admitCardHtml(a, deps.logoFor, esc, '');
