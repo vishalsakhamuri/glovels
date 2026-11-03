@@ -306,7 +306,11 @@ function open({ db, fx, log = console }) {
       if (t.campaign) fn(row(by.campaign, t.campaign, { channel: t.channel }), true, d);
       if (t.landing) fn(row(by.landing, t.landing), true, d);
     };
-    const enquiries = (db.allEnquiriesEver || db.allEnquiries)();
+    /* Go-live spam test (3 Nov): what is in the BOOK, not everything that
+       ever arrived. A spam flood the office archived is not three hundred
+       leads at a 30,000% lead rate — archiving a lead takes it out of the
+       marketing numbers as well. */
+    const enquiries = db.allEnquiries();
     const enqByEmail = {};
     enquiries.forEach(e => {
       const t = touch(attrOf['enquiry:' + e.id]);
@@ -418,7 +422,7 @@ function open({ db, fx, log = console }) {
     const lastFound = {};
     rows.forEach(r => { if (Number(r.results) > 0) { const k = keyOf(r); if (!lastFound[k] || r.ts > lastFound[k].ts) lastFound[k] = r; } });
     const saved = (db.content('demandGaps') || {}).items || {};
-    const leads = (db.allEnquiriesEver || db.allEnquiries)().filter(e => e.source === 'no-match' && String(e.created_at).slice(0, 10) >= since);
+    const leads = db.allEnquiries().filter(e => e.source === 'no-match' && String(e.created_at).slice(0, 10) >= since);
     const list = searchReport(rows.filter(r => !Number(r.results))).noResults.map(g => {
       const key = [String(g.q || '').toLowerCase().trim(), String(g.dest || '').toUpperCase(), String(g.level || '').toLowerCase(), String(g.field || '').toLowerCase()].join('|');
       const st = saved[key] || {};

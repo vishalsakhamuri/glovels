@@ -1070,8 +1070,14 @@ select.assign.none:hover{border-color:#a5342b}
           <option value="none">Nobody yet</option></select>
         <input class="grow" id="fQ" placeholder="Name, number or email">
         <span style="flex:1"></span>
+        <!-- Go-live spam test (3 Nov): an administrator's way out of a flood —
+             every lead the filters show, archived in one request. Hidden for
+             everybody else and on the Archived list. -->
+        <button type="button" class="btn btn-sm" id="archiveShown" hidden
+          style="color:#b03a2e;border-color:#e2b4ad" title="Archive every lead the filters show">Archive shown</button>
         <button type="button" class="btn btn-primary btn-sm" id="addLead">+ Log a lead</button>
       </div>
+      <p id="bookNote" hidden style="margin:-4px 0 10px;color:var(--muted);font-size:12.4px"></p>
 
       <!-- Which of the five counters is holding the book down, and the way
            back out. A filter you cannot see is a filter that makes the screen
@@ -1857,6 +1863,18 @@ function paint() {
 
   const rows = shown();
   $('#nBook').textContent = rows.length;
+  /* Go-live spam test (3 Nov): the server sends the newest 500; when the book
+     is bigger than that, say so — a flood pushing the real leads past the edge
+     must not be silent. And the administrator's bulk Archive, for what the
+     filters show. */
+  const note = $('#bookNote');
+  if (note) {
+    const over = TOTAL > LEADS.length;
+    note.hidden = !over;
+    if (over) note.textContent = 'Showing the newest ' + LEADS.length + ' of ' + TOTAL + ' leads. Narrow the filters, or archive what is not real to see the rest.';
+  }
+  const ab = $('#archiveShown');
+  if (ab) { ab.hidden = !(ROLE === 'admin' && !ARCHIVED && rows.length > 0); ab.textContent = 'Archive shown (' + rows.length + ')'; }
   $('#leadPager').innerHTML = pagerHtml('lead', rows.length, 'enquiries', paint);
   $('#leadRows').innerHTML = paged('lead', rows).map(l => {
     /* Nobody has said a word to them and they came in yesterday or before.
@@ -2239,6 +2257,27 @@ async function removeLead(lead) {
   } catch (e) { say(e.message); }
 }
 
+/* Go-live spam test (3 Nov): every lead the filters show, out of the book in
+   one request. Asks first, with the number, because this is the one button on
+   the screen that moves hundreds of rows. */
+async function archiveShown() {
+  if (ROLE !== 'admin' || ARCHIVED) return;
+  const rows = shown();
+  if (!rows.length) return;
+  const why = prompt('Archive ' + rows.length + ' lead' + (rows.length === 1 ? '' : 's') + ' — everything the filters show?\n\n'
+    + 'They leave the book and their alerts stop. You can restore any of them from the Archived filter.\n\n'
+    + 'Why? (kept on each lead)', 'spam');
+  if (why == null) return;
+  say('');
+  try {
+    const r = await api('POST', '/api/staff/leads/archive-many', { ids: rows.map(l => l.id), why: why || 'archived with others' });
+    openId = null;
+    await load();
+    $('#leadPane').innerHTML = '<p style="margin:0;color:var(--muted);font-size:12.8px">Archived ' + Number(r.archived || 0) + ' leads — they are under the Archived filter. Pick another from the book.</p>';
+    toast('Archived ' + Number(r.archived || 0));
+  } catch (e) { say(e.message); }
+}
+
 async function restoreLead(lead) {
   say('');
   try {
@@ -2394,9 +2433,11 @@ async function open_(id) {
 /* Patch 172 (item 7): the administrator's Archived filter — the leads taken
    out of the book, read from the server separately (?archived=1). */
 let ARCHIVED = false;
+let TOTAL = 0;
 async function load() {
   const r = await api('GET', '/api/staff/leads' + (ARCHIVED && ROLE === 'admin' ? '?archived=1' : ''));
   LEADS = r.leads;
+  TOTAL = Number(r.total || LEADS.length);
   SUM = r.summary;
   PEOPLE = r.counsellors;
   STATUSES = r.statuses;
@@ -2432,6 +2473,7 @@ document.addEventListener('click', e => {
   const row = e.target.closest('[data-lead]');
   if (row) return open_(Number(row.dataset.lead));
   if (e.target.closest('#addLead')) addForm();
+  if (e.target.closest('#archiveShown')) archiveShown();
   const t = e.target.closest('.tab[data-t]');
   if (t) {
     $$('.tab[data-t]').forEach(x => x.setAttribute('aria-selected', String(x === t)));

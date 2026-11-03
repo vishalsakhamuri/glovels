@@ -52,6 +52,7 @@ const KEY_SETTINGS = 'leadSla';
 const KEY_STATE = 'leadAlertState';
 const KEY_LOG = 'leadAlertLog';
 const LOG_MAX = 150;
+const FEED_EACH = 6;                   // more overdue leads than this in one sweep is one feed line
 const MAX_AGE_DAYS = 3;
 const IST = 330;                       // minutes east of UTC; India has no DST
 
@@ -325,6 +326,15 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
           row.emailed = emailed && (ev.kind === 'chat' || ev.kind === 'chat-msg'); }
       });
       try { db.setContent(KEY_LOG, list2, 'system'); } catch (e) {}
+      /* The arrivals past FEED_EACH, as one line (see arrived). */
+      const rest = evs.filter(ev => !list.some(x => x.logN && (x.leadId || x.chatId) === (ev.leadId || ev.chatId)));
+      if (rest.length) {
+        const kinds = [...new Set(rest.map(ev => CHANNEL_LABEL[ev.kind] || ev.kind))].join(', ');
+        record({ kind: rest.length === 1 ? rest[0].kind : 'form', leadId: rest.length === 1 ? rest[0].leadId : null, chatId: rest.length === 1 ? rest[0].chatId : null,
+          name: rest.length === 1 ? rest[0].name : rest.length + ' more leads', count: rest.length, combined: true,
+          text: rest.length === 1 ? '' : rest.slice(0, 4).map(ev => first(ev.name)).join(', ') + ' and ' + Math.max(0, rest.length - 4) + ' more (' + kinds + ')',
+          pushed: [...new Set(rest.flatMap(ev => pushedBy.get(ev.leadId || ev.chatId) || []))], emailed: emailed && rest.some(ev => ev.kind === 'chat' || ev.kind === 'chat-msg') });
+      }
       return;
     }
     evs.forEach(ev => {
@@ -372,10 +382,16 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
         deliver([ev]);
         return { queued: false, sent: true };
       }
-      /* In the feed now; the combined push follows when the window closes. */
-      ev.logN = record({ kind: ev.kind, leadId: ev.leadId, chatId: ev.chatId, name: ev.name, destination: destOf(row),
-        ownerId: row && row.owner_id ? Number(row.owner_id) : null, text: ev.kind === 'chat-msg' ? String(ev.text || '').slice(0, 160) : '',
-        count: 1, pushed: [], emailed: false, pending: true }).n;
+      /* In the feed now; the combined push follows when the window closes.
+         Go-live spam test (3 Nov): past FEED_EACH arrivals in one window the
+         rest are not written one by one — the feed keeps 150 lines and a
+         flood of three hundred would push every real arrival out of it. They
+         go in as one "N new leads" line when the window closes (deliver). */
+      if (pending.length < FEED_EACH) {
+        ev.logN = record({ kind: ev.kind, leadId: ev.leadId, chatId: ev.chatId, name: ev.name, destination: destOf(row),
+          ownerId: row && row.owner_id ? Number(row.owner_id) : null, text: ev.kind === 'chat-msg' ? String(ev.text || '').slice(0, 160) : '',
+          count: 1, pushed: [], emailed: false, pending: true }).n;
+      }
       pending.push(ev);
       if (!flushTimer) {
         flushTimer = setTimeout(flush, Math.max(0, windowUntil - Date.now()));
@@ -397,7 +413,14 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
   }
 
   /* ------------------------------------------------------ 2. escalation */
-  function readState() { let s = null; try { s = db.content(KEY_STATE); } catch (e) { s = null; } return s && typeof s === 'object' ? { first: s.first || {}, esc: s.esc || {}, seeded: s.seeded || '' } : { first: {}, esc: {}, seeded: '' }; }
+  function readState() { let s = null; try { s = db.content(KEY_STATE); } catch (e) { s = null; } return s && typeof s === 'object' ? { first: s.first || {}, esc: s.esc || {}, mailed: s.mailed || {}, mailAt: s.mailAt || '', seeded: s.seeded || '' } : { first: {}, esc: {}, mailed: {}, mailAt: '', seeded: '' }; }
+  /* Go-live spam test (3 Nov): one escalation EMAIL per administrator per
+     ESC_MAIL_GAP minutes at most. A drip of spam — one made-up lead a
+     minute from rotating addresses — escalated one at a time, and each sweep
+     emailed every administrator: sixty emails an hour, all day. The pushes
+     still go each sweep (one, combined, replacing itself on the lock screen);
+     the email waits and then names everything escalated since the last one. */
+  const ESC_MAIL_GAP = 10;
 
   /** Leads still waiting for anybody to answer: new, no touch, not internal,
       not logged by staff (somebody is already holding those). */
@@ -420,6 +443,7 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
     /* What resolved is forgotten; what is still waiting keeps its stamps. */
     Object.keys(state.first).forEach(k => { if (!ids.has(k)) delete state.first[k]; });
     Object.keys(state.esc).forEach(k => { if (!ids.has(k)) delete state.esc[k]; });
+    Object.keys(state.mailed).forEach(k => { if (!ids.has(k)) delete state.mailed[k]; });
     const stamp = new Date(now).toISOString();
     if (!state.seeded) {
       waiting.forEach(e => {
@@ -463,10 +487,45 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
       firstList.forEach(x => {
         liveTo(x.e.owner_id ? audience(x.e) : null, { kind: 'overdue', leadId: Number(x.e.id), name: x.e.name, minutes: x.m,
           destination: destOf(x.e), channel: CHANNEL_LABEL[channelOf(x.e)], at: stamp });
-        record({ kind: 'overdue', leadId: Number(x.e.id), name: x.e.name || '', minutes: x.m, destination: destOf(x.e),
-          ownerId: x.e.owner_id ? Number(x.e.owner_id) : null, pushed: pushed.get(x.e.id) || [] });
       });
+      /* Go-live spam test (3 Nov): a flood is one line in the feed, not three
+         hundred — the feed keeps 150 lines, and three hundred "nobody has
+         called" rows pushed every real arrival out of it. Up to FEED_EACH
+         leads are written one by one; more than that is one combined line. */
+      if (firstList.length <= FEED_EACH) {
+        firstList.forEach(x => record({ kind: 'overdue', leadId: Number(x.e.id), name: x.e.name || '', minutes: x.m, destination: destOf(x.e),
+          ownerId: x.e.owner_id ? Number(x.e.owner_id) : null, pushed: pushed.get(x.e.id) || [] }));
+      } else {
+        record({ kind: 'overdue', leadId: null, name: firstList.length + ' leads', count: firstList.length,
+          minutes: Math.max(...firstList.map(x => x.m)), text: firstList.slice(0, 4).map(x => first(x.e.name)).join(', ') + ' and ' + (firstList.length - Math.min(4, firstList.length)) + ' more',
+          pushed: [...new Set([...pushed.values()].flat())], combined: true });
+      }
     }
+    /* The escalation email: everything escalated and not yet emailed — this
+       sweep's and any held back since the last email — in one message, when
+       ESC_MAIL_GAP has passed since the last one. Marked before sent, like
+       the rest of this file. Runs whether or not anything escalated THIS
+       sweep, so leads held back are not forgotten. */
+    let escMailed = null;
+    const escMail = () => {
+      if (escMailed != null) return escMailed;
+      escMailed = false;
+      if (!S.emailOffice) return false;
+      const lastMail = state.mailAt ? new Date(state.mailAt).getTime() : 0;
+      if (now - lastMail < ESC_MAIL_GAP * MIN) return false;
+      const due = waiting.filter(e => state.esc[e.id] && !state.mailed[e.id]);
+      if (!due.length) return false;
+      const lines = due.map(e => (e.name || 'Somebody') + ' — waited ' + waitMins(e.created_at, now, S) + ' min, nobody has called · '
+        + [CHANNEL_LABEL[channelOf(e)], destOf(e), contactOf(e)].filter(Boolean).join(' · '));
+      const subject = due.length === 1 ? 'Escalation: nobody has called ' + (due[0].name || 'a lead') + ' in ' + waitMins(due[0].created_at, now, S) + ' min'
+        : 'Escalation: ' + due.length + ' leads nobody has called';
+      due.forEach(e => { state.mailed[e.id] = stamp; });
+      state.mailAt = stamp;
+      db.setContent(KEY_STATE, state, 'system');
+      admins().filter(a => a.email).forEach(a => { escMailed = emailTo(a.email, subject, lines, site + '/leads-command') || escMailed; });
+      return escMailed;
+    };
+    if (!escList.length) escMail();
     if (escList.length) {
       const to = admins();
       const ids2 = to.map(a => Number(a.id));
@@ -478,19 +537,18 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
         : { title: 'Escalation: ' + escList.length + ' leads past ' + S.escalateMins + ' min',
             body: escList.slice(0, 4).map(y => first(y.e.name) + ' ' + y.m + ' min').join(' · ') + ' — nobody has called',
             url: site + '/leads-command', tag: 'lead-esc' });
-      const lines = escList.map(y => (y.e.name || 'Somebody') + ' — waited ' + y.m + ' min, nobody has called · '
-        + [CHANNEL_LABEL[channelOf(y.e)], destOf(y.e), contactOf(y.e)].filter(Boolean).join(' · '));
-      const subject = escList.length === 1 ? 'Escalation: nobody has called ' + (x.e.name || 'a lead') + ' in ' + x.m + ' min'
-        : 'Escalation: ' + escList.length + ' leads nobody has called';
-      let emailed = false;
-      if (S.emailOffice) {
-        to.filter(a => a.email).forEach(a => { emailed = emailTo(a.email, subject, lines, site + '/leads-command') || emailed; });
-      }
+      const emailed = escMail();
       escList.forEach(y => {
         liveTo(null, { kind: 'escalated', leadId: Number(y.e.id), name: y.e.name, minutes: y.m, destination: destOf(y.e), at: stamp });
-        record({ kind: 'escalated', leadId: Number(y.e.id), name: y.e.name || '', minutes: y.m, destination: destOf(y.e),
-          ownerId: y.e.owner_id ? Number(y.e.owner_id) : null, pushed: ids2, emailed });
       });
+      if (escList.length <= FEED_EACH) {
+        escList.forEach(y => record({ kind: 'escalated', leadId: Number(y.e.id), name: y.e.name || '', minutes: y.m, destination: destOf(y.e),
+          ownerId: y.e.owner_id ? Number(y.e.owner_id) : null, pushed: ids2, emailed }));
+      } else {
+        record({ kind: 'escalated', leadId: null, name: escList.length + ' leads', count: escList.length,
+          minutes: Math.max(...escList.map(y => y.m)), text: escList.slice(0, 4).map(y => first(y.e.name)).join(', ') + ' and ' + (escList.length - Math.min(4, escList.length)) + ' more',
+          pushed: ids2, emailed, combined: true });
+      }
       try { db.log('system', 'lead escalated', escList.map(y => (y.e.name || '#' + y.e.id) + ' ' + y.m + ' min').join(', ')); } catch (e) {}
     }
     return { first: firstList.map(x => x.e.id), escalated: escList.map(x => x.e.id) };

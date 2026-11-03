@@ -806,6 +806,38 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return null;
   }
 
+  /*
+   * ONE STUDENT'S SHARE OF THE DISK (go-live spam test, 3 Nov).
+   *
+   * The site runs on one 1 GB disk, and the database is on it. A free account
+   * uploading ten-megabyte "scans" in a loop put 400 MB there in ten seconds;
+   * at the gigabyte the database stops writing and the site stops for
+   * everybody. So one student's file is capped: `MAX_STUDENT_MB` on disk and
+   * `MAX_STUDENT_FILES` files in all (eight semesters of marksheets, every
+   * test score, a visa file and a dozen shared files fit several times over),
+   * and `UPLOADS_HOUR` uploads an hour. Staff uploads are not counted against
+   * the student — the office is not the attacker — but they do count towards
+   * what the student may still add.
+   *
+   * Returns the sentence refusing the file, or '' when it may be stored.
+   */
+  const MAX_STUDENT_MB = Number(process.env.MAX_STUDENT_MB) > 0 ? Number(process.env.MAX_STUDENT_MB) : 150;
+  const MAX_STUDENT_FILES = Number(process.env.MAX_STUDENT_FILES) > 0 ? Number(process.env.MAX_STUDENT_FILES) : 150;
+  const UPLOADS_HOUR = Number(process.env.UPLOADS_HOUR) > 0 ? Number(process.env.UPLOADS_HOUR) : 60;
+  function storageRefuses(studentId, bytes) {
+    const u = db.docUsage ? db.docUsage(studentId) : { files: 0, bytes: 0 };
+    if (u.files >= MAX_STUDENT_FILES) {
+      return 'This file already holds ' + u.files + ' documents, which is the most it can. Remove the ones that are no longer needed, or ask your counsellor.';
+    }
+    if (u.bytes + Number(bytes || 0) > MAX_STUDENT_MB * 1048576) {
+      return 'Your documents take ' + (u.bytes / 1048576).toFixed(0) + ' MB, and ' + MAX_STUDENT_MB + ' MB is the most one file holds. Remove a file that is no longer needed, or send this one smaller.';
+    }
+    if (floodedBy('s' + studentId, 'upload', UPLOADS_HOUR, 60 * 60 * 1000)) {
+      return 'That is a lot of uploads in one hour — ' + UPLOADS_HOUR + ' is the most. Try again a little later.';
+    }
+    return '';
+  }
+
   /** The multipart body, or null with the reason already sent. */
   async function oneFile(req, res) {
     const ct = req.headers['content-type'] || '';
@@ -1732,6 +1764,80 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     error: 'That is a lot of messages in a short time. Wait a few minutes, '
          + 'or call us on +91 78393 99999 — a person answers faster than this form.',
   });
+
+  /*
+   * THE PERSON BEHIND THE SAME ADDRESS AS THE SPAMMER (go-live spam test, 3 Nov).
+   *
+   * Indian mobile networks put thousands of phones behind one IPv4 address
+   * (carrier-grade NAT), and a college puts its whole lab behind one. The
+   * six-an-hour budget above was keyed on the address alone, so a script
+   * sending its seventh enquiry from Jio's NAT locked every real student on
+   * that NAT out of the form for an hour — and they saw the "that is a lot of
+   * messages" sentence, about messages they never sent.
+   *
+   * So a public form is budgeted in two layers:
+   *
+   *   the PERSON — address + the email and phone they typed — gets `each` an
+   *   hour (three: an enquiry, a correction, and one more);
+   *   the ADDRESS as a whole gets `ceiling` an hour (thirty), which is the
+   *   most a script rotating made-up contacts can file from one address, and
+   *   more than a NAT's worth of real students send in an hour.
+   *
+   * And the CONTACT on its own gets `each` an hour from anywhere, so a script
+   * typing somebody else's address into the form from thirty addresses cannot
+   * make the site mail that person thirty acknowledgements.
+   *
+   * Returns true (and answers) when this one must stop.
+   */
+  function floodedForm(req, res, what, { email, phone, each = 3, ceiling = 30, windowMs = 60 * 60 * 1000 } = {}) {
+    const ip = clientIp(req);
+    const mail = String(email || '').trim().toLowerCase();
+    const digits = String(phone || '').replace(/\D/g, '').slice(-10);
+    if (floodedBy(ip, what + '-ip', ceiling, windowMs)) return slowDown(res), true;
+    const who = ip + '|' + mail + '|' + digits;
+    if (floodedBy(who, what, each, windowMs)) return slowDown(res), true;
+    if (mail && floodedBy(mail, what + '-mail', each, windowMs)) return slowDown(res), true;
+    if (digits.length >= 10 && floodedBy(digits, what + '-phone', each, windowMs)) return slowDown(res), true;
+    return false;
+  }
+
+  /*
+   * THE MAIL BUDGET (go-live spam test, 3 Nov).
+   *
+   * Every public form sends two emails — the office's copy and the enquirer's
+   * acknowledgement — and every sign-up sends a welcome. The office's mail
+   * provider is on a small daily quota; two hundred spam enquiries from
+   * rotating addresses would spend it before lunch, and then a REAL student's
+   * password-reset link would not go.
+   *
+   * So mail that a stranger can cause is budgeted:
+   *   to one address, `MAIL_EACH` an hour (the office's own address excepted);
+   *   per kind, `MAIL_KIND_HOUR` an hour across the whole site.
+   * Over budget, the message is not sent (and is logged once an hour so the
+   * office can see it happened). Nothing is lost: the lead is in the book, the
+   * live alert and the combined push still go, and a real student's mail goes
+   * when the hour turns. Resets, receipts and messages from counsellors do
+   * not come through here and are never held.
+   */
+  const MAIL_EACH = Number(process.env.MAIL_EACH_HOUR) > 0 ? Number(process.env.MAIL_EACH_HOUR) : 4;
+  const MAIL_KIND_HOUR = Number(process.env.MAIL_KIND_HOUR) > 0 ? Number(process.env.MAIL_KIND_HOUR) : 120;
+  const mailHeld = { n: 0, loggedAt: 0 };
+  function publicMail(kind, msg) {
+    const to = String((msg && msg.to) || '').trim().toLowerCase();
+    if (!to) return Promise.resolve({ ok: false, held: true });
+    const isOffice = !!(mail && mail.office) && to === String(mail.office).trim().toLowerCase();
+    const H = 60 * 60 * 1000;
+    const over = (!isOffice && floodedBy(to, 'mail-to', MAIL_EACH, H)) || floodedBy('*', 'mail-' + kind, MAIL_KIND_HOUR, H);
+    if (over) {
+      mailHeld.n++;
+      if (Date.now() - mailHeld.loggedAt > H) {
+        mailHeld.loggedAt = Date.now();
+        try { db.log('system', 'mail held', 'over the hourly budget for "' + kind + '" mail (' + mailHeld.n + ' held so far) — a flood, or a very busy day'); } catch (e) {}
+      }
+      return Promise.resolve({ ok: false, held: true });
+    }
+    return Promise.resolve(mail.send(msg)).catch(() => ({ ok: false }));
+  }
   /*
    * Whose address this is. Behind Render the socket is the proxy, and the
    * visitor is in X-Forwarded-For. That header is a list, and anything a
@@ -1884,8 +1990,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const claimed = db.claimOrders(s.id, email);
     seedMessages(s);
 
-    mail.send(Object.assign({ to: s.email },
-      EMAILS.welcome({ name: s.name, email: s.email, siteUrl }))).catch(() => {});
+    publicMail('welcome', Object.assign({ to: s.email },
+      EMAILS.welcome({ name: s.name, email: s.email, siteUrl })));
 
     const token = newToken();
     db.createSession(token, s.id, 30);
@@ -2191,6 +2297,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * does, whoever is asking.
    */
   route('POST', '/api/apply', async (req, res, s) => {
+    /* Go-live spam test (3 Nov): the one public form the guard did not
+       cover. A script with no browser, no page token and a made-up address
+       on every request filed a lead and sent two emails per call. The same
+       rule as every other form: a person, from a page, not instantly. */
+    if (!(s && s.role === 'student') && guardForm(req, res)) return true;
     const b = await readJson(req);
     const p = lookup(String(b.id || ''));
     if (!p) return json(res, 404, { error: 'No such programme' });
@@ -2262,12 +2373,12 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         program: p.isPublic ? '' : p.program,
       });
     }
-    /* 3 Nov (pen test): this is a public form — it files a lead and sends
-       two emails — and it was the one form the guard did not watch: a
-       script with no page token could post "applications" all day, eight an
-       hour per address. The same rule as the enquiry form and sign-up. */
-    if (guardForm(req, res)) return true;
-    if (floodedBy(clientIp(req), 'apply', 8, 60 * 60 * 1000)) return slowDown(res);
+    /* 3 Nov (pen + spam tests): this is a public form — it files a lead and
+       sends two emails — and it was the one form the guard did not watch
+       (the page-token check is above, for guests). Per person, per address
+       and per contact — floodedForm, the enquiry form's rule — so a student
+       on a spammer's phone network still applies. */
+    if (floodedForm(req, res, 'apply', { email, phone, each: 15 })) return true;
     /* Round 169 (WEB-15): the contact form's name rule. */
     if (name.length > 100) return json(res, 422, { error: 'That name is too long — 100 characters at most.' });
     if (!/\p{L}/u.test(name)) return json(res, 422, { error: 'A name needs at least one letter.' });
@@ -2291,11 +2402,15 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       sourcePage: pageOf(req, b) || '/', referrer: String(b.referrer || '').slice(0, 300),
     };
     /* Filed on this person's open lead if they have one (2 Oct). */
-    db.fileEnquiry(record);
-    mail.send(Object.assign({ to: mail.office, replyTo: email },
-      EMAILS.enquiryToOffice(record))).catch(() => {});
-    mail.send(Object.assign({ to: email },
-      EMAILS.enquiryToStudent({ name, destination: record.destination }))).catch(() => {});
+    const filed = db.fileEnquiry(record);
+    publicMail('office', Object.assign({ to: mail.office, replyTo: email },
+      EMAILS.enquiryToOffice(record)));
+    publicMail('ack', Object.assign({ to: email },
+      EMAILS.enquiryToStudent({ name, destination: record.destination })));
+    /* Go-live spam test (3 Nov): an application IS a lead — every phone in
+       the office hears about it, combined when they come in a burst, exactly
+       as the enquiry form's do (server/leadwatch.js). */
+    leadArrived({ kind: 'form', row: filed, name });
 
     return json(res, 200, {
       applied: true, signedIn: false,
@@ -2392,6 +2507,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     }
     const slotBad = slotRefuses(key, parsed.file.filename);
     if (slotBad) return json(res, 415, { error: slotBad });
+    const full = storageRefuses(s.id, parsed.file.data.length);
+    if (full) return json(res, 429, { error: full, storage: true });
 
     const dir = path.join(uploadDir, String(s.id));
     fs.mkdirSync(dir, { recursive: true });
@@ -2585,6 +2702,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   route('POST', '/api/messages/attach', async (req, res, s) => {
     const parsed = await oneFile(req, res);
     if (!parsed) return true;
+    const full = storageRefuses(s.id, parsed.file.data.length);
+    if (full) return json(res, 429, { error: full, storage: true });
     const key = storeAttachment(s.id, parsed.file, 'me');
     const note = String(parsed.fields.body || '').slice(0, 400);
     db.addMessage(s.id, 'me', note || 'Sent ' + parsed.file.filename, key);
@@ -3779,13 +3898,17 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const rawMessage = String(b.message || b.note || '');
     if (rawMessage.trim().length > MESSAGE_MAX) return json(res, 422, { ok: false, error: 'Please keep the message under 2,000 characters', fields: [{ field: 'message', why: 'too long' }] });
     if (typeof shape === 'function') b = shape(b) || b;
-    /* Six an hour from one address. A real person sending a second enquiry
-       because they forgot to mention their intake is normal; a seventh in the
-       same hour is not a person. */
-    if (floodedBy(clientIp(req), 'enq', 6, 60 * 60 * 1000)) return slowDown(res);
     const name = String(b.name || '').trim();
     const email = String(b.email || '').trim();
     const phone = String(b.phone || '').trim();
+    /* Three an hour from one PERSON (address + email + phone), thirty from
+       one address however many contacts it invents, three to one contact from
+       anywhere — see floodedForm. A real person sending a second enquiry
+       because they forgot to mention their intake is normal; a fourth in the
+       same hour is not a person, and a student on the same phone network as a
+       spammer is not the spammer. Counted before validation so that rubbish
+       from one address is bounded too. */
+    if (floodedForm(req, res, 'enq', { email, phone })) return true;
     if (!name || !phone || !email) return json(res, 422, { ok: false, error: 'Name, phone and email are required' });
     /* Round 30 Sep (issues 4, 20): the tick box was only checked in the
        browser, and a 3,000-character name filled the Leads screen. */
@@ -3847,8 +3970,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       const bk = db.addBooking({ at: slot, minutes: S.minutes, enquiryId: filed && filed.id, name, email, phone: storePhone(phone),
         destination: String(b.destination || '').replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim().slice(0, 60), tz, ownerId: owner });
       if (filed && filed.id) db.setEnquiryNext(filed.id, slot, null);
-      mail.send(Object.assign({ to: email, replyTo: mail.office }, EMAILS.callBooked({ name, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) }))).catch(() => {});
-      mail.send(Object.assign({ to: mail.office, replyTo: email }, EMAILS.enquiryToOffice(record))).catch(() => {});
+      publicMail('ack', Object.assign({ to: email, replyTo: mail.office }, EMAILS.callBooked({ name, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) })));
+      publicMail('office', Object.assign({ to: mail.office, replyTo: email }, EMAILS.enquiryToOffice(record)));
       if (owner) { const c = db.studentById(owner); if (c) callToCounsellor(bk, c); }
       try { notify && notify.staff && notify.staff('New call booked: ' + name + ' — ' + BOOK.say(slot, S.tz)); } catch (e) {}
       /* Patch 221: every phone in the office, now. */
@@ -3860,10 +3983,10 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
        acknowledgement. A form that goes quiet is a lead that calls a competitor
        to check they were heard. Reply-To is set to the enquirer so the office
        can just hit reply. */
-    mail.send(Object.assign({ to: mail.office, replyTo: email },
-      EMAILS.enquiryToOffice(record))).catch(() => {});
-    mail.send(Object.assign({ to: email },
-      EMAILS.enquiryToStudent({ name, destination: b.destination }))).catch(() => {});
+    publicMail('office', Object.assign({ to: mail.office, replyTo: email },
+      EMAILS.enquiryToOffice(record)));
+    publicMail('ack', Object.assign({ to: email },
+      EMAILS.enquiryToStudent({ name, destination: b.destination })));
     /* Patch 221: every phone in the office, now — combined when they come in
        a burst (server/leadwatch.js). */
     leadArrived({ kind: record.source === 'no-match' ? 'finder' : 'form', row: filed, name });
@@ -5464,6 +5587,9 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       if (!key) return json(res, 400, { error: 'Missing file or key' });
       const slotBad = slotRefuses(key, parsed.file.filename);
       if (slotBad) return json(res, 415, { error: slotBad });
+      /* The student's share of the disk, whoever is filling it. */
+      const full = storageRefuses(st.id, parsed.file.data.length);
+      if (full) return json(res, 429, { error: full, storage: true });
 
       const dir = path.join(uploadDir, String(st.id));
       fs.mkdirSync(dir, { recursive: true });
@@ -10226,7 +10352,12 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return json(res, 200, {
       archivedView: wantArchived,
       archivedCount: s.role === 'admin' ? db.archivedEnquiries().length : 0,
+      /* Go-live spam test (3 Nov): the screen shows at most this many, newest
+         first — and SAYS how many there are, so a flood that pushes the real
+         leads past the edge is visible rather than silent. */
       leads: leads.slice(0, 500),
+      total: leads.length,
+      shown: Math.min(500, leads.length),
       /* The same list peopleMap() accepts as an owner. These disagreed: a lead
          could be owned by an administrator and the dropdown that assigns one
          did not list any, so an admin-owned lead showed as unassigned and
@@ -10435,6 +10566,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       n: f.n, at: f.at, kind: f.kind, leadId: f.leadId || null, chatId: f.chatId || null, name: f.name || '',
       destination: f.destination ? destName(f.destination) : '', text: f.text || '', minutes: f.minutes || null,
       by: f.by || '', how: f.how || '', count: f.count || 1, pushed: (f.pushed || []).length, emailed: !!f.emailed, pending: !!f.pending,
+      combined: !!f.combined,
     }, admin ? { pushedTo: f.pushed || [] } : {}));
 
     const open = book.filter(isOpen).slice(0, 600).map(e => card(e, {
@@ -10757,6 +10889,27 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const row = db.enquiryById(id);
     return json(res, 200, { ok: true, archived: on,
       lead: leadShape(row, db.leadNoteCounts(), peopleMap()) });
+  }));
+
+  /*
+   * MANY AT ONCE (go-live spam test, 3 Nov). A flood is three hundred rows
+   * in the book, each with its own fifteen-minute clock; archiving them one
+   * press at a time is an afternoon, and until they are gone the real leads
+   * are under them. An administrator sends the ids (the Leads screen sends
+   * what its filters show); they leave the book, the queue and the alerts in
+   * one transaction. Archived, not deleted — "Delete for good" stays one at a
+   * time, on purpose.
+   */
+  route('POST', '/api/staff/leads/archive-many', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can archive leads.' });
+    const b = await readJson(req);
+    const ids = Array.isArray(b.ids) ? b.ids : [];
+    if (!ids.length) return json(res, 422, { error: 'Which leads? Send their ids.' });
+    if (ids.length > 2000) return json(res, 422, { error: 'Two thousand at a time at most.' });
+    const why = String(b.why || '').trim().slice(0, 120) || 'archived with others';
+    const n = db.archiveLeads(ids, s.name, why);
+    db.log(s.name, 'leads archived', n + ' lead' + (n === 1 ? '' : 's') + ' — ' + why);
+    return json(res, 200, { ok: true, archived: n, archivedCount: db.archivedEnquiries().length });
   }));
 
   route('POST', /^\/api\/staff\/lead\/(\d+)\/note$/, caseworkOnly(async (req, res, s, m) => {

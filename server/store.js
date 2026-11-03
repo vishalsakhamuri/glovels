@@ -1906,6 +1906,13 @@ function open(dir) {
     docsInKey: (studentId, key) => db.all(
       'SELECT * FROM documents WHERE student_id = ? AND doc_key = ? ORDER BY id asc',
       Number(studentId), String(key)),
+    /** Go-live spam test (3 Nov): how much of the disk one student's files
+        take — every row, the ones moved out of their slot included, because
+        those files are still on the disk. */
+    docUsage: studentId => {
+      const r = db.one('SELECT COUNT(*) AS files, COALESCE(SUM(bytes), 0) AS bytes FROM documents WHERE student_id = ?', Number(studentId)) || {};
+      return { files: Number(r.files || 0), bytes: Number(r.bytes || 0) };
+    },
     /** One file by its own id, checked against the student it belongs to. */
     docById: (studentId, docId) => db.one(
       'SELECT * FROM documents WHERE student_id = ? AND id = ?',
@@ -3513,6 +3520,28 @@ function open(dir) {
     },
     setLeadArchived: (id, on) => db.run('UPDATE enquiries SET archived_at = ?, updated_at = ? WHERE id = ?',
       on ? now() : '', now(), Number(id)),
+    /** Go-live spam test (3 Nov): many leads out of the book in one
+        transaction — a flood is hundreds of rows, and one request per row is
+        an afternoon. Only leads not already archived are touched; returns
+        how many were. */
+    archiveLeads(ids, who, why) {
+      const t = now();
+      const list = [...new Set((ids || []).map(Number).filter(n => Number.isInteger(n) && n > 0))].slice(0, 2000);
+      let n = 0;
+      db.run('BEGIN');
+      try {
+        list.forEach(id => {
+          const r = db.one("SELECT id FROM enquiries WHERE id = ? AND COALESCE(archived_at, '') = ''", id);
+          if (!r) return;
+          db.run('UPDATE enquiries SET archived_at = ?, updated_at = ? WHERE id = ?', t, t, id);
+          db.run(`INSERT INTO lead_notes (lead_id, who, kind, body, created_at) VALUES (?, ?, 'change', ?, ?)`,
+            id, String(who || 'system'), 'Archived — ' + String(why || 'taken out of the book').slice(0, 200), t);
+          n++;
+        });
+        db.run('COMMIT');
+      } catch (e) { try { db.run('ROLLBACK'); } catch (e2) {} throw e; }
+      return n;
+    },
     enquiryById: id => db.one('SELECT * FROM enquiries WHERE id = ?', Number(id)),
     updateEnquiry(id, e) {
       db.run(`UPDATE enquiries SET source = ?, campaign = ?, owner_id = ?, status = ?,
