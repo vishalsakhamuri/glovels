@@ -54,12 +54,15 @@ function heroFields() {
   } catch (e) { return heroCache.list; }
 }
 
-function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg, content, slugOf, candidates, facetLists, destinationCount }) {
+function makeFindPage(d) {
+  const { templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg, content, slugOf, candidates, facetLists, destinationCount } = d;
 
   /* The rows as a signed-out visitor is allowed to see them — the same
      withholding /api/catalogue does with no package: a public university's
      name, city and website stay behind. The office's "gate" setting is
      honoured the same way. */
+  /* 3 Nov (live scale): the rows' tags, remembered per row (tags.js memoTagsOf). */
+  const tagsOf = typeof d.tagsOf === 'function' ? d.tagsOf : TAGS.tagsOf;
   function publicRows(f) {
     let gate = 'gated';
     try { const f = content && content.get('finder'); if (f && f.gate) gate = f.gate; } catch (e) { /* strictest */ }
@@ -76,8 +79,8 @@ function makeFindPage({ templates, fill, metaHoles, liveCatalogue, liveCountries
          own on a named row, and on a locked one everything but the ones
          that would name it — so the server's first page and the browser's
          re-render answer ?tags= the same way. */
-      if (!p.isPublic || gate === 'open') return Object.assign({ uniSlug: slugOf(p.university), logo: LOGOS.logoFor(p.university, p.shortName) }, p, { tags: TAGS.tagsOf(p) });
-      if (gate === 'names') return Object.assign({ uniSlug: slugOf(p.university), logo: LOGOS.logoFor(p.university, p.shortName) }, p, { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) });
+      if (!p.isPublic || gate === 'open') return Object.assign({ uniSlug: slugOf(p.university), logo: LOGOS.logoFor(p.university, p.shortName) }, p, { tags: tagsOf(p) });
+      if (gate === 'names') return Object.assign({ uniSlug: slugOf(p.university), logo: LOGOS.logoFor(p.university, p.shortName) }, p, { totalInr: 0, freeTuition: false, feeHidden: true, tags: tagsOf(p) });
       return {
         id: '', country: p.country, level: p.level, field: p.field, band: p.band, isPublic: true, fit: p.fit, tags: TAGS.publicTags(p),
         intakes: p.intakes, feeModel: p.feeModel, totalInr: p.totalInr, freeTuition: (p.totalInr || 0) === 0,

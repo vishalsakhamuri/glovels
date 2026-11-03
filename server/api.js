@@ -4328,23 +4328,33 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       return { rows: cat().filter(p => !p.searchOnly && (!extra || !extra.publicOnly || p.isPublic)), more: false };
     }
     const base = Object.assign({ country: f.country, level: f.level, field: f.field, apply: f.apply, sort: f.sort, limit: CAND_MAX }, extra || {});
-    let got = db.findCandidates(base);
-    if (got.more && f.q) {
+    /* 3 Nov (live scale): with words typed, ask the full-text index FIRST.
+       This read the whole on-site set (4,001 wide rows, "more"), and only
+       then the narrowed set — two reads of 4,000 rows for every "business"
+       or "london", 600 ms of the search. The broad read is now the fallback
+       for words the index does not know (a feature such as "moi", a tag),
+       which find.js's own matching still answers. */
+    let got = null;
+    if (f.q) {
       const ix = uniIndex();
       const keys = new Set(require('./unisearch.js').match(ix.rows, f.q));
       const names = [...new Set(ix.rows.filter(r => keys.has(r.uKey)).map(r => r.university))];
       const narrowed = db.findCandidates(Object.assign({}, base, { match: f.q, universities: names }));
       if (narrowed.rows.length) got = narrowed;
     }
+    if (!got) got = db.findCandidates(base);
     return { rows: got.rows.map(UNIS.fromRow), more: !!got.more };
   }
   /* A named row as the finder receives it (the same shape /api/catalogue
      has always sent): staff see the office's row; a visitor or student gets
      an indicative fee withheld, and with the "names" gate no fee at all. */
+  /* 3 Nov (live scale): a row's tags, once per row until the catalogue
+     changes (tags.js memoTagsOf) — derive() ran for 4,000 rows a search. */
+  const tagsOfMemo = TAGS.memoTagsOf(() => (typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0), 12000);
   function namedShape(ent, p) {
-    if (ent.staff) return Object.assign({}, p, { tags: TAGS.tagsOf(p) });
-    if (p.isPublic && ent.gate === 'names') return Object.assign({}, UNIS.publicFee(p), { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) });
-    return Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) });
+    if (ent.staff) return Object.assign({}, p, { tags: tagsOfMemo(p) });
+    if (p.isPublic && ent.gate === 'names') return Object.assign({}, UNIS.publicFee(p), { totalInr: 0, freeTuition: false, feeHidden: true, tags: tagsOfMemo(p) });
+    return Object.assign({}, UNIS.publicFee(p), { tags: tagsOfMemo(p) });
   }
   /* The finder's facet lists over every on-site row, remembered until the
      catalogue changes (and for an hour at most — the open terms move with
@@ -4445,17 +4455,32 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
      so every response is salted afresh. Keyed on the viewer's entitlement
      too, so a student's cache line is not a visitor's. */
   const lockedRunCache = new Map();
+  const lockedSetCache = new Map();
   function lockedMatches(ent, f) {
     const key = FIND.toQuery(f) + '|' + ent.gate + '|' + [...ent.named].sort().join(',') + '|' + (ent.staff ? 's' : '');
     const now = Date.now();
     const hit = lockedRunCache.get(key);
     if (hit && now - hit.at < 60 * 1000) return hit.rows;
-    const rows = lockedRowsFor(ent).filter(p => p.level && p.field);
-    /* Run on a shape that find.js reads as locked (no `university`), but
-       keep the real row behind each one so the placeholder is made from it. */
-    /* Round 178: filtered on what the viewer may see — an indicative fee
-       is not there to be narrowed on by budget. */
-    const shaped = rows.map(p => Object.assign({}, UNIS.publicFee(p), { university: '', program: '', tags: TAGS.publicTags(p), _real: p }));
+    /* 3 Nov (live scale): the locked set — every public on-site row this
+       viewer may not name, read, mapped and given its public tags — is the
+       same for every filter this viewer tries; it was rebuilt on every
+       distinct filter (650 ms of a 2.5 s finder miss at 68,000 rows). Kept
+       per viewer-entitlement for a minute, or until the catalogue changes;
+       only FIND.run over it is per filter. */
+    const entKey = ent.gate + '|' + [...ent.named].sort().join(',') + '|' + (ent.staff ? 's' : '');
+    const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+    let set = lockedSetCache.get(entKey);
+    if (!set || set.v !== v || now - set.at > 60 * 1000) {
+      const rows = lockedRowsFor(ent).filter(p => p.level && p.field);
+      /* Run on a shape that find.js reads as locked (no `university`), but
+         keep the real row behind each one so the placeholder is made from it. */
+      /* Round 178: filtered on what the viewer may see — an indicative fee
+         is not there to be narrowed on by budget. */
+      set = { v, at: now, shaped: rows.map(p => Object.assign({}, UNIS.publicFee(p), { university: '', program: '', tags: TAGS.publicTags(p), _real: p })) };
+      if (lockedSetCache.size >= 20) lockedSetCache.delete(lockedSetCache.keys().next().value);
+      lockedSetCache.set(entKey, set);
+    }
+    const shaped = set.shaped;
     const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys: null, noFacets: true });
     const out = R.rows.map(p => p._real);
     if (lockedRunCache.size > 500) {
@@ -10958,12 +10983,24 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return top ? top.id : bands[bands.length - 1].id;
   }
   /** Which budget bucket a fee falls in, by the ceilings the office set. */
-  function bandFor(totalInr) {
+  /* 3 Nov (live scale): the ceilings, read once and kept for two seconds —
+     the start-up re-band called bandFor for 68,000 rows and each call read
+     and cleaned the finder settings from the database (3 s of boot, 1.5 s
+     of it the query). Two seconds is shorter than any edit-and-save. */
+  let bandsMemo = null;
+  function bandsNow() {
+    const now = Date.now();
+    if (bandsMemo && now - bandsMemo.at < 2000) return bandsMemo.bands;
     let bands = FALLBACK_BANDS;
     try {
       const f = content && content.get('finder');
       if (f && f.bands && f.bands.length) bands = f.bands;
     } catch (e) { /* fall back rather than refuse to save a programme */ }
+    bandsMemo = { at: now, bands };
+    return bands;
+  }
+  function bandFor(totalInr) {
+    const bands = bandsNow();
     const fee = Math.max(0, Number(totalInr) || 0);
     for (const b of bands) {
       if (b.ceilInr == null) return b.id;      // the top band takes the rest
@@ -10981,6 +11018,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * than it simply not working.
    */
   function rebandAll(who) {
+    bandsMemo = null;   // the ceilings have just changed: read them afresh
     let moved = 0;
     /* The database does it when it can: a million rows are not each read
        whole, re-saved and re-indexed for a band that lives in one column. */
@@ -11381,11 +11419,12 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * avoid.
    */
   route('GET', '/api/universities/filter', async (req, res) => {
-    /* 3 Nov (pen test): fifty universities a call, by country, field and
-       level, with no token and no allowance — a script walking the filters
-       had the whole university list. Robots are refused as on every other
-       search; people in a browser are not slowed. */
-    if (guard && guard.enabled && !(actorOf(req) || {}).staff && guard.robot(req)) return json(res, 403, { error: 'Searches are for people using a browser.', robot: true });
+    /* 3 Nov (go-live): the same door as /api/find/match — a per-address
+       flood limit (240 a minute, shared with the finder), and the guard:
+       no scripts, a page token, 30 different searches a day for a guest,
+       150 for a student, staff unlimited. A country page's filter is a
+       search like any other; it was the one open route with no door. */
+    if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
     const q = url.parse(req.url, true).query;
     const code = String(q.country || '').toUpperCase().slice(0, 2);
     const cm = countryMap();
@@ -11393,6 +11432,9 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (!c) return json(res, 404, { error: 'No such destination.' });
     const level = String(q.level || '').toLowerCase().trim();
     const field = String(q.field || '').trim();
+    /* What they looked FOR — destination, level, subject, words; a CGPA or
+       an intake is the same search (patch 208's rule for the finder). */
+    if (guardSearch(req, res, 'f|' + [code, level, field, String(q.q || '').toLowerCase().trim()].join('|'), [code, field, level].join('|'))) return true;
     /* Round 175 (item 2): a CGPA is a number on the ten-point scale, nothing
        else. 'abc', 11, -3 or 0 are not a looser bar — they are no answer, and
        the page answers as if nothing had been chosen. The same for a German
@@ -11430,17 +11472,18 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
           bars, limit: 60 })
       : Object.assign([], { total: 0 });
     const out = [];
-    for (const f of found) {
-      if (hidden(f.slug)) continue;
-      const u = UNIS.group(f.rows.map(UNIS.fromRow))[0];
-      if (!u) continue;
+    for (const u of found) {
+      if (!u || !u.name || hidden(u.slug)) continue;
+      /* 3 Nov: `u` is one aggregate row per university (store.js) — the
+         database no longer hands over a university's every programme to
+         say its name, city, kind and fee range. */
       /* Round 176: no programme counts on the row — `partial` says some of
          its programmes fall outside the filter, not how many. */
       /* Round 178: `typeLabel` '' when the status is not known (an
          agent-portal import); `feeOnRequest` when every fee is indicative. */
-      out.push({ slug: u.slug, name: shortNameOf(u.shortName) || u.name, city: u.city, isPublic: u.isPublic,
-        typeLabel: UNIS.typeLabel(u), feeOnRequest: !!u.feeOnRequest, feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
-        featured: u.programmes.some(p => p.featured), partial: Number(f.matching) < u.programmes.length,
+      out.push({ slug: u.slug, name: shortNameOf(u.shortName) || u.name, city: u.city, isPublic: !!u.isPublic,
+        typeLabel: UNIS.typeLabel({ typeKnown: u.typeKnown, isPublic: u.isPublic }), feeOnRequest: !!u.feeOnRequest, feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
+        featured: !!u.featured, partial: Number(u.matching) < Number(u.n),
         url: '/university/' + u.slug });
     }
     /* Round 176: no `total` — "numbers not required"; `more` says the list

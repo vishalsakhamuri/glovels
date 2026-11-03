@@ -45,8 +45,23 @@
   /* Lower-case, no accents, ß → ss, one space between words. "Tübingen",
      "Tubingen" and "TÜBINGEN" are one key; "Tuebingen" is folded a second
      way (ue → u) when looked up, so a short name typed the German way lands. */
-  const fold = s => String(s == null ? '' : s).toLowerCase().replace(/ß/g, 'ss').normalize('NFKD')
+  const foldRaw = s => String(s == null ? '' : s).toLowerCase().replace(/ß/g, 'ss').normalize('NFKD')
     .replace(/[̀-ͯ]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+  /* 3 Nov (live scale): the same strings are folded over and over — every
+     tag, field, university and city of every row, on every search (1.7 s of
+     a 68,000-row finder search was this one function). Remembered, 40,000
+     strings at most (a few MB), oldest out first. */
+  const FOLDS = new Map(), FOLD_MAX = 40000;
+  const fold = s => {
+    const key = String(s == null ? '' : s);
+    if (key.length > 240) return foldRaw(key);
+    let v = FOLDS.get(key);
+    if (v !== undefined) return v;
+    v = foldRaw(key);
+    if (FOLDS.size >= FOLD_MAX) FOLDS.delete(FOLDS.keys().next().value);
+    FOLDS.set(key, v);
+    return v;
+  };
   const foldUe = s => fold(s).replace(/ue/g, 'u').replace(/oe/g, 'o').replace(/ae/g, 'a');
   const words = s => fold(s).split(' ').filter(Boolean);
 
@@ -224,6 +239,30 @@
     if (p.feeIndicative === true || p.feeIndicative === 1 || p.fee_indicative === 1 || p.fee_indicative === true
       || /agent/i.test(String(p.feeSource || p.fee_source || ''))) list = list.filter(t => !/^(public|private) universit(y|ies)$/i.test(t));
     return list.length ? list : derive(p);
+  }
+
+  /* 3 Nov (live scale): tagsOf, remembered per row id until `version()`
+     moves (the store's catalogueVersion) — most of 68,000 rows carry no
+     office tags, so derive() ran for every row of every finder search,
+     ninety microseconds a row, 4,000 rows a search, the same rows on every
+     search. `max` rows are kept (12,000 is a few MB), oldest out first. */
+  function memoTagsOf(version, max) {
+    const memo = new Map();
+    let at = -1;
+    const cap = Math.max(100, Number(max) || 12000);
+    return p => {
+      if (!p) return [];
+      const v = typeof version === 'function' ? version() : 0;
+      if (v !== at) { memo.clear(); at = v; }
+      const k = String(p.id || '');
+      if (!k) return tagsOf(p);
+      let t = memo.get(k);
+      if (t) return t;
+      t = tagsOf(p);
+      if (memo.size >= cap) memo.delete(memo.keys().next().value);
+      memo.set(k, t);
+      return t;
+    };
   }
 
   /** tagsOf() less anything that would name the university — for a locked row. */
@@ -477,5 +516,5 @@
     return out.slice(0, 120);
   }
 
-  return { TYPES, DESCRIPTIVE, groupChosen, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, publicTags, suggest, group, match, score, parseList, fold, setAliases, aliasesOf };
+  return { TYPES, DESCRIPTIVE, groupChosen, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, memoTagsOf, publicTags, suggest, group, match, score, parseList, fold, setAliases, aliasesOf };
 });

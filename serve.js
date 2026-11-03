@@ -2512,11 +2512,14 @@ function withDestinationUniversities(html, slug) {
      the country pages we can display up to 50". The ones the office put on
      the site lead, then the featured, then whoever has the most on offer —
      the database picks them (rowsForCountryPage). */
-  const lead = UNIS.group(db.rowsForCountryPage(code, DEST_MAX + 10).map(fromRow))
+  /* 3 Nov (live scale): one summary row per university from the database
+     (store.countryPageUniversities), not the UK's 12,000 rows read, mapped
+     and grouped on every view of the page (0.9-2.2 s a view at 68,000). */
+  const lead = db.countryPageUniversities(code, DEST_MAX + 10)
     .filter(u => !hidden.has(u.slug)).sort((a, b) =>
     (b.listed - a.listed)
-    || (b.programmes.some(p => p.featured) - a.programmes.some(p => p.featured))
-    || (b.programmes.length - a.programmes.length) || a.name.localeCompare(b.name)).slice(0, DEST_MAX);
+    || (b.featured - a.featured)
+    || (b.n - a.n) || a.name.localeCompare(b.name)).slice(0, DEST_MAX);
   const more = Math.max(0, total - lead.length);
   const li = u => '<li><a href="university/' + esc(u.slug) + '"><span><b>' + esc(u.shortName || u.name) + '</b><small>'
       + uniLead(u)
@@ -3369,14 +3372,17 @@ const FINDPAGE = require('./server/findpage.js');
 function findCandidateRows(f) {
   if (typeof db.findCandidates !== 'function') return liveCatalogue();
   const base = { country: f.country, level: f.level, field: f.field, apply: f.apply, sort: f.sort, limit: 4000 };
-  let got = db.findCandidates(base);
-  if (got.more && f.q) {
+  /* 3 Nov (live scale): with words typed, the full-text index first; the
+     broad read is the fallback (api.js candidatesFor, the same change). */
+  let got = null;
+  if (f.q) {
     const ix = findUniIndex();
     const keys = new Set(require('./server/unisearch.js').match(ix, f.q));
     const names = [...new Set(ix.filter(r => keys.has(r.uKey)).map(r => r.university))];
     const n = db.findCandidates(Object.assign({}, base, { match: f.q, universities: names }));
     if (n.rows.length) got = n;
   }
+  if (!got) got = db.findCandidates(base);
   return got.rows.map(fromRow);
 }
 /* One line per on-site university (name, short name, city) for the search
@@ -3403,9 +3409,11 @@ function findFacetLists() {
   findFacetMemo = { v, at: Date.now(), lists };
   return lists;
 }
+const findPageCache = new Map();
 const findPage = FINDPAGE.makeFindPage({
   templates, fill, metaHoles, liveCatalogue, liveCountries, absolute, defaultOg: DEFAULT_OG, content, slugOf: UNIS.slugOf,
   candidates: findCandidateRows, facetLists: findFacetLists, destinationCount,
+  tagsOf: require('./server/tags.js').memoTagsOf(() => (typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0), 12000),
 });
 /* Round 178 (Part D): a page per NAMED programme, the university FAQ and the
    Germany master's guides — server/guides.js. */
@@ -3476,8 +3484,21 @@ async function handleRequest(req, res) {
 
   if (pathname === '/find-university' || pathname === '/find-university/' || pathname === '/find-university.html') {
     if (pathname !== '/find-university') return send(res, 301, '', 'text/html', { Location: '/find-university' + (query ? '?' + query : '') });
-    const out = findPage.render(query || '');
-    if (out) {
+    /* 3 Nov (live scale): the page runs the finder over 4,000 rows for the
+       address (0.6-1.1 s at 68,000 rows), is open to every visitor and
+       crawler, and depends on nothing but the address and the catalogue.
+       The same address asked again within two minutes is answered from
+       memory; forty addresses are kept (~10 MB). The signed-in menu is put
+       on after, per viewer, as before. */
+    const fpKey = (typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0) + '|' + (query || '');
+    let out = findPageCache.get(fpKey);
+    if (!out || Date.now() - out.at > 2 * 60 * 1000) {
+      out = Object.assign({ at: Date.now() }, findPage.render(query || '') || { html: '' });
+      findPageCache.delete(fpKey);
+      findPageCache.set(fpKey, out);
+      while (findPageCache.size > 40) findPageCache.delete(findPageCache.keys().next().value);
+    }
+    if (out && out.html) {
       /* Round 178: an empty result carries the counsellor form (find.js askFormHtml) — its styles and its sender. */
       const html = (out.indexable ? forIndexing(out.html, 'find-university') : withAddedDestinations(out.html))
         .replace('</head>', NOLIST_CSS + '</head>').replace('</body>', NOLIST_JS + '</body>');

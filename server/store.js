@@ -1245,6 +1245,50 @@ function open(dir) {
       .split(/[^a-z0-9]+/).filter(Boolean).slice(0, 8);
     return words.length ? words.map(w => '"' + w + '"*').join(' ') : '';
   };
+  /* 3 Nov: what the country page's filter says about one university, from
+     its rows — the development store's answer; SQLite aggregates the same
+     facts in filterUniversities. */
+  const uniSummary = rows => {
+    const u = UNIS.group((rows || []).map(UNIS.fromRow))[0] || {};
+    return { n: (rows || []).length, name: u.name || '', shortName: u.shortName || '', city: u.city || '',
+      typeKnown: !!u.typeKnown, isPublic: !!u.typeKnown && !!u.isPublic, feeOnRequest: !!u.feeOnRequest,
+      feeModel: u.feeModel || 'free', feeMin: u.feeMin == null ? null : u.feeMin, feeMax: u.feeMax == null ? null : u.feeMax,
+      listed: !!u.listed, featured: (u.programmes || []).some(p => p.featured) };
+  };
+  /* The same facts for a list of universities in one country, in two SQL
+     statements (one aggregate row each; the cities grouped), from the live
+     rows. uni_slug -> summary. SQLite only; the development store goes
+     through uniSummary above. */
+  const summariesFor = (country, slugs) => {
+    const out = {};
+    if (!slugs.length) return out;
+    const marks = slugs.map(() => '?').join(',');
+    const agg = db.all(`SELECT uni_slug, COUNT(*) AS n, MAX(university) AS university, MAX(short_name) AS short_name,
+        MIN(search_only) AS so, MAX(featured) AS featured,
+        SUM(CASE WHEN fee_indicative = 0 THEN 1 ELSE 0 END) AS known_kind,
+        MAX(CASE WHEN fee_indicative = 0 THEN is_public END) AS is_public,
+        MIN(CASE WHEN fee_model IN ('free', 'package') THEN fee_model WHEN is_public = 1 THEN 'package' ELSE 'free' END) AS fee_model,
+        MIN(CASE WHEN fee_indicative = 0 AND (is_public = 1 OR total_inr > 0 OR json_extract(reqs, '$.tuitionEurSem') = 0) THEN total_inr END) AS fee_min,
+        MAX(CASE WHEN fee_indicative = 0 AND (is_public = 1 OR total_inr > 0 OR json_extract(reqs, '$.tuitionEurSem') = 0) THEN total_inr END) AS fee_max
+      FROM programmes WHERE active = 1 AND country = ? AND uni_slug IN (${marks}) GROUP BY uni_slug`, country, ...slugs);
+    /* The main campus (unis.js group): a city named in the university's
+       own name, else the city most of its programmes are in. */
+    const cities = db.all(`SELECT uni_slug, city, COUNT(*) AS n FROM programmes WHERE active = 1 AND country = ? AND uni_slug IN (${marks})
+      AND COALESCE(city, '') <> '' GROUP BY uni_slug, city ORDER BY n DESC`, country, ...slugs);
+    const cityOf = {}; cities.forEach(r => { (cityOf[r.uni_slug] = cityOf[r.uni_slug] || []).push(r); });
+    agg.forEach(r => {
+      const name = String(r.university || '').trim(), lc = name.toLowerCase();
+      const cs = cityOf[r.uni_slug] || [];
+      const named = cs.find(c => lc.includes(String(c.city).trim().toLowerCase().split(/[\s,(/]/)[0]));
+      const typeKnown = Number(r.known_kind) > 0;
+      out[r.uni_slug] = { n: r.n || 0, name, shortName: String(r.short_name || '').trim(),
+        city: String((named || cs[0] || {}).city || '').trim(),
+        typeKnown, isPublic: typeKnown ? !!r.is_public : false, feeOnRequest: !typeKnown,
+        feeModel: r.fee_model || 'free', feeMin: r.fee_min == null ? null : Number(r.fee_min), feeMax: r.fee_max == null ? null : Number(r.fee_max),
+        listed: Number(r.so) === 0, featured: Number(r.featured) === 1 };
+    });
+    return out;
+  };
   const wordsOf = body => String(body || '').trim().split(/\s+/).filter(Boolean).length;
   /* Everything on a post except the body — what a list needs. The body head
      comes along for the excerpt the index prints when none was written. */
@@ -2414,15 +2458,40 @@ function open(dir) {
           && (!budget || ((r.total_inr || 0) <= budget && !r.fee_indicative)) && (!free || r.fee_model === 'free')
           && (q || []).every(word => (r.university + ' ' + r.short_name + ' ' + r.city).toLowerCase().includes(word));
         const by = {}; rows.forEach(r => { const u = by[r.uni_slug] = by[r.uni_slug] || { slug: r.uni_slug, matching: 0, rows: [] }; u.rows.push(r); if (ok(r)) u.matching++; });
-        return Object.values(by).filter(u => u.matching).sort((x, y) => (y.rows.some(r => !r.search_only) - x.rows.some(r => !r.search_only)) || (y.matching - x.matching)).slice(0, limit || 50);
+        return Object.values(by).filter(u => u.matching).sort((x, y) => (y.rows.some(r => !r.search_only) - x.rows.some(r => !r.search_only)) || (y.matching - x.matching)).slice(0, limit || 50)
+          .map(u => Object.assign(uniSummary(u.rows), { slug: u.slug, matching: u.matching }));
       }
       const groups = db.all('SELECT uni_slug, COUNT(*) AS matching, MIN(search_only) AS so, MAX(featured) AS f FROM programmes WHERE ' + w.join(' AND ')
         + ' GROUP BY uni_slug ORDER BY so ASC, f DESC, matching DESC, MIN(university) ASC LIMIT ?', ...a, Number(limit || 50));
       const total = (db.one('SELECT COUNT(DISTINCT uni_slug) AS n FROM programmes WHERE ' + w.join(' AND '), ...a) || {}).n || 0;
       if (!groups.length) return Object.assign([], { total });
-      const rows = db.all('SELECT * FROM programmes WHERE active = 1 AND country = ? AND uni_slug IN (' + groups.map(() => '?').join(',') + ')', country, ...groups.map(g => g.uni_slug));
-      const by = {}; rows.forEach(r => { (by[r.uni_slug] = by[r.uni_slug] || []).push(r); });
-      return Object.assign(groups.map(g => ({ slug: g.uni_slug, matching: g.matching, rows: by[g.uni_slug] || [] })), { total });
+      /* 3 Nov (go-live): ONE aggregate row per university, not every row of
+         sixty universities. The UK's sixty biggest are 14,000–21,000 full
+         rows (60–85 MB of objects) — read, mapped and grouped on every
+         change of a filter box, and kept by the memo below (which counted
+         sixty groups, not the rows inside them): eight different filters on
+         the UK page filled the 300 MB heap and took the live site down
+         ("Reached heap limit", 3 Nov). The page prints a name, a city, a
+         kind, a fee range and two flags; SQL can say all of that. */
+      const by = summariesFor(country, groups.map(g => g.uni_slug));
+      return Object.assign(groups.map(g => Object.assign({ slug: g.uni_slug, matching: g.matching }, by[g.uni_slug] || uniSummary([]))), { total });
+    },
+    /**
+     * 3 Nov: the country page's list — the universities rowsForCountryPage
+     * picks, as summaries (the shape filterUniversities answers with), not
+     * as 12,000 rows to be grouped on every view of /study-in-united-kingdom.
+     */
+    countryPageUniversities(country, limit) {
+      if (db.kind !== 'sqlite') {
+        const rows = this.rowsForCountryPage(country, limit);
+        const by = {}; rows.forEach(r => { (by[r.uni_slug] = by[r.uni_slug] || []).push(r); });
+        return Object.keys(by).map(slug => Object.assign({ slug }, uniSummary(by[slug])));
+      }
+      const top = db.all(`SELECT uni_slug FROM programmes WHERE active = 1 AND country = ?
+        GROUP BY uni_slug ORDER BY MIN(search_only) ASC, MAX(featured) DESC, COUNT(*) DESC, MIN(university) ASC LIMIT ?`, country, Number(limit)).map(r => r.uni_slug);
+      if (!top.length) return [];
+      const by = summariesFor(country, top);
+      return top.map(slug => Object.assign({ slug }, by[slug] || uniSummary([])));
     },
     /**
      * The office's list, a page at a time, with its own search. status:
@@ -2510,7 +2579,11 @@ function open(dir) {
     /** The rows with an & in a name — the only ones an entity repair can touch. */
     rowsWithAmpersand() {
       if (db.kind !== 'sqlite') return db.all('SELECT * FROM programmes WHERE id > ?', '').filter(r => /&/.test(r.program + r.university + (r.city || '') + (r.field || '')));
-      return db.all("SELECT * FROM programmes WHERE instr(program, '&') > 0 OR instr(university, '&') > 0 OR instr(COALESCE(city, ''), '&') > 0 OR instr(COALESCE(field, ''), '&') > 0");
+      /* 3 Nov (live scale): an ENTITY — "&amp;", "&#39;" — not any ampersand:
+         forty of the catalogue's fields are "X & Y", so every row of a
+         68,000-row catalogue matched, and the one-off repair on a fresh
+         database read them all (a 230 MB heap at boot). */
+      return db.all("SELECT * FROM programmes WHERE program LIKE '%&%;%' OR university LIKE '%&%;%' OR COALESCE(city, '') LIKE '%&%;%' OR COALESCE(field, '') LIKE '%&%;%'");
     },
     /** Every row of one country (or all), for the sheet download. */
     /** Patch 179: one country's rows a slice at a time, in rowsAll's order — the CSV download. */
@@ -3859,7 +3932,7 @@ function open(dir) {
   const memo = new Map();
   const MEMO_MAX_ROWS = 300;
   ['catalogueStats', 'countUniversities', 'countByCountry', 'uniSlugs', 'fieldCounts', 'filterOptions',
-   'rowsForCountryPage', 'filterUniversities', 'programmesPage', 'universitiesPage'].forEach(name => {
+   'rowsForCountryPage', 'filterUniversities', 'countryPageUniversities', 'programmesPage', 'universitiesPage'].forEach(name => {
     const fn = store[name];
     store[name] = (...a) => {
       const k = catVersion + '|' + name + '|' + JSON.stringify(a);
@@ -3871,7 +3944,13 @@ function open(dir) {
          of a country page, kept 200 deep was the memory that restarted the
          site on 31 Oct (70,000 programmes, 512 MB). Big answers are read
          again when asked for, which the indexes make quick. */
-      const size = Array.isArray(v) ? v.length : (v && Array.isArray(v.rows) ? v.rows.length : 0);
+      /* 3 Nov: the rows INSIDE the answer count too. filterUniversities
+         answered sixty groups each carrying a university's every row —
+         sixty "rows" by this measure, 14,000 in truth, 36 MB a filter —
+         and eight filters on the UK page were the heap. */
+      const size = Array.isArray(v)
+        ? v.reduce((n, x) => n + 1 + (x && Array.isArray(x.rows) ? x.rows.length : 0), 0)
+        : (v && Array.isArray(v.rows) ? v.rows.length : 0);
       if (size <= MEMO_MAX_ROWS) memo.set(k, v);
       return v;
     };

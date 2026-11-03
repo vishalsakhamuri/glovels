@@ -377,9 +377,18 @@
     const cost = p => { if (feeIndicative(p)) return 1e11; const t = tuitionOf(p); if (t != null) return t * (p.semesters || 4); const n = Number(p.totalInr || 0); return n > 0 ? n / 90 : (locked(p) ? 1e12 : 1e11); };
     const dl = p => { const d = nextDeadline(p).at; return d ? d.getTime() : 8.64e15; };
     const fit = p => Number(p.fit || 0);
-    const cmp = { deadline: (a, b) => dl(a) - dl(b) || fit(b) - fit(a), cost: (a, b) => cost(a) - cost(b) || fit(b) - fit(a),
-      fit: (a, b) => fit(b) - fit(a) || dl(a) - dl(b), az: (a, b) => (az(a) < az(b) ? -1 : az(a) > az(b) ? 1 : 0) }[k];
-    return rows.slice().sort(cmp);
+    /* 3 Nov (live scale): each row's sort key worked out ONCE, not inside
+       the comparator — nextDeadline builds six terms' dates per call, and a
+       4,000-row sort called it 50,000 times (1.2 s of a finder search). Ties
+       keep the rows' order, as the stable sort before it did. */
+    const keyOf = { deadline: p => [dl(p), -fit(p)], cost: p => [cost(p), -fit(p)],
+      fit: p => [-fit(p), dl(p)], az: p => [az(p)] }[k];
+    const dec = rows.map((p, i) => ({ p, i, k: keyOf(p) }));
+    dec.sort((a, b) => {
+      for (let j = 0; j < a.k.length; j++) { if (a.k[j] < b.k[j]) return -1; if (a.k[j] > b.k[j]) return 1; }
+      return a.i - b.i;
+    });
+    return dec.map(x => x.p);
   }
 
   /* Everything the page needs for one address: the rows that match, the
