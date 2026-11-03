@@ -12381,16 +12381,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   route('GET', /^\/api\/staff\/catalogue\.(xlsx|csv)$/, needs('catalogue', async (req, res, s, m) => {
     /* Patch 201: the whole catalogue is the business's secret sauce; only a
        super administrator may take a copy of it. */
-    /* Patch 215 (QA): a country admin imports by editing the current sheet,
-       so they may download THEIR destinations — one at a time, never the
-       rest of the catalogue. */
-    const qs0 = url.parse(req.url, true).query;
-    const scope0 = catScope(s);
-    if (scope0 && !isSuper(s)) {
-      const want = String(qs0.country || '').toUpperCase().slice(0, 3) || (scope0.length === 1 ? scope0[0] : '');
-      if (!want || !scope0.includes(want)) return json(res, 403, { error: 'You can download ' + scope0.join(', ') + ' — add ?country= with one of them.' });
-      req.url = req.url.replace(/[?].*$/, '') + '?country=' + want + (m[1] === 'csv' ? '' : '');
-    } else if (superOnly(s, res)) return;
+    /* Patch 215 let a country admin download their own destinations; the
+       owner closed that on 4 Nov 2026 ("even they can't") — a copy of any
+       part of the catalogue leaves only with a super administrator. Country
+       admins still upload: the import preview reads the sheet they send. */
+    if (superOnly(s, res)) return;
     const headers = SHEET_COLUMNS.map(c => c[0]);
     /* ?country=DE — one destination's rows. The whole catalogue as one Excel
        file stops at 60,000 rows (a workbook of a million rows is built in

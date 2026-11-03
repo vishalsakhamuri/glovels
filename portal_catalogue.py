@@ -190,8 +190,8 @@ BODY = """
             font:600 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px;background:#fff">
             <option value="">The whole catalogue</option>
           </select>
-          <a class="btn btn-primary" id="dlXlsx" href="/api/staff/catalogue.xlsx">Download as Excel</a>
-          <a class="btn btn-ghost" id="dlCsv" href="/api/staff/catalogue.csv">Download as CSV</a>
+          <a class="btn btn-primary" id="dlXlsx" href="/api/staff/catalogue.xlsx" data-super-only>Download as Excel</a>
+          <a class="btn btn-ghost" id="dlCsv" href="/api/staff/catalogue.csv" data-super-only>Download as CSV</a>
         </div>
         <p style="margin:10px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">One Excel file
           holds up to 60,000 rows; past that, download a destination at a time or the CSV, which has

@@ -601,6 +601,9 @@ async function staffBoot(run) {{
   let me;
   try {{
     me = await api('GET', '/api/staff/me');
+    /* 4 Nov (owner): the download buttons are for super administrators only
+       — the server refuses everybody else, so the buttons go too. */
+    if (!(me && me.user && me.user.super)) document.querySelectorAll('[data-super-only]').forEach(function (el) { el.hidden = true; });
   }} catch (e) {{
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({{ role: 'staff' }});
