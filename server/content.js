@@ -512,11 +512,20 @@ function cleanLegal(v) {
      * sits inline in a sentence, and an empty one reads "This site is operated
      * by ." — so the default is the name on the PAN and the GST records. */
     entity: str(f.entity, 120) || 'Glovels Consultants Private Limited',
-    cin: str(f.cin, 40).toUpperCase(),
+    /* 3 Nov 2026 (owner, from the MCA certificate AB8660922 of 31 Oct 2025):
+       the particulars the office has not typed yet start from the record,
+       not from blank — a Terms page with no CIN on go-live day is the worse
+       mistake. Anything typed on the Legal tab wins. */
+    cin: str(f.cin, 40).toUpperCase() || 'U85500TS2024PTC185996',
+    /* The old name must be shown beside the new one for two years from the
+       change (Companies Act s.12; the certificate says so): until 31 Oct
+       2027 the pages carry it by default; after that only if typed. */
+    former: str(f.former, 120) || (Date.now() < Date.UTC(2027, 10, 1) ? 'Glovels Oversees Consultants Private Limited (name changed on 31 October 2025)' : ''),
     gstin: str(f.gstin, 20).toUpperCase(),
     /* Kept as typed, newlines and all — an address on one line is not an
        address anybody can post a legal notice to. */
-    address: String(f.address == null ? '' : f.address).slice(0, 400),
+    address: String(f.address == null ? '' : f.address).slice(0, 400)
+      || 'Metro Pillar C1734, Plot No 60, H No 1-102, 1st Floor\nbehind Big C Mobiles, Madhapur\nHyderabad, Telangana 500081, India',
     /* The Consumer Protection (E-Commerce) Rules want a NAMED officer with a
        direct number. A support@ alias does not satisfy it, which is why these
        are separate fields rather than one "contact us" line. */
@@ -528,10 +537,10 @@ function cleanLegal(v) {
     },
     /* Shown on every page as "in effect from". Blank means the pages say they
        are in draft, which is the honest reading until somebody sets it. */
-    effective: str(f.effective, 30),
+    effective: str(f.effective, 30) || '3 November 2026',
     jurisdiction: str(f.jurisdiction, 80) || 'Hyderabad, Telangana',
     /* Where a student's fee actually lands, for the refund clause. */
-    invoiceSeries: str(f.invoiceSeries, 40),
+    invoiceSeries: str(f.invoiceSeries, 40) || 'GCPL/26-27/',
   };
 }
 

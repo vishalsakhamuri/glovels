@@ -333,6 +333,8 @@ BODY = """
               Must match the PAN and GST records character for character.</p></div>
           <div class="field" style="margin-bottom:10px"><label for="lgCin">CIN</label>
             <input id="lgCin" placeholder="U80903TG2019PTC000000"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgFormer">Former name (shown for two years after a change of name)</label>
+            <input id="lgFormer" placeholder="Old name (name changed on …)"></div>
           <div class="field" style="margin-bottom:10px"><label for="lgGstin">GSTIN</label>
             <input id="lgGstin" placeholder="36AAAAA0000A1Z5"></div>
           <div class="field" style="margin-bottom:10px"><label for="lgJuris">Courts of</label>
@@ -1087,6 +1089,7 @@ function aiFromScreen() {
 const LEGAL_FIELDS = [
   ['lgEntity',    'entity',             'Legal entity name',   'all four pages'],
   ['lgCin',       'cin',                'CIN',                 'all four pages'],
+  ['lgFormer',    'former',             'Former name',         'all four pages'],
   ['lgGstin',     'gstin',              'GSTIN',               'all four pages'],
   ['lgAddress',   'address',            'Registered office',   'all four pages'],
   ['lgEffective', 'effective',          'Effective date',      'all four pages'],

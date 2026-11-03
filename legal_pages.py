@@ -141,6 +141,7 @@ PARTICULARS = """
   Limited</b> ("Glovels", "we", "us"), a company registered in India.</p>
 <ul class="legal-particulars">
   <li data-legal-row="cin">Corporate Identity Number: <b data-legal="cin"></b></li>
+  <li data-legal-row="former">Formerly: <b data-legal="former"></b></li>
   <li data-legal-row="gstin">GSTIN: <b data-legal="gstin"></b></li>
   <li data-legal-row="address">Registered office:
     <span data-legal="address"></span></li>
@@ -563,6 +564,7 @@ SCRIPT = """<script>/* GLOVELS-LEGAL */
       var values = {
         entity: L.entity,
         cin: L.cin,
+        former: L.former,
         gstin: L.gstin,
         address: L.address,
         effective: L.effective,

@@ -416,6 +416,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
 <p>This site is operated by <b data-legal="entity">Glovels Consultants Private Limited</b> ("Glovels", "we", "us"), a company registered in India.</p>
 <ul class="legal-particulars">
   <li data-legal-row="cin">Corporate Identity Number: <b data-legal="cin"></b></li>
+  <li data-legal-row="former">Formerly: <b data-legal="former"></b></li>
   <li data-legal-row="gstin">GSTIN: <b data-legal="gstin"></b></li>
   <li data-legal-row="address">Registered office:
     <span data-legal="address"></span></li>
@@ -1028,6 +1029,7 @@ if (location.protocol === 'file:') {
       var values = {
         entity: L.entity,
         cin: L.cin,
+        former: L.former,
         gstin: L.gstin,
         address: L.address,
         effective: L.effective,
