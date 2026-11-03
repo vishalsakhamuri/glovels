@@ -421,6 +421,15 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
     <span data-legal="address"></span></li>
   <li>Email: <a href="mailto:info@glovels.com">info@glovels.com</a></li>
 </ul>
+<p data-legal-row="ugName" class="legal-abroad">If you buy from outside India, your
+  contract is with <b data-legal="ugName"></b>, a company registered in Germany
+  (Glovels' European entity); the price is charged in your currency and your
+  receipt names it as the seller.</p>
+<ul class="legal-particulars" data-legal-row="ugName">
+  <li data-legal-row="ugAddress">Registered office: <span data-legal="ugAddress"></span></li>
+  <li data-legal-row="ugRegister">Commercial register: <b data-legal="ugRegister"></b></li>
+  <li data-legal-row="ugVatId">VAT ID (USt-IdNr.): <b data-legal="ugVatId"></b></li>
+</ul>
 <p data-legal-row="effective" class="legal-eff">In effect from
   <b data-legal="effective"></b>.</p>
 
@@ -1095,6 +1104,10 @@ if (location.protocol === 'file:') {
         entity: L.entity,
         cin: L.cin,
         former: L.former,
+        ugName: (L.ug || {}).address || (L.ug || {}).register || (L.ug || {}).vatId ? (L.ug || {}).name : '',
+        ugAddress: (L.ug || {}).address,
+        ugRegister: (L.ug || {}).register,
+        ugVatId: (L.ug || {}).vatId,
         gstin: L.gstin,
         address: L.address,
         effective: L.effective,
@@ -1113,7 +1126,7 @@ if (location.protocol === 'file:') {
             /* An address is typed across several lines and has to stay that
                way — a registered office on one line is not somewhere anybody
                can send a legal notice. */
-            if (k === 'address') el.innerHTML = esc(v).replace(/\n/g, '<br>');
+            if (k === 'address' || k === 'ugAddress') el.innerHTML = esc(v).replace(/\n/g, '<br>');
             else el.textContent = v;
           });
         [].forEach.call(document.querySelectorAll('[data-legal-row="' + k + '"]'),

@@ -1312,6 +1312,15 @@ select.assign.none:hover{border-color:#a5342b}
           <div class="field" style="margin-bottom:10px"><label for="lgOffPhone">Direct
             phone</label><input id="lgOffPhone" inputmode="tel" placeholder="+91 40 0000 0000">
             </div>
+          <h3 style="margin:18px 0 8px">Seller for buyers outside India (Glovels UG)</h3>
+          <div class="field" style="margin-bottom:10px"><label for="lgUgName">Company name</label>
+            <input id="lgUgName" placeholder="Glovels UG (haftungsbeschränkt)"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgUgAddress">Registered office (one line per line of the address)</label>
+            <textarea id="lgUgAddress" rows="3" placeholder="Street and number&#10;Postcode City&#10;Germany"></textarea></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgUgRegister">Commercial register</label>
+            <input id="lgUgRegister" placeholder="Amtsgericht München, HRB 123456"></div>
+          <div class="field" style="margin-bottom:10px"><label for="lgUgVat">VAT ID (USt-IdNr.)</label>
+            <input id="lgUgVat" placeholder="DE123456789"></div>
         </div>
       </div>
 
@@ -2591,6 +2600,10 @@ const LEGAL_FIELDS = [
   ['lgOffRole',   'officer.designation', 'Officer designation', 'Grievance'],
   ['lgOffMail',   'officer.email',      'Officer email',       'Grievance'],
   ['lgOffPhone',  'officer.phone',      'Officer phone',       'Grievance'],
+  ['lgUgName',    'ug.name',            'Seller abroad',       'buyers outside India'],
+  ['lgUgAddress', 'ug.address',         'Seller abroad: registered office', 'buyers outside India'],
+  ['lgUgRegister','ug.register',        'Seller abroad: commercial register', 'buyers outside India'],
+  ['lgUgVat',     'ug.vatId',           'Seller abroad: VAT ID', 'buyers outside India'],
 ];
 
 const dig = (o, path) => path.split('.').reduce((x, k) => (x == null ? x : x[k]), o);
@@ -2652,6 +2665,7 @@ async function saveLegal() {
     LEGAL_FIELDS.forEach(([id, path]) => {
       const v = ($('#' + id) || {}).value || '';
       if (path.indexOf('officer.') === 0) value.officer[path.slice(8)] = v;
+      else if (path.indexOf('ug.') === 0) (value.ug = value.ug || {})[path.slice(3)] = v;
       else value[path] = v;
     });
 

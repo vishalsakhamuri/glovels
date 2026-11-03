@@ -521,7 +521,7 @@ function cleanLegal(v) {
        change (Companies Act s.12; the certificate says so): until 31 Oct
        2027 the pages carry it by default; after that only if typed. */
     former: str(f.former, 120) || (Date.now() < Date.UTC(2027, 10, 1) ? 'Glovels Oversees Consultants Private Limited (name changed on 31 October 2025)' : ''),
-    gstin: str(f.gstin, 20).toUpperCase(),
+    gstin: str(f.gstin, 20).toUpperCase() || '36AALCG2793G1ZA',   /* 3 Nov 2026 (owner) */
     /* Kept as typed, newlines and all — an address on one line is not an
        address anybody can post a legal notice to. */
     address: String(f.address == null ? '' : f.address).slice(0, 400)
@@ -537,6 +537,15 @@ function cleanLegal(v) {
       email: str(o.email, 120).toLowerCase() || 'info@glovels.com',
       phone: str(o.phone, 30) || '+91 78393 99999',
     },
+    /* 3 Nov 2026 (owner): the seller for buyers outside India (patch 195 —
+       Stripe, export sale). Address, register entry and VAT ID are typed on
+       the Legal tab; each row shows on the pages only once it is filled. */
+    ug: (() => { const u = f.ug && typeof f.ug === 'object' ? f.ug : {}; return {
+      name: str(u.name, 120) || 'Glovels UG (haftungsbeschränkt)',
+      address: String(u.address == null ? '' : u.address).slice(0, 400),
+      register: str(u.register, 120),      /* e.g. "Amtsgericht München, HRB 123456" */
+      vatId: str(u.vatId, 30).toUpperCase(), /* USt-IdNr., DE… */
+    }; })(),
     /* Shown on every page as "in effect from". Blank means the pages say they
        are in draft, which is the honest reading until somebody sets it. */
     effective: str(f.effective, 30) || '3 November 2026',

@@ -131,6 +131,10 @@ const text = async (ctx, url) => {
   await s.fill('#lgOffRole', 'Grievance Officer');
   await s.fill('#lgOffMail', 'grievance@glovels.com');
   await s.fill('#lgOffPhone', '+91 40 4567 8900');
+  /* Patch 258: the seller for buyers outside India has its own three boxes. */
+  await s.fill('#lgUgAddress', 'Musterstraße 1\n80331 München\nGermany');
+  await s.fill('#lgUgRegister', 'Amtsgericht München, HRB 999999');
+  await s.fill('#lgUgVat', 'DE999999999');
   await s.click('#lgSave');
   await s.waitForTimeout(2500);
 
