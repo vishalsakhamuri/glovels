@@ -533,7 +533,7 @@ function cleanLegal(v) {
     officer: {
       name: str(o.name, 80) || 'Bhargav Ram',
       designation: str(o.designation, 80) || 'Administrator',
-      email: str(o.email, 120).toLowerCase() || 'hr@glovels.com',
+      email: str(o.email, 120).toLowerCase() || 'info@glovels.com',
       phone: str(o.phone, 30) || '+91 78393 99999',
     },
     /* Shown on every page as "in effect from". Blank means the pages say they
