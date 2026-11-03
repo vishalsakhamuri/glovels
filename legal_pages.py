@@ -599,7 +599,7 @@ SCRIPT = """<script>/* GLOVELS-LEGAL */
       /* A named officer replaces the fallback line rather than sitting above
          it — two answers to "who do I write to" is one too many. */
       var fb = document.getElementById('officerFallback');
-      if (fb && o.name && o.email) fb.hidden = true;
+      if (fb && (o.name || o.designation) && o.email) fb.hidden = true;
 
       /* The package terms, on the refunds page. Each package's own contract,
          under its own name, because that is what the card links here for. */

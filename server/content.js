@@ -529,9 +529,10 @@ function cleanLegal(v) {
     /* The Consumer Protection (E-Commerce) Rules want a NAMED officer with a
        direct number. A support@ alias does not satisfy it, which is why these
        are separate fields rather than one "contact us" line. */
-    /* 3 Nov 2026 (owner): the named officer, until the office types another. */
+    /* 3 Nov 2026 (owner): the officer's desk — designation, email, phone;
+       no personal name on the page unless the office types one. */
     officer: {
-      name: str(o.name, 80) || 'Bhargav Ram',
+      name: str(o.name, 80),
       designation: str(o.designation, 80) || 'Administrator',
       email: str(o.email, 120).toLowerCase() || 'info@glovels.com',
       phone: str(o.phone, 30) || '+91 78393 99999',
