@@ -19,17 +19,31 @@ const money = paise => '₹' + Number(paise / 100).toLocaleString('en-IN');
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/* The site's address, for the logo in the header. Set once at start-up by the
+   server (setSiteUrl); until then the header is the wordmark alone. A client
+   that hides remote images until asked shows the alt text in its place. */
+let SITE = '';
+function setSiteUrl(u) { SITE = String(u || '').replace(/\/+$/, ''); }
+
 /* One shell, so every message looks like it came from the same company. Inline
-   styles only: every mail client strips <style> blocks. */
+   styles only: every mail client strips <style> blocks. The header carries the
+   same globe logo as every page of the site (assets/glovels-logo.png). */
 function shell(title, bodyHtml, footNote) {
+  const head = SITE
+    /* The logo is navy on white, so the header is white with a navy rule under
+       it — the same band as the top of every page of the site. */
+    ? `<tr><td style="background:#ffffff;padding:16px 26px;border-bottom:4px solid #0b1e31">
+    <img src="${esc(SITE + '/assets/glovels-logo.png')}" alt="Glovels — Education · Visa · Work" width="132" height="59" style="display:block;width:132px;height:59px;border:0;outline:0" />
+  </td></tr>`
+    : `<tr><td style="background:#0b1e31;padding:20px 26px">
+    <span style="font:700 19px/1 Georgia,serif;color:#ffffff;letter-spacing:.02em">GLOVELS</span>
+    <span style="font:600 10px/1 Helvetica,Arial,sans-serif;color:#c8d6e4;letter-spacing:.16em;text-transform:uppercase;padding-left:10px">Education · Visa · Work</span>
+  </td></tr>`;
   return `<!doctype html><html><body style="margin:0;padding:0;background:#f7f5ef">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f5ef;padding:26px 12px">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e6e2d7;border-radius:16px;overflow:hidden">
-  <tr><td style="background:#0b1e31;padding:20px 26px">
-    <span style="font:700 19px/1 Georgia,serif;color:#ffffff;letter-spacing:.02em">GLOVELS</span>
-    <span style="font:600 10px/1 Helvetica,Arial,sans-serif;color:#c8d6e4;letter-spacing:.16em;text-transform:uppercase;padding-left:10px">Education · Visa · Work</span>
-  </td></tr>
+  ${head}
   <tr><td style="padding:26px">
     <h1 style="margin:0 0 14px;font:700 21px/1.3 Georgia,serif;color:#0b1e31">${esc(title)}</h1>
     ${bodyHtml}
@@ -554,4 +568,5 @@ T.callLink = ({ name, when, link, counsellor, mode, phoneOffice }) => {
   };
 };
 
+T.setSiteUrl = setSiteUrl;
 module.exports = T;

@@ -198,6 +198,7 @@ function liveCountries() {
   return out;
 }
 const SITE_URL = CFG.siteUrl || ('http://localhost:' + PORT);
+require('./server/emails.js').setSiteUrl(SITE_URL);   /* the logo in every email header */
 
 /* mail.env sits next to the server and is the only file with a password in it.
    Absent, mail is written to data/outbox/ instead of sent — which is what you
