@@ -2262,6 +2262,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         program: p.isPublic ? '' : p.program,
       });
     }
+    /* 3 Nov (pen test): this is a public form — it files a lead and sends
+       two emails — and it was the one form the guard did not watch: a
+       script with no page token could post "applications" all day, eight an
+       hour per address. The same rule as the enquiry form and sign-up. */
+    if (guardForm(req, res)) return true;
     if (floodedBy(clientIp(req), 'apply', 8, 60 * 60 * 1000)) return slowDown(res);
     /* Round 169 (WEB-15): the contact form's name rule. */
     if (name.length > 100) return json(res, 422, { error: 'That name is too long — 100 characters at most.' });
@@ -2862,8 +2867,14 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return !!c && c !== 'INR' && FX.currencies().includes(c);
   };
 
+  /* 3 Nov (pen test): a price list is a plain object, and a plain object
+     answers to "constructor", "toString" and "__proto__" as well as to its
+     own keys. packageId "constructor" made an order (and an account) for a
+     package called "Object" at a null price; "__proto__" was a 500. Only a
+     key the list itself carries is a package or a service. */
+  const own = (map, key) => (map && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined);
   function basketFrom(b, opts) {
-    const pkg = b.packageId ? PACKAGES()[b.packageId] : null;
+    const pkg = b.packageId ? own(PACKAGES(), String(b.packageId)) : null;
     if (b.packageId && !pkg) return { error: 'No such package', code: 400 };
 
     /* Services: [{id, level}] or plain ids. Anything not on the list today is
@@ -2874,13 +2885,13 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const items = [];
     asked.forEach(raw => {
       const id = String((raw && raw.id) || raw || '').trim();
-      const svc = catalogue[id];
+      const svc = own(catalogue, id);
       if (!svc || items.some(x => x.id === id)) return;
       const wanted = String((raw && raw.level) || '').trim();
-      const codes = Object.keys(svc.levels);
+      const codes = Object.keys(svc.levels || {});
       /* A level is only honoured if this service HAS that level. "B2 at the A1
          price" is exactly what a hand-rolled request would try. */
-      const level = codes.length ? (svc.levels[wanted] != null ? wanted : codes[0]) : '';
+      const level = codes.length ? (own(svc.levels, wanted) != null ? wanted : codes[0]) : '';
       const quoted = opts && opts.quote && !level && !svc.isFree && !(svc.paise > 0)
         ? Math.max(0, Math.min(9999999, Math.round(Number((raw && raw.priceInr) || 0)))) : 0;
       items.push({
@@ -3295,7 +3306,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
          account" to people whose account was made seven milliseconds earlier. */
       publicUnis: pkg ? pkg.publicUnis : 0, siteUrl, hasAccount: !!(s || buyer),
       matchedOnly: !pkg && items.length > 0 && items.every(x => {
-        const svc = SERVICES_OF()[String(x.id || '')] || {};
+        const svc = own(SERVICES_OF(), String(x.id || '')) || {};
         return !!svc.matches;
       }),
       services: items.map(x => x.name + (x.level ? ' (' + x.level + ')' : '')),
@@ -4493,6 +4504,10 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   }, { open: true });
 
   route('GET', '/api/catalogue', async (req, res) => {
+    /* 3 Nov (pen test): the same door /api/find/unis shuts — a crawler or a
+       script gets nothing from the catalogue sample either. The page's own
+       fetch is a browser and passes. */
+    if (guard && guard.enabled && !(actorOf(req) || {}).staff && guard.robot(req)) return json(res, 403, { error: 'Searches are for people using a browser.', robot: true });
     if (guard && guard.enabled && !(actorOf(req) || {}).staff && guard.robot(req)) return json(res, 403, { error: 'This is for people using a browser.' });
     /*
      * The home page reads this, so a university added on the operations screen
@@ -11366,6 +11381,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * avoid.
    */
   route('GET', '/api/universities/filter', async (req, res) => {
+    /* 3 Nov (pen test): fifty universities a call, by country, field and
+       level, with no token and no allowance — a script walking the filters
+       had the whole university list. Robots are refused as on every other
+       search; people in a browser are not slowed. */
+    if (guard && guard.enabled && !(actorOf(req) || {}).staff && guard.robot(req)) return json(res, 403, { error: 'Searches are for people using a browser.', robot: true });
     const q = url.parse(req.url, true).query;
     const code = String(q.country || '').toUpperCase().slice(0, 2);
     const cm = countryMap();
@@ -13915,6 +13935,24 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       }
       let s = null;
       if (r.soft) s = me(req);
+      /* 3 Nov (pen test): a soft route hands the handler a live session, and
+         /api/apply writes with it — so a student on a generated password (or
+         a completed, read-only file) could add universities and file
+         applications through the one door the two rules below did not
+         watch. The same rules, for a write on a soft route; the chat stays
+         open, as messaging does, because talking to the office is the one
+         thing both kinds of account may still do. */
+      if (r.soft && s && s.role === 'student' && req.method !== 'GET' && req.method !== 'HEAD'
+          && !/^\/api\/chat\//.test(pathname)) {
+        if (s.must_change) {
+          json(res, 403, { error: 'Choose your own password before you go any further.', mustChange: true });
+          return true;
+        }
+        if ((s.status || 'active') === 'completed' && !COMPLETED_MAY_WRITE.some(re => re.test(pathname))) {
+          json(res, 403, { error: 'Your file is complete, so this is read-only now. Your documents, letters and messages stay here for you; message your counsellor if something needs changing.', completed: true });
+          return true;
+        }
+      }
       if (r.auth) {
         s = me(req);
         /* `return json(...)` here would return undefined, and the caller reads

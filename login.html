@@ -339,7 +339,13 @@ function forgotBox(message, bad){
       if (meBody && meBody.passwordMin) PW_MIN = meBody.passwordMin;
     } catch (e) { /* offline: ask for 8, and the server still has the last word */ }
     const card = document.querySelector('.form-card') || document.querySelector('.auth-card') || document.body;
-    const next = q.get('next') || 'dashboard.html';
+    /* 3 Nov (pen test): only an address on this site. The other two places
+       this page reads `next` already check it; this one went to wherever the
+       link said, so /login?change=1&next=javascript:… ran in the page once
+       the new password was saved, and next=https://evil… walked the person
+       off the site right after they typed a password. */
+    const asked = q.get('next');
+    const next = (asked && /^\/[a-z0-9/_-]*$/i.test(asked)) ? asked : 'dashboard.html';
     /* Whether the account is on a password somebody else chose. On those the
        old one is not asked for — it is not proof of anything, and the person
        most likely to be here has never seen it. */

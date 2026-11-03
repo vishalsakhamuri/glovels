@@ -588,9 +588,12 @@ function notFound(res) {
 
 /** Refuse anything that climbs out of the site folder. */
 function resolveSafe(pathname) {
-  const clean = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
+  /* Decoded already by the caller (and refused there if it could not be);
+     a second decodeURIComponent on a name that legitimately contains "%"
+     would throw, so this takes the string as it stands. */
+  const clean = path.normalize(pathname).replace(/^(\.\.[/\\])+/, '');
   const full = path.join(ROOT, clean);
-  return full.startsWith(ROOT) ? full : null;
+  return full.startsWith(ROOT + path.sep) || full === ROOT ? full : null;
 }
 
 /*
@@ -3448,7 +3451,24 @@ function canonicalRedirect(req) {
   return CANON.origin + req.url;
 }
 
-const server = http.createServer(async (req, res) => {
+/*
+ * 3 Nov (pen test): one request must never take the server down. The handler
+ * is an async function, so anything it throws becomes a rejected promise,
+ * and Node's default for an unhandled rejection is to exit — which is what a
+ * malformed address did (see the decoding block below). Caught here, logged,
+ * and answered with a 500 if nothing has been written yet.
+ */
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch(e => {
+    console.error('  request failed', req.method, String(req.url || '').slice(0, 200), e && e.message);
+    try {
+      if (!res.headersSent) send(res, 500, 'Something went wrong on the server');
+      else res.destroy();
+    } catch (e2) { try { res.destroy(); } catch (e3) { /* gone */ } }
+  });
+});
+
+async function handleRequest(req, res) {
   let { pathname, query } = url.parse(req.url);
 
   const canon = canonicalRedirect(req);
@@ -3793,6 +3813,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  /*
+   * 3 Nov (pen test): the address as the file system will read it, BEFORE
+   * any of the refusals below look at it. They were matching the raw
+   * pathname, and resolveSafe decoded and normalised it afterwards — so
+   * /assets/%2e%2e/serve.js passed every check as "assets/…" and was served
+   * as the server's own source (render.yaml, the Dockerfile and tests/ with
+   * it). And decodeURIComponent throws on a bare "%", which nothing caught:
+   * GET /% took the whole process down, for everybody, from one unsigned
+   * request. Decoded once here, refused if it cannot be, and every check
+   * from this point reads the same string the file system will.
+   */
+  {
+    let decoded = '';
+    try { decoded = decodeURIComponent(pathname); } catch (e) { return notFound(res); }
+    if (decoded.indexOf('\0') >= 0) return notFound(res);
+    pathname = path.posix.normalize(decoded.replace(/\\/g, '/'));
+    if (!pathname.startsWith('/')) return notFound(res);
+  }
+
   /* A file whose name starts with an underscore is a template, not a page.
      /post/_post.tpl answered 200 and served the blog template with {{H1}} in
      it — a page with holes where the words go, on a public address. */
@@ -3896,7 +3935,7 @@ const server = http.createServer(async (req, res) => {
 
   send(res, 200, fs.readFileSync(file),
     TYPES[ext] || 'application/octet-stream');
-});
+}
 
 process.on('SIGINT', () => {
   try { db.close(); } catch (e) {}
