@@ -467,7 +467,8 @@ body.open .drawer{transform:none}
       st = q.convertedOn ? 'ok' : q.waiting ? 'late' : 'ok';
     }
     var mine = ME && Number(q.ownerId) === Number(ME.id);
-    var canTake = !mine && (!q.ownerId || (ME && ME.role === 'admin'));
+    /* 3 Nov (owner): marketing hands leads to counsellors too. */
+    var canTake = !mine && (!q.ownerId || (ME && (ME.role === 'admin' || (ME.perms || []).indexOf('marketing') >= 0)));
     var tel = q.phone ? '<a class="act call" href="tel:' + esc(q.phone) + '" data-called-hint="' + q.id + '">' + ICON.call + 'Call</a>' : '';
     var wa = q.wa ? '<a class="act wa" target="_blank" rel="noopener" href="https://wa.me/' + esc(q.wa) + '">' + ICON.wa + 'WhatsApp</a>' : '';
     var mail = !q.phone && q.email ? '<a class="act call" href="mailto:' + esc(q.email) + '">Email</a>' : '';
@@ -782,7 +783,7 @@ body.open .drawer{transform:none}
   api('/api/staff/me').then(function (me) {
     var u = me.user || me; ME = u;
     $('#meName').textContent = u.name || ''; $('#meRole').textContent = u.role || '';
-    if (u.role === 'editor') { $('#error').textContent = 'This screen is for the counsellors and administrators.'; $('#error').hidden = false; return; }
+    if (u.role === 'editor' && (u.perms || []).indexOf('marketing') < 0) { $('#error').textContent = 'This screen is for the counsellors, the marketing team and administrators.'; $('#error').hidden = false; return; }
     if (u.role !== 'admin' && (u.perms || []).indexOf('marketing') < 0) $('#navMkt').hidden = true;
     if (u.role !== 'admin') $('#navOrg').hidden = true;
     var pm = u.role === 'admin' ? ['content', 'catalogue', 'marketing'] : (u.perms || []);

@@ -265,8 +265,8 @@ function listen(cookie) {
     t = tally(rs);
     const welcomes = outbox(dir).length - mail0;
     check('150 sign-ups from 150 addresses all go through (the address is not the person)', (t[200] || 0) === 150, say(t) + ' in ' + (Date.now() - t0) + ' ms');
-    check('…but the welcome mail stops at the hourly budget (120 for all kinds together)', welcomes <= 120, welcomes + ' welcome mails');
-    note('150 sign-ups from 150 addresses: ' + welcomes + ' welcome emails would have gone (budget 120/hour per kind)');
+    check('…but the welcome mail stops at the hourly budget (40 a kind since go-live)', welcomes <= 40, welcomes + ' welcome mails');
+    note('150 sign-ups from 150 addresses: ' + welcomes + ' welcome emails would have gone (budget 40/hour per kind)');
 
     /* forgot-password aimed at one inbox from everywhere */
     mail0 = outbox(dir).length;

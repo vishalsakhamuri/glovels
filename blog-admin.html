@@ -1425,9 +1425,11 @@ async function staffBoot(run) {
     counsellor: me.user.role !== 'editor',
     chat: me.user.role !== 'editor',
     /* The lead book is casework — an editor is on this site to change the
-       website, not to be handed somebody's phone number. */
-    leads: me.user.role !== 'editor',
-    'leads-command': me.user.role !== 'editor',
+       website, not to be handed somebody's phone number. The marketing
+       level (an editor with the marketing permission) works the leads:
+       that is the job (3 Nov, owner). */
+    leads: me.user.role !== 'editor' || perms.indexOf('marketing') >= 0,
+    'leads-command': me.user.role !== 'editor' || perms.indexOf('marketing') >= 0,
     admin: me.user.role === 'admin',
     catalogue: perms.indexOf('catalogue') >= 0,
     home: perms.indexOf('content') >= 0,

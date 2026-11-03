@@ -1820,7 +1820,10 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * not come through here and are never held.
    */
   const MAIL_EACH = Number(process.env.MAIL_EACH_HOUR) > 0 ? Number(process.env.MAIL_EACH_HOUR) : 4;
-  const MAIL_KIND_HOUR = Number(process.env.MAIL_KIND_HOUR) > 0 ? Number(process.env.MAIL_KIND_HOUR) : 120;
+  /* 3 Nov (owner, go-live): 40 a kind an hour — three kinds (ack, office
+     copy, welcome) is 120 an hour at worst, under a 300-a-day tier's hour.
+     Raise MAIL_KIND_HOUR on Render when the Brevo plan grows. */
+  const MAIL_KIND_HOUR = Number(process.env.MAIL_KIND_HOUR) > 0 ? Number(process.env.MAIL_KIND_HOUR) : 40;
   const mailHeld = { n: 0, loggedAt: 0 };
   function publicMail(kind, msg) {
     const to = String((msg && msg.to) || '').trim().toLowerCase();
@@ -5355,6 +5358,19 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (s.role === 'editor') {
       return json(res, 403, {
         error: 'That account is for the website only. It cannot open student records.',
+      });
+    }
+    return handler(req, res, s, m);
+  });
+
+  /* 3 Nov (owner): the lead book is for the counsellors, the administrators
+     AND the marketing level — an editor with the marketing permission, whose
+     job is to qualify leads, follow them up and hand them to a counsellor.
+     Student records stay behind caseworkOnly. */
+  const leadsOnly = handler => staffOnly(async (req, res, s, m) => {
+    if (s.role === 'editor' && !canMarket(s)) {
+      return json(res, 403, {
+        error: 'That account is for the website only. It cannot open the lead book.',
       });
     }
     return handler(req, res, s, m);
@@ -10490,7 +10506,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return rows.filter(e => Number(e.owner_id) === Number(s.id) || (!e.owner_id && inScope(e)));
   };
 
-  route('GET', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
+  route('GET', '/api/staff/leads', leadsOnly(async (req, res, s) => {
     const counts = db.leadNoteCounts();
     const people = peopleMap();
     /* Patch 172 (item 7): ?archived=1 is the administrator's Archived filter —
@@ -10756,15 +10772,15 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     };
   }
 
-  route('GET', '/api/staff/leads/command', caseworkOnly(async (req, res, s) =>
+  route('GET', '/api/staff/leads/command', leadsOnly(async (req, res, s) =>
     json(res, 200, leadCommand(s, Date.now(), /^(1|yes|true)$/i.test(String(url.parse(req.url, true).query.summary || ''))))));
 
   /* The two clocks, set by an administrator (Leads command → SLAs). */
-  route('GET', '/api/staff/leads/sla', caseworkOnly(async (req, res, s) => {
+  route('GET', '/api/staff/leads/sla', leadsOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     return json(res, 200, { settings: LW ? LW.settings() : LWM.clean(null), defaults: LWM.DEFAULTS });
   }));
-  route('PUT', '/api/staff/leads/sla', caseworkOnly(async (req, res, s) => {
+  route('PUT', '/api/staff/leads/sla', leadsOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     if (!LW) return json(res, 503, { error: 'The lead watch is not running' });
     const b = await readJson(req);
@@ -10775,7 +10791,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return json(res, 200, { settings: out.settings });
   }));
 
-  route('GET', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+  route('GET', /^\/api\/staff\/lead\/(\d+)$/, leadsOnly(async (req, res, s, m) => {
     const e = db.enquiryById(Number(m[1]));
     if (!e) return json(res, 404, { error: 'No such enquiry' });
     /* Patch 172: an archived lead is out of the book for everybody but an
@@ -10795,7 +10811,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   /* A lead that arrived by phone, or on somebody's personal WhatsApp. It is
      not in the book unless somebody puts it there, and a lead that is not in
      the book is not followed up. */
-  route('POST', '/api/staff/leads', caseworkOnly(async (req, res, s) => {
+  route('POST', '/api/staff/leads', leadsOnly(async (req, res, s) => {
     const b = await readJson(req);
     const name = String(b.name || '').trim();
     const phone = String(b.phone || '').trim();
@@ -10846,7 +10862,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return null;
   }
 
-  route('PUT', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+  route('PUT', /^\/api\/staff\/lead\/(\d+)$/, leadsOnly(async (req, res, s, m) => {
     const e = db.enquiryById(Number(m[1]));
     if (!e) return json(res, 404, { error: 'No such enquiry' });
     if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
@@ -10879,8 +10895,9 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (b.ownerId !== undefined) {
       ownerId = b.ownerId ? Number(b.ownerId) : null;
       if (ownerId && !db.studentById(ownerId)) return json(res, 404, { error: 'No such person' });
-      if (s.role !== 'admin' && ownerId && Number(ownerId) !== Number(s.id)) {
-        return json(res, 403, { error: 'Only an administrator can hand a lead to somebody else.' });
+      /* 3 Nov (owner): the marketing level hands leads to counsellors. */
+      if (s.role !== 'admin' && !canMarket(s) && ownerId && Number(ownerId) !== Number(s.id)) {
+        return json(res, 403, { error: 'Only an administrator or the marketing team can hand a lead to somebody else.' });
       }
     }
 
@@ -10937,7 +10954,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * business and are left out of the list — but if the person converted, the
    * student they became is reported, because that is the answer.
    */
-  route('GET', '/api/staff/lead-lookup', caseworkOnly(async (req, res, s) => {
+  route('GET', '/api/staff/lead-lookup', leadsOnly(async (req, res, s) => {
     const q = url.parse(req.url, true).query;
     const email = String(q.email || '').trim().toLowerCase();
     const digits = String(q.phone || '').replace(/\D/g, '').slice(-10);
@@ -10982,7 +10999,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * lead that stays. Its notes move across; blanks on the keeper are filled
    * from the duplicate; the duplicate is deleted. Admins only, and logged.
    */
-  route('POST', /^\/api\/staff\/lead\/(\d+)\/merge$/, caseworkOnly(async (req, res, s, m) => {
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/merge$/, leadsOnly(async (req, res, s, m) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can merge leads' });
     const from = db.enquiryById(Number(m[1]));
     if (!from) return json(res, 404, { error: 'No such enquiry' });
@@ -11019,7 +11036,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * the lead leaves every list and alert, Restore brings it back). Only an
    * ARCHIVED lead can be deleted for good, and only by asking for it in so
    * many words: DELETE ...?for=good (or {forGood: true}). */
-  route('DELETE', /^\/api\/staff\/lead\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+  route('DELETE', /^\/api\/staff\/lead\/(\d+)$/, leadsOnly(async (req, res, s, m) => {
     const id = Number(m[1]);
     const lead = db.enquiryById(id);
     if (!lead) return json(res, 404, { error: 'No such enquiry' });
@@ -11048,7 +11065,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return json(res, 200, { ok: true, deleted: true });
   }));
 
-  route('POST', /^\/api\/staff\/lead\/(\d+)\/(archive|restore)$/, caseworkOnly(async (req, res, s, m) => {
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/(archive|restore)$/, leadsOnly(async (req, res, s, m) => {
     const id = Number(m[1]);
     const lead = db.enquiryById(id);
     if (!lead) return json(res, 404, { error: 'No such enquiry' });
@@ -11071,7 +11088,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * one transaction. Archived, not deleted — "Delete for good" stays one at a
    * time, on purpose.
    */
-  route('POST', '/api/staff/leads/archive-many', caseworkOnly(async (req, res, s) => {
+  route('POST', '/api/staff/leads/archive-many', leadsOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can archive leads.' });
     const b = await readJson(req);
     const ids = Array.isArray(b.ids) ? b.ids : [];
@@ -11083,7 +11100,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return json(res, 200, { ok: true, archived: n, archivedCount: db.archivedEnquiries().length });
   }));
 
-  route('POST', /^\/api\/staff\/lead\/(\d+)\/note$/, caseworkOnly(async (req, res, s, m) => {
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/note$/, leadsOnly(async (req, res, s, m) => {
     const e = db.enquiryById(Number(m[1]));
     if (!e) return json(res, 404, { error: 'No such enquiry' });
     if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
@@ -11155,7 +11172,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * marked converted and tied to the student, so the two are the same person
    * from here on.
    */
-  route('POST', /^\/api\/staff\/lead\/(\d+)\/convert$/, caseworkOnly(async (req, res, s, m) => {
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/convert$/, leadsOnly(async (req, res, s, m) => {
     const e = db.enquiryById(Number(m[1]));
     if (!e) return json(res, 404, { error: 'No such enquiry' });
     if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
@@ -14179,7 +14196,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * six days" — and a stored copy of a fact is a copy that is wrong the moment
    * somebody uploads the document.
    */
-  route('GET', '/api/staff/alerts', caseworkOnly(async (req, res, s) => {
+  route('GET', '/api/staff/alerts', leadsOnly(async (req, res, s) => {
     const list = ALERTS.forStaff(db, s);
     /* Round 178 (BUG-095): ONE ENTRY PER STUDENT. 77 alerts read as a flat
        list, up to nine for one student. `groups` folds them: one per student

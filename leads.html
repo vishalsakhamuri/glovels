@@ -1430,7 +1430,7 @@ async function staffBoot(run) {
   }
   $('#staffName').textContent = me.user.name;
   $('#staffRole').textContent = me.user.role === 'admin' ? 'Administrator'
-    : me.user.role === 'editor' ? 'Website editor' : 'Counsellor';
+    : me.user.role === 'editor' ? ((me.user.perms || []).indexOf('marketing') >= 0 ? 'Marketing' : 'Website editor') : 'Counsellor';
 
   /* The menu shows what this account can actually open. A link to a screen that
      answers "not your workspace" is worse than no link: it reads as something
@@ -1440,9 +1440,11 @@ async function staffBoot(run) {
     counsellor: me.user.role !== 'editor',
     chat: me.user.role !== 'editor',
     /* The lead book is casework — an editor is on this site to change the
-       website, not to be handed somebody's phone number. */
-    leads: me.user.role !== 'editor',
-    'leads-command': me.user.role !== 'editor',
+       website, not to be handed somebody's phone number. The marketing
+       level (an editor with the marketing permission) works the leads:
+       that is the job (3 Nov, owner). */
+    leads: me.user.role !== 'editor' || perms.indexOf('marketing') >= 0,
+    'leads-command': me.user.role !== 'editor' || perms.indexOf('marketing') >= 0,
     admin: me.user.role === 'admin',
     /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
     catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',

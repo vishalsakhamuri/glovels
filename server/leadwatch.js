@@ -204,6 +204,11 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
     const seen = new Map();
     (db.activeCaseworkers() || []).forEach(p => seen.set(Number(p.id), p));
     (db.staffByRole('admin') || []).filter(active).forEach(p => seen.set(Number(p.id), p));
+    /* 3 Nov (owner): the marketing level works the leads too, so it hears
+       about them — an editor with the marketing permission. */
+    (db.staffByRole('editor') || []).filter(active)
+      .filter(p => { try { return (db.permsOf(p) || []).includes('marketing'); } catch (e) { return false; } })
+      .forEach(p => seen.set(Number(p.id), p));
     return [...seen.values()];
   }
   const admins = () => (db.staffByRole('admin') || []).filter(active);
