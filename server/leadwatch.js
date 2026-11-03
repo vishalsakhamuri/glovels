@@ -212,6 +212,8 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
     return [...seen.values()];
   }
   const admins = () => (db.staffByRole('admin') || []).filter(active);
+  /** Is any staff screen open right now (a counsellor, an admin, marketing)? */
+  const staffOnline = () => { try { return !!(live && live.counts && live.counts().staff > 0); } catch (e) { return false; } };
   /** Everybody who may see this lead: its owner and the administrators, or the
       whole team when nobody owns it (the Leads book's own rule). */
   function audience(e) {
@@ -315,12 +317,27 @@ function open({ db, live, push, mail, emails, siteUrl, log }) {
     /* The office's email — for chats. Forms and bookings already had theirs. */
     const chats = evs.filter(ev => ev.kind === 'chat' || ev.kind === 'chat-msg');
     let emailed = false;
+    const chatSubject = chats.length === 1 ? 'Website chat: ' + (chats[0].name || 'a visitor') + ' is waiting' : chats.length + ' website chats waiting';
+    const chatLines = chats.map(ev => (ev.name || 'A visitor') + ' — ' + (ev.kind === 'chat' ? 'started a chat' : 'wrote: “' + String(ev.text || '').slice(0, 160) + '”')
+      + (contactOf(ev.row) ? ' · ' + contactOf(ev.row) : ''));
     if (S.emailOffice && chats.length && mail && mail.office) {
-      emailed = emailTo(mail.office,
-        chats.length === 1 ? 'Website chat: ' + (chats[0].name || 'a visitor') + ' is waiting' : chats.length + ' website chats waiting',
-        chats.map(ev => (ev.name || 'A visitor') + ' — ' + (ev.kind === 'chat' ? 'started a chat' : 'wrote: “' + String(ev.text || '').slice(0, 160) + '”')
-          + (contactOf(ev.row) ? ' · ' + contactOf(ev.row) : '')),
-        site + '/leads-command');
+      emailed = emailTo(mail.office, chatSubject, chatLines, site + '/leads-command');
+    }
+    /* 3 Nov (owner): "every counsellor gets a message, so someone answers".
+       A push reaches only the phones that turned alerts on, and the live
+       feed only the screens that are open. When NO staff screen is open the
+       chat goes by email to everybody who may see it — every counsellor and
+       administrator — once per burst, so a visitor writing at 10 pm is not
+       talking to nobody. With a screen open, the feed and the push are
+       enough and nobody's inbox fills. */
+    if (chats.length && mail && !staffOnline()) {
+      const told = new Set();
+      chats.forEach(ev => audience(ev.row).forEach(p => {
+        if (!p.email || told.has(p.email) || (mail.office && p.email === mail.office && emailed)) return;
+        told.add(p.email);
+        emailTo(p.email, chatSubject, chatLines, site + '/leads-command');
+      }));
+      if (told.size) emailed = true;
     }
     if (logged) {
       /* Already in the feed since it arrived; now say who was told. */

@@ -4129,10 +4129,14 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   });
 
   route('GET', '/api/chat', async (req, res, s) => {
-    if (s && s.role === 'student') return json(res, 200, studentThread(s));
+    /* 3 Nov (owner): the widget says "Live now" when a staff screen is open
+       and "Someone will reply" when none is — never the office hours. A
+       count of open staff screens is all it needs; who they are stays here. */
+    const staffOnline = !!(live && live.counts && live.counts().staff > 0);
+    if (s && s.role === 'student') return json(res, 200, Object.assign({ staffOnline }, studentThread(s)));
     const c = chatOf(req);
-    return json(res, 200, c ? Object.assign({ signedIn: false }, chatShape(c))
-                            : { signedIn: false, messages: [], started: false });
+    return json(res, 200, c ? Object.assign({ signedIn: false, staffOnline }, chatShape(c))
+                            : { signedIn: false, staffOnline, messages: [], started: false });
   }, { open: true, soft: true });
 
   route('POST', '/api/chat/start', async (req, res, s) => {

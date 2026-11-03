@@ -582,6 +582,7 @@ if (location.protocol === 'file:') {
       'align-items:flex-start;gap:10px}',
     '.gv-chat header b{display:block;font-size:14.5px;line-height:1.35}',
     '.gv-chat header span{display:block;font-size:12.1px;opacity:.78;line-height:1.5;margin-top:2px}',
+    '.gv-chat .gv-live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#2ecc71;margin-right:6px;box-shadow:0 0 0 3px rgba(46,204,113,.25)}',
     '.gv-chat header button{margin-left:auto;background:transparent;border:0;color:#fff;',
       'font-size:20px;line-height:1;cursor:pointer;padding:0 2px;opacity:.85}',
     '.gv-chat .gv-body{flex:1;overflow-y:auto;padding:16px;background:#f7f7f4;',
@@ -727,9 +728,7 @@ if (location.protocol === 'file:') {
   function render() {
     panel.innerHTML =
         '<header><div><b>' + (state.signedIn ? 'Your counsellor' : 'Glovels') + '</b>'
-      + '<span>' + (state.signedIn
-          ? 'This is the same conversation as your Messages screen.'
-          : 'Mon–Sat, 9:30am–7:30pm IST. Replies appear here.') + '</span></div>'
+      + '<span class="gv-presence">' + presenceText() + '</span></div>'
       + '<button type="button" aria-label="Close the chat">×</button></header>'
       + '<div class="gv-body"></div>'
       + ((state.started || state.signedIn) ? composer() : intro());
@@ -842,8 +841,28 @@ if (location.protocol === 'file:') {
     if (dot) dot.hidden = true;
     try { sessionStorage.setItem(OPEN_KEY, '1'); } catch (e) {}
     render();
+    refreshPresence();
     var f = panel.querySelector('input, textarea');
     if (f) f.focus();
+  }
+  /* 3 Nov (owner): no office hours in the box. "Live now" while a counsellor
+     or administrator has a staff screen open; otherwise "Someone will
+     reply" — and the server tells every counsellor by email. Asked again
+     each time the box opens and every minute while it is open. */
+  function presenceText() {
+    return state.staffOnline
+      ? '<i class="gv-live" aria-hidden="true"></i>Live now — a counsellor is here'
+      : 'Someone will reply here as soon as they are free.';
+  }
+  function refreshPresence() {
+    api('/api/chat').then(function (d) {
+      var was = state.staffOnline;
+      state.staffOnline = !!(d && d.staffOnline);
+      var el = panel && panel.querySelector('.gv-presence');
+      if (el && was !== state.staffOnline) el.innerHTML = presenceText();
+    }, function () {});
+    clearTimeout(state.presenceTimer);
+    if (panel && !panel.hidden) state.presenceTimer = setTimeout(refreshPresence, 60000);
   }
 
   function close() {
@@ -880,6 +899,7 @@ if (location.protocol === 'file:') {
     if (older && older.classList.contains('wa-launch')) older.style.display = 'none';
 
     api('/api/chat').then(function (d) {
+      state.staffOnline = !!d.staffOnline;
       state.signedIn = !!d.signedIn;
       state.msgs = d.messages || [];
       state.started = state.signedIn || state.msgs.length > 0 || d.id != null;
