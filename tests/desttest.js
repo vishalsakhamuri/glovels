@@ -51,7 +51,9 @@ const NEW = {
     check(slug + ': head and og agree', (() => {
       const t = (/<title>([^<]+)<\/title>/.exec(html) || [])[1];
       return t && html.includes('<meta property="og:title" content="' + t + '"')
-        && html.includes('content="https://www.glovels.com/' + slug + '"');
+        /* Patch 248: og:url follows GLOVELS_URL (www or apex, whichever the
+           site is set to), so either host is right here. */
+        && new RegExp('content="https://[a-z0-9.-]+/' + slug + '"').test(html);
     })());
     check(slug + ': sends to a counsellor, not an empty finder', /Talk to a counsellor about/.test(html)
       && !/See programmes in/.test(html));

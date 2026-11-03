@@ -1258,7 +1258,9 @@ function open(dir) {
   /* The same facts for a list of universities in one country, in two SQL
      statements (one aggregate row each; the cities grouped), from the live
      rows. uni_slug -> summary. SQLite only; the development store goes
-     through uniSummary above. */
+     through uniSummary above. A row saved from the office screen carries
+     reqs '' (not JSON): json_extract on it throws "malformed JSON" and the
+     whole country page answered 500 — hence json_valid first. */
   const summariesFor = (country, slugs) => {
     const out = {};
     if (!slugs.length) return out;
@@ -1268,8 +1270,8 @@ function open(dir) {
         SUM(CASE WHEN fee_indicative = 0 THEN 1 ELSE 0 END) AS known_kind,
         MAX(CASE WHEN fee_indicative = 0 THEN is_public END) AS is_public,
         MIN(CASE WHEN fee_model IN ('free', 'package') THEN fee_model WHEN is_public = 1 THEN 'package' ELSE 'free' END) AS fee_model,
-        MIN(CASE WHEN fee_indicative = 0 AND (is_public = 1 OR total_inr > 0 OR json_extract(reqs, '$.tuitionEurSem') = 0) THEN total_inr END) AS fee_min,
-        MAX(CASE WHEN fee_indicative = 0 AND (is_public = 1 OR total_inr > 0 OR json_extract(reqs, '$.tuitionEurSem') = 0) THEN total_inr END) AS fee_max
+        MIN(CASE WHEN fee_indicative = 0 AND (is_public = 1 OR total_inr > 0 OR (json_valid(reqs) AND json_extract(reqs, '$.tuitionEurSem') = 0)) THEN total_inr END) AS fee_min,
+        MAX(CASE WHEN fee_indicative = 0 AND (is_public = 1 OR total_inr > 0 OR (json_valid(reqs) AND json_extract(reqs, '$.tuitionEurSem') = 0)) THEN total_inr END) AS fee_max
       FROM programmes WHERE active = 1 AND country = ? AND uni_slug IN (${marks}) GROUP BY uni_slug`, country, ...slugs);
     /* The main campus (unis.js group): a city named in the university's
        own name, else the city most of its programmes are in. */
