@@ -131,7 +131,11 @@ function summarise(students, orders, now, payments) {
     out.expected += gross;
     out.received += got;
     /* Patch 190: export of services carries no GST. */
-    if (o.tax_mode === 'export') out.receivedExport = (out.receivedExport || 0) + got;
+    /* FIX (3 Nov e2e run): an EU buyer's order (tax_mode "eu-vat-19")
+       carries German VAT, not Indian GST — it was counted in the GST figure
+       because only "export" was excluded here. Anything sold outside India
+       is outside the GST base. */
+    if (o.tax_mode === 'export' || /^eu-vat-/.test(String(o.tax_mode || ''))) out.receivedExport = (out.receivedExport || 0) + got;
 
     /* Line items exist on itemised orders; a package order counts as one piece
        of work. Only counted when the order is settled — "services performed"

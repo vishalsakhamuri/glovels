@@ -414,6 +414,7 @@ body.open{overflow:hidden}
   /* ------------------------------------------------------------ words */
   function hours(h) { h = Math.max(0, Math.round(h)); return h < 48 ? h + ' h' : Math.round(h / 24) + ' days'; }
   function timerOf(r) {
+    if (r.timer) return r.timer;                 // a lead: minutes, on the lead watch's clock
     if (r.overHours != null) {
       return r.state === 'late'
         ? { big: hours(r.ageHours) + ' waiting', small: hours(r.overHours) + ' past the ' + r.slaHours + ' h SLA' }

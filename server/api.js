@@ -3053,7 +3053,23 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * of ₹74,999 "in parts" is asking for the schedule to come from the
    * request, and it does not.
    */
-  const newReference = () => 'GLV-' + crypto.randomInt(1000, 9999);
+  /* FIX (3 Nov e2e run): a four-digit reference has 9,000 values and the
+     column is UNIQUE, so the birthday problem bit on the 150th order of the
+     simulation — INSERT failed with "UNIQUE constraint failed:
+     orders.reference" and the buyer saw "Something went wrong on the
+     server" at the checkout. At the live site's volume a collision was a
+     matter of weeks. A reference is checked against the book before it is
+     used; when the short ones run thin, longer ones are drawn. */
+  const newReference = () => {
+    for (let i = 0; i < 25; i++) {
+      const r = 'GLV-' + crypto.randomInt(1000, 9999);
+      if (!db.orderByReference(r)) return r;
+    }
+    for (;;) {
+      const r = 'GLV-' + crypto.randomInt(10000, 9999999);
+      if (!db.orderByReference(r)) return r;
+    }
+  };
   function placeOrder({ basket, name, email, phone, studentId, status, payIn, accepted, reference }) {
     const { pkg, items, gross, label } = basket;
     reference = reference || newReference();
@@ -7155,6 +7171,54 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       return json(res, 200, { ok: true });
     }));
 
+  /*
+   * FIX (3 Nov e2e run): THE COUNSELLOR CORRECTS THE PROFILE.
+   *
+   * A counsellor could read a student's finder answers on the file and could
+   * not change one — a CGPA typed as 7.8 instead of 8.7, a destination the
+   * call settled, a test score that arrived by WhatsApp — only the student
+   * (PUT /api/profile) and the agency (PUT /api/partner/…/profile) could.
+   * The same merge, the same bounds, the same refusals as the student's own
+   * save; the student is told in the thread which boxes changed, and the
+   * machine's picks are re-run against the corrected profile.
+   */
+  route('PUT', /^\/api\/staff\/student\/(\d+)\/profile$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+    const st = db.studentById(id);
+    if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
+    if (!db.openFile(st)) return json(res, 409, { error: 'This file is closed. Reopen it to change their details.', closed: true });
+    const b = await readJson(req);
+    if (b.profile == null || typeof b.profile !== 'object' || Array.isArray(b.profile)) {
+      return json(res, 422, { error: 'That is not a profile.' });
+    }
+    const sent = b.profile;
+    if (Object.prototype.hasOwnProperty.call(sent, 'firstName') && !String(sent.firstName == null ? '' : sent.firstName).trim()) {
+      return json(res, 422, { error: 'First name is required', fields: [{ field: 'firstName', why: 'First name is required' }] });
+    }
+    const before = db.getProfile(id) || {};
+    const { merged: prof, wrong } = mergeProfile(id, sent);
+    if (wrong.length) {
+      return json(res, 422, { error: wrong[0].why, fields: wrong.map(w => ({ field: w.field, why: w.why })) });
+    }
+    db.putProfile(id, prof);
+    if (prof.fullName || prof.phone) {
+      db.updateStudent(id, prof.fullName || st.name,
+        anyPhone(prof.phone) || validPhone(prof.phone) ? storePhone(prof.phone) : st.phone);
+    }
+    const changed = Object.keys(sent).filter(k => String(before[k] == null ? '' : before[k]) !== String(prof[k] == null ? '' : prof[k]));
+    if (changed.length) {
+      db.log(s.name, 'edited a profile', st.name + ' — ' + changed.join(', '));
+      try {
+        notice(id, 'I have updated your profile (' + changed.slice(0, 6).join(', ') + (changed.length > 6 ? '…' : '') + '). Check it on your Profile screen and tell me if anything is wrong.', s.name);
+        pingThread(id);
+      } catch (e) { /* the save stands */ }
+    }
+    let matched = null;
+    try { matched = deliverMatches(db.studentById(id)); } catch (e) { matched = null; }
+    return json(res, 200, { ok: true, changed, profile: db.getProfile(id) || {}, matched });
+  }));
+
   /* Assignment is the admin's decision and nobody else's — it is what unlocks a
      student's file for a counsellor. */
   route('PUT', /^\/api\/staff\/student\/(\d+)\/counsellor$/, caseworkOnly(async (req, res, s, m) => {
@@ -8555,8 +8619,29 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (!st || st.role !== 'student') return json(res, 404, { error: 'No such student' });
     const b = await readJson(req);
     /* Patch 177 (item 18): the office may quote an "on request" service. */
-    const basket = basketFrom(b, { quote: true });
-    if (basket.error) return json(res, basket.code, { error: basket.error });
+    const basket0 = basketFrom(b, { quote: true });
+    if (basket0.error) return json(res, basket0.code, { error: basket0.error });
+    /* FIX (3 Nov e2e run): an order the office raises on a student's file
+       was always an Indian sale — GST on the receipt and in the Money
+       screen's GST figure — whoever the student was. A Nepali student's
+       insurance quote read "GST @ 18%" on their dashboard. The same rule as
+       the checkout, read off where the student lives (their profile, or a
+       residence the office sends): abroad is an export (no GST); an EU
+       resident pays the price plus VAT, as at the checkout. */
+    const residence = (() => {
+      const said = String(b.residence || '').trim().toUpperCase();
+      if (/^[A-Z]{2}$/.test(said) && ISO_COUNTRIES.byCode(said)) return said;
+      let prof = {};
+      try { prof = db.getProfile(id) || {}; } catch (e) { prof = {}; }
+      const ac = String(prof.addr_country || '').trim();
+      if (/^[A-Za-z]{2}$/.test(ac) && ISO_COUNTRIES.byCode(ac.toUpperCase())) return ac.toUpperCase();
+      const byName = ac ? ISO_COUNTRIES.byName(ac) : null;
+      return byName ? byName.code : 'IN';
+    })();
+    const exportSale = residence !== 'IN';
+    const vatOn = euVatSettings();
+    const vat = exportSale && vatOn.on && EU27.has(residence) ? { rate: Number(vatOn.rate) || 19 } : null;
+    const basket = vat ? withVat(basket0, vat.rate) : basket0;
     const placed = placeOrder({
       basket, name: st.name, email: st.email, phone: st.phone || '',
       studentId: st.id, status: 'owing', payIn: b.payIn,
@@ -8566,6 +8651,14 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         by: s.name, note: String(b.note || '').trim().slice(0, 400),
       },
     });
+    if (exportSale) {
+      try { db.setOrderTaxMode(placed.reference, vat ? 'eu-vat-' + vat.rate : 'export'); } catch (e) { /* the order stands */ }
+      try {
+        const cur0 = payCurrencies().includes(GEO.currencyFor(residence)) ? GEO.currencyFor(residence) : 'USD';
+        const loc0 = cur0 !== 'INR' ? inCurrency(placed.gross, cur0) : null;
+        if (db.setOrderLocal) db.setOrderLocal(placed.reference, loc0 ? loc0.currency : 'INR', loc0 ? loc0.amountMinor : placed.gross, residence);
+      } catch (e) { /* the receipt still says export */ }
+    }
     db.log(s.name, 'created an order', placed.reference + ' — ' + placed.label + ', '
       + inrOf(placed.gross) + ' for ' + st.email
       + (placed.plan ? ', in ' + placed.plan.length + ' parts' : '')
@@ -8580,7 +8673,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       + ' (' + inrOf(placed.gross) + ') — is on your file. '
       + (placed.plan ? inrOf(placed.plan[0].paise) + ' to start; your counsellor will take it.'
         : 'Your counsellor will take the payment.'));
-    return json(res, 200, { order: orderRow(placed.order), matched });
+    return json(res, 200, { order: orderRow(db.orderByReference(placed.reference) || placed.order), matched, exportSale, vatRate: vat ? vat.rate : 0 });
   }));
 
   /* ------------------------------------------------- reading the room */
@@ -9005,15 +9098,36 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     });
 
     /* Leads nobody has called: new, no follow-up, not the office's own tests. */
+    /* FIX (3 Nov e2e run): ONE clock for a new lead. This queue timed leads
+       on its own 24-hour SLA while the "Leads waiting" tile above it (the
+       lead watch, patch 221) timed the same leads on the office's 15-minute
+       first-response SLA — so the board said "4 past the 15-minute SLA" and
+       "4 on time" about the same four people. The queue now reads the lead
+       watch's clock (minutes, office hours honoured) and says so. */
+    const LS = LW ? LW.settings() : null;
+    const minsSaid = m => (m >= 120 ? Math.round(m / 60) + ' h' : Math.round(m) + ' min');
     try {
       const counts = db.leadNoteCounts();
       const internal = db.internalEnquiryTest();
       leadBook(s).forEach(e => {
         const l = leadShape(e, counts, people, internal);
         if (l.internal || l.followUps || (l.status && l.status !== 'new')) return;
-        out.leads.push(Object.assign(clockRow(null, (l.name || 'Somebody') + (l.note ? ' — ' + String(l.note).slice(0, 70) : ''),
+        const row = Object.assign(clockRow(null, (l.name || 'Somebody') + (l.note ? ' — ' + String(l.note).slice(0, 70) : ''),
           l.at, COMMAND_SLA.leads), { leadId: l.id, student: l.name || '', source: l.source || 'website',
-          counsellor: l.ownerId ? { id: l.ownerId, name: l.owner } : null }));
+          counsellor: l.ownerId ? { id: l.ownerId, name: l.owner } : null });
+        if (LS) {
+          const mins = LW.waitMins(l.at, now, LS);
+          const over = mins - LS.firstMins;
+          Object.assign(row, {
+            ageMins: mins, slaMins: LS.firstMins, overMins: over,
+            ageHours: mins / 60, slaHours: LS.firstMins / 60, overHours: over / 60,
+            state: mins > LS.firstMins ? 'late' : mins * 2 >= LS.firstMins ? 'soon' : 'ok',
+            timer: over > 0
+              ? { big: minsSaid(mins) + ' waiting', small: minsSaid(over) + ' past the ' + LS.firstMins + '-minute SLA' }
+              : { big: minsSaid(mins) + ' waiting', small: minsSaid(-over) + ' left of ' + LS.firstMins + ' min' },
+          });
+        }
+        out.leads.push(row);
       });
     } catch (e) { /* the rest of the board still stands */ }
 
@@ -9057,11 +9171,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       const worst = rows.find(r => r.state === 'late') || null;
       return {
         key: q.key, label: q.label, group: q.group,
-        sla: COMMAND_SLA[q.key] ? hrs(COMMAND_SLA[q.key]) : 'per step',
+        sla: q.key === 'leads' && LS ? LS.firstMins + ' min' : COMMAND_SLA[q.key] ? hrs(COMMAND_SLA[q.key]) : 'per step',
         total: rows.length,
         late: rows.filter(r => r.state === 'late').length,
         soon: rows.filter(r => r.state === 'soon').length,
-        worst: worst ? (worst.overHours != null
+        worst: worst ? (worst.overMins != null ? minsSaid(worst.overMins) + ' over' : worst.overHours != null
           ? (worst.overHours >= 48 ? Math.round(worst.overHours / 24) + ' days over' : Math.round(worst.overHours) + ' h over')
           : worst.overDays + (worst.overDays === 1 ? ' day' : ' days') + ' over') : '',
         rows: rows.slice(0, 80),
