@@ -421,6 +421,11 @@ function sqliteDriver(file) {
   const { DatabaseSync } = require('node:sqlite');
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL');   // survives a hard kill mid-write
+  /* 3 Nov (load test): every page view writes a traffic hit; with WAL and
+     synchronous=FULL each write waited for the disk. NORMAL is durable past a
+     process crash (the WAL is synced at checkpoint), and a hit lost to a
+     power cut is the only risk. */
+  db.exec('PRAGMA synchronous = NORMAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
 
@@ -3962,7 +3967,7 @@ function open(dir) {
      somebody saves a programme (catVersion moves on every write). */
   const memo = new Map();
   const MEMO_MAX_ROWS = 300;
-  ['catalogueStats', 'countUniversities', 'countByCountry', 'uniSlugs', 'fieldCounts', 'filterOptions',
+  ['catalogueStats', 'countUniversities', 'countProgrammes', 'countByCountry', 'uniSlugs', 'fieldCounts', 'filterOptions',
    'rowsForCountryPage', 'filterUniversities', 'countryPageUniversities', 'programmesPage', 'universitiesPage'].forEach(name => {
     const fn = store[name];
     store[name] = (...a) => {

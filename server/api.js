@@ -4672,6 +4672,59 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return json(res, 200, { keys: real });
   }, { open: true });
 
+  const catalogueCache = new Map();
+  /* 3 Nov (load test): the baked ids that are off the site — one query per
+     baked id per request before; the same list until the catalogue changes. */
+  let inactiveMemo = null;
+  function inactiveBaked() {
+    const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
+    if (!inactiveMemo || inactiveMemo.v !== v) {
+      inactiveMemo = { v, ids: (typeof bakedIds === 'function' ? bakedIds() : db.programmes(true).map(r => r.id))
+        .filter(id => { const r = db.programme(id); return r && (!r.active || r.search_only); }) };
+    }
+    return inactiveMemo.ids;
+  }
+  function buildCatalogue(ent, gate, quota, mayShow) {
+    const named = ent.named;
+    const SAMPLE_PER_COUNTRY = 300;
+    const facetsAll = onSiteFacets();
+    const seenIds = new Set();
+    const all = [];
+    const take = list => list.forEach(p => { const k = String(p.id); if (seenIds.has(k)) return; seenIds.add(k); all.push(p); });
+    take(candidatesFor({}, { publicOnly: true, limit: 20000 }).rows);
+    let sampled = false; let spent = 0;
+    (facetsAll.country || []).forEach(code => {
+      const got = candidatesFor({ country: code }, { privateOnly: true, limit: SAMPLE_PER_COUNTRY });
+      if (got.more) sampled = true;
+      take(got.rows);
+    });
+    /* In the order the catalogue always came (rowsOnSite: by university),
+       so anything that takes "the first" of a kind still gets the same one. */
+    all.sort((a, b) => (a.university < b.university ? -1 : a.university > b.university ? 1 : 0));
+    const named_ = [], lockedReal = [];
+    all.forEach(p => {
+      /* 10 Oct: the tags the home page's tag search narrows on — the
+         office's where imported, derived from the row otherwise. A locked
+         row carries them too, less the ones that would name it. */
+      /* Round 178 (owner, 30 Oct): an agent-portal fee is indicative — the
+         office sees it, flagged; a visitor or a student gets the row with
+         no fee (UNIS.publicFee: totalInr 0, feeHidden, no band). */
+      if (ent.staff) return named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));
+      if (!p.isPublic) return named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));   // never gated
+      if (gate === 'open') return named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));
+      if (gate === 'names') {
+        /* The name, and enough to place it, but not what it costs. */
+        return named_.push(Object.assign({}, UNIS.publicFee(p), { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) }));
+      }
+      const mayName = quota > 0 && mayShow(p);
+      if (mayName) spent = named.size;
+      if (mayName) named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));
+      else lockedReal.push(p);
+    });
+    void spent;
+    return { facetsAll, named_, lockedReal, sampled };
+  }
+
   route('GET', '/api/catalogue', async (req, res) => {
     /* 3 Nov (pen test): the same door /api/find/unis shuts — a crawler or a
        script gets nothing from the catalogue sample either. The page's own
@@ -4713,7 +4766,6 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
        the search box names exactly the universities this response names. */
     const ent = entitlement(req);
     const quota = ent.quota;
-    let spent = 0;
     /* Round 175: a fresh salt for the locked rows' university keys. */
     const nonce = OPAQUE_NONCE();
 
@@ -4758,42 +4810,25 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
        the whole public set as before. The page asks /api/find/match for the
        rows that fit its boxes as they change, so nothing is out of reach;
        sending all 60,000 UK and USA rows to every visitor is what this stops. */
-    const SAMPLE_PER_COUNTRY = 300;
-    const facetsAll = onSiteFacets();
-    const seenIds = new Set();
-    const all = [];
-    const take = list => list.forEach(p => { const k = String(p.id); if (seenIds.has(k)) return; seenIds.add(k); all.push(p); });
-    take(candidatesFor({}, { publicOnly: true, limit: 20000 }).rows);
-    let sampled = false;
-    (facetsAll.country || []).forEach(code => {
-      const got = candidatesFor({ country: code }, { privateOnly: true, limit: SAMPLE_PER_COUNTRY });
-      if (got.more) sampled = true;
-      take(got.rows);
-    });
-    /* In the order the catalogue always came (rowsOnSite: by university),
-       so anything that takes "the first" of a kind still gets the same one. */
-    all.sort((a, b) => (a.university < b.university ? -1 : a.university > b.university ? 1 : 0));
-    const named_ = [], lockedReal = [];
-    all.forEach(p => {
-      /* 10 Oct: the tags the home page's tag search narrows on — the
-         office's where imported, derived from the row otherwise. A locked
-         row carries them too, less the ones that would name it. */
-      /* Round 178 (owner, 30 Oct): an agent-portal fee is indicative — the
-         office sees it, flagged; a visitor or a student gets the row with
-         no fee (UNIS.publicFee: totalInr 0, feeHidden, no band). */
-      if (ent.staff) return named_.push(Object.assign({}, p, { tags: TAGS.tagsOf(p) }));
-      if (!p.isPublic) return named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));   // never gated
-      if (gate === 'open') return named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));
-      if (gate === 'names') {
-        /* The name, and enough to place it, but not what it costs. */
-        return named_.push(Object.assign({}, UNIS.publicFee(p), { totalInr: 0, freeTuition: false, feeHidden: true, tags: TAGS.tagsOf(p) }));
-      }
-      const mayName = quota > 0 && mayShow(p);
-      if (mayName) spent = named.size;
-      if (mayName) named_.push(Object.assign({}, UNIS.publicFee(p), { tags: TAGS.tagsOf(p) }));
-      else lockedReal.push(p);
-    });
-    void spent;
+    /* 3 Nov (load test, go-live): everything from here to the capped
+       placeholders depends only on the catalogue and on what this viewer may
+       name — not on the request — yet it was rebuilt for every call: the
+       public set plus 300 rows a destination shaped and tagged, 0.4 s of CPU
+       per visit of the home page (which asks twice). Fifty concurrent
+       visitors was the ceiling. Kept two minutes per viewer entitlement, as
+       /api/find/match keeps its answers (patch 182); every visitor shares one
+       line, a student with a package has their own. */
+    const catKey = (typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0) + '|' + ent.gate + '|' + [...ent.named].sort().join(',') + '|' + (ent.staff ? 's' : '');
+    let built = catalogueCache.get(catKey);
+    if (!built || Date.now() - built.at > MATCH_TTL_MS) {
+      built = buildCatalogue(ent, gate, quota, mayShow);
+      built.at = Date.now();
+      catalogueCache.delete(catKey);
+      catalogueCache.set(catKey, built);
+      while (catalogueCache.size > 50) catalogueCache.delete(catalogueCache.keys().next().value);
+    }
+    const { facetsAll, named_, lockedReal } = built;
+    let sampled = built.sampled;
     /*
      * Round 176 (owner, go-live): "Students should not know how many
      * universities are in the filter at the back end — 30 or 40 — as we only
@@ -4842,8 +4877,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       /* Explicitly listed, so the page removes exactly what was switched off and
          nothing else. Filtering by "not in this list" would delete every row the
          database has never heard of. */
-      inactive: (typeof bakedIds === 'function' ? bakedIds() : db.programmes(true).map(r => r.id))
-        .filter(id => { const r = db.programme(id); return r && (!r.active || r.search_only); }),
+      inactive: inactiveBaked(),
       /* Round 176: no `unlockedCount` — no number about the public set
          travels to a student or a visitor. The named rows ARE the answer. */
     });
@@ -4911,6 +4945,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return list.filter(p => picked.has(p));
   }
   const matchCache = new Map();
+  const shapedCache = new Map();   /* 3 Nov: shaped candidates per search (see the match route) */
   const MATCH_CACHE_MAX = 20, MATCH_TTL_MS = 2 * 60 * 1000;
   route('GET', '/api/find/match', async (req, res) => {
     if (floodedBy(clientIp(req), 'find-locked', FIND_BUDGET, FIND_WINDOW_MS)) return slowDown(res);
@@ -4934,8 +4969,25 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const now = Date.now();
     let hit = matchCache.get(key);
     if (!hit || hit.v !== v || now - hit.at > MATCH_TTL_MS) {
-      const cand = candidatesFor(f);
-      const shaped = cand.rows.filter(p => !p.isPublic || ent.mayName(p)).map(p => namedShape(ent, p));
+      /* 3 Nov (load test, go-live): the candidates and their shaping are
+         the same for every CGPA, score and intake a visitor tries on one
+         search (patch 208's definition: destination, level, subject, words,
+         tags) — and they were 0.5-0.8 s of the 1 s a miss cost at 4,000
+         rows, while the answer cache above keyed on every box, so each
+         CGPA was a miss. The shaped candidates are kept two minutes per
+         search and viewer entitlement (twelve searches, ~3 MB each); only
+         FIND.run (0.1-0.3 s) runs per request. */
+      const sKey = v + '|' + ent.gate + '|' + [...ent.named].sort().join(',') + '|' + (ent.staff ? 's' : '') + '|'
+        + [f.country, f.level, f.field, f.apply, f.sort, f.q, f.tags].map(x => String(x || '').toLowerCase()).join('|');
+      let sc = shapedCache.get(sKey);
+      if (!sc || now - sc.at > MATCH_TTL_MS) {
+        const cand = candidatesFor(f);
+        sc = { at: now, cand, shaped: cand.rows.filter(p => !p.isPublic || ent.mayName(p)).map(p => namedShape(ent, p)) };
+        shapedCache.delete(sKey);
+        shapedCache.set(sKey, sc);
+        while (shapedCache.size > 12) shapedCache.delete(shapedCache.keys().next().value);
+      }
+      const cand = sc.cand, shaped = sc.shaped;
       const uniKeys = f.q ? namedUniKeys(ent, f.q) : null;
       const R = FIND.run(shaped, f, REQS, { countries: countryMap(), uniKeys, noFacets: true });
       const strip = p => { const o = {}; Object.keys(p).forEach(k => { if (k[0] !== '_') o[k] = p[k]; }); return o; };
