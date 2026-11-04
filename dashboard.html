@@ -1425,12 +1425,19 @@ function __dashOrders(s) {
      this list is for a student with several. */
   if (orders.length < 2) return;
   const main = document.querySelector('.p-main') || document.body;
-  const host = main.querySelector('.todo-card')
+  /* Patch 261: under "What you have bought" (the top of the screen since
+     patch 260), not above it — this list is the schedule and the receipts. */
+  const host = main.querySelector('#boughtSec') || main.querySelector('.todo-card')
     || main.querySelector('.p-top') || main.firstElementChild;
   if (!host) return;
   const esc3 = x => String(x == null ? '' : x)
     .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const money = p => '₹' + Number((p || 0) / 100).toLocaleString('en-IN');
+  /* Patch 261: what the gateway charged, when that was not rupees. */
+  const SYM = {EUR:'€',USD:'$',GBP:'£',CHF:'CHF ',AED:'AED ',SGD:'S$',AUD:'A$',CAD:'C$'};
+  const charged = o => o.charged && o.charged.currency
+    ? (SYM[o.charged.currency] || o.charged.currency + ' ') + Number(o.charged.amountMinor / Math.pow(10, o.charged.exponent == null ? 2 : o.charged.exponent)).toLocaleString('en-IN')
+    : money(o.grossPaise);
   const when = iso => {
     const d = new Date(iso);
     return isNaN(d) ? '' : d.toLocaleDateString('en-IN',
@@ -1472,7 +1479,7 @@ function __dashOrders(s) {
     + orders.map(o =>
         '<li><span class="ord-l"><b>' + esc3(o.package || 'Order') + '</b>'
         + '<span>' + esc3(o.reference) + ' · ' + when(o.paidAt) + '</span></span>'
-        + '<span class="ord-r"><b>' + money(o.grossPaise) + '</b>'
+        + '<span class="ord-r"><b>' + charged(o) + '</b>'
         + '<span class="ord-st">' + esc3(WORD[o.status] || o.status || '') + '</span></span>'
         + '<a class="ord-a" href="/acceptance/' + encodeURIComponent(o.reference) + '">'
         + 'What I accepted</a>'
@@ -2238,6 +2245,16 @@ __dashBoot(function () { __dashMain();
   };
   var rupees = new Intl.NumberFormat('en-IN');
   var money = function (paise) { return '₹' + rupees.format(Math.round(paise / 100)); };
+  /* Patch 261: a Stripe order in the currency it was charged in (€2), and
+     its items in proportion, not the rupee price re-shown as ₹118. */
+  var SYM = {EUR:'€',USD:'$',GBP:'£',CHF:'CHF ',AED:'AED ',SGD:'S$',AUD:'A$',CAD:'C$'};
+  var charged = function (o, paise) {
+    var c = o.charged;
+    if (!c || !c.currency) return money(paise);
+    var units = c.amountMinor / Math.pow(10, c.exponent == null ? 2 : c.exponent);
+    var share = o.grossPaise ? paise / o.grossPaise : 1;
+    return (SYM[c.currency] || c.currency + ' ') + rupees.format(Math.round(units * share * 100) / 100);
+  };
   var day = function (iso) {
     return new Date(iso || Date.now()).toLocaleDateString('en-GB',
       { day: 'numeric', month: 'short', year: 'numeric' });
@@ -2261,7 +2278,7 @@ __dashBoot(function () { __dashMain();
           esc(o.package) + '</b>' +
         '<span class="pill">' + esc(o.reference) + '</span>' +
         '<span data-no-fx style="margin-left:auto;font:700 14px/1.4 var(--sans);color:var(--navy-900)">' +
-          money(o.grossPaise) + '</span>' +
+          charged(o, o.grossPaise) + '</span>' +
       '</div>' +
       '<span style="display:block;margin-top:3px;font-size:12.2px;color:var(--muted)">' + state + '</span>' +
       (items.length
@@ -2269,7 +2286,7 @@ __dashBoot(function () { __dashMain();
             return '<li><span style="flex:1">' + esc(it.name) +
               (it.level ? ' <span style="color:var(--muted)">(' + esc(it.level) + ')</span>' : '') +
               '</span><span class="st none" style="text-transform:none;letter-spacing:0">' +
-              money(it.paise) + '</span></li>';
+              charged(o, it.paise) + '</span></li>';
           }).join('') + '</ul>'
         : '') +
       '</div>';

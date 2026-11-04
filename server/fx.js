@@ -76,8 +76,18 @@ const SNAPSHOT = {
   YER: 0.403271, ZAR: 5.7049, ZMW: 4.6879
 };
 
-/* The cushion for the card network's conversion spread. */
-const CUSHION = 1.02;
+/* The cushion for the card network's conversion spread (2%) plus, since
+   patch 261 (owner, 4 Nov: "increase the prices for other countries 5% more"),
+   a 5% margin on every price charged outside India — Stripe's fee and the
+   conversion a foreign card adds. Together, a buyer abroad pays 7% over the
+   rupee price. ABROAD_MARKUP_PCT on the server changes the 5. The rupee
+   price in India is untouched; this touches only the rate /api/pay/config
+   serves, so the page and the charge agree. */
+const MARKUP = (() => {
+  const n = Number(process.env.ABROAD_MARKUP_PCT);
+  return Number.isFinite(n) && n >= 0 && n <= 50 ? n : 5;
+})();
+const CUSHION = Number((1.02 * (1 + MARKUP / 100)).toFixed(4));
 /* A day-old rate is fine; a week-old one is not trusted over the snapshot's
    order of magnitude check below, but it is still better than nothing. */
 const REFRESH_MS = 12 * 60 * 60 * 1000;

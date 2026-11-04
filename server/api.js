@@ -1022,6 +1022,14 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return (proof && proof.at) || '';
   }
 
+  function chargedOf(head) {
+    try {
+      const g = head.gateway_order_id && db.gatewayOrder ? db.gatewayOrder(head.gateway_order_id) : null;
+      if (g && g.currency && g.currency !== 'INR') return { currency: g.currency, amountMinor: Number(g.amount_minor), exponent: FX.exponent(g.currency) };
+      /* Patch 237: no gateway yet — the currency recorded when it was ordered. */
+      return head.currency && head.currency !== 'INR' && head.local_minor ? { currency: head.currency, amountMinor: Number(head.local_minor), exponent: FX.exponent(head.currency) } : null;
+    } catch (e) { return null; }
+  }
   function stateFor(s) {
     const orders = db.ordersFor(s.id);
     /* A SLOT HOLDS A SET, and still answers as one thing.
@@ -1264,10 +1272,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
           status: head.status, placedAt: head.created_at,
           paidAt: UNLOCKS.has(head.status) ? (head.paid_at || head.created_at) : '',
           taxMode: head.tax_mode || '',
-          charged: (() => { try { const g = head.gateway_order_id && db.gatewayOrder ? db.gatewayOrder(head.gateway_order_id) : null;
-            if (g && g.currency && g.currency !== 'INR') return { currency: g.currency, amountMinor: Number(g.amount_minor), exponent: FX.exponent(g.currency) };
-            /* Patch 237: no gateway yet — the currency recorded when it was ordered. */
-            return head.currency && head.currency !== 'INR' && head.local_minor ? { currency: head.currency, amountMinor: Number(head.local_minor), exponent: FX.exponent(head.currency) } : null; } catch (e) { return null; } })(),
+          charged: chargedOf(head),
           addOns: main.addOns,
         } : null;
       })(),
@@ -1284,6 +1289,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
            debt rather than a plan. */
         plan: (() => { try { return o.plan ? JSON.parse(o.plan) : null; } catch (e) { return null; } })(),
         paidPaise: o.paid_paise || 0,
+        /* Patch 261: the currency it was charged in, on every order. */
+        charged: chargedOf(o),
       })),
     };
   }
