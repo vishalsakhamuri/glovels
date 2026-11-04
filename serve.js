@@ -298,7 +298,25 @@ const guard = require('./server/guard.js').open({ db, log: console,
    arrives, and a second one when nobody has called (server/leadwatch.js). */
 const leadwatch = require('./server/leadwatch.js').open({ db, live, push, mail,
   emails: require('./server/emails.js'), siteUrl: SITE_URL, log: console });
-const api = makeApi({ leadwatch, guard, marketing, db, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
+/* patch 265: the website in nine languages — the page pass (server/i18n.js)
+   and the translator that fills its dictionary (server/translate.js). */
+const I18N = require('./server/i18n.js');
+const TRANSLATOR = require('./server/translate.js').open({ db, siteUrl: SITE_URL, log: console });
+/* A student's emails in their language: the subject, the text and the HTML
+   go through the same dictionary as the pages, keyed on the account's
+   language (set from the pages they read). */
+mail.localize = ({ to, subject, text, html }) => {
+  let lang = '';
+  try { const st = db.studentByEmail(String(to || '').replace(/^.*<|>.*$/g, '')); lang = st && st.role === 'student' ? String(st.lang || '') : ''; } catch (e) { lang = ''; }
+  if (!lang || lang === 'en' || !TRANSLATOR.enabledLangs().includes(lang)) return null;
+  const lookup = TRANSLATOR.lookupFor(lang);
+  const missing = [];
+  const out = { subject: I18N.translateString(subject, lookup, missing), text: I18N.translateText(text, lookup, missing) };
+  if (html) { const r = I18N.translatePage(String(html), lang, { lookup }); out.html = r.html.replace(/<!--t-->/g, ''); missing.push(...r.missing); }
+  if (missing.length) TRANSLATOR.learn(missing, { page: 'email', kind: 'email' });
+  return out;
+};
+const api = makeApi({ leadwatch, guard, marketing, db, i18n: I18N, translator: TRANSLATOR, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
   /* Round 176: the go-live readiness report, for /api/staff/golive. */
@@ -519,6 +537,41 @@ function withGuard(html) {
 /* Patch 219: the website chat box is on (owner, 1 Nov). SITE_CHAT=off puts
    the visitor's button away again without touching a page. */
 const SITE_CHAT_OFF = String(process.env.SITE_CHAT || '').toLowerCase() === 'off';
+/*
+ * Patch 265: a finished page, in the language the address asked for.
+ *
+ * English pages get the hreflang links that tell Google where the other
+ * languages are (public, indexable pages only). Every other language gets
+ * the dictionary pass (server/i18n.js), the units the dictionary lacks are
+ * queued for the translator, the page's units are recorded for the script
+ * in the browser, and the head and links are finished under the prefix.
+ */
+function localize(html, req, pathname, isPublic) {
+  const lang = (req && req.__lang) || 'en';
+  const langs = TRANSLATOR.enabledLangs();
+  const indexable = isPublic && CFG.allowIndexing && /<meta name="robots" content="index/i.test(html);
+  if (lang === 'en') {
+    if (langs.length < 2 || !indexable) return { html };
+    return { html: I18N.finishPage(html, 'en', { pathname, siteUrl: CFG.siteUrl, indexable, langs }) };
+  }
+  const page = I18N.pageKeyOf(pathname);
+  const r = I18N.translatePage(html, lang, { lookup: TRANSLATOR.lookupFor(lang), skip: req.__i18nSkip || [] });
+  if (r.missing.length) { try { TRANSLATOR.learn(r.missing, { page, instance: pathname, kind: 'html' }); } catch (e) { /* the page still serves */ } }
+  try { TRANSLATOR.pageUnits(page, r.seen); } catch (e) { /* likewise */ }
+  const out = I18N.finishPage(r.html, lang, { pathname, siteUrl: CFG.siteUrl, indexable, langs, pageKey: page, dict: TRANSLATOR.pageDict(lang, page) });
+  return { html: out, extra: { 'Content-Language': lang, 'Set-Cookie': 'glv_lang=' + lang + '; Path=/; Max-Age=31536000; SameSite=Lax' } };
+}
+
+/* Two Set-Cookie headers are two headers, not one overwriting the other. */
+function mergeExtra(extra, more) {
+  const out = Object.assign({}, extra || {});
+  Object.keys(more || {}).forEach(k => {
+    if (k === 'Set-Cookie' && out[k]) out[k] = [].concat(out[k], more[k]);
+    else out[k] = more[k];
+  });
+  return out;
+}
+
 function send(res, code, body, type, extra) {
   if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = withGuard(body);
   if (SITE_CHAT_OFF && code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = body.replace('</head>', '<script>window.__glvSiteChat=false</script></head>');
@@ -538,11 +591,17 @@ function send(res, code, body, type, extra) {
     }
     /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
     if (typeof body === 'string') body = withMobileKit(globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)))), u.pathname);
+    if (typeof body === 'string') { const l = localize(body, res.req, u.pathname, true); body = l.html; if (l.extra) extra = mergeExtra(extra, l.extra); }
   } else if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || '')) && res.req && res.req.method === 'GET') {
     /* Patch 195: a student's portal page — money in their currency too. */
     const pth = String(res.req.url || '').split('?')[0];
-    if (STUDENT_PAGES.test(pth)) body = withMobileKit(body, pth);
+    if (STUDENT_PAGES.test(pth)) { body = withMobileKit(body, pth); const l = localize(body, res.req, pth, false); body = l.html; if (l.extra) extra = mergeExtra(extra, l.extra); }
+    else if (/^\/(login|acceptance)(\/|$|\.)/.test(pth)) { const l = localize(body, res.req, pth, false); body = l.html; if (l.extra) extra = mergeExtra(extra, l.extra); }
     else body = staffGuard(body, pth);
+  }
+  /* patch 265: a redirect under /zh/ stays under /zh/. */
+  if (res.req && res.req.__lang && extra && extra.Location && typeof extra.Location === 'string' && extra.Location.charAt(0) === '/') {
+    extra = Object.assign({}, extra, { Location: I18N.prefixHref(res.req.__lang, extra.Location) });
   }
   const headers = {
     'Content-Type': type || 'text/plain; charset=utf-8',
@@ -657,6 +716,7 @@ function robotsTxt() {
     'Disallow: /blog-admin',
     'Disallow: /leads',
     'Disallow: /leads-command',
+    'Disallow: /languages',
     'Disallow: /acceptance/',
     'Disallow: /login',
     'Disallow: /app/',
@@ -794,7 +854,7 @@ function appleSiteAssociation() {
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages', 'services',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
   'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops', 'marketing',
-  'leads-command']);
+  'leads-command', 'languages']);
 
 /*
  * Round 178 (A): the day a page's WORDS last changed, for <lastmod>.
@@ -965,6 +1025,17 @@ function sitemapXml(part, partNo) {
      once per catalogue version, not on every sitemap request. */
   const guideAll = sitemapGuideEntries();
   guideAll.guides.forEach(e => { pages.push(e.path); if (e.lastmod) LM.set(e.path, day(e.lastmod)); });
+  /* patch 265: the same pages in every language the office has switched on —
+     the written pages, the blog and the posts, under /zh/, /ar/ … The
+     university and programme files are English-addressed only; their
+     translated twins are reached through the hreflang links on each page. */
+  {
+    const langs = TRANSLATOR.enabledLangs().filter(l => l !== 'en');
+    if (langs.length) {
+      const basePages = pages.filter(p => !p.includes('?') && !p.startsWith('university/'));
+      basePages.forEach(p => langs.forEach(l => { const lp = l + '/' + p; pages.push(lp); if (LM.has(p)) LM.set(lp, LM.get(p)); }));
+    }
+  }
   const progs = guideAll.programmes;
   const lmOf = p => LM.get(p) || (p.startsWith('university/') ?day(uniLm.get(p.slice(11))) : '');
   const urlset = list => '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1172,7 +1243,21 @@ function displayAuthor(a) {
   } catch (e) { /* no staff list: the team */ }
   return 'Glovels Editorial Team';
 }
-function postPage(post, isDraft) {
+/* patch 265: a post as translated whole (server/translate.js), when the
+   translation is for the English the post has now. Otherwise the English. */
+function postInLang(post, lang) {
+  if (!post || !lang || lang === 'en' || !db.i18nReady) return { post, translated: false };
+  const tr = db.postI18n(post.id, lang);
+  if (!tr || !['checked', 'machine', 'edited'].includes(tr.status) || !tr.title || !tr.body) return { post, translated: false };
+  /* The list reads a 900-character head of the body; the whole post is
+     compared on its page. Either way the English must be the one the
+     translation was made from. */
+  if (post.body && String(post.body).length > 900 && TRANSLATOR.postSrc(post) !== tr.src_hash) return { post, translated: false };
+  return { post: Object.assign({}, post, { title: tr.title, excerpt: tr.excerpt || post.excerpt, meta_title: tr.meta_title || '', meta_desc: tr.meta_desc || '', body: tr.body }), translated: true };
+}
+const OFF = '<!--i18n:off-->', ON = '<!--i18n:on-->';
+
+function postPage(post, isDraft, lang) {
   const t = templates();
   if (!t) return null;
   const url_ = absolute('/post/' + post.slug);
@@ -1217,9 +1302,9 @@ function postPage(post, isDraft) {
   const related = wanted.map(s => live.get(s)).filter(Boolean);
   const relatedBlock = related.length
     ? '<div class="postfoot"><h2>Read next</h2><ul class="related">'
-      + related.map(p => '<li><a href="' + esc(p.slug) + '">'
-        + '<b>' + esc(p.title) + '</b>'
-        + '<span>' + esc(PROSE.summarise(p.excerpt || p.body, 105)) + '</span>'
+      + related.map(p => postInLang(p, lang).post).map(p => '<li><a href="' + esc(p.slug) + '">'
+        + '<b>' + OFF + esc(p.title) + ON + '</b>'
+        + '<span>' + OFF + esc(PROSE.summarise(p.excerpt || p.body, 105)) + ON + '</span>'
         + '</a></li>').join('')
       + '</ul></div>'
     : '';
@@ -1234,7 +1319,7 @@ function postPage(post, isDraft) {
 
   const body =
       byline
-    + (post.excerpt ? '<p class="lead">' + esc(post.excerpt) + '</p>' : '')
+    + (post.excerpt ? '<p class="lead">' + OFF + esc(post.excerpt) + ON + '</p>' : '')
     + coverBlock
     + (isDraft
         ? '<div style="margin:0 0 18px;padding:12px 15px;border-radius:11px;'
@@ -1242,7 +1327,7 @@ function postPage(post, isDraft) {
           + 'font:600 13px/1.6 system-ui,sans-serif">This is a draft. It is not on the '
           + 'site, it is not in the sitemap, and search engines are told to skip it.</div>'
         : '')
-    + PROSE.render(post.body)
+    + OFF + PROSE.render(post.body) + ON
     + relatedBlock;
 
   return fill(t.post, Object.assign(metaHoles({
@@ -1266,7 +1351,7 @@ function postPage(post, isDraft) {
       keywords: post.keywords || undefined,
     },
   }), {
-    H1: esc(post.title),
+    H1: OFF + esc(post.title) + ON,
     DATELINE: esc(shownDate(published))
       + ' &middot; ' + (post.read_mins || 1) + ' min read'
       + (post.author ? ' &middot; ' + esc(post.author) : ''),
@@ -1313,7 +1398,7 @@ function blogList(pageNo) {
     pages: Math.max(1, Math.ceil(pg.total / pg.per)) });
 }
 
-function blogIndexPage(posts) {
+function blogIndexPage(posts, lang) {
   const t = templates();
   if (!t) return null;
   const pageNo = posts.page || 1, pages = posts.pages || 1;
@@ -1329,7 +1414,12 @@ function blogIndexPage(posts) {
       + (pageNo < pages ? '<a href="' + pageUrl(pageNo + 1) + '" rel="next">Older posts &rarr;</a>' : '<span></span>')
       + '</nav>'
     : '';
-  const cards = posts.map(p =>
+  /* patch 265: a live post is translated whole (postInLang), so its title
+     and excerpt are not lines for the dictionary; the handful of old pages
+     still serving from disk are not live posts and are translated line by
+     line like any page. */
+  const whole = p => p.status === 'published';
+  const cards = posts.map(p => Object.assign(postInLang(p, lang).post, { whole: whole(p) })).map(p =>
     '<a class="postcard" href="post/' + esc(p.slug) + '">'
     + (PROSE.safeImg(p.cover || '')
         ? '<img class="thumb" src="' + esc(p.cover) + '" alt="" loading="lazy" decoding="async">'
@@ -1337,8 +1427,8 @@ function blogIndexPage(posts) {
     + '<div class="postmeta">' + esc(shownDate(p.published_at || p.created_at))
       + ' &middot; ' + (p.read_mins || 1) + ' min'
       + (p.tag ? ' &middot; ' + esc(p.tag) : '') + '</div>'
-    + '<h3>' + esc(p.title) + '</h3>'
-    + '<p>' + esc(p.excerpt || PROSE.summarise(p.body)) + '</p></a>').join('');
+    + '<h3>' + (p.whole ? OFF : '') + esc(p.title) + (p.whole ? ON : '') + '</h3>'
+    + '<p>' + (p.whole ? OFF : '') + esc(p.excerpt || PROSE.summarise(p.body)) + (p.whole ? ON : '') + '</p></a>').join('');
 
   return fill(t.index, Object.assign(metaHoles({
     title: 'Blog — study-abroad guides for Indian students' + (pageNo > 1 ? ' (page ' + pageNo + ')' : ''),
@@ -3159,7 +3249,7 @@ function withMobileKit(html, pathname) {
   if (html.indexOf('<header class="site"') < 0) {
     if (STUDENT_PAGES.test(String(pathname || '')) && html.indexOf('<script src="/glovels-pay.js') < 0) {
       const end = html.lastIndexOf('</body>');
-      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=233" defer></script>\n' + html.slice(end);
+      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=265" defer></script>\n' + html.slice(end);
     }
     return html;
   }
@@ -3171,7 +3261,7 @@ function withMobileKit(html, pathname) {
   const at = html.lastIndexOf('</body>');
   /* Patch 194: the currency script on every public page, so every rupee
      figure is shown in the visitor's own money (it also runs the checkout). */
-  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=233" defer></script>';
+  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=265" defer></script>';
   return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + pay + '\n' + html.slice(at);
 }
 
@@ -3534,6 +3624,28 @@ async function handleRequest(req, res) {
   const canon = canonicalRedirect(req);
   if (canon) return send(res, 301, '', 'text/html', { Location: canon });
 
+  /* patch 265: /zh/…, /ar/… — the same page in another language. The prefix
+     comes off here and the request is answered exactly as the English one
+     is; send() translates the finished page on its way out. The office's
+     screens, the API and the files never take a prefix: they go back to the
+     plain address. A language the office has switched off goes to English. */
+  {
+    const lm = I18N.PREFIX_RE.exec(pathname);
+    if (lm) {
+      const lang = lm[1];
+      const rest = pathname.slice(lm[0].length) || '/';
+      const q = query ? '?' + query : '';
+      if (!TRANSLATOR.enabledLangs().includes(lang)) return send(res, 302, '', 'text/html', { Location: rest + q });
+      /* The home of a language is /zh/ — with the slash, so the relative
+         links of the written pages resolve under the prefix. */
+      if (rest === '/' && pathname.length === lm[0].length) return send(res, 301, '', 'text/html', { Location: '/' + lang + '/' + q });
+      if (rest !== '/' && !I18N.prefixHref(lang, rest).startsWith('/' + lang + '/')) return send(res, 302, '', 'text/html', { Location: rest + q });
+      req.__lang = lang;
+      req.url = rest + q;
+      pathname = rest;
+    }
+  }
+
   if (pathname === '/find-university' || pathname === '/find-university/' || pathname === '/find-university.html') {
     if (pathname !== '/find-university') return send(res, 301, '', 'text/html', { Location: '/find-university' + (query ? '?' + query : '') });
     /* 3 Nov (live scale): the page runs the finder over 4,000 rows for the
@@ -3557,6 +3669,7 @@ async function handleRequest(req, res) {
       return send(res, 200, withSignedInNav(html), TYPES['.html'], { 'Cache-Control': 'no-cache' });
     }
   }
+  if (pathname === '/js/i18n.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'i18n-client.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   const findJs = /^\/js\/(find\.js|reqs\.js|find-page\.js|tags\.js)$/.exec(pathname);
   if (findJs) return send(res, 200, FIND_SRC[findJs[1]](), TYPES['.js'], { 'Cache-Control': 'no-cache' });
 
@@ -3855,7 +3968,7 @@ async function handleRequest(req, res) {
   if (pathname === '/blog' || pathname === '/blog.html') {
     const list = blogList(Number(url.parse(req.url, true).query.page) || 1);
     if (list.page > list.pages) return notFound(res);
-    const html = blogIndexPage(list);
+    const html = blogIndexPage(list, req.__lang);
     if (html) return send(res, 200, externalizeScripts(html, 'blog'), TYPES['.html']);
   }
   const postUrl = /^\/post\/([a-z0-9-]{1,90})(?:\.html)?$/.exec(pathname);
@@ -3879,7 +3992,14 @@ async function handleRequest(req, res) {
          than an approximation of it, and to nobody else. */
       const who = post.status === 'published' ? null : whoIsIt(req);
       if (post.status === 'published' || (who && who.role !== 'student')) {
-        const html = postPage(post, post.status !== 'published');
+        /* patch 265: the post translated whole, under /zh/post/…; its title
+           and description are then not units for the dictionary pass. */
+        let shown = post;
+        if (req.__lang) {
+          const t = postInLang(post, req.__lang);
+          if (t.translated) { shown = t.post; req.__i18nSkip = [shown.meta_title || shown.title, shown.meta_desc || shown.excerpt || '', headTitle(shown.meta_title || shown.title), clipWords(shown.meta_title || shown.title, 65), clipWords(shown.meta_desc || shown.excerpt || PROSE.summarise(shown.body), 160), shown.title]; }
+        }
+        const html = postPage(shown, post.status !== 'published', req.__lang);
         if (html) return send(res, 200, post.status === 'published' ? externalizeScripts(html, 'post__' + post.slug) : html, TYPES['.html']);
       }
       if (post.status !== 'published') {

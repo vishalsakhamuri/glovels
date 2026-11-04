@@ -1023,6 +1023,50 @@ function sqliteDriver(file) {
       source       TEXT NOT NULL DEFAULT 'manual',
       created_at   TEXT NOT NULL
     )`,
+   /* patch 265: the website in nine languages (server/i18n.js). The English
+      of every unit once; a translation of it per language; which page
+      family each unit was seen on; and a post translated whole. */
+   `CREATE TABLE IF NOT EXISTS i18n_src (
+      hash        TEXT PRIMARY KEY,
+      src         TEXT NOT NULL,
+      kind        TEXT NOT NULL DEFAULT 'html',
+      page        TEXT NOT NULL DEFAULT '',
+      skip        INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT NOT NULL
+    )`,
+   `CREATE TABLE IF NOT EXISTS i18n_units (
+      hash        TEXT NOT NULL,
+      lang        TEXT NOT NULL,
+      text        TEXT NOT NULL DEFAULT '',
+      status      TEXT NOT NULL DEFAULT 'pending',
+      note        TEXT NOT NULL DEFAULT '',
+      updated_at  TEXT NOT NULL DEFAULT '',
+      updated_by  TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (hash, lang)
+    )`,
+   'CREATE INDEX IF NOT EXISTS idx_i18n_units_lang ON i18n_units(lang, status)',
+   `CREATE TABLE IF NOT EXISTS i18n_pages (
+      page        TEXT NOT NULL,
+      hash        TEXT NOT NULL,
+      js          INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (page, hash)
+    )`,
+   `CREATE TABLE IF NOT EXISTS post_i18n (
+      post_id     INTEGER NOT NULL,
+      lang        TEXT NOT NULL,
+      title       TEXT NOT NULL DEFAULT '',
+      excerpt     TEXT NOT NULL DEFAULT '',
+      meta_title  TEXT NOT NULL DEFAULT '',
+      meta_desc   TEXT NOT NULL DEFAULT '',
+      body        TEXT NOT NULL DEFAULT '',
+      status      TEXT NOT NULL DEFAULT 'pending',
+      src_hash    TEXT NOT NULL DEFAULT '',
+      note        TEXT NOT NULL DEFAULT '',
+      updated_at  TEXT NOT NULL DEFAULT '',
+      updated_by  TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (post_id, lang)
+    )`,
+   "ALTER TABLE students ADD COLUMN lang TEXT NOT NULL DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -1076,7 +1120,8 @@ function jsonDriver(file) {
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
-    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings', 'gateway_orders'];
+    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings', 'gateway_orders',
+    'i18n_src', 'i18n_units', 'i18n_pages', 'post_i18n'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -3958,6 +4003,107 @@ function open(dir) {
     allStudentsLite: () => db.all("SELECT id, email, created_at FROM students WHERE role = ?", 'student'),
     allPaymentsLite: () => db.all('SELECT * FROM payments WHERE id > ? ORDER BY id', 0),
 
+    /* ---- the website in nine languages (patch 265, server/i18n.js) ---- */
+    /* The catalogue's own words — never translated. At 68,000 rows the
+       distinct names are a few thousand universities, a few hundred cities
+       and the programme titles; read once per catalogue version. */
+    catalogueNames() {
+      const out = [];
+      db.all('SELECT DISTINCT university AS n FROM programmes').forEach(r => out.push(r.n));
+      db.all('SELECT DISTINCT city AS n FROM programmes').forEach(r => out.push(r.n));
+      db.all('SELECT DISTINCT program AS n FROM programmes').forEach(r => out.push(r.n));
+      return out.filter(Boolean);
+    },
+    setStudentLang(id, lang) { db.run('UPDATE students SET lang = ? WHERE id = ?', String(lang || ''), Number(id)); },
+    i18nSrc: hash => db.one('SELECT * FROM i18n_src WHERE hash = ?', String(hash)),
+    /* A unit seen for the first time: its English, and a pending row per
+       language. Already known: nothing changes. */
+    i18nLearn(units, langs, page, kind) {
+      const t = now();
+      let added = 0;
+      for (const u of units) {
+        if (db.one('SELECT hash FROM i18n_src WHERE hash = ?', u.hash)) continue;
+        db.run('INSERT INTO i18n_src (hash, src, kind, page, skip, created_at) VALUES (?, ?, ?, ?, ?, ?)', u.hash, u.key, kind || 'html', page || '', 0, t);
+        for (const l of langs) db.run('INSERT OR IGNORE INTO i18n_units (hash, lang, text, status, updated_at) VALUES (?, ?, ?, ?, ?)', u.hash, l, '', 'pending', t);
+        added++;
+      }
+      return added;
+    },
+    /* A language switched on later: every known unit gets its pending row. */
+    i18nEnsureLang(lang) {
+      const t = now();
+      db.all('SELECT hash FROM i18n_src WHERE skip = ?', 0).forEach(r =>
+        db.run('INSERT OR IGNORE INTO i18n_units (hash, lang, text, status, updated_at) VALUES (?, ?, ?, ?, ?)', r.hash, lang, '', 'pending', t));
+    },
+    /* `js`: a script in the browser drew this unit on this page family, so
+       it belongs in the dictionary the page carries for that script. */
+    i18nPageSeen(page, hashes, js) {
+      hashes.forEach(h => {
+        if (js) db.run('INSERT INTO i18n_pages (page, hash, js) VALUES (?, ?, 1) ON CONFLICT(page, hash) DO UPDATE SET js = 1', page, h);
+        else db.run('INSERT OR IGNORE INTO i18n_pages (page, hash, js) VALUES (?, ?, 0)', page, h);
+      });
+    },
+    /* The dictionary for one language: every usable translation. */
+    i18nDict: lang => db.all('SELECT hash, text FROM i18n_units WHERE lang = ? AND status IN (?, ?, ?)', lang, 'checked', 'edited', 'machine'),
+    /* The script-drawn units of a page family, translated. */
+    i18nPageDict(lang, page) {
+      return db.all(`SELECT u.hash, u.text FROM i18n_pages p JOIN i18n_units u ON u.hash = p.hash AND u.lang = ?
+                     WHERE p.page = ? AND p.js = ? AND u.status IN (?, ?, ?)`, lang, page, 1, 'checked', 'edited', 'machine');
+    },
+    i18nPending: (lang, limit) => db.all(`SELECT u.hash, s.src, s.kind FROM i18n_units u JOIN i18n_src s ON s.hash = u.hash
+                     WHERE u.lang = ? AND u.status = ? AND s.skip = ? ORDER BY s.created_at LIMIT ?`, lang, 'pending', 0, Number(limit) || 40),
+    i18nSave(hash, lang, text, status, note, by) {
+      db.run(`INSERT INTO i18n_units (hash, lang, text, status, note, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(hash, lang) DO UPDATE SET text = excluded.text, status = excluded.status, note = excluded.note, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+        String(hash), String(lang), String(text || ''), String(status || 'pending'), String(note || ''), now(), String(by || ''));
+    },
+    i18nUnit: (hash, lang) => db.one('SELECT u.*, s.src, s.kind, s.page, s.skip FROM i18n_units u JOIN i18n_src s ON s.hash = u.hash WHERE u.hash = ? AND u.lang = ?', String(hash), String(lang)),
+    i18nSkip(hash, skip) { db.run('UPDATE i18n_src SET skip = ? WHERE hash = ?', skip ? 1 : 0, String(hash)); },
+    i18nForget(hash) {
+      db.run('DELETE FROM i18n_units WHERE hash = ?', String(hash));
+      db.run('DELETE FROM i18n_pages WHERE hash = ?', String(hash));
+      db.run('DELETE FROM i18n_src WHERE hash = ?', String(hash));
+    },
+    /* Counts per language and status, for the Languages screen. */
+    i18nCounts() {
+      const out = {};
+      db.all('SELECT lang, status, COUNT(*) AS n FROM i18n_units u JOIN i18n_src s ON s.hash = u.hash WHERE s.skip = ? GROUP BY lang, status', 0)
+        .forEach(r => { (out[r.lang] = out[r.lang] || {})[r.status] = Number(r.n); });
+      return out;
+    },
+    i18nSrcCount: () => Number((db.one('SELECT COUNT(*) AS n FROM i18n_src WHERE skip = ?', 0) || {}).n || 0),
+    /* A page of units for review. */
+    i18nList({ lang, q, status, page, per }) {
+      const where = ['u.lang = ?'], args = [String(lang)];
+      if (status) { where.push('u.status = ?'); args.push(String(status)); }
+      if (q) { where.push('(s.src LIKE ? OR u.text LIKE ?)'); args.push('%' + q + '%', '%' + q + '%'); }
+      const rows = db.all(`SELECT u.hash, u.lang, u.text, u.status, u.note, u.updated_at, u.updated_by, s.src, s.kind, s.page, s.skip, s.created_at
+                           FROM i18n_units u JOIN i18n_src s ON s.hash = u.hash WHERE ${where.join(' AND ')} ORDER BY s.created_at DESC, s.hash`, ...args);
+      const p = Math.max(1, Number(page) || 1), n = Math.max(1, Math.min(200, Number(per) || 50));
+      return { total: rows.length, page: p, per: n, rows: rows.slice((p - 1) * n, p * n) };
+    },
+    /* ---- posts translated whole ---- */
+    postI18n: (postId, lang) => db.one('SELECT * FROM post_i18n WHERE post_id = ? AND lang = ?', Number(postId), String(lang)),
+    postI18nAll: postId => db.all('SELECT * FROM post_i18n WHERE post_id = ?', Number(postId)),
+    postI18nByLang: lang => db.all('SELECT * FROM post_i18n WHERE lang = ?', String(lang)),
+    postI18nSave(postId, lang, f) {
+      db.run(`INSERT INTO post_i18n (post_id, lang, title, excerpt, meta_title, meta_desc, body, status, src_hash, note, updated_at, updated_by)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(post_id, lang) DO UPDATE SET title = excluded.title, excerpt = excluded.excerpt, meta_title = excluded.meta_title,
+                meta_desc = excluded.meta_desc, body = excluded.body, status = excluded.status, src_hash = excluded.src_hash, note = excluded.note,
+                updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+        Number(postId), String(lang), String(f.title || ''), String(f.excerpt || ''), String(f.metaTitle || ''), String(f.metaDesc || ''),
+        String(f.body || ''), String(f.status || 'pending'), String(f.srcHash || ''), String(f.note || ''), now(), String(f.by || ''));
+    },
+    postI18nDelete: postId => db.run('DELETE FROM post_i18n WHERE post_id = ?', Number(postId)),
+    postI18nCounts() {
+      const out = {};
+      db.all('SELECT lang, status, COUNT(*) AS n FROM post_i18n GROUP BY lang, status').forEach(r => { (out[r.lang] = out[r.lang] || {})[r.status] = Number(r.n); });
+      return out;
+    },
+    /* Every live post with its translations' state, for the worker and the screen. */
+    postsForI18n: () => db.all('SELECT id, slug, title, excerpt, meta_title, meta_desc, body, status, updated_at, modified_at FROM posts WHERE status = ?', 'published'),
+
     /* ---- traffic ---- */
     hit(h) {
       db.run(`INSERT INTO hits (day, ts, path, kind, source, site, campaign, medium, device, bot, visitor, country)
@@ -3974,6 +4120,18 @@ function open(dir) {
         .forEach(h => db.run('DELETE FROM hits WHERE id = ?', h.id));
     },
   };
+
+  /* patch 265: the translation tables use joins, upserts and LIKE, which the
+     JSON fallback driver does not parse. On that driver the site is English
+     only and the Languages screen says so (i18nReady). */
+  store.i18nReady = db.kind === 'sqlite';
+  if (!store.i18nReady) {
+    const empty = { i18nSrc: null, i18nLearn: 0, i18nEnsureLang: undefined, i18nPageSeen: undefined, i18nDict: [], i18nPageDict: [],
+      i18nPending: [], i18nSave: undefined, i18nUnit: null, i18nSkip: undefined, i18nForget: undefined, i18nCounts: {}, i18nSrcCount: 0,
+      i18nList: { total: 0, page: 1, per: 50, rows: [] }, postI18n: null, postI18nAll: [], postI18nByLang: [], postI18nSave: undefined,
+      postI18nDelete: undefined, postI18nCounts: {}, postsForI18n: [] };
+    Object.keys(empty).forEach(k => { store[k] = () => empty[k]; });
+  }
 
   /* The whole-catalogue counts, remembered until the catalogue changes.
      COUNT(DISTINCT uni_slug) over a million rows is seven hundred

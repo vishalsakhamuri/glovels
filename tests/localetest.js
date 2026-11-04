@@ -48,7 +48,8 @@ const login = email => new Promise(resolve => {
     check('every country is offered', (pay.countries || []).length >= 240, String((pay.countries || []).length));
     check('each with its currency', pay.currencyOf.IN === 'INR' && pay.currencyOf.DE === 'EUR' && pay.currencyOf.AL === 'ALL' && pay.currencyOf.RS === 'RSD' && pay.currencyOf.NG === 'NGN');
     check('and a country whose currency we cannot take pays in US dollars', pay.currencyOf.AR === 'USD' || pay.currencyOf.VE === 'USD');
-    check('English is the language', (pay.languages || []).map(l => l.code).join() === 'en');
+    /* patch 265: English first, and the eight languages the office switched on. */
+    check('English is the first language, with eight more', (pay.languages || []).map(l => l.code).join() === 'en,zh,ar,es,ru,fr,pt,bn,tr', (pay.languages || []).map(l => l.code).join());
 
     const b = await chromium.launch();
     const ctx = await b.newContext({ viewport: { width: 1300, height: 900 } });

@@ -175,8 +175,10 @@
       return (SYMBOL[code] || code + ' ') + String(n);
     }
   }
+  /* patch 265: names in the page's language (the browser knows them). */
+  function uiLang() { var l = (document.documentElement.getAttribute('lang') || 'en').slice(0, 2).toLowerCase(); return /^(zh|ar|es|ru|fr|pt|bn|tr)$/.test(l) ? l : 'en'; }
   function nameOf(code) {
-    try { return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || NAME[code] || code; }
+    try { return new Intl.DisplayNames([uiLang(), 'en'], { type: 'currency' }).of(code) || NAME[code] || code; }
     catch (e) { return NAME[code] || code; }
   }
 
@@ -695,7 +697,42 @@
     };
   }
   function flagOf(c) { return /^[A-Z]{2}$/.test(c || '') ? c.replace(/./g, function (ch) { return String.fromCodePoint(127397 + ch.charCodeAt(0)); }) : '\uD83C\uDF10'; }
-  function countryName(c) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } }
+  /* patch 265: the language. The page says which one it is in (<html lang>);
+     the languages the office has switched on come with the config; the
+     choice is a cookie, and choosing one opens the same page under its
+     prefix (/zh/…) — English is the plain address. */
+  var LANG_RE = /^\/(zh|ar|es|ru|fr|pt|bn|tr)(?=\/|$)/;
+  function pageLang() { var l = (document.documentElement.getAttribute('lang') || 'en').slice(0, 2).toLowerCase(); return LANG_RE.test('/' + l) ? l : 'en'; }
+  function cookieLang() { var m = /(?:^|;\s*)glv_lang=([a-z]{2})/.exec(document.cookie || ''); return m ? m[1] : ''; }
+  function langs() { return (CFG && Array.isArray(CFG.languages) && CFG.languages.length) ? CFG.languages : [{ code: 'en', name: 'English' }]; }
+  function langName(c) { var l = langs().filter(function (x) { return x.code === c; })[0]; return l ? l.name : c.toUpperCase(); }
+  /* The same page in another language. */
+  function pageIn(lang) {
+    var p = location.pathname.replace(LANG_RE, '') || '/';
+    var rest = p + location.search + location.hash;
+    if (lang === 'en') return rest;
+    if (/^\/(api|js|images|logos|flags|assets|data|og|admin|counsellor|chat|home|catalogue|blog-admin|leads|leads-command|ops|marketing|partner|languages)(\/|$|\.)/.test(p)) return rest;
+    return '/' + lang + (p === '/' ? '/' : p) + location.search + location.hash;
+  }
+  function setLang(lang) {
+    try { document.cookie = 'glv_lang=' + lang + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
+    try { localStorage.setItem('glv-lang', lang); } catch (e) {}
+  }
+  /* A visitor who chose a language once stays in it: an English address
+     opened from a bookmark, a search result or a script goes to the same
+     page in their language. Only when that language is on, and never a
+     staff screen. Choosing English in the picker is a choice too, and is
+     kept. */
+  function keepLang() {
+    var want = cookieLang(), here = pageLang();
+    if (!want || want === here || want === 'en' || here !== 'en') return;
+    if (!langs().some(function (l) { return l.code === want; })) return;
+    var to = pageIn(want);
+    if (to === location.pathname + location.search + location.hash) return;
+    try { if (sessionStorage.getItem('glv-lang-hop') === to) return; sessionStorage.setItem('glv-lang-hop', to); } catch (e) {}
+    location.replace(to);
+  }
+  function countryName(c) { try { return new Intl.DisplayNames([uiLang(), 'en'], { type: 'region' }).of(c) || c; } catch (e) { return c; } }
   function localeBar() {
     if (!CFG) return;
     var hosts = [];
@@ -746,7 +783,7 @@
     function paint() {
       var c = country(), cur = current(CFG);
       box.innerHTML = '<button type="button" class="glv-loc-btn" aria-haspopup="dialog" aria-expanded="false" data-track="locale" data-track-label="Country and currency" title="Country, currency and language">'
-        + '<span class="f" aria-hidden="true">' + flagOf(c) + '</span><span class="n">' + (inMenu && c ? countryName(c) + ' \u00b7 ' : '') + cur + ' \u00b7 EN</span><span aria-hidden="true">\u25be</span></button>';
+        + '<span class="f" aria-hidden="true">' + flagOf(c) + '</span><span class="n" translate="no">' + (inMenu && c ? countryName(c) + ' \u00b7 ' : '') + cur + ' \u00b7 ' + (langs().length > 1 ? langName(pageLang()) : 'EN') + '</span><span aria-hidden="true">\u25be</span></button>';
       box.querySelector('button').onclick = open;
     }
     /* Patch 214 (owner): "there is no option to search country or language or
@@ -755,7 +792,7 @@
       return '<label for="' + id + 'Q">' + label + '</label>'
         + '<div class="glv-pick" data-id="' + id + '"><input id="' + id + 'Q" type="search" autocomplete="off" spellcheck="false" placeholder="' + ph + '" title="' + ph + '" role="combobox" aria-expanded="false" aria-controls="' + id + 'L"><span class="glv-pick-arrow" aria-hidden="true">\u25be</span>'
         + '<div class="glv-pick-l" id="' + id + 'L" role="listbox">'
-        + items.map(function (x) { return '<button type="button" role="option" data-v="' + x[0] + '" data-n="' + String(x[2] || '').toLowerCase().replace(/"/g, '') + '" data-s="' + (x[0] + ' ' + x[1] + ' ' + (x[2] || '')).toLowerCase().replace(/"/g, '') + '"' + (x[0] === value ? ' aria-selected="true"' : '') + '>' + x[1] + '</button>'; }).join('')
+        + items.map(function (x) { return '<button type="button" role="option" translate="no" data-v="' + x[0] + '" data-n="' + String(x[2] || '').toLowerCase().replace(/"/g, '') + '" data-s="' + (x[0] + ' ' + x[1] + ' ' + (x[2] || '')).toLowerCase().replace(/"/g, '') + '"' + (x[0] === value ? ' aria-selected="true"' : '') + '>' + x[1] + '</button>'; }).join('')
         + '<div class="glv-pick-none" hidden>Nothing matches</div></div></div>';
     }
     function wire(pop, id, onPick) {
@@ -811,23 +848,25 @@
         + picker('glvLocC', 'Country', cItems, c, 'Search country — e.g. Italy')
         + picker('glvLocCur', 'Currency', kItems, cur, 'Search currency — e.g. EUR, euro')
         + '<small>Prices and fees are shown in this currency, and you pay in it.</small>'
-        + picker('glvLocL', 'Language', [['en', 'English']], 'en', 'Search language')
-        + '<small>More languages are coming.</small>'
+        + picker('glvLocL', 'Language', langs().map(function (l) { return [l.code, l.name, l.name]; }), pageLang(), 'Search language')
+        + (langs().length > 1 ? '<small>The whole site, in your language.</small>' : '<small>More languages are coming.</small>')
         + '<button type="button" class="go">Save</button>';
       box.appendChild(pop);
       box.querySelector('.glv-loc-btn').setAttribute('aria-expanded', 'true');
       var ks = wire(pop, 'glvLocCur');
       var cs = wire(pop, 'glvLocC', function (v) { var m = CFG.currencyOf && CFG.currencyOf[v]; if (m) ks.set(m); });
-      wire(pop, 'glvLocL');
+      var ls = wire(pop, 'glvLocL');
       pop.querySelector('.go').onclick = function () {
         var cv = cs.get(), kv = ks.get() || cur;
+        var lv = ls.get() || pageLang();
         try { if (cv) localStorage.setItem(CKEY, cv); } catch (e) {}
         try { if (cv) document.cookie = 'glv_country=' + cv + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
         set(kv);
         try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: kv })); } catch (e) {}
         try { document.dispatchEvent(new CustomEvent('glv-country', { detail: cv })); } catch (e) {}
-        if (window.glvTrack) try { glvTrack('locale', { label: (cv || '') + ' ' + kv }); } catch (e) {}
+        if (window.glvTrack) try { glvTrack('locale', { label: (cv || '') + ' ' + kv + ' ' + lv }); } catch (e) {}
         close(); paint();
+        if (lv !== pageLang()) { setLang(lv); try { sessionStorage.removeItem('glv-lang-hop'); } catch (e) {} location.href = pageIn(lv); }
       };
       setTimeout(function () { var i = pop.querySelector('#glvLocCQ'); if (i && !inMenu) i.focus(); }, 30);
     }
@@ -841,7 +880,7 @@
   config().then(function (c) {
     CFG = c;
     try { var cc = localStorage.getItem('glv-country'); if (cc && document.cookie.indexOf('glv_country=' + cc) < 0) document.cookie = 'glv_country=' + cc + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
-    localPrices(); localeBar();
+    localPrices(); localeBar(); try { keepLang(); } catch (e) {}
     /* The finders draw their fees again now that the currency is known. */
     try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: current(CFG) })); } catch (e) {}
   });

@@ -186,6 +186,33 @@ going out and through which server, and has a *Send me a test email* button that
 what the mail server actually said back. That is the fastest way to tell a wrong password
 from a blocked host.
 
+### Languages
+
+The site serves in nine languages (patch 265): English at its own addresses, and
+Chinese, Arabic, Spanish, Russian, French, Portuguese, Bengali and Turkish under
+`/zh/`, `/ar/`, `/es/`, `/ru/`, `/fr/`, `/pt/`, `/bn/` and `/tr/`. Claude translates
+every line a visitor reads and a second Claude pass checks it; the office corrects
+anything on the **Languages** screen. Nothing in the catalogue is translated, and the
+staff screens stay English.
+
+One setting, the same key the weekly news desk uses:
+
+```
+ANTHROPIC_API_KEY=<the key from console.anthropic.com>
+```
+
+Without it the pages still serve in every language, in English, and every line is
+queued; the Languages screen says so. Optional: `I18N_MODEL` (the model that
+translates; `claude-sonnet-5-5` by default), `I18N_CHECK_MODEL` (the reviewer; the same
+by default), `I18N=off` (stops the translator; pages serve what has been translated).
+
+After the key is in, open **Languages → Translate the whole site now** once: it reads
+every page in every language so the whole site is translated before the first visitor
+rather than one page at a time as they are read. The words scripts draw after a page
+loads (the packages, the finder's results, the chat box) are learnt from the first
+visitor's browser in each language — walk through the site once in one language and
+they follow. A translated line is cached for ever; only new English costs a call.
+
 ---
 
 ## Before the first real student

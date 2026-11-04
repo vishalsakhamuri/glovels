@@ -670,8 +670,10 @@
       : '<div class="fcost">' + money(p.totalInr) + '<small>total, all years</small></div>';
     return '<article class="frow" data-id="' + esc(p.id) + '">'
       + logoTile(p)
-      + '<div class="fmain"><h3 class="ftitle">' + esc(p.program) + '</h3>'
-      + '<div class="fsub">' + uniHtml + (p.city ? ' · ' + esc(p.city) : '') + ' · ' + esc(c.name) + (typeLabel(p) ? ' · ' + typeLabel(p) + ' university' : '') + '</div>'
+      + '<div class="fmain"><h3 class="ftitle" translate="no">' + esc(p.program) + '</h3>'
+      /* patch 265: the university and the city are catalogue data — never
+         translated; the country and "public university" are words. */
+      + '<div class="fsub"><span translate="no">' + uniHtml + (p.city ? ' · ' + esc(p.city) : '') + '</span> · ' + esc(c.name) + (typeLabel(p) ? ' · ' + typeLabel(p) + ' university' : '') + '</div>'
       /* Round 178 (F8): a private campus that awards a foreign degree says whose. */
       + (awardingBody(p) ? '<div class="fsub fawb">Degree awarded by ' + esc(awardingBody(p)) + '</div>' : '')
       + '<div class="ftags">' + tags.join('') + '</div>' + verdictHtml + '</div>'

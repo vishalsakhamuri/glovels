@@ -191,7 +191,7 @@ const MAX_WEBHOOK_BODY = 1024 * 1024;
    general 64KB limit was quietly refusing every logo above about 48KB of
    picture — the upload died with no status and no message, and the route's
    own polite "300KB or under, please" was unreachable. */
-const BIG_JSON = new Map([['/api/partner/logo', 640 * 1024]]);
+const BIG_JSON = new Map([['/api/partner/logo', 640 * 1024], ['/api/i18n/learn', 256 * 1024]]);
 
 const readBody = (req, max = MAX_UPLOAD_BODY) => new Promise((resolve, reject) => {
   const chunks = [];
@@ -404,7 +404,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive }) {
+function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive, i18n, translator }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -626,7 +626,16 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     + (CFG.secureCookies ? '; Secure' : '')
     + '; Max-Age=' + Math.round(days * 86400);
 
-  const me = req => db.sessionStudent(cookies(req).glovels_session);
+  const me = req => {
+    const s = db.sessionStudent(cookies(req).glovels_session);
+    /* patch 265: the language a student reads the site in, remembered on
+       the account so their emails come in it. Written only when it changes. */
+    if (s && s.role === 'student' && i18n) {
+      const l = String(cookies(req).glv_lang || '');
+      if (l && i18n.CODES.includes(l) && l !== String(s.lang || '')) { try { db.setStudentLang(s.id, l); s.lang = l; } catch (e) { /* next time */ } }
+    }
+    return s;
+  };
 
   /* `perms` travels with the user everywhere, including to a student, where it
      is always empty. One shape for one thing beats two, and the sign-in
@@ -634,6 +643,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   const publicStudent = s => ({
     id: s.id, name: s.name, email: s.email, phone: s.phone, role: s.role,
     perms: db.permsOf(s),
+    /* patch 265: the language the student reads the site in ('' = English). */
+    lang: String(s.lang || ''),
   });
 
   /*
@@ -3656,7 +3667,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
        currency each one pays in (USD where the office cannot take theirs). */
     countries: ISO_COUNTRIES.all().map(c => c.code),
     currencyOf: Object.fromEntries(ISO_COUNTRIES.all().map(c => [c.code, payCurrencies().includes(GEO.currencyFor(c.code)) ? GEO.currencyFor(c.code) : 'USD'])),
-    languages: [{ code: 'en', name: 'English' }],
+    /* patch 265: the languages the office has switched on, native names. */
+    languages: (translator ? translator.enabledLangs() : ['en']).map(c => ({ code: c, name: (i18n.BY_CODE[c] || {}).native || c })),
     exponents: Object.fromEntries(payCurrencies().map(c => [c, FX.exponent(c)])),
     ratesAt: FX.status().at,
     /* Patch 187: where this visitor is, from their IP — never stored. */
@@ -14055,6 +14067,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const row = db.addPost(r.post);
     db.log(s.name, r.post.status === 'published' ? 'published a post' : 'started a post',
       r.post.title);
+    /* patch 265: a live post is translated whole, in the background. */
+    if (translator && r.post.status === 'published') translator.kick();
     return json(res, 200, Object.assign({ post: postShape(row, true) },
       r.warning ? { warning: r.warning } : {}));
   }));
@@ -14080,6 +14094,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       was.status !== 'published' && r.post.status === 'published' ? 'published a post'
         : r.post.status === 'published' ? 'edited a live post' : 'saved a draft',
       r.post.title);
+    /* patch 265: a live post is translated whole, in the background. */
+    if (translator && r.post.status === 'published') translator.kick();
     return json(res, 200, Object.assign({ post: postShape(row, true) },
       r.warning ? { warning: r.warning } : {}));
   }));
@@ -14127,6 +14143,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   };
   const NEWSDESK = require('./newsdesk.js').open({ db, social: SOCIAL, push, siteUrl, log: console, savePost: newsPost });
   try { NEWSDESK.start(); } catch (e) { /* the site runs without it */ }
+  /* patch 265: and the translator, which picks up whatever is waiting. */
+  try { if (translator) translator.start(); } catch (e) { /* likewise */ }
 
   route('GET', '/api/staff/social', needs('content', async (req, res) => json(res, 200, {
     ok: true, channels: SOCIAL.status(), pushPeople: (db.pushAudience ? db.pushAudience() : []).length,
@@ -14161,6 +14179,181 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     db.log(s.name, 'changed the news desk', JSON.stringify(patch));
     return json(res, 200, Object.assign({ ok: true }, NEWSDESK.status()));
   }));
+  /* ======================= patch 265: the website in nine languages ===== */
+  /* The script in a visitor's browser reports a line it drew and could not
+     translate (assets/i18n-client.js). Open, small, and slow to flood: the
+     server decides what is worth translating (server/translate.js). */
+  route('POST', '/api/i18n/learn', async (req, res) => {
+    if (!translator || !db.i18nReady) return json(res, 200, { ok: true, added: 0 });
+    if (floodedBy(clientIp(req), 'i18n', 120, 60 * 60 * 1000)) return slowDown(res);
+    const b = await readJson(req);
+    /* The browser's address carries the language prefix; the page family
+       does not. */
+    const pathIn = (String(b.path || '/').slice(0, 300).replace(i18n.PREFIX_RE, '') || '/');
+    const page = i18n.pageKeyOf(pathIn);
+    const units = (Array.isArray(b.units) ? b.units : []).slice(0, 400)
+      .map(u => ({ key: String((u && u.key) || '').replace(/\s+/g, ' ').trim() }))
+      .filter(u => u.key && u.key.length <= 1500 && u.key.length >= 2 && /[A-Za-z]/.test(u.key))
+      .map(u => Object.assign(u, { hash: i18n.hash(u.key) }));
+    const added = translator.learn(units, { page, instance: pathIn, kind: 'js' });
+    /* Known lines (whatever first taught them) join this page's dictionary
+       for the script; a line the translator declined is not recorded. */
+    const known = units.filter(u => db.i18nSrc(u.hash)).map(u => u.hash);
+    if (known.length) { try { translator.pageUnits(page, known, true); } catch (e) {} }
+    /* What was declined (a name, a code), so the browser stops reporting it. */
+    const knownSet = new Set(known);
+    return json(res, 200, { ok: true, added, declined: units.map(u => u.hash).filter(h => !knownSet.has(h)) });
+  }, { open: true });
+
+  const i18nStatus = () => Object.assign({ ok: true }, translator ? translator.status() : { ready: false, connected: false, languages: [] });
+  route('GET', '/api/staff/i18n', needs('content', async (req, res) => json(res, 200, i18nStatus())));
+  route('PUT', '/api/staff/i18n', needs('content', async (req, res, s) => {
+    if (!translator) return json(res, 503, { error: 'Translation is not available on this server.' });
+    const b = await readJson(req);
+    const patch = {};
+    if (b.on !== undefined) patch.on = !!b.on;
+    if (b.blog !== undefined) patch.blog = !!b.blog;
+    if (b.perDay !== undefined) patch.perDay = Math.max(100, Math.min(100000, Number(b.perDay) || 2500));
+    if (Object.keys(patch).length) translator.save(patch, s.name);
+    if (Array.isArray(b.langs)) translator.setLangs(b.langs, s.name);
+    db.log(s.name, 'changed the languages', JSON.stringify(Object.assign(patch, Array.isArray(b.langs) ? { langs: b.langs } : {})));
+    if (patch.on) translator.kick();
+    return json(res, 200, i18nStatus());
+  }));
+  /* "Translate the whole site now": every public page is fetched in every
+     language, so every unit is in the queue before the first visitor —
+     rather than one page at a time as they are read. Runs in the background;
+     the status says where it has got to. */
+  const crawl = { running: false, done: 0, total: 0, startedAt: '', finishedAt: '', error: '' };
+  async function crawlSite() {
+    if (crawl.running) return;
+    crawl.running = true; crawl.done = 0; crawl.error = ''; crawl.startedAt = new Date().toISOString(); crawl.finishedAt = '';
+    try {
+      const http_ = require('http');
+      const port = (config && config.port) || 8080;
+      const pages = new Set(['/', '/blog', '/university', '/find-university', '/success-stories', '/login', '/dashboard', '/profile', '/documents', '/applications', '/messages', '/visa', '/scholarships', '/universities', '/services']);
+      try {
+        fs.readdirSync(path.join(__dirname, '..')).filter(f => f.endsWith('.html') && !f.startsWith('_')).forEach(f => {
+          const slug = f.slice(0, -5);
+          if (!/^(admin|counsellor|chat|home|catalogue|blog-admin|leads|leads-command|ops|marketing|partner|404|index|languages)$/.test(slug)) pages.add('/' + slug);
+        });
+      } catch (e) { /* the list above, then */ }
+      try { db.postSlugs(true).forEach(p => pages.add('/post/' + p.slug)); } catch (e) {}
+      try { (db.uniSlugs ? db.uniSlugs({ limit: 12 }) : []).forEach(sl => pages.add('/university/' + sl)); } catch (e) {}
+      const langs = translator.enabledLangs().filter(l => l !== 'en');
+      const list = [];
+      pages.forEach(p => langs.forEach(l => list.push('/' + l + (p === '/' ? '' : p))));
+      crawl.total = list.length;
+      for (const p of list) {
+        await new Promise(resolve => {
+          const rq = http_.get({ host: '127.0.0.1', port, path: p, headers: { 'user-agent': 'glovels-i18n-crawl', 'x-forwarded-host': '' } }, rs => { rs.resume(); rs.on('end', resolve); rs.on('error', resolve); });
+          rq.on('error', resolve); rq.setTimeout(20000, () => { rq.destroy(); resolve(); });
+        });
+        crawl.done++;
+      }
+    } catch (e) { crawl.error = String(e.message || e); }
+    crawl.running = false; crawl.finishedAt = new Date().toISOString();
+    translator.kick();
+  }
+  route('POST', '/api/staff/i18n/run', needs('content', async (req, res, s) => {
+    if (!translator || !db.i18nReady) return json(res, 503, { error: 'Translation needs the SQLite database.' });
+    const st = translator.status();
+    if (!st.connected) return json(res, 409, { error: 'Add ANTHROPIC_API_KEY on Render to switch translation on.' });
+    const b = await readJson(req);
+    if (b.crawl) { crawlSite().catch(() => {}); db.log(s.name, 'asked for the whole site to be translated', ''); }
+    else db.log(s.name, 'asked the translator to run now', '');
+    translator.kick();
+    return json(res, 200, Object.assign(i18nStatus(), { crawl }));
+  }));
+  route('GET', '/api/staff/i18n/crawl', needs('content', async (req, res) => json(res, 200, { ok: true, crawl })));
+  route('GET', '/api/staff/i18n/units', needs('content', async (req, res) => {
+    const q = url.parse(req.url, true).query || {};
+    const lang = String(q.lang || '');
+    if (!i18n.OTHER.includes(lang)) return json(res, 422, { error: 'Which language?' });
+    return json(res, 200, Object.assign({ ok: true }, db.i18nList({ lang, q: String(q.q || '').slice(0, 100), status: String(q.status || ''), page: q.page, per: q.per })));
+  }));
+  route('PUT', '/api/staff/i18n/unit', needs('content', async (req, res, s) => {
+    const b = await readJson(req);
+    const hash = String(b.hash || ''), lang = String(b.lang || '');
+    const u = db.i18nUnit(hash, lang);
+    if (!u) return json(res, 404, { error: 'No such line' });
+    const text = String(b.text || '').replace(/\s+/g, ' ').trim();
+    if (!text) return json(res, 422, { error: 'Type the translation.' });
+    if (!i18n.placeholdersMatch(u.src, text)) return json(res, 422, { error: 'The translation must carry every placeholder of the English exactly once — the <1>…</1> pairs, <2/> and {1} — and no HTML of its own.' });
+    db.i18nSave(hash, lang, text, 'edited', 'edited by ' + s.name, s.name);
+    translator.dict(lang).set(hash, text);
+    translator.invalidate();
+    db.log(s.name, 'corrected a translation', lang + ': ' + u.src.slice(0, 80));
+    return json(res, 200, { ok: true, unit: db.i18nUnit(hash, lang) });
+  }));
+  route('POST', '/api/staff/i18n/unit/again', needs('content', async (req, res, s) => {
+    const b = await readJson(req);
+    const hash = String(b.hash || '');
+    const langs = String(b.lang || '') ? [String(b.lang)] : translator.enabledLangs().filter(l => l !== 'en');
+    let n = 0;
+    langs.forEach(l => { const u = db.i18nUnit(hash, l); if (u) { db.i18nSave(hash, l, '', 'pending', '', s.name); translator.dict(l).delete(hash); n++; } });
+    translator.invalidate(); translator.kick();
+    return json(res, 200, { ok: true, queued: n });
+  }));
+  route('POST', '/api/staff/i18n/unit/skip', needs('content', async (req, res, s) => {
+    const b = await readJson(req);
+    const hash = String(b.hash || '');
+    if (!db.i18nSrc(hash)) return json(res, 404, { error: 'No such line' });
+    db.i18nSkip(hash, !!b.skip);
+    if (b.skip) i18n.OTHER.forEach(l => translator.dict(l).delete(hash));
+    translator.invalidate();
+    db.log(s.name, b.skip ? 'took a line out of translation' : 'put a line back into translation', hash);
+    return json(res, 200, { ok: true });
+  }));
+  route('DELETE', /^\/api\/staff\/i18n\/unit\/([0-9a-f]{16})$/, needs('content', async (req, res, s, m) => {
+    db.i18nForget(m[1]);
+    i18n.OTHER.forEach(l => translator.dict(l).delete(m[1]));
+    translator.invalidate();
+    return json(res, 200, { ok: true });
+  }));
+  /* The posts, each with its state in every language. */
+  route('GET', '/api/staff/i18n/posts', needs('content', async (req, res) => {
+    if (!db.i18nReady) return json(res, 200, { ok: true, posts: [] });
+    const langs = translator.enabledLangs().filter(l => l !== 'en');
+    const by = {};
+    langs.forEach(l => db.postI18nByLang(l).forEach(r => { (by[r.post_id] = by[r.post_id] || {})[l] = r; }));
+    const posts = db.postsForI18n().filter(p => String(p.body || '').trim()).map(p => {
+      const h = translator.postSrc(p);
+      const st = {};
+      langs.forEach(l => { const r = (by[p.id] || {})[l]; st[l] = !r ? 'waiting' : r.status === 'edited' ? 'edited' : r.src_hash !== h && r.status !== 'pending' ? 'stale' : r.status; });
+      return { id: p.id, slug: p.slug, title: p.title, status: st };
+    });
+    return json(res, 200, { ok: true, langs, posts });
+  }));
+  route('GET', /^\/api\/staff\/i18n\/post\/(\d+)\/([a-z]{2})$/, needs('content', async (req, res, s, m) => {
+    const p = db.postById(Number(m[1]));
+    if (!p) return json(res, 404, { error: 'No such post' });
+    const t = db.postI18n(p.id, m[2]);
+    return json(res, 200, { ok: true, post: { id: p.id, slug: p.slug, title: p.title, excerpt: p.excerpt, metaTitle: p.meta_title, metaDesc: p.meta_desc, body: p.body },
+      translation: t ? { title: t.title, excerpt: t.excerpt, metaTitle: t.meta_title, metaDesc: t.meta_desc, body: t.body, status: t.status, note: t.note, updatedAt: t.updated_at, updatedBy: t.updated_by } : null });
+  }));
+  route('PUT', /^\/api\/staff\/i18n\/post\/(\d+)\/([a-z]{2})$/, needs('content', async (req, res, s, m) => {
+    const p = db.postById(Number(m[1]));
+    if (!p || !i18n.OTHER.includes(m[2])) return json(res, 404, { error: 'No such post' });
+    const b = await readJson(req);
+    const title = String(b.title || '').trim(), body = String(b.body || '').trim();
+    if (!title || !body) return json(res, 422, { error: 'A title and a body, at least.' });
+    db.postI18nSave(p.id, m[2], { title, excerpt: String(b.excerpt || ''), metaTitle: String(b.metaTitle || ''), metaDesc: String(b.metaDesc || ''), body,
+      status: 'edited', srcHash: translator.postSrc(p), note: 'edited by ' + s.name, by: s.name });
+    db.log(s.name, 'corrected a translated post', m[2] + ': ' + p.title);
+    return json(res, 200, { ok: true });
+  }));
+  route('POST', /^\/api\/staff\/i18n\/post\/(\d+)\/again$/, needs('content', async (req, res, s, m) => {
+    const p = db.postById(Number(m[1]));
+    if (!p) return json(res, 404, { error: 'No such post' });
+    const b = await readJson(req);
+    const langs = i18n.OTHER.includes(String(b.lang || '')) ? [String(b.lang)] : translator.enabledLangs().filter(l => l !== 'en');
+    langs.forEach(l => db.postI18nSave(p.id, l, { status: 'pending', srcHash: '', by: s.name }));
+    translator.kick();
+    db.log(s.name, 'asked for a post to be translated again', p.title);
+    return json(res, 200, { ok: true });
+  }));
+
   route('POST', '/api/staff/newsdesk/run', needs('content', async (req, res, s) => {
     const st = NEWSDESK.status();
     if (!st.connected) return json(res, 409, { error: 'Add ANTHROPIC_API_KEY on Render to switch the news desk on.' });

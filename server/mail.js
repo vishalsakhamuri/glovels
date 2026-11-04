@@ -437,6 +437,15 @@ function open({ dir, configFile, siteUrl, env, stored }) {
   const sent = [];
 
   async function send({ to, subject, text, html, replyTo }) {
+    /* patch 265: a student who reads the site in another language gets the
+       email in it. The server sets `localize` once the dictionary is open;
+       anything it cannot translate yet goes out in English. */
+    if (typeof self.localize === 'function') {
+      try {
+        const t = self.localize({ to, subject, text, html });
+        if (t) { subject = t.subject || subject; text = t.text || text; if (html && t.html) html = t.html; }
+      } catch (e) { /* English, then */ }
+    }
     /* Read every time. A password corrected two minutes ago must be the one
        used now. */
     const cfg = cfgNow();
@@ -573,13 +582,14 @@ function open({ dir, configFile, siteUrl, env, stored }) {
   /* `mode`, `from` and `office` are read as properties all over the code base
      and are now settings that can change while the server is running, so they
      are getters rather than values captured at start-up. */
-  return {
-    send, status, siteUrl,
+  const self = {
+    send, status, siteUrl, localize: null,
     get mode() { return modeOf(cfgNow()); },
     get from() { return fromOf(cfgNow()); },
     get office() { return officeOf(cfgNow()); },
     recent: () => sent.slice(-20).reverse(),
   };
+  return self;
 }
 
 module.exports = { open, readEnv, describe, buildMessage, quotedPrintable,

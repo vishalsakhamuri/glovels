@@ -91,6 +91,10 @@ function defaultsFor(p, crumbsText) {
    that already carries markup is left alone. */
 function italicHtml(h1Html, italic, tail) {
   const raw = String(h1Html || '').trim();
+  /* patch 265: a post's title translated whole sits between the marks that
+     keep the dictionary pass off it; the marks stay round the result. */
+  const marked = /^<!--i18n:off-->([\s\S]*)<!--i18n:on-->$/.exec(raw);
+  if (marked) return '<!--i18n:off-->' + italicHtml(marked[1], italic, tail) + '<!--i18n:on-->';
   if (!raw || /<[a-z]/i.test(raw)) return raw;
   const text = unattr(raw);
   if (tail) return esc(text) + ' <em>' + esc(tail) + '</em>';
