@@ -1321,7 +1321,7 @@ select.assign.none:hover{border-color:#a5342b}
       <div class="p-card" style="padding:0;overflow-x:auto">
         <table class="tbl" style="margin:0">
           <thead><tr><th>Reference</th><th>Who</th><th>What they bought</th>
-            <th style="text-align:right">Amount</th><th>Account</th><th>Counsellor</th>
+            <th style="text-align:right">Amount (INR)</th><th style="text-align:right">Charged</th><th>Account</th><th>Counsellor</th>
             <th>When</th><th>Money</th></tr></thead>
           <tbody id="ordRows"></tbody>
         </table>
@@ -3200,11 +3200,7 @@ function paintOrders() {
         esc(o.email || '') + (o.phone ? ' \u00b7 ' + esc(o.phone) : '') + '</span></td>' +
       '<td style="max-width:320px">' + what + '</td>' +
       '<td style="text-align:right;white-space:nowrap"><b>' + inrPaise(o.grossPaise) + '</b>' +
-        (chargedTxt || o.via
-          ? '<span style="display:block;margin-top:2px;font-size:11.4px;color:var(--muted)">' +
-            (chargedTxt ? 'charged ' + esc(chargedTxt) : '') + (chargedTxt && o.via ? ' \u00b7 ' : '') +
-            (o.via ? esc(o.via === 'card' ? 'card' : o.via) : '') + '</span>'
-          : '') +
+
         /* What has arrived, and what has not — on every order, not only the
            ones in parts (F2). The server's figures, net of refunds. */
         (o.receivedPaise || o.outstandingPaise || o.refundedPaise
@@ -3225,6 +3221,16 @@ function paintOrders() {
           refunded: '<span class="st none">refunded</span>',
         }[o.status] || '<span class="st none">' + esc(o.status || '—') + '</span>') +
         '</span></td>' +
+      /* Patch 267 (owner, 4 Nov): what the buyer was actually charged, in
+         the currency they paid in, in its own column beside the rupee book
+         figure — and the way it came. A rupee buyer reads the same figure
+         twice, which is the point: the two columns always agree in meaning. */
+      '<td style="text-align:right;white-space:nowrap">' +
+        (o.status === 'paid' || o.status === 'part' || o.receivedPaise || chargedTxt
+          ? '<b>' + esc(chargedTxt || inrPaise(o.receivedPaise || o.grossPaise)) + '</b>' +
+            (o.via ? '<span style="display:block;margin-top:2px;font-size:11.4px;color:var(--muted)">' + esc(o.via) + '</span>' : '')
+          : '<span style="color:var(--muted)">\u2014</span>') +
+        '</td>' +
       /* F1: the student's name, linking to their file — and when the row
          points at an account that is NOT a student, say so and offer no
          Open, because there is no student file to open. */
@@ -3268,7 +3274,7 @@ function paintOrders() {
       '</tr>' +
       (ORD_OPEN === o.reference ? ledgerRow(o) : '');
   }).join('') ||
-    '<tr><td colspan="8" style="color:var(--muted);padding:22px">' +
+    '<tr><td colspan="9" style="color:var(--muted);padding:22px">' +
     (ORDERS.length ? 'No order matches that.'
       : 'No orders yet. One appears here the moment somebody buys a package or a service ' +
         'on the site \u2014 whether or not they have an account.') + '</td></tr>';
@@ -3396,7 +3402,7 @@ function ledgerRow(o) {
           }).join('') + '</ul>'
         : '');
   }
-  return '<tr class="ordx"><td colspan="8" style="background:var(--paper);padding:12px 16px">' + inner + '</td></tr>';
+  return '<tr class="ordx"><td colspan="9" style="background:var(--paper);padding:12px 16px">' + inner + '</td></tr>';
 }
 
 async function readLedger(ref) {
