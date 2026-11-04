@@ -3142,10 +3142,12 @@ function open(dir) {
       let orders = [];
       try { orders = db.all('SELECT * FROM orders WHERE id > ?', 0); } catch (e) { orders = []; }
       const paidSid = new Set(), paidMail = new Set();
-      let paidRefs = new Set();
-      try { paidRefs = new Set(db.all('SELECT order_ref FROM payments WHERE paise > ?', 0).map(p => String(p.order_ref))); } catch (e) {}
-      const realMoney = o => String(o.gateway_payment_id || '').trim() || paidRefs.has(String(o.reference))
-        || /^(paid|part|refunded)$/.test(String(o.status || ''));
+      /* Patch 268 (owner, 4 Nov): real money is a GATEWAY payment — Razorpay
+         or Stripe. An order marked paid by hand during the testing months
+         ("other", nothing recorded) is a rehearsal and goes with the rest;
+         only after the cutoff does an office-recorded payment count. */
+      const realMoney = o => !!String(o.gateway_payment_id || '').trim()
+        || (!olderThan(o.created_at) && /^(paid|part|refunded)$/.test(String(o.status || '')));
       orders.forEach(o => {
         if (realMoney(o)) {
           if (o.student_id) paidSid.add(Number(o.student_id));
@@ -3159,7 +3161,6 @@ function open(dir) {
       const kept = people.filter(p => isStu(p) && !students.includes(p));
       const sids = new Set(students.map(p => Number(p.id)));
       const unpaid = orders.filter(o => !realMoney(o)
-        && !/^(paid|part|refunded)$/.test(String(o.status || ''))
         && (olderThan(o.created_at) || sids.has(Number(o.student_id))));
       const rowsOf = (table, extra) => { try { return db.all('SELECT * FROM ' + table + ' WHERE id > ?', 0).filter(extra); } catch (e) { return []; } };
       const enquiries = rowsOf('enquiries', e => olderThan(e.created_at) || sids.has(Number(e.student_id)));
