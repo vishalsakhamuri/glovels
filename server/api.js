@@ -8421,6 +8421,11 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       outstandingPaise: fig.outstandingPaise,
       refundedPaise: fig.refundedPaise,
       payments: pays.map(paymentShape),
+      /* Patch 263: how the money came — Razorpay, Stripe, or by hand — and
+         what the gateway charged, so the book reads "€2 · Stripe" rather
+         than a rupee figure for a euro buyer. */
+      via: (() => { const p = pays.find(x => x.kind !== 'refund' && Number(x.paise) > 0); return p ? (p.note && /^(razorpay|stripe)$/i.test(p.note) ? p.note : p.method === 'card' ? 'card' : p.method || '') : ''; })(),
+      charged: chargedOf(o),
       at: o.created_at,
       studentId: o.student_id || null,
       studentName: who ? who.name : '',
