@@ -46,7 +46,7 @@ BODY = """
              measuring yet, and the one screen where a student will hold us to it. -->
         <ul class="doclist" style="margin-bottom:14px">
           <li><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
-            <span>Working hours</span><span class="st none">Mon–Sat 9:30–19:30 IST</span></li>
+            <span>Replies</span><span class="st none" id="msgPresence">Someone will reply here</span></li>
           <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>
             <span>Every message</span><span class="st ok">On your file</span></li>
         </ul>

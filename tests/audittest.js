@@ -73,7 +73,7 @@ const metas = html => {
   /* 4. The receipt names the amount the buyer saw. */
   const EMAILS = require(path.join(__dirname, '..', 'server', 'emails.js'));
   const abroad = EMAILS.orderReceipt({ name: 'Siobhán', email: 'a@b.edu', reference: 'GLV-1', packageName: 'Roadmap', grossPaise: 999900, publicUnis: 5, siteUrl: SITE, hasAccount: true, exportSale: true, local: { currency: 'GBP', units: 81 } });
-  check('a £81 order is receipted as £81, with the rupee price beside it', /Amount\s+£81 \(₹9,999\)/.test(abroad.text) && /£81 \(₹9,999\) — export of services, no GST/.test(abroad.html), abroad.text.split('\n').find(l => /^Amount/.test(l)));
+  check('a £81 order is receipted as £81, with the rupee price beside it', /Amount\s+£81 \(₹9,999\)/.test(abroad.text) && /£81 \(₹9,999\)/.test(abroad.html) && !/GST/.test(abroad.html), abroad.text.split('\n').find(l => /^Amount/.test(l)));
   const home = EMAILS.orderReceipt({ name: 'Ravi', email: 'a@b.in', reference: 'GLV-2', packageName: 'Roadmap', grossPaise: 999900, publicUnis: 5, siteUrl: SITE, hasAccount: true });
   check('an Indian order is receipted in rupees alone', /Amount\s+₹9,999 \(including/.test(home.text) && !/\(₹9,999\)/.test(home.text), home.text.split('\n').find(l => /^Amount/.test(l)));
   const eur = EMAILS.orderReceipt({ name: 'Ana', email: 'a@b.de', reference: 'GLV-3', packageName: 'Roadmap', grossPaise: 999900, publicUnis: 5, siteUrl: SITE, hasAccount: true, exportSale: true, vatRate: 19, seller: 'Glovels UG', local: { currency: 'EUR', units: 115 } });

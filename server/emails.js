@@ -240,7 +240,7 @@ ${(services || []).length
   ? `You have booked:${bought}`
   : `Your ${packageName} package is active.`}
 Order reference   ${reference}
-Amount            ${paid} ${vatRate ? '(including ' + money(tax) + ' VAT at ' + vatRate + '%)' : exportSale ? '(export of services — no GST)' : '(including ' + money(tax) + ' GST)'}${seller
+Amount            ${paid} ${vatRate ? '(including ' + money(tax) + ' VAT at ' + vatRate + '%)' : exportSale ? '' : '(including ' + money(tax) + ' GST)'}${seller
   ? `
 Sold by           ${seller} — card payment taken by Stripe` : ''}${publicUnis
   ? `
@@ -281,7 +281,7 @@ Glovels
         ].concat(vatRate
           ? [['Amount paid', paid + ' incl. VAT'], ['VAT @ ' + vatRate + '%', money(tax)]]
           : exportSale
-          ? [['Amount paid', paid + ' — export of services, no GST']]
+          ? [['Amount paid', paid]]
           : [['Amount paid', paid + ' incl. GST'], ['GST @ 18%', money(tax)]]
         ).concat(seller ? [['Sold by', seller]] : []).concat([
           /* Only when there is a number. "Universities unlocked: 0" on a

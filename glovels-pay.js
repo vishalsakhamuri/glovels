@@ -226,9 +226,11 @@
           q.textContent = 'You pay ' + money(inr, 'INR') + '. UPI, cards, netbanking and wallets — cards from any country work too.';
           return;
         }
-        q.textContent = 'You’ll be charged ' + local(inr, code, cfg)
-          + ' — no GST for buyers outside India (export of services), at today’s rate.'
-          + ' International cards and PayPal. Your bank may add its own conversion fee.';
+        /* Patch 260 (owner, 4 Nov): no tax talk for a buyer abroad — "who
+           knows what GST is". The price is the price; the invoice carries the
+           tax line. */
+        q.textContent = 'You’ll be charged about ' + local(inr, code, cfg)
+          + ' at today’s rate. International cards accepted. Your bank may add its own conversion fee.';
       };
       sel.onchange = function () {
         set(sel.value); paint();
@@ -474,7 +476,7 @@
       if (rn) {
         /* The rupee figure beside it, marked GST-free for this buyer. */
         if (!rn.getAttribute('data-glv-orig')) rn.setAttribute('data-glv-orig', rn.textContent);
-        var exText = rn.getAttribute('data-glv-orig').trim() + (vatOf(CFG) ? ' + ' + vatOf(CFG) + '% VAT' : ' \u00b7 no GST');
+        var exText = rn.getAttribute('data-glv-orig').trim() + (vatOf(CFG) ? ' + ' + vatOf(CFG) + '% VAT' : '');
         if (rn.textContent !== exText) rn.textContent = exText;
       }
       var pre = rn ? rn.textContent.slice(0, rn.textContent.indexOf('\u20b9')).trim() : '';
@@ -549,7 +551,7 @@
       if (tot) {
         if (foreign) {
           if (!tot.__glvOrig) tot.__glvOrig = tot.textContent;
-          var lbl = vatOf(CFG) ? 'Total payable \u00b7 incl. ' + vatOf(CFG) + '% VAT' : 'Total payable \u00b7 no GST (export of services)';
+          var lbl = vatOf(CFG) ? 'Total payable \u00b7 incl. ' + vatOf(CFG) + '% VAT' : 'Total payable';
           if (tot.textContent !== lbl) tot.textContent = lbl;
         } else if (tot.__glvOrig) { tot.textContent = tot.__glvOrig; tot.__glvOrig = null; }
       }
@@ -560,7 +562,7 @@
         if (foreign) {
           if (!lead.__glvOrig) lead.__glvOrig = lead.textContent;
           var lt = vatOf(CFG) ? 'Prices in ' + nameOf(code) + ', including ' + vatOf(CFG) + '% VAT for buyers in the EU (sold by Glovels UG, Germany).'
-            : 'Prices in ' + nameOf(code) + '. Buying from outside India carries no GST \u2014 it is an export of services.';
+            : 'Prices shown in ' + nameOf(code) + ', at today’s rate.';
           if (lead.textContent !== lt) lead.textContent = lt;
         } else if (lead.__glvOrig) { lead.textContent = lead.__glvOrig; lead.__glvOrig = null; }
       }

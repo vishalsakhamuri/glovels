@@ -1070,6 +1070,14 @@ a.p-logo{display:block;text-decoration:none}
          student who has just paid opened the dashboard to see. -->
     <!-- Patch 230 (owner, 1 Nov): "we need a summary — package, what he paid,
          invoice". The order and the answers side by side, above the list. -->
+    <section class="p-sec" id="boughtSec" hidden>
+      <div class="p-sec-head">
+        <h2>What you have bought</h2>
+        <a href="index.html#services">Add a service <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div id="boughtWrap"></div>
+    </section>
+
     <div class="sum-grid p-sec"><div id="receipt"></div><div id="searchHost"></div></div>
 
     <section class="p-sec" id="slSec">
@@ -1111,13 +1119,6 @@ a.p-logo{display:block;text-decoration:none}
       <div id="draftWrap"></div>
     </section>
 
-    <section class="p-sec" id="boughtSec" hidden>
-      <div class="p-sec-head">
-        <h2>What you have bought</h2>
-        <a href="index.html#services">Add a service <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </div>
-      <div id="boughtWrap"></div>
-    </section>
 
     <!-- Round 178 (BUG-094): WHAT'S HAPPENED. The automatic notices — a
          university added to your list, a document asked for again, a payment
@@ -1464,6 +1465,9 @@ function __dashOrders(s) {
 
   const el = document.createElement('div');
   el.className = 'ord-card';
+  /* Patch 260: an order is in the currency it was charged in. The device
+     currency sweep (glovels-pay.js) turned a ₹99 Razorpay order into "€1". */
+  el.setAttribute('data-no-fx', '');
   el.innerHTML = '<b class="ord-h">Your orders</b><ul>'
     + orders.map(o =>
         '<li><span class="ord-l"><b>' + esc3(o.package || 'Order') + '</b>'
@@ -1488,7 +1492,7 @@ function __dashOrders(s) {
       if (!window.__glovelsCollect) {
         await new Promise(function (res) {
           const s = document.createElement('script');
-          s.src = '/glovels-pay.js?v=233'; s.onload = res; s.onerror = res;
+          s.src = '/glovels-pay.js?v=260'; s.onload = res; s.onerror = res;
           document.head.appendChild(s);
         });
       }
@@ -1739,7 +1743,7 @@ if(order.grossPaise){
     + '<div class="rc"><span>' + esc(order.package) + '</span><b>' + money(total) + '</b></div>'
     + (rate ? '<div class="rc sub"><span>Taxable value</span><span>' + money(total - tax) + '</span></div>'
       + '<div class="rc sub"><span>' + (vat ? 'VAT @ ' + rate + '%' : 'GST @ 18%') + '</span><span>' + money(tax) + '</span></div>'
-      : '<div class="rc sub"><span>Tax</span><span>None (export of services)</span></div>')
+      : '<div class="rc sub"><span>Tax</span><span>None</span></div>')
     + '<div class="rc sub"><span>' + (isPaid ? 'Paid' : 'Status') + '</span><span>'
       + (isPaid ? when(order.paidAt) : '<b style="color:#b45309">To pay</b> · ordered ' + when(order.placedAt || Date.now())) + '</span></div>'
     + '<p style="font-size:11.6px;color:var(--muted);margin:12px 0 0">'
@@ -1759,7 +1763,7 @@ if(order.grossPaise){
     const rows = '<tr><td>' + e(order.package) + '</td><td class="n">' + e(money(total)) + '</td></tr>'
       + (rate ? '<tr class="s"><td>Taxable value</td><td class="n">' + e(money(total - tax)) + '</td></tr>'
         + '<tr class="s"><td>' + (vat ? 'VAT @ ' + rate + '%' : 'GST @ 18%') + '</td><td class="n">' + e(money(tax)) + '</td></tr>'
-        : '<tr class="s"><td>Tax</td><td class="n">None (export of services)</td></tr>');
+        : '<tr class="s"><td>Tax</td><td class="n">None</td></tr>');
     const w = window.open('', '_blank');
     if (!w) return alert('Allow pop-ups for this site to download the receipt.');
     w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + (isPaid ? 'Receipt ' : 'Order summary ') + e(order.reference) + '</title>'
@@ -1919,7 +1923,7 @@ if (shown.length && !window.GLV_LOGO) (function () {
   if (c && c.name) {
     name = esc(c.name);
     av = initials(c.name);
-    sub = 'Mon–Sat, 9:30–19:30 IST';
+    sub = 'Replies here as soon as they are free';
   } else if (paid) {
     name = 'Assigned after your call';
     av = '—';
@@ -1927,7 +1931,7 @@ if (shown.length && !window.GLV_LOGO) (function () {
   } else {
     name = 'Not assigned yet';
     av = '—';
-    sub = 'Mon–Sat, 9:30–19:30 IST';
+    sub = 'Someone will reply here';
   }
   $('#couns').innerHTML =
       '<span class="c-av">' + av + '</span>'
@@ -1935,6 +1939,16 @@ if (shown.length && !window.GLV_LOGO) (function () {
     + '<b>' + name + '</b>'
     + '<span class="c-sub">' + sub + '</span></div>'
     + '<a class="btn btn-green btn-sm" href="messages.html">Message</a>';
+  /* Patch 260 (owner, 4 Nov): no office hours anywhere a student looks. The
+     same presence the chat box shows — live when a counsellor's screen is
+     open, otherwise that somebody will reply. */
+  fetch('/api/chat', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || !d.staffOnline) return;
+      var el = $('#couns .c-sub');
+      if (el) el.innerHTML = '<i class="gv-live" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;margin-right:5px;vertical-align:middle"></i>Live now — a counsellor is here';
+    }).catch(function () {});
 })();
 
 /* Their own name beside the way out, as on every other portal screen. The
@@ -2235,7 +2249,13 @@ __dashBoot(function () { __dashMain();
   }
   wrap.innerHTML = st.orders.map(function (o) {
     var items = o.items || [];
-    return '<div class="p-card" style="margin-bottom:10px">' +
+    var st_ = String(o.status || '');
+    var state = o.paidAt && /^(paid|part)$/.test(st_)
+      ? (o.publicUnis ? o.publicUnis + ' public universities unlocked · ' : '') + 'Paid ' + day(o.paidAt)
+      : (o.publicUnis ? o.publicUnis + ' public universities once paid · ' : '')
+        + '<b style="color:#b45309">' + (st_ === 'failed' ? 'Card failed — try again' : st_ === 'awaiting' ? 'Card started' : 'To pay') + '</b>'
+        + ' · ordered ' + day(o.placedAt);
+    return '<div class="p-card" data-no-fx style="margin-bottom:10px">' +
       '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' +
         '<b style="font:700 14.4px/1.4 var(--sans);color:var(--navy-900)">' +
           esc(o.package) + '</b>' +
@@ -2243,10 +2263,7 @@ __dashBoot(function () { __dashMain();
         '<span data-no-fx style="margin-left:auto;font:700 14px/1.4 var(--sans);color:var(--navy-900)">' +
           money(o.grossPaise) + '</span>' +
       '</div>' +
-      '<span style="display:block;margin-top:3px;font-size:12.2px;color:var(--muted)">' +
-        (o.paidAt && /^(paid|part)$/.test(String(o.status || ''))
-          ? (o.publicUnis ? o.publicUnis + ' public universities unlocked · ' : '') + 'Paid ' + day(o.paidAt)
-          : (o.publicUnis ? o.publicUnis + ' public universities once paid · ' : '') + '<b style="color:#b45309">To pay</b> · ordered ' + day(o.placedAt)) + '</span>' +
+      '<span style="display:block;margin-top:3px;font-size:12.2px;color:var(--muted)">' + state + '</span>' +
       (items.length
         ? '<ul class="doclist" style="margin:12px 0 0">' + items.map(function (it) {
             return '<li><span style="flex:1">' + esc(it.name) +

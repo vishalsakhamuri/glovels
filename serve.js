@@ -3838,7 +3838,11 @@ async function handleRequest(req, res) {
     let accepted = null;
     try { accepted = order.accepted ? JSON.parse(order.accepted) : null; } catch (e) { /* none */ }
     const html = acceptancePage(order, accepted);
-    if (html) return send(res, 200, html, TYPES['.html']);
+    /* Patch 260 (owner, 4 Nov): the page lives under /acceptance/, so the
+       template's relative "login.html" resolved to /acceptance/login.html —
+       a 404 from every link in the header. Root the links, and let the
+       header know they are signed in, as every other public page does. */
+    if (html) return send(res, 200, withSignedInNav(rootLinks(html)), TYPES['.html']);
   }
 
   /*

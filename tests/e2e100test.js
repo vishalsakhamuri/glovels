@@ -1262,7 +1262,7 @@ const rssTimer = setInterval(() => { rssPeak = Math.max(rssPeak, rssMb()); }, 20
       check('DASHBOARD (' + tag + '): the receipt card is on the screen with a PDF button', /Download receipt \(PDF\)/.test(body), body.slice(0, 120));
       check('DASHBOARD (' + tag + '): does not tell a paying student "Payment is not connected yet"', !/Payment is not connected/.test(body), body.slice(0, 160));
       if (tag === 'india') check('DASHBOARD (india): the receipt carries GST @ 18%', /GST @ 18%/.test(body));
-      else check('DASHBOARD (abroad): the receipt says no tax — export of services', /None \(export of services\)/.test(body));
+      else check('DASHBOARD (abroad): the receipt says no tax — export of services', /<span>Tax<\/span><span>None<\/span>/.test(body));
       check('DASHBOARD (' + tag + '): the journey is finished — visa and departure done', /Visa and departure/.test(body) && !/still needed/i.test(body), body.slice(0, 200));
       await shot(pg, 'dashboard-' + tag);
       await pg.goto(BASE + '/documents', { waitUntil: 'domcontentloaded' }); await pg.waitForTimeout(2000);

@@ -4638,7 +4638,7 @@ $('#buyPay').onclick = () => {
        the EU, none on an export — from the server, not "GST" for everybody. */
     if ($('#buyTaxLine') && (d.vatRate || d.exportSale)) {
       $('#buyTaxLine').innerHTML = 'Order <b id="buyRef">' + esc(ref) + '</b> · ₹' + nf.format(Math.round(d.grossPaise / 100))
-        + (d.vatRate ? ' including ₹' + nf.format(Math.round(d.taxPaise / 100)) + ' VAT at ' + d.vatRate + '% (Glovels UG)' : ' (no GST — export of services)')
+        + (d.vatRate ? ' including ₹' + nf.format(Math.round(d.taxPaise / 100)) + ' VAT at ' + d.vatRate + '% (Glovels UG)' : '')
         + ', payable to your counsellor';
     }
     $('#buyRef') && ($('#buyRef').textContent = ref);
@@ -5611,7 +5611,7 @@ $('#planCta').onclick = () => {
         '<div class="paid-head">' + ico('check') + '<div><b>' + items.length
       + (items.length === 1 ? ' service' : ' services') + ' booked</b><span>Order ' + ref
       + ' · ' + (placed && placed.vatRate ? inr(Math.round(placed.grossPaise / 100)) + ' including ' + inr(Math.round(placed.taxPaise / 100)) + ' VAT at ' + placed.vatRate + '% (Glovels UG)'
-        : placed && placed.exportSale ? inr(gross) + ' (no GST — export of services)'
+        : placed && placed.exportSale ? inr(gross)
         : inr(gross) + ' including ' + inr(tax) + ' GST') + ', payable to your counsellor</span></div></div>'
       + '<div class="steps"><div class="steps-lbl">What happens next</div><ol>'
       + steps.map(([h, b]) => '<li><b>' + h + '</b><span>' + b + '</span></li>').join('')
@@ -7498,7 +7498,7 @@ if (location.protocol === 'file:') {
     .catch(function () {});
 }());
 </script>
-<script src="/glovels-pay.js?v=233"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
+<script src="/glovels-pay.js?v=260"></script><!-- GLOVELS-RAZORPAY: the checkout, in glovels-pay.js since patch 185 -->
 <script>/* GLOVELS-PKG-CONNECTORS */
 (function () {
   /* Each package gets its own icon. They were all the same compass, which on a

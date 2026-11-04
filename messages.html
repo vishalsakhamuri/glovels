@@ -987,7 +987,7 @@ select.assign.none:hover{border-color:#a5342b}
              measuring yet, and the one screen where a student will hold us to it. -->
         <ul class="doclist" style="margin-bottom:14px">
           <li><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
-            <span>Working hours</span><span class="st none">Mon–Sat 9:30–19:30 IST</span></li>
+            <span>Replies</span><span class="st none" id="msgPresence">Someone will reply here</span></li>
           <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>
             <span>Every message</span><span class="st ok">On your file</span></li>
         </ul>
@@ -1963,6 +1963,27 @@ if (location.protocol === 'file:') {
   var put = function(){ var b = document.getElementById('box'); if (!b) return setTimeout(put, 200);
     if (!b.value) b.value = d.slice(0, 300); b.focus(); try { b.setSelectionRange(b.value.length, b.value.length); } catch(e){} };
   put();
+})();
+</script>
+<script>
+/* Patch 260 (owner, 4 Nov): no office hours on the student's screens. The
+   same presence as the chat box: live when a counsellor's screen is open. */
+(function () {
+  var el = document.getElementById('msgPresence');
+  if (!el) return;
+  function tick() {
+    fetch('/api/chat', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var live = !!(d && d.staffOnline);
+        el.innerHTML = live
+          ? '<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;margin-right:5px;vertical-align:middle"></i>Live now'
+          : 'Someone will reply here';
+        el.className = live ? 'st ok' : 'st none';
+      }).catch(function () {});
+  }
+  tick();
+  setInterval(tick, 60000);
 })();
 </script>
 </body>
