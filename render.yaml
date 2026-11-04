@@ -23,21 +23,23 @@ services:
   - type: web
     name: glovels
     runtime: node
-    plan: starter
+    plan: standard             # 2 GB / 1 CPU — upgraded 4 Nov 2026 after Starter (512 MB / 0.5 CPU) crashed
     region: singapore          # nearest to Hyderabad of Render's regions
     branch: main
     numInstances: 1
     buildCommand: "echo 'nothing to build — this app has no dependencies'"
-    # Patch 179: a 300 MB JavaScript heap on the 512 MB Starter plan, so Node
-    # tidies up before Render's limit instead of growing into it and being
-    # killed (the restart loop of 31 Oct 2026).
-    startCommand: "node --max-old-space-size=300 serve.js"
+    # Patch 179 capped the JavaScript heap at 300 MB for the 512 MB Starter plan
+    # (the restart loop of 31 Oct 2026). On Standard (2 GB) the cap is 1200 MB:
+    # Node still tidies up before Render's limit, with ~800 MB left for SQLite,
+    # buffers and the runtime itself. Exit status 134 on 4 Nov 2026 was most likely Node
+    # hitting the old 300 MB cap.
+    startCommand: "node --max-old-space-size=1200 serve.js"
     healthCheckPath: /api/health
 
     disk:
       name: glovels-data
       mountPath: /data
-      sizeGB: 1              # can be grown later; it can never be shrunk
+      sizeGB: 3              # was 1 (83% full on 4 Nov 2026); can be grown, never shrunk
 
     envVars:
       - key: NODE_VERSION
