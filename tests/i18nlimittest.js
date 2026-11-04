@@ -33,7 +33,7 @@ async function idle(admin, tries) {
   const mock = MOCK.start(MOCK_PORT);
   const child = spawn(process.execPath, ['serve.js'], { cwd: ROOT, detached: true, stdio: 'ignore',
     env: Object.assign({}, process.env, { PORT: String(PORT), DATA_DIR: dir, FX_AUTO: 'off', GEO_AUTO: 'off', GUARD: 'off',
-      ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_API_BASE: 'http://127.0.0.1:' + MOCK_PORT, ALLOW_INDEXING: 'true', GLOVELS_URL: 'http://localhost:' + PORT }) });
+      ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_API_BASE: 'http://127.0.0.1:' + MOCK_PORT, ALLOW_INDEXING: 'true', GLOVELS_URL: 'http://localhost:' + PORT, I18N_GATE: 'off' }) });
   try {
     for (let i = 0; i < 60; i++) { await wait(1000); if ((await call('/api/health')).status === 200) break; }
     const admin = await login('admin@glovels.com');
@@ -41,7 +41,7 @@ async function idle(admin, tries) {
     const pages = ['/', '/about-us', '/contact-us', '/study-in-germany', '/study-in-canada', '/study-in-united-kingdom', '/study-in-ireland', '/study-in-poland', '/study-in-spain', '/work-opportunity-card', '/visa-processing', '/blog', '/services', '/packages', '/glossary', '/careers', '/test-ielts-toefl-pte', '/test-gre-gmat-sat', '/migrate-canada-pr', '/migrate-australia-pr', '/work-nursing-germany', '/work-pharma-germany', '/work-medical-pg-germany', '/success-stories', '/terms', '/privacy', '/refunds', '/grievance', '/disclaimers'];
     for (const p of pages) { await call('/zh' + (p === '/' ? '/' : p)); await call('/ar' + (p === '/' ? '/' : p)); }
     let s = await statusOf(admin);
-    check('the default daily limit is no longer 2,500', s.perDay >= 20000, s.perDay);
+    check('the default daily limit is the ceiling (until it is translated)', s.perDay >= 100000, s.perDay);
     /* The smallest limit the office can set, and only Chinese on, so the limit hits mid-way. */
     await call('/api/staff/i18n', { method: 'PUT', cookie: admin, body: { perDay: 100, batch: 5, langs: ['zh', 'ar'] } });
     await call('/api/staff/i18n/run', { method: 'POST', cookie: admin, body: {} });

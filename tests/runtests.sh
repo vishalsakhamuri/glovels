@@ -301,6 +301,7 @@ run socialtest.js   8099
 # its own stand-in for the translation API (8261).
 node langtest.js | tail -1 | sed 's/^/  langtest.js        /' | tee -a "$REPORT"
 node i18nlimittest.js | tail -1 | sed 's/^/  i18nlimittest.js   /' | tee -a "$REPORT"
+node i18nlivetest.js | tail -1 | sed 's/^/  i18nlivetest.js    /' | tee -a "$REPORT"
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 

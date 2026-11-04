@@ -558,6 +558,12 @@ function localize(html, req, pathname, isPublic) {
   const r = I18N.translatePage(html, lang, { lookup: TRANSLATOR.lookupFor(lang), skip: req.__i18nSkip || [] });
   if (r.missing.length) { try { TRANSLATOR.learn(r.missing, { page, instance: pathname, kind: 'html' }); } catch (e) { /* the page still serves */ } }
   try { TRANSLATOR.pageUnits(page, r.seen); } catch (e) { /* likewise */ }
+  /* Patch 270: a preview of a language not live yet — never indexed, never
+     remembered as the reader's choice, links only to the live languages. */
+  if (req.__i18nPreview) {
+    const prev = I18N.finishPage(r.html, lang, { pathname, siteUrl: CFG.siteUrl, indexable: false, langs: langs.concat(lang), pageKey: page, dict: TRANSLATOR.pageDict(lang, page) });
+    return { html: prev, extra: { 'Content-Language': lang, 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-store' } };
+  }
   const out = I18N.finishPage(r.html, lang, { pathname, siteUrl: CFG.siteUrl, indexable, langs, pageKey: page, dict: TRANSLATOR.pageDict(lang, page) });
   return { html: out, extra: { 'Content-Language': lang, 'Set-Cookie': 'glv_lang=' + lang + '; Path=/; Max-Age=31536000; SameSite=Lax' } };
 }
@@ -3635,7 +3641,18 @@ async function handleRequest(req, res) {
       const lang = lm[1];
       const rest = pathname.slice(lm[0].length) || '/';
       const q = query ? '?' + query : '';
-      if (!TRANSLATOR.enabledLangs().includes(lang)) return send(res, 302, '', 'text/html', { Location: rest + q });
+      /* Patch 270: a language still being translated is not on the public
+         site. The office previews it (any staff session) and the site-read
+         reads it (from this machine), so its lines are queued; a visitor is
+         sent to the English page until it is complete. */
+      if (!TRANSLATOR.enabledLangs().includes(lang)) {
+        const ip = String((req.socket && req.socket.remoteAddress) || '');
+        const crawl = /glovels-i18n-crawl/.test(String(req.headers['user-agent'] || '')) && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(ip);
+        let staff = false;
+        if (!crawl) { const w = whoIsIt(req); staff = !!(w && w.role && w.role !== 'student' && w.role !== 'partner'); }
+        if (!(crawl || staff) || !TRANSLATOR.allLangs().includes(lang)) return send(res, 302, '', 'text/html', { Location: rest + q });
+        req.__i18nPreview = true;
+      }
       /* The home of a language is /zh/ — with the slash, so the relative
          links of the written pages resolve under the prefix. */
       if (rest === '/' && pathname.length === lm[0].length) return send(res, 301, '', 'text/html', { Location: '/' + lang + '/' + q });

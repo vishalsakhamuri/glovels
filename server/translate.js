@@ -35,13 +35,26 @@ const I18N = require('./i18n.js');
    eight languages (two calls per batch of 30). 20,000 covers the whole site
    and the blog in a day; I18N_PER_DAY on the server overrides. A stored
    2,500 — the old default — reads as unset. */
-const PER_DAY = (() => { const n = Number(process.env.I18N_PER_DAY); return Number.isFinite(n) && n >= 100 ? n : 20000; })();
-const DEFAULTS = { on: true, langs: I18N.OTHER.slice(), blog: true, perDay: PER_DAY, batch: 30, tokens: { in: 0, out: 0 }, calls: 0, lastRun: '', lastError: '', errors: 0 };
+/* Patch 270 (owner, 4 Nov: "the maximum limit for a day can be until it
+   is translated"): 100,000 — the ceiling the office screen allows — so the
+   limit is a runaway guard, not a schedule. */
+const PER_DAY = (() => { const n = Number(process.env.I18N_PER_DAY); return Number.isFinite(n) && n >= 100 ? n : 100000; })();
+/* Patch 270 (owner: "two languages a day, and make each live once it is
+   complete"): the translator works on FOCUS languages at a time, in the
+   office's order, and a language reaches the public site — the header
+   picker, /xx/ addresses, hreflang, the sitemap, students' emails — only
+   once its lines and posts are done. I18N_GATE=off serves every switched-on
+   language at once (the old behaviour; the test suites use it). */
+const GATE = String(process.env.I18N_GATE || '').toLowerCase() !== 'off';
+const DEFAULTS = { on: true, langs: I18N.OTHER.slice(), live: [], held: [], focus: 2, blog: true, perDay: PER_DAY, batch: 30, tokens: { in: 0, out: 0 }, calls: 0, lastRun: '', lastError: '', errors: 0 };
 const settingsOf = raw => {
   const s = Object.assign({}, DEFAULTS, raw || {});
   s.langs = (Array.isArray(s.langs) ? s.langs : DEFAULTS.langs).filter(l => I18N.OTHER.includes(l));
   s.on = s.on !== false; s.blog = s.blog !== false;
-  s.perDay = Math.max(100, Math.min(100000, (Number(s.perDay) === 2500 ? PER_DAY : Number(s.perDay)) || PER_DAY));
+  s.perDay = Math.max(100, Math.min(100000, ([2500, 20000].includes(Number(s.perDay)) ? PER_DAY : Number(s.perDay)) || PER_DAY));
+  s.live = (Array.isArray(s.live) ? s.live : []).filter(l => s.langs.includes(l));
+  s.held = (Array.isArray(s.held) ? s.held : []).filter(l => s.langs.includes(l));
+  s.focus = Math.max(1, Math.min(8, Number(s.focus) || 2));
   s.batch = Math.max(5, Math.min(60, Number(s.batch) || 30));
   s.tokens = Object.assign({ in: 0, out: 0 }, s.tokens || {});
   return s;
@@ -206,11 +219,12 @@ function open({ db, log = console, siteUrl = '' }) {
      hitting the 2,500-call limit flagged the 40,000 lines still waiting as
      "needs a person", one by one, in a minute. */
   class Stop extends Error {}
+  const msToMidnight = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - d.getTime() + 60000; };
   async function ask(system, user, { model: m, maxTokens } = {}) {
     const S = settings();
     const today = new Date().toISOString().slice(0, 10);
     if (S.day !== today) save({ day: today, todayCalls: 0 });
-    if ((settings().todayCalls || 0) >= S.perDay) throw new Stop('the day\'s limit of ' + S.perDay + ' translation calls is reached — it carries on tomorrow, or raise the limit');
+    if ((settings().todayCalls || 0) >= S.perDay) throw Object.assign(new Stop('the day\'s limit of ' + S.perDay + ' translation calls is reached — it carries on tomorrow, or raise the limit'), { retryMs: msToMidnight() });
     await slot();
     try {
       let r;
@@ -218,12 +232,21 @@ function open({ db, log = console, siteUrl = '' }) {
         r = await post((process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com') + '/v1/messages',
           { 'x-api-key': key(), 'anthropic-version': '2023-06-01' },
           { model: m || model(), max_tokens: maxTokens || 8000, system, messages: [{ role: 'user', content: user }] });
-      } catch (e) { throw new Stop('could not reach the translation service: ' + String(e.message || e)); }
+      } catch (e) { throw Object.assign(new Stop('could not reach the translation service: ' + String(e.message || e)), { retryMs: 2 * 60 * 1000 }); }
+      /* Patch 270: a refused call (no credit, too many at once, a bad key)
+         is not a call — on 4 Nov afternoon 17,500 refusals counted against
+         the day and translated nothing. The service's own words are kept,
+         so the office reads "credit balance is too low" and not a limit. */
+      if (r.status !== 200) {
+        const msg = ((r.data || {}).error || {}).message || ('the translation service said ' + r.status);
+        const e = new Stop('the translation service refused (' + r.status + '): ' + msg);
+        e.retryMs = r.status === 429 ? 60 * 1000 : r.status >= 500 ? 2 * 60 * 1000 : 15 * 60 * 1000;
+        throw e;
+      }
       const cur = settings();
       const usage = (r.data && r.data.usage) || {};
       save({ calls: (cur.calls || 0) + 1, todayCalls: (cur.todayCalls || 0) + 1,
         tokens: { in: (cur.tokens.in || 0) + Number(usage.input_tokens || 0), out: (cur.tokens.out || 0) + Number(usage.output_tokens || 0) } });
-      if (r.status !== 200) throw new Stop(((r.data || {}).error || {}).message || ('the translation service said ' + r.status));
       return (r.data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
     } finally { free(); }
   }
@@ -315,12 +338,21 @@ function open({ db, log = console, siteUrl = '' }) {
     db.postI18nSave(p.id, lang, Object.assign(t, { status, srcHash, note, by: 'translator' }));
   }
 
+  /* Patch 270: the office pressing a button (or raising the limit) ends a pause. */
+  function wake() { state.pausedUntil = 0; if (timer) { clearTimeout(timer); timer = null; } kick(); }
+  function invalidateDicts() { try { dicts.clear(); pageDictCache.clear(); } catch (e) {} }
+
   /* ------------------------------------------------------------ worker */
-  const state = { running: new Set(), lastError: '', kicked: 0, idleAt: '' };
+  const state = { running: new Set(), lastError: '', kicked: 0, idleAt: '', pausedUntil: 0 };
   let timer = null;
+  /* Patch 270: after the service refuses, nothing — not a visitor's page,
+     not the crawl — wakes the worker before the pause is over. Before, every
+     page read kicked a run that made one refused call and stopped. */
   function kick() {
     if (timer) return;
-    timer = setTimeout(() => { timer = null; runAll().catch(e => { state.lastError = String(e.message || e); }); }, 1500);
+    const wait = Math.max(1500, state.pausedUntil - Date.now());
+    timer = setTimeout(() => { timer = null; runAll().catch(e => { state.lastError = String(e.message || e); }); }, wait);
+    if (timer.unref) timer.unref();
   }
   /* Patch 269: lines the old code flagged for a service failure go back to
      pending — they were never looked at. Posts the same. */
@@ -352,20 +384,61 @@ function open({ db, log = console, siteUrl = '' }) {
       state.lastError = String(e.message || e);
       save({ lastError: state.lastError, errors: (settings().errors || 0) + 1 });
       log.error('  translator ✗ ' + lang + ': ' + state.lastError);
-      /* back off, then look again */
-      setTimeout(kick, 5 * 60 * 1000).unref();
+      /* back off, then look again — for as long as the refusal says */
+      state.pausedUntil = Date.now() + (e instanceof Stop && e.retryMs ? e.retryMs : 5 * 60 * 1000);
+      kick();
     } finally {
       state.running.delete(lang);
       if (!state.running.size) state.idleAt = new Date().toISOString();
     }
+  }
+  /* Patch 270: is a language finished? Every line looked at (nothing
+     waiting), at most 1% left for a person, and every live post done. */
+  function completeness(lang) {
+    const c = (db.i18nCounts ? db.i18nCounts() : {})[lang] || {};
+    const done = (c.checked || 0) + (c.machine || 0) + (c.edited || 0);
+    const total = done + (c.pending || 0) + (c.flagged || 0);
+    const posts = settings().blog ? postsNeeding(lang).length : 0;
+    return { done, total, pending: c.pending || 0, flagged: c.flagged || 0, posts,
+      complete: total > 0 && !(c.pending) && (c.flagged || 0) <= Math.max(5, total * 0.01) && posts === 0 };
+  }
+  function promoteFinished() {
+    const S = settings();
+    /* A language the office took off by hand stays off until they put it back. */
+    S.langs.filter(l => !S.live.includes(l) && !S.held.includes(l)).forEach(l => {
+      const k = completeness(l);
+      if (!k.complete) return;
+      save({ live: settings().live.concat(l) }, 'translator');
+      invalidateDicts();
+      log.log('  translator ✓ ' + langName(l) + ' is complete (' + k.done + ' lines) and live on the site');
+      try { db.log && db.log('translator', langName(l) + ' went live', k.done + ' lines, every post'); } catch (e) {}
+    });
+  }
+  /* The languages being translated now: the first FOCUS in the office's
+     order that are not live yet. */
+  function translating() {
+    const S = settings();
+    const counts = db.i18nCounts ? db.i18nCounts() : {};
+    /* A language with nothing left for the machine — only lines a person
+       has to look at — does not hold up the next one. */
+    const work = l => { const c = counts[l] || {}; const any = Object.keys(c).length; return !any || (c.pending || 0) > 0 || (S.blog && postsNeeding(l).length > 0); };
+    return S.langs.filter(l => !S.live.includes(l) && work(l)).slice(0, S.focus);
   }
   async function runAll() {
     if (!db.i18nReady || !key() || off()) return;
     const S = settings();
     if (!S.on) return;
     unflagServiceFailures();
+    promoteFinished();
     save({ lastRun: new Date().toISOString() });
-    await Promise.all(S.langs.map(l => runLang(l)));
+    /* Live languages keep up with new lines (cheap); the focus languages
+       get the rest of the capacity. */
+    const now = [...new Set(settings().live.concat(translating()))];
+    await Promise.all(now.map(l => runLang(l)));
+    promoteFinished();
+    /* A run stops after 500 rounds; if a language still has work and the
+       service is not refusing, carry on. */
+    if (Date.now() >= state.pausedUntil && now.some(l => { const c = (db.i18nCounts ? db.i18nCounts() : {})[l] || {}; return (c.pending || 0) > 0; })) kick();
   }
 
   function status() {
@@ -378,14 +451,27 @@ function open({ db, log = console, siteUrl = '' }) {
       ready: !!db.i18nReady, connected: !!key(), off: off(), on: S.on, blog: S.blog, langs: S.langs, model: model(), checkModel: checkModel(),
       perDay: S.perDay, calls: S.calls || 0, todayCalls: S.todayCalls || 0, tokens: S.tokens, lastRun: S.lastRun || '', lastError: state.lastError || S.lastError || '',
       running: [...state.running], units: total, livePosts,
-      languages: I18N.LANGS.map(l => Object.assign({}, l, { on: l.code === 'en' || S.langs.includes(l.code), counts: counts[l.code] || {}, posts: posts[l.code] || {} })),
+      /* Patch 270 */
+      gate: GATE, focus: S.focus, live: S.live, order: S.langs, translating: translating(),
+      pausedUntil: state.pausedUntil > Date.now() ? new Date(state.pausedUntil).toISOString() : '',
+      languages: I18N.LANGS.map(l => {
+        const on = l.code === 'en' || S.langs.includes(l.code);
+        const live = l.code === 'en' || (GATE ? S.live.includes(l.code) : on);
+        const tr = translating();
+        const c = counts[l.code] || {};
+        const st = l.code === 'en' ? 'live' : !on ? 'off' : live ? 'live' : tr.includes(l.code) ? 'translating'
+          : (!(c.pending) && Object.keys(c).length && !(S.blog && postsNeeding(l.code).length)) ? 'person' : 'queued';
+        return Object.assign({}, l, { on, live, state: st, place: S.langs.indexOf(l.code) + 1, counts: c, posts: posts[l.code] || {} });
+      }),
     };
   }
 
   function setLangs(langs, who) {
     const clean = [...new Set((Array.isArray(langs) ? langs : []).filter(l => I18N.OTHER.includes(l)))];
     const before = settings().langs;
-    save({ langs: clean }, who);
+    /* Patch 270: keep the office's order — the queue is the order. */
+    const ordered = before.filter(l => clean.includes(l)).concat(clean.filter(l => !before.includes(l)));
+    save({ langs: ordered }, who);
     clean.filter(l => !before.includes(l)).forEach(l => { try { db.i18nEnsureLang(l); } catch (e) {} });
     kick();
   }
@@ -393,10 +479,31 @@ function open({ db, log = console, siteUrl = '' }) {
   /* On start: translate what is waiting, after the site has settled. */
   function start() { if (key() && db.i18nReady && settings().on && !off()) setTimeout(kick, 20000).unref(); }
 
-  function enabledLangs() { return ['en'].concat(settings().langs); }
+  /* The languages the PUBLIC site offers — live ones only (patch 270). */
+  function enabledLangs() { const S = settings(); return ['en'].concat(GATE ? S.live : S.langs); }
+  /* Every language switched on, live or still being translated — for the
+     office's preview and for queueing lines. */
+  function allLangs() { return ['en'].concat(settings().langs); }
+  function setLive(lang, live, who) {
+    const S = settings();
+    if (!S.langs.includes(lang)) return S.live;
+    const next = live ? [...new Set(S.live.concat(lang))] : S.live.filter(l => l !== lang);
+    const held = live ? S.held.filter(l => l !== lang) : [...new Set(S.held.concat(lang))];
+    save({ live: next, held }, who);
+    invalidateDicts();
+    return next;
+  }
+  /* "Do this one next": to the front of the queue, behind nothing. */
+  function moveFirst(lang, who) {
+    const S = settings();
+    if (!S.langs.includes(lang)) return;
+    save({ langs: [lang].concat(S.langs.filter(l => l !== lang)) }, who);
+    kick();
+  }
 
   return { settings, save, status, learn, pageUnits, pageDict, lookupFor, dict, kick, start, setLangs, enabledLangs,
-    translateBatch, translatePost, postsNeeding, postSrc, invalidate: () => { dicts.clear(); pageDictCache.clear(); } };
+    translateBatch, translatePost, postsNeeding, postSrc, invalidate: invalidateDicts,
+    allLangs, setLive, moveFirst, translating, completeness, wake };
 }
 
 module.exports = { open, settingsOf, TRANSLATE, CHECK, POST_TRANSLATE, POST_CHECK, parseJson };

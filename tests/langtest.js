@@ -55,7 +55,7 @@ async function settle(admin, lang, tries) {
   const mock = MOCK.start(MOCK_PORT);
   const child = spawn(process.execPath, ['serve.js'], { cwd: ROOT, detached: true, stdio: 'ignore',
     env: Object.assign({}, process.env, { PORT: String(PORT), DATA_DIR: dir, FX_AUTO: 'off', GEO_AUTO: 'off', GUARD: 'off',
-      ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_API_BASE: 'http://127.0.0.1:' + MOCK_PORT, ALLOW_INDEXING: 'true', GLOVELS_URL: BASE }) });
+      ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_API_BASE: 'http://127.0.0.1:' + MOCK_PORT, ALLOW_INDEXING: 'true', GLOVELS_URL: BASE, I18N_GATE: 'off' }) });
   let b = null;
   try {
     for (let i = 0; i < 80; i++) { await wait(400); if ((await call('/api/health')).status === 200) break; }

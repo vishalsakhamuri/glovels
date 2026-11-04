@@ -109,6 +109,10 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
 .rtl{direction:rtl;text-align:right}
 @media (max-width:980px){.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:820px){.shell{grid-template-columns:minmax(0,1fr)}.rail{position:static;height:auto;flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px}.nav{flex-direction:row;flex-wrap:wrap}.who b,.who span,.who br{display:none}.who{padding:0;margin:0}td.src,td.t{width:auto}}
+/* Patch 270 */
+.pill.st-ok{background:#e6f4ec;color:#14603a}.pill.st-go{background:#e8effb;color:#1d4ea8}.pill.st-wait{background:#f4f1e6;color:#7a5b12}
+.pill.st-bad{background:#fbeaea;color:#a12b2b}.pill.st-off{background:#eef0f3;color:#5b6675}
+.lang .n .btn.sm{padding:5px 9px;font-size:12px}
 </style>
 </head>
 <body>
@@ -225,6 +229,16 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     else if (!S.on) notes += '<div class="note">The translator is paused. Pages serve what has been translated so far; switch it on to translate the rest.</div>';
     if (S.lastError) notes += '<div class="note bad">Last error: ' + esc(S.lastError) + '</div>';
     if (S.running && S.running.length) notes += '<div class="note good">Translating now: ' + esc(S.running.map(function (l) { return name(l); }).join(', ')) + '.</div>';
+    /* Patch 270: the queue, in words. */
+    if (S.gate) {
+      var liveL = (S.live || []).map(name), tr = (S.translating || []).map(name);
+      var nextL = (S.order || []).filter(function (c) { return (S.live || []).indexOf(c) < 0 && (S.translating || []).indexOf(c) < 0; }).map(name);
+      notes += '<div class="note">' + (S.focus || 2) + ' languages at a time; each goes on the site by itself the moment it is complete. '
+        + 'Live: <b>' + esc(liveL.length ? liveL.join(', ') : 'English only') + '</b>'
+        + (tr.length ? ' · being translated: <b>' + esc(tr.join(', ')) + '</b>' : '')
+        + (nextL.length ? ' · then: ' + esc(nextL.join(', ')) : '') + '.'
+        + (S.pausedUntil ? ' Paused until ' + esc(when(S.pausedUntil)) + '.' : '') + '</div>';
+    }
     $('#notes').innerHTML = notes;
     var pend = 0, done = 0, flagged = 0;
     S.languages.forEach(function (l) { if (l.code === 'en' || !l.on) return; var c = l.counts || {}; pend += c.pending || 0; done += (c.checked || 0) + (c.machine || 0) + (c.edited || 0); flagged += c.flagged || 0; });
@@ -240,11 +254,17 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       var tot = (c.pending || 0) + (c.checked || 0) + (c.machine || 0) + (c.edited || 0) + (c.flagged || 0);
       var w = function (k) { return tot ? (100 * (c[k] || 0) / tot).toFixed(1) + '%' : '0'; };
       var postsOk = (p.checked || 0) + (p.machine || 0) + (p.edited || 0);
+      var badge = { live: ['ok', 'Live on the site'], translating: ['go', 'Translating now'], queued: ['wait', 'In the queue · #' + l.place], person: ['bad', 'Waiting for a person'], off: ['off', 'Off'] }[l.state] || ['off', l.state];
       return '<div class="lang">'
         + '<div class="n"><b lang="' + l.code + '">' + esc(l.native) + '</b><small>' + esc(l.name) + ' · /' + l.code + '/</small></div>'
+        + '<div class="n" style="margin:4px 0 2px"><span class="pill st-' + badge[0] + '">' + esc(badge[1]) + '</span>'
+        + (l.on ? (l.live
+            ? '<button type="button" class="btn sm" data-live="' + l.code + '" data-to="0">Take off the site</button>'
+            : '<span><button type="button" class="btn sm" data-next="' + l.code + '">Do next</button> <button type="button" class="btn sm" data-live="' + l.code + '" data-to="1">Make live now</button></span>') : '')
+        + '</div>'
         + '<div class="bar2" title="' + n(c.checked || 0) + ' checked, ' + n(c.machine || 0) + ' unchecked, ' + n(c.edited || 0) + ' edited, ' + n(c.flagged || 0) + ' flagged, ' + n(c.pending || 0) + ' waiting"><i class="ok" style="width:' + w('checked') + '"></i><i class="mc" style="width:' + w('machine') + '"></i><i class="ed" style="width:' + w('edited') + '"></i><i class="fl" style="width:' + w('flagged') + '"></i></div>'
         + '<div class="k"><b>' + n((c.checked || 0) + (c.machine || 0) + (c.edited || 0)) + '</b> of ' + n(tot) + ' lines · <b>' + n(postsOk) + '</b> of ' + n(S.livePosts) + ' posts' + (c.flagged ? ' · <span style="color:var(--late)">' + n(c.flagged) + ' flagged</span>' : '') + '</div>'
-        + '<div class="n"><label class="sw"><input type="checkbox" data-lang="' + l.code + '"' + (l.on ? ' checked' : '') + '> On</label><a class="btn sm" href="/' + l.code + '/" target="_blank" rel="noopener">Open the site ↗</a></div>'
+        + '<div class="n"><label class="sw"><input type="checkbox" data-lang="' + l.code + '"' + (l.on ? ' checked' : '') + '> On</label><a class="btn sm" href="/' + l.code + '/" target="_blank" rel="noopener">' + (l.live ? 'Open the site ↗' : 'Preview ↗') + '</a></div>'
         + '</div>';
     }).join('');
     $('#swOn').checked = !!S.on; $('#swBlog').checked = !!S.blog;
@@ -267,6 +287,13 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     var cb = e.target.closest('input[data-lang]'); if (!cb) return;
     var langs = [].map.call(document.querySelectorAll('#langs input[data-lang]:checked'), function (x) { return x.dataset.lang; });
     api('/api/staff/i18n', { method: 'PUT', body: { langs: langs } }).then(function (s) { ST = s; paintStatus(); toast('Saved.'); }).catch(function (er) { toast(er.message); });
+  });
+  /* Patch 270: put a language live or take it off; move one to the front. */
+  $('#langs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-live],[data-next]'); if (!b) return;
+    var body = b.dataset.next ? { next: b.dataset.next } : { live: { lang: b.dataset.live, on: b.dataset.to === '1' } };
+    if (body.live && body.live.on && !confirm(name(body.live.lang) + ' is not finished. Visitors will see English wherever a line is not translated yet. Put it on the site now?')) return;
+    api('/api/staff/i18n', { method: 'PUT', body: body }).then(function (s) { ST = s; paintStatus(); toast(body.next ? name(body.next) + ' is next.' : body.live.on ? name(body.live.lang) + ' is on the site.' : name(body.live.lang) + ' is off the site; it carries on being translated.'); }).catch(function (er) { toast(er.message); });
   });
   $('#swOn').onchange = function () { api('/api/staff/i18n', { method: 'PUT', body: { on: $('#swOn').checked } }).then(function (s) { ST = s; paintStatus(); toast($('#swOn').checked ? 'Translator on.' : 'Translator paused.'); }).catch(function (er) { toast(er.message); }); };
   $('#swBlog').onchange = function () { api('/api/staff/i18n', { method: 'PUT', body: { blog: $('#swBlog').checked } }).then(function (s) { ST = s; paintStatus(); toast('Saved.'); }).catch(function (er) { toast(er.message); }); };

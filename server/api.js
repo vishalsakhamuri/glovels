@@ -14249,11 +14249,17 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const patch = {};
     if (b.on !== undefined) patch.on = !!b.on;
     if (b.blog !== undefined) patch.blog = !!b.blog;
-    if (b.perDay !== undefined) patch.perDay = Math.max(100, Math.min(100000, Number(b.perDay) || 2500));
+    if (b.perDay !== undefined) patch.perDay = Math.max(100, Math.min(100000, Number(b.perDay) || 100000));
+    /* Patch 270: how many languages at a time; one put live or taken off
+       by hand; one moved to the front of the queue. */
+    if (b.focus !== undefined) patch.focus = Math.max(1, Math.min(8, Number(b.focus) || 2));
+    if (b.batch !== undefined) patch.batch = Math.max(5, Math.min(60, Number(b.batch) || 30));
     if (Object.keys(patch).length) translator.save(patch, s.name);
     if (Array.isArray(b.langs)) translator.setLangs(b.langs, s.name);
+    if (b.live && i18n.OTHER.includes(String(b.live.lang || ''))) { translator.setLive(String(b.live.lang), !!b.live.on, s.name); patch.live = b.live; }
+    if (b.next && i18n.OTHER.includes(String(b.next))) { translator.moveFirst(String(b.next), s.name); patch.next = b.next; }
     db.log(s.name, 'changed the languages', JSON.stringify(Object.assign(patch, Array.isArray(b.langs) ? { langs: b.langs } : {})));
-    if (patch.on) translator.kick();
+    if (patch.on || patch.perDay) { if (translator.wake) translator.wake(); else translator.kick(); }
     return json(res, 200, i18nStatus());
   }));
   /* "Translate the whole site now": every public page is fetched in every
@@ -14276,7 +14282,10 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       } catch (e) { /* the list above, then */ }
       try { db.postSlugs(true).forEach(p => pages.add('/post/' + p.slug)); } catch (e) {}
       try { (db.uniSlugs ? db.uniSlugs({ limit: 12 }) : []).forEach(sl => pages.add('/university/' + sl)); } catch (e) {}
-      const langs = translator.enabledLangs().filter(l => l !== 'en');
+      /* Patch 270: one language is enough to read the site — a line seen
+         once is queued for every language switched on. The first being
+         translated (or any switched on), so 190 pages, not 1,520. */
+      const langs = [(translator.translating()[0] || translator.allLangs().filter(l => l !== 'en')[0])].filter(Boolean);
       const list = [];
       pages.forEach(p => langs.forEach(l => list.push('/' + l + (p === '/' ? '' : p))));
       crawl.total = list.length;
@@ -14298,7 +14307,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const b = await readJson(req);
     if (b.crawl) { crawlSite().catch(() => {}); db.log(s.name, 'asked for the whole site to be translated', ''); }
     else db.log(s.name, 'asked the translator to run now', '');
-    translator.kick();
+    if (translator.wake) translator.wake(); else translator.kick();
     return json(res, 200, Object.assign(i18nStatus(), { crawl }));
   }));
   route('GET', '/api/staff/i18n/crawl', needs('content', async (req, res) => json(res, 200, { ok: true, crawl })));
@@ -14325,7 +14334,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   route('POST', '/api/staff/i18n/unit/again', needs('content', async (req, res, s) => {
     const b = await readJson(req);
     const hash = String(b.hash || '');
-    const langs = String(b.lang || '') ? [String(b.lang)] : translator.enabledLangs().filter(l => l !== 'en');
+    const langs = String(b.lang || '') ? [String(b.lang)] : translator.allLangs().filter(l => l !== 'en');
     let n = 0;
     langs.forEach(l => { const u = db.i18nUnit(hash, l); if (u) { db.i18nSave(hash, l, '', 'pending', '', s.name); translator.dict(l).delete(hash); n++; } });
     translator.invalidate(); translator.kick();
@@ -14350,7 +14359,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   /* The posts, each with its state in every language. */
   route('GET', '/api/staff/i18n/posts', needs('content', async (req, res) => {
     if (!db.i18nReady) return json(res, 200, { ok: true, posts: [] });
-    const langs = translator.enabledLangs().filter(l => l !== 'en');
+    const langs = translator.allLangs().filter(l => l !== 'en');
     const by = {};
     langs.forEach(l => db.postI18nByLang(l).forEach(r => { (by[r.post_id] = by[r.post_id] || {})[l] = r; }));
     const posts = db.postsForI18n().filter(p => String(p.body || '').trim()).map(p => {
@@ -14383,7 +14392,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const p = db.postById(Number(m[1]));
     if (!p) return json(res, 404, { error: 'No such post' });
     const b = await readJson(req);
-    const langs = i18n.OTHER.includes(String(b.lang || '')) ? [String(b.lang)] : translator.enabledLangs().filter(l => l !== 'en');
+    const langs = i18n.OTHER.includes(String(b.lang || '')) ? [String(b.lang)] : translator.allLangs().filter(l => l !== 'en');
     langs.forEach(l => db.postI18nSave(p.id, l, { status: 'pending', srcHash: '', by: s.name }));
     translator.kick();
     db.log(s.name, 'asked for a post to be translated again', p.title);
