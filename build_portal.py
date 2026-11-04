@@ -606,7 +606,7 @@ async function staffBoot(run) {{
     me = await api('GET', '/api/staff/me');
     /* 4 Nov (owner): the download buttons are for super administrators only
        — the server refuses everybody else, so the buttons go too. */
-    if (!(me && me.user && me.user.super)) document.querySelectorAll('[data-super-only]').forEach(function (el) { el.hidden = true; });
+    if (!(me && me.user && me.user.super)) document.querySelectorAll('[data-super-only]').forEach(function (el) {{ el.hidden = true; }});
   }} catch (e) {{
     if (e.message === 'signed out') return;
     if (e.mustChange) return mustChangeScreen({{ role: 'staff' }});
@@ -1310,7 +1310,7 @@ function __dashOrders(s) {
       if (!window.__glovelsCollect) {
         await new Promise(function (res) {
           const s = document.createElement('script');
-          s.src = '/glovels-pay.js?v=260'; s.onload = res; s.onerror = res;
+          s.src = '/glovels-pay.js?v=265'; s.onload = res; s.onerror = res;
           document.head.appendChild(s);
         });
       }
