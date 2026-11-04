@@ -475,6 +475,26 @@ function all(db, now) {
     }
   }
 
+  /* ---- money that just arrived (patch 263, owner, 4 Nov: "someone is
+     paying, we should clearly see it") ---- every payment of the last two
+     days, to the file's counsellor and to every administrator, pointing at
+     the order book. */
+  for (const o of db.allOrders()) {
+    if (!o.paid_at || !/^(paid|part)$/.test(String(o.status || ''))) continue;
+    const ms = T - new Date(o.paid_at).getTime();
+    if (!(ms >= 0 && ms < 48 * 3600 * 1000)) continue;
+    const st = o.student_id ? byId.get(Number(o.student_id)) : null;
+    const owner = st && st.counsellor_id ? Number(st.counsellor_id) : null;
+    const hrs = Math.floor(ms / 3600000);
+    add({
+      kind: 'paid', urgency: 'now', who: owner,
+      title: '₹' + Math.round(Number(o.gross_paise || 0) / 100).toLocaleString('en-IN') + ' received from ' + (o.name || o.email || 'a buyer') + ' (' + o.reference + ')',
+      detail: (o.package || 'Order') + ', paid ' + (hrs < 1 ? 'just now' : hrs < 24 ? hrs + ' hour(s) ago' : Math.floor(hrs / 24) + ' day(s) ago')
+        + (owner ? '.' : ' — nobody is on this file yet. Assign somebody on the Organisation screen.'),
+      subject: { studentId: o.student_id || null, orderRef: o.reference }, at: o.paid_at,
+    });
+  }
+
   /* ---- a part payment whose date has gone past ---- */
   for (const o of db.allOrders()) {
     /* 8 Oct (F2): a refunded order is finished business — nobody is chased
@@ -640,6 +660,8 @@ function forStaff(db, staff, now) {
  */
 function visibleTo(db, staff, a) {
   if (!staff || staff.role === 'admin') return true;
+  /* Patch 263: money is the office's business, not a partner agency's. */
+  if (a && a.kind === 'paid' && staff.role === 'partner') return false;
   const studentId = a && a.subject && a.subject.studentId;
   if (studentId != null && studentId !== '') {
     try { return !!db.canSee(staff, Number(studentId)); } catch (e) { return false; }

@@ -1533,7 +1533,7 @@ async function bell(me) {
     const one = a =>
           '<button type="button" class="al ' + esc(a.urgency) + '" '
           + 'data-student="' + esc((a.subject || {}).studentId || '') + '" '
-          + 'data-lead="' + esc((a.subject || {}).leadId || '') + '">'
+          + 'data-lead="' + esc((a.subject || {}).leadId || '') + '" data-order="' + esc((a.subject || {}).orderRef || '') + '">'
           + '<b><i></i>' + esc(a.title) + '</b><span>' + esc(a.detail) + '</span></button>';
     /* Round 178 (BUG-095): one entry per student — the most urgent alert,
        and the rest behind "+N more"; the most urgent student first. */

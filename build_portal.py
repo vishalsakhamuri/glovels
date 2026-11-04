@@ -162,7 +162,7 @@ def sidebar(active):
     trend = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>')
     links = "".join(
-        f'<a href="{slug}.html"{on if slug == active else ""}>'
+        f'<a href="{slug.replace("#", ".html#") if "#" in slug else slug + ".html"}"{on if slug == active else ""}>'
         f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg> {label}</a>'
         for slug, icon, label in NAV
     )
@@ -223,6 +223,9 @@ STAFF_NAV = [
     # The public blog lives at blog.html, so the screen that writes it cannot.
     ("blog-admin", "i-book",   "Blog"),
     ("catalogue",  "i-cap",    "Catalogue"),
+    # Patch 263 (owner, 4 Nov): orders on their own line. The href carries the
+    # tab; the gate key below is the href without ".html".
+    ("admin#orders", "i-wallet", "Orders"),
     ("admin",      "i-grid",   "Organisation"),
 ]
 
@@ -244,7 +247,7 @@ def staff_sidebar(active, role_note, nav=None, brand=True):
     trend = ('<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>')
     links = "".join(
-        f'<a href="{slug}.html"{on if slug == active else ""}>'
+        f'<a href="{slug.replace("#", ".html#") if "#" in slug else slug + ".html"}"{on if slug == active else ""}>'
         + (pulse if icon == "i-pulse" else trend if icon == "i-trend" else radar if icon == "i-radar" else f'<svg class="ico" aria-hidden="true"><use href="#{icon}"/></svg>')
         + f' {label}</a>'
         for slug, icon, label in (nav if nav is not None else STAFF_NAV)
@@ -641,6 +644,7 @@ async function staffBoot(run) {{
     leads: me.user.role !== 'editor' || perms.indexOf('marketing') >= 0,
     'leads-command': me.user.role !== 'editor' || perms.indexOf('marketing') >= 0,
     admin: me.user.role === 'admin',
+    'admin#orders': me.user.role === 'admin',
     /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
     catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',
     home: perms.indexOf('content') >= 0,
@@ -749,7 +753,8 @@ async function bell(me) {{
     }}
     const a = e.target.closest('.al');
     if (!a) return;
-    if (a.dataset.lead) location.href = 'leads.html';
+    if (a.dataset.order) location.href = 'admin.html#orders';
+    else if (a.dataset.lead) location.href = 'leads.html';
     else if (a.dataset.student) location.href = 'counsellor.html#s' + a.dataset.student;
   }});
 
