@@ -3124,6 +3124,76 @@ function open(dir) {
       db.run('DELETE FROM orders WHERE id = ?', Number(o.id));
       return { ok: true, reference: o.reference, studentId: o.student_id || 0 };
     },
+    /*
+     * Patch 266 (owner, 4 Nov, half an hour after going live: "remove all the
+     * test data — only the two orders I bought today should remain"). The
+     * QA purge only knows rows carrying a test marker; three months of
+     * trying things out left plain-looking accounts, threads and enquiries
+     * behind. This lists, and removes, EVERYTHING a student or a visitor
+     * made before a moment the office chooses — the go-live moment — and
+     * keeps: staff, anybody who has paid through a gateway (and their
+     * orders), and anything created after the cutoff, which is the first
+     * real students. Never run without the preview; the route asks for a
+     * typed confirmation.
+     */
+    freshStartCandidates(before) {
+      const cut = String(before || '');
+      const olderThan = t => String(t || '') < cut;
+      let orders = [];
+      try { orders = db.all('SELECT * FROM orders WHERE id > ?', 0); } catch (e) { orders = []; }
+      const paidSid = new Set(), paidMail = new Set();
+      let paidRefs = new Set();
+      try { paidRefs = new Set(db.all('SELECT order_ref FROM payments WHERE paise > ?', 0).map(p => String(p.order_ref))); } catch (e) {}
+      const realMoney = o => String(o.gateway_payment_id || '').trim() || paidRefs.has(String(o.reference))
+        || /^(paid|part|refunded)$/.test(String(o.status || ''));
+      orders.forEach(o => {
+        if (realMoney(o)) {
+          if (o.student_id) paidSid.add(Number(o.student_id));
+          if (o.email) paidMail.add(String(o.email).toLowerCase());
+        }
+      });
+      const people = db.all('SELECT * FROM students WHERE id > ?', 0);
+      const isStu = p => String(p.role || 'student') === 'student';
+      const students = people.filter(p => isStu(p) && olderThan(p.created_at)
+        && !paidSid.has(Number(p.id)) && !paidMail.has(String(p.email || '').toLowerCase()));
+      const kept = people.filter(p => isStu(p) && !students.includes(p));
+      const sids = new Set(students.map(p => Number(p.id)));
+      const unpaid = orders.filter(o => !realMoney(o)
+        && !/^(paid|part|refunded)$/.test(String(o.status || ''))
+        && (olderThan(o.created_at) || sids.has(Number(o.student_id))));
+      const rowsOf = (table, extra) => { try { return db.all('SELECT * FROM ' + table + ' WHERE id > ?', 0).filter(extra); } catch (e) { return []; } };
+      const enquiries = rowsOf('enquiries', e => olderThan(e.created_at) || sids.has(Number(e.student_id)));
+      const chats = rowsOf('chats', c => olderThan(c.created_at) || sids.has(Number(c.student_id)));
+      const bookings = rowsOf('bookings', b => olderThan(b.created_at) || sids.has(Number(b.student_id)));
+      const brief = p => ({ id: p.id, name: p.name || '', email: p.email || '', createdAt: p.created_at || '' });
+      return {
+        before: cut,
+        students: students.map(brief),
+        kept: kept.map(p => Object.assign(brief(p), { why: paidSid.has(Number(p.id)) || paidMail.has(String(p.email || '').toLowerCase()) ? 'has paid' : 'after the cutoff' })),
+        orders: unpaid.map(o => ({ id: o.id, reference: o.reference, email: o.email || '', package: o.package, status: o.status })),
+        enquiries: enquiries.map(e => ({ id: e.id, name: e.name || '', email: e.email || '' })),
+        chats: chats.map(c => ({ id: c.id, name: c.name || '', email: c.email || '' })),
+        bookings: bookings.map(b => ({ id: b.id })),
+      };
+    },
+    freshStart(before) {
+      const c = this.freshStartCandidates(before);
+      const n = { students: 0, orders: 0, enquiries: 0, chats: 0, bookings: 0 };
+      c.students.forEach(p => { try { this.closeAccount(p.id); n.students++; } catch (e) {} });
+      c.orders.forEach(o => {
+        try { db.run('DELETE FROM payments WHERE order_ref = ?', String(o.reference)); } catch (e) {}
+        try { db.run('DELETE FROM gateway_orders WHERE reference = ?', String(o.reference)); } catch (e) {}
+        try { db.run('DELETE FROM orders WHERE id = ?', Number(o.id)); n.orders++; } catch (e) {}
+      });
+      c.enquiries.forEach(e => { try { this.deleteLead(e.id); n.enquiries++; } catch (err) {} });
+      c.chats.forEach(ch => {
+        try { db.run('DELETE FROM chat_messages WHERE chat_id = ?', Number(ch.id)); } catch (e) {}
+        try { db.run('DELETE FROM chats WHERE id = ?', Number(ch.id)); n.chats++; } catch (e) {}
+      });
+      c.bookings.forEach(b => { try { db.run('DELETE FROM bookings WHERE id = ?', Number(b.id)); n.bookings++; } catch (e) {} });
+      return Object.assign(n, { uploadDirs: c.students.map(p => String(p.id)) });
+    },
+
     /** Removes exactly what qaCandidates() listed. Returns the counts. */
     qaPurge() {
       const c = this.qaCandidates();

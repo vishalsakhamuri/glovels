@@ -7937,6 +7937,42 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       enquiries: before.enquiries.map(e => e.email), orders: before.orders.map(o => o.reference) } });
   }));
 
+  /* Patch 266: a fresh start — everything from before a moment, the real
+     students and the real money kept. Super administrator; typed confirm. */
+  const cutoffOf = b => {
+    const d = new Date(String((b && b.before) || ''));
+    return isNaN(d) ? '' : d.toISOString();
+  };
+  route('POST', '/api/staff/fresh/preview', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
+    const b = await readJson(req);
+    const before = cutoffOf(b);
+    if (!before) return json(res, 422, { error: 'Give the moment to clear up to — everything created before it goes.' });
+    const c = db.freshStartCandidates(before);
+    return json(res, 200, Object.assign({ ok: true, confirmWith: 'FRESH START', counts: {
+      students: c.students.length, orders: c.orders.length, enquiries: c.enquiries.length, chats: c.chats.length, bookings: c.bookings.length, kept: c.kept.length } }, c));
+  }));
+  route('POST', '/api/staff/fresh/start', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
+    const b = await readJson(req);
+    const before = cutoffOf(b);
+    if (!before) return json(res, 422, { error: 'Give the moment to clear up to.' });
+    if (String((b && b.confirm) || '') !== 'FRESH START') {
+      return json(res, 422, { error: 'Type FRESH START (exactly) to confirm. Nothing was removed.' });
+    }
+    const was = db.freshStartCandidates(before);
+    const n = db.freshStart(before);
+    (n.uploadDirs || []).forEach(id => {
+      if (!/^\d+$/.test(String(id))) return;
+      try { fs.rmSync(path.join(uploadDir, String(id)), { recursive: true, force: true }); } catch (e) {}
+    });
+    const summary = Object.keys(n).filter(k => k !== 'uploadDirs').map(k => k + ' ' + n[k]).join(', ');
+    db.log(s.name || s.email, 'Fresh start — everything before ' + before + ' removed', summary);
+    return json(res, 200, { ok: true, removed: n, kept: was.kept });
+  }));
+
   route('GET', '/api/staff/mail', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     return json(res, 200, mail.status ? mail.status()

@@ -1906,6 +1906,37 @@ select.assign.none:hover{border-color:#a5342b}
           background:#e6f4ec;border:1px solid #bfe0cc;font:600 12.8px/1.6 var(--sans);color:#14603a"></div>
       </div>
     </div>
+    <!-- Patch 266 (owner, 4 Nov, just after going live): everything from the
+         testing months, not only the rows carrying a QA marker. -->
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Fresh start</h2></div>
+      <div class="p-card" id="fsCard">
+        <p style="margin:0 0 10px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">
+          Removes <b>every student account, conversation, enquiry, booking and unpaid order
+          created before the moment you choose</b> &mdash; the moment the site went live. Kept:
+          staff accounts, anybody who has paid through Razorpay or Stripe (with their orders), and
+          everything created after that moment. Super administrator only; preview first; typed
+          confirmation. There is no undo beyond last night's backup.</p>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+          <div class="field" style="margin:0"><label for="fsBefore">Everything before</label>
+            <input id="fsBefore" type="datetime-local" step="60"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="fsPreview">Preview the fresh start&hellip;</button>
+          <span class="st wait" id="fsCount" hidden style="text-transform:none;letter-spacing:0"></span>
+        </div>
+        <div id="fsBox" hidden style="margin-top:12px">
+          <ul class="doclist" id="fsList" style="margin:0 0 10px"></ul>
+          <div class="field"><label for="fsConfirm">Type <b>FRESH START</b> to confirm</label>
+            <input id="fsConfirm" autocomplete="off" spellcheck="false" placeholder="FRESH START"></div>
+          <p class="ferr" id="fsErr" hidden></p>
+          <div style="display:flex;gap:10px">
+            <button type="button" class="btn btn-primary btn-sm" id="fsGo" disabled>Remove it all</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="fsCancel">Cancel</button>
+          </div>
+        </div>
+        <div id="fsDone" hidden style="margin-top:12px;padding:12px 14px;border-radius:10px;
+          background:#e6f4ec;border:1px solid #bfe0cc;font:600 12.8px/1.6 var(--sans);color:#14603a"></div>
+      </div>
+    </div>
     </div><!-- /o-settings -->
 
 
@@ -3783,7 +3814,11 @@ async function paintPeople() {
   const r = await api('GET', '/api/staff/people');
   PEOPLE = r.people;
   fillCountries(r.countries);
+  const wasSuper = ME_SUPER;
   ME_SUPER = !!r.meSuper;
+  /* Patch 266: the order book was painted before this answer came back, so
+     a super administrator's Remove buttons (patch 262) never appeared. */
+  if (ME_SUPER !== wasSuper && typeof paintOrders === 'function' && ORDERS.length) { try { paintOrders(); } catch (e) {} }
   /* Only a super administrator is offered the administrator levels. */
   [].forEach.call(document.querySelectorAll('#pRole option[value="admin"], #pRole option[value="super"]'),
     o => { o.disabled = !r.meSuper; });
@@ -4801,6 +4836,57 @@ $('#qaPreview') && $('#qaPreview').addEventListener('click', async () => {
 });
 $('#qaConfirm') && $('#qaConfirm').addEventListener('input', e => { $('#qaGo').disabled = e.target.value.trim() !== 'DELETE QA DATA'; });
 $('#qaCancel') && $('#qaCancel').addEventListener('click', () => { $('#qaBox').hidden = true; });
+
+/* Patch 266: the fresh start. The cutoff box opens on the current minute,
+   local time; the server reads it as an instant. */
+(function () {
+  const inp = $('#fsBefore');
+  if (!inp) return;
+  const d = new Date(); d.setSeconds(0, 0);
+  const pad = n => String(n).padStart(2, '0');
+  inp.value = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}());
+const fsBefore = () => { const v = $('#fsBefore').value; const d = new Date(v); return isNaN(d) ? '' : d.toISOString(); };
+$('#fsPreview') && $('#fsPreview').addEventListener('click', async () => {
+  const box = $('#fsBox'), list = $('#fsList'), err = $('#fsErr');
+  $('#fsDone').hidden = true; err.hidden = true;
+  let r;
+  try { r = await api('POST', '/api/staff/fresh/preview', { before: fsBefore() }); }
+  catch (e) { err.textContent = e.message || String(e); err.hidden = false; box.hidden = false; return; }
+  const c = r.counts || {};
+  const total = (c.students || 0) + (c.orders || 0) + (c.enquiries || 0) + (c.chats || 0) + (c.bookings || 0);
+  $('#fsCount').hidden = false;
+  $('#fsCount').textContent = total ? total + ' record(s) would go' : 'nothing to remove';
+  const lines = (label, rows, f) => rows.length
+    ? '<li><div><b>' + label + '</b><span style="display:block;font-size:11.8px;color:var(--muted)">' +
+      esc(rows.slice(0, 40).map(f).join(', ')) + (rows.length > 40 ? ' \u2026 and ' + (rows.length - 40) + ' more' : '') +
+      '</span></div><span class="st bad">' + rows.length + '</span></li>' : '';
+  list.innerHTML = (total
+    ? lines('Student accounts (with their documents, messages, shortlists, applications)', r.students || [], p => p.email || p.name) +
+      lines('Unpaid orders', r.orders || [], o => o.reference) +
+      lines('Enquiries', r.enquiries || [], e => e.email || e.name) +
+      lines('Website chats', r.chats || [], ch => ch.email || ch.name || ('#' + ch.id)) +
+      (c.bookings ? '<li><div><b>Booked calls</b></div><span class="st bad">' + c.bookings + '</span></li>' : '')
+    : '<li><div><b>Nothing from before that moment.</b></div><span class="st ok">clean</span></li>') +
+    ((r.kept || []).length ? '<li><div><b>Kept</b><span style="display:block;font-size:11.8px;color:var(--muted)">' +
+      esc(r.kept.map(p => (p.email || p.name) + ' (' + p.why + ')').join(', ')) + '</span></div><span class="st ok">' + r.kept.length + '</span></li>' : '');
+  box.hidden = !total;
+  $('#fsConfirm').value = ''; $('#fsGo').disabled = true;
+});
+$('#fsConfirm') && $('#fsConfirm').addEventListener('input', e => { $('#fsGo').disabled = e.target.value.trim() !== 'FRESH START'; });
+$('#fsCancel') && $('#fsCancel').addEventListener('click', () => { $('#fsBox').hidden = true; });
+$('#fsGo') && $('#fsGo').addEventListener('click', async () => {
+  const err = $('#fsErr'); err.hidden = true;
+  try {
+    const r = await api('POST', '/api/staff/fresh/start', { before: fsBefore(), confirm: $('#fsConfirm').value.trim() });
+    const n = r.removed || {};
+    $('#fsDone').textContent = 'Removed: ' + ['students', 'orders', 'enquiries', 'chats', 'bookings']
+      .map(k => (n[k] || 0) + ' ' + k).join(', ') + '. Kept ' + (r.kept || []).length + ' account(s). Written to the audit trail.';
+    $('#fsDone').hidden = false; $('#fsBox').hidden = true; $('#fsCount').hidden = true;
+    if (typeof paintGolive === 'function') { try { paintGolive(); } catch (e) {} }
+    setTimeout(() => location.reload(), 1500);
+  } catch (e) { err.textContent = e.message || String(e); err.hidden = false; }
+});
 $('#qaGo') && $('#qaGo').addEventListener('click', async () => {
   const err = $('#qaErr'); err.hidden = true;
   try {
