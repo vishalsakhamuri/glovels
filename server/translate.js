@@ -31,12 +31,17 @@ const https = require('https');
 const http = require('http');
 const I18N = require('./i18n.js');
 
-const DEFAULTS = { on: true, langs: I18N.OTHER.slice(), blog: true, perDay: 2500, batch: 30, tokens: { in: 0, out: 0 }, calls: 0, lastRun: '', lastError: '', errors: 0 };
+/* Patch 269: 2,500 calls a day was an hour's work on a 5,800-line site in
+   eight languages (two calls per batch of 30). 20,000 covers the whole site
+   and the blog in a day; I18N_PER_DAY on the server overrides. A stored
+   2,500 — the old default — reads as unset. */
+const PER_DAY = (() => { const n = Number(process.env.I18N_PER_DAY); return Number.isFinite(n) && n >= 100 ? n : 20000; })();
+const DEFAULTS = { on: true, langs: I18N.OTHER.slice(), blog: true, perDay: PER_DAY, batch: 30, tokens: { in: 0, out: 0 }, calls: 0, lastRun: '', lastError: '', errors: 0 };
 const settingsOf = raw => {
   const s = Object.assign({}, DEFAULTS, raw || {});
   s.langs = (Array.isArray(s.langs) ? s.langs : DEFAULTS.langs).filter(l => I18N.OTHER.includes(l));
   s.on = s.on !== false; s.blog = s.blog !== false;
-  s.perDay = Math.max(100, Math.min(100000, Number(s.perDay) || 2500));
+  s.perDay = Math.max(100, Math.min(100000, (Number(s.perDay) === 2500 ? PER_DAY : Number(s.perDay)) || PER_DAY));
   s.batch = Math.max(5, Math.min(60, Number(s.batch) || 30));
   s.tokens = Object.assign({ in: 0, out: 0 }, s.tokens || {});
   return s;
@@ -195,21 +200,30 @@ function open({ db, log = console, siteUrl = '' }) {
   const slot = () => new Promise(r => { if (inFlight < MAX_FLIGHT) { inFlight++; r(); } else waiters.push(r); });
   const free = () => { inFlight--; const w = waiters.shift(); if (w) { inFlight++; w(); } };
 
+  /* Patch 269 (4 Nov, live): a failure of the SERVICE — the day's limit,
+     a 4xx/5xx from the API, a timeout — is not a failure of the LINE. It
+     stops the run and leaves the line pending for the next one. Before this,
+     hitting the 2,500-call limit flagged the 40,000 lines still waiting as
+     "needs a person", one by one, in a minute. */
+  class Stop extends Error {}
   async function ask(system, user, { model: m, maxTokens } = {}) {
     const S = settings();
     const today = new Date().toISOString().slice(0, 10);
     if (S.day !== today) save({ day: today, todayCalls: 0 });
-    if ((settings().todayCalls || 0) >= S.perDay) throw new Error('the day\'s limit of ' + S.perDay + ' translation calls is reached');
+    if ((settings().todayCalls || 0) >= S.perDay) throw new Stop('the day\'s limit of ' + S.perDay + ' translation calls is reached — it carries on tomorrow, or raise the limit');
     await slot();
     try {
-      const r = await post((process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com') + '/v1/messages',
-        { 'x-api-key': key(), 'anthropic-version': '2023-06-01' },
-        { model: m || model(), max_tokens: maxTokens || 8000, system, messages: [{ role: 'user', content: user }] });
+      let r;
+      try {
+        r = await post((process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com') + '/v1/messages',
+          { 'x-api-key': key(), 'anthropic-version': '2023-06-01' },
+          { model: m || model(), max_tokens: maxTokens || 8000, system, messages: [{ role: 'user', content: user }] });
+      } catch (e) { throw new Stop('could not reach the translation service: ' + String(e.message || e)); }
       const cur = settings();
       const usage = (r.data && r.data.usage) || {};
       save({ calls: (cur.calls || 0) + 1, todayCalls: (cur.todayCalls || 0) + 1,
         tokens: { in: (cur.tokens.in || 0) + Number(usage.input_tokens || 0), out: (cur.tokens.out || 0) + Number(usage.output_tokens || 0) } });
-      if (r.status !== 200) throw new Error(((r.data || {}).error || {}).message || ('the translation service said ' + r.status));
+      if (r.status !== 200) throw new Stop(((r.data || {}).error || {}).message || ('the translation service said ' + r.status));
       return (r.data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
     } finally { free(); }
   }
@@ -226,6 +240,7 @@ function open({ db, log = console, siteUrl = '' }) {
     try {
       out = parseJson(await ask(TRANSLATE(langName(lang), srcs.length), JSON.stringify(srcs)), 'array');
     } catch (e) {
+      if (e instanceof Stop) throw e;
       if (rows.length > 1) { const h = Math.ceil(rows.length / 2); await translateBatch(lang, rows.slice(0, h)); await translateBatch(lang, rows.slice(h)); return; }
       db.i18nSave(rows[0].hash, lang, '', 'flagged', 'no translation came back: ' + String(e.message || e).slice(0, 200), 'translator');
       return;
@@ -280,6 +295,7 @@ function open({ db, log = console, siteUrl = '' }) {
     try {
       t = parseJson(await ask(POST_TRANSLATE(langName(lang)), JSON.stringify(en), { maxTokens: 16000 }), 'object');
     } catch (e) {
+      if (e instanceof Stop) { db.postI18nSave(p.id, lang, { status: 'pending', srcHash, by: 'translator' }); throw e; }
       db.postI18nSave(p.id, lang, { status: 'flagged', srcHash, note: 'no translation came back: ' + String(e.message || e).slice(0, 200), by: 'translator' });
       return;
     }
@@ -306,6 +322,14 @@ function open({ db, log = console, siteUrl = '' }) {
     if (timer) return;
     timer = setTimeout(() => { timer = null; runAll().catch(e => { state.lastError = String(e.message || e); }); }, 1500);
   }
+  /* Patch 269: lines the old code flagged for a service failure go back to
+     pending — they were never looked at. Posts the same. */
+  function unflagServiceFailures() {
+    try {
+      const n = db.i18nUnflagServiceFailures ? db.i18nUnflagServiceFailures() : { units: 0, posts: 0 };
+      if (n.units || n.posts) log.log('  translator: ' + n.units + ' line(s) and ' + n.posts + ' post(s) flagged for a service failure are back in the queue');
+    } catch (e) {}
+  }
   async function runLang(lang) {
     if (state.running.has(lang)) return;
     state.running.add(lang);
@@ -322,6 +346,8 @@ function open({ db, log = console, siteUrl = '' }) {
         break;
       }
       state.lastError = '';
+      /* Patch 269: a run that finished clears the last run's complaint. */
+      if (settings().lastError) save({ lastError: '' });
     } catch (e) {
       state.lastError = String(e.message || e);
       save({ lastError: state.lastError, errors: (settings().errors || 0) + 1 });
@@ -337,6 +363,7 @@ function open({ db, log = console, siteUrl = '' }) {
     if (!db.i18nReady || !key() || off()) return;
     const S = settings();
     if (!S.on) return;
+    unflagServiceFailures();
     save({ lastRun: new Date().toISOString() });
     await Promise.all(S.langs.map(l => runLang(l)));
   }

@@ -4130,6 +4130,20 @@ function open(dir) {
     },
     i18nUnit: (hash, lang) => db.one('SELECT u.*, s.src, s.kind, s.page, s.skip FROM i18n_units u JOIN i18n_src s ON s.hash = u.hash WHERE u.hash = ? AND u.lang = ?', String(hash), String(lang)),
     i18nSkip(hash, skip) { db.run('UPDATE i18n_src SET skip = ? WHERE hash = ?', skip ? 1 : 0, String(hash)); },
+    /* Patch 269: lines flagged for a service failure (the day's limit, an
+       API error) were never looked at — back to the queue. Returns counts. */
+    i18nUnflagServiceFailures() {
+      const out = { units: 0, posts: 0 };
+      try {
+        out.units = db.all('SELECT COUNT(*) AS n FROM i18n_units WHERE status = ? AND note LIKE ?', 'flagged', 'no translation came back:%')[0].n;
+        db.run('UPDATE i18n_units SET status = ?, note = ? WHERE status = ? AND note LIKE ?', 'pending', '', 'flagged', 'no translation came back:%');
+      } catch (e) {}
+      try {
+        out.posts = db.all('SELECT COUNT(*) AS n FROM post_i18n WHERE status = ? AND note LIKE ?', 'flagged', 'no translation came back:%')[0].n;
+        db.run('UPDATE post_i18n SET status = ?, note = ? WHERE status = ? AND note LIKE ?', 'pending', '', 'flagged', 'no translation came back:%');
+      } catch (e) {}
+      return out;
+    },
     i18nForget(hash) {
       db.run('DELETE FROM i18n_units WHERE hash = ?', String(hash));
       db.run('DELETE FROM i18n_pages WHERE hash = ?', String(hash));

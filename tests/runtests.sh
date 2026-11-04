@@ -300,6 +300,7 @@ run socialtest.js   8099
 # patch 265: the website in nine languages — starts its own server (8260) and
 # its own stand-in for the translation API (8261).
 node langtest.js | tail -1 | sed 's/^/  langtest.js        /' | tee -a "$REPORT"
+node i18nlimittest.js | tail -1 | sed 's/^/  i18nlimittest.js   /' | tee -a "$REPORT"
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 
