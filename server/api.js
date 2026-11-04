@@ -14317,6 +14317,43 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (!i18n.OTHER.includes(lang)) return json(res, 422, { error: 'Which language?' });
     return json(res, 200, Object.assign({ ok: true }, db.i18nList({ lang, q: String(q.q || '').slice(0, 100), status: String(q.status || ''), page: q.page, per: q.per })));
   }));
+  /* Patch 272 (4 Nov): many lines in one request — translations made outside
+     the site (the owner's Claude plan instead of the API). Every line is
+     checked like an office edit (placeholders), saved as 'checked', and the
+     language's dictionary is updated in place: the one-line PUT reloads the
+     whole dictionary, and thirty-six of those at once took the server down.
+     `skip`: hashes that are catalogue data, taken out of translation. */
+  route('POST', '/api/staff/i18n/import', needs('content', async (req, res, s) => {
+    if (!db.i18nReady) return json(res, 503, { error: 'Translation needs the SQLite database.' });
+    const b = await readJson(req);
+    const lang = String(b.lang || '');
+    if (!i18n.OTHER.includes(lang)) return json(res, 422, { error: 'Which language?' });
+    const items = Array.isArray(b.items) ? b.items.slice(0, 400) : [];
+    const skips = Array.isArray(b.skip) ? b.skip.slice(0, 400).map(String) : [];
+    const d = translator.dict(lang);
+    const out = { saved: 0, skipped: 0, bad: [] };
+    for (const it of items) {
+      const hash = String((it && it.hash) || ''), text = String((it && it.text) || '').replace(/\s+/g, ' ').trim();
+      const u = hash ? db.i18nUnit(hash, lang) : null;
+      if (!u) { out.bad.push({ hash, why: 'no such line' }); continue; }
+      if (!text) { out.bad.push({ hash, why: 'empty' }); continue; }
+      if (!i18n.placeholdersMatch(u.src, text)) { out.bad.push({ hash, why: 'placeholders do not match the English', src: u.src }); continue; }
+      db.i18nSave(hash, lang, text, 'checked', 'translated with Claude (' + s.name + ')', s.name);
+      d.set(hash, text);
+      out.saved++;
+    }
+    for (const h of skips) {
+      if (!db.i18nSrc(h)) continue;
+      db.i18nSkip(h, true);
+      i18n.OTHER.forEach(l => translator.dict(l).delete(h));
+      out.skipped++;
+    }
+    if (out.saved || out.skipped) {
+      if (translator.touchPages) translator.touchPages();
+      db.log(s.name, 'loaded translations', lang + ': ' + out.saved + ' lines, ' + out.skipped + ' taken out');
+    }
+    return json(res, 200, Object.assign({ ok: true }, out));
+  }));
   route('PUT', '/api/staff/i18n/unit', needs('content', async (req, res, s) => {
     const b = await readJson(req);
     const hash = String(b.hash || ''), lang = String(b.lang || '');

@@ -433,7 +433,8 @@ function open({ db, log = console, siteUrl = '' }) {
     save({ lastRun: new Date().toISOString() });
     /* Live languages keep up with new lines (cheap); the focus languages
        get the rest of the capacity. */
-    const now = [...new Set(settings().live.concat(translating()))];
+    /* With the gate off every language is public, so every one is worked on. */
+    const now = GATE ? [...new Set(settings().live.concat(translating()))] : settings().langs.slice();
     await Promise.all(now.map(l => runLang(l)));
     promoteFinished();
     /* A run stops after 500 rounds; if a language still has work and the
@@ -503,7 +504,9 @@ function open({ db, log = console, siteUrl = '' }) {
 
   return { settings, save, status, learn, pageUnits, pageDict, lookupFor, dict, kick, start, setLangs, enabledLangs,
     translateBatch, translatePost, postsNeeding, postSrc, invalidate: invalidateDicts,
-    allLangs, setLive, moveFirst, translating, completeness, wake };
+    allLangs, setLive, moveFirst, translating, completeness, wake,
+    /* Patch 272: page dictionaries only — the line dictionaries stay warm. */
+    touchPages: () => { try { pageDictCache.clear(); } catch (e) {} } };
 }
 
 module.exports = { open, settingsOf, TRANSLATE, CHECK, POST_TRANSLATE, POST_CHECK, parseJson };
