@@ -3247,8 +3247,31 @@ function moneyButtons(o) {
       : '') +
     '<button type="button" class="btn btn-ghost btn-sm" data-ledger="' + esc(o.reference) + '"' +
       (ORD_OPEN === o.reference ? ' aria-expanded="true"' : '') + '>' +
-      (ORD_OPEN === o.reference ? 'Close' : 'History') + '</button>';
+      (ORD_OPEN === o.reference ? 'Close' : 'History') + '</button>' +
+    /* Patch 262: an order nobody paid — a test, an abandoned card — can go.
+       Super administrator only; the server refuses once money is on it. */
+    (ME_SUPER && !o.receivedPaise && /^(owing|awaiting|failed)$/.test(String(o.status || ''))
+      ? ' <button type="button" class="btn btn-ghost btn-sm" data-unorder="' + esc(o.reference) +
+        '" style="color:#b03a2e">Remove</button>'
+      : '');
 }
+
+document.addEventListener('click', async e => {
+  const b = e.target && e.target.closest('[data-unorder]');
+  if (!b) return;
+  const ref = b.dataset.unorder;
+  if (!confirm('Remove ' + ref + ' from the order book? Nothing was paid on it. This cannot be undone.')) return;
+  b.disabled = true;
+  try {
+    const r = await api('DELETE', '/api/staff/orders/' + encodeURIComponent(ref));
+    if (r && r.error) throw new Error(r.error);
+    ORDERS = ORDERS.filter(o => o.reference !== ref);
+    paintOrders();
+  } catch (err) {
+    b.disabled = false;
+    alert(err.message || 'Could not remove it.');
+  }
+});
 
 /* The ledger under an order: every payment and refund, then the schedule
    with a Mark paid on each part still owed. */

@@ -9868,6 +9868,18 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     return json(res, 200, TASKS.ruleSettings(db));
   }));
 
+  /* Patch 262 (owner, 4 Nov: "only the 2 orders I bought today should
+     remain"): an unpaid order off the book — a test buy, an abandoned card
+     session. Super administrator only, and the store refuses anything money
+     has touched. */
+  route('DELETE', /^\/api\/staff\/orders\/([A-Za-z0-9-]{3,30})$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    if (superOnly(s, res)) return;
+    const r = db.deleteUnpaidOrder(m[1]);
+    if (r.error) return json(res, 409, { error: r.error });
+    db.log(s.name || s.email, 'Unpaid order removed', r.reference);
+    return json(res, 200, { ok: true, reference: r.reference });
+  }));
   route('GET', '/api/staff/orders', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     /* Every account, not every student: an order that points at a staff

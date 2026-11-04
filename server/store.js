@@ -3064,6 +3064,21 @@ function open(dir) {
       };
     },
 
+    /** Patch 262: one unpaid order off the book — a test buy that was never
+     *  completed, an abandoned card session. Refuses anything money has
+     *  touched: a gateway payment id, a payment row, or a paid/part status. */
+    deleteUnpaidOrder(reference) {
+      const o = db.one('SELECT * FROM orders WHERE reference = ?', String(reference || ''));
+      if (!o) return { error: 'No such order.' };
+      const paid = db.one('SELECT COUNT(*) AS n FROM payments WHERE order_ref = ?', String(o.reference));
+      if (String(o.gateway_payment_id || '').trim() || (paid && Number(paid.n) > 0)
+          || /^(paid|part|refunded)$/.test(String(o.status || ''))) {
+        return { error: 'Money has been recorded on ' + o.reference + '. A paid order stays on the book; refund it instead.' };
+      }
+      try { db.run('DELETE FROM gateway_orders WHERE reference = ?', String(o.reference)); } catch (e) {}
+      db.run('DELETE FROM orders WHERE id = ?', Number(o.id));
+      return { ok: true, reference: o.reference, studentId: o.student_id || 0 };
+    },
     /** Removes exactly what qaCandidates() listed. Returns the counts. */
     qaPurge() {
       const c = this.qaCandidates();
