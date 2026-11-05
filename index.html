@@ -241,7 +241,7 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
 .hero-in{position:relative;z-index:2;text-align:center}
 .hero h1{font-size:clamp(28px,4vw,46px);line-height:1.06;color:#fff}
 .hero h1 em{font-style:italic;color:var(--gold-soft)}
-.hero-sub{display:inline-block;max-width:760px;margin:12px 0 0;color:#c8d6e4;font-size:15.5px;vertical-align:middle}
+.hero-sub{display:inline-block;max-width:760px;margin:12px 0 0;color:#c8d6e4;font-size:15.5px;vertical-align:middle;font-weight:400;line-height:1.55;letter-spacing:0;font-family:inherit}
 .hero-cta{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:18px auto 0}
 .hero-cta .btn{min-height:46px;padding:0 22px;font-weight:800}
 .btn-ghost-light{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.45)}
@@ -1427,7 +1427,9 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   </div>
   <div class="wrap hero-in">
     <h1>Search. Click. <em>Fly.</em></h1>
-    <p class="hero-sub">Study or work abroad — thousands of programmes matched to your profile in seconds, with a plan our research team builds around you.</p>
+    <!-- Patch 268: the keyword line under the brand headline is a heading, so
+         search engines read what the page is about; it looks as it did. -->
+    <h2 class="hero-sub">Study abroad at public universities in Germany, the UK, Canada and 12 more countries — programmes matched to your profile in seconds, with a plan our research team builds around you.</h2>
     <div class="hero-cta"><a class="btn btn-gold" href="#finder" data-track="cta" data-track-label="Find my university">Find my university <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a><a class="btn btn-ghost-light" href="#book" data-track="cta" data-track-label="Schedule a call">Schedule a call</a></div>
     <div class="hero-rate">
       <span class="hchip"><b aria-hidden="true">✓</b>Prices published upfront</span>

@@ -1063,7 +1063,8 @@ function sitemapXml(part, partNo) {
      it always was. */
   const hidden = hiddenUniversitySlugs();
   const nUnis = db.countUniversities({});
-  const PER = 40000;
+  /* SITEMAP_PER: the file size, overridable so a test can see the index on a small catalogue. */
+  const PER = Math.max(10, Number(process.env.SITEMAP_PER || 40000));
   progs.forEach(e => { if (e.lastmod) LM.set(e.path, day(e.lastmod)); });
   if (part === 'universities') {
     const slugs = db.uniSlugs({ limit: PER, offset: (Math.max(1, Number(partNo) || 1) - 1) * PER }).filter(sl => !hidden.has(sl));
@@ -1073,16 +1074,22 @@ function sitemapXml(part, partNo) {
     const from = (Math.max(1, Number(partNo) || 1) - 1) * PER;
     return urlset(progs.slice(from, from + PER).map(e => e.path));
   }
-  if (nUnis + pages.length + progs.length <= 45000) {
+  if (nUnis + pages.length + progs.length <= PER + Math.min(5000, PER)) {
     return urlset(pages.concat(db.uniSlugs({}).filter(sl => !hidden.has(sl)).map(sl => 'university/' + sl), progs.map(e => e.path)));
   }
   if (part === 'pages') return urlset(pages);
-  const files = ['sitemap-pages.xml'];
-  for (let n = 1; (n - 1) * PER < nUnis; n++) files.push('sitemap-universities-' + n + '.xml');
-  for (let n = 1; (n - 1) * PER < progs.length; n++) files.push('sitemap-programmes-' + n + '.xml');
+  /* Patch 268: each file in the index carries the newest <lastmod> of what
+     it lists, so after the move from Wix a crawler knows which file changed
+     and goes there first. The university files take the newest university
+     date (the per-file split would mean reading 40,000 slugs per file). */
+  const newest = list => list.reduce((m, p) => { const d = lmOf(p); return d && d > m ? d : m; }, '');
+  const uniNewest = (() => { let m = ''; uniLm.forEach(v => { const d = day(v); if (d && d > m) m = d; }); return m; })();
+  const files = [['sitemap-pages.xml', newest(pages)]];
+  for (let n = 1; (n - 1) * PER < nUnis; n++) files.push(['sitemap-universities-' + n + '.xml', uniNewest]);
+  for (let n = 1; (n - 1) * PER < progs.length; n++) files.push(['sitemap-programmes-' + n + '.xml', newest(progs.slice((n - 1) * PER, n * PER).map(e => e.path))]);
   return '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + files.map(f => '  <sitemap><loc>' + base + '/' + f + '</loc></sitemap>').join('\n')
+    + files.map(f => '  <sitemap><loc>' + base + '/' + f[0] + '</loc>' + (f[1] ? '<lastmod>' + f[1] + '</lastmod>' : '') + '</sitemap>').join('\n')
     + '\n</sitemapindex>\n';
 }
 
@@ -3262,7 +3269,7 @@ function withMobileKit(html, pathname) {
   if (html.indexOf('<header class="site"') < 0) {
     if (STUDENT_PAGES.test(String(pathname || '')) && html.indexOf('<script src="/glovels-pay.js') < 0) {
       const end = html.lastIndexOf('</body>');
-      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=265" defer></script>\n' + html.slice(end);
+      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=268" defer></script>\n' + html.slice(end);
     }
     return html;
   }
@@ -3274,7 +3281,7 @@ function withMobileKit(html, pathname) {
   const at = html.lastIndexOf('</body>');
   /* Patch 194: the currency script on every public page, so every rupee
      figure is shown in the visitor's own money (it also runs the checkout). */
-  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=265" defer></script>';
+  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=268" defer></script>';
   return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + pay + '\n' + html.slice(at);
 }
 

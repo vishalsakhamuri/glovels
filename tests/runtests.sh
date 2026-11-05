@@ -307,6 +307,8 @@ run i18nimporttest.js 8099
 node signupleadtest.js | tail -1 | sed 's/^/  signupleadtest.js  /' | tee -a "$REPORT"
 # patch 267: marketing tags, Conversions API, IndexNow, consent — own server (8267) and stub (8268).
 node marktagstest.js | tail -1 | sed 's/^/  marktagstest.js    /' | tee -a "$REPORT"
+# patch 268: the portal's language picker, the home H2, the sitemap index dates — own server (8269).
+node portallangtest.js | tail -1 | sed 's/^/  portallangtest.js  /' | tee -a "$REPORT"
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 

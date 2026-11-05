@@ -740,9 +740,40 @@
     if (h && !h.querySelector('.glv-locale')) hosts.push([h, false]);
     var mm = document.getElementById('mm');
     if (mm && !mm.querySelector('.glv-locale')) hosts.push([mm, true]);
+    /* Patch 268 (owner, 5 Nov): "in student login they can change the
+       language … like the website". The portal has no site header, so the
+       picker goes in the sidebar under the student's name — language only;
+       country and currency were settled when they bought. */
+    var who = document.querySelector('.p-side .p-who');
+    if (who && !document.querySelector('.p-side .glv-lang') && langs().length > 1) mountLangOnly(who);
     if (!hosts.length) return;
     injectLocaleCss();
     hosts.forEach(function (x) { mountLocale(x[0], x[1]); });
+  }
+  function mountLangOnly(after) {
+    var box = document.createElement('div');
+    box.className = 'glv-lang';
+    var cur = pageLang();
+    box.innerHTML = '<label for="glvLangSel"><span aria-hidden="true">\uD83C\uDF10</span> <span data-i18n-skip>Language</span></label>'
+      + '<select id="glvLangSel" translate="no" aria-label="Language">'
+      + langs().map(function (l) { return '<option value="' + l.code + '"' + (l.code === cur ? ' selected' : '') + '>' + (l.native || l.name) + (l.native && l.native !== l.name ? ' \u00b7 ' + l.name : '') + '</option>'; }).join('')
+      + '</select>';
+    if (!document.getElementById('glvLangCss')) {
+      var st = document.createElement('style'); st.id = 'glvLangCss';
+      st.textContent = '.p-side .glv-lang{display:flex;align-items:center;gap:8px;margin:2px 0 8px;padding:8px 12px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.04)}'
+        + '.p-side .glv-lang label{font:700 11px/1 var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.72);white-space:nowrap}'
+        + '.p-side .glv-lang select{flex:1;min-width:0;padding:6px 8px;border:1px solid rgba(255,255,255,.28)!important;border-radius:9px;background:#13294a!important;color:#fff!important;font:600 13px var(--sans,system-ui);cursor:pointer;-webkit-appearance:auto;appearance:auto}'
+        + '.p-side .glv-lang select option{color:#0b1f3a;background:#fff}'
+        + '@media (max-width:900px){.p-side .glv-lang{margin:0;flex:1 1 160px}}';
+      document.head.appendChild(st);
+    }
+    after.parentNode.insertBefore(box, after.nextSibling);
+    box.querySelector('select').addEventListener('change', function () {
+      var l = this.value;
+      setLang(l);
+      try { if (window.glvTrack) glvTrack('language', { label: l, page: location.pathname }); } catch (e) {}
+      location.href = pageIn(l);
+    });
   }
   function injectLocaleCss() {
     if (!document.getElementById('glvLocaleCss')) {
