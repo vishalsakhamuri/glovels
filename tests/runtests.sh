@@ -303,6 +303,8 @@ node langtest.js | tail -1 | sed 's/^/  langtest.js        /' | tee -a "$REPORT"
 node i18nlimittest.js | tail -1 | sed 's/^/  i18nlimittest.js   /' | tee -a "$REPORT"
 node i18nlivetest.js | tail -1 | sed 's/^/  i18nlivetest.js    /' | tee -a "$REPORT"
 run i18nimporttest.js 8099
+# patch 266: a sign-up is a lead — starts its own server (8266).
+node signupleadtest.js | tail -1 | sed 's/^/  signupleadtest.js  /' | tee -a "$REPORT"
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 

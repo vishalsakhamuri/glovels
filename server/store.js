@@ -3606,7 +3606,14 @@ function open(dir) {
       const t = now();
       const where = [e.source || 'website', e.campaign ? 'campaign ' + e.campaign : '', e.sourcePage ? 'on ' + e.sourcePage : '']
         .filter(Boolean).join(', ');
-      const body = ['Enquired again via ' + where + ' at ' + t.slice(0, 16).replace('T', ' ') + ' UTC',
+      /* Patch 266: a sign-up from somebody who already enquired is the same
+         person coming back — filed on their lead, and the lead now knows
+         the account, so "open their file" works from the Leads screen. */
+      const signup = String(e.consent || '') === 'signup';
+      if (signup && e.studentId != null && !open.student_id) {
+        db.run('UPDATE enquiries SET student_id = ? WHERE id = ?', Number(e.studentId), Number(open.id));
+      }
+      const body = [(signup ? 'Created an account via ' : 'Enquired again via ') + where + ' at ' + t.slice(0, 16).replace('T', ' ') + ' UTC',
         e.destination ? 'Destination: ' + e.destination : '',
         /* Round 177 (item 17): the one limit, 2,000 — the form's. */
         e.note ? String(e.note).slice(0, 2000) : '']

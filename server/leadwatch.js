@@ -160,13 +160,14 @@ function channelOf(e, booked) {
   if (!e) return 'form';
   if (String(e.consent || '') === 'chat') return 'chat';
   if (String(e.consent || '') === 'staff') return 'staff';
+  if (String(e.consent || '') === 'signup') return 'signup';   // patch 266
   if ((booked && booked.has(Number(e.id))) || /^Call booked for /.test(String(e.note || ''))) return 'booking';
   if (String(e.source || '') === 'no-match') return 'finder';
   return 'form';
 }
 const CHANNEL_LABEL = {
   form: 'enquiry form', chat: 'website chat', 'chat-msg': 'chat message', booking: 'booked call',
-  finder: 'finder (no match)', staff: 'logged by staff',
+  finder: 'finder (no match)', staff: 'logged by staff', signup: 'signed up on the website',
 };
 
 /* A note that is somebody in the office answering. The website's own

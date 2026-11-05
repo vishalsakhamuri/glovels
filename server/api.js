@@ -2011,6 +2011,41 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const claimed = db.claimOrders(s.id, email);
     seedMessages(s);
 
+    /*
+     * PATCH 266: A SIGN-UP IS A LEAD.
+     *
+     * Three people made accounts on one morning and the office could not see
+     * them anywhere a lead is looked for: not in the Leads book, not in
+     * "Leads waiting", no push to a phone — only as a thread on Conversations
+     * whose last line read "You: Two things worth starting now…", the
+     * welcome the building writes by itself. So a person who had just told
+     * us their name, number and email looked like somebody already answered.
+     *
+     * Filed through the same door as every form (fileEnquiry), so a visitor
+     * who enquired last week and signs up today lands on their own lead as a
+     * note, not as a second row; the channel is `signup`, the source is where
+     * they came from (Google, Facebook, the site), and the lead watch rings
+     * every phone the way it does for a form. The lead knows the account, so
+     * "open their file" works, and the account's profile is read live on the
+     * lead row — what they are looking for, as they fill it in.
+     */
+    let signupLead = null;
+    try {
+      const why = String(b.why || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+      const from = sourceOf(req, { referrer: b.referrer });
+      const rec = {
+        name, email, phone: storePhone(phone), destination: String(b.destination || '').slice(0, 60),
+        consent: 'signup', consentAt: new Date().toISOString(),
+        consentWording: 'Created an account on the website and accepted the Terms of Service and Privacy Policy.',
+        note: ('Signed up on the website' + (why ? ' \u2014 \u201c' + why + '\u201d' : '')).slice(0, 2000),
+        source: from.source, campaign: from.campaign,
+        sourcePage: pageOf(req, b), referrer: String(b.referrer || '').slice(0, 300),
+        studentId: s.id,
+      };
+      signupLead = db.fileEnquiry(rec);
+      leadArrived({ kind: 'signup', row: signupLead, name });
+    } catch (e) { /* the account stands; the lead book is a second record of it */ }
+
     publicMail('welcome', Object.assign({ to: s.email },
       EMAILS.welcome({ name: s.name, email: s.email, siteUrl })));
 
@@ -6060,7 +6095,15 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         package: (() => { const m = packageOf(orders); return m.package || null; })(),
         addOns: packageOf(orders).addOns,
         addOnCount: packageOf(orders).addOnCount,
-        lastMessage: last ? { who: last.sender, body: last.body, at: last.created_at } : null,
+        /* Patch 266: `from` is the office's own name when the building wrote
+           it (the welcome), the person's name when a person did — so the
+           list stops reading "You:" over a message nobody typed. `spoken`
+           says whether anybody at all has written in this thread: a sign-up
+           whose only lines are the automatic welcome has not been contacted. */
+        lastMessage: last ? { who: last.sender, body: last.body, at: last.created_at,
+          from: last.sender === 'me' ? '' : (String(last.author || '').trim() || FROM_OFFICE),
+          auto: last.sender !== 'me' && !String(last.author || '').trim() } : null,
+        spoken: db.getMessages(st.id).some(m => m.sender === 'me' || String(m.author || '').trim()),
       };
     });
     /* Patch 177 (items 5, 14): `?source=partner|direct|lead` narrows the
@@ -6073,7 +6116,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     let out = rows;
     if (['partner', 'direct', 'lead'].includes(srcQ)) out = out.filter(r => r.source === srcQ);
     if (q) out = out.filter(r => studentMatches(r, q));
-    return json(res, 200, { students: out, role: s.role });
+    return json(res, 200, { students: out, role: s.role, name: s.name });
   }));
   /* Patch 177 (item 14): does a search string find this student? Words match
      the name, the email and the agency; a string with 7+ digits in it is a
@@ -9251,6 +9294,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         if (l.internal || l.followUps || (l.status && l.status !== 'new')) return;
         const row = Object.assign(clockRow(null, (l.name || 'Somebody') + (l.note ? ' — ' + String(l.note).slice(0, 70) : ''),
           l.at, COMMAND_SLA.leads), { leadId: l.id, student: l.name || '', source: l.source || 'website',
+          how: l.how, wants: l.wants || '',
           counsellor: l.ownerId ? { id: l.ownerId, name: l.owner } : null });
         if (LS) {
           const mins = LW.waitMins(l.at, now, LS);
@@ -10521,6 +10565,18 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     'no-response', 'changed-plan', 'other'];
 
   const destName = v => { const c = ISO_COUNTRIES.byCode(v); return c && /^[A-Z]{2}$/.test(String(v || '')) ? c.name : String(v || ''); };
+  /* Patch 266: one line from a profile — "Germany · Master's · Computer
+     Science · CGPA 7.74 · IELTS 7 · Summer 2027". Empty when nothing is
+     filled in yet. */
+  function profileLine(studentId) {
+    let p = {};
+    try { p = db.getProfile(Number(studentId)) || {}; } catch (e) { return ''; }
+    const bits = [p.g_country ? destName(p.g_country) || p.g_country : '', p.g_level, p.g_field,
+      p.d_cgpa ? 'CGPA ' + p.d_cgpa : '', p.e_test ? p.e_test + (p.e_score ? ' ' + p.e_score : '') : '',
+      p.g_intake].map(x => String(x || '').trim().slice(0, 60)).filter(Boolean);
+    return bits.join(' \u00b7 ').slice(0, 240);
+  }
+
   const leadShape = (e, counts, people, internal) => {
     const owner = e.owner_id ? people.get(Number(e.owner_id)) : null;
     const c = counts[String(e.id)] || { n: 0, last: '', lastWho: '' };
@@ -10530,8 +10586,12 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       /* ADM-07: stored as a code, shown as a name. */
       destinationName: destName(e.destination),
       source: e.source || 'website', campaign: e.campaign || '',
-      how: e.consent === 'chat' ? 'chat' : 'form',
+      how: e.consent === 'chat' ? 'chat' : e.consent === 'signup' ? 'signup' : 'form',
       note: e.note || '',
+      /* Patch 266: what they are looking for, read live from the account's
+         profile when the lead has one — a sign-up never asked, and the
+         profile is where they answer. */
+      wants: e.student_id ? profileLine(e.student_id) : '',
       status: e.status || 'new',
       lostReason: e.lost_reason || '',
       ownerId: e.owner_id || null,

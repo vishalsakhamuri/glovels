@@ -4899,7 +4899,10 @@ function askToApply(id, uni, prog){
       if (!$('#apOk').checked) throw new Error('Please accept the terms to create your login.');
       const r = await fetch('/api/auth/signup', { method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, password: pw, terms: true }) });
+        body: JSON.stringify({ name, email, phone, password: pw, terms: true,
+          /* Patch 266: the lead this files says which university they pressed Apply on. */
+          why: ('Apply free: ' + (uni || '') + (prog ? ' \u2014 ' + prog : '')).slice(0, 300),
+          referrer: document.referrer || '', sourcePage: location.pathname + location.search }) });
       const j = await r.json().catch(() => ({}));
       if (r.status === 409) throw new Error('That email already has a login. <a href="/login?email=' + encodeURIComponent(email)
         + '&next=' + encodeURIComponent('/') + '" style="font-weight:700">Sign in</a> and press Apply free again.');

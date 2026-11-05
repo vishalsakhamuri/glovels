@@ -206,6 +206,12 @@
           <input type="tel" id="lPhone" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" />
           <span class="err">A mobile number, please — add the country code if you are outside India</span>
         </div>
+        <!-- Patch 266: the one question a counsellor needs before calling.
+             Optional; it lands on the lead the sign-up files. -->
+        <div class="field signup-only">
+          <label for="lWhy">What do you want help with? <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+          <input type="text" id="lWhy" maxlength="300" autocomplete="off" placeholder="e.g. Master’s in Germany for Summer 2027, need a shortlist" />
+        </div>
         <div class="field">
           <div class="pw-row">
             <label for="lPass" style="margin:0">Password</label>
@@ -611,7 +617,11 @@ $('#authForm').addEventListener('submit', async e => {
         phone: $('#lPhone') ? $('#lPhone').value.trim() : '', password: $('#lPass').value,
         /* Sent, not merely checked here. The box was a gate in this page and
            nowhere else, so nothing on the account recorded the agreement. */
-        terms: !!($('#terms') && $('#terms').checked) }
+        terms: !!($('#terms') && $('#terms').checked),
+        /* Patch 266: what they want, and where they came from — the lead
+           the sign-up files is read by whoever calls them. */
+        why: $('#lWhy') ? $('#lWhy').value.trim().slice(0, 300) : '',
+        referrer: document.referrer || '', sourcePage: location.pathname + location.search }
     : { email: $('#lEmail').value.trim(), password: $('#lPass').value };
 
   try {

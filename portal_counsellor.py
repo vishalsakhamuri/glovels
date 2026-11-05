@@ -222,6 +222,7 @@ let dropTimer = null;
 let sortBy = 'latest';
 try { sortBy = localStorage.getItem('glovels:caseSort') || 'latest'; } catch (x) {}
 let ME = null;
+let ME_NAME = '';
 let filter = '';
 
 /* ------------------------------------------------------------------ caseload */
@@ -230,7 +231,13 @@ function row(s) {
   const initials = s.name.trim().split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase();
   const last = s.lastMessage;
   const preview = last
-    ? (last.who === 'me' ? '' : 'You: ') + (last.body || 'sent a file').slice(0, 46)
+    /* Patch 266: "You:" only over what a person wrote. The automatic welcome
+       reads "Glovels:", and a thread nobody in the office has written in is
+       said plainly — that is a new sign-up waiting for a first word. */
+    ? (s.spoken === false
+      ? 'New sign-up \u00b7 nobody has written yet'
+      : (last.who === 'me' ? '' : last.auto ? 'Glovels: ' : (last.from && ME_NAME && last.from !== ME_NAME ? last.from + ': ' : 'You: '))
+        + (last.body || 'sent a file').slice(0, 46))
     : 'No messages yet';
   return '<button type="button" data-open="' + s.id + '" style="' +
     'display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;cursor:pointer;' +
@@ -303,6 +310,7 @@ async function loadCase() {
   const r = await api('GET', '/api/staff/students');
   STUDENTS = r.students;
   ME = r.role;
+  ME_NAME = String(r.name || r.me || '').trim();
   paintCase();
 }
 
@@ -316,12 +324,15 @@ const money = p => !Number(p.totalInr)
 
 function bubble(m) {
   const fromStudent = m.who === 'me';     /* 'me' is always the student's side */
+  /* Patch 266: the office's automatic lines are the building's, not yours. */
+  const auto = !fromStudent && (!m.from || m.from === 'Glovels');
+  const other = !fromStudent && !auto && ME_NAME && m.from !== ME_NAME;
   return '<div style="display:flex;gap:10px;' + (fromStudent ? '' : 'flex-direction:row-reverse') + '">' +
     '<span style="width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;' +
       'color:#fff;font:700 11px/1 var(--sans);background:' +
       (fromStudent ? 'linear-gradient(160deg,var(--navy-600),var(--navy-800))'
                    : 'linear-gradient(160deg,var(--blue),var(--blue-deep))') + '">' +
-      (fromStudent ? 'S' : 'You') + '</span>' +
+      (fromStudent ? 'S' : auto ? 'G' : other ? esc(String(m.from).trim().split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase()) : 'You') + '</span>' +
     '<div style="max-width:70%"><div style="background:' + (fromStudent ? 'var(--cream)' : '#eaf1fd') +
       ';border:1px solid ' + (fromStudent ? 'var(--line)' : '#c2d6f5') + ';border-radius:14px;' +
       'padding:10px 13px;font-size:13.2px;line-height:1.6;color:var(--navy-800)">' +
@@ -337,7 +348,8 @@ function bubble(m) {
             esc(m.attachment.size) + '</span>' : '') + '</a>'
         : '') + esc(m.t || '') + '</div>' +
       '<div style="font:400 10.4px/1.6 var(--sans);color:var(--muted);margin-top:3px;' +
-        (fromStudent ? '' : 'text-align:right') + '">' + timeAgo(m.at) + '</div></div></div>';
+        (fromStudent ? '' : 'text-align:right') + '">'
+        + (auto ? 'Automatic welcome from Glovels \u00b7 ' : other ? esc(m.from) + ' \u00b7 ' : '') + timeAgo(m.at) + '</div></div></div>';
 }
 
 /* THE FILE, NOT THE NAME OF IT.

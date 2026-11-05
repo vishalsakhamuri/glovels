@@ -646,7 +646,10 @@ body.open{overflow:hidden}
         : r.studentId ? '<a class="go" href="counsellor.html?student=' + r.studentId + '">Open file</a>' : '';
       var who = r.counsellor && r.counsellor.name ? r.counsellor.name : 'Nobody assigned';
       return '<div class="item"><span class="av" style="background:' + colour(r.studentId || r.leadId) + '">' + esc(initials(r.student)) + '</span>'
-        + '<div class="who2"><b>' + esc(r.student || 'Unknown') + '</b><span>' + esc(r.what) + '</span><small>' + esc(who) + (r.source ? ' · ' + esc(r.source) : '') + '</small></div>'
+        + '<div class="who2"><b>' + esc(r.student || 'Unknown') + '</b><span>' + esc(r.what) + '</span>'
+        /* Patch 266: a lead's profile line, when the account has one. */
+        + (r.wants ? '<span>Looking for: ' + esc(r.wants) + '</span>' : '')
+        + '<small>' + esc(who) + (r.source ? ' · ' + esc(r.source) : '') + (r.how === 'signup' ? ' · signed up on the website' : '') + '</small></div>'
         + '<div class="timer ' + r.state + '"><b>' + esc(t.big) + '</b><small>' + esc(t.small) + '</small><br>' + link + '</div></div>';
     }).join('') + (total > rows.length ? '<p class="none">Showing the first ' + rows.length + ' of ' + total + '.</p>' : '')
       : '<div class="none"><b>Nothing here</b>No student in this queue is ' + (FILTER === 'all' ? 'waiting.' : names[FILTER].toLowerCase() + '.') + '</div>';
