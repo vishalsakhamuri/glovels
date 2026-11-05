@@ -4207,7 +4207,14 @@ process.on('SIGINT', () => {
  * signal is the slow case — within five minutes. Neither touches a response
  * already being written, so the messenger's open connection is unaffected.
  */
-server.headersTimeout = 30 * 1000;
+/* Patch 273: Render's proxy keeps a connection to this server open and
+   reuses it for up to 120 s. Node closes an idle one after 5 s by default,
+   so now and then the proxy sent a visitor's request down a connection this
+   server had just closed — a TCP reset, and Render shows that visitor its
+   502 page while the site is otherwise fine. Render's guidance: keep-alive
+   above 120 s, and headersTimeout above keep-alive. */
+server.keepAliveTimeout = 125 * 1000;
+server.headersTimeout = 126 * 1000;
 server.requestTimeout = 5 * 60 * 1000;
 
 server.listen(PORT, CFG.host, () => {

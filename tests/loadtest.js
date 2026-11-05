@@ -20,9 +20,12 @@ const mix = [
   [5, () => '/api/catalogue?limit=30'],
 ];
 const total = mix.reduce((n, m) => n + m[0], 0);
-function choose() { let r = Math.random() * total; for (const [w, f] of mix) { if ((r -= w) < 0) return f(); } return '/'; }
+/* LANG_SHARE=0.3: that share of the page visits (not the API calls) is under a language prefix. */
+const LANG_SHARE = Number(process.env.LANG_SHARE || 0), LANGS = ['zh', 'ar', 'es', 'ru', 'fr', 'pt', 'bn', 'tr'];
+const inLang = p => (LANG_SHARE && !p.startsWith('/api/') && Math.random() < LANG_SHARE) ? '/' + pick(LANGS) + (p === '/' ? '/' : p) : p;
+function choose() { let r = Math.random() * total; for (const [w, f] of mix) { if ((r -= w) < 0) return inLang(f()); } return '/'; }
 const lat = [], errs = { count: 0, by: {} }; let done = 0; const byRoute = {};
-const routeOf = p => p.replace(/\?.*$/, '').replace(/^\/study-in-.*/, '/study-in-*').replace(/^\/university\/.*/, '/university/*');
+const routeOf = p => p.replace(/^\/(zh|ar|es|ru|fr|pt|bn|tr)(\/|$)/, '/<lang>/').replace(/\?.*$/, '').replace(/^\/study-in-.*/, '/study-in-*').replace(/^\/university\/.*/, '/university/*');
 function one(path) {
   return new Promise(res => {
     const t = process.hrtime.bigint();
