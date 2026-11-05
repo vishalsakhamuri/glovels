@@ -1829,28 +1829,63 @@ select.assign.none:hover{border-color:#a5342b}
           <ul class="tr-list" id="trDevices" style="margin-top:14px"></ul></div>
       </div>
 
+      <!-- Patch 267: every tag the marketing team uses, on one card. IDs
+           only — nobody here needs their logins. Each tag is off until its
+           box is filled, and on every public page from the next page served. -->
       <div class="p-card" id="gaCard" style="margin-top:14px">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <h3 style="margin:0;font-size:15px">Google Analytics</h3>
+          <h3 style="margin:0;font-size:15px">Marketing tags &amp; conversions</h3>
           <span class="st" id="gaMode">checking&hellip;</span>
           <span style="flex:1"></span>
-          <a class="btn btn-ghost btn-sm" href="https://analytics.google.com/" target="_blank" rel="noopener">Open Google Analytics</a>
+          <a class="btn btn-ghost btn-sm" href="https://analytics.google.com/" target="_blank" rel="noopener">Google Analytics</a>
+          <a class="btn btn-ghost btn-sm" href="https://business.facebook.com/events_manager2" target="_blank" rel="noopener">Meta Events Manager</a>
+          <a class="btn btn-ghost btn-sm" href="https://clarity.microsoft.com/" target="_blank" rel="noopener">Clarity</a>
         </div>
         <p style="margin:10px 0 0;font-size:12.6px;line-height:1.65;color:var(--navy-800)">
-          The numbers above are counted by this server and need nothing from Google. Google
-          Analytics is worth having as well &mdash; it is what Google Ads and Search Console
-          talk to, and its reports go deeper on what people do once they are here. Paste the
-          <b>measurement ID</b> (Google Analytics &rarr; Admin &rarr; Data streams &rarr; your
-          site; it looks like <code>G-XXXXXXXXXX</code>) and the tag is on every public page
-          from the next page served. The portal and these office screens are never tagged.</p>
+          The numbers above are counted by this server and need nothing from anybody. The tags
+          below are for the marketing team&rsquo;s own tools. Paste the <b>IDs</b> they send
+          you &mdash; no passwords &mdash; and each tag is on every public page from the next
+          page served; an empty box turns that tag off. The site then sends them the events
+          itself: <b>Lead</b> (every form, chat, booked call and sign-up), <b>Purchase</b>
+          (amount and order reference, also from this server so a payment counts even when
+          the browser dies at the gateway), <b>InitiateCheckout</b>, and <b>Contact</b>
+          (WhatsApp, phone and email clicks). The portal and these office screens are never tagged.</p>
         <div class="two" style="margin-top:14px">
-          <div class="field"><label for="gaId">Measurement ID</label>
+          <div class="field"><label for="gaId">Google Analytics 4 &mdash; measurement ID</label>
             <input id="gaId" placeholder="G-XXXXXXXXXX" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="gtmId">Google Tag Manager &mdash; container ID</label>
+            <input id="gtmId" placeholder="GTM-XXXXXXX" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="adsId">Google Ads &mdash; conversion ID</label>
+            <input id="adsId" placeholder="AW-123456789" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="adsLeadLabel">Google Ads &mdash; &ldquo;Lead&rdquo; conversion label</label>
+            <input id="adsLeadLabel" placeholder="the part after the slash" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="adsPurchaseLabel">Google Ads &mdash; &ldquo;Purchase&rdquo; conversion label</label>
+            <input id="adsPurchaseLabel" placeholder="the part after the slash" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="pixelId">Meta Pixel ID (Facebook &amp; Instagram)</label>
+            <input id="pixelId" placeholder="15-digit number" autocomplete="off" spellcheck="false" inputmode="numeric"></div>
+          <div class="field"><label for="capiToken">Meta Conversions API &mdash; access token</label>
+            <input id="capiToken" placeholder="paste once; shown as •••• after saving. Type remove to clear." autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="clarityId">Microsoft Clarity &mdash; project ID</label>
+            <input id="clarityId" placeholder="e.g. abc123xyz9" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="consentMode">Cookie consent banner</label>
+            <select id="consentMode">
+              <option value="eu">Visitors in the EU, UK and Switzerland (the law there)</option>
+              <option value="all">Every visitor</option>
+              <option value="off">Nobody</option>
+            </select></div>
         </div>
+        <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--muted)">
+          Until a visitor who gets the banner presses Accept, Google&rsquo;s tags run without cookies
+          (consent mode) and the Meta pixel and Clarity are not loaded. Bing is told about every
+          new or changed blog post through IndexNow; the key file is <code id="inKey">&hellip;</code>.</p>
         <p class="ferr" id="gaErr" hidden></p>
-        <button type="button" class="btn btn-primary btn-sm" id="gaSave">Save</button>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary btn-sm" id="gaSave">Save</button>
+          <span style="font-size:12px;color:var(--muted)" id="gaBy"></span>
+        </div>
+        <details style="margin-top:12px"><summary style="cursor:pointer;font-size:12.6px;color:var(--navy-800)">What this server sent recently (Conversions API, IndexNow)</summary>
+          <ul class="tr-list" id="tagSent" style="margin-top:8px"></ul></details>
       </div>
-    </div>
     </div><!-- /o-traffic -->
 
     <!-- Round 176 (go-live): the readiness card, the backups, and the QA
@@ -4747,13 +4782,23 @@ $$('.tr-range button').forEach(b => b.addEventListener('click', () => {
   paintTraffic();
 }));
 
+/* Patch 267: every tag on one card. */
+const TAG_FIELDS = ['gaId', 'gtmId', 'adsId', 'adsLeadLabel', 'adsPurchaseLabel', 'pixelId', 'capiToken', 'clarityId'];
 async function paintGa() {
   try {
     const a = await api('GET', '/api/staff/analytics');
-    $('#gaId').value = a.gaId || '';
+    TAG_FIELDS.forEach(k => { const el = $('#' + k); if (el) el.value = a[k] || ''; });
+    $('#consentMode').value = a.consent || 'eu';
+    const on = [a.gaId && 'GA4', a.gtmId && 'Tag Manager', a.adsId && 'Google Ads', a.pixelId && ('Meta Pixel' + (a.capiTokenSet ? ' + CAPI' : '')), a.clarityId && 'Clarity'].filter(Boolean);
     const m = $('#gaMode');
-    m.textContent = a.gaId ? 'tag on every public page' : 'not connected';
-    m.className = 'st ' + (a.gaId ? 'ok' : 'wait');
+    m.textContent = on.length ? on.join(' · ') + ' on every public page' : 'no tags connected yet';
+    m.className = 'st ' + (on.length ? 'ok' : 'wait');
+    $('#inKey').textContent = a.indexnowKey ? '/' + a.indexnowKey + '.txt' : 'not made yet';
+    $('#gaBy').textContent = a.updatedAt ? 'Last saved ' + new Date(a.updatedAt).toLocaleString('en-GB') + (a.by ? ' by ' + a.by : '') : '';
+    $('#tagSent').innerHTML = (a.sent || []).length
+      ? a.sent.slice(0, 20).map(x => '<li><span>' + esc(x.kind === 'meta' ? 'Meta ' + x.what : 'IndexNow ' + x.what) + '</span><b style="color:' + (x.ok ? 'var(--green,#1b7f4b)' : 'var(--red,#b42318)') + '">' + (x.ok ? 'sent' : 'failed') + '</b>'
+        + (x.detail ? '<span style="display:block;font-size:11px;color:var(--muted)">' + esc(x.detail) + '</span>' : '') + '</li>').join('')
+      : '<li class="tr-empty">Nothing sent yet.</li>';
   } catch (e) { $('#gaMode').textContent = 'could not read'; }
 }
 $('#gaSave').addEventListener('click', async () => {
@@ -4761,9 +4806,11 @@ $('#gaSave').addEventListener('click', async () => {
   err.hidden = true; btn.disabled = true;
   const was = btn.textContent; btn.textContent = 'Saving…';
   try {
-    const r = await api('PUT', '/api/staff/analytics', { gaId: $('#gaId').value });
+    const body = { consent: $('#consentMode').value };
+    TAG_FIELDS.forEach(k => { body[k] = $('#' + k).value; });
+    await api('PUT', '/api/staff/analytics', body);
     await paintGa();
-    toast(r.gaId ? 'Saved — the Google tag is on every public page from now.' : 'Saved — the Google tag is off.');
+    toast('Saved — the tags are on every public page from now.');
   } catch (e) {
     err.textContent = e.message || 'That did not save.'; err.hidden = false;
   } finally { btn.disabled = false; btn.textContent = was; }

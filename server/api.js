@@ -31,6 +31,7 @@ const OPAQUE_NONCE = () => crypto.randomBytes(12).toString('hex');
 const OPAQUE_SALTED = (nonce, kind, v) => 'x' + kind + crypto.createHmac('sha256', OPAQUE_KEY).update(nonce + ':' + kind + ':' + String(v)).digest('hex').slice(0, 14);
 const FX = require('./fx.js');
 const GEO = require('./geo.js');
+const MTAGS = require('./marktags.js');   // patch 267: marketing tags, Conversions API, IndexNow
 const PAY = require('./pay.js');
 /* Patch 195: Stripe, for buyers outside India (Glovels UG). */
 const STRIPE = require('./stripe.js');
@@ -1912,6 +1913,25 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   /* Patch 214: the hop before Cloudflare's, not Cloudflare's own (server/geo.js). */
   const clientIp = req => GEO.clientIpOf(req) || 'unknown';
 
+  /* Patch 267: one event to Meta from this server, with what the request
+     knows about the person — fire-and-forget, never awaited. The browser
+     pixel skips Lead when this is on (dedup by event_id would need the id
+     round-tripped through every form); Purchase goes both ways with the
+     same id, 'purchase-<reference>', and Meta keeps one. */
+  const metaEvent = (req, name, id, who, extra) => {
+    try {
+      const S = MTAGS.settingsOf(db);
+      if (!S.pixelId || !S.capiToken) return;
+      const ck = req ? cookies(req) : {};
+      MTAGS.capi(S, Object.assign({
+        name, id, email: who && who.email, phone: who && who.phone,
+        ip: req ? clientIp(req) : '', ua: req ? String(req.headers['user-agent'] || '') : '',
+        url: req ? String(req.headers.referer || '').slice(0, 300) : '',
+        fbp: ck._fbp || '', fbc: ck._fbc || '',
+      }, extra || {}));
+    } catch (e) { /* an ad platform's count is never worth a failed request */ }
+  };
+
   const ROUTES = [];
   /*
    * `open` means "no sign-in required". It also meant "do not look the session
@@ -2044,6 +2064,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       };
       signupLead = db.fileEnquiry(rec);
       leadArrived({ kind: 'signup', row: signupLead, name });
+      metaEvent(req, 'Lead', 'signup-' + s.id, { email, phone: storePhone(phone) }, { contentName: 'signup' });
     } catch (e) { /* the account stands; the lead book is a second record of it */ }
 
     publicMail('welcome', Object.assign({ to: s.email },
@@ -2963,12 +2984,20 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
    * The moment a payment is recorded (Razorpay handback or webhook, Stripe
    * return or webhook) the shortlist is delivered.
    */
-  function recordPayment(order, paymentId, which, via) {
+  function recordPayment(order, paymentId, which, via, req) {
     const done = recordPayment0(order, paymentId, which, via);
     try {
       const st = order.student_id ? db.studentById(order.student_id) : null;
       if (st) done.matched = deliverMatches(st);
     } catch (e) { /* the payment stands; the dashboard can still re-run it */ }
+    /* Patch 267: the purchase, from the server — so an ad is credited even
+       when the browser never came back from the gateway. */
+    try {
+      const st = order.student_id ? db.studentById(order.student_id) : null;
+      metaEvent(req || null, 'Purchase', 'purchase-' + order.reference,
+        { email: order.email || (st && st.email), phone: order.phone || (st && st.phone) },
+        { value: Math.round(Number(order.gross_paise || 0) / 100), currency: 'INR', contentName: order.package || '' });
+    } catch (e) { /* likewise */ }
     return done;
   }
   function recordPayment0(order, paymentId, which, via) {
@@ -3583,7 +3612,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       });
     }
 
-    const done = recordPayment(order, String(b.razorpay_payment_id || ''));
+    const done = recordPayment(order, String(b.razorpay_payment_id || ''), null, '', req);
     db.log('system', 'Payment confirmed', reference + ' — '
       + inrOf(done.plan ? (done.collected || 0) : order.gross_paise)
       + (done.outstanding ? ' (' + inrOf(done.outstanding) + ' still to come)' : ''));
@@ -4039,6 +4068,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       record.note = ('Call booked for ' + BOOK.say(slot, S0.tz) + ' office time' + (record.note ? ' — ' + record.note : '')).slice(0, 2000);
     }
     const filed = db.fileEnquiry(record);
+    metaEvent(req, 'Lead', 'lead-' + (filed && filed.id ? filed.id : Date.now()), { email, phone: storePhone(phone) }, { contentName: record.source });
     if (slot) {
       const S = BOOK.settingsOf(bset);
       let tz = String(b.tz || '').slice(0, 60);
@@ -7904,21 +7934,27 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   /* The Google Analytics measurement ID (G-XXXXXXX), typed on the same
      screen. The tag goes onto the public pages within a minute of saving;
      an empty box takes it off again. */
+  /* Patch 267: every tag the marketing team uses, on one screen. The
+     Conversions API token is written, never read back whole. */
   route('GET', '/api/staff/analytics', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
-    const a = db.content('analytics') || {};
-    return json(res, 200, { ok: true, gaId: a.gaId || '', updatedAt: a.updatedAt || '', by: a.by || '' });
+    const S = MTAGS.settingsOf(db);
+    return json(res, 200, Object.assign({ ok: true }, MTAGS.shown(S), { indexnowKey: MTAGS.indexnowKey(db), sent: MTAGS.log() }));
   }));
   route('PUT', '/api/staff/analytics', caseworkOnly(async (req, res, s) => {
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     const b = await readJson(req);
-    const gaId = String(b.gaId || '').trim().toUpperCase();
-    if (gaId && !/^G-[A-Z0-9]{4,20}$/.test(gaId)) {
-      return json(res, 422, { error: 'A Google Analytics measurement ID looks like G-XXXXXXXXXX — it is under Admin → Data streams in Google Analytics.' });
-    }
-    db.setContent('analytics', { gaId, updatedAt: new Date().toISOString(), by: s.name || s.email }, s.name || s.email);
-    db.log(s.name || s.email, gaId ? 'Google Analytics tag set' : 'Google Analytics tag removed', gaId);
-    return json(res, 200, { ok: true, gaId });
+    const was = db.content('analytics') || {};
+    /* A blank token box keeps the token that is there; "remove" clears it. */
+    if (b.capiToken === undefined || String(b.capiToken).trim() === '' || /^•+/.test(String(b.capiToken))) b.capiToken = was.capiToken || '';
+    if (String(b.capiToken).trim().toLowerCase() === 'remove') b.capiToken = '';
+    const v = MTAGS.validate(b);
+    if (!v.ok) return json(res, 422, { error: v.error, fields: [{ field: v.field, why: 'format' }] });
+    const next = Object.assign({}, was, v.values, { updatedAt: new Date().toISOString(), by: s.name || s.email });
+    db.setContent('analytics', next, s.name || s.email);
+    const on = ['gaId', 'gtmId', 'adsId', 'pixelId', 'clarityId'].filter(k => v.values[k]).map(k => k.replace('Id', ''));
+    db.log(s.name || s.email, 'marketing tags saved', (on.length ? on.join(', ') : 'none') + (v.values.capiToken ? ' + Conversions API' : '') + ' · consent ' + v.values.consent);
+    return json(res, 200, Object.assign({ ok: true }, MTAGS.shown(MTAGS.settingsOf(db))));
   }));
 
   /* The copies on the disk, and a button to take one now. */
@@ -14157,6 +14193,19 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   route('GET', '/api/staff/wix/status', needs('content', async (req, res) =>
     json(res, 200, { status: wixJob || { running: false, never: true }, base: wixBase() })));
 
+  /* Patch 267: tell Bing (IndexNow) the moment a post goes live or changes;
+     the blog index and sitemap with it. Google does not take IndexNow; the
+     sitemap's lastmod covers it. Fire-and-forget. */
+  const pingIndexNow = (row, oldSlug) => {
+    try {
+      if (!siteUrl || !/^https:/.test(String(siteUrl))) return;
+      const base = String(siteUrl).replace(/\/+$/, '');
+      const urls = [base + '/post/' + row.slug, base + '/blog', base + '/sitemap.xml'];
+      if (oldSlug) urls.push(base + '/post/' + oldSlug);
+      MTAGS.indexnow(db, base, urls);
+    } catch (e) { /* the post is live either way */ }
+  };
+
   route('POST', '/api/staff/posts', needs('content', async (req, res, s) => {
     const r = await readPost(req, s, null);
     if (r.error) return json(res, 422, { error: r.error });
@@ -14165,6 +14214,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       r.post.title);
     /* patch 265: a live post is translated whole, in the background. */
     if (translator && r.post.status === 'published') translator.kick();
+    if (r.post.status === 'published') pingIndexNow(row);
     return json(res, 200, Object.assign({ post: postShape(row, true) },
       r.warning ? { warning: r.warning } : {}));
   }));
@@ -14192,6 +14242,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       r.post.title);
     /* patch 265: a live post is translated whole, in the background. */
     if (translator && r.post.status === 'published') translator.kick();
+    if (r.post.status === 'published' || was.status === 'published') pingIndexNow(row, was.slug !== row.slug ? was.slug : '');
     return json(res, 200, Object.assign({ post: postShape(row, true) },
       r.warning ? { warning: r.warning } : {}));
   }));

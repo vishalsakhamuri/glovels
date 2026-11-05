@@ -288,6 +288,10 @@ const backup = require('./server/backup.js').open({ db, dataDir: DATA, log: cons
 const traffic = require('./server/traffic.js').open({ db, log: console });
 /* Patch 204: where each lead, account and payment came from (server/marketing.js). */
 const marketing = require('./server/marketing.js').open({ db, fx: require('./server/fx.js'), log: console });
+/* Patch 267: the marketing team's tags (GA4, GTM, Google Ads, Meta Pixel,
+   Clarity), the consent banner, and IndexNow. server/tags.js. */
+const MTAGS = require('./server/marktags.js');
+const GEOIP = require('./server/geo.js');
 /* Patch 208: the guard — on in production (GUARD=off turns it off), off on a
    laptop and in the test suites unless GUARD=on. */
 const guard = require('./server/guard.js').open({ db, log: console,
@@ -477,13 +481,16 @@ const TYPES = {
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://*.razorpay.com https://www.googletagmanager.com",
+  /* Patch 267: the marketing tags — Google (gtag, Tag Manager, Ads),
+     Meta's pixel and Clarity. Each is loaded only when its ID is set. */
+  "script-src 'self' 'unsafe-inline' https://*.razorpay.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://*.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
-  /* Razorpay's checkout, and the office on Google Maps in the footer. */
-  "frame-src https://*.razorpay.com https://www.google.com https://maps.google.com",
+  "connect-src 'self' https://*.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://*.google.com https://*.doubleclick.net https://www.facebook.com https://*.clarity.ms",
+  /* Razorpay's checkout, the office on Google Maps in the footer, Tag
+     Manager's noscript frame and Google Ads' conversion frame. */
+  "frame-src https://*.razorpay.com https://www.google.com https://maps.google.com https://www.googletagmanager.com https://td.doubleclick.net https://*.doubleclick.net",
   "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
@@ -596,7 +603,7 @@ function send(res, code, body, type, extra) {
       try { const ck = marketing.cookieFor(res.req, row); if (ck) extra = Object.assign({}, extra || {}, { 'Set-Cookie': ck }); } catch (e) {}
     }
     /* Round 15 Oct (6): the inside-page banner, redrawn once here (server/hero.js). */
-    if (typeof body === 'string') body = withMobileKit(globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname)))), u.pathname);
+    if (typeof body === 'string') body = withMobileKit(globalFooter(withPublicChrome(withAnalytics(withSocials(HERO.upgrade(body, u.pathname), u.pathname), res.req))), u.pathname);
     if (typeof body === 'string') { const l = localize(body, res.req, u.pathname, true); body = l.html; if (l.extra) extra = mergeExtra(extra, l.extra); }
   } else if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || '')) && res.req && res.req.method === 'GET') {
     /* Patch 195: a student's portal page — money in their currency too. */
@@ -3398,6 +3405,7 @@ function send(n,l,t){try{var b=JSON.stringify({n:n,l:String(l||"").slice(0,80),t
 if(navigator.sendBeacon){navigator.sendBeacon(S,new Blob([b],{type:"application/json"}));}
 else{fetch(S,{method:"POST",headers:{"Content-Type":"application/json"},body:b,keepalive:true,credentials:"same-origin"});}}catch(e){}}
 window.glvTrack=function(n,p){try{if(window.gtag)gtag("event",n,p||{})}catch(e){}
+try{if(window.glvTagEvent)glvTagEvent(n,p||{})}catch(e){}
 try{var x=p||{};send(String(n).toLowerCase().replace(/[^a-z0-9_]/g,"_").slice(0,40),x.label||x.package||x.item_name||x.value||"",x.page||"")}catch(e){}};
 function kind(el,href){
 var d=el.getAttribute("data-track");if(d)return d.toLowerCase().replace(/[^a-z0-9_]/g,"_").slice(0,40);
@@ -3409,21 +3417,32 @@ if(el.closest("header,nav"))return"nav";if(el.closest("footer"))return"footer";
 return el.tagName==="BUTTON"?"button":"link";}
 document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a,button,[data-track]");if(!el)return;
 var href=el.getAttribute("href")||"";var label=el.getAttribute("data-track-label")||el.getAttribute("aria-label")||(el.textContent||"").replace(/\s+/g," ").trim()||el.getAttribute("title")||"";
-send(kind(el,href),label,href.split("?")[0]);},true);
+var k=kind(el,href);send(k,label,href.split("?")[0]);
+if(k==="call"||k==="whatsapp"||k==="email"){try{if(window.gtag)gtag("event","contact",{method:k,label:label.slice(0,80)})}catch(e){}try{if(window.glvTagEvent)glvTagEvent("contact",{method:k})}catch(e){}}},true);
 var q=function(e){var el=e.target;if(!el||!el.matches)return;if(el.matches('input[type="search"],input[name="q"],input[data-search],[role="search"] input')){var v=(el.value||"").trim();if(v.length>1)send("search",v,"");}};
 document.addEventListener("change",q,true);
 var seen=0,on=0;function tick(){if(document.visibilityState==="visible"){seen+=1;if(seen>=15&&!on){on=1;send("engaged","","");}}}
 setInterval(tick,1000);})();`;
-function withAnalytics(html) {
+function withAnalytics(html, req) {
   if (html.includes('<script data-track>')) return html;
-  const id = gaId();
   const hook = '<script data-track>' + TRACKER_JS + '</script>';
-  const tag = id
-    ? '<script async src="https://www.googletagmanager.com/gtag/js?id=' + id + '"></script>'
-      + '<script data-ga>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}'
-      + 'gtag("js",new Date());gtag("config","' + id + '",{anonymize_ip:true});</script>'
-    : '';
-  return html.replace('</head>', hook + tag + '</head>');
+  /* Patch 267: every tag the office has pasted (server/tags.js), with the
+     consent banner where the visitor's country needs one. */
+  let S = null, consent = 'none';
+  try {
+    S = MTAGS.settingsOf(db);
+    let country = '';
+    try { country = req ? (GEOIP.forRequest(req, GEOIP.clientIpOf(req)).country || '') : ''; } catch (e) { country = ''; }
+    const ck = /(?:^|;\s*)glv_consent=(all|essential)/.exec(String((req && req.headers && req.headers.cookie) || ''));
+    consent = MTAGS.consentOf(S, country, ck ? ck[1] : '');
+  } catch (e) { S = null; }
+  const tag = S ? MTAGS.head(S, { consent }) : '';
+  const after = S ? MTAGS.body(S, { consent }) : '';
+  html = html.replace('</head>', hook + tag + '</head>');
+  /* The real <body> tag starts a line; the home page's stylesheet quotes
+     the word in a comment, which is not where a banner goes. */
+  if (after) html = /^<body\b[^>]*>/m.test(html) ? html.replace(/^<body\b[^>]*>/m, m => m + after) : html.replace('</body>', after + '</body>');
+  return html;
 }
 
 /*
@@ -3808,6 +3827,9 @@ async function handleRequest(req, res) {
   }
 
   if (pathname === '/robots.txt') return send(res, 200, robotsTxt(), TYPES['.txt']);
+  /* Patch 267: IndexNow's proof that this host sent the ping — the key, at /<key>.txt. */
+  const ink = /^\/([a-f0-9]{32})\.txt$/.exec(pathname);
+  if (ink) { const key = MTAGS.settingsOf(db).indexnowKey; if (key && key === ink[1]) return send(res, 200, key, TYPES['.txt']); }
   if (pathname === '/llms.txt') return send(res, 200, llmsTxt(), 'text/plain; charset=utf-8', { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/sitemap.xml') {
     if (!CFG.allowIndexing) return notFound(res);
