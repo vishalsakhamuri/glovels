@@ -46,7 +46,7 @@ const settleIn = async (ctx, email, given, chosen) => {
     && !/ERR_TUNNEL|fonts\.googleapis|favicon/.test(m.text()) && errs.push(m.text()));
   page.on('dialog', d => d.accept());
 
-  await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });
+  await page.goto(BASE + '/admin#users', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#counsellors li', { timeout: 15000 });
   check('the team list shows the admin', (await page.textContent('#counsellors')).includes('boss@glovels.com'));
   check('there is an Add someone button', await page.isVisible('#addPerson'));

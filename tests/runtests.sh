@@ -316,6 +316,8 @@ run phonecctest.js  8099 GUARD=off   # patch 274: country code on every phone bo
 node botgatetest.js | tail -1 | sed 's/^/  botgatetest.js     /' | tee -a "$REPORT"
 # patch 276: photos made smaller, new and old — own server (8276).
 node shrinktest.js | tail -1 | sed 's/^/  shrinktest.js      /' | tee -a "$REPORT"
+# patch 277: Organisation, Orders and Users as three screens — own server (8277).
+node viewstest.js | tail -1 | sed 's/^/  viewstest.js       /' | tee -a "$REPORT"
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 

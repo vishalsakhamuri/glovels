@@ -31,6 +31,9 @@ const names = page => page.$$eval('#rows tr',
   await page.waitForSelector('#rows tr', { timeout: 15000 });
 
   /* ------------------------------------------------- make a student here */
+  /* Patch 277: the team and its Add someone button are on the Users screen. */
+  await page.evaluate(() => { location.hash = 'users'; });
+  await page.waitForTimeout(400);
   await page.click('#addPerson');
   await page.waitForSelector('#pRole');
   await page.selectOption('#pRole', 'student');
@@ -57,7 +60,7 @@ const names = page => page.$$eval('#rows tr',
   /* Signing in as them replaced the session cookie on this context. */
   await ctx.request.post(BASE + '/api/auth/login',
     { data: { email: 'admin@glovels.com', password: 'glovels123' } });
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#rows tr', { timeout: 15000 });
 
   check('they appear in Every student',

@@ -58,7 +58,7 @@ const PW_B = 'partner-beta-4k7d';
   const org = await admin.newPage();
   const orgErrs = [];
   org.on('pageerror', e => orgErrs.push(e.message));
-  await org.goto(BASE + '/admin.html');
+  await org.goto(BASE + '/admin.html#users');
   await org.waitForSelector('#addPerson');
   await org.click('#addPerson');
   await org.waitForSelector('#pRole');
