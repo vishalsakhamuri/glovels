@@ -4237,12 +4237,15 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (!name) return json(res, 422, { error: 'Your name, so we know who we are talking to.' });
 
     const isEmail = contact.includes('@');
-    const phone = !isEmail ? tenDigits(contact) : '';
+    /* Patch 274: any country. The box sends the number with its country code
+       (assets/phone-cc.js); it used to keep the last ten digits and put +91
+       in front, so a Lahore 0333 861 9199 was stored as +91 333 861 9199. */
+    const phone = !isEmail && (anyPhone(contact) || validPhone(contact)) ? storePhone(contact) : '';
     if (isEmail && !validEmail(contact)) {
       return json(res, 422, { error: 'That email address does not look right.' });
     }
     if (!isEmail && !phone) {
-      return json(res, 422, { error: 'A 10-digit mobile number, or an email address.' });
+      return json(res, 422, { error: 'Your mobile number with its country code, or an email address.' });
     }
 
     /* One chat per browser. Coming back the next day continues the same
@@ -4253,7 +4256,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
 
     const token = newToken();
     const c = db.createChat(token, {
-      name, phone: phone ? '+91' + phone : '', email: isEmail ? contact.toLowerCase() : '',
+      name, phone, email: isEmail ? contact.toLowerCase() : '',
       page: String(b.page || '').slice(0, 200),
     });
 
@@ -4263,7 +4266,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     try {
       const from = sourceOf(req, { consent: 'chat', referrer: b.referrer });
       chatLead = db.fileEnquiry({
-        name, phone: phone ? '+91' + phone : '', email: isEmail ? contact.toLowerCase() : '',
+        name, phone, email: isEmail ? contact.toLowerCase() : '',
         destination: '', consent: 'chat', sourcePage: String(b.page || '').slice(0, 200),
         source: from.source, campaign: from.campaign,
         referrer: String(req.headers.referer || '').slice(0, 200),
@@ -5969,8 +5972,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
       const at = 'Row ' + (i + 1);
       const name = String(row.name || '').trim().slice(0, 80);
       const email = String(row.email || '').trim().toLowerCase().slice(0, 120);
-      const phone = tenDigits(row.phone) ? '+91' + tenDigits(row.phone)
-        : String(row.phone || '').trim().slice(0, 24);
+      /* Patch 274: any country, stored the way every other form stores it. */
+      const phone = storePhone(String(row.phone || '').trim().slice(0, 24));
 
       if (!name) return rejected.push({ at, why: 'no name' });
       /* Patch 169 (B2B-01): a name has a letter in it — "12345" is not one.
@@ -5980,14 +5983,14 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
         return rejected.push({ at, who: name, why: 'that is not an email address' });
       }
       if (String(row.phone || '').trim() && !/^\+?[\d\s()-]+$/.test(String(row.phone).trim())) {
-        return rejected.push({ at, who: name, why: 'the mobile has to be ten digits, starting 6 to 9 (+91 allowed)' });
+        return rejected.push({ at, who: name, why: 'the mobile has to be digits \u2014 with the country code if it is not Indian' });
       }
       /* Round 30 Sep (issue 9): "zzzzz" and destination "ZZ" were accepted here
          while the student-details form refused them. The same rules now. */
       const nameWrong = GRADES.problems({ fullName: name }).find(w => w.field === 'fullName');
       if (nameWrong) return rejected.push({ at, who: name, why: nameWrong.why });
-      if (String(row.phone || '').trim() && !validPhone(row.phone)) {
-        return rejected.push({ at, who: name, why: 'the mobile has to be ten digits, starting 6 to 9' });
+      if (String(row.phone || '').trim() && !anyPhone(row.phone) && !validPhone(row.phone)) {
+        return rejected.push({ at, who: name, why: 'that is not a mobile number \u2014 add the country code if it is not Indian' });
       }
       const destSaid = String(row.destination || row.country || '').trim();
       let destination = '';
@@ -10805,7 +10808,9 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const isOpen = e => !['converted', 'lost'].includes(String(e.status || 'new'));
     const waitingOf = e => (e.status || 'new') === 'new' && String(e.consent || '') !== 'staff'
       && !firstTouch.has(Number(e.id)) && !((counts[String(e.id)] || {}).n);
-    const waNum = p => { const d = String(p || '').replace(/\D/g, ''); return d.length === 10 ? '91' + d : d; };
+    /* Patch 274: a number stored with its + code keeps that code; only a bare
+       Indian ten-digit mobile gets 91. */
+    const waNum = p => { const v = String(p || '').trim(); const d = v.replace(/\D/g, ''); return !/^\+/.test(v) && d.length === 10 && /^[6-9]/.test(d) ? '91' + d : d; };
     const card = (e, extra) => Object.assign({
       id: e.id, name: e.name || '', phone: e.phone || '', email: e.email || '', wa: waNum(e.phone),
       destination: e.destination || '', destinationName: destName(e.destination),
@@ -10991,7 +10996,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (!name) return json(res, 422, { error: 'A name, at least.' });
     if (!phone && !email) return json(res, 422, { error: 'A number or an email — otherwise there is no way to call them back.' });
     if (email && !validEmail(email)) return json(res, 422, { error: 'That email address is not valid' });
-    if (phone && !validPhone(phone)) return json(res, 422, { error: 'That does not look like an Indian mobile number' });
+    if (phone && !anyPhone(phone) && !validPhone(phone)) return json(res, 422, { error: 'That does not look like a mobile number \u2014 add the country code if it is not Indian' });
 
     if (String(b.source || '').trim() && !SOURCES.has(String(b.source).toLowerCase())) {
       return json(res, 422, { error: '"' + String(b.source).slice(0, 30) + '" is not a lead source we track.' });
@@ -11353,7 +11358,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const b = await readJson(req);
     const name = String(b.name || e.name || '').trim().slice(0, 80);
     const email = String(b.email || e.email || '').trim().toLowerCase();
-    const phone = String(b.phone || e.phone || '').replace(/\D/g, '').slice(-10);
+    /* Patch 274: the number as the lead has it, country code and all. */
+    const phone = storePhone(String(b.phone || e.phone || '').trim());
 
     if (!name) return json(res, 422, { error: 'They need a name' });
     if (!validEmail(email)) {
@@ -11376,7 +11382,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     } else {
       password = newPassword();
       const salt = newSalt();
-      person = db.createStudent(email, name, phone ? '+91' + phone : '',
+      person = db.createStudent(email, name, phone,
         hashPassword(password, salt), salt, 'student');
       db.setMustChange(person.id, true);
       made = true;

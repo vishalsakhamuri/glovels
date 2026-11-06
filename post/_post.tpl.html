@@ -462,8 +462,8 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
           <div class="field"><label for="bfName">Your name</label>
             <input id="bfName" name="name" autocomplete="name" maxlength="100" required></div>
           <div class="field"><label for="bfPhone">Mobile</label>
-            <input id="bfPhone" name="phone" inputmode="numeric" autocomplete="tel"
-              placeholder="10 digits" maxlength="20" required></div>
+            <input id="bfPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel"
+              placeholder="Mobile number" maxlength="24" required></div>
         </div>
         <div class="field"><label for="bfMail">Email</label>
           <input id="bfMail" name="email" type="email" autocomplete="email" maxlength="120" required></div>
@@ -1028,13 +1028,17 @@ if ('serviceWorker' in navigator) {
     e.preventDefault();
     var name = f.name.value.trim();
     var email = f.email.value.trim();
-    var phone = f.phone.value.trim().replace(/\D/g, '').slice(-10);
+    /* Patch 274: the whole number with its country code (assets/phone-cc.js
+       puts the code in front) — not the last ten digits, which turned a Dhaka
+       01872 125908 into 1872125908. */
+    var phone = f.phone.value.trim();
+    var digits = phone.replace(/\D/g, '');
     if (!name) return say('Tell us your name.');
     /* D21: a name is letters — the server refuses "12345" with a 422. */
     if (!(function () { try { return new RegExp('\\p{L}', 'u').test(name); } catch (e) { return /[A-Za-z\u00C0-\u024F]/.test(name); } }()))
       return say('A name needs at least one letter.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('That email address is not valid.');
-    if (phone.length !== 10) return say('A 10-digit Indian mobile, please.');
+    if (digits.length < 8 || digits.length > 15) return say('Your mobile number, please — choose your country code first.');
     var okBox = document.getElementById('bfOk');
     if (okBox && !okBox.checked) return say('Please tick the box so we can reply to you.');
     var btn = document.getElementById('bfGo');

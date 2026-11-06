@@ -3269,7 +3269,7 @@ function withMobileKit(html, pathname) {
   if (html.indexOf('<header class="site"') < 0) {
     if (STUDENT_PAGES.test(String(pathname || '')) && html.indexOf('<script src="/glovels-pay.js') < 0) {
       const end = html.lastIndexOf('</body>');
-      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=268" defer></script>\n' + html.slice(end);
+      if (end >= 0) return html.slice(0, end) + '<script src="/glovels-pay.js?v=274" defer></script>\n' + html.slice(end);
     }
     return html;
   }
@@ -3281,7 +3281,7 @@ function withMobileKit(html, pathname) {
   const at = html.lastIndexOf('</body>');
   /* Patch 194: the currency script on every public page, so every rupee
      figure is shown in the visitor's own money (it also runs the checkout). */
-  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=268" defer></script>';
+  const pay = html.indexOf('<script src="/glovels-pay.js') >= 0 ? '' : '<script src="/glovels-pay.js?v=274" defer></script>';
   return at < 0 ? html : html.slice(0, at) + mobileBar(wa) + pay + '\n' + html.slice(at);
 }
 
@@ -3712,6 +3712,8 @@ async function handleRequest(req, res) {
       return send(res, 200, withSignedInNav(html), TYPES['.html'], { 'Cache-Control': 'no-cache' });
     }
   }
+  /* Patch 274: the country code on every phone box (assets/phone-cc.js). */
+  if (pathname === '/js/phone.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'phone-cc.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/js/i18n.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'i18n-client.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   const findJs = /^\/js\/(find\.js|reqs\.js|find-page\.js|tags\.js)$/.exec(pathname);
   if (findJs) return send(res, 200, FIND_SRC[findJs[1]](), TYPES['.js'], { 'Cache-Control': 'no-cache' });

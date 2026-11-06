@@ -104,8 +104,8 @@ FORM = """
           <div class="field"><label for="bfName">Your name</label>
             <input id="bfName" name="name" autocomplete="name" maxlength="100" required></div>
           <div class="field"><label for="bfPhone">Mobile</label>
-            <input id="bfPhone" name="phone" inputmode="numeric" autocomplete="tel"
-              placeholder="10 digits" maxlength="20" required></div>
+            <input id="bfPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel"
+              placeholder="Mobile number" maxlength="24" required></div>
         </div>
         <div class="field"><label for="bfMail">Email</label>
           <input id="bfMail" name="email" type="email" autocomplete="email" maxlength="120" required></div>

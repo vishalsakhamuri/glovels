@@ -404,6 +404,14 @@
   }
   function code() { return CFG ? current(CFG) : 'INR'; }
 
+  /* Patch 274: every phone box gets a searchable country code. Loaded from
+     here so every page that has this script has it, and no office screen. */
+  (function () {
+    if (document.querySelector('script[src^="/js/phone.js"]')) return;
+    var s = document.createElement('script'); s.src = '/js/phone.js?v=274'; s.defer = true;
+    (document.head || document.documentElement).appendChild(s);
+  }());
+
   window.glovelsPay = { config: config, guess: guess, attach: attach, chosen: chosen, fee: fee, code: code,
     set: function (c) { set(c); try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: c })); } catch (e) {} },
     convert: convert, money: money, phoneOk: phoneOk,
