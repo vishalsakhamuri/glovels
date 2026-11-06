@@ -238,7 +238,8 @@ function open({ db, fx, log = console }) {
     const wantCh = String(f.channel || '');
     const keep = (country, channel) => (!wantC || country === wantC) && (!wantCh || channel === wantCh);
 
-    const hits = db.hitsSince(prevSince).filter(h => h.kind === 'page');
+    /* Patch 275: the page rows only, read by the index — not every crawler hit. */
+    const hits = db.hitsSince(prevSince, ['page']).filter(h => h.kind === 'page');
     const events = db.eventsSince(prevSince);
     const attr = db.attributionAll();
     const attrOf = {};

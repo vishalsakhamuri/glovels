@@ -57,13 +57,20 @@ const visible = html => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\
   console.log('A. robots.txt, sitemap.xml, llms.txt (production)');
   let r = await anon('/robots.txt');
   const robots = await r.text();
-  ['*', 'GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended', 'Bingbot'].forEach(ua =>
+  ['*', 'OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot', 'Bingbot', 'GPTBot', 'ClaudeBot', 'Google-Extended'].forEach(ua =>
     ok('robots names User-agent: ' + ua, new RegExp('^User-agent: ' + ua.replace('*', '\\*') + '$', 'm').test(robots), robots.slice(0, 200)));
   {
-    const rules = robots.split('\n').filter(l => /^(User-agent|Disallow|Allow):/.test(l));
-    const firstRule = rules.findIndex(l => !/^User-agent:/.test(l));
-    ok('robots: one group — no crawler gets a group of its own that drops the portal rules',
-      firstRule > 0 && !rules.slice(firstRule).some(l => /^User-agent:/.test(l)), rules.slice(0, 3).join(' | '));
+    /* Patch 275: two groups. The training and SEO crawlers get "Disallow: /";
+       everybody else one group with the portal rules — none of them a group
+       of its own that would drop those rules. */
+    const groups = robots.split(/\n\s*\n/).map(g => g.split('\n').filter(l => /^(User-agent|Disallow|Allow):/.test(l))).filter(g => g.length);
+    const agentsOf = g => g.filter(l => /^User-agent:/.test(l)).map(l => l.slice(12).trim());
+    const blocked = groups.find(g => agentsOf(g).includes('ClaudeBot'));
+    const open = groups.find(g => agentsOf(g).includes('*'));
+    ok('robots: the training crawlers (ClaudeBot, GPTBot, Google-Extended, CCBot) get nothing', blocked && ['GPTBot', 'Google-Extended', 'CCBot'].every(a => agentsOf(blocked).includes(a)) && blocked.includes('Disallow: /') && !blocked.some(l => /^Allow:/.test(l)));
+    ok('robots: search and answer bots share the one open group', open && ['Googlebot', 'Bingbot', 'OAI-SearchBot', 'Claude-SearchBot', 'Claude-User', 'PerplexityBot'].every(a => agentsOf(open).includes(a)) && !agentsOf(open).includes('ClaudeBot'));
+    ok('robots: the open group keeps the portal rules', open && open.includes('Disallow: /dashboard') && open.includes('Disallow: /api/'));
+    ok('robots: no crawler pages through the finder\'s filters', open && open.includes('Disallow: /find-university?'));
   }
   ok('robots allows the public pages', /^Allow: \/$/m.test(robots));
   ok('robots Sitemap line on GLOVELS_URL', robots.includes('Sitemap: ' + SITE + '/sitemap.xml'), robots.slice(-120));

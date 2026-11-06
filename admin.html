@@ -1781,7 +1781,8 @@ select.assign.none:hover{border-color:#a5342b}
       </style>
 
       <div class="out tiles tr-tiles">
-        <div><b id="trVisitors">&mdash;</b><span>Visitors</span></div>
+        <div title="Visitors whose browser ran the page — people, not scripts that only download pages (patch 275)"><b id="trPeople">&mdash;</b><span>Real visitors</span></div>
+        <div><b id="trVisitors">&mdash;</b><span>All visits (incl. scripts)</span></div>
         <div><b id="trViews">&mdash;</b><span>Page views</span></div>
         <div><b id="trAi">&mdash;</b><span>From AI assistants</span></div>
         <div><b id="trSearch">&mdash;</b><span>From search</span></div>
@@ -4733,17 +4734,22 @@ async function paintTraffic() {
   try { t = await api('GET', '/api/staff/traffic?days=' + TR_DAYS); }
   catch (e) { $('#trSources').innerHTML = '<li class="tr-empty">' + esc(e.message) + '</li>'; return; }
   $('#trVisitors').textContent = trN(t.totals.visitors);
+  /* Patch 275: people — the browser ran the page. Counting began with 275. */
+  $('#trPeople').textContent = t.totals.people != null ? trN(t.totals.people) : '—';
   $('#trViews').textContent = trN(t.totals.views);
   $('#trAi').textContent = trN(t.totals.ai);
   $('#trSearch').textContent = trN(t.totals.search);
   $('#trEnq').textContent = trN(t.totals.enquiries);
   $('#trCrawls').textContent = trN(t.totals.aiCrawls);
 
-  const max = Math.max(...t.byDay.map(d => d.visitors), 1);
+  /* Patch 275: the bars are real visitors once that count exists. */
+  const hasPeople = t.byDay.some(d => d.people > 0);
+  const val = d => hasPeople ? (d.people || 0) : d.visitors;
+  const max = Math.max(...t.byDay.map(val), 1);
   $('#trChart').innerHTML = t.byDay.map(d => {
-    const h = Math.round(100 * d.visitors / max);
+    const h = Math.round(100 * val(d) / max);
     const ai = d.views ? Math.round(100 * d.ai / d.views) : 0;
-    return '<b style="height:' + h + '%" title="' + esc(trDay(d.day) + ': ' + trN(d.visitors) + ' visitors, ' + trN(d.views)
+    return '<b style="height:' + h + '%" title="' + esc(trDay(d.day) + ': ' + (d.people != null ? trN(d.people) + ' real visitors, ' : '') + trN(d.visitors) + ' visits, ' + trN(d.views)
       + ' page views' + (d.ai ? ', ' + trN(d.ai) + ' from AI assistants' : '') + (d.enquiries ? ', ' + trN(d.enquiries) + ' enquiries' : '')
       + (d.bots ? ', ' + trN(d.bots) + ' crawler visits' : '')) + '">'
       + (ai ? '<i style="height:' + Math.min(100, ai) + '%"></i>' : '') + '</b>';
@@ -4767,7 +4773,7 @@ async function paintTraffic() {
   trList('trBots', t.bots, {
     empty: 'No crawler has been here yet. Googlebot usually arrives within a day of the domain going live; the AI readers within a week or two.',
     extra: r => '<em class="tr-tag tr-' + (r.group === 'ai' ? 'ai' : r.group === 'search' ? 'search' : 'other') + '">'
-      + (r.group === 'ai' ? 'AI' : r.group === 'search' ? 'search' : 'other') + '</em><em>' + esc(r.pages + ' pages · ' + trAgo(r.last)) + '</em>',
+      + (r.group === 'ai' ? 'AI' : r.group === 'search' ? 'search' : 'other') + '</em><em>' + esc(r.pages + ' pages · ' + (r.blocked ? trN(r.blocked) + ' turned away · ' : '') + trAgo(r.last)) + '</em>',
   });
   trList('trAiPages', t.aiPages, { empty: 'Nothing read by an AI crawler yet.' });
   trList('trPages', t.pages, { empty: 'No page views yet.' });

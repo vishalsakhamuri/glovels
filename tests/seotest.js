@@ -59,7 +59,8 @@ const PROD = {
     kids.push(await boot(8071, Object.assign({}, PROD, { GLOVELS_URL: 'https://glovels.com' })));
     let r = await get(8071, '/robots.txt');
     check('a live site on its own domain invites crawlers',
-      /Allow: \//.test(r.body) && !/^Disallow: \/$/m.test(r.body), r.body.slice(0, 60));
+      /* patch 275: "Disallow: /" only in the training crawlers' own group */
+      /Allow: \//.test(r.body) && !/^Disallow: \/$/m.test(r.body.split(/\n\s*\n/).find(g => /^User-agent: \*$/m.test(g)) || ''), r.body.slice(0, 60));
     check('and keeps them out of the portal',
       /Disallow: \/dashboard/.test(r.body) && /Disallow: \/api\//.test(r.body));
     check('and points at its sitemap',

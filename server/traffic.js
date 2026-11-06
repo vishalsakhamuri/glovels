@@ -164,6 +164,70 @@ function open({ db, log = console }) {
   } catch (e) { secret = crypto.randomBytes(16).toString('hex'); }
   let lastPrune = '';
 
+  /* Patch 275: crawlers counted in memory and written once a minute, one
+     row per day and crawler (bot_days), instead of one row per hit. */
+  const aiPageTally = new Map();   /* day → { path: hits } for AI crawlers */
+  const botTally = new Map();   /* day|bot → { day, bot, grp, hits, blocked, paths:Set, last } */
+  function countBot(day, bot, grp, path, ts, blocked) {
+    const k = day + '|' + bot;
+    let t = botTally.get(k);
+    if (!t) { t = { day, bot, grp, hits: 0, blocked: 0, paths: new Set(), last: '', flushedPages: 0 }; botTally.set(k, t); }
+    t.hits++; if (blocked) t.blocked++;
+    if (t.paths.size < 20000) t.paths.add(path);
+    if (ts > t.last) t.last = ts;
+    if (grp === 'ai') {
+      const pd = aiPageTally.get(day) || (aiPageTally.set(day, {}), aiPageTally.get(day));
+      if (pd[path] || Object.keys(pd).length < 5000) pd[path] = (pd[path] || 0) + 1;
+    }
+  }
+  function flushBots() {
+    for (const [k, t] of botTally) {
+      if (!t.hits && !t.blocked) continue;
+      try { db.botDayAdd(t.day, t.bot, t.grp, t.hits, t.paths.size, t.blocked, t.last); } catch (e) { log.error('  traffic ✗ bots ' + (e && e.message)); }
+      t.hits = 0; t.blocked = 0;
+      if (t.day !== new Date().toISOString().slice(0, 10)) botTally.delete(k);
+    }
+    for (const [day, pd] of aiPageTally) {
+      try { db.botPagesAdd && db.botPagesAdd(day, pd); } catch (e) { log.error('  traffic ✗ bot pages ' + (e && e.message)); }
+      aiPageTally.delete(day);
+    }
+  }
+  const flushTimer = setInterval(flushBots, 60 * 1000);
+  if (flushTimer.unref) flushTimer.unref();
+  /* The old rows, folded and deleted a slice at a time once the site has settled. */
+  let folding = null;
+  const foldStep = () => {
+    let n = 0;
+    try { n = db.foldOldBotHits ? db.foldOldBotHits(4000) : 0; } catch (e) { n = 0; log.error('  traffic ✗ fold ' + (e && e.message)); }
+    if (n) folding = setTimeout(foldStep, 250); else folding = null;
+    if (folding && folding.unref) folding.unref();
+  };
+  folding = setTimeout(foldStep, Number(process.env.TRAFFIC_FOLD_MS) || 60 * 1000);
+  if (folding.unref) folding.unref();
+
+  /* A browser that ran the page's script (patch 275): the visitor is a
+     person, not a script that only downloads pages. */
+  function visitorKey(req, ua, day) {
+    const ip = GEO.clientIpOf(req);
+    return crypto.createHmac('sha256', secret).update(ip + '|' + ua + '|' + day).digest('hex').slice(0, 16);
+  }
+  function confirm(req, path) {
+    try {
+      const ua = String(req.headers['user-agent'] || '');
+      if (QA_AGENT.test(ua) || botOf(ua)) return;
+      const now = new Date();
+      const day = now.toISOString().slice(0, 10);
+      const ip = GEO.clientIpOf(req);
+      let country = '';
+      try { country = GEO.forRequest(req, ip).country || ''; } catch (e) { country = ''; }
+      db.hit({ day, ts: now.toISOString(), path: String(path || '').slice(0, 200), kind: 'seen', device: deviceOf(ua), visitor: visitorKey(req, ua, day), country });
+    } catch (e) { log.error('  traffic ✗ seen ' + (e && e.message)); }
+  }
+  /* A crawler turned away at the door (server/botgate.js) is still counted. */
+  function blocked(req, path, bot) {
+    try { const now = new Date(); countBot(now.toISOString().slice(0, 10), bot.bot, bot.group, String(path || '').slice(0, 200), now.toISOString(), true); } catch (e) {}
+  }
+
   /** One page served. `path` is the canonical path; `query` the parsed query. */
   function record(req, path, query) {
     try {
@@ -178,10 +242,11 @@ function open({ db, log = console }) {
       const ownHost = String(req.headers.host || '').replace(/^www\./, '').toLowerCase();
       const row = { day, ts: now.toISOString(), path: String(path).slice(0, 200) };
       if (bot) {
-        Object.assign(row, { kind: 'bot', bot: bot.bot, source: bot.group });
+        countBot(day, bot.bot, bot.group, row.path, row.ts, false);
+        return Object.assign(row, { kind: 'bot', bot: bot.bot, source: bot.group });
       } else {
         const ip = GEO.clientIpOf(req);   // Patch 214: not the Cloudflare edge
-        const visitor = crypto.createHmac('sha256', secret).update(ip + '|' + ua + '|' + day).digest('hex').slice(0, 16);
+        const visitor = visitorKey(req, ua, day);
         /* Patch 187: the country only — the address itself is not kept. */
         let country = '';
         try { country = GEO.forRequest(req, ip).country || ''; } catch (e) { country = ''; }
@@ -189,12 +254,13 @@ function open({ db, log = console }) {
           sourceOf(String(req.headers.referer || ''), query, ownHost, ua));
       }
       db.hit(row);
-      return row;
+      /* Patch 275: this ran after `return row` and so never ran at all. */
       if (day !== lastPrune) {
         lastPrune = day;
         const cutoff = new Date(now.getTime() - KEEP_DAYS * 86400000).toISOString().slice(0, 10);
-        db.pruneHits(cutoff);
+        setTimeout(() => { try { db.pruneHits(cutoff); } catch (e) {} }, 5000).unref();
       }
+      return row;
     } catch (e) {
       log.error('  traffic ✗ ' + (e && e.message));
     }
@@ -207,14 +273,19 @@ function open({ db, log = console }) {
   function summary(days) {
     days = Math.max(1, Math.min(180, Number(days) || 30));
     const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
-    const rows = db.hitsSince(since);
+    flushBots();
+    const rows = db.hitsSince(since, ['page', 'seen', 'bot']);
     const byDay = {};
     for (let i = 0; i < days; i++) {
       const d = new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10);
-      byDay[d] = { day: d, views: 0, visitors: new Set(), ai: 0, search: 0, bots: 0 };
+      byDay[d] = { day: d, views: 0, visitors: new Set(), people: new Set(), ai: 0, search: 0, bots: 0 };
     }
+    /* Patch 275: visitors whose browser ran the page (a person), per day. */
+    const seen = new Set(), seenDevice = {}, seenCountry = {};
+    rows.forEach(h => { if (h.kind === 'seen') { seen.add(h.day + '|' + h.visitor); } });
     const sources = {}, aiSites = {}, searchSites = {}, socialSites = {}, referrals = {};
     const pages = {}, campaigns = {}, devices = {}, bots = {}, aiPages = {};
+    const devicesPeople = {}, countriesPeople = {};
     const visitors = new Set();
     /* Patch 177 (item 2): "Where visitors come from" counts VISITORS — the
        same visitor key the Visitors tile counts, once per source — not page
@@ -223,8 +294,15 @@ function open({ db, log = console }) {
     const countryVisitors = {}, countryViews = {};
     let views = 0, botHits = 0;
 
+    const people = new Set();
+    /* Days whose old crawler rows are already folded into bot_days. */
+    const folded = new Set();
+    let botDays = [];
+    try { botDays = db.botDaysSince(since); botDays.forEach(r => { if (r.bot === '~folded') folded.add(r.day); }); } catch (e) { botDays = []; }
     rows.forEach(h => {
       const d = byDay[h.day];
+      if (h.kind === 'seen') return;
+      if (h.kind === 'bot' && folded.has(h.day)) return;
       if (h.kind === 'bot') {
         botHits++;
         if (d) d.bots++;
@@ -235,7 +313,12 @@ function open({ db, log = console }) {
       }
       views++;
       visitors.add(h.visitor);
-      if (d) { d.views++; d.visitors.add(h.visitor); if (h.source === 'ai') d.ai++; if (h.source === 'search') d.search++; }
+      const person = seen.has(h.day + '|' + h.visitor);
+      if (person) {
+        people.add(h.day + '|' + h.visitor);
+        if (!seenDevice[h.day + '|' + h.visitor]) { seenDevice[h.day + '|' + h.visitor] = 1; devicesPeople[h.device] = (devicesPeople[h.device] || 0) + 1; const c = h.country || '??'; countriesPeople[c] = (countriesPeople[c] || 0) + 1; }
+      }
+      if (d) { d.views++; d.visitors.add(h.visitor); if (person) d.people.add(h.visitor); if (h.source === 'ai') d.ai++; if (h.source === 'search') d.search++; }
       sources[h.source] = (sources[h.source] || 0) + 1;
       sourceViews[h.source] = (sourceViews[h.source] || 0) + 1;
       (sourceVisitors[h.source] || (sourceVisitors[h.source] = new Set())).add(h.visitor);
@@ -250,6 +333,21 @@ function open({ db, log = console }) {
       (countryVisitors[cc] || (countryVisitors[cc] = new Set())).add(h.visitor);
       devices[h.device] = (devices[h.device] || 0) + 1;
     });
+
+    try { (db.botPagesSince ? db.botPagesSince(since) : []).forEach(r => { aiPages[r.path] = (aiPages[r.path] || 0) + Number(r.hits || 0); }); } catch (e) { /* the rows above still count */ }
+    /* Patch 275: the crawlers from bot_days (and today's not yet written). */
+    try {
+      botDays.forEach(r => {
+        if (r.bot === '~folded') return;
+        const d = byDay[r.day];
+        botHits += Number(r.hits) || 0;
+        if (d) d.bots += Number(r.hits) || 0;
+        const b = bots[r.bot] || (bots[r.bot] = { name: r.bot, group: r.grp, hits: 0, pages: new Set(), pageCount: 0, blocked: 0, last: '' });
+        b.hits += Number(r.hits) || 0; b.blocked = (b.blocked || 0) + (Number(r.blocked) || 0);
+        b.pageCount = (b.pageCount || 0) + (Number(r.pages) || 0);
+        if (r.last > b.last) b.last = r.last;
+      });
+    } catch (e) { /* the JSON driver keeps no bot_days */ }
 
     /* Enquiries and orders over the same days, by where the lead said it came
        from — the finder, the contact page, a blog post, the chat. */
@@ -270,13 +368,14 @@ function open({ db, log = console }) {
     return {
       days, since,
       totals: {
-        views, visitors: visitors.size, botHits,
+        views, visitors: visitors.size, people: people.size, botHits,
+        botsBlocked: Object.values(bots).reduce((n, b) => n + (b.blocked || 0), 0),
         ai: sources.ai || 0, search: (sources.search || 0) + (sources.ads || 0),
         enquiries: enquiries.length, orders: orders.length, paid: paid.length,
         aiCrawls: Object.values(bots).filter(b => b.group === 'ai').reduce((n, b) => n + b.hits, 0),
       },
       byDay: Object.values(byDay).map(d => ({
-        day: d.day, views: d.views, visitors: d.visitors.size, ai: d.ai, search: d.search, bots: d.bots,
+        day: d.day, views: d.views, visitors: d.visitors.size, people: d.people.size, ai: d.ai, search: d.search, bots: d.bots,
         enquiries: enqByDay[d.day] || 0,
       })),
       /* Patch 187: visitors per country (from their IP; '??' = not known). */
@@ -294,13 +393,16 @@ function open({ db, log = console }) {
       pages: top(pages, 15),
       aiPages: top(aiPages, 10),
       devices: top(devices, 3),
+      /* Patch 275: the same, people only (their browser ran the page). */
+      devicesPeople: top(devicesPeople, 3),
+      countriesPeople: top(countriesPeople, 40).map(x => ({ code: x.name, count: x.count })),
       bots: Object.values(bots).sort((a, b) => b.hits - a.hits).slice(0, 25)
-        .map(b => ({ name: b.name, group: b.group, hits: b.hits, pages: b.pages.size, last: b.last })),
+        .map(b => ({ name: b.name, group: b.group, hits: b.hits, pages: Math.max(b.pages.size, b.pageCount || 0), blocked: b.blocked || 0, last: b.last })),
       enquiriesBy: top(enqBy, 10),
     };
   }
 
-  return { record, summary, sourceOf, botOf };
+  return { record, summary, sourceOf, botOf, confirm, blocked, flushBots };
 }
 
 module.exports = { open, sourceOf, botOf, deviceOf };

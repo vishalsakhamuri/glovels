@@ -286,6 +286,9 @@ function bakedIds() {
 
 const backup = require('./server/backup.js').open({ db, dataDir: DATA, log: console });
 const traffic = require('./server/traffic.js').open({ db, log: console });
+/* Patch 275: training crawlers, SEO tools and scrapers turned away; search
+   and answer bots slowed to a fair rate (server/botgate.js). */
+const BOTGATE = require('./server/botgate.js').open({ traffic, config: CFG, log: console });
 /* Patch 204: where each lead, account and payment came from (server/marketing.js). */
 const marketing = require('./server/marketing.js').open({ db, fx: require('./server/fx.js'), log: console });
 /* Patch 267: the marketing team's tags (GA4, GTM, Google Ads, Meta Pixel,
@@ -629,6 +632,9 @@ function send(res, code, body, type, extra) {
     'Cache-Control': /^(image\/|font\/|application\/manifest)/.test(String(type || ''))
       ? 'public, max-age=86400' : 'no-store',
   };
+  /* Patch 275: no search engine keeps a cached copy of a page — the owner's
+     "do not allow unnecessary data cache". Pages stay no-store here too. */
+  if (/^text\/html/.test(String(type || '')) && !(extra && extra['X-Robots-Tag'])) headers['X-Robots-Tag'] = 'noarchive';
   /* Only on HTTPS. Sending HSTS over plain HTTP does nothing, and sending it
      from a laptop would pin localhost to HTTPS in the developer's browser. */
   if (CFG.production) {
@@ -690,22 +696,30 @@ function robotsTxt() {
   return [
     '# The public pages are for reading. The portal and the API are not.',
     '# Search engines and AI assistants are welcome to the public pages.',
+    /* Patch 275: the crawlers that copy the web for model training or SEO
+       data get nothing — a group of their own, "Disallow: /". The server
+       turns them away too (server/botgate.js) for the ones that do not read
+       this file. Search engines and the assistants that fetch a page for a
+       person stay welcome. */
+    '# Crawlers that copy the site for training data or SEO databases: nothing here is for them.',
+    ...require('./server/botgate.js').BLOCK_AGENTS.map(a => 'User-agent: ' + a),
+    'Disallow: /',
+    '',
     'User-agent: *',
     'User-agent: Googlebot',
     'User-agent: Bingbot',
-    'User-agent: GPTBot',
     'User-agent: OAI-SearchBot',
     'User-agent: ChatGPT-User',
-    'User-agent: ClaudeBot',
     'User-agent: Claude-SearchBot',
     'User-agent: Claude-User',
     'User-agent: PerplexityBot',
     'User-agent: Perplexity-User',
-    'User-agent: Google-Extended',
     'User-agent: Applebot',
-    'User-agent: Applebot-Extended',
     'User-agent: DuckDuckBot',
     'Disallow: /api/',
+    /* Patch 275: every filter combination of the finder is a new address. */
+    'Disallow: /find-university?',
+    'Disallow: /*/find-university?',
     'Disallow: /dashboard',
     'Disallow: /profile',
     'Disallow: /documents',
@@ -3428,7 +3442,7 @@ var k=kind(el,href);send(k,label,href.split("?")[0]);
 if(k==="call"||k==="whatsapp"||k==="email"){try{if(window.gtag)gtag("event","contact",{method:k,label:label.slice(0,80)})}catch(e){}try{if(window.glvTagEvent)glvTagEvent("contact",{method:k})}catch(e){}}},true);
 var q=function(e){var el=e.target;if(!el||!el.matches)return;if(el.matches('input[type="search"],input[name="q"],input[data-search],[role="search"] input')){var v=(el.value||"").trim();if(v.length>1)send("search",v,"");}};
 document.addEventListener("change",q,true);
-var seen=0,on=0;function tick(){if(document.visibilityState==="visible"){seen+=1;if(seen>=15&&!on){on=1;send("engaged","","");}}}
+var seen=0,on=0,ppl=0;function tick(){if(document.visibilityState==="visible"){seen+=1;if(seen>=2&&!ppl){ppl=1;send("seen","","");}if(seen>=15&&!on){on=1;send("engaged","","");}}}
 setInterval(tick,1000);})();`;
 function withAnalytics(html, req) {
   if (html.includes('<script data-track>')) return html;
@@ -3655,6 +3669,11 @@ async function handleRequest(req, res) {
 
   const canon = canonicalRedirect(req);
   if (canon) return send(res, 301, '', 'text/html', { Location: canon });
+
+  {
+    const turned = BOTGATE.check(req, pathname, query);
+    if (turned) { res.writeHead(turned.code, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': Buffer.byteLength(turned.body) }, turned.headers)); return res.end(req.method === 'HEAD' ? undefined : turned.body); }
+  }
 
   /* patch 265: /zh/…, /ar/… — the same page in another language. The prefix
      comes off here and the request is answered exactly as the English one

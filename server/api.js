@@ -7738,6 +7738,8 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     const who = me(req);
     if (who && who.role !== 'student') return done();
     const b = await readJson(req, 4096);
+    /* Patch 275: "this browser ran the page for two seconds" — a person. */
+    if (b && b.n === 'seen') { try { traffic.confirm && traffic.confirm(req, String(b.p || '').slice(0, 200)); } catch (e) {} return done(); }
     let country = '';
     try { country = GEO.forRequest(req, clientIp(req)).country || ''; } catch (e) { country = ''; }
     const TR = require('./traffic.js');

@@ -1067,6 +1067,27 @@ function sqliteDriver(file) {
       PRIMARY KEY (post_id, lang)
     )`,
    "ALTER TABLE students ADD COLUMN lang TEXT NOT NULL DEFAULT ''",
+   /* Patch 275: crawler hits counted per day and crawler, not one row each —
+      ClaudeBot alone wrote 220,000 rows in two days, and every Traffic and
+      Marketing screen read them all back. */
+   `CREATE TABLE IF NOT EXISTS bot_days (
+      day     TEXT NOT NULL,
+      bot     TEXT NOT NULL,
+      grp     TEXT NOT NULL DEFAULT '',
+      hits    INTEGER NOT NULL DEFAULT 0,
+      pages   INTEGER NOT NULL DEFAULT 0,
+      blocked INTEGER NOT NULL DEFAULT 0,
+      last    TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (day, bot)
+    )`,
+   /* Patch 275: the pages the AI crawlers read, per day — what the Traffic
+      screen's "Pages the AI crawlers read most" shows. */
+   `CREATE TABLE IF NOT EXISTS bot_pages (
+      day  TEXT NOT NULL,
+      path TEXT NOT NULL,
+      hits INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, path)
+    )`,
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -1120,7 +1141,7 @@ function jsonDriver(file) {
     /* Missing from this list, so on the fallback driver the table was not
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
-    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings', 'gateway_orders',
+    'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings', 'gateway_orders', 'bot_days', 'bot_pages',
     'i18n_src', 'i18n_units', 'i18n_pages', 'post_i18n'];
   let data;
   try {
@@ -4203,11 +4224,65 @@ function open(dir) {
         h.day, h.ts, h.path, h.kind, h.source || '', h.site || '', h.campaign || '',
         h.medium || '', h.device || '', h.bot || '', h.visitor || '', h.country || '');
     },
-    hitsSince: day => db.kind === 'sqlite'
-      ? db.all('SELECT * FROM hits WHERE day >= ? ORDER BY id', day)
-      : db.all('SELECT * FROM hits WHERE id > ?', 0).filter(h => h.day >= day),
+    /* Patch 275: `kinds` reads only those rows (the index is on day, kind). */
+    hitsSince: (day, kinds) => {
+      const ks = Array.isArray(kinds) && kinds.length ? kinds : null;
+      if (db.kind === 'sqlite') {
+        return ks ? db.all('SELECT * FROM hits WHERE day >= ? AND kind IN (' + ks.map(() => '?').join(',') + ') ORDER BY id', day, ...ks)
+          : db.all('SELECT * FROM hits WHERE day >= ? ORDER BY id', day);
+      }
+      return db.all('SELECT * FROM hits WHERE id > ?', 0).filter(h => h.day >= day && (!ks || ks.includes(h.kind)));
+    },
+    /* Crawlers per day (patch 275). */
+    botDayAdd(day, bot, grp, hits, pages, blocked, last) {
+      if (db.kind !== 'sqlite') return;
+      db.run(`INSERT INTO bot_days (day, bot, grp, hits, pages, blocked, last) VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(day, bot) DO UPDATE SET hits = hits + excluded.hits, pages = MAX(pages, excluded.pages),
+                blocked = blocked + excluded.blocked, last = MAX(last, excluded.last)`,
+        day, bot, grp || '', Number(hits) || 0, Number(pages) || 0, Number(blocked) || 0, last || '');
+    },
+    botPagesAdd(day, counts) {
+      if (db.kind !== 'sqlite') return;
+      Object.keys(counts || {}).forEach(path => {
+        db.run(`INSERT INTO bot_pages (day, path, hits) VALUES (?, ?, ?)
+                ON CONFLICT(day, path) DO UPDATE SET hits = hits + excluded.hits`, day, String(path).slice(0, 300), Number(counts[path]) || 0);
+      });
+    },
+    botPagesSince: (day, limit) => db.kind === 'sqlite'
+      ? db.all('SELECT day, path, SUM(hits) AS hits FROM bot_pages WHERE day >= ? GROUP BY day, path ORDER BY hits DESC LIMIT ?', day, Number(limit) || 2000) : [],
+    botDaysSince: day => db.kind === 'sqlite' ? db.all('SELECT * FROM bot_days WHERE day >= ?', day) : [],
+    /* The old one-row-per-crawler-hit rows, folded into bot_days a day at a
+       time and deleted in slices, so the server never stops for long. */
+    foldOldBotHits(maxRows) {
+      if (db.kind !== 'sqlite') return 0;
+      const d = db.one("SELECT day FROM hits WHERE kind = 'bot' ORDER BY day LIMIT 1");
+      if (!d) return 0;
+      const done = db.one('SELECT 1 AS x FROM bot_days WHERE day = ? AND bot = ?', d.day, '~folded');
+      if (!done) {
+        db.all("SELECT bot, source, COUNT(*) AS n, COUNT(DISTINCT path) AS p, MAX(ts) AS last FROM hits WHERE kind = 'bot' AND day = ? GROUP BY bot, source", d.day)
+          .forEach(r => this.botDayAdd(d.day, r.bot, r.source, r.n, r.p, 0, r.last));
+        const ap = {};
+        db.all("SELECT path, COUNT(*) AS n FROM hits WHERE kind = 'bot' AND source = 'ai' AND day = ? GROUP BY path ORDER BY n DESC LIMIT 500", d.day)
+          .forEach(r => { ap[r.path] = r.n; });
+        this.botPagesAdd(d.day, ap);
+        db.run('INSERT OR IGNORE INTO bot_days (day, bot, grp, hits) VALUES (?, ?, ?, 0)', d.day, '~folded', 'mark');
+      }
+      const ids = db.all("SELECT id FROM hits WHERE kind = 'bot' AND day = ? LIMIT ?", d.day, Number(maxRows) || 5000).map(r => r.id);
+      if (ids.length) db.run('DELETE FROM hits WHERE id IN (' + ids.join(',') + ')');
+      return ids.length;
+    },
     pruneHits: day => {
-      if (db.kind === 'sqlite') return db.run('DELETE FROM hits WHERE day < ?', day);
+      if (db.kind === 'sqlite') {
+        /* in slices (patch 275): one DELETE of a million rows holds the server */
+        for (let i = 0; i < 40; i++) {
+          const ids = db.all('SELECT id FROM hits WHERE day < ? LIMIT 5000', day).map(r => r.id);
+          if (!ids.length) break;
+          db.run('DELETE FROM hits WHERE id IN (' + ids.join(',') + ')');
+        }
+        db.run('DELETE FROM bot_days WHERE day < ?', day);
+        db.run('DELETE FROM bot_pages WHERE day < ?', day);
+        return;
+      }
       db.all('SELECT * FROM hits WHERE id > ?', 0).filter(h => h.day < day)
         .forEach(h => db.run('DELETE FROM hits WHERE id = ?', h.id));
     },

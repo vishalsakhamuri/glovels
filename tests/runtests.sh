@@ -312,6 +312,8 @@ node portallangtest.js | tail -1 | sed 's/^/  portallangtest.js  /' | tee -a "$R
 # patch 273: keep-alive held for Render's proxy (125 s) — own server (8273).
 node keepalivetest.js | tail -1 | sed 's/^/  keepalivetest.js   /' | tee -a "$REPORT"
 run phonecctest.js  8099 GUARD=off   # patch 274: country code on every phone box
+# patch 275: crawlers at the door, crawler hits per day, real visitors — own server (8275).
+node botgatetest.js | tail -1 | sed 's/^/  botgatetest.js     /' | tee -a "$REPORT"
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
 
