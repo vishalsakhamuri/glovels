@@ -1887,7 +1887,9 @@ select.assign.none:hover{border-color:#a5342b}
         <details style="margin-top:12px"><summary style="cursor:pointer;font-size:12.6px;color:var(--navy-800)">What this server sent recently (Conversions API, IndexNow)</summary>
           <ul class="tr-list" id="tagSent" style="margin-top:8px"></ul></details>
       </div>
-    </div><!-- /o-traffic -->
+    </div>
+    </div><!-- /o-traffic — patch 276: this closing tag was missing, which put the
+         whole Organisation pane (go-live, backups, test data) inside Traffic -->
 
     <!-- Round 176 (go-live): the readiness card, the backups, and the QA
          clean-up. Everything an office would otherwise have to ask a
@@ -1915,6 +1917,23 @@ select.assign.none:hover{border-color:#a5342b}
           <span class="st" id="bkLast" style="text-transform:none;letter-spacing:0"></span>
         </div>
         <ul class="doclist" id="bkList" style="margin:10px 0 0"></ul>
+      </div>
+    </div>
+    <!-- Patch 276: what the uploads take, and the old photos made smaller. -->
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Storage</h2></div>
+      <div class="p-card" id="stCard">
+        <p style="margin:0 0 10px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">
+          New photos are made smaller on the student's phone before they are sent (at most 2400&nbsp;px,
+          still sharp enough to read). Photos uploaded before that can be made smaller here: this
+          browser redraws each one and the server keeps the smaller copy only when it saves at least
+          a fifth. <b>PDFs and Word files are not changed.</b> The original photo is replaced, so take
+          a full backup first if you want to keep the originals.</p>
+        <p id="stSays" style="margin:0 0 10px;font-size:12.6px;line-height:1.65">Reading&hellip;</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary btn-sm" id="stGo" disabled>Make old photos smaller</button>
+          <span class="st" id="stProg" style="text-transform:none;letter-spacing:0"></span>
+        </div>
       </div>
     </div>
     <div class="p-sec">
@@ -4861,10 +4880,53 @@ async function paintBackups() {
     list.innerHTML = copies.slice(0, 7).map(c => '<li><div><b>' + esc(c.file) + '</b></div><span class="st ok">' + Math.round(c.bytes / 1024) + ' KB</span></li>').join('');
   } catch (e) { if (last) last.textContent = 'backups: ' + (e.message || e); }
 }
+/* Patch 276: the Storage card. */
+const stMB = n => (n < 0 ? '?' : (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB');
+let stBig = [];
+async function paintStorage() {
+  const says = $('#stSays'), go = $('#stGo');
+  if (!says) return;
+  try {
+    const r = await api('GET', '/api/staff/storage');
+    stBig = r.big || [];
+    says.innerHTML = '<b>' + r.files + ' uploaded files, ' + stMB(r.bytes) + '</b> — photos ' + stMB(r.photoBytes) +
+      ', PDFs ' + stMB(r.pdfBytes) + ', other ' + stMB(r.otherBytes) + '.' +
+      (r.disk && r.disk.totalBytes > 0 ? ' Disk: ' + stMB(r.disk.freeBytes) + ' free of ' + stMB(r.disk.totalBytes) + '.' : '') +
+      '<br>' + (r.bigCount ? r.bigCount + ' photo(s) over 600 KB, ' + stMB(r.bigBytes) + ' in all, can be made smaller.' : 'No photo is over 600 KB.');
+    if (go) go.disabled = !stBig.length || !window.glovelsShrink;
+  } catch (e) { says.textContent = 'Could not read the storage: ' + (e.message || e); }
+}
+$('#stGo') && $('#stGo').addEventListener('click', async () => {
+  const go = $('#stGo'), prog = $('#stProg');
+  if (!window.glovelsShrink || !stBig.length) return;
+  if (!confirm('Make ' + stBig.length + ' old photo(s) smaller? The originals are replaced.')) return;
+  go.disabled = true;
+  let done = 0, saved = 0, changed = 0;
+  for (const it of stBig) {
+    try {
+      const r = await fetch('/api/staff/storage/photo/' + it.student + '/' + it.id, { credentials: 'same-origin', cache: 'no-store' });
+      if (r.ok) {
+        const blob = await r.blob();
+        const f = new File([blob], it.name || 'photo.jpg', { type: blob.type || 'image/jpeg' });
+        const small = await window.glovelsShrink.photo(f, { minBytes: 0 });
+        if (small !== f && small.size < it.bytes * 0.8) {
+          const fd = new FormData(); fd.append('file', small, small.name || 'photo.jpg');
+          const p = await fetch('/api/staff/storage/photo/' + it.student + '/' + it.id, { method: 'POST', credentials: 'same-origin', body: fd });
+          const d = await p.json().catch(() => ({}));
+          if (p.ok && d.saved > 0) { saved += d.saved; changed++; }
+        }
+      }
+    } catch (e) { /* the next one */ }
+    done++;
+    if (prog) prog.textContent = done + ' / ' + stBig.length + ' · ' + changed + ' made smaller · ' + stMB(saved) + ' saved';
+  }
+  try { await api('POST', '/api/staff/storage/done', { files: changed, saved }); } catch (e) {}
+  await paintStorage();
+});
 let glPainted = false;
-function glOpen() { if (!glPainted) { glPainted = true; paintGolive(); paintBackups(); } }
+function glOpen() { if (!glPainted) { glPainted = true; paintGolive(); paintBackups(); paintStorage(); } }
 if ($('#o-settings') && $('#o-settings').classList.contains('active')) glOpen();
-$('#glRefresh') && $('#glRefresh').addEventListener('click', () => { paintGolive(); paintBackups(); });
+$('#glRefresh') && $('#glRefresh').addEventListener('click', () => { paintGolive(); paintBackups(); paintStorage(); });
 $('#bkNow') && $('#bkNow').addEventListener('click', async () => {
   try { await api('POST', '/api/staff/backups', {}); await paintBackups(); await paintGolive(); }
   catch (e) { alert('Could not take a copy: ' + (e.message || e)); }
@@ -5701,5 +5763,6 @@ if (location.protocol === 'file:') {
 }());
 </script>
 <!-- /GLOVELS-PW-EYE -->
+<script src="/js/shrink.js?v=276" defer></script>
 </body>
 </html>

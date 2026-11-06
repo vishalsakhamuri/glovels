@@ -7978,6 +7978,97 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   }));
 
   /*
+   * Patch 276: what the uploads take on the disk, and the old photos made
+   * smaller. Owner, 6 Nov: "compress all files which are uploaded by students
+   * and make sure they are not taking too much space". New photos are made
+   * smaller in the browser before they are sent (assets/shrink.js); the ones
+   * already here are redrawn by the administrator's own browser, one at a
+   * time, and come back through this route. The server keeps the smaller
+   * copy only when it is a real JPEG and at least a fifth smaller; the old
+   * file is then deleted. PDFs and Word files are never touched.
+   */
+  const PHOTO_EXT = /\.(jpe?g|png|webp)$/i;
+  const SHRINK_MIN = 600 * 1024;
+  /* A JPEG's width and height from its header (the SOF marker), or null. */
+  function jpegSide(file) {
+    let fd, buf = Buffer.alloc(65536), n = 0;
+    try { fd = fs.openSync(file, 'r'); n = fs.readSync(fd, buf, 0, buf.length, 0); } catch (e) { return null; } finally { try { fs.closeSync(fd); } catch (e) {} }
+    if (n < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+    let i = 2;
+    while (i + 9 < n) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const mk = buf[i + 1];
+      if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) return Math.max(buf.readUInt16BE(i + 5), buf.readUInt16BE(i + 7));
+      if (mk === 0xd8 || mk === 0x01 || (mk >= 0xd0 && mk <= 0xd7)) { i += 2; continue; }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+    return null;
+  }
+  function storageReport() {
+    let all = [];
+    try { all = db.docFilesAll ? db.docFilesAll() : []; } catch (e) { all = []; }
+    const t = { files: 0, bytes: 0, photos: 0, photoBytes: 0, pdfs: 0, pdfBytes: 0, other: 0, otherBytes: 0 };
+    const big = [];
+    all.forEach(r => {
+      const n = Number(r.bytes || 0);
+      t.files++; t.bytes += n;
+      if (PHOTO_EXT.test(r.stored_name)) {
+        t.photos++; t.photoBytes += n;
+        /* A JPEG already at most 2400 px has been made as small as it goes. */
+        const done = /\.jpe?g$/i.test(r.stored_name) && (() => { const side = jpegSide(path.join(uploadDir, String(r.student_id), r.stored_name)); return side && side <= 2400; })();
+        if (n >= SHRINK_MIN && !done && !/^removed:/.test(String(r.doc_key))) big.push({ student: r.student_id, id: r.id, bytes: n, name: r.filename });
+      } else if (/\.pdf$/i.test(r.stored_name)) { t.pdfs++; t.pdfBytes += n; } else { t.other++; t.otherBytes += n; }
+    });
+    big.sort((a, b) => b.bytes - a.bytes);
+    let disk = { freeBytes: -1, totalBytes: -1 };
+    try { const st = fs.statfsSync(uploadDir); disk = { freeBytes: st.bavail * st.bsize, totalBytes: st.blocks * st.bsize }; } catch (e) {}
+    return Object.assign(t, { disk, big: big.slice(0, 2000), bigCount: big.length, bigBytes: big.reduce((a, b) => a + b.bytes, 0) });
+  }
+  route('GET', '/api/staff/storage', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    return json(res, 200, Object.assign({ ok: true }, storageReport()));
+  }));
+  route('GET', /^\/api\/staff\/storage\/photo\/(\d+)\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const rec = db.docById(Number(m[1]), Number(m[2]));
+    if (!rec || !PHOTO_EXT.test(rec.stored_name)) return json(res, 404, { error: 'Not found' });
+    const file = path.join(uploadDir, String(rec.student_id), rec.stored_name);
+    if (!fs.existsSync(file)) return json(res, 404, { error: 'Not found' });
+    res.writeHead(200, { 'Content-Type': /\.png$/i.test(rec.stored_name) ? 'image/png' : /\.webp$/i.test(rec.stored_name) ? 'image/webp' : 'image/jpeg', 'Cache-Control': 'no-store' });
+    return fs.createReadStream(file).pipe(res);
+  }));
+  route('POST', /^\/api\/staff\/storage\/photo\/(\d+)\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const sid = Number(m[1]);
+    const rec = db.docById(sid, Number(m[2]));
+    if (!rec || !PHOTO_EXT.test(rec.stored_name)) return json(res, 404, { error: 'Not found' });
+    const parsed = await oneFile(req, res);
+    if (!parsed) return true;
+    const buf = parsed.file.data;
+    const dir = path.join(uploadDir, String(sid));
+    const oldFile = path.join(dir, rec.stored_name);
+    let oldBytes = 0;
+    try { oldBytes = fs.statSync(oldFile).size; } catch (e) { return json(res, 404, { error: 'The file is not on the disk' }); }
+    const isJpeg = buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    if (!isJpeg || buf.length < 2048) return json(res, 422, { error: 'Not a JPEG' });
+    if (buf.length >= oldBytes * 0.8) return json(res, 200, { ok: true, kept: true, bytes: oldBytes, saved: 0 });
+    const stored = String(rec.stored_name).replace(PHOTO_EXT, '') + '.jpg';
+    const tmp = path.join(dir, stored + '.part');
+    fs.writeFileSync(tmp, buf);
+    fs.renameSync(tmp, path.join(dir, stored));
+    const filename = String(rec.filename || 'photo').replace(PHOTO_EXT, '') + '.jpg';
+    db.docShrunk(sid, rec.id, stored, filename, buf.length);
+    if (stored !== rec.stored_name) { try { fs.unlinkSync(oldFile); } catch (e) {} }
+    return json(res, 200, { ok: true, bytes: buf.length, saved: oldBytes - buf.length });
+  }));
+  route('POST', '/api/staff/storage/done', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    db.log(s.name || s.email, 'Old photos made smaller', (Number(b.files) || 0) + ' files, ' + Math.round((Number(b.saved) || 0) / 1048576) + ' MB saved');
+    return json(res, 200, { ok: true });
+  }));
+
+  /*
    * Round 176 (go-live): the readiness report — the same facts as the
    * [golive] block in the start-up log — and the QA clean-up. Admins only.
    *

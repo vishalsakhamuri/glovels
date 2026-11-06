@@ -1986,6 +1986,12 @@ function open(dir) {
       const r = db.one('SELECT COUNT(*) AS files, COALESCE(SUM(bytes), 0) AS bytes FROM documents WHERE student_id = ?', Number(studentId)) || {};
       return { files: Number(r.files || 0), bytes: Number(r.bytes || 0) };
     },
+    /** Patch 276: every stored file's size, for the Storage card. */
+    docFilesAll: () => db.all('SELECT id, student_id, doc_key, filename, stored_name, bytes FROM documents WHERE id > ?', 0),
+    /** Patch 276: a photo replaced by its smaller copy. */
+    docShrunk: (studentId, docId, storedName, filename, bytes) => db.run(
+      'UPDATE documents SET stored_name = ?, filename = ?, bytes = ? WHERE student_id = ? AND id = ?',
+      String(storedName), String(filename), Number(bytes), Number(studentId), Number(docId)),
     /** One file by its own id, checked against the student it belongs to. */
     docById: (studentId, docId) => db.one(
       'SELECT * FROM documents WHERE student_id = ? AND id = ?',

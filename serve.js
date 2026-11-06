@@ -615,6 +615,12 @@ function send(res, code, body, type, extra) {
     else if (/^\/(login|acceptance)(\/|$|\.)/.test(pth)) { const l = localize(body, res.req, pth, false); body = l.html; if (l.extra) extra = mergeExtra(extra, l.extra); }
     else body = staffGuard(body, pth);
   }
+  /* Patch 276: any page that uploads files makes photos smaller first
+     (assets/shrink.js) — student, partner and office screens alike. */
+  if (typeof body === 'string' && /^text\/html/.test(String(type || '')) && body.indexOf('new FormData') >= 0 && body.indexOf('/js/shrink.js') < 0) {
+    const at = body.lastIndexOf('</body>');
+    if (at >= 0) body = body.slice(0, at) + '<script src="/js/shrink.js?v=276" defer></script>\n' + body.slice(at);
+  }
   /* patch 265: a redirect under /zh/ stays under /zh/. */
   if (res.req && res.req.__lang && extra && extra.Location && typeof extra.Location === 'string' && extra.Location.charAt(0) === '/') {
     extra = Object.assign({}, extra, { Location: I18N.prefixHref(res.req.__lang, extra.Location) });
@@ -3732,6 +3738,7 @@ async function handleRequest(req, res) {
     }
   }
   /* Patch 274: the country code on every phone box (assets/phone-cc.js). */
+  if (pathname === '/js/shrink.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'shrink.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/js/phone.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'phone-cc.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/js/i18n.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'i18n-client.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   const findJs = /^\/js\/(find\.js|reqs\.js|find-page\.js|tags\.js)$/.exec(pathname);
