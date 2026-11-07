@@ -102,7 +102,7 @@ const login = async (email) => {
     /* Patch 201: a stop on the route opens its students. */
     const stop = await p.$('.stop.has');
     if (stop) { await stop.click(); await p.waitForTimeout(500); }
-    check('a stop on the route opens the students at that stage', !!stop && /Vishal Sakhamuri|Open file/.test(await p.textContent('#dList')),
+    check('a stop on the route opens the students at that stage', !!stop && /Prasad Kumar|Open file/.test(await p.textContent('#dList')),
       (await p.textContent('#dTitle')) + ': ' + (await p.textContent('#dList')).slice(0, 80));
     await p.click('#dx'); await p.waitForTimeout(300);
     await p.click('[data-q="messages"]'); await p.waitForTimeout(500);

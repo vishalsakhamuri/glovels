@@ -86,10 +86,10 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
      student nobody has started is the most urgent thing on the screen — so
      "the first row" is no longer this one, and clicking it guides somebody
      else's counsellor. */
-  const myRow = page.locator('#convRows tr', { hasText: 'Vishal' });
+  const myRow = page.locator('#convRows tr', { hasText: 'Prasad' });
   const rowText = await myRow.first().textContent();
   check('naming the student and the counsellor',
-    rowText.includes('Vishal') && rowText.includes('Kavya'), rowText.slice(0, 80));
+    rowText.includes('Prasad') && rowText.includes('Kavya'), rowText.slice(0, 80));
   check('and saying it is waiting rather than answered',
     !/answered/.test(rowText), rowText.replace(/\s+/g, ' ').slice(0, 140));
   check('a student nobody has written to is on the list too, not filtered out',

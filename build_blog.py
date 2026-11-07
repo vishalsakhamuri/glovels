@@ -304,7 +304,7 @@ def build_post():
     if not hero:
         die("no page-hero in the donor post")
     html = html.replace(hero.group(1), """<section class="page-hero"><div class="wrap">
-  <div class="crumbs"><a href="../index.html">Home</a> / <a href="../blog.html">Blog</a></div>
+  <div class="crumbs"><a href="/">Home</a> / <a href="../blog.html">Blog</a></div>
   <h1>{{H1}}</h1><p>{{DATELINE}}</p>
 </div></section>""", 1)
 
@@ -336,7 +336,7 @@ def build_index():
     if not hero:
         die("no page-hero in blog.html")
     html = html.replace(hero.group(1), """<section class="page-hero"><div class="wrap">
-  <div class="crumbs"><a href="index.html">Home</a> / Blog</div>
+  <div class="crumbs"><a href="/">Home</a> / Blog</div>
   <h1>{{H1}}</h1><p>{{DATELINE}}</p>
 </div></section>""", 1)
 

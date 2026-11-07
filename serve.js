@@ -215,6 +215,34 @@ const mail = mailer.open({
      after a redeploy. */
   stored: () => db.content('mail'),
 });
+/*
+ * Patch 283: one WhatsApp / phone number for the whole site. The files carry
+ * the official number (+91 70933 14089); if the office types a different one
+ * on Home page → Finder & contact, every page and every email is rewritten to
+ * it as it goes out — no code change, no redeploy.
+ */
+const SHIPPED_WA = '917093314089';
+function contactDigits() {
+  try {
+    const c = ((db.content('finder') || {}).contact) || {};
+    const d = String(c.whatsapp || c.phone || '').replace(/\D/g, '');
+    return d.length >= 10 && d.length <= 15 ? (d.length === 10 ? '91' + d : d) : SHIPPED_WA;
+  } catch (e) { return SHIPPED_WA; }
+}
+function withContact(text) {
+  if (typeof text !== 'string' || text.indexOf('70933') < 0) return text;
+  const d = contactDigits();
+  if (d === SHIPPED_WA) return text;
+  const pretty = d.startsWith('91') && d.length === 12 ? '+91 ' + d.slice(2, 7) + ' ' + d.slice(7) : '+' + d;
+  return text.split(SHIPPED_WA).join(d)
+    .split('+91 70933 14089').join(pretty)
+    .split('+91-70933-14089').join(pretty.replace(/ /g, '-'))
+    .split('70933 14089').join(pretty.replace(/^\+91 /, ''));
+}
+{
+  const realSend = mail.send.bind(mail);
+  mail.send = m => realSend(Object.assign({}, m, { text: withContact(m && m.text), html: withContact(m && m.html), subject: withContact(m && m.subject) }));
+}
 const notify = notifier.open({
   mail,
   config: (() => {
@@ -603,7 +631,27 @@ function mergeExtra(extra, more) {
   return out;
 }
 
+/*
+ * Patch 283 (team checklist, item 12): links in written content look like
+ * links — underlined, in a blue with 7:1 contrast on white, with hover,
+ * focus, visited and active states — on every page that has article text
+ * (class "prose": posts, the blog, the written pages). Buttons, tag chips and
+ * post cards keep their own look.
+ */
+const LINK_CSS = '<style id="glv-links">'
+  + '.prose a:not(.btn):not(.tagchip):not(.postcard):not([class*="btn"]){color:#1a4fb4;text-decoration:underline;'
+  + 'text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-skip-ink:auto}'
+  + '.prose a:not(.btn):not(.tagchip):not(.postcard):not([class*="btn"]):visited{color:#5a3d9a}'
+  + '.prose a:not(.btn):not(.tagchip):not(.postcard):not([class*="btn"]):hover{color:#0b3a8a;text-decoration-thickness:2px}'
+  + '.prose a:not(.btn):not(.tagchip):not(.postcard):not([class*="btn"]):active{color:#08306f}'
+  + '.prose a:focus-visible,.tagchip:focus-visible,.postcard:focus-visible{outline:2px solid #1a4fb4;outline-offset:2px;border-radius:3px}'
+  + '</style>';
 function send(res, code, body, type, extra) {
+  if (typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = withContact(body);
+  /* Patch 283 (item 1): the home page is "/", never /index.html — every logo
+     and "home" link, desktop and mobile, whatever page it is on. */
+  if (typeof body === 'string' && /^text\/html/.test(String(type || '')) && body.indexOf('index.html') >= 0) body = body.replace(/href="(?:\.\.\/|\/)?index\.html(#[A-Za-z0-9_-]*)?"/g, (m, h) => 'href="/' + (h || '') + '"');
+  if (typeof body === 'string' && /^text\/html/.test(String(type || '')) && body.indexOf('prose') >= 0 && body.indexOf('id="glv-links"') < 0) body = body.replace('</head>', LINK_CSS + '</head>');
   if (code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = withGuard(body);
   if (SITE_CHAT_OFF && code === 200 && typeof body === 'string' && /^text\/html/.test(String(type || ''))) body = body.replace('</head>', '<script>window.__glvSiteChat=false</script></head>');
   if (code === 200 && /^text\/html/.test(String(type || '')) && PUBLIC_VISIT(res.req)) {
@@ -786,7 +834,7 @@ function llmsTxt() {
   const base = SITE_URL;
   let contact = {};
   try { contact = ((content.get('finder') || {}).contact) || {}; } catch (e) { contact = {}; }
-  const phone = prettyPhone(contact.phone || '+917839399999');
+  const phone = prettyPhone(contact.phone || '+917093314089');
   const email = String(contact.email || 'info@glovels.com');
   const dest = [];
   try {
@@ -1025,6 +1073,8 @@ function sitemapXml(part, partNo) {
   /* Sets, not includes(): ten thousand posts against ten thousand pages
      is a hundred million comparisons the other way. */
   live.forEach(p => kept.add(p));
+  /* Patch 283: the topic pages with enough posts to be worth a search result. */
+  try { tagTable().forEach(tg => { if (tg.posts.length >= TAG_INDEX_MIN) kept.add('blog/tag/' + tg.slug); }); } catch (e) { /* none */ }
   pages = [...kept];
   /* Rendered from the database rather than sitting on disk, so the walk above
      cannot find it — and a page nobody has asked to have indexed is a page
@@ -1222,7 +1272,10 @@ function ogTags(image, alt) {
   /* Absolute. A relative og:image is the single most common reason a preview
      comes back blank: the crawler is not on our site and cannot resolve it. */
   const src = /^https?:\/\//i.test(image) ? image : absolute(image);
-  return '<meta property="og:image" content="' + esc(src) + '">\n'
+  const sized = /--og\.jpg$/.test(src)
+    ? '<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta property="og:image:type" content="image/jpeg">\n'
+    : '';
+  return '<meta property="og:image" content="' + esc(src) + '">\n' + sized
     + '<meta property="og:image:alt" content="' + esc(alt || 'Glovels') + '">\n'
     + '<meta name="twitter:image" content="' + esc(src) + '">\n';
 }
@@ -1312,6 +1365,41 @@ function postInLang(post, lang) {
 }
 const OFF = '<!--i18n:off-->', ON = '<!--i18n:on-->';
 
+/*
+ * Patch 283 (team checklist, item 11): a picture of ours that has small
+ * copies (server/images.js) is offered as <picture> with WebP srcset, so a
+ * phone downloads the 480-pixel copy, not the 2 MB original. The first one on
+ * the page loads at once (it is what the reader sees); the rest wait until
+ * they are scrolled to. Width and height are written when known, so the text
+ * does not jump as pictures arrive.
+ */
+function responsiveImages(html) {
+  let first = true;
+  return String(html).replace(/<img\b([^>]*?)\bsrc="((?:https?:\/\/(?:www\.)?glovels\.com)?\/images\/([a-z0-9][a-z0-9-]{0,120}\.(?:jpg|png|gif|webp)))"([^>]*)>/g,
+    (m, pre, src, name, post) => {
+      const eager = first; first = false;
+      let v = null;
+      try { v = IMAGES.variantsOf(IMAGES_DIR, name); } catch (e) { v = null; }
+      let attrs = (pre + post).replace(/\s+loading="[^"]*"/, '').replace(/\s+fetchpriority="[^"]*"/, '');
+      attrs += eager ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"';
+      if (!/\bdecoding=/.test(attrs)) attrs += ' decoding="async"';
+      if (v && v.w && v.h && !/\bwidth=/.test(attrs)) attrs += ' width="' + v.w + '" height="' + v.h + '"';
+      /* The address first, as before, then everything else. */
+      const img = '<img src="' + src + '"' + attrs.replace(/\s+$/, '') + '>';
+      if (!v || !v.has.v480) return img;
+      /* Each copy described by its real width: one made from a 700-pixel
+         original is 700 wide, not 960. */
+      const set = ['v480', 'v960', 'v1600'].filter(k => v.has[k]).map(k => v.has[k] + ' ' + (v.w ? Math.min(Number(k.slice(1)), v.w) : k.slice(1)) + 'w').join(', ');
+      return '<picture><source type="image/webp" srcset="' + set + '" sizes="(max-width: 820px) 100vw, 760px">' + img + '</picture>';
+    });
+}
+/* The 1200×630 preview copy of a picture of ours, when there is one. */
+function ogCopy(image) {
+  const m = /^(?:https?:\/\/(?:www\.)?glovels\.com)?\/images\/([a-z0-9][a-z0-9-]{0,120}\.(?:jpg|png|gif|webp))$/.exec(String(image || ''));
+  if (!m) return null;
+  try { const v = IMAGES.variantsOf(IMAGES_DIR, m[1]); return v && v.has.og ? v.has.og : null; } catch (e) { return null; }
+}
+
 function postPage(post, isDraft, lang) {
   const t = templates();
   if (!t) return null;
@@ -1322,7 +1410,9 @@ function postPage(post, isDraft, lang) {
      the site ships — so a link pasted into a WhatsApp group is never a grey
      rectangle. */
   const inBody = PROSE.images(post.body)[0];
-  const image = post.og_image || post.cover || (inBody && inBody.src) || DEFAULT_OG;
+  const chosen = post.og_image || post.cover || (inBody && inBody.src) || DEFAULT_OG;
+  /* Patch 283 (item 6): the 1200×630 JPEG copy when it has been made. */
+  const image = ogCopy(chosen) || chosen;
   const imageAlt = (post.og_image || post.cover) ? post.title
     : (inBody && inBody.alt) || post.title;
 
@@ -1374,6 +1464,7 @@ function postPage(post, isDraft, lang) {
 
   const body =
       byline
+    + (tagsOf(post).length ? TAG_CSS + tagChips(tagsOf(post)) : '')
     + (post.excerpt ? '<p class="lead">' + OFF + esc(post.excerpt) + ON + '</p>' : '')
     + coverBlock
     + (isDraft
@@ -1384,13 +1475,14 @@ function postPage(post, isDraft, lang) {
         : '')
     + OFF + PROSE.render(post.body) + ON
     + relatedBlock;
+  const bodyFast = responsiveImages(body);
 
   return fill(t.post, Object.assign(metaHoles({
     title, desc, canonical: url_, keywords: post.keywords, image, imageAlt,
     type: 'article', indexable: !isDraft,
     article: {
       author: post.author || 'Glovels',
-      published, modified, section: post.tag || '',
+      published, modified, section: tagsOf(post)[0] || '',
     },
     jsonld: {
       '@context': 'https://schema.org', '@type': 'BlogPosting',
@@ -1410,7 +1502,7 @@ function postPage(post, isDraft, lang) {
     DATELINE: esc(shownDate(published))
       + ' &middot; ' + (post.read_mins || 1) + ' min read'
       + (post.author ? ' &middot; ' + esc(post.author) : ''),
-    BODY: body,
+    BODY: bodyFast,
   }));
 }
 
@@ -1434,6 +1526,46 @@ const REPLACED_BY = {
 };
 const replacedLive = slug => { const to = REPLACED_BY[slug]; if (!to) return false; const p = db.postBySlug(to); return !!(p && p.status === 'published'); };
 
+/*
+ * Patch 283 (team checklist, item 5): tags. A post's "tag" field holds up to
+ * six, separated by commas — the first is its section. Each tag has a page,
+ * /blog/tag/<slug>; one with fewer than three posts is not asked to be
+ * indexed (a thin page that competes with the post itself). The office keeps
+ * the suggested list on the Blog screen (content key blogTags).
+ */
+const tagSlug = t => String(t || '').toLowerCase().normalize('NFKD').replace(/[^\x00-\x7f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+const tagsOf = p => String((p && p.tag) || '').split(',').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 6);
+const TAG_INDEX_MIN = 3;
+function allLivePosts() {
+  const out = [];
+  for (let n = 1; n < 200; n++) {
+    const pg = db.livePostsPage(n, 200);
+    out.push(...pg.rows);
+    if (n * pg.per >= pg.total || !pg.rows.length) break;
+  }
+  return out;
+}
+let tagCache = null, tagCacheAt = 0;
+function tagTable() {
+  if (tagCache && Date.now() - tagCacheAt < 60000) return tagCache;
+  const by = new Map();
+  allLivePosts().forEach(p => tagsOf(p).forEach(t => {
+    const k = tagSlug(t); if (!k) return;
+    if (!by.has(k)) by.set(k, { slug: k, name: t, posts: [] });
+    by.get(k).posts.push(p);
+  }));
+  tagCache = by; tagCacheAt = Date.now();
+  return by;
+}
+const tagChips = (tags, cls) => tags.length
+  ? '<div class="' + (cls || 'tagrow') + '">' + tags.map(t => '<a class="tagchip" href="/blog/tag/' + esc(tagSlug(t)) + '">' + esc(t) + '</a>').join('') + '</div>'
+  : '';
+const TAG_CSS = '<style>/* GLOVELS-TAGS */.tagrow{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}'
+  + '.tagchip{display:inline-block;padding:6px 12px;border-radius:99px;border:1px solid var(--line,#dfe4ea);background:var(--paper,#fff);'
+  + 'font:600 12.6px/1.3 var(--sans,system-ui);color:var(--navy-800,#12304f);text-decoration:none}'
+  + '.tagchip:hover,.tagchip:focus-visible{border-color:#1a4fb4;color:#1a4fb4}.tagchip.on{background:#0b1f3a;border-color:#0b1f3a;color:#fff}</style>';
+
 function blogList(pageNo) {
   /* A page of the live posts, from the database — ten thousand posts are
      not read, sorted and printed on every visit to /blog. The handful of
@@ -1453,11 +1585,21 @@ function blogList(pageNo) {
     pages: Math.max(1, Math.ceil(pg.total / pg.per)) });
 }
 
-function blogIndexPage(posts, lang) {
+function blogIndexPage(posts, lang, tag) {
   const t = templates();
   if (!t) return null;
   const pageNo = posts.page || 1, pages = posts.pages || 1;
-  const pageUrl = n => n <= 1 ? '/blog' : '/blog?page=' + n;
+  const root = tag ? '/blog/tag/' + tag.slug : '/blog';
+  const pageUrl = n => n <= 1 ? root : root + '?page=' + n;
+  /* Patch 283: the tags with posts, most used first, as filters. */
+  let tagNav = '';
+  try {
+    const all = [...tagTable().values()].sort((a, b) => b.posts.length - a.posts.length || a.name.localeCompare(b.name)).slice(0, 24);
+    if (all.length) tagNav = TAG_CSS + '<nav class="tagrow" aria-label="Topics">'
+      + '<a class="tagchip' + (tag ? '' : ' on') + '" href="/blog">All posts</a>'
+      + all.map(x => '<a class="tagchip' + (tag && tag.slug === x.slug ? ' on' : '') + '" href="/blog/tag/' + esc(x.slug) + '">' + esc(x.name) + '</a>').join('')
+      + '</nav>';
+  } catch (e) { tagNav = ''; }
   /* Newer / older, and where in the run this page sits. Plain links, so a
      crawler walks every page of the blog from the first. */
   const pager = pages > 1
@@ -1481,18 +1623,19 @@ function blogIndexPage(posts, lang) {
         : '')
     + '<div class="postmeta">' + esc(shownDate(p.published_at || p.created_at))
       + ' &middot; ' + (p.read_mins || 1) + ' min'
-      + (p.tag ? ' &middot; ' + esc(p.tag) : '') + '</div>'
+      + (tagsOf(p)[0] ? ' &middot; ' + esc(tagsOf(p)[0]) : '') + '</div>'
     + '<h3>' + (p.whole ? OFF : '') + esc(p.title) + (p.whole ? ON : '') + '</h3>'
     + '<p>' + (p.whole ? OFF : '') + esc(p.excerpt || PROSE.summarise(p.body)) + (p.whole ? ON : '') + '</p></a>').join('');
 
   return fill(t.index, Object.assign(metaHoles({
-    title: 'Blog — study-abroad guides for Indian students' + (pageNo > 1 ? ' (page ' + pageNo + ')' : ''),
-    desc: 'Guides on public universities, blocked accounts, CGPA cut-offs and '
+    title: (tag ? tag.name + ' — Glovels blog' : 'Blog — study-abroad guides for Indian students') + (pageNo > 1 ? ' (page ' + pageNo + ')' : ''),
+    desc: tag ? 'Glovels guides on ' + tag.name + ': ' + tag.posts.length + ' article' + (tag.posts.length === 1 ? '' : 's') + ' for students planning to study abroad.'
+      : 'Guides on public universities, blocked accounts, CGPA cut-offs and '
         + 'deadlines — the questions students actually ask.',
     canonical: absolute(pageUrl(pageNo)),
     keywords: 'study abroad blog, public universities germany, blocked account, '
             + 'student visa india',
-    type: 'website', indexable: true,
+    type: 'website', indexable: !tag || tag.posts.length >= TAG_INDEX_MIN,
     image: DEFAULT_OG, imageAlt: 'Glovels — public universities abroad',
     jsonld: {
       '@context': 'https://schema.org', '@type': 'Blog',
@@ -1504,10 +1647,11 @@ function blogIndexPage(posts, lang) {
       })),
     },
   }), {
-    H1: 'The blog',
-    DATELINE: 'Guides on public universities, blocked accounts, CGPA cut-offs and '
+    H1: tag ? esc(tag.name) : 'The blog',
+    DATELINE: tag ? tag.posts.length + ' article' + (tag.posts.length === 1 ? '' : 's') + ' on ' + esc(tag.name) + '.'
+      : 'Guides on public universities, blocked accounts, CGPA cut-offs and '
       + 'deadlines — the questions students actually ask.',
-    BODY: (cards || '<p style="color:var(--muted)">Nothing published yet. '
+    BODY: tagNav + responsiveImages(cards || '<p style="color:var(--muted)">Nothing published yet. '
       + 'The first guides are being written.</p>') + pager,
   }));
 }
@@ -3311,7 +3455,7 @@ function withMobileKit(html, pathname) {
   if (html.indexOf('data-mobile-kit') >= 0) return html;
   let wa = '';
   try { wa = String(((content.get('finder') || {}).contact || {}).whatsapp || ((content.get('finder') || {}).contact || {}).phone || ''); } catch (e) { wa = ''; }
-  wa = wa || '917839399999';
+  wa = wa || '917093314089';
   html = html.replace('</head>', MOBILE_CSS + '</head>');
   const at = html.lastIndexOf('</body>');
   /* Patch 194: the currency script on every public page, so every rupee
@@ -3391,7 +3535,7 @@ function withSocials(html, pathname) {
 function localBusiness(links) {
   let c = {};
   try { c = ((content.get('finder') || {}).contact) || {}; } catch (e) { c = {}; }
-  const tel = String(c.phone || '+917839399999').replace(/[^0-9+]/g, '');
+  const tel = String(c.phone || '+917093314089').replace(/[^0-9+]/g, '');
   const lb = {
     '@context': 'https://schema.org', '@type': 'LocalBusiness',
     '@id': SITE_URL + '/#office',
@@ -3753,6 +3897,7 @@ async function handleRequest(req, res) {
     }
   }
   /* Patch 274: the country code on every phone box (assets/phone-cc.js). */
+  if (pathname === '/js/blogimg.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'blogimg.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/js/shrink.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'shrink.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/js/phone.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'phone-cc.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
   if (pathname === '/js/i18n.js') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'i18n-client.js')), TYPES['.js'], { 'Cache-Control': 'public, max-age=3600' });
@@ -4058,6 +4203,17 @@ async function handleRequest(req, res) {
     const list = blogList(Number(url.parse(req.url, true).query.page) || 1);
     if (list.page > list.pages) return notFound(res);
     const html = blogIndexPage(list, req.__lang);
+    if (html) return send(res, 200, externalizeScripts(html, 'blog'), TYPES['.html']);
+  }
+  const tagUrl = /^\/blog\/tag\/([a-z0-9-]{1,60})\/?$/.exec(pathname);
+  if (tagUrl) {
+    const tg = tagTable().get(tagUrl[1]);
+    if (!tg) return notFound(res);
+    const pageNo = Math.max(1, Number(url.parse(req.url, true).query.page) || 1);
+    const pages = Math.max(1, Math.ceil(tg.posts.length / BLOG_PER));
+    if (pageNo > pages) return notFound(res);
+    const list = Object.assign(tg.posts.slice((pageNo - 1) * BLOG_PER, pageNo * BLOG_PER), { page: pageNo, pages, total: tg.posts.length, per: BLOG_PER });
+    const html = blogIndexPage(list, req.__lang, tg);
     if (html) return send(res, 200, externalizeScripts(html, 'blog'), TYPES['.html']);
   }
   const postUrl = /^\/post\/([a-z0-9-]{1,90})(?:\.html)?$/.exec(pathname);

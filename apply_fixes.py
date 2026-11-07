@@ -1204,7 +1204,7 @@ DRAFTS_SECTION = """
     <section class="p-sec" id="draftsSec" hidden>
       <div class="p-sec-head">
         <h2>Your SOP and LOR drafts</h2>
-        <a href="index.html#services">Write another <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a href="/#services">Write another <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </div>
       <div id="draftWrap"></div>
     </section>
@@ -1763,7 +1763,7 @@ BOUGHT_SECTION = """
     <section class="p-sec" id="boughtSec" hidden>
       <div class="p-sec-head">
         <h2>What you have bought</h2>
-        <a href="index.html#services">Add a service <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a href="/#services">Add a service <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </div>
       <div id="boughtWrap"></div>
     </section>
@@ -2596,7 +2596,7 @@ def contact_page():
     if "GLOVELS-CONTACT-FORM-JS" in t:
         skipped.append("contact-us.html: there is a way to make contact")
         return
-    anchor = ('<p><a class="btn btn-primary" href="index.html#counsel">Book free counselling '
+    anchor = ('<p><a class="btn btn-primary" href="/#counsel">Book free counselling '
               '<svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></p>')
     if anchor not in t:
         sys.exit("FAILED contact-us.html: the counselling button is not where the "
@@ -7597,7 +7597,7 @@ patch(
     """          <label>Full name</label>
           <input type="text" id="lName" autocomplete="name" placeholder="Your name as per passport" />""",
     """          <label>Your name</label>
-          <input type="text" id="lName" autocomplete="name" placeholder="Vishal Sakhamuri" />""",
+          <input type="text" id="lName" autocomplete="name" placeholder="Enter your full name" />""",
     marker='<label>Your name</label>',
 )
 
@@ -9058,10 +9058,10 @@ for _f in sorted(HERE.glob("study-in-*.html")):
         continue
     _country = _m.group(1).strip()
     _slug = re.sub(r"[^a-z0-9]+", "-", _country.lower()).strip("-")
-    _new = _t.replace('<p style="margin-top:26px"><a class="btn btn-primary" href="index.html#results">',
+    _new = _t.replace('<p style="margin-top:26px"><a class="btn btn-primary" href="/#results">',
         '<p style="margin-top:26px"><a class="btn btn-ghost" href="university#' + _slug
         + '" style="margin-right:8px">Universities in ' + _country
-        + '</a><a class="btn btn-primary" href="index.html#results">', 1)
+        + '</a><a class="btn btn-primary" href="/#results">', 1)
     write(_f, _new)
     applied.append(f"{_f.name}: links to its universities")
 
@@ -9157,7 +9157,7 @@ patch(
     const U = d.universities || [], P = d.programmes || [];
     if (!U.length && !P.length) {
       out.innerHTML = '<div class="none">Nothing by that name yet. Try the filters above, or '
-        + '<a href="index.html#counsel" style="display:inline;padding:0">ask a counsellor</a>.</div>';
+        + '<a href="/#counsel" style="display:inline;padding:0">ask a counsellor</a>.</div>';
       out.hidden = false; return;
     }
     out.innerHTML = (U.length ? '<h5>Universities</h5>' + U.map(u =>
@@ -10969,14 +10969,14 @@ patch(
 patch(
     'partner.html',
     'full test 30 Sep, patch 151 (3)',
-    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'Vishal',\n     help:'Exactly as it is printed on your passport.'},\n",
+    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'Prasad',\n     help:'Exactly as it is printed on your passport.'},\n",
     "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',\n     help:'Exactly as it is printed on your passport.'},\n",
     marker="{k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',",
 )
 patch(
     'partner.html',
     'full test 30 Sep, patch 151 (4)',
-    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Sakhamuri'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
+    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Kumar'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
     "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
     marker="{k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},",
 )
@@ -11044,14 +11044,14 @@ patch(
 patch(
     'profile.html',
     'full test 30 Sep, patch 151 (9)',
-    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'Vishal',\n     help:'Exactly as it is printed on your passport.'},\n",
+    "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'Prasad',\n     help:'Exactly as it is printed on your passport.'},\n",
     "     * written before this still reads correctly. */\n    {k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',\n     help:'Exactly as it is printed on your passport.'},\n",
     marker="{k:'firstName', l:'First name / Given name', t:'text', ph:'As on your passport',",
 )
 patch(
     'profile.html',
     'full test 30 Sep, patch 151 (10)',
-    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Sakhamuri'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
+    "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'Kumar'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
     "     help:'Exactly as it is printed on your passport.'},\n    {k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},\n    {k:'dob',      l:'Date of birth', t:'date3', back:70, ahead:-15,\n",
     marker="{k:'lastName',  l:'Last name / Surname', t:'text', ph:'As on your passport'},",
 )
@@ -11065,7 +11065,7 @@ patch(
 patch(
     'profile.html',
     'full test 30 Sep, patch 151 (12)',
-    "const DEMO = {\n  firstName:'Vishal', lastName:'Sakhamuri',\n  dob:'2002-04-11', gender:'Male', pob:'Hyderabad',\n",
+    "const DEMO = {\n  firstName:'Prasad', lastName:'Kumar',\n  dob:'2002-04-11', gender:'Male', pob:'Hyderabad',\n",
     "const DEMO = {\n  firstName:'Aarav', lastName:'Sharma',\n  dob:'2002-04-11', gender:'Male', pob:'Hyderabad',\n",
     marker="firstName:'Aarav', lastName:'Sharma',",
 )

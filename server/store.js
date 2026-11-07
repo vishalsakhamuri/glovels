@@ -4011,6 +4011,9 @@ function open(dir) {
       if (p.modifiedAt != null) db.run('UPDATE posts SET modified_at = ? WHERE id = ?', String(p.modifiedAt), Number(id));
       return db.one('SELECT * FROM posts WHERE id = ?', Number(id));
     },
+    /* Patch 283: tags alone, for "Tag the posts" — nothing else moves. */
+    setPostTag(id, tag) { db.run('UPDATE posts SET tag = ? WHERE id = ?', String(tag || ''), Number(id)); },
+    postTagsAll() { return db.all("SELECT id, slug, title, tag, status, body FROM posts WHERE status IN ('published','draft') ORDER BY id"); },
     /* Round 178 (B3): archive / restore — never a delete. The status alone
        moves; updated_at and the dates the page prints stay as they were. */
     setPostStatus(id, status) {

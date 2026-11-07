@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Marketing dashboard | Glovels</title>
+<title>Analytics | Glovels</title>
 <meta name="description" content="Glovels staff marketing dashboard: visitors by channel and country, pages, searches with no results, SEO keywords, campaigns and spend in one place.">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -179,7 +179,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
       <a href="chat.html" data-need="casework"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Website chat</a>
       <a href="leads.html" data-need="casework"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Leads</a>
       <a href="leads-command.html" data-need="casework"><svg viewBox="0 0 24 24"><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3"/><circle cx="12" cy="12" r="4"/></svg>Leads command</a>
-      <a href="marketing.html" class="on"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>Marketing</a>
+      <a href="marketing.html" class="on"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>Analytics</a>
       <a href="home.html" data-need="content"><svg viewBox="0 0 24 24"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v6h6"/></svg>Home page</a>
       <a href="blog-admin.html" data-need="content"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/></svg>Blog</a>
       <a href="languages.html" data-need="content"><svg viewBox="0 0 24 24"><path d="M3 5h12M9 3v2M11 5c-.7 3.5-3 6.5-6 8.5M7 9c1.2 2.4 3 4.2 5 5.5"/><path d="M13 21l4-10 4 10M14.5 17h5"/></svg>Languages</a>
@@ -193,7 +193,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
   <main class="main" id="main">
     <div class="top">
       <div>
-        <h1>Marketing</h1>
+        <h1>Analytics</h1>
         <p id="lede">Where our students come from — every visit, click, lead, sign-up and payment, by channel and country.</p>
       </div>
       <div class="spacer"></div>
@@ -202,6 +202,7 @@ td.name small{display:block;color:var(--mute);font-size:11.5px}
 
     <div class="bar" role="toolbar" aria-label="Filters">
       <div class="seg" id="period" role="group" aria-label="Period">
+        <button type="button" data-days="1" aria-pressed="false" title="The last 24 hours">1 day</button>
         <button type="button" data-days="7" aria-pressed="false">7 days</button>
         <button type="button" data-days="30" aria-pressed="true">30 days</button>
         <button type="button" data-days="90" aria-pressed="false">90 days</button>

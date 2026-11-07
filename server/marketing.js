@@ -229,18 +229,46 @@ function open({ db, fx, log = console }) {
   function report(days, f) {
     days = Math.max(1, Math.min(180, Number(days) || 30));
     f = f || {};
-    const until = new Date().toISOString().slice(0, 10);
-    const since = dayAdd(until, -(days - 1));
-    const prevSince = dayAdd(since, -days);
+    /* Patch 283 (team checklist, items 3 and 4): days are India's days (IST),
+       read from each row's own time rather than the UTC day it was filed
+       under; "1 day" is the rolling last 24 hours, compared with the 24
+       before. */
+    const NOW = Date.now();
+    const IST = 330 * 60000;
+    const istDay = t => { const ms = typeof t === 'number' ? t : Date.parse(t); return isFinite(ms) ? new Date(ms + IST).toISOString().slice(0, 10) : String(t || '').slice(0, 10); };
+    const rolling = days === 1;
+    const until = istDay(NOW);
+    const since = rolling ? istDay(NOW - 86400000) : dayAdd(until, -(days - 1));
+    const prevSince = rolling ? istDay(NOW - 2 * 86400000) : dayAdd(since, -days);
     const prevUntil = dayAdd(since, -1);
+    /* Which window a time falls in: 'now', 'prev' or neither. */
+    const windowOf = t => {
+      const ms = Date.parse(t);
+      if (rolling) {
+        if (!isFinite(ms) || ms > NOW) return ms > NOW ? 'now' : '';
+        return ms >= NOW - 86400000 ? 'now' : ms >= NOW - 2 * 86400000 ? 'prev' : '';
+      }
+      const d = istDay(t);
+      return d >= since && d <= until ? 'now' : d >= prevSince && d < since ? 'prev' : '';
+    };
 
     const wantC = String(f.country || '').toUpperCase();
     const wantCh = String(f.channel || '');
     const keep = (country, channel) => (!wantC || country === wantC) && (!wantCh || channel === wantCh);
 
     /* Patch 275: the page rows only, read by the index — not every crawler hit. */
-    const hits = db.hitsSince(prevSince, ['page']).filter(h => h.kind === 'page');
-    const events = db.eventsSince(prevSince);
+    /* A day early: an IST morning was filed under the UTC day before. */
+    /* Item 4: people, not scripts. Known crawlers are never stored as
+       visits (patch 275); a script posing as a desktop browser is — but it
+       never shows the page, so it never sends the "seen" beacon (patch 275,
+       from 7 Nov). From the first beacon on, a visit counts only when that
+       visitor's browser said it was seen that day; before it, as before. */
+    const raw = db.hitsSince(dayAdd(prevSince, -1), ['page', 'seen']);
+    const seen = new Set();
+    let beaconFrom = '';
+    raw.forEach(h => { if (h.kind === 'seen') { seen.add(h.day + '|' + h.visitor); if (!beaconFrom || h.day < beaconFrom) beaconFrom = h.day; } });
+    const hits = raw.filter(h => h.kind === 'page' && !h.bot && (!beaconFrom || h.day < beaconFrom || seen.has(h.day + '|' + h.visitor)));
+    const events = db.eventsSince(dayAdd(prevSince, -1));
     const attr = db.attributionAll();
     const attrOf = {};
     attr.forEach(a => { attrOf[a.subject + ':' + a.subject_id] = a; });
@@ -251,18 +279,21 @@ function open({ db, fx, log = console }) {
     const by = { channel: {}, country: {}, campaign: {}, landing: {}, device: {} };
     const row = (map, k, extra) => map[k] || (map[k] = Object.assign(blank(), extra || {}));
     const byDay = {};
-    for (let i = 0; i < days; i++) { const d = dayAdd(since, i); byDay[d] = { day: d, visitors: new Set(), leads: 0, signups: 0, paid: 0, clicks: 0 }; }
+    for (let d = since; d <= until; d = dayAdd(d, 1)) byDay[d] = { day: d, visitors: new Set(), leads: 0, signups: 0, paid: 0, clicks: 0 };
 
     /* Visits. */
     hits.forEach(h => {
       const ch = channelOf(h);
       const country = h.country || '';
       if (!keep(country, ch.channel)) return;
-      const inNow = h.day >= since;
+      const w = windowOf(h.ts || h.day);
+      if (!w) return;
+      const inNow = w === 'now';
       const T = inNow ? cur : prev;
       T.visitors.add(h.visitor); T.views++;
       if (!inNow) return;
-      byDay[h.day] && byDay[h.day].visitors.add(h.visitor);
+      const hd = istDay(h.ts || h.day);
+      byDay[hd] && byDay[hd].visitors.add(h.visitor);
       const c = row(by.channel, ch.channel, { group: ch.group }); c.visitors.add(h.visitor); c.views++;
       const k = row(by.country, country || '??'); k.visitors.add(h.visitor); k.views++;
       if (h.campaign) { const g = row(by.campaign, h.campaign, { channel: ch.channel }); g.visitors.add(h.visitor); g.views++; }
@@ -275,12 +306,15 @@ function open({ db, fx, log = console }) {
     const clicksBy = {}, kinds = {};
     events.forEach(e => {
       if (!keep(e.country || '', e.channel)) return;
-      const inNow = e.day >= since;
+      const w = windowOf(e.ts || e.day);
+      if (!w) return;
+      const inNow = w === 'now';
       const T = inNow ? cur : prev;
       if (e.name === 'engaged') { T.engaged.add(e.visitor); }
       else { T.clicks++; if (CTA.has(e.name)) T.ctas.add(e.visitor); }
       if (!inNow) return;
-      if (byDay[e.day] && e.name !== 'engaged') byDay[e.day].clicks++;
+      const ed = istDay(e.ts || e.day);
+      if (byDay[ed] && e.name !== 'engaged') byDay[ed].clicks++;
       const c = row(by.channel, e.channel, { group: channelOf({ source: '' }).group });
       if (e.name === 'engaged') c.engaged.add(e.visitor); else c.clicks++;
       const k = row(by.country, e.country || '??');
@@ -297,9 +331,10 @@ function open({ db, fx, log = console }) {
     const touch = a => a ? Object.assign({ country: a.country || '', landing: a.landing || '', campaign: a.campaign || '' }, channelOf({ source: a.source, site: a.site })) : Object.assign({ country: '', landing: '', campaign: '' }, channelOf({ source: 'direct' }), { channel: 'Not tracked', group: 'none' });
     const put = (when, t, fn) => {
       if (!keep(t.country, t.channel)) return;
-      const d = String(when).slice(0, 10);
-      if (d < prevSince || d > until) return;
-      const inNow = d >= since;
+      const w = windowOf(when);
+      if (!w) return;
+      const d = istDay(when);
+      const inNow = w === 'now';
       fn(inNow ? cur : prev, inNow, d);
       if (!inNow) return;
       fn(row(by.channel, t.channel, { group: t.group }), true, d);

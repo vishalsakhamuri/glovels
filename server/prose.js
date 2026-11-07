@@ -97,6 +97,8 @@ function realUrl(url) {
    href — `javascript:` in a blog post is a stored XSS with a byline. */
 function safeHref(url) {
   const u = String(url || '').trim();
+  /* Patch 283 (item 13): our own site is never linked over http. */
+  if (/^http:\/\/(www\.)?glovels\.com(\/|$)/i.test(u)) return u.replace(/^http:\/\/(www\.)?glovels\.com/i, '') || '/';
   if (/^https?:\/\//i.test(u)) return realUrl(u) ? u : '';
   /* Same-site: an absolute path, or a page relative to this one. The posts sit
      in /post/, so every link the office writes to another page on the site
@@ -117,6 +119,10 @@ function safeHref(url) {
 function safeImg(url) {
   const u = String(url || '').trim();
   if (!/\.(?:jpe?g|png|gif|webp|avif|svg)(?:\?[^\s"'<>]*)?$/i.test(u)) return '';
+  /* Patch 283 (item 13): a picture over http is mixed content — ours is
+     served from our own path, anyone else's is asked for over https. */
+  if (/^http:\/\/(www\.)?glovels\.com\//i.test(u)) return u.replace(/^http:\/\/(www\.)?glovels\.com/i, '');
+  if (/^http:\/\//i.test(u)) return 'https://' + u.slice(7);
   if (/^https?:\/\//i.test(u)) return u;
   if (/^\/[^/\\]/.test(u)) return u;
   if (/^(?:\.\.\/)?[a-z0-9][\w./-]*$/i.test(u) && !u.includes('../../')) return u;

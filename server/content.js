@@ -535,7 +535,7 @@ function cleanLegal(v) {
       name: str(o.name, 80),
       designation: str(o.designation, 80) || 'Administrator',
       email: str(o.email, 120).toLowerCase() || 'info@glovels.com',
-      phone: str(o.phone, 30) || '+91 78393 99999',
+      phone: str(o.phone, 30) || '+91 70933 14089',
     },
     /* 3 Nov 2026 (owner): the seller for buyers outside India (patch 195 —
        Stripe, export sale). Address, register entry and VAT ID are typed on

@@ -471,7 +471,7 @@ function render(deps) {
     + '<div class="ss-cta"><h2>Your story could be next</h2>'
     + '<p>Book a free 45-minute session — we read your marksheets and tell you honestly '
     + 'which universities you can get into.</p>'
-    + '<a class="btn" href="index.html#counsel">Book free counselling →</a></div>';
+    + '<a class="btn" href="/#counsel">Book free counselling →</a></div>';
 
   /* The numbers in the description, from the data rather than typed in, so a
      new export changes them without anybody remembering to. */
@@ -528,7 +528,7 @@ function render(deps) {
   holes.HEAD_TITLE = esc(title + ' | Glovels');
   holes.DESC = esc(desc);
   return deps.fill(t.page, Object.assign(holes, {
-    CRUMBS: '<a href="index.html">Home</a> / Success stories',
+    CRUMBS: '<a href="/">Home</a> / Success stories',
     H1: 'Student success stories',
     /* Round 178: no counts in the page body ("numbers not required" on the
        public site) — the period the offers cover, not how many there are. */

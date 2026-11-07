@@ -112,14 +112,73 @@ function fileFor(dir, name) {
   } catch (e) { return null; }
 }
 
-/** Everything in the directory, newest first. */
+/*
+ * Patch 283 (team checklist, item 11 — "critical"): the blog served original
+ * pictures, two of about 2 MB each on one post. There is no image library on
+ * the server (no dependencies, 512 MB), so the office's browser does the work,
+ * as patch 276 does for students' photos: it draws each picture smaller and
+ * sends back WebP copies 480, 960 and 1600 pixels wide and a 1200×630 JPEG for
+ * link previews. The original is never touched; the pages offer the copies
+ * through <picture>/srcset, so a phone downloads the 480 one.
+ *
+ *   photo-abc.jpg  →  photo-abc--v480.webp, --v960.webp, --v1600.webp, --og.jpg
+ */
+const VARIANTS = { v480: 'webp', v960: 'webp', v1600: 'webp', og: 'jpg' };
+const VARIANT_RE = /--(?:v480|v960|v1600|og)\.(?:webp|jpg)$/;
+const variantName = (name, v) => String(name).replace(/\.[a-z]+$/, '') + '--' + v + '.' + VARIANTS[v];
+const isVariant = n => VARIANT_RE.test(String(n || ''));
+
+function dimsFile(dir) { return path.join(dir, '_dims.json'); }
+let dimsCache = null, dimsAt = 0;
+function dims(dir) {
+  try {
+    const st = fs.statSync(dimsFile(dir));
+    if (!dimsCache || st.mtimeMs !== dimsAt) { dimsCache = JSON.parse(fs.readFileSync(dimsFile(dir), 'utf8')) || {}; dimsAt = st.mtimeMs; }
+    return dimsCache;
+  } catch (e) { return {}; }
+}
+
+/** Store one copy of an existing picture. Refuses anything that is not the
+    right kind, is bigger than it should be, or belongs to no picture. */
+function storeVariant(dir, name, v, buf) {
+  if (!SAFE.test(String(name || '')) || isVariant(name)) return { error: 'No such picture.' };
+  if (!VARIANTS[v]) return { error: 'Unknown size.' };
+  if (!fs.existsSync(path.join(dir, name))) return { error: 'No such picture.' };
+  const kind = kindOf(buf);
+  if (!kind || kind.ext !== VARIANTS[v]) return { error: 'That copy is not a ' + VARIANTS[v].toUpperCase() + '.' };
+  if (buf.length > 900 * 1024) return { error: 'That copy is too big.' };
+  const out = variantName(name, v);
+  fs.writeFileSync(path.join(dir, out), buf);
+  return { name: out, url: '/images/' + out, bytes: buf.length };
+}
+function setDims(dir, name, w, h) {
+  w = Math.round(Number(w)); h = Math.round(Number(h));
+  if (!(w > 0 && h > 0 && w < 20000 && h < 20000)) return;
+  const d = Object.assign({}, dims(dir));
+  d[name] = [w, h];
+  fs.writeFileSync(dimsFile(dir), JSON.stringify(d));
+}
+/** What a page needs to offer the copies: which exist, and the size. */
+function variantsOf(dir, name) {
+  if (!SAFE.test(String(name || '')) || isVariant(name)) return null;
+  const has = {};
+  Object.keys(VARIANTS).forEach(v => { if (fs.existsSync(path.join(dir, variantName(name, v)))) has[v] = '/images/' + variantName(name, v); });
+  const d = dims(dir)[name] || null;
+  return { has, w: d ? d[0] : 0, h: d ? d[1] : 0 };
+}
+
+/** Everything in the directory, newest first. The copies are not listed as
+    pictures of their own; each picture says whether it has them. */
 function list(dir) {
   let names = [];
   try { names = fs.readdirSync(dir); } catch (e) { return []; }
-  return names.filter(n => SAFE.test(n)).map(n => {
+  const all = new Set(names);
+  return names.filter(n => SAFE.test(n) && !isVariant(n)).map(n => {
     const f = fileFor(dir, n);
-    return f && { name: n, url: '/images/' + n, bytes: f.bytes, mime: f.mime, at: f.mtime };
+    return f && { name: n, url: '/images/' + n, bytes: f.bytes, mime: f.mime, at: f.mtime,
+      optimised: all.has(variantName(n, 'v960')) && all.has(variantName(n, 'og')) };
   }).filter(Boolean).sort((a, b) => b.at - a.at);
 }
 
-module.exports = { MAX_MB, ACCEPTS, kindOf, refuse, store, fileFor, list, SAFE };
+module.exports = { MAX_MB, ACCEPTS, kindOf, refuse, store, fileFor, list, SAFE,
+  VARIANTS, variantName, isVariant, storeVariant, setDims, variantsOf, dims };

@@ -80,7 +80,7 @@ const visible = html => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\
   const llms = await r.text();
   ok('/llms.txt answers 200 as plain text', r.status === 200 && /^text\/plain/.test(r.headers.get('content-type') || ''), r.status + ' ' + r.headers.get('content-type'));
   ok('llms.txt says who Glovels is', /^# Glovels\n/.test(llms) && /Hyderabad/.test(llms) && /study-abroad/i.test(llms));
-  ok('llms.txt carries the contact page phone and email', /\+91 78393 99999/.test(llms) && /info@glovels\.com/.test(llms));
+  ok('llms.txt carries the contact page phone and email', /\+91 70933 14089/.test(llms) && /info@glovels\.com/.test(llms));
   ['/study-in-germany', '/find-university', '/success-stories', '/contact-us', '/visa-processing', '/work-opportunity-card', '/blog']
     .forEach(p => ok('llms.txt links ' + p + ' on the www address', llms.includes('](' + SITE + p + ')')));
   ok('llms.txt has no catalogue-size count', !/\d[\d,]*\+?\s+programmes/i.test(llms));
@@ -225,7 +225,7 @@ const visible = html => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\
   ok('home: every JSON-LD block parses', homeLd.length >= 2 && homeLd.every(x => !x.invalid), JSON.stringify(homeLd.filter(x => x.invalid)));
   const lb = homeLd.find(x => x['@type'] === 'LocalBusiness');
   ok('home: LocalBusiness with the contact-page address', lb && lb.address && lb.address.addressLocality === 'Hyderabad' && lb.address.postalCode === '500081' && /Madhapur/.test(lb.address.streetAddress), JSON.stringify(lb && lb.address));
-  ok('home: LocalBusiness phone, email and hours (Mon–Sat 9:30–19:30)', lb && lb.telephone === '+917839399999' && lb.email === 'info@glovels.com'
+  ok('home: LocalBusiness phone, email and hours (Mon–Sat 9:30–19:30)', lb && lb.telephone === '+917093314089' && lb.email === 'info@glovels.com'
     && lb.openingHoursSpecification && lb.openingHoursSpecification[0].opens === '09:30' && lb.openingHoursSpecification[0].closes === '19:30' && lb.openingHoursSpecification[0].dayOfWeek.length === 6);
   ok('home: LocalBusiness on the www address, no invented rating or geo', lb && lb.url === SITE + '/' && !lb.aggregateRating && !lb.geo && !lb.priceRange);
   ok('home: the Organization block is still there', homeLd.some(x => x['@type'] === 'Organization' && x.url === SITE + '/'));

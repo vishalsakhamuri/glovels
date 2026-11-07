@@ -172,16 +172,16 @@ function makeFindPage(d) {
          hidden set is what it would be. */
       return '<div class="fprof said"><b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
         + (R.turned ? PROF_HIDDEN + ' ' : '')
-        + '<a href="index.html#finder">Change your answers →</a></div>';
+        + '<a href="/#finder">Change your answers →</a></div>';
     }
     return '<div class="fprof"><b>Tell us your scores to see which of these would take you.</b> Your CGPA, IELTS and bachelor’s length are enough to start — '
-      + '<a href="index.html#finder">add them on the finder →</a> or <a href="login.html?signup=1">create a free account</a> and we keep them.</div>';
+      + '<a href="/#finder">add them on the finder →</a> or <a href="login.html?signup=1">create a free account</a> and we keep them.</div>';
   }
 
   /* Round 176: the line under the list when locked rows were left out —
      that there are more, never how many. Shared with the browser (FIND_PAGE_JS
      draws the same words). */
-  const MORE_LOCKED = '<div class="fmore-locked" id="fmoreLocked">More public universities match — <a href="index.html#packages">a package opens them</a>.</div>';
+  const MORE_LOCKED = '<div class="fmore-locked" id="fmoreLocked">More public universities match — <a href="/#packages">a package opens them</a>.</div>';
   /* Round 176: the summary names the list; it never counts it. */
   const SUMMARY = { some: 'Programmes that match your filters', none: 'Nothing matches every filter — loosen one' };
 
@@ -277,7 +277,7 @@ function makeFindPage(d) {
         ['Free', 'to apply at affiliated universities'],
       ] }),
       DATELINE: 'Every programme we track, filtered to what fits you. Change a filter and the address changes with it — bookmark it, share it, come back to it.',
-      CRUMBS: '<a href="index.html">Home</a> / Find University',
+      CRUMBS: '<a href="/">Home</a> / Find University',
       BODY: bodyHtml(f, R, countries, more),
     }));
     /* The logo index too, so the rows the browser fetches as a signed-in
@@ -435,7 +435,7 @@ var saved = new Set(), compared = new Set();
 var named = null, lockedPool = [], lockedFor = null, lockedAsking = null, lockedMore = false;
 var LOCKED_CAP = (F && F.LOCKED_CAP) || 12;
 var SUMMARY = { some: 'Programmes that match your filters', none: 'Nothing matches every filter — loosen one' };
-var MORE_LOCKED = 'More public universities match — <a href="index.html#packages">a package opens them</a>.';
+var MORE_LOCKED = 'More public universities match — <a href="/#packages">a package opens them</a>.';
 /* Patch 180: the sort is part of the key — the server picks the first
    screen of named rows in that order. */
 function lockedKey(){ var g = {}; Object.keys(f).forEach(function(k){ if (k !== 'view') g[k] = f[k]; }); return F.toQuery(g); }
@@ -566,10 +566,10 @@ function profile(){
     el.className = 'fprof said';
     el.innerHTML = '<b>Checked against what you told us</b> — ' + parts + ' detail' + (parts === 1 ? '' : 's') + '. '
       + (result.turned ? 'Programmes that ask for more than you told us — a grade, an English score, ECTS credits, the GRE — are not shown. ' : '')
-      + '<a href="index.html#finder">Change your answers →</a>';
+      + '<a href="/#finder">Change your answers →</a>';
   } else if (me) {
     el.className = 'fprof';
-    el.innerHTML = '<b>Signed in as ' + esc(me.name || me.email || 'you') + '.</b> Your saved profile is read on the home-page finder and your dashboard; here, set your CGPA in the rail or <a href="index.html#finder">carry your answers over →</a>';
+    el.innerHTML = '<b>Signed in as ' + esc(me.name || me.email || 'you') + '.</b> Your saved profile is read on the home-page finder and your dashboard; here, set your CGPA in the rail or <a href="/#finder">carry your answers over →</a>';
   }
 }
 

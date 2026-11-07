@@ -56,7 +56,7 @@ function shell(title, bodyHtml, footNote) {
   </td></tr>
   <tr><td style="padding:16px 26px;background:#f7f5ef;border-top:1px solid #e6e2d7;
       font:400 11.5px/1.6 Helvetica,Arial,sans-serif;color:#5b6b7e">
-    ${footNote || 'Glovels · Hyderabad · <a href="tel:+917839399999" style="color:#123a7b">+91 78393 99999</a> · <a href="mailto:info@glovels.com" style="color:#123a7b">info@glovels.com</a>'}
+    ${footNote || 'Glovels · Hyderabad · <a href="tel:+917093314089" style="color:#123a7b">+91 70933 14089</a> · <a href="mailto:info@glovels.com" style="color:#123a7b">info@glovels.com</a>'}
   </td></tr>
 </table>
 </td></tr></table></body></html>`;
@@ -99,7 +99,7 @@ Two things worth doing first:
 If anything is unclear, message your counsellor from the portal — it goes on your file, so nobody is ever working from memory.
 
 Glovels
-+91 78393 99999`,
++91 70933 14089`,
       html: shell('Your account is ready',
         p(`Hi ${esc(first)},`) +
         p('Your Glovels account is set up. Everything to do with your application now lives in one place — your shortlist, your documents, your deadlines and your counsellor.') +
@@ -142,7 +142,7 @@ Inside you will find your shortlist, your documents, your deadlines and a direct
 If you did not ask for this, ignore it — the link expires on its own and nothing happens.
 
 Glovels
-+91 78393 99999`,
++91 70933 14089`,
       html: shell('Your account is ready',
         p(`Hi ${esc(first)},`) +
         p(`We have made your Glovels account. ${esc(bought)}`) +
@@ -182,7 +182,7 @@ Password: ${password}
 That password is temporary. The first time you sign in you will be asked to choose your own, and nothing works until you do — so this message stops being useful the moment you have used it. Delete it then.
 
 Glovels
-+91 78393 99999`,
++91 70933 14089`,
       html: shell('Your Glovels sign-in',
         p(`Hi ${esc(first)},`) +
         p(`We have made ${esc(what)}.${esc(who)}`) +
@@ -264,7 +264,7 @@ ${/offer|boarding/i.test(String(packageName || ''))
 Admission is the university's decision, not ours. What we guarantee is that your file is the strongest it can be and that nothing is left unchased.
 
 Glovels
-+91 78393 99999`,
++91 70933 14089`,
       html: shell(packageName + ' is active',
         p(`Hi ${esc(first)},`) +
         (publicUnis
@@ -324,7 +324,7 @@ It works once, and expires in ${minutes} minutes.
 If it was not you, you can ignore this — nothing has changed, and your current password still works.
 
 Glovels
-+91 78393 99999`,
++91 70933 14089`,
       html: shell('Reset your password',
         p(`Hi ${esc(first)},`) +
         p('Someone asked to reset the password on your Glovels account. If that was you:') +
@@ -372,16 +372,16 @@ We have your request${destination ? ' about studying in ' + destination : ''}, a
 
 ${ref ? 'Your enquiry number is ' + ref + '. Quote it when you call or WhatsApp us, and we will have your history in front of us.\n\n' : ''}There is nothing to pay and no obligation. The call is to understand where you are, tell you honestly what is realistic for your profile, and answer whatever you want to ask.
 
-If it is urgent, WhatsApp is faster: https://wa.me/917839399999
+If it is urgent, WhatsApp is faster: https://wa.me/917093314089
 
 Glovels
-+91 78393 99999`,
++91 70933 14089`,
       html: shell('We have your request',
         p(`Hi ${esc(first)},`) +
         p(`We have your request${destination ? ' about studying in <b>' + esc(destination) + '</b>' : ''}, and a counsellor will call you <b>within one working day</b> — Mon–Sat, 9:30–19:30 IST.`) +
         (ref ? p('Your enquiry number is <b>' + esc(ref) + '</b>. Quote it when you call or WhatsApp us, and we will have your history in front of us.') : '') +
         p('There is nothing to pay and no obligation. The call is to understand where you are, tell you honestly what is realistic for your profile, and answer whatever you want to ask.') +
-        button('https://wa.me/917839399999', 'WhatsApp us instead') +
+        button('https://wa.me/917093314089', 'WhatsApp us instead') +
         small('If it is urgent, WhatsApp is faster than waiting for the call.')),
     };
   },
@@ -417,7 +417,7 @@ You asked us a question in the chat on glovels.com. Here is our reply:
 ${lines.map(b => '"' + b + '"').join('\n\n')}
 
 ${byEmail ? 'Just reply to this email — your answer goes straight into the chat.' : 'Continue the chat: ' + link}
-${signup ? '\nCreate a free account and the whole conversation moves into it, so you can message your counsellor any time, from any device, and see the universities you match: ' + signup + '\n' : ''}${ref ? '\nYour enquiry number is ' + ref + '. Quote it when you call or WhatsApp us (+91 78393 99999) and we will have the whole conversation in front of us.\n' : ''}${byEmail ? '\nOr continue on the website: ' + link : '\nOr simply reply to this email.'}`,
+${signup ? '\nCreate a free account and the whole conversation moves into it, so you can message your counsellor any time, from any device, and see the universities you match: ' + signup + '\n' : ''}${ref ? '\nYour enquiry number is ' + ref + '. Quote it when you call or WhatsApp us (+91 70933 14089) and we will have the whole conversation in front of us.\n' : ''}${byEmail ? '\nOr continue on the website: ' + link : '\nOr simply reply to this email.'}`,
       html: shell(who + ' replied to your chat',
         p(`Hi ${esc(first)},`) +
         p('You asked us a question in the chat on glovels.com. Here is our reply:') +
@@ -426,7 +426,7 @@ ${signup ? '\nCreate a free account and the whole conversation moves into it, so
         (byEmail ? p('<b>Just reply to this email</b> — your answer goes straight into the chat.') : '') +
         button(link, 'Continue the chat') +
         (signup ? p('Create a free account and the whole conversation moves into it — message your counsellor any time, from any device, and see the universities you match. <a href="' + esc(signup) + '" style="color:#1a4fb4;font-weight:700">Create my free account</a>') : '') +
-        (ref ? p('Your enquiry number is <b>' + esc(ref) + '</b>. Quote it when you call or WhatsApp us on +91 78393 99999, and we will have the whole conversation in front of us.') : '') +
+        (ref ? p('Your enquiry number is <b>' + esc(ref) + '</b>. Quote it when you call or WhatsApp us on +91 70933 14089, and we will have the whole conversation in front of us.') : '') +
         (byEmail ? '' : p('<span style="color:#5b6b7e;font-size:13px">Or simply reply to this email.</span>'))),
     };
   },

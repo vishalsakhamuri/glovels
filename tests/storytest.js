@@ -80,7 +80,7 @@ const cards = page => page.$$eval('#admit-stories .ss-admit, #visa-work-stories 
     body.includes('German language course visa approved')
     && body.includes('class="ss-link" href="/language-german.html">German language classes'));
   check('the visa section has its anchor', body.includes('id="visa-work-stories"'));
-  check('the CTA box', body.includes('Your story could be next') && body.includes('href="index.html#counsel"'));
+  check('the CTA box', body.includes('Your story could be next') && body.includes('href="/#counsel"'));
 
   /* -------------------------------------------------------------- the head */
   check('the title from the brief',

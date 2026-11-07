@@ -371,6 +371,27 @@ function disposition(name) {
   return clean === ascii ? plain : plain + "; filename*=UTF-8''" + encodeURIComponent(clean);
 }
 
+/* Patch 283: every part, files included, in order — for an upload that
+   carries several files at once (the small copies of one picture). */
+function parseMultipartAll(buf, boundary) {
+  const out = [];
+  const sep = Buffer.from('--' + boundary);
+  let start = buf.indexOf(sep);
+  while (start !== -1) {
+    const next = buf.indexOf(sep, start + sep.length);
+    if (next === -1) break;
+    const part = buf.slice(start + sep.length, next);
+    const headEnd = part.indexOf('\r\n\r\n');
+    if (headEnd > 0) {
+      const head = part.slice(0, headEnd).toString('utf8');
+      const name = /name="([^"]*)"/.exec(head);
+      const file = /filename="([^"]*)"/.exec(head);
+      if (name) out.push({ name: name[1], filename: file ? cleanFilename(file[1]) : '', data: part.slice(headEnd + 4, part.length - 2) });
+    }
+    start = next;
+  }
+  return out;
+}
 function parseMultipart(buf, boundary) {
   const out = { fields: {}, file: null };
   const sep = Buffer.from('--' + boundary);
@@ -1781,7 +1802,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   const slowDown = res => json(res, 429, {
     ok: false,
     error: 'That is a lot of messages in a short time. Wait a few minutes, '
-         + 'or call us on +91 78393 99999 — a person answers faster than this form.',
+         + 'or call us on +91 70933 14089 — a person answers faster than this form.',
   });
 
   /*
@@ -14348,7 +14369,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         slug, title, body, excerpt,
         cover: String(b.cover || '').trim().slice(0, 400),
         author: String(b.author || s.name || '').trim().slice(0, 90),
-        tag: String(b.tag || '').trim().slice(0, 60),
+        /* Patch 283: up to six tags, comma-separated; the first is the section. */
+        tag: [...new Set(String(b.tag || '').split(',').map(x => x.replace(/\s+/g, ' ').trim().slice(0, 40)).filter(Boolean))].slice(0, 6).join(', '),
         status: wants,
         /* Empty is not a mistake to refuse — it is the common case, and the
            right answer is the headline and the first two sentences rather than
@@ -14425,9 +14447,36 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   }));
 
   /* The ones already up, newest first — so a picture used in one post can be
-     put in another without uploading it twice. */
-  route('GET', '/api/staff/images', eitherPerm(async (req, res) =>
-    json(res, 200, { images: IMAGES.list(IMG_DIR).slice(0, 300) })));
+     put in another without uploading it twice. Patch 283: ?all=1 lists every
+     one (for "Make blog pictures fast"), not only the latest 300. */
+  route('GET', '/api/staff/images', eitherPerm(async (req, res) => {
+    const all = /[?&]all=1/.test(req.url);
+    return json(res, 200, { images: all ? IMAGES.list(IMG_DIR) : IMAGES.list(IMG_DIR).slice(0, 300) });
+  }));
+
+  /* Patch 283: the small copies of one picture, drawn in the office's browser
+     (assets/blogimg.js). Fields w and h are the original's size. */
+  route('POST', /^\/api\/staff\/images\/([a-z0-9][a-z0-9-]{0,120}\.(?:jpg|png|gif|webp))\/variants$/, eitherPerm(async (req, res, s, m) => {
+    const ct = req.headers['content-type'] || '';
+    const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+    if (!bm) return json(res, 400, { error: 'Expected a file upload' });
+    const body = await readBody(req, 4 * 1024 * 1024);
+    const boundary = (bm[1] || bm[2]).trim();
+    const parts = parseMultipartAll(body, boundary);
+    const name = m[1];
+    const saved = [];
+    let w = 0, h = 0;
+    for (const p of parts) {
+      if (!p.filename) { if (p.name === 'w') w = Number(String(p.data)); if (p.name === 'h') h = Number(String(p.data)); continue; }
+      const r = IMAGES.storeVariant(IMG_DIR, name, p.name, p.data);
+      if (r.error) return json(res, 415, { error: r.error, size: p.name });
+      saved.push(r);
+    }
+    if (w && h) IMAGES.setDims(IMG_DIR, name, w, h);
+    if (!saved.length) return json(res, 400, { error: 'No copies arrived.' });
+    db.log(s.name, 'made a picture fast', name + ' · ' + saved.map(x => Math.round(x.bytes / 1024) + ' KB').join(', '));
+    return json(res, 200, { ok: true, saved, variants: IMAGES.variantsOf(IMG_DIR, name) });
+  }));
 
   route('DELETE', /^\/api\/staff\/images\/([a-z0-9][a-z0-9-]{0,120}\.(?:jpg|png|gif|webp))$/,
     needs('content', async (req, res, s, m) => {
@@ -14461,16 +14510,98 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const b = await readJson(req);
     const only = Array.isArray(b.only)
       ? b.only.map(x => PROSE.slugify(x)).filter(Boolean).slice(0, 500) : [];
+    /* Patch 283: addresses pasted on the Blog screen — Wix pages only, each a
+       /post/ address. */
+    const urls = [];
+    for (const raw of [].concat(b.urls || []).slice(0, 200)) {
+      try {
+        const u = new URL(String(raw).trim());
+        if (u.protocol !== 'https:' || !/(^|\.)(wixstudio\.com|wixsite\.com)$/.test(u.hostname) || !/\/post\/[^/]+\/?$/.test(u.pathname)) continue;
+        urls.push(u.origin + u.pathname.replace(/\/$/, ''));
+      } catch (e) { /* not an address */ }
+    }
+    if (b.urls && !urls.length) return json(res, 422, { error: 'None of those is a Wix post address (…wixstudio.com/…/post/…).' });
     wixJob = { running: true, total: 0, done: 0, items: [] };
     db.log(s.name, 'started bringing the glovels.com blog across',
       only.length ? only.length + ' post(s)' : 'every post');
     /* Not awaited: the request returns at once and the screen watches. */
     WIX.importAll({
-      db, imageDir: IMG_DIR, base: wixBase(), overwrite: !!b.overwrite, only,
+      db, imageDir: IMG_DIR, base: wixBase(), overwrite: !!b.overwrite, only, urls,
       author: String(b.author || '').slice(0, 90), by: s.name,
       report: st => { wixJob = st; },
     }).catch(e => { wixJob = { running: false, error: String(e && e.message || e), items: [] }; });
     return json(res, 202, { started: true, status: wixJob });
+  }));
+
+  /*
+   * Patch 283 (team checklist, item 5): the suggested tags, kept by the
+   * office, and "Tag the posts" — each post gets the tags its headline and
+   * text plainly belong to, added after any it already has. Nothing is taken
+   * away, and the screen shows the list before anything is saved.
+   */
+  const DEFAULT_TAGS = ['Study in Germany', 'Study in UK', 'Study in France', 'Study in Ireland', 'Study in USA',
+    'Study in Canada', 'MBA', 'Business Schools', 'Job Seeker Visa', 'Opportunity Card', 'APS', 'dMAT',
+    'Education Loans', 'Blocked Account', 'Scholarships', 'IELTS', 'Student Visa', 'Universities', 'ECTS'];
+  const TAG_RULES = [
+    ['Study in Germany', /\bgerman(y)?\b|\btu munich\b|\btum\b|\bdaad\b|\buni-assist\b/i],
+    ['Study in UK', /\b(uk|united kingdom|britain|england|scotland|london)\b/i],
+    ['Study in France', /\bfrance|french\b|\bparis\b|campus france/i],
+    ['Study in Ireland', /\bireland|irish|dublin\b/i],
+    ['Study in USA', /\b(usa|united states|america|us universities)\b/i],
+    ['Study in Canada', /\bcanad(a|ian)\b/i],
+    ['MBA', /\bmba\b/i],
+    ['Business Schools', /business school|triple[- ](crown|accredit)|\baacsb\b|\bequis\b|\bamba\b/i],
+    ['Job Seeker Visa', /job[- ]seeker/i],
+    ['Opportunity Card', /opportunity card|chancenkarte/i],
+    ['APS', /\baps\b|akademische pr[üu]fstelle/i],
+    ['dMAT', /\bdmat\b/i],
+    ['Education Loans', /education loan|student loan|\bloan\b/i],
+    ['Blocked Account', /blocked account|sperrkonto|fintiba|expatrio/i],
+    ['Scholarships', /scholarship/i],
+    ['IELTS', /\bielts\b|\bmoi\b|medium of instruction|toefl|\bpte\b/i],
+    ['Student Visa', /student visa|\bvisa\b/i],
+    ['ECTS', /\bects\b|credit points/i],
+  ];
+  const blogTags = () => { const v = db.content('blogTags'); return Array.isArray(v) && v.length ? v : DEFAULT_TAGS; };
+  const suggestTags = p => {
+    const head = (p.title || '') + ' ' + (p.slug || '').replace(/-/g, ' ');
+    const text = head + ' ' + String(p.body || '').slice(0, 4000);
+    const have = String(p.tag || '').split(',').map(x => x.trim()).filter(Boolean);
+    const lower = new Set(have.map(x => x.toLowerCase()));
+    /* A headline match counts on its own; the text needs three mentions. */
+    const add = TAG_RULES.filter(([t, re]) => !lower.has(t.toLowerCase())
+      && (re.test(head) || (String(text).match(new RegExp(re.source, 'gi')) || []).length >= 3)).map(r => r[0]);
+    return [...have, ...add].slice(0, 6);
+  };
+  /* Patch 283 (item 13): every http:// address still written in a post. */
+  route('GET', '/api/staff/posts/insecure', needs('content', async (req, res) => {
+    const out = [];
+    db.postTagsAll().forEach(p => {
+      const found = [...new Set((String(p.body || '').match(/http:\/\/[^\s)"'<>\]]+/g) || []))];
+      if (found.length) out.push({ id: p.id, slug: p.slug, title: p.title, status: p.status,
+        own: found.filter(u => /^http:\/\/(www\.)?glovels\.com/i.test(u)), other: found.filter(u => !/^http:\/\/(www\.)?glovels\.com/i.test(u)) });
+    });
+    return json(res, 200, { posts: out });
+  }));
+  route('GET', '/api/staff/blog/tags', needs('content', async (req, res) => json(res, 200, { tags: blogTags() })));
+  route('PUT', '/api/staff/blog/tags', needs('content', async (req, res, s) => {
+    const b = await readJson(req);
+    const tags = [...new Set([].concat(b.tags || []).map(x => String(x).replace(/[,\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)).filter(Boolean))].slice(0, 80);
+    db.setContent('blogTags', tags, s.name);
+    db.log(s.name, 'changed the blog tags', tags.length + ' tags');
+    return json(res, 200, { tags });
+  }));
+  route('POST', '/api/staff/posts/autotag', needs('content', async (req, res, s) => {
+    const b = await readJson(req);
+    const rows = db.postTagsAll();
+    const plan = rows.map(p => ({ id: p.id, slug: p.slug, title: p.title, status: p.status, was: p.tag || '', now: suggestTags(p).join(', ') }))
+      .filter(x => x.now !== x.was);
+    if (!b.apply) return json(res, 200, { plan });
+    const only = new Set([].concat(b.ids || []).map(Number));
+    let n = 0;
+    plan.forEach(x => { if (!only.size || only.has(x.id)) { db.setPostTag(x.id, x.now); n++; } });
+    db.log(s.name, 'tagged the blog posts', n + ' posts');
+    return json(res, 200, { ok: true, tagged: n });
   }));
 
   route('GET', '/api/staff/wix/status', needs('content', async (req, res) =>

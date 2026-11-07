@@ -218,7 +218,7 @@ STAFF_NAV = [
     # Patch 221: the Leads command centre (hand-written, like ops.html).
     ("leads-command", "i-radar", "Leads command"),
     # Patch 204: the marketing dashboard (admins, and anyone given it).
-    ("marketing",  "i-trend",  "Marketing"),
+    ("marketing",  "i-trend",  "Analytics"),
     ("home",       "i-file",   "Home page"),
     # The public blog lives at blog.html, so the screen that writes it cannot.
     ("blog-admin", "i-book",   "Blog"),

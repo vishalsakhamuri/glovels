@@ -202,7 +202,7 @@ def rewrite(donor, c):
     if not hero:
         sys.exit("no page-hero in the donor")
     t = t.replace(hero.group(0), '<section class="page-hero"><div class="wrap">\n'
-        '  <div class="crumbs"><a href="index.html">Home</a> / Study in ' + esc(name) + '</div>\n'
+        '  <div class="crumbs"><a href="/">Home</a> / Study in ' + esc(name) + '</div>\n'
         '  <h1>Study in ' + esc(name) + '</h1><p>What it costs, who gets in, what to prepare, and what '
         'happens after you graduate.</p>\n</div></section>', 1)
 
@@ -243,7 +243,7 @@ def rewrite(donor, c):
     t = re.sub(r'<a class="btn btn-ghost" href="university#italy" style="margin-right:8px">Universities in Italy</a>',
                '', t, count=1)
     t = re.sub(r'<a class="btn btn-primary" href="index\.html#results">\s*See programmes in Italy <svg',
-               '<a class="btn btn-primary" href="index.html#counsel">\n    Talk to a counsellor about '
+               '<a class="btn btn-primary" href="/#counsel">\n    Talk to a counsellor about '
                + esc(name) + ' <svg', t, count=1)
     assert "Italy" not in re.sub(r'<nav .*?</nav>|<div class="mm".*?</footer>', "", t, flags=re.S) \
         or True  # the nav keeps its Italy link; nothing else should
@@ -363,15 +363,15 @@ assessment, the language tests, and the profile that gets invited.</p>
 
 <h2>What it costs</h2>
 <p>Visa help is included in every admission package. On its own it is priced on the
-<a href="index.html#services">Services</a> section of the home page, and a counsellor will say
+<a href="/#services">Services</a> section of the home page, and a counsellor will say
 which applies to you before anything is charged.</p>
 
 <div class="pagenote">A visa is a decision made by a government officer, and no consultancy can
 promise one. What we promise is a complete, honest, well-timed file, and a straight answer
 about your chances before you pay a fee.</div>
 
-<p style="margin-top:26px"><a class="btn btn-primary" href="index.html#counsel">Talk to a counsellor
-about your visa</a> <a class="btn btn-ghost" href="index.html#services">See the services</a></p>
+<p style="margin-top:26px"><a class="btn btn-primary" href="/#counsel">Talk to a counsellor
+about your visa</a> <a class="btn btn-ghost" href="/#services">See the services</a></p>
 """
 
 
@@ -404,7 +404,7 @@ def write_visa_page():
         }) + "</script>",
         "H1": "Visa processing",
         "DATELINE": "The checklist, the funds, the forms, the interview — done with you, for every country on this site.",
-        "CRUMBS": '<a href="index.html">Home</a> / Visa processing',
+        "CRUMBS": '<a href="/">Home</a> / Visa processing',
         "BODY": VISA_BODY,
     }
     t = re.sub(r"\{\{([A-Z0-9_]+)\}\}", lambda m: holes.get(m.group(1), ""), t)

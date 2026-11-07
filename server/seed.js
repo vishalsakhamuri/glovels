@@ -56,7 +56,7 @@ function placeholderPdf(title) {
 }
 
 const PROFILE = {
-  firstName: 'Vishal', lastName: 'Sakhamuri', fullName: 'Vishal Sakhamuri',
+  firstName: 'Prasad', lastName: 'Kumar', fullName: 'Prasad Kumar',
   dob: '2002-04-11', gender: 'Male', pob: 'Hyderabad', city: 'Hyderabad',
   addr1: 'Plot 60, 1st Floor', state: 'Telangana', pin: '500081',
   addr_country: 'India',
@@ -616,8 +616,12 @@ function chipsAskWhatItWas({ db, content }) {
  * number, if it is still the one the site was built with, becomes the one
  * the office publishes.
  */
-const OLD_WHATSAPP = '917093314089';
-const NEW_WHATSAPP = '917839399999';
+/* Patch 283 (team checklist, 7 Nov 2026 — owner: "ok change it"): the
+   official WhatsApp is +91 70933 14089 again. Done once (flag wa283); after
+   that the number is the office's to change on Home page → Finder & contact,
+   and every page, email and link follows it (serve.js CONTACT). */
+const OLD_WHATSAPP = '917839399999';
+const NEW_WHATSAPP = '917093314089';
 
 /*
  * Round 178 (C, owner: "numbers not required"): the home page's headline
@@ -718,12 +722,19 @@ function placeholdersOut({ db, content }) {
     n++;
   }
 
+  /* Patch 283 (item 9): the demo account is not the owner. */
+  try {
+    const demo = db.studentByEmail(DEMO_EMAIL);
+    if (demo && demo.name === 'Vishal Sakhamuri') { db.updateStudent(demo.id, 'Prasad Kumar', demo.phone); n++; }
+  } catch (e) { /* no demo account here */ }
+
   const finder = db.content('finder');
-  if (finder && finder.contact) {
+  if (finder && finder.contact && !db.content('wa283')) {
+    db.setContent('wa283', { at: new Date().toISOString() }, 'system');
     const c = Object.assign({}, finder.contact);
     let changed = false;
     if (c.whatsapp === OLD_WHATSAPP) { c.whatsapp = NEW_WHATSAPP; changed = true; }
-    if (c.phone === '+' + OLD_WHATSAPP) { c.phone = '+' + NEW_WHATSAPP; changed = true; }
+    if (String(c.phone || '').replace(/\D/g, '') === OLD_WHATSAPP) { c.phone = '+' + NEW_WHATSAPP; changed = true; }
     if (changed) {
       db.setContent('finder', Object.assign({}, finder, { contact: c }), 'system');
       db.log('system', 'the contact number is the one the office publishes', '+' + NEW_WHATSAPP);
@@ -959,7 +970,7 @@ function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
     hashPassword(PW, asalt), asalt, 'admin');
 
   const salt = newSalt();
-  const s = db.createStudent(DEMO_EMAIL, 'Vishal Sakhamuri', '+919876543210',
+  const s = db.createStudent(DEMO_EMAIL, 'Prasad Kumar', '+919876543210',
     hashPassword(PW, salt), salt);
   db.assignCounsellor(s.id, counsellor.id);
 
@@ -1018,7 +1029,7 @@ function run({ db, uploadDir, catalogue, hashPassword, newSalt, password }) {
   db.addOrder({
     studentId: s.id, reference: 'GLV-' + crypto.randomInt(1000, 9999),
     package: 'Roadmap', publicUnis: 5, grossPaise: 999900,
-    name: 'Vishal Sakhamuri', email: DEMO_EMAIL, phone: '+919876543210', status: 'paid',
+    name: 'Prasad Kumar', email: DEMO_EMAIL, phone: '+919876543210', status: 'paid',
   });
 
   /* The opening two messages, from the counsellor who is now actually assigned. */

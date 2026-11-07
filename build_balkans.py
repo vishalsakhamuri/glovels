@@ -116,7 +116,7 @@ STYLE = '''<style>
 
 
 def ctas():
-    return ('<div class="bcta"><a class="btn btn-primary" href="index.html#book">Schedule a free call</a>'
+    return ('<div class="bcta"><a class="btn btn-primary" href="/#book">Schedule a free call</a>'
             '<a class="btn btn-ghost" href="/find-university?country=Germany">Find a university in Germany</a></div>')
 
 
@@ -147,7 +147,7 @@ def country_page(c):
     ]
     body = f'''{STYLE}
 <section class="page-hero"><div class="wrap">
-  <div class="crumbs"><a href="index.html">Home</a> / <a href="western-balkans.html">Western Balkans</a> / {ESC(c["name"])}</div>
+  <div class="crumbs"><a href="/">Home</a> / <a href="western-balkans.html">Western Balkans</a> / {ESC(c["name"])}</div>
   <h1>{c["flag"]} Study in Germany from {ESC(c["name"])}</h1><p>A two-hour flight, no tuition at public universities, and a degree the whole EU recognises.</p>
 </div></section>
 <section class="block"><div class="wrap prose">
@@ -177,7 +177,7 @@ def country_page(c):
 <div class="cta-band"><div class="wrap">
   <h2>Thirty minutes, free, no obligation.</h2>
   <p>Pick a time that suits you — our calls run in the morning, Central European Time.</p>
-  <a class="btn btn-green" href="index.html#book">Schedule a free call <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+  <a class="btn btn-green" href="/#book">Schedule a free call <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
 </div></div>
 '''
     return shell(title, desc, url, body, faq)
@@ -201,7 +201,7 @@ def hub_page():
         for c in COUNTRIES)
     body = f'''{STYLE}
 <section class="page-hero"><div class="wrap">
-  <div class="crumbs"><a href="index.html">Home</a> / Western Balkans</div>
+  <div class="crumbs"><a href="/">Home</a> / Western Balkans</div>
   <h1>Study in Germany from the Western Balkans</h1><p>Close to home, no tuition at public universities, and a route to work afterwards.</p>
 </div></section>
 <section class="block"><div class="wrap prose">
@@ -217,7 +217,7 @@ def hub_page():
 <div class="cta-band"><div class="wrap">
   <h2>Not sure which route fits?</h2>
   <p>A free thirty-minute call with a counsellor. Study, work or both — we will tell you what your profile opens.</p>
-  <a class="btn btn-green" href="index.html#book">Schedule a free call <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+  <a class="btn btn-green" href="/#book">Schedule a free call <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
 </div></div>
 '''
     return shell(title, desc, url, body, faq)

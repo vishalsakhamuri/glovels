@@ -39,7 +39,9 @@ const path = require('path');
 const IMAGES = require('./images.js');
 const PROSE = require('./prose.js');
 
-const DEFAULT_BASE = 'https://www.glovels.com';
+/* Patch 283: glovels.com is this site now; the old Wix blog lives on at its
+   Wix Studio address. */
+const DEFAULT_BASE = 'https://nirishs.wixstudio.com/glovels';
 const CDN = 'https://static.wixstatic.com/media/';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
   + '(KHTML, like Gecko) Chrome/128.0 Safari/537.36 Glovels-import';
@@ -381,8 +383,12 @@ async function importAll(opts) {
   /* Every address in the sitemap and every picture names Wix's own hosts. When
      the base is somewhere else — a stand-in in a test — the same paths are
      read from there instead, so the reader is exercised without the internet. */
+  /* Patch 283: only a stand-in on this machine is remapped. A real Wix
+     address (wixstudio.com, wixsite.com, static.wixstatic.com) is fetched as
+     it is — the first version sent every picture to the base's host. */
+  const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(base);
   const at = u => {
-    if (base === DEFAULT_BASE) return u;
+    if (!local) return u;
     try { return base + new URL(u).pathname; } catch (e) { return u; }
   };
 
@@ -404,9 +410,14 @@ async function importAll(opts) {
   };
 
   try {
-    const xml = await get(base + '/blog-posts-sitemap.xml', 'text', opts.fetch);
-    let urls = postUrls(xml);
-    if (opts.only && opts.only.length) urls = urls.filter(u => opts.only.includes(slugOf(u)));
+    let urls;
+    /* Patch 283: pasted addresses are read directly — no sitemap needed. */
+    if (opts.urls && opts.urls.length) urls = opts.urls.slice();
+    else {
+      const xml = await get(base + '/blog-posts-sitemap.xml', 'text', opts.fetch);
+      urls = postUrls(xml);
+      if (opts.only && opts.only.length) urls = urls.filter(u => opts.only.includes(slugOf(u)));
+    }
     status.total = urls.length;
     tell();
 

@@ -1990,7 +1990,7 @@ PAGES["contact-us"] = {
                 "anything you write there is waiting for you when you sign up.",
             ],
             "ul": [
-                "WhatsApp or phone: <a href=\"tel:+917839399999\">+91 78393 99999</a>",
+                "WhatsApp or phone: <a href=\"tel:+917093314089\">+91 70933 14089</a>",
                 "Email: <a href=\"mailto:info@glovels.com\">info@glovels.com</a>",
                 "Germany: <a href=\"tel:+498920194090\">+49 89 2019 4090</a>",
             ],

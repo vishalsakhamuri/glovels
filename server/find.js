@@ -657,7 +657,7 @@
         + '<span class="offscreen">A public university in ' + esc(c.name) + ' that matches these filters. The name and the fee are unlocked by a package.</span>'
         + '<div class="ftags">' + tags.join('') + '</div>' + verdictHtml + '</div>'
         + '<div class="fside"><div class="fcost masked" aria-hidden="true">████</div><div class="fwhen">' + esc(when) + '</div>'
-        + '<div class="facts">' + acts + '<a class="btn btn-navy btn-sm" href="index.html#packages">Unlock</a></div></div></article>';
+        + '<div class="facts">' + acts + '<a class="btn btn-navy btn-sm" href="/#packages">Unlock</a></div></div></article>';
     }
     const uniSlug = String(p.uniSlug || slugOf(p.university)).trim();
     const uniName = esc(p.shortName || p.university);
@@ -728,12 +728,12 @@
        say that — CGPA advice is no help to a search that matched nothing. */
     if (has(f.q) || has(f.tags)) {
       return '<div class="fempty"><b>Nothing matches that search — try fewer words.</b> Or remove a tag'
-        + ' — or <a href="index.html#counsel">ask a counsellor</a>; we place students at universities this list does not show.</div>'
+        + ' — or <a href="/#counsel">ask a counsellor</a>; we place students at universities this list does not show.</div>'
         + askFormHtml(f);
     }
     return '<div class="fempty"><b>Not seeing what you expected?</b> Widen the CGPA range'
       + (f.tuition === '0' ? ', remove “No tuition”' : '') + (f.apply ? ', show both free and package rows' : '')
-      + ' — or <a href="index.html#counsel">ask a counsellor</a> to check your profile against the full list.</div>'
+      + ' — or <a href="/#counsel">ask a counsellor</a> to check your profile against the full list.</div>'
       + askFormHtml(f);
   }
 
