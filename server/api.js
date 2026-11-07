@@ -405,7 +405,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive, i18n, translator }) {
+function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive, i18n, translator }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -1877,7 +1877,9 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   const actorOf = req => {
     const s = me(req);
     if (!s) return null;
-    return { staff: s.role !== 'student', userId: s.role === 'student' ? s.id : null, name: s.name, email: s.email };
+    let paid = false;
+    if (s.role === 'student') { try { paid = db.ordersFor(s.id).some(o => EARNED.has(o.status)); } catch (e) { paid = false; } }
+    return { staff: s.role !== 'student', userId: s.role === 'student' ? s.id : null, paid, name: s.name, email: s.email };
   };
   const guardSearch = (req, res, sig, combo) => {
     if (!guard || !guard.enabled) return false;
@@ -1887,13 +1889,23 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     json(res, g.status, Object.assign({ ok: false }, g.body));
     return true;
   };
-  const guardForm = (req, res) => {
-    if (!guard || !guard.enabled) return false;
+  /* Patch 280: async now — after the guard, Cloudflare Turnstile is asked
+     whether a person sent this (server/turnstile.js). Staff and signed-in
+     students are never asked. Callers must `await guardForm(...)`. */
+  const guardForm = async (req, res) => {
     const s = me(req);
     if (s && s.role !== 'student') return false;
-    const g = guard.form(req);
-    if (g.ok) return false;
-    json(res, g.status, Object.assign({ ok: false }, g.body));
+    if (guard && guard.enabled) {
+      const g = guard.form(req);
+      if (!g.ok) { json(res, g.status, Object.assign({ ok: false }, g.body)); return true; }
+    }
+    return humanCheck(req, res, s);
+  };
+  const humanCheck = async (req, res, s) => {
+    if (!turnstile || !turnstile.enabled || s) return false;
+    const t = await turnstile.check(req, clientIp(req));
+    if (t.ok) return false;
+    json(res, t.status, Object.assign({ ok: false }, t.body));
     return true;
   };
   /* Patch 204: a search a visitor ran, with what it found — never a staff
@@ -1982,7 +1994,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   /* ---------------------------------------------------------------- auth */
 
   route('POST', '/api/auth/signup', async (req, res) => {
-    if (guardForm(req, res)) return true;
+    if (await guardForm(req, res)) return true;
     const b = await readJson(req);
     /* Every account made here sends a welcome email. Ten an hour from one
        address is a family or a college lab; a hundred is a script. */
@@ -2378,7 +2390,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
        cover. A script with no browser, no page token and a made-up address
        on every request filed a lead and sent two emails per call. The same
        rule as every other form: a person, from a page, not instantly. */
-    if (!(s && s.role === 'student') && guardForm(req, res)) return true;
+    if (!(s && s.role === 'student') && await guardForm(req, res)) return true;
     const b = await readJson(req);
     const p = lookup(String(b.id || ''));
     if (!p) return json(res, 404, { error: 'No such programme' });
@@ -3994,7 +4006,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
      /api/assist turns a finder's filter set into an enquiry (patch 153). One
      validator, one rate limit, one record shape for every form on the site. */
   const enquiry = async (req, res, shape) => {
-    if (guardForm(req, res)) return true;
+    if (await guardForm(req, res)) return true;
     let b = await readJson(req);
     if (b.website) return json(res, 200, { ok: true });          // honeypot
     /* Round 177 (item 17): ONE limit, 2,000 characters — the form's own
@@ -4224,7 +4236,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   }, { open: true, soft: true });
 
   route('POST', '/api/chat/start', async (req, res, s) => {
-    if (guardForm(req, res)) return true;
+    if (await guardForm(req, res)) return true;
     if (s && s.role === 'student') return json(res, 200, studentThread(s));
 
     const b = await readJson(req);
@@ -5301,6 +5313,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
   });
 
   route('POST', '/api/auth/forgot', async (req, res) => {
+    if (await humanCheck(req, res, me(req))) return true;
     const b = await readJson(req);
     const email = String(b.email || '').trim().toLowerCase();
     /* Round 177 (item 13): "not-an-email" was answered with the success

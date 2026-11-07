@@ -298,9 +298,16 @@ const GEOIP = require('./server/geo.js');
 /* Patch 208: the guard — on in production (GUARD=off turns it off), off on a
    laptop and in the test suites unless GUARD=on. */
 const guard = require('./server/guard.js').open({ db, log: console,
-  limits: Object.fromEntries([['guest', 'GUARD_GUEST'], ['member', 'GUARD_MEMBER'], ['hourly', 'GUARD_HOURLY']]
+  limits: Object.fromEntries([['guest', 'GUARD_GUEST'], ['member', 'GUARD_MEMBER'], ['paid', 'GUARD_PAID'], ['hourly', 'GUARD_HOURLY']]
     .filter(([, k]) => Number(process.env[k]) > 0).map(([n, k]) => [n, Number(process.env[k])])),
   enabled: process.env.GUARD ? /^(on|1|true|yes)$/i.test(process.env.GUARD) : !!CFG.production });
+/* Patch 280: Cloudflare Turnstile on the public forms (server/turnstile.js).
+   Off until TURNSTILE_SITEKEY and TURNSTILE_SECRET are both set on Render;
+   TURNSTILE=off turns it off again. */
+const TURNSTILE = require('./server/turnstile.js').open({ log: console,
+  sitekey: process.env.TURNSTILE_SITEKEY, secret: process.env.TURNSTILE_SECRET,
+  enabled: !/^(off|0|false|no)$/i.test(String(process.env.TURNSTILE || '')) });
+if (TURNSTILE.enabled) console.log('  turnstile: on — sign-up, enquiry, chat, apply and forgot-password ask "are you human"');
 /* Patch 221: the lead watch — an alert to every phone the moment a lead
    arrives, and a second one when nobody has called (server/leadwatch.js). */
 const leadwatch = require('./server/leadwatch.js').open({ db, live, push, mail,
@@ -323,7 +330,7 @@ mail.localize = ({ to, subject, text, html }) => {
   if (missing.length) TRANSLATOR.learn(missing, { page: 'email', kind: 'email' });
   return out;
 };
-const api = makeApi({ leadwatch, guard, marketing, db, i18n: I18N, translator: TRANSLATOR, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
+const api = makeApi({ leadwatch, guard, turnstile: TURNSTILE, marketing, db, i18n: I18N, translator: TRANSLATOR, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
   mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
   /* Round 176: the go-live readiness report, for /api/staff/golive. */
@@ -486,14 +493,14 @@ const CSP = [
   "default-src 'self'",
   /* Patch 267: the marketing tags — Google (gtag, Tag Manager, Ads),
      Meta's pixel and Clarity. Each is loaded only when its ID is set. */
-  "script-src 'self' 'unsafe-inline' https://*.razorpay.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.razorpay.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://*.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://*.google.com https://*.doubleclick.net https://www.facebook.com https://*.clarity.ms",
+  "connect-src 'self' https://challenges.cloudflare.com https://*.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://*.google.com https://*.doubleclick.net https://www.facebook.com https://*.clarity.ms",
   /* Razorpay's checkout, the office on Google Maps in the footer, Tag
      Manager's noscript frame and Google Ads' conversion frame. */
-  "frame-src https://*.razorpay.com https://www.google.com https://maps.google.com https://www.googletagmanager.com https://td.doubleclick.net https://*.doubleclick.net",
+  "frame-src https://challenges.cloudflare.com https://*.razorpay.com https://www.google.com https://maps.google.com https://www.googletagmanager.com https://td.doubleclick.net https://*.doubleclick.net",
   "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
@@ -521,12 +528,12 @@ const PUBLIC_VISIT = req => {
    has used their free searches, ask them to sign in. */
 const GUARD_JS = `(function(){if(window.__glvT)return;var m=document.querySelector('meta[name="glv-t"]');var t=m&&m.content;if(!t)return;window.__glvT=t;
 var own=function(u){try{var x=new URL(u,location.href);return x.origin===location.origin&&/^\\/(api\\/|send\\.php)/.test(x.pathname);}catch(e){return false;}};
-var shown=0;function wall(j){if(shown)return;shown=1;var here=location.pathname+location.search+'#finder';var d=document.createElement('div');
+var shown=0;function wall(j){if(shown)return;shown=1;var here=location.pathname+location.search+'#finder';var pk=!!j.packageRequired;var d=document.createElement('div');
 d.setAttribute('role','dialog');d.setAttribute('aria-modal','true');d.style.cssText='position:fixed;inset:0;background:rgba(11,31,58,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
-d.innerHTML='<div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:26px;font-family:system-ui,sans-serif;color:#0b1f3a;box-shadow:0 30px 80px rgba(0,0,0,.3)"><div style="font:800 20px/1.25 system-ui;margin-bottom:8px">Keep searching for free</div><p style="margin:0 0 18px;color:#4a5b70;font-size:14.5px;line-height:1.55">'+String(j.error||'').replace(/[<>&]/g,'')+'</p><a href="login.html?signup=1&next='+encodeURIComponent(here)+'" style="display:block;text-align:center;background:linear-gradient(160deg,#d4ad55,#b8913a);color:#0b1f3a;font-weight:800;border-radius:12px;padding:13px;text-decoration:none;margin-bottom:8px">Create a free account</a><a href="login.html?next='+encodeURIComponent(here)+'" style="display:block;text-align:center;border:1px solid #d8dde4;color:#0b1f3a;font-weight:800;border-radius:12px;padding:12px;text-decoration:none">I have an account — sign in</a><button type="button" style="display:block;margin:12px auto 0;background:none;border:0;color:#6b7a8c;cursor:pointer;font-size:13px">Not now</button></div>';
+d.innerHTML='<div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:26px;font-family:system-ui,sans-serif;color:#0b1f3a;box-shadow:0 30px 80px rgba(0,0,0,.3)"><div style="font:800 20px/1.25 system-ui;margin-bottom:8px">'+(pk?'Keep searching today':'Keep searching for free')+'</div><p style="margin:0 0 18px;color:#4a5b70;font-size:14.5px;line-height:1.55">'+String(j.error||'').replace(/[<>&]/g,'')+'</p>'+(pk?'<a href="services.html?buy='+encodeURIComponent(j.service||'first-three')+'" style="display:block;text-align:center;background:linear-gradient(160deg,#d4ad55,#b8913a);color:#0b1f3a;font-weight:800;border-radius:12px;padding:13px;text-decoration:none;margin-bottom:8px">Get it for ₹99</a>':'<a href="login.html?signup=1&next='+encodeURIComponent(here)+'" style="display:block;text-align:center;background:linear-gradient(160deg,#d4ad55,#b8913a);color:#0b1f3a;font-weight:800;border-radius:12px;padding:13px;text-decoration:none;margin-bottom:8px">Create a free account</a><a href="login.html?next='+encodeURIComponent(here)+'" style="display:block;text-align:center;border:1px solid #d8dde4;color:#0b1f3a;font-weight:800;border-radius:12px;padding:12px;text-decoration:none">I have an account — sign in</a>')+'<button type="button" style="display:block;margin:12px auto 0;background:none;border:0;color:#6b7a8c;cursor:pointer;font-size:13px">Not now</button></div>';
 d.querySelector('button').onclick=function(){d.remove();shown=0;};document.body.appendChild(d);if(window.glvTrack)try{glvTrack('search_wall',{label:'login asked'})}catch(e){}}
 var F=window.fetch;if(F){window.fetch=function(u,o){var url=typeof u==='string'?u:(u&&u.url)||'';if(own(url)){o=Object.assign({},o||{});var h=new Headers(o.headers||(typeof u!=='string'&&u.headers)||{});h.set('X-Glv-T',t);o.headers=h;}
-return F.call(this,u,o).then(function(r){if(r.status===401&&own(url)){r.clone().json().then(function(j){if(j&&j.loginRequired)wall(j);}).catch(function(){});}return r;});};}
+return F.call(this,u,o).then(function(r){if((r.status===401||r.status===402)&&own(url)){r.clone().json().then(function(j){if(j&&(j.loginRequired||j.packageRequired))wall(j);}).catch(function(){});}return r;});};}
 var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(mt,u){this.__glvOwn=own(u);return O.apply(this,arguments);};X.send=function(){if(this.__glvOwn)try{this.setRequestHeader('X-Glv-T',t);}catch(e){}return S.apply(this,arguments);};})();`;
 /* Patch 208: copying friction on the lists of programmes — no selecting,
    no copy, no right-click save. It stops casual copying, not a determined
@@ -535,7 +542,15 @@ const NOCOPY = '<style data-nocopy>#results,#rows,#flist,.uni-progs,.prog-list,.
   + '<script data-nocopy>(function(){var sel="#results,#rows,#flist,.uni-progs,.prog-list,.uni-list";'
   + '["copy","cut","contextmenu","dragstart"].forEach(function(ev){document.addEventListener(ev,function(e){var t=e.target;'
   + 'if(t&&t.closest&&t.closest(sel)&&!t.closest("input,textarea,select")){e.preventDefault();}},true);});})();</script>';
+function withTurnstile(html) {
+  if (!TURNSTILE.enabled || html.indexOf('name="glv-ts"') >= 0) return html;
+  const m = /<head[^>]*>/i.exec(html);
+  if (!m) return html;
+  const at = m.index + m[0].length;
+  return html.slice(0, at) + TURNSTILE.meta() + '<script data-glvts>' + require('./server/turnstile.js').CLIENT_JS + '</script>' + html.slice(at);
+}
 function withGuard(html) {
+  html = withTurnstile(html);
   if (!guard.enabled || html.indexOf('name="glv-t"') >= 0) return html;
   if (html.indexOf('data-nocopy') < 0 && /id="(results|rows|flist)"|class="(uni-progs|prog-list|uni-list)"/.test(html)) html = html.replace('</head>', NOCOPY + '</head>');
   const m = /<head[^>]*>/i.exec(html);

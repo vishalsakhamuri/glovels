@@ -1413,6 +1413,13 @@ async function svcLoad() {
     const first = SVC_TABS.find(t => SVC.some(s => (s.cats || []).includes(t.key)));
     svcCat = first ? first.key : '';
     svcPaint();
+    /* Patch 280: services.html?buy=first-three — the search wall's "Get it
+       for ₹99" opens that service's checkout straight away. */
+    try {
+      const want = new URLSearchParams(location.search).get('buy');
+      const hit = want && SVC.find(x => String(x.id) === want);
+      if (hit && !BOUGHT.has(String(hit.id))) svcCheckout(hit);
+    } catch (e) { /* the list is there; they can press Book */ }
   } catch (e) {
     $('#svcList').innerHTML = '<div class="sl-empty"><b>Could not load the services</b>'
       + '<p>The server did not answer. Reload the page, or ask your counsellor.</p></div>';

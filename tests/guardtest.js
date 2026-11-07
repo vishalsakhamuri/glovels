@@ -62,18 +62,18 @@ const DESTS = ['DE', 'GB', 'CA', 'IE', 'IT', 'PL', 'ES', 'FR'];
     const catBot = await call('/api/catalogue', { headers: { 'User-Agent': 'Scrapy/2.11' } });
     check('the opening catalogue refuses scrapers', catBot.status === 403);
 
-    /* A guest: 30 different searches, then sign in. */
+    /* A guest: 10 different searches, then sign up (patch 280). */
     const ipG = '198.51.100.10';
     const tok = await tokenOf(ipG);
     let cookie = '', last = null, okCount = 0;
-    for (let i = 0; i < 31; i++) {
+    for (let i = 0; i < 11; i++) {
       const r = await call('/api/find/match?country=DE&q=word' + i, { ip: ipG, token: tok, cookie });
       cookie = cookie || ck(r);
       if (r.status === 200) okCount++;
       last = r;
     }
-    check('a guest gets 30 searches', okCount === 30, String(okCount));
-    check('the 31st asks them to sign in', last.status === 401 && last.body.loginRequired, JSON.stringify(last.body));
+    check('a guest gets 10 searches', okCount === 10, String(okCount));
+    check('the 11th asks them to sign up', last.status === 401 && last.body.loginRequired, JSON.stringify(last.body));
     const again = await call('/api/find/match?country=DE&q=word0&cgpa=7.5', { ip: ipG, token: tok, cookie });
     check('repeating a search already made — with a different CGPA — still works', again.status === 200);
     const fresh = await call('/api/find/match?country=DE&q=fresh', { ip: ipG, token: tok });
@@ -88,7 +88,23 @@ const DESTS = ['DE', 'GB', 'CA', 'IE', 'IT', 'PL', 'ES', 'FR'];
       const r = await call('/api/find/match?country=DE&q=s' + i, { ip: ipS, token: tokS, cookie: stud });
       if (r.status === 200) sOk++;
     }
-    check('a signed-in student goes past 30', sOk === 35, String(sOk));
+    check('a student with a paid order goes past 30', sOk === 35, String(sOk));
+
+    /* Patch 280: a free account has 30 a day, then the ₹99 package. */
+    const ipN = '198.51.100.25';
+    const tokN = await tokenOf(ipN);
+    await new Promise(r => setTimeout(r, 3300));
+    const su = await call('/api/auth/signup', { method: 'POST', ip: ipN, token: tokN, body: { name: 'Free Account', email: 'free.account@example.com', password: 'abcdefgh123', phone: '+919876500777', terms: true, consent: true } });
+    const freeCk = String([].concat(su.headers['set-cookie'] || []).find(c => !/^gl_v=/.test(c)) || '').split(';')[0];
+    check('a new account can be made', (su.status === 200 || su.status === 201) && !!freeCk, su.status + ' ' + JSON.stringify(su.body).slice(0, 120));
+    let nOk = 0, nLast = null;
+    for (let i = 0; i < 31; i++) {
+      const r = await call('/api/find/match?country=DE&q=n' + i, { ip: ipN, token: tokN, cookie: freeCk });
+      if (r.status === 200) nOk++;
+      nLast = r;
+    }
+    check('a free account gets 30 searches a day', nOk === 30, String(nOk));
+    check('the 31st asks for the ₹99 package', nLast.status === 402 && nLast.body.packageRequired && nLast.body.service === 'first-three', nLast.status + ' ' + JSON.stringify(nLast.body).slice(0, 160));
 
     /* Staff are never limited, and need no token. */
     const admin = await login('admin@glovels.com', '198.51.100.30');
@@ -102,20 +118,22 @@ const DESTS = ['DE', 'GB', 'CA', 'IE', 'IT', 'PL', 'ES', 'FR'];
     /* Walking the catalogue: destination × field, fast. */
     const ipW = '198.51.100.40';
     const tokW = await tokenOf(ipW);
-    let wc = '', paused = null;
-    for (let i = 0; i < 25 && !paused; i++) {
+    /* Patch 280: with 10 guest searches a day the sign-up wall comes long
+       before the 18-combination pattern, so a catalogue walker is stopped
+       there; the pause list and unblock button still answer. */
+    let wc = '', stopped = null;
+    for (let i = 0; i < 25 && !stopped; i++) {
       const r = await call('/api/find/match?country=' + DESTS[i % DESTS.length] + '&field=' + encodeURIComponent(FIELDS[i % FIELDS.length]), { ip: ipW, token: tokW, cookie: wc });
       wc = wc || ck(r);
-      if (r.status === 429 && r.body.blocked) paused = i + 1;
+      if (r.status === 401 || r.status === 429) stopped = i + 1;
     }
-    check('walking the catalogue is paused', paused && paused <= 20, String(paused));
+    check('walking the catalogue is stopped within 11 searches', stopped && stopped <= 11, String(stopped));
     const after = await call('/api/find/match?country=DE', { ip: ipW, token: tokW, cookie: wc });
-    check('and stays paused', after.status === 429 && after.body.blocked);
+    check('and stays stopped', after.status === 401 || after.status === 429);
     const act2 = (await call('/api/staff/search-activity', { cookie: admin, ip: '198.51.100.30' })).body;
-    const blk = (act2.guard.blocked || [])[0];
-    check('the admin sees who was paused and why', blk && /combinations/.test(blk.why), JSON.stringify(act2.guard).slice(0, 200));
-    const unb = await call('/api/staff/search-activity/unblock', { method: 'POST', cookie: admin, ip: '198.51.100.30', body: { key: blk && blk.key } });
-    check('and can unblock them', unb.status === 200 && unb.body.unblocked >= 1);
+    check('the admin pause list answers, with the new limits', act2.guard && act2.guard.limits && act2.guard.limits.guest === 10 && act2.guard.limits.member === 30 && act2.guard.limits.paid === 150, JSON.stringify(act2.guard || {}).slice(0, 200));
+    const unb = await call('/api/staff/search-activity/unblock', { method: 'POST', cookie: admin, ip: '198.51.100.30', body: { key: 'nobody' } });
+    check('and the unblock button answers', unb.status === 200);
     const kav = await login('kavya@glovels.com', '198.51.100.31');
     check('a counsellor cannot see the activity list', (await call('/api/staff/search-activity', { cookie: kav, ip: '198.51.100.31' })).status === 403);
 

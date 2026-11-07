@@ -39,8 +39,13 @@ const DAY_MS = 86400000;
 const HOUR_MS = 3600000;
 
 function open({ db, enabled, log = console, limits }) {
-  const L = Object.assign({ guest: 30, guestNet: 90, member: 150, hourly: 40,
+  /* Patch 280 (owner, 7 Nov): "after 10 searches sign-up is required, so
+     they can continue up to 30". Guests 10 a day, signed-in students 30 a
+     day. The network allowance stays three times the guest one, for a
+     college or phone carrier sharing one address. */
+  const L = Object.assign({ guest: 10, member: 30, paid: 150, hourly: 40,
     patternCombos: 18, patternMinutes: 10, blockHours: 24, formMinSeconds: 3, tokenHours: 12 }, limits || {});
+  if (!(limits && limits.guestNet)) L.guestNet = L.guest * 3;
   let secret = '';
   try {
     const t = db.content('traffic') || {};
@@ -128,11 +133,18 @@ function open({ db, enabled, log = console, limits }) {
     me.hour = me.hour.filter(t => now - t < HOUR_MS);
     const repeat = me.keys.has(sig);
     if (!repeat) {
-      const limit = actor && actor.userId ? L.member : L.guest;
+      /* Patch 280 (owner, 7 Nov): guests 10, a free account 30 a day, and
+         after that the ₹99 Private match preview (or any paid order) to keep
+         searching — up to L.paid a day. */
+      const paid = !!(actor && actor.userId && actor.paid);
+      const limit = actor && actor.userId ? (paid ? L.paid : L.member) : L.guest;
       if (me.keys.size >= limit || (!(actor && actor.userId) && nw.keys.size >= L.guestNet)) {
+        if (actor && actor.userId && !paid) return { ok: false, status: 402, setCookie: g.set, body: {
+          error: 'You have used today\'s ' + L.member + ' free searches. Get the ₹99 Private match preview to keep searching — up to ' + L.paid + ' a day — and see the affiliated universities you match.',
+          packageRequired: true, service: 'first-three', used: me.keys.size } };
         return actor && actor.userId
-          ? { ok: false, status: 429, setCookie: g.set, body: { error: 'You have used today\'s ' + L.member + ' searches. They start again tomorrow — or message your counsellor.', limitReached: true } }
-          : { ok: false, status: 401, setCookie: g.set, body: { error: 'You have used your ' + L.guest + ' free searches for today. Sign in or create a free account to keep searching.', loginRequired: true, used: me.keys.size } };
+          ? { ok: false, status: 429, setCookie: g.set, body: { error: 'You have used today\'s ' + L.paid + ' searches. They start again tomorrow — or message your counsellor.', limitReached: true } }
+          : { ok: false, status: 401, setCookie: g.set, body: { error: 'You have used your ' + L.guest + ' free searches for today. Create a free account to get ' + L.member + ' a day — you stay right here on the search.', loginRequired: true, used: me.keys.size } };
       }
       /* Patch 215 (QA): a signed-in student is known and capped at 150 a
          day; an hourly cap of 40 and a 24-hour pattern block made those 150
@@ -159,7 +171,7 @@ function open({ db, enabled, log = console, limits }) {
         }
       }
     }
-    return { ok: true, setCookie: g.set, used: me.keys.size, of: actor && actor.userId ? L.member : L.guest };
+    return { ok: true, setCookie: g.set, used: me.keys.size, of: actor && actor.userId ? (actor.paid ? L.paid : L.member) : L.guest };
   }
 
   /** A form sent from a public page: a person, not a script, and not instantly. */
@@ -176,7 +188,7 @@ function open({ db, enabled, log = console, limits }) {
   function status() {
     const now = Date.now();
     return {
-      enabled, limits: { guest: L.guest, member: L.member, hourly: L.hourly },
+      enabled, limits: { guest: L.guest, member: L.member, paid: L.paid, hourly: L.hourly },
       blocked: [...new Set([...blocks.values()].filter(b => b.until > now))].map(b => ({ key: b.key, who: b.who, why: b.why, at: b.at, until: new Date(b.until).toISOString(), sample: b.sample })),
     };
   }
