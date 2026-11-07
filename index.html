@@ -2568,6 +2568,16 @@ function askLocked(){
   const key = lockedQuery();
   if (LOCKED_FOR === key || LOCKED_ASKING === key) return;
   LOCKED_ASKING = key;
+  /* Patch 281: remember the boxes, so a guest sent to sign up comes back to
+     the same search (finderResume below). */
+  try {
+    const snap = {};
+    document.querySelectorAll('#finder input[id], #finder select[id], #finder textarea[id]').forEach(el => {
+      if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked) snap[el.id] = '__on'; }
+      else if (el.type !== 'password' && el.value) snap[el.id] = el.value;
+    });
+    sessionStorage.setItem('glv_find', JSON.stringify({ at: Date.now(), v: snap }));
+  } catch (e) {}
   /* Patch 180: the named rows that fit come back too, and join D.programs —
      a destination with tens of thousands of programmes is searched on the
      server; the opening catalogue carries only a sample of it. */
@@ -4859,11 +4869,16 @@ function askToApply(id, uni, prog){
     + '<div class="paid-cta" style="margin-top:14px">'
       + '<button class="btn btn-gold" id="apGo">Create my login and add it</button></div>'
     + '<p id="apFoot" style="margin:11px 0 0;font-size:11.4px;color:var(--muted);line-height:1.55">'
-      + 'Already have a login? <a href="/login?next=' + encodeURIComponent('/') + '" style="font-weight:700">Sign in</a> and press Apply free again. '
+      + 'Already have a login? <a href="/login?next=' + encodeURIComponent('/#finder') + '" id="apSignIn" style="font-weight:700">Sign in</a> — it is added to your list as soon as you are back. '
       + 'Nothing is charged — private universities never need a package.</p>';
   $('#buyPay').style.display = 'none';
   $('.co-legal') && ($('.co-legal').style.display = 'none');
   open('#buyModal');
+  /* Patch 281: signing in from here brings them back to the search with
+     this university added — no second press. */
+  $('#apSignIn') && ($('#apSignIn').onclick = () => {
+    try { sessionStorage.setItem('glv_pending_apply', JSON.stringify({ id, uni, prog, at: Date.now() })); } catch (e) {}
+  });
 
   let mode = 'login';
   const setMode = m => {
@@ -7615,6 +7630,66 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
+</script>
+<script data-resume>
+/* Patch 281 (owner, 7 Nov): "after sign-up it should be seamless — easy to
+   go and search; you can now search". Back on /#finder within two hours of
+   a search: the boxes are filled in again, the search runs again (the same
+   search does not use up an allowance), and a new account is welcomed. */
+(function finderResume(){
+  let saved = null, hi = null;
+  try { saved = JSON.parse(sessionStorage.getItem('glv_find') || 'null'); hi = sessionStorage.getItem('glv_welcome'); sessionStorage.removeItem('glv_welcome'); } catch (e) {}
+  if (hi) {
+    const t = document.createElement('div');
+    t.setAttribute('role', 'status'); t.id = 'glvWelcome';
+    t.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:9998;background:#0b1f3a;color:#fff;border-radius:14px;padding:13px 18px;font:600 14px/1.45 system-ui,sans-serif;box-shadow:0 18px 50px rgba(0,0,0,.25);max-width:92vw;text-align:center';
+    t.textContent = 'Welcome, ' + hi + ' — you are signed in. Your search is right here, and every university you shortlist is saved to your account. 30 searches a day.';
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 450); }, 6000);
+  }
+  /* A university they chose before signing in goes on their shortlist now:
+     the counsellor sees it as added by the student. */
+  let pend = null;
+  try { pend = JSON.parse(sessionStorage.getItem('glv_pending_apply') || 'null'); } catch (e) {}
+  if (pend && pend.id && Date.now() - (pend.at || 0) < 2 * 3600e3) {
+    fetch('/api/apply', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pend.id, sourcePage: location.pathname, referrer: 'after sign-in' }) })
+      .then(r => r.json().then(d => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (d && d.needDetails) return;                 /* not signed in yet — keep it for later */
+        try { sessionStorage.removeItem('glv_pending_apply'); } catch (e) {}
+        if (ok && d && d.applied) {
+          const t = document.createElement('div');
+          t.id = 'glvAdded'; t.setAttribute('role', 'status');
+          t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:9998;background:#12233d;color:#fff;border-radius:12px;padding:12px 18px;font:600 13.5px/1.45 system-ui,sans-serif;box-shadow:0 18px 50px rgba(0,0,0,.25);max-width:92vw;text-align:center';
+          t.innerHTML = '';
+          t.appendChild(document.createTextNode((pend.uni || d.university || 'The university') + ' is on your shortlist — your counsellor can see it too. '));
+          const a = document.createElement('a'); a.href = 'dashboard.html'; a.textContent = 'See my shortlist'; a.style.cssText = 'color:#e7c36a;font-weight:800;margin-left:4px';
+          t.appendChild(a); document.body.appendChild(t);
+          setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 450); }, 8000);
+        }
+      }).catch(() => {});
+  } else if (pend) { try { sessionStorage.removeItem('glv_pending_apply'); } catch (e) {} }
+  if (location.hash !== '#finder' || !saved || !saved.v || Date.now() - saved.at > 2 * 3600e3) return;
+  const ids = Object.keys(saved.v);
+  if (!ids.length) return;
+  let tries = 0;
+  const fill = () => {
+    let pending = 0;
+    ids.forEach(id => {
+      const el = document.getElementById(id); if (!el || el.dataset.resumed) return;
+      const v = saved.v[id];
+      if (el.type === 'checkbox' || el.type === 'radio') { el.checked = v === '__on'; el.dataset.resumed = '1'; return; }
+      if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === v)) { pending++; return; }
+      el.value = v; el.dataset.resumed = '1';
+    });
+    if (pending && ++tries < 25) return setTimeout(fill, 300);
+    ids.forEach(id => { const el = document.getElementById(id); if (el && el.dataset.resumed) el.dispatchEvent(new Event('change', { bubbles: true })); });
+    const go = document.getElementById('fGo'); if (go) go.click();
+    const f = document.getElementById('finder'); if (f) f.scrollIntoView({ block: 'start' });
+  };
+  if (document.readyState === 'complete') setTimeout(fill, 400); else addEventListener('load', () => setTimeout(fill, 400));
+})();
 </script>
 </body>
 </html>

@@ -142,7 +142,7 @@
 <div class="stage">
   <!-- LEFT -->
   <div class="brand-panel">
-    <div class="logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
+    <div class="logo"><a href="/" title="Back to the Glovels home page" style="display:inline-block"><span class="logo-img" role="img" aria-label="Glovels — back to the home page"></span></a></div>
     <div class="bp-mid">
       <span class="bp-eyebrow">Student Portal</span>
       <h1>Your journey abroad, <em>all in one place</em>.</h1>
@@ -163,7 +163,8 @@
   <!-- RIGHT -->
   <div class="form-panel">
     <div class="form-card">
-      <div class="fc-logo"><span class="logo-img" role="img" aria-label="Glovels"></span></div>
+      <div class="fc-logo"><a href="/" title="Back to the Glovels home page" style="display:inline-block"><span class="logo-img" role="img" aria-label="Glovels — back to the home page"></span></a></div>
+      <a href="/#finder" class="fc-back" style="display:inline-flex;align-items:center;gap:6px;margin:0 0 14px;font:600 13px/1.4 system-ui,sans-serif;color:#4a5b70;text-decoration:none">&larr; Back to search</a>
       <div class="demo-note">
         <div><b>Demo sign-in</b>These are real accounts, created by the server on its first
         run and saved to a database on this machine. Sign in with the student below, or create
@@ -677,7 +678,14 @@ $('#authForm').addEventListener('submit', async e => {
                : role === 'partner' ? 'partner.html'
                : 'dashboard.html';
     const next = new URLSearchParams(location.search).get('next');
-    location.href = (next && /^\/(?!\/)[a-z0-9/_\-?=&%.~+]*(#[a-z0-9_-]*)?$/i.test(next)) ? next : home;
+    /* Patch 281: a student who signs up from the search lands back on it
+       with a welcome line; one who signs up anywhere else goes to the
+       search too, not an empty dashboard. */
+    const okNext = next && /^\/(?!\/)[a-z0-9/_\-?=&%.~+]*(#[a-z0-9_-]*)?$/i.test(next);
+    if (signup && role === 'student') {
+      try { sessionStorage.setItem('glv_welcome', String((data.user && data.user.name) || '').split(' ')[0] || 'there'); } catch (e2) {}
+      location.href = okNext ? next : '/#finder';
+    } else location.href = okNext ? next : home;
   } catch (err) {
     btn.disabled = false;
     btn.textContent = was;
