@@ -334,15 +334,15 @@ Glovels
     };
   },
 
-  enquiryToOffice({ name, phone, email, destination, sourcePage, note }) {
+  enquiryToOffice({ name, phone, email, destination, sourcePage, note, ref }) {
     /* `note` carries what they were looking at when they asked — the
        university and programme they pressed Apply on. A lead that says only
        which country is a lead the counsellor starts from nothing. */
     return {
-      subject: note ? `${note} — ${name}` : `Counselling request — ${name}`,
+      subject: (note ? `${note} — ${name}` : `Counselling request — ${name}`) + (ref ? ` [${ref}]` : ''),
       text: `A ${note ? 'request to apply' : 'counselling request'} came in from the website.
 
-Name         ${name}
+${ref ? 'Enquiry no.  ' + ref + '\n' : ''}Name         ${name}
 Mobile       ${phone}
 Email        ${email}
 Destination  ${destination || 'Not specified'}${note ? `
@@ -351,26 +351,26 @@ Page         ${sourcePage || '/'}
 
 They are expecting a call back within one working day.`,
       html: shell(note ? 'Request to apply' : 'Counselling request',
-        rows([
+        rows((ref ? [['Enquiry no.', ref]] : []).concat([
           ['Name', name], ['Mobile', phone], ['Email', email],
           ['Destination', destination || 'Not specified'],
-        ].concat(note ? [['About', note]] : []).concat([['Page', sourcePage || '/']])) +
+        ]).concat(note ? [['About', note]] : []).concat([['Page', sourcePage || '/']])) +
         p('They are expecting a call back within one working day.')),
     };
   },
 
-  enquiryToStudent({ name, destination }) {
+  enquiryToStudent({ name, destination, ref }) {
     /* The home-page form sends the option's label, flag and all — "🇩🇪 Germany"
        — and an emoji in a sentence reads as a glitch in most mail clients. */
     destination = String(destination || '').replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
     const first = String(name || '').split(' ')[0] || 'there';
     return {
-      subject: 'We have your counselling request',
+      subject: 'We have your counselling request' + (ref ? ' — enquiry ' + ref : ''),
       text: `Hi ${first},
 
 We have your request${destination ? ' about studying in ' + destination : ''}, and a counsellor will call you within one working day — Mon–Sat, 9:30–19:30 IST.
 
-There is nothing to pay and no obligation. The call is to understand where you are, tell you honestly what is realistic for your profile, and answer whatever you want to ask.
+${ref ? 'Your enquiry number is ' + ref + '. Quote it when you call or WhatsApp us, and we will have your history in front of us.\n\n' : ''}There is nothing to pay and no obligation. The call is to understand where you are, tell you honestly what is realistic for your profile, and answer whatever you want to ask.
 
 If it is urgent, WhatsApp is faster: https://wa.me/917839399999
 
@@ -379,6 +379,7 @@ Glovels
       html: shell('We have your request',
         p(`Hi ${esc(first)},`) +
         p(`We have your request${destination ? ' about studying in <b>' + esc(destination) + '</b>' : ''}, and a counsellor will call you <b>within one working day</b> — Mon–Sat, 9:30–19:30 IST.`) +
+        (ref ? p('Your enquiry number is <b>' + esc(ref) + '</b>. Quote it when you call or WhatsApp us, and we will have your history in front of us.') : '') +
         p('There is nothing to pay and no obligation. The call is to understand where you are, tell you honestly what is realistic for your profile, and answer whatever you want to ask.') +
         button('https://wa.me/917839399999', 'WhatsApp us instead') +
         small('If it is urgent, WhatsApp is faster than waiting for the call.')),
@@ -398,6 +399,35 @@ Reply from your counsellor workspace: ${siteUrl}/counsellor`,
         `<blockquote style="margin:0 0 16px;padding:13px 15px;background:#f7f5ef;border-left:3px solid #1a4fb4;
           border-radius:0 8px 8px 0;font:400 14px/1.6 Helvetica,Arial,sans-serif;color:#0e1a24">${esc(body)}</blockquote>` +
         button(siteUrl + '/counsellor', 'Open my workspace')),
+    };
+  },
+
+  /* Patch 282: a website-chat visitor who left before the office answered.
+     The link signs this browser back into the same chat, on any device. */
+  guestChatReply({ name, counsellorName, bodies, link, ref, signup, byEmail }) {
+    const first = String(name || '').split(' ')[0] || 'there';
+    const lines = [].concat(bodies || []).map(b => String(b || '').trim()).filter(Boolean);
+    const who = counsellorName || 'Glovels';
+    return {
+      subject: `${who} from Glovels replied to your chat` + (ref ? ` — enquiry ${ref}` : ''),
+      text: `Hi ${first},
+
+You asked us a question in the chat on glovels.com. Here is our reply:
+
+${lines.map(b => '"' + b + '"').join('\n\n')}
+
+${byEmail ? 'Just reply to this email — your answer goes straight into the chat.' : 'Continue the chat: ' + link}
+${signup ? '\nCreate a free account and the whole conversation moves into it, so you can message your counsellor any time, from any device, and see the universities you match: ' + signup + '\n' : ''}${ref ? '\nYour enquiry number is ' + ref + '. Quote it when you call or WhatsApp us (+91 78393 99999) and we will have the whole conversation in front of us.\n' : ''}${byEmail ? '\nOr continue on the website: ' + link : '\nOr simply reply to this email.'}`,
+      html: shell(who + ' replied to your chat',
+        p(`Hi ${esc(first)},`) +
+        p('You asked us a question in the chat on glovels.com. Here is our reply:') +
+        lines.map(b => `<blockquote style="margin:0 0 12px;padding:13px 15px;background:#f7f5ef;border-left:3px solid #1a4fb4;
+          border-radius:0 8px 8px 0;font:400 14px/1.6 Helvetica,Arial,sans-serif;color:#0e1a24">${esc(b)}</blockquote>`).join('') +
+        (byEmail ? p('<b>Just reply to this email</b> — your answer goes straight into the chat.') : '') +
+        button(link, 'Continue the chat') +
+        (signup ? p('Create a free account and the whole conversation moves into it — message your counsellor any time, from any device, and see the universities you match. <a href="' + esc(signup) + '" style="color:#1a4fb4;font-weight:700">Create my free account</a>') : '') +
+        (ref ? p('Your enquiry number is <b>' + esc(ref) + '</b>. Quote it when you call or WhatsApp us on +91 78393 99999, and we will have the whole conversation in front of us.') : '') +
+        (byEmail ? '' : p('<span style="color:#5b6b7e;font-size:13px">Or simply reply to this email.</span>'))),
     };
   },
 

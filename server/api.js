@@ -2081,6 +2081,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
 
     publicMail('welcome', Object.assign({ to: s.email },
       EMAILS.welcome({ name: s.name, email: s.email, siteUrl })));
+    /* Patch 282: their website chat comes with them. */
+    carryChat(req, s);
 
     const token = newToken();
     db.createSession(token, s.id, 30);
@@ -2137,6 +2139,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const token = newToken();
     const days = b.remember === false ? 1 : 30;
     db.createSession(token, s.id, days);
+    /* Patch 282: a student signing in with a website chat open on this
+       browser keeps it — it moves into their Messages. */
+    if (s.role === 'student') carryChat(req, s);
     return json(res, 200, withToken(req, { user: publicStudent(s) }, token), { 'Set-Cookie': sessionCookie(token, days) });
   }, { open: true });
 
@@ -2492,10 +2497,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     };
     /* Filed on this person's open lead if they have one (2 Oct). */
     const filed = db.fileEnquiry(record);
+    const ref = enqRef(filed && filed.id);
     publicMail('office', Object.assign({ to: mail.office, replyTo: email },
-      EMAILS.enquiryToOffice(record)));
+      EMAILS.enquiryToOffice(Object.assign({ ref }, record))));
     publicMail('ack', Object.assign({ to: email },
-      EMAILS.enquiryToStudent({ name, destination: record.destination })));
+      EMAILS.enquiryToStudent({ name, destination: record.destination, ref })));
     /* Go-live spam test (3 Nov): an application IS a lead — every phone in
        the office hears about it, combined when they come in a burst, exactly
        as the enquiry form's do (server/leadwatch.js). */
@@ -4080,6 +4086,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       record.note = ('Call booked for ' + BOOK.say(slot, S0.tz) + ' office time' + (record.note ? ' — ' + record.note : '')).slice(0, 2000);
     }
     const filed = db.fileEnquiry(record);
+    const ref = enqRef(filed && filed.id);
     metaEvent(req, 'Lead', 'lead-' + (filed && filed.id ? filed.id : Date.now()), { email, phone: storePhone(phone) }, { contentName: record.source });
     if (slot) {
       const S = BOOK.settingsOf(bset);
@@ -4091,12 +4098,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         destination: String(b.destination || '').replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim().slice(0, 60), tz, ownerId: owner });
       if (filed && filed.id) db.setEnquiryNext(filed.id, slot, null);
       publicMail('ack', Object.assign({ to: email, replyTo: mail.office }, EMAILS.callBooked({ name, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) })));
-      publicMail('office', Object.assign({ to: mail.office, replyTo: email }, EMAILS.enquiryToOffice(record)));
+      publicMail('office', Object.assign({ to: mail.office, replyTo: email }, EMAILS.enquiryToOffice(Object.assign({ ref }, record))));
       if (owner) { const c = db.studentById(owner); if (c) callToCounsellor(bk, c); }
       try { notify && notify.staff && notify.staff('New call booked: ' + name + ' — ' + BOOK.say(slot, S.tz)); } catch (e) {}
       /* Patch 221: every phone in the office, now. */
       leadArrived({ kind: 'booking', row: filed, name });
-      return json(res, 200, { ok: true, booking: { at: slot, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) } });
+      return json(res, 200, { ok: true, ref, booking: { at: slot, when: BOOK.say(slot, tz), whenOffice: BOOK.say(slot, S.tz) } });
     }
 
     /* Two messages: the office gets the lead, the enquirer gets an
@@ -4104,14 +4111,14 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
        to check they were heard. Reply-To is set to the enquirer so the office
        can just hit reply. */
     publicMail('office', Object.assign({ to: mail.office, replyTo: email },
-      EMAILS.enquiryToOffice(record)));
+      EMAILS.enquiryToOffice(Object.assign({ ref }, record))));
     publicMail('ack', Object.assign({ to: email },
-      EMAILS.enquiryToStudent({ name, destination: b.destination })));
+      EMAILS.enquiryToStudent({ name, destination: b.destination, ref })));
     /* Patch 221: every phone in the office, now — combined when they come in
        a burst (server/leadwatch.js). */
     leadArrived({ kind: record.source === 'no-match' ? 'finder' : 'form', row: filed, name });
 
-    return json(res, 200, { ok: true });
+    return json(res, 200, { ok: true, ref });
   };
   route('POST', '/api/enquiries', enquiry, { open: true });
   route('POST', '/send.php', enquiry, { open: true });     // the live host's path
@@ -4192,6 +4199,10 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
    * question asked from the home page does not start a second conversation
    * nobody joins up.
    */
+  /* Patch 282 (owner, 7 Nov): every enquiry has a number the person can
+     quote — "so when he calls we can see the history using name or enquiry
+     no". The lead's own id, so a returning person keeps one number. */
+  const enqRef = id => id ? 'GLV-E-' + String(id).padStart(5, '0') : '';
   const chatCookie = token =>
     'glovels_chat=' + token + '; Path=/; HttpOnly; SameSite=Lax'
     + (CFG.secureCookies ? '; Secure' : '')
@@ -4204,6 +4215,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
 
   const chatShape = c => ({
     id: c.id, name: c.name, phone: c.phone, email: c.email,
+    ref: (() => { try { const l = leadForChat(c); return l ? enqRef(l.id) : ''; } catch (e) { return ''; } })(),
     status: c.status, at: c.created_at, lastAt: c.last_at,
     messages: db.chatMessages(c.id).map(m => ({
       who: m.sender, t: m.body, name: m.who, at: m.created_at,
@@ -4224,6 +4236,146 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     })),
   });
 
+  /*
+   * Patch 282 (owner, 7 Nov: "if I send a reply will it go like an email to
+   * him?"): a reply in the website chat reaches a visitor only while their
+   * tab is open. Now, if they have not seen it within CHAT_MAIL_MINUTES (5),
+   * it is emailed to the address the chat asked for, with a link that opens
+   * the same chat in whatever browser they read it on. Several replies in
+   * those minutes go as one email. Held in memory: a restart in the window
+   * drops that one email, never the reply itself, which stays in the chat.
+   */
+  const CHAT_MAIL_MS = (Number(process.env.CHAT_MAIL_MINUTES) > 0 ? Number(process.env.CHAT_MAIL_MINUTES) : 5) * 60000;
+  const chatSeenAt = new Map();      // chat id → when the visitor last had it on screen
+  const chatMailDue = new Map();     // chat id → { timer, since, by }
+  const guestSeen = c => {
+    chatSeenAt.set(c.id, Date.now());
+    const due = chatMailDue.get(c.id);
+    if (due) { clearTimeout(due.timer); chatMailDue.delete(c.id); }
+  };
+  const chatMailLater = (c, by, sentAt) => {
+    if (!c.email || !mail) return;
+    const old = chatMailDue.get(c.id);
+    if (old) clearTimeout(old.timer);
+    const since = old ? old.since : sentAt;
+    const timer = setTimeout(() => {
+      chatMailDue.delete(c.id);
+      try {
+        const cur = db.chatById(c.id);
+        if (!cur || !cur.email) return;
+        if ((chatSeenAt.get(c.id) || 0) >= since) return;
+        if (live && live.isGuestOnline && live.isGuestOnline(cur.token)) return;
+        const bodies = db.chatMessages(cur.id).filter(m => m.sender === 'them' && Date.parse(m.created_at) >= since - 1000).map(m => m.body);
+        if (!bodies.length) return;
+        const link = (siteUrl || '') + '/api/chat/open?t=' + encodeURIComponent(cur.token);
+        const signup = (siteUrl || '') + '/api/chat/open?t=' + encodeURIComponent(cur.token) + '&to=signup';
+        const replyTo = chatReplyTo(cur);
+        Promise.resolve(mail.send(Object.assign({ to: cur.email }, replyTo ? { replyTo } : {}, EMAILS.guestChatReply({ name: cur.name, counsellorName: by, bodies, link, signup, byEmail: !!INBOUND_DOMAIN, ref: (() => { try { const l = leadForChat(cur); return l ? enqRef(l.id) : ''; } catch (e) { return ''; } })() }))))
+          .then(() => { try { db.log('system', 'chat reply emailed', cur.name + ' <' + cur.email + '>'); } catch (e) {} })
+          .catch(() => {});
+      } catch (e) { /* the reply is in the chat whatever happens here */ }
+    }, CHAT_MAIL_MS);
+    if (timer.unref) timer.unref();
+    chatMailDue.set(c.id, { timer, since, by });
+  };
+
+  /*
+   * Patch 282: answering by email. With INBOUND_DOMAIN (reply.glovels.com,
+   * its MX records pointing at Brevo) and INBOUND_KEY set, the email's
+   * Reply-To is chat-<id>-<check>@reply.glovels.com and Brevo's inbound
+   * parsing posts the answer to /api/inbound/brevo?k=<INBOUND_KEY>; it lands
+   * in the same chat (or the account's Messages, once they have one), live
+   * on the office screens. Without them, Reply-To is the office inbox.
+   */
+  const INBOUND_DOMAIN = String(process.env.INBOUND_DOMAIN || '').trim().toLowerCase();
+  const INBOUND_KEY = String(process.env.INBOUND_KEY || '').trim();
+  const chatCheck = id => crypto.createHmac('sha256', (INBOUND_KEY || 'glovels') + '|chat').update(String(id)).digest('hex').slice(0, 10);
+  const chatReplyTo = c => INBOUND_DOMAIN && INBOUND_KEY ? 'chat-' + c.id + '-' + chatCheck(c.id) + '@' + INBOUND_DOMAIN : ((mail && mail.office) || '');
+
+  /* A visitor who creates an account (or signs in) keeps the conversation:
+     the website chat is copied into their Messages, once, oldest first, and
+     the chat is closed on the office screen with a pointer to the account. */
+  const CARRIED = id => 'website-chat#' + id;
+  function carryChat(req, st) {
+    try {
+      let c = chatOf(req);
+      if (!c && st.email) c = (db.chats(500) || []).find(x => String(x.email || '').toLowerCase() === String(st.email).toLowerCase() && x.status !== 'done');
+      if (!c) return 0;
+      const have = db.getMessages(st.id) || [];
+      if (have.some(m => m.author === CARRIED(c.id))) return 0;
+      const msgs = db.chatMessages(c.id) || [];
+      if (!msgs.length) return 0;
+      db.addMessage(st.id, 'them', 'Your website chat with us' + (c.created_at ? ' from ' + String(c.created_at).slice(0, 10) : '') + ' is below, so the whole conversation is in one place.', '', CARRIED(c.id));
+      msgs.forEach(m => db.addMessage(st.id, m.sender === 'me' ? 'me' : 'them', m.body, '', m.sender === 'me' ? '' : (m.who || 'Glovels')));
+      db.addChatMessage(c.id, 'them', '[Moved to ' + st.name + '\'s account — continue under Students → Messages]', 'Glovels');
+      db.setChatStatus(c.id, 'done');
+      live.toAllStaff('chat', { id: c.id, kind: 'moved', at: new Date().toISOString() });
+      db.log(st.name, 'website chat moved to account', c.name + ' → ' + st.email);
+      return msgs.length;
+    } catch (e) { return 0; }
+  }
+
+  route('POST', '/api/inbound/brevo', async (req, res) => {
+    if (!INBOUND_KEY || !INBOUND_DOMAIN) return json(res, 503, { error: 'Inbound email is not set up' });
+    const k = String((new URL(req.url, 'http://x')).searchParams.get('k') || '');
+    const a = Buffer.from(k), b0 = Buffer.from(INBOUND_KEY);
+    if (a.length !== b0.length || !crypto.timingSafeEqual(a, b0)) return json(res, 403, { error: 'Wrong key' });
+    const body = await readJson(req, MAX_WEBHOOK_BODY);
+    let took = 0;
+    for (const it of [].concat(body.items || [])) {
+      try {
+        if (it && it.Spam && Number(it.Spam.Score) > 5) continue;
+        const to = [].concat(it.To || [], it.Cc || []).map(x => String((x && x.Address) || '').toLowerCase());
+        let hit = null;
+        for (const addr of to) {
+          const m = /^chat-(\d+)-([a-f0-9]{10})@(.+)$/.exec(addr);
+          if (m && m[3] === INBOUND_DOMAIN && m[2] === chatCheck(m[1])) { hit = Number(m[1]); break; }
+        }
+        if (!hit) continue;
+        const c = db.chatById(hit);
+        if (!c) continue;
+        const from = String((it.From && it.From.Address) || '').toLowerCase();
+        let text = String(it.ExtractedMarkdownMessage || it.RawTextBody || '').trim();
+        if (!text) continue;
+        text = text.slice(0, 2000);
+        const stranger = c.email && from && from !== String(c.email).toLowerCase();
+        if (stranger) text = '(by email from ' + from + ') ' + text;
+        const st = c.email ? db.studentByEmail && db.studentByEmail(String(c.email).toLowerCase()) : null;
+        if (st && st.role === 'student' && (db.getMessages(st.id) || []).some(m => m.author === CARRIED(c.id))) {
+          db.addMessage(st.id, 'me', text, '');
+          const msgs = stateFor(st).msgs;
+          live.toThread(st.id, st.counsellor_id, 'message', { studentId: st.id, studentName: st.name, msg: msgs[msgs.length - 1] });
+        } else {
+          const m = db.addChatMessage(c.id, 'me', text, c.name + ' (email)');
+          if (c.status === 'done') db.setChatStatus(c.id, 'open');
+          live.toAllStaff('chat', { id: c.id, name: c.name, kind: 'message', t: text, at: m.created_at });
+          leadArrived({ kind: 'chat-msg', row: leadForChat(c), chatId: c.id, name: c.name, text });
+        }
+        db.log(c.name, 'answered a chat by email', from);
+        took++;
+      } catch (e) { /* one bad item does not lose the others */ }
+    }
+    return json(res, 200, { ok: true, took });
+  }, { open: true });
+
+  /* The link in that email: this browser joins the same chat, and the chat
+     box opens on the home page. */
+  route('GET', '/api/chat/open', async (req, res) => {
+    const q = (new URL(req.url, 'http://x')).searchParams;
+    const t = String(q.get('t') || '');
+    const toSignup = q.get('to') === 'signup';
+    const c = t && t.length <= 200 ? db.chatByToken(t) : null;
+    const headers = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' };
+    if (c) headers['Set-Cookie'] = chatCookie(c.token);
+    res.writeHead(200, headers);
+    res.end('<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Glovels chat</title>'
+      + (toSignup
+        ? '<script>location.replace("/login.html?signup=1&next=" + encodeURIComponent("/messages"))</script>'
+        : '<script>try{sessionStorage.setItem("glovels_chat_open","1")}catch(e){}location.replace("/")</script>')
+      + '<p style="font-family:system-ui,sans-serif">Opening your chat… <a href="/">Continue</a></p>');
+    return true;
+  }, { open: true, soft: true });
+
   route('GET', '/api/chat', async (req, res, s) => {
     /* 3 Nov (owner): the widget says "Live now" when a staff screen is open
        and "Someone will reply" when none is — never the office hours. A
@@ -4231,6 +4383,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const staffOnline = !!(live && live.counts && live.counts().staff > 0);
     if (s && s.role === 'student') return json(res, 200, Object.assign({ staffOnline }, studentThread(s)));
     const c = chatOf(req);
+    if (c) guestSeen(c);
     return json(res, 200, c ? Object.assign({ signedIn: false, staffOnline }, chatShape(c))
                             : { signedIn: false, staffOnline, messages: [], started: false });
   }, { open: true, soft: true });
@@ -4359,6 +4512,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   route('GET', '/api/chat/live', async (req, res) => {
     const c = chatOf(req);
     if (!c) return json(res, 404, { error: 'No chat here yet' });
+    guestSeen(c);
     live.subscribe(req, res, { id: c.token, role: 'guest' });
     return true;
   }, { open: true });
@@ -10648,6 +10802,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         const last = msgs[msgs.length - 1];
         return {
           id: c.id, name: c.name, phone: c.phone, email: c.email,
+          ref: (() => { try { const l = leadForChat(c); return l ? enqRef(l.id) : ''; } catch (e) { return ''; } })(),
           status: c.status, at: c.created_at, lastAt: c.last_at,
           page: c.page, messages: msgs.length,
           unseen: unseen[c.id] || 0,
@@ -10739,7 +10894,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const owner = e.owner_id ? people.get(Number(e.owner_id)) : null;
     const c = counts[String(e.id)] || { n: 0, last: '', lastWho: '' };
     return {
-      id: e.id, name: e.name, phone: e.phone, email: e.email,
+      id: e.id, ref: enqRef(e.id), name: e.name, phone: e.phone, email: e.email,
       destination: e.destination || '',
       /* ADM-07: stored as a code, shown as a name. */
       destinationName: destName(e.destination),
@@ -11567,6 +11722,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     /* Straight down the visitor's open stream. This is the half that makes it a
        chat rather than a contact form with extra steps. */
     live.toGuest(c.token, 'chat', { who: 'them', t: body, name: s.name, at: msg.created_at });
+    /* Patch 282: on screen now, or emailed in five minutes if not seen. */
+    const onScreen = !!(live && live.isGuestOnline && live.isGuestOnline(c.token));
+    if (onScreen) chatSeenAt.set(c.id, Date.now()); else chatMailLater(c, s.name, Date.parse(msg.created_at) || Date.now());
     live.toAllStaff('chat', { id: c.id, kind: 'replied', at: msg.created_at });
     db.log(s.name, 'chat replied', c.name + (c.phone ? ' (' + c.phone + ')' : ''));
     /* Patch 221: a reply in the chat IS the first response. The lead the chat
@@ -14837,7 +14995,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     if (/json/i.test(String(req.headers['content-type'] || ''))
         && Number(req.headers['content-length'] || 0)
            > (BIG_JSON.get(pathname) || MAX_JSON_BODY)
-        && !/webhook/.test(pathname)) {
+        && !/webhook|^\/api\/inbound\//.test(pathname)) {
       json(res, 413, { error: 'That is too big to send in one go.' });
       req.resume();
       return true;

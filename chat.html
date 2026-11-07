@@ -1133,7 +1133,7 @@ select.assign.none:hover{border-color:#a5342b}
       <label class="wc-search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
           aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-        <input type="search" id="wcSearch" placeholder="Search name, phone, email, message&hellip;"
+        <input type="search" id="wcSearch" placeholder="Search name, phone, email, enquiry no., message&hellip;"
           aria-label="Search conversations and enquiries" autocomplete="off">
       </label>
     </div>
@@ -1859,8 +1859,8 @@ const HOW_LABEL = { form: 'Form', chat: 'Chat', book: 'Booking' };
 const needsReply = c => c.lastFrom === 'me' || c.unseen > 0;
 const hay = parts => parts.map(x => String(x || '')).join(' \u0001 ').toLowerCase();
 const matches = text => !QUERY || QUERY.split(/\s+/).every(w => text.includes(w));
-const chatMatch = c => matches(hay([c.name, c.phone, c.email, c.preview]));
-const enqMatch = e => matches(hay([e.name, e.phone, e.email, e.note, e.destination, e.destinationName,
+const chatMatch = c => matches(hay([c.name, c.phone, c.email, c.preview, c.ref, String(c.ref || '').replace(/\D/g, '').replace(/^0+/, '')]));
+const enqMatch = e => matches(hay([e.ref, String(e.ref || '').replace(/\D/g, '').replace(/^0+/, ''), e.name, e.phone, e.email, e.note, e.destination, e.destinationName,
   e.page, pageLabel(e.page), e.owner, e.campaign, HOW_LABEL[howOf(e)]]));
 /* The quick filters, one rule per chip. Waiting is a chat whose last word is
    the visitor's, or an enquiry nobody has touched yet. */
@@ -1935,7 +1935,7 @@ function paintChat(c) {
   $('#chatPane').innerHTML =
       '<div class="wc-head">' + avatar(c.name) +
         '<div class="who"><b>' + esc(c.name) + '</b>' +
-          '<small>Started ' + whenTag(c.at) + (waiting ? ' · <span class="st wait">Needs a reply</span>' : '') +
+          '<small>' + (c.ref ? '<b title="Enquiry number — the visitor can quote it">' + esc(c.ref) + '</b> · ' : '') + 'Started ' + whenTag(c.at) + (waiting ? ' · <span class="st wait">Needs a reply</span>' : '') +
           '</small></div>' +
         '<div class="acts">' +
           (c.phone ? '<a class="btn btn-ghost btn-sm" href="' + esc(telHref(c.phone)) + '">Call</a>' : '') +

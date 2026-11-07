@@ -132,6 +132,9 @@ class Live {
     (this.guests.get(String(token)) || new Set()).forEach(res => this._write(res, event, data));
   }
 
+  /** Patch 282: is this website-chat visitor on the site right now? */
+  isGuestOnline(token) { return (this.guests.get(String(token)) || new Set()).size > 0; }
+
   /** Who is currently connected — used to decide whether to send an email too. */
   isOnline(role, id) {
     const map = role === 'student' ? this.students : this.staff;

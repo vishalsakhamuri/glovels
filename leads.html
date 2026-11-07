@@ -1773,7 +1773,7 @@ function shown() {
     if (sr && sr !== 'how:signup' && l.source !== sr) return false;
     if (ow === 'none' && l.ownerId) return false;
     if (ow && ow !== 'none' && String(l.ownerId) !== ow) return false;
-    if (q && !((l.name || '') + ' ' + (l.phone || '') + ' ' + (l.email || ''))
+    if (q && !((l.name || '') + ' ' + (l.phone || '') + ' ' + (l.email || '') + ' ' + (l.ref || '') + ' ' + String(l.ref || '').replace(/\D/g, '').replace(/^0+/, ''))
       .toLowerCase().includes(q)) return false;
     return true;
   });
@@ -1892,7 +1892,7 @@ function paint() {
       && daysAgo(l.at) >= 1;
     return '<tr class="lrow' + (l.id === openId ? ' on' : '') + (cold ? ' cold' : '')
       + '" data-lead="' + l.id + '">'
-      + '<td><div class="lwho"><span class="lav" style="background:' + avColour(l.id) + '">' + esc(initials(l.name)) + '</span><div class="lwho-t"><b>' + esc(l.name || 'no name') + '</b>'
+      + '<td><div class="lwho"><span class="lav" style="background:' + avColour(l.id) + '">' + esc(initials(l.name)) + '</span><div class="lwho-t"><b>' + esc(l.name || 'no name') + '</b>' + (l.ref ? ' <small style="color:var(--muted);font-weight:600;white-space:nowrap" title="Enquiry number">' + esc(l.ref) + '</small>' : '')
         /* Round 175 (item 7): from a staff member's or a test account's own
            number or email — the office testing its form. No alert is raised
            for it; it stays here, marked, so it can be archived. */
