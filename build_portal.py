@@ -1310,7 +1310,7 @@ function __dashOrders(s) {
       if (!window.__glovelsCollect) {
         await new Promise(function (res) {
           const s = document.createElement('script');
-          s.src = '/glovels-pay.js?v=274'; s.onload = res; s.onerror = res;
+          s.src = '/glovels-pay.js?v=279'; s.onload = res; s.onerror = res;
           document.head.appendChild(s);
         });
       }

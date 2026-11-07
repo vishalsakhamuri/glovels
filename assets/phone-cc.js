@@ -68,7 +68,9 @@
   }
   /* A page without the checkout script (sign-in): ask the server where the
      visitor is, once, and move every untouched box to that country. */
-  if (!window.glovelsPay) {
+  /* Patch 279: also when the checkout script is on the page but has not
+     worked out the country yet — asking twice costs one small request. */
+  if (!window.glovelsPay || !(function () { try { return window.glovelsPay.visitorCountry && window.glovelsPay.visitorCountry(); } catch (e) { return ''; } })()) {
     try {
       fetch('/api/pay/config', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (cfg) {
         var g = cfg && cfg.geo && cfg.geo.country;

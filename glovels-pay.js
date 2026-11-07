@@ -408,7 +408,7 @@
      here so every page that has this script has it, and no office screen. */
   (function () {
     if (document.querySelector('script[src^="/js/phone.js"]')) return;
-    var s = document.createElement('script'); s.src = '/js/phone.js?v=274'; s.defer = true;
+    var s = document.createElement('script'); s.src = '/js/phone.js?v=279'; s.defer = true;
     (document.head || document.documentElement).appendChild(s);
   }());
 
@@ -920,6 +920,10 @@
     CFG = c;
     try { var cc = localStorage.getItem('glv-country'); if (cc && document.cookie.indexOf('glv_country=' + cc) < 0) document.cookie = 'glv_country=' + cc + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
     localPrices(); localeBar(); try { keepLang(); } catch (e) {}
+    /* Patch 279: the phone boxes were drawn before the visitor's country was
+       known and stayed on +91 (owner, 7 Nov: "why is it India code by
+       default"). Tell them now. */
+    try { var vc = country(); if (vc) document.dispatchEvent(new CustomEvent('glv-country', { detail: vc })); } catch (e) {}
     /* The finders draw their fees again now that the currency is known. */
     try { document.dispatchEvent(new CustomEvent('glv-currency', { detail: current(CFG) })); } catch (e) {}
   });
