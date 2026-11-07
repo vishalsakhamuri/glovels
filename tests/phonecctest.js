@@ -78,22 +78,25 @@ const api = async (p, o = {}) => {
     await p.fill('.glv-cc-pop input', 'pakis'); await p.keyboard.press('Enter');
 
     /* ---- the chat: Pakistan */
-    const box = 'form.gv-intro input[name=contact]';
+    /* Patch 278: the chat asks for the mobile and the email, both. */
+    const box = 'form.gv-intro input[name=phone]';
     const sentChat = []; p.on('request', r => { if (/\/api\/chat\/start/.test(r.url())) sentChat.push(JSON.parse(r.postData())); });
+    check('the chat has a mobile box and an email box', await p.$('form.gv-intro input[name=email][type=email][required]') !== null && await p.$(box + '[required]') !== null);
+    check('the mobile box has a country code', await p.evaluate(s => !!document.querySelector(s).closest('.glv-cc-wrap'), box));
     await p.fill('form.gv-intro input[name=name]', 'Rehan Phonetest');
-    await p.fill(box, 'me@example.com');
-    check('an email in the chat box hides the country code', await p.evaluate(s => document.querySelector(s).closest('.glv-cc-wrap').classList.contains('no-cc'), box));
-    check('and the email is sent as typed', await p.evaluate(s => document.querySelector(s).value, box) === 'me@example.com');
     await p.fill(box, '0333 861 9199');
-    check('a number shows it again', !(await p.evaluate(s => document.querySelector(s).closest('.glv-cc-wrap').classList.contains('no-cc'), box)));
-    await p.waitForTimeout(3200); await p.click('form.gv-intro .gv-go'); await p.waitForTimeout(1500);
-    check('the chat sends +92 3338619199', sentChat.length === 1 && sentChat[0].contact === '+92 3338619199', JSON.stringify(sentChat));
+    await p.waitForTimeout(3200); await p.click('form.gv-intro .gv-go'); await p.waitForTimeout(600);
+    check('without an email the chat does not start', sentChat.length === 0, JSON.stringify(sentChat));
+    await p.fill('form.gv-intro input[name=email]', 'rehan.test@example.com');
+    await p.click('form.gv-intro .gv-go'); await p.waitForTimeout(1500);
+    check('the chat sends +92 3338619199 and the email', sentChat.length === 1 && sentChat[0].phone === '+92 3338619199' && sentChat[0].email === 'rehan.test@example.com', JSON.stringify(sentChat));
     const chats = (await api('/api/staff/chats', { cookie: admin })).body.chats || [];
     const ch = chats.find(c => c.name === 'Rehan Phonetest');
     check('the chat is stored as +923338619199, not +91…', ch && ch.phone === '+923338619199', ch && ch.phone);
     const leads2 = (await api('/api/staff/leads?per=200', { cookie: admin })).body.leads || [];
     const chl = leads2.find(l => l.name === 'Rehan Phonetest');
     check('and so is its lead', chl && chl.phone === '+923338619199', chl && chl.phone);
+    check('the chat and its lead keep the email too', ch && ch.email === 'rehan.test@example.com' && chl && chl.email === 'rehan.test@example.com', (ch && ch.email) + ' / ' + (chl && chl.email));
 
     /* ---- server: chat start without the script */
     const ctx2 = await b.newContext(); const p2 = await ctx2.newPage();
@@ -103,6 +106,9 @@ const api = async (p, o = {}) => {
     const ctx3 = await b.newContext(); const p3 = await ctx3.newPage(); await p3.goto(BASE + '/contact-us');
     const ind = await p3.evaluate(async () => { await new Promise(r => setTimeout(r, 3200)); const r = await fetch('/api/chat/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'India Raw', contact: '98765 43210', page: '/x' }) }); return [r.status, (await r.json()).phone]; });
     check('a bare Indian ten-digit mobile still becomes +91', ind[0] === 200 && ind[1] === '+919876543210', JSON.stringify(ind));
+    const ctx4 = await b.newContext(); const p4 = await ctx4.newPage(); await p4.goto(BASE + '/contact-us');
+    const noMail = await p4.evaluate(async () => { await new Promise(r => setTimeout(r, 3200)); const r = await fetch('/api/chat/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'No Mail', phone: '+254 712 345679', email: '', page: '/x' }) }); return [r.status, (await r.json()).error]; });
+    check('the server refuses a chat with the mobile but no email', (noMail[0] === 422 || noMail[0] === 429) && (noMail[0] === 429 || /email/i.test(noMail[1] || '')), JSON.stringify(noMail));
 
     /* ---- prefilled numbers split back */
     await p.goto(BASE + '/', { waitUntil: 'networkidle' }); await p.waitForTimeout(600);

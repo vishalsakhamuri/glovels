@@ -4233,8 +4233,20 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
        the office's screen with nothing. */
     if (floodedBy(clientIp(req), 'chat', 3, 60 * 60 * 1000)) return slowDown(res);
     const name = String(b.name || '').trim().slice(0, 80);
-    const contact = String(b.contact || '').trim().slice(0, 120);
     if (!name) return json(res, 422, { error: 'Your name, so we know who we are talking to.' });
+
+    /* Patch 278 (owner, 7 Nov: "I want mobile no and email id both"): the
+       chat box asks for both, and both are needed. The one-box `contact`
+       form (an older page still open, the app) keeps working as it did. */
+    if (b.phone !== undefined || b.email !== undefined) {
+      const ph = String(b.phone || '').trim().slice(0, 40);
+      const em = String(b.email || '').trim().toLowerCase().slice(0, 120);
+      if (!(anyPhone(ph) || validPhone(ph))) return json(res, 422, { error: 'Your mobile number, with its country code.' });
+      if (!validEmail(em)) return json(res, 422, { error: 'Your email address — that one does not look right.' });
+      b.contact = ph;
+      b.email2 = em;
+    }
+    const contact = String(b.contact || '').trim().slice(0, 120);
 
     const isEmail = contact.includes('@');
     /* Patch 274: any country. The box sends the number with its country code
@@ -4255,8 +4267,9 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     if (existing) return json(res, 200, Object.assign({ signedIn: false }, chatShape(existing)));
 
     const token = newToken();
+    const email = b.email2 || (isEmail ? contact.toLowerCase() : '');
     const c = db.createChat(token, {
-      name, phone, email: isEmail ? contact.toLowerCase() : '',
+      name, phone, email,
       page: String(b.page || '').slice(0, 200),
     });
 
@@ -4266,7 +4279,7 @@ function makeApi({ leadwatch, guard, marketing, db, uploadDir, imageDir, catalog
     try {
       const from = sourceOf(req, { consent: 'chat', referrer: b.referrer });
       chatLead = db.fileEnquiry({
-        name, phone, email: isEmail ? contact.toLowerCase() : '',
+        name, phone, email,
         destination: '', consent: 'chat', sourcePage: String(b.page || '').slice(0, 200),
         source: from.source, campaign: from.campaign,
         referrer: String(req.headers.referer || '').slice(0, 200),

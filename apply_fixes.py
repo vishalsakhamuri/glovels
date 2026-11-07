@@ -1332,6 +1332,9 @@ NO_CORNER = {
     "messages.html", "login.html", "404.html",
     "counsellor.html", "admin.html", "home.html", "catalogue.html", "chat.html",
     "leads.html", "blog-admin.html",
+    # Patch 278: office screens added later that are not on the portal shell,
+    # so the guard below cannot catch them.
+    "ops.html", "marketing.html", "leads-command.html", "languages.html",
     # A partner is not a visitor to be sold to and has no chat at all — the
     # brief said so plainly. The widget also greets in our name, which on a
     # white-labelled screen is the one word that must not appear.

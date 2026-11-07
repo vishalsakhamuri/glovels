@@ -228,7 +228,9 @@ WIDGET = r"""
       + '<p style="margin:0;font-size:13.2px;line-height:1.6;color:#0e1a24">Ask us anything about '
       + 'studying abroad. Tell us who you are first, so a counsellor can call you back.</p>'
       + '<input name="name" placeholder="Your name" autocomplete="name" required>'
-      + '<input name="contact" placeholder="Mobile number or email" autocomplete="tel" required>'
+      /* Patch 278 (owner, 7 Nov): "I want mobile no and email id both". */
+      + '<input name="phone" type="tel" placeholder="Mobile number" autocomplete="tel" inputmode="tel" required>'
+      + '<input name="email" type="email" placeholder="Email address" autocomplete="email" required>'
       + '<p class="gv-err" hidden></p>'
       + '<button type="submit" class="gv-go">Start the chat</button>'
       + '<p class="gv-priv">We use this to answer you and to call you back. Nothing else.</p>'
@@ -279,7 +281,7 @@ WIDGET = r"""
 
       if (form.classList.contains('gv-intro')) {
         api('/api/chat/start', {
-          name: form.name.value, contact: form.contact.value,
+          name: form.name.value, phone: form.phone.value, email: form.email.value,
           page: location.pathname,
         }).then(done, failed);
       } else {
