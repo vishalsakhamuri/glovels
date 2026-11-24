@@ -51,11 +51,15 @@ const between = (s, a, b) => { const i = s.indexOf(a); if (i < 0) return ''; con
   ok('all-indicative university: typeKnown false, feeOnRequest true', allInd.typeKnown === false && allInd.feeOnRequest === true, allInd);
   ok('all-indicative university: typeLabel is empty', UNIS.typeLabel(allInd) === '');
   const mixed = UNIS.group([ind('m1'), ind('m2', { feeIndicative: false, totalInr: 1000000 })])[0];
-  ok('a university with a direct row: typeKnown, "Private"', mixed.typeKnown === true && UNIS.typeLabel(mixed) === 'Private');
+  /* Patch 299: public or private is said for Germany only. */
+  ok('a US university with a direct row: typeKnown, but no label outside Germany', mixed.typeKnown === true && UNIS.typeLabel(mixed) === '');
   const de = UNIS.group([{ id: 'd1', program: 'MSc Y', university: 'Fixture TU', city: 'Berlin', country: 'DE', isPublic: true, feeIndicative: false }])[0];
   ok('a German public university: "Public"', UNIS.typeLabel(de) === 'Public');
-  ok('a row: indicative → "", direct → its label', UNIS.typeLabel(ind('r1')) === '' && UNIS.typeLabel({ isPublic: true }) === 'Public'
-    && FIND.typeLabel(ind('r2')) === '' && FIND.typeLabel({ isPublic: false }) === 'Private');
+  ok('a row: indicative → "", direct → its label', UNIS.typeLabel(ind('r1')) === '' && UNIS.typeLabel({ isPublic: true, country: 'DE' }) === 'Public'
+    && FIND.typeLabel(ind('r2')) === '' && FIND.typeLabel({ isPublic: false, country: 'DE' }) === 'Private');
+  ok('patch 299: a UK, US or Australian row says neither, public or private', ['GB', 'US', 'AU', 'CA', ''].every(c =>
+    UNIS.typeLabel({ isPublic: true, country: c }) === '' && UNIS.typeLabel({ isPublic: false, country: c }) === ''
+    && FIND.typeLabel({ isPublic: true, country: c }) === '' && FIND.typeLabel({ isPublic: false, country: c }) === ''));
   const cnt = { US: { name: 'United States', flag: '' } };
   const visitorRow = FIND.rowHtml(Object.assign(UNIS.publicFee(ind('v1')), { uniSlug: 'fixture-agent-university' }), { countries: cnt });
   ok('finder row (visitor): no "Private university", "Fee on request", no figure',
@@ -120,7 +124,7 @@ const between = (s, a, b) => { const i = s.indexOf(a); if (i < 0) return ''; con
   } else ok('programme page: linked from the university page', false, 'no link');
 
   r = await req('v', 'GET', '/university/' + mslug);
-  ok('a university with one direct row keeps "Private university"', r.status === 200 && /Private university/.test(r.text));
+  ok('patch 299: a Canadian university\'s page does not say private or public university', r.status === 200 && !/(Private|Public) university/.test(r.text));
 
   r = await req('v', 'GET', '/university');
   const li = between(r.text, '<b>' + UNI + '</b>', '</li>');
@@ -135,7 +139,7 @@ const between = (s, a, b) => { const i = s.indexOf(a); if (i < 0) return ''; con
   ok('/api/universities/filter: typeLabel "" and feeOnRequest', fu && fu.typeLabel === '' && fu.feeOnRequest === true, fu || r.body);
   r = await req('v', 'GET', '/api/universities/filter?country=CA&q=' + encodeURIComponent('Testmix'));
   const fm = (r.body.universities || []).find(u => u.slug === mslug);
-  ok('/api/universities/filter: a mixed university is "Private"', fm && fm.typeLabel === 'Private' && !fm.feeOnRequest, fm || r.body);
+  ok('patch 299: /api/universities/filter: a Canadian university carries no label', fm && fm.typeLabel === '' && !fm.feeOnRequest, fm || r.body);
 
   r = await req('v', 'GET', '/api/catalogue');
   const vr = (r.body.programmes || []).filter(p => p.university === UNI);

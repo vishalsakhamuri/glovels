@@ -1113,7 +1113,6 @@ body.open{overflow:hidden}
     return api('/api/staff/command').then(function (d) {
       DATA = d; $('#error').hidden = true;
       paintTop(d); paintRoute(d); paintPending(d); paintQueues(d); paintWork(d); paintCrew(d); paintLeadW(d.leadWatch);
-      if (document.body.classList.contains('vstu')) loadStudents();
       if (OPEN && OPEN.kind === 'counsellor') openCounsellor(OPEN.key, OPEN.view);
       else if (OPEN && OPEN.kind === 'work') { /* fetched on demand; left as it is */ }
       else if (OPEN && OPEN.kind !== 'sla') { var q = rowsOpen(); if (q) drawRows(q.rows || [], q.total != null ? q.total : q.students); }

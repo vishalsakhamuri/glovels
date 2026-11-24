@@ -242,8 +242,13 @@
      indicative) is stored non-public so its name is not locked, but its
      real status is not known, so no label at all. Same rule as
      UNIS.typeLabel (server/unis.js). */
+  /* Patch 299: public or private is said for Germany only. Elsewhere — the
+     UK, the US, Australia — it is not what a student chooses by, and the
+     catalogue's flag there is not something to put a label on. */
+  const saysType = p => String((p && p.country) || '').toUpperCase() === 'DE';
   const typeLabel = p => {
     if (!p) return '';
+    if (!saysType(p)) return '';
     const known = p.typeKnown !== undefined ? !!p.typeKnown : !feeIndicative(p);
     return known ? (p.isPublic ? 'Public' : 'Private') : '';
   };
@@ -653,8 +658,8 @@
       return '<article class="frow locked" data-id="' + esc(p.id) + '">'
         + '<div class="flogo lock" aria-hidden="true">' + (flagImg(p.country, c.name, 30) || esc(c.flag)) + '</div>'
         + '<div class="fmain"><h3 class="ftitle masked" aria-hidden="true">' + nameBlur(p) + '</h3>'
-        + '<div class="fsub"><span class="masked" aria-hidden="true">' + uniBlur(p) + '</span> · ' + esc(c.name) + ' · Public university</div>'
-        + '<span class="offscreen">A public university in ' + esc(c.name) + ' that matches these filters. The name and the fee are unlocked by a package.</span>'
+        + '<div class="fsub"><span class="masked" aria-hidden="true">' + uniBlur(p) + '</span> · ' + esc(c.name) + (saysType(p) ? ' · Public university' : '') + '</div>'
+        + '<span class="offscreen">A ' + (saysType(p) ? 'public ' : '') + 'university in ' + esc(c.name) + ' that matches these filters. The name and the fee are unlocked by a package.</span>'
         + '<div class="ftags">' + tags.join('') + '</div>' + verdictHtml + '</div>'
         + '<div class="fside"><div class="fcost masked" aria-hidden="true">████</div><div class="fwhen">' + esc(when) + '</div>'
         + '<div class="facts">' + acts + '<a class="btn btn-navy btn-sm" href="/#packages">Unlock</a></div></div></article>';
@@ -738,5 +743,5 @@
   }
 
   return { KEYS, LEVELS, SORTS, LOCKED_CAP, capLocked, facetValues, defaultSort, parse, toQuery, student, saidAnything, run, keep, verdict, sortRows, title, chipLabel, rowHtml, emptyHtml, listHtml, dividerHtml, isShort,
-    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, levelKey, feeIndicative, typeLabel, awardingBody, GERMANY_ONLY, germanyOnlyOff, germanFrom, money, esc, num, logoFor, logoTokens, tagList, flagImg };
+    nextDeadline, upcomingTerms, termByKey, locked, feeOf, tuitionOf, feeUnknown, levelKey, feeIndicative, typeLabel, saysType, awardingBody, GERMANY_ONLY, germanyOnlyOff, germanFrom, money, esc, num, logoFor, logoTokens, tagList, flagImg };
 });

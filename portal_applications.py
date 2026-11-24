@@ -222,7 +222,7 @@ function block(id) {
         '<div style="font-size:12.8px;color:var(--navy-700)" title="' + esc(uniFull(p))
           + '">' + esc(uniName(p)) + '</div>' +
         '<div style="font-size:11.8px;color:var(--muted);margin-top:2px">' + esc(cname) +
-          (p.feeIndicative ? '' : ' · ' + (p.isPublic ? 'Public' : 'Private')) + '</div>' +
+          (p.feeIndicative || String(p.country || '').toUpperCase() !== 'DE' ? '' : ' · ' + (p.isPublic ? 'Public' : 'Private')) + '</div>' +
       '</div>' +
       /* The university's own answer, in its own words. This read "Offer
          received" for an offer and "Not offered" for everything else, which

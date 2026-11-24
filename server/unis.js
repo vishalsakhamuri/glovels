@@ -328,6 +328,8 @@ function indicativeRow(p) {
 }
 function typeLabel(x) {
   if (!x) return '';
+  /* Patch 299: said for Germany only (the finder's copy has the same rule). */
+  if (String(x.country || '').toUpperCase() !== 'DE') return '';
   const known = x.typeKnown !== undefined ? !!x.typeKnown
     : Array.isArray(x.programmes) ? x.programmes.some(p => !indicativeRow(p)) : !indicativeRow(x);
   if (!known) return '';

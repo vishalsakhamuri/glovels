@@ -1594,7 +1594,7 @@ $('#helloSub').textContent = paid
 /* Round 178: an agent-portal (indicative) fee is never the student's \u2014 the
    server sends 0 and `feeIndicative`; the status (public/private) is not
    known either, so no label (typeOf ''). */
-const typeOf = p => (p && p.feeIndicative) ? '' : (p && p.isPublic ? 'Public' : 'Private');
+const typeOf = p => (!p || p.feeIndicative || String(p.country || '').toUpperCase() !== 'DE') ? '' : (p.isPublic ? 'Public' : 'Private');
 const money = p => (p.feeIndicative || p.feeHidden) ? 'Fee on request' : p.totalInr === 0 ? '\u20B90 tuition'
   : '\u2248 \u20B9' + (p.totalInr / 100000).toFixed(p.totalInr % 100000 ? 1 : 0) + 'L total';
 /* The deadline to show: for the intake the student chose on their profile

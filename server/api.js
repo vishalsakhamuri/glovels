@@ -13040,7 +13040,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       /* Round 178: `typeLabel` '' when the status is not known (an
          agent-portal import); `feeOnRequest` when every fee is indicative. */
       out.push({ slug: u.slug, name: shortNameOf(u.shortName) || u.name, city: u.city, isPublic: !!u.isPublic,
-        typeLabel: UNIS.typeLabel({ typeKnown: u.typeKnown, isPublic: u.isPublic }), feeOnRequest: !!u.feeOnRequest, feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
+        typeLabel: UNIS.typeLabel({ typeKnown: u.typeKnown, isPublic: u.isPublic, country: u.country }), feeOnRequest: !!u.feeOnRequest, feeModel: u.feeModel, feeMin: u.feeMin, feeMax: u.feeMax, listed: !!u.listed,
         featured: !!u.featured, partial: Number(u.matching) < Number(u.n),
         url: '/university/' + u.slug });
     }
