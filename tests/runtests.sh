@@ -324,6 +324,8 @@ run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASS
 node appcounttest.js | tail -1 | sed 's/^/  appcounttest.js    /' | tee -a "$REPORT"
 # patch 286: exceptional approval on a documents step — own server (8286).
 node docexceptiontest.js | tail -1 | sed 's/^/  docexceptiontest.js /' | tee -a "$REPORT"
+# patch 287: the command centre says whose move each file is — own server (8287).
+node pendingtest.js | tail -1 | sed 's/^/  pendingtest.js     /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

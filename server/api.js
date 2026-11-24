@@ -9842,6 +9842,97 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         });
     } catch (e) { journey = []; }
 
+    /* Patch 287: WHO each file is waiting on — the student, the counsellor,
+       the university, the consulate, or the office. "Command centre should
+       not mislead us. It should clearly show the exact status, pending from
+       whom as well" (owner, 24 Nov). Every row said "open" and "on time"
+       while four documents had never been uploaded: the board knew a step
+       was open, not whose move it was. One line per open file, worked out
+       from the file itself — documents, shortlist, applications, visa — in
+       the order somebody would ask: is there anything the office has not
+       done, then what are we waiting for from outside. */
+    const WITH = { student: 'Student', counsellor: 'Counsellor', university: 'University', consulate: 'Consulate', office: 'Office' };
+    const listSaid = (names, n) => names.slice(0, n).join(', ') + (names.length > n ? ' and ' + (names.length - n) + ' more' : '');
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const nextOpen = new Map();
+    tasksAll.forEach(t => {
+      if (t.derived || TASKS.CLOSED.has(String(t.status))) return;
+      const sid = Number(t.student_id);
+      const was = nextOpen.get(sid);
+      if (!was || String(t.due_at || '9') < String(was.due_at || '9')) nextOpen.set(sid, t);
+    });
+    const pendingOf = st => {
+      const sid = Number(st.id);
+      let ph = null, F = null;
+      try { ph = TASKS.phaseOf(db, st, now); } catch (e) { ph = null; }
+      try { F = TASKS.factsOf(db, st); } catch (e) { F = null; }
+      const A = appsOf(sid);
+      const stage = ph ? (ph.short || ph.label || '') : '';
+      const say = (who, what) => ({ with: who, withLabel: WITH[who], what, stage, key: ph ? ph.key : '' });
+      if (!counsellorOf(st)) return say('office', 'No counsellor is assigned to this file');
+      const key = ph ? ph.key : '';
+      const docs = (F && F.docs && F.docs.docs) || [];
+      const toCheck = docs.filter(d => d.status === 'wait');
+      const toSend = docs.filter(d => d.status === 'none' || d.status === 'rescan');
+      if (key === 'enrolled') return say('counsellor', 'Welcome call to make and the file to open');
+      if (key === 'profile') {
+        const exc = F && F.docException && F.docException.profile;
+        /* What the office can do today comes first; what it is waiting for follows. */
+        if (toCheck.length) {
+          return say('counsellor', plural(toCheck.length, 'document', 'documents') + ' uploaded and waiting to be checked: ' + listSaid(toCheck.map(d => d.name), 4)
+            + (toSend.length ? ' (and ' + toSend.length + ' still to come from the student)' : ''));
+        }
+        if (toSend.length && !exc) {
+          return say('student', plural(toSend.length, 'required document', 'required documents') + ' to upload: ' + listSaid(toSend.map(d => d.name), 5));
+        }
+        return say('counsellor', 'Documents are in — the step “Profile completed and documents collected” is to be closed');
+      }
+      if (key === 'shortlist') {
+        return A.listed ? say('counsellor', 'Shortlist of ' + A.listed + ' to confirm with the student')
+          : say('counsellor', 'Shortlist to prepare — nothing is on the list yet');
+      }
+      if (key === 'writing') return say('counsellor', 'SOP and LOR to finish and approve');
+      if (key === 'applying' || key === 'offers') {
+        const todo = A.items.filter(x => !x.applied), wait = A.items.filter(x => x.waiting);
+        if (!A.listed) return say('counsellor', 'No university is on the shortlist to apply to');
+        if (todo.length) {
+          return say('counsellor', plural(A.pending, 'application', 'applications') + ' still to submit (' + A.applied + ' of ' + A.listed + ' applied): '
+            + listSaid(todo.map(x => x.university), 3));
+        }
+        if (wait.length) return say('university', 'Decision awaited from ' + listSaid(wait.map(x => x.university), 3)
+          + ' (' + A.applied + ' of ' + A.listed + ' applied)');
+        if (A.offers) return say('student', plural(A.offers, 'offer', 'offers') + ' in — the student is to choose and accept');
+        return say('counsellor', 'Every application has an answer and none is an offer — the next step is to be agreed');
+      }
+      if (key === 'visa') {
+        const V = (F && F.visaDocs) || { ok: 0, of: 0, docs: [] };
+        const vCheck = (V.docs || []).filter(d => d.status === 'wait');
+        const vSend = (V.docs || []).filter(d => d.status === 'none' || d.status === 'rescan');
+        const dec = F && F.visa ? F.visa.decision : '';
+        if (dec === 'granted') return say(F.visa.travelDate ? 'counsellor' : 'student',
+          F.visa.travelDate ? 'Visa granted — pre-departure steps to finish' : 'Visa granted — travel date to come from the student');
+        if (dec === 'more') return say('student', 'The consulate has asked for more documents');
+        if (dec === 'refused') return say('counsellor', 'Visa refused — the next step is to be agreed with the student');
+        if (vCheck.length) return say('counsellor', plural(vCheck.length, 'visa document', 'visa documents') + ' waiting to be checked');
+        if (vSend.length) return say('student', plural(vSend.length, 'visa document', 'visa documents') + ' to upload: ' + listSaid(vSend.map(d => d.name), 5));
+        const nt = nextOpen.get(sid);
+        return nt && String(nt.task_key) !== 'visadecision' ? say('counsellor', 'Visa file complete — ' + nt.title)
+          : say('consulate', 'Visa application filed — decision awaited');
+      }
+      const nt = nextOpen.get(sid);
+      return nt ? say('counsellor', 'Next step: ' + nt.title) : say('counsellor', 'Nothing is open on this file');
+    };
+    const pending = {};
+    const pendingFrom = { student: 0, counsellor: 0, university: 0, consulate: 0, office: 0 };
+    files.forEach(st => {
+      if (!withWork.has(Number(st.id))) return;
+      let p = null;
+      try { p = pendingOf(st); } catch (e) { p = null; }
+      if (!p) return;
+      pending[Number(st.id)] = Object.assign({ student: st.name, counsellor: counsellorOf(st) }, p);
+      pendingFrom[p.with]++;
+    });
+
     const lateAll = queues.reduce((n, q) => n + q.late, 0);
     const openAll = queues.reduce((n, q) => n + q.total, 0);
     return {
@@ -9855,6 +9946,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         waitingReply: out.messages.length,
       },
       queues, counsellors, journey, applications,
+      /* Patch 287: whose move each file is, and the count by whom. */
+      pending, pendingFrom,
       /* Patch 221: the lead SLA, on the main board too — the tile links to
          the Leads command centre. */
       leadWatch: (() => { try { return leadCommand(s, now, true); } catch (e) { return null; } })(),
