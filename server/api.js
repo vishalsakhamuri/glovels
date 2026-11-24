@@ -1705,8 +1705,41 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
 
   /* The counsellor's first two messages. Seeded server-side on the student's
      first visit so the thread is identical on every device they sign in from. */
+  /* Patch 284: the APS certificate and the blocked account are Germany's.
+     The tip about them goes only to a student whose destination includes
+     Germany — at the first visit if that is already known, otherwise the
+     moment Germany is saved on the profile, or at the next sign-in. Once
+     only; never on the entry-tier (₹99 / ₹999) threads. APS is asked of
+     students educated in India, China, Vietnam or Mongolia: where the home
+     country is known and is none of these, the tip names the blocked account
+     alone. */
+  const APS_HOMES = new Set(['india', 'in', 'china', 'cn', 'vietnam', 'viet nam', 'vn', 'mongolia', 'mn']);
+  const wantsGermany = prof => String((prof && (prof.g_country || prof.destination)) || '')
+    .split(/[,;\/|]+/).map(x => x.trim().toLowerCase()).some(x => x === 'de' || x === 'germany' || x === 'deutschland');
+  const entryThread = s => matchEntitlement(s).count > 0
+    && !db.ordersFor(s.id).some(o => EARNED.has(o.status) && Number(o.public_unis) >= 5);
+  function germanyTip(s) {
+    try {
+      if (!s || s.role !== 'student') return false;
+      const thread = db.getMessages(s.id) || [];
+      if (!thread.length) return false;                       // not welcomed yet
+      if (thread.some(m => /blocked account/i.test(String(m.body || '')))) return false;
+      if (entryThread(s)) return false;
+      const prof = db.getProfile(s.id) || {};
+      if (!wantsGermany(prof)) return false;
+      const home = String(prof.addr_country || '').trim().toLowerCase();
+      const aps = !home || APS_HOMES.has(home);
+      db.addMessage(s.id, 'them', aps
+        ? 'Two things worth starting now for Germany, because they are the slowest: the APS certificate '
+          + '(6–8 weeks) and your blocked account. Everything else can follow.'
+        : 'One thing worth starting now for Germany, because it is the slowest: your blocked account. '
+          + 'Everything else can follow.', '');
+      return true;
+    } catch (e) { return false; }
+  }
+
   function seedMessages(s) {
-    if (db.getMessages(s.id).length) return;
+    if (db.getMessages(s.id).length) { germanyTip(s); return; }
 
     /* Two different people are reading this.
      *
@@ -1715,8 +1748,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
      * "I will confirm the shortlist with you on a call" is exactly the promise
      * of a phone call that the entry tiers exist to avoid making. It would also
      * be a promise the office cannot afford to keep at that price. */
-    const entry = matchEntitlement(s).count > 0
-      && !db.ordersFor(s.id).some(o => EARNED.has(o.status) && Number(o.public_unis) >= 5);
+    const entry = entryThread(s);
 
     if (entry) {
       db.addMessage(s.id, 'them',
@@ -1736,9 +1768,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     db.addMessage(s.id, 'them',
       'Welcome — your counsellor has your profile open. Once your documents are '
       + 'verified they will confirm the shortlist with you on a call.', '');
-    db.addMessage(s.id, 'them',
-      'Two things worth starting now, because they are the slowest: the APS certificate '
-      + '(6–8 weeks) and your blocked account. Everything else can follow.', '');
+    /* Patch 284: the second message is Germany's, and only Germany's. */
+    germanyTip(s);
   }
 
   /*
@@ -2293,6 +2324,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       });
     }
     db.putProfile(s.id, prof);
+    /* Patch 284: Germany just saved as the destination — the tip goes now. */
+    germanyTip(s);
     /* Name and phone typed into the profile are the student's own record, so
        they update the account too rather than living in two places. */
     const p = prof;
@@ -7685,6 +7718,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       return json(res, 422, { error: wrong[0].why, fields: wrong.map(w => ({ field: w.field, why: w.why })) });
     }
     db.putProfile(id, prof);
+    /* Patch 284: a counsellor saving Germany for them counts the same. */
+    try { germanyTip(db.studentById(id)); } catch (e) { /* the save stands */ }
     if (prof.fullName || prof.phone) {
       db.updateStudent(id, prof.fullName || st.name,
         anyPhone(prof.phone) || validPhone(prof.phone) ? storePhone(prof.phone) : st.phone);
