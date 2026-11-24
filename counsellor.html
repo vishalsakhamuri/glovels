@@ -2163,7 +2163,7 @@ function standHtml(S) {
         + (PW[P.with] || PW.counsellor)[0] + ';color:' + (PW[P.with] || PW.counsellor)[1] + '">Pending from ' + esc(P.withLabel) + '</span>' + esc(P.what) + '</p>' : '')
     + (A.listed ? '<details class="stand-apps" style="margin-top:10px"' + (A.listed <= 6 ? ' open' : '') + '><summary style="cursor:pointer;font:700 12.8px/1.4 var(--sans);color:var(--navy-800)">Applications: '
         + A.applied + ' of ' + A.listed + ' applied' + (A.pending ? ', ' + A.pending + ' pending' : '') + '</summary>'
-        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 22px;margin-top:6px">'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:4px 22px;margin-top:6px">'
         + '<div><b style="font:800 10.8px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Applied (' + done.length + ')</b>'
         + (done.length ? '<ul style="list-style:none;margin:6px 0 0;padding:0">' + done.map(li).join('') + '</ul>' : '<p style="margin:6px 0 0;font-size:12.6px;color:var(--muted)">None yet.</p>') + '</div>'
         + '<div><b style="font:800 10.8px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Pending, still to apply (' + todo.length + ')</b>'
@@ -2691,13 +2691,13 @@ function paintRecord(r) {
            an empty left half. */
         '<div class="filewide" style="display:grid;gap:20px">' +
           '<div><h3 style="font-size:14.5px;margin-bottom:10px">Profile</h3>' +
-            '<ul class="doclist factgrid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 26px">' + facts.map(([k, v]) =>
+            '<ul class="doclist factgrid" style="grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:8px 26px">' + facts.map(([k, v]) =>
               '<li style="padding-bottom:7px;border-bottom:1px solid var(--line)"><span style="color:var(--muted);min-width:92px">' + esc(k) + '</span>' +
               '<span class="st none" style="margin-left:auto;max-width:60%;text-transform:none;' +
               'letter-spacing:0;font-weight:600">' + esc(v) + '</span></li>').join('') + '</ul></div>' +
           '<div><h3 style="font-size:14.5px;margin-bottom:10px">Documents</h3>' +
             /* Patch 172 (N17-02): grouped by document — see docGroups. */
-            '<ul class="doclist docgrid" id="docs" style="grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px;align-items:start">' + ((DOCSIG = docSig(r.docs)), docGroups(r.docs)) + '</ul>' +
+            '<ul class="doclist docgrid" id="docs" style="grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr));gap:10px;align-items:start">' + ((DOCSIG = docSig(r.docs)), docGroups(r.docs)) + '</ul>' +
             /*
              * Finished work, handed back.
              *

@@ -1135,7 +1135,7 @@ body.open{overflow:hidden}
   function tick() {
     $('#now').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
   }
-  $('#refresh').onclick = load;
+  $('#refresh').onclick = function () { if (document.body.classList.contains('vstu')) loadStudents(); return load(); };
   window.addEventListener('resize', function () { if (DATA) paintRoute(DATA); });
 
   /* ------------------------------------------------ booked calls (206) */
