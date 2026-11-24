@@ -2404,6 +2404,15 @@ function addForm() {
     + '</div>'
     + '<div class="field"><label for="aNote">What they want</label>'
       + '<textarea id="aNote" rows="2"></textarea></div>'
+    /* Patch 295: the stage it is really at, and whose it is. */
+    + '<div class="two">'
+      + '<div class="field"><label for="aStatus">Status</label><select id="aStatus">'
+        + opt('contacted', 'Contacted', true) + opt('following', 'Following up') + opt('converted', 'Converted \u2014 already joined') + '</select></div>'
+      + '<div class="field"><label for="aOwner">Counsellor</label><select id="aOwner">'
+        + '<option value="">Me</option>' + PEOPLE.map(p => opt(p.id, p.name)).join('') + '</select></div>'
+    + '</div>'
+    + '<p id="aConvNote" hidden style="margin:-4px 0 12px;font-size:12.2px;line-height:1.55;color:var(--muted)">'
+      + 'Converted makes their student account now, emails them the sign-in details, and puts the student with the counsellor chosen. An email address is needed.</p>'
     + '<p id="dErr" role="alert" style="display:none;margin:0 0 10px;padding:10px 12px;'
       + 'border-radius:9px;font:600 12.6px/1.5 var(--sans);background:#fdf3f2;'
       + 'border:1px solid #f0c8c4;color:#7a2118"></p>'
@@ -2419,9 +2428,15 @@ function addForm() {
   $('#aPhone').addEventListener('blur', checkDup);
   $('#aMail').addEventListener('blur', checkDup);
 
+  $('#aStatus').onchange = () => {
+    const conv = $('#aStatus').value === 'converted';
+    $('#aConvNote').hidden = !conv;
+    $('#aGo').textContent = conv ? 'Add and convert to a student' : 'Add to the book';
+  };
   $('#aGo').onclick = async () => {
     say('');
     if (!$('#aSource').value) return say('Choose where they came from.');
+    if ($('#aStatus').value === 'converted' && !$('#aMail').value.trim()) return say('A converted lead becomes a student account, and an account needs an email address.');
     /* And again on save — the warning stands, the lead is still written. */
     await checkDup();
     try {
@@ -2432,9 +2447,26 @@ function addForm() {
         source: $('#aSource').value,
         destination: $('#aDest').value.trim(),
         note: $('#aNote').value.trim(),
+        status: $('#aStatus').value,
+        ownerId: $('#aOwner').value || null,
       });
       await load();
-      if (r.lead) open_(r.lead.id);
+      if (r.lead) await open_(r.lead.id);
+      if (r.student || r.convertError) {
+        const box = document.createElement('div');
+        box.id = 'aConvDone';
+        box.style.cssText = 'margin-top:14px;padding:13px 15px;border-radius:11px;font:600 12.9px/1.65 var(--sans);'
+          + (r.student ? 'background:#e6f4ec;border:1px solid #bfe0cc;color:#14603a' : 'background:#fdf3f2;border:1px solid #f0c8c4;color:#7a2118');
+        box.innerHTML = r.convertError ? 'The lead is in the book, but the account was not made: ' + esc(r.convertError)
+          : r.accountCreated
+          ? 'Account made for <b>' + esc(r.student.email) + '</b> and the sign-in details '
+            + 'emailed.<br>First password: <b style="font:700 14px/1.6 ui-monospace,monospace">'
+            + esc(r.password) + '</b><br>They have to change it the first time they sign in. '
+            + 'This is the only time it is shown.'
+          : 'They already had an account on <b>' + esc(r.student.email) + '</b>, so the lead '
+            + 'is tied to it rather than making a second one.';
+        $('#leadPane').appendChild(box);
+      }
     } catch (e) { say(e.message); }
   };
   $('#aName').focus();

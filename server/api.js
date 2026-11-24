@@ -11945,6 +11945,22 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     }
     const source = SOURCES.has(String(b.source || '').toLowerCase())
       ? String(b.source).toLowerCase() : 'phone';
+    /* Patch 295: a lead can be logged at the stage it is really at — a
+       referral who has already joined is logged as converted, which makes
+       the account in the same step — and given to a counsellor on the spot. */
+    const wantStatus = String(b.status || '').trim() || 'contacted';
+    if (!['contacted', 'following', 'converted'].includes(wantStatus)) {
+      return json(res, 422, { error: 'A lead is logged as contacted, following up or converted.' });
+    }
+    const own = ownerOrNull(b.ownerId);
+    if (!own.ok) return json(res, 422, { error: 'Pick a counsellor from the list.' });
+    if (wantStatus === 'converted') {
+      if (!validEmail(email)) {
+        return json(res, 422, { error: 'A converted lead becomes a student account, and an account needs an email address \u2014 that is what they sign in with.' });
+      }
+      const known = db.studentByEmail(email.toLowerCase());
+      if (known && known.role !== 'student') return json(res, 409, { error: 'That email address belongs to a staff account.' });
+    }
     const row = db.addEnquiry({
       name, email, phone: storePhone(phone),
       destination: String(b.destination || '').slice(0, 60),
@@ -11953,13 +11969,22 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       sourcePage: 'added by ' + s.name, referrer: '',
       /* Whoever writes it down owns it, unless they say otherwise. A lead
          logged and left unowned is the one that goes cold. */
-      ownerId: b.ownerId ? Number(b.ownerId) : s.id,
-      status: 'contacted',
+      ownerId: own.id || s.id,
+      status: wantStatus === 'following' ? 'following' : 'contacted',
     });
     if (row) {
       db.addLeadNote(row.id, s.name, 'added',
         'Added by hand' + (b.note ? ' — ' + String(b.note).trim().slice(0, 300) : ''));
       db.log(s.name, 'logged a lead', name + ' (' + source + ')');
+    }
+    if (row && wantStatus === 'converted') {
+      const out = convertLead(db.enquiryById(row.id), s, { counsellorId: own.id || s.id });
+      /* The lead is in the book either way; say so if the account was not made. */
+      if (out.code !== 200) {
+        return json(res, 200, { lead: leadShape(db.enquiryById(row.id), db.leadNoteCounts(), peopleMap()),
+          convertError: (out.body && out.body.error) || 'The account could not be made.' });
+      }
+      return json(res, 200, out.body);
     }
     return json(res, 200, { lead: row ? leadShape(row, db.leadNoteCounts(), peopleMap()) : null });
   }));
@@ -12291,24 +12316,21 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
    * marked converted and tied to the student, so the two are the same person
    * from here on.
    */
-  route('POST', /^\/api\/staff\/lead\/(\d+)\/convert$/, leadsOnly(async (req, res, s, m) => {
-    const e = db.enquiryById(Number(m[1]));
-    if (!e) return json(res, 404, { error: 'No such enquiry' });
-    if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
-      return json(res, 403, { error: 'That lead belongs to somebody else' });
-    }
-    const b = await readJson(req);
+  /* The conversion itself: the account (made, or found), the counsellor, the
+     lead closed as converted. Returns { code, body }. Since patch 295 the
+     Log a lead form uses it too. */
+  function convertLead(e, s, b) {
     const name = String(b.name || e.name || '').trim().slice(0, 80);
     const email = String(b.email || e.email || '').trim().toLowerCase();
     /* Patch 274: the number as the lead has it, country code and all. */
     const phone = storePhone(String(b.phone || e.phone || '').trim());
 
-    if (!name) return json(res, 422, { error: 'They need a name' });
+    if (!name) return { code: 422, body: { error: 'They need a name' } };
     if (!validEmail(email)) {
-      return json(res, 422, {
+      return { code: 422, body: {
         error: 'An account needs an email address — that is what they sign in with. '
              + 'Ask them for one and put it on the lead first.',
-      });
+      } };
     }
 
     /* Already has an account: tie the lead to it rather than refusing, because
@@ -12319,7 +12341,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     let made = false;
     if (person) {
       if (person.role !== 'student') {
-        return json(res, 409, { error: 'That email address belongs to a staff account.' });
+        return { code: 409, body: { error: 'That email address belongs to a staff account.' } };
       }
     } else {
       password = newPassword();
@@ -12344,7 +12366,10 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
        owner carried over could be a closed or a test account ("qwe"), and the
        converting counsellor could be a test account too. None: Unassigned. */
     const assignable = id => !!id && db.activeCaseworkers().some(c => Number(c.id) === Number(id));
-    const owner = s.role === 'counsellor' && assignable(s.id) ? s.id
+    /* Patch 295: a counsellor named when the lead was logged as converted
+       looks after them, whoever logged it. */
+    const owner = assignable(b.counsellorId) ? Number(b.counsellorId)
+      : s.role === 'counsellor' && assignable(s.id) ? s.id
       : (assignable(e.owner_id) ? Number(e.owner_id) : null);
     if (owner) { try { db.assignCounsellor(person.id, owner); } catch (err) { /* not fatal */ } }
 
@@ -12358,7 +12383,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
            : 'Converted. They already had an account on ' + email + '.');
     db.log(s.name, 'converted a lead', name + ' — ' + email);
 
-    return json(res, 200, {
+    return { code: 200, body: {
       lead: leadShape(row, db.leadNoteCounts(), peopleMap()),
       notes: db.leadNotes(e.id).map(n => ({
         id: n.id, who: n.who, kind: n.kind, body: n.body, at: n.created_at,
@@ -12369,7 +12394,18 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
          normal failure and a counsellor sitting with the student on the phone
          can read it out. */
       password: password || '',
-    });
+    } };
+  }
+
+  route('POST', /^\/api\/staff\/lead\/(\d+)\/convert$/, leadsOnly(async (req, res, s, m) => {
+    const e = db.enquiryById(Number(m[1]));
+    if (!e) return json(res, 404, { error: 'No such enquiry' });
+    if (s.role !== 'admin' && e.owner_id && Number(e.owner_id) !== Number(s.id)) {
+      return json(res, 403, { error: 'That lead belongs to somebody else' });
+    }
+    const b = await readJson(req);
+    const out = convertLead(e, s, b);
+    return json(res, out.code, out.body);
   }));
 
   route('GET', /^\/api\/staff\/chat\/(\d+)$/, caseworkOnly(async (req, res, s, m) => {

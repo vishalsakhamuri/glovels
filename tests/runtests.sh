@@ -340,6 +340,8 @@ node logotest.js | tail -1 | sed 's/^/  logotest.js        /' | tee -a "$REPORT"
 node counsellorworktest.js | tail -1 | sed 's/^/  counsellorworktest.js /' | tee -a "$REPORT"
 # patch 294: leads by counsellor — new, working, converted, not converted, follow-ups — own server (8296).
 node leadboardtest.js | tail -1 | sed 's/^/  leadboardtest.js /' | tee -a "$REPORT"
+# patch 295: a lead logged as already converted, and given to a counsellor — own server (8297).
+node leadlogconverttest.js | tail -1 | sed 's/^/  leadlogconverttest.js /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"
