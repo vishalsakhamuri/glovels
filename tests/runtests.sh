@@ -328,6 +328,8 @@ node docexceptiontest.js | tail -1 | sed 's/^/  docexceptiontest.js /' | tee -a 
 node pendingtest.js | tail -1 | sed 's/^/  pendingtest.js     /' | tee -a "$REPORT"
 # patch 288: "1 document to check" says which, and the file opens on it — own server (8288).
 node doccheckshowtest.js | tail -1 | sed 's/^/  doccheckshowtest.js /' | tee -a "$REPORT"
+# patch 289: a B2B agency has one admin and up to ten counsellors — own server (8289).
+node b2bteamtest.js | tail -1 | sed 's/^/  b2bteamtest.js     /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

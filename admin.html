@@ -1135,7 +1135,8 @@ select.assign.none:hover{border-color:#a5342b}
               <option value="super">Super admin — also admins, money, settings and exports</option>
               <option value="marketing">Marketing — traffic, campaigns, searches and spend; no student records</option>
               <option value="editor">Website editor — the site only, no student records</option>
-              <option value="partner">Partner agency (B2B) — a partner who sends us students</option>
+              <option value="partner">Partner agency (B2B admin) — a partner who sends us students</option>
+              <option value="partner-sub">B2B counsellor — a login under an existing partner agency (up to 10)</option>
               <option value="student">Student — a real student account on this site</option>
             </select></div>
           <div class="pm-row" id="pKindBox">
@@ -1155,6 +1156,12 @@ select.assign.none:hover{border-color:#a5342b}
             <div class="pm-quick" id="pScopeQuick"></div>
             <small class="pm-help" id="pScopeHelp">Leave empty for every country.</small>
           </div>
+          <div class="field" id="pAgencyBox" style="display:none;margin-bottom:10px"><label for="pAgency">Which agency</label>
+            <select id="pAgency"></select>
+            <p style="margin:6px 0 0;font:600 12.2px/1.5 var(--sans);color:var(--navy-800)">
+              A B2B counsellor signs in to the agency's screen and sees only the students they
+              add, or that the agency's admin moves to them. The agency's admin sees every
+              student and can move them between counsellors.</p></div>
           <p id="pPartnerNote" style="display:none;margin:0 0 10px;padding:11px 13px;
             border-radius:10px;background:#f6f2ea;border:1px solid #e2d6bd;
             font:600 12.4px/1.55 var(--sans);color:var(--navy-800)">
@@ -4013,7 +4020,11 @@ async function paintPeople() {
       /* Said out loud. A partner sitting on this list with nothing but a
          student count reads as a counsellor, and the difference between a
          counsellor and an outside agency is the whole point of the role. */
-      : p.role === 'partner' ? 'Partner agency · ' + p.caseload + ' sent'
+      /* Patch 289: a B2B counsellor login says whose it is; the agency says
+         how many counsellor logins it has. */
+      : p.role === 'partner' && p.b2bRole === 'counsellor'
+        ? 'B2B counsellor · ' + (p.agency || 'agency') + ' · ' + p.caseload + ' student' + (p.caseload === 1 ? '' : 's')
+      : p.role === 'partner' ? 'Partner agency (B2B admin) · ' + p.caseload + ' sent · ' + (p.b2bCounsellors || 0) + '/10 counsellors'
       /* Patch 177 (item 12): open files, with the closed ones said beside. */
       : p.caseload + ' student' + (p.caseload === 1 ? '' : 's') + (p.closedFiles ? ' · ' + p.closedFiles + ' closed' : '');
     const perms = p.role === 'admin'
@@ -4193,7 +4204,9 @@ function fillCountries(list) {
   if (dl && !dl.children.length) dl.innerHTML = COUNTRY_LIST.map(c => '<option value="' + esc(c.name) + '">').join('');
 }
 function bodyRole(v) {
-  return v === 'super' ? { role: 'admin', super: true }
+  /* Patch 289: a B2B counsellor is a partner login tied to its agency. */
+  return v === 'partner-sub' ? { role: 'partner', sub: true }
+    : v === 'super' ? { role: 'admin', super: true }
     : v === 'marketing' ? { role: 'editor', marketing: true }
     : v === 'country-admin' ? { role: 'counsellor', manager: true }
     : { role: v };
@@ -4291,6 +4304,15 @@ document.addEventListener('click', async e => {
               ($('#pPermMarketing').checked || $('#pRole').value === 'marketing') && 'marketing'].filter(Boolean),
     };
     $('#pErr').style.display = 'none';
+    /* Patch 289 */
+    if (lv.sub && !EDITING) {
+      body.perms = []; body.agencyId = Number(($('#pAgency') || {}).value) || 0;
+      if (!body.agencyId) {
+        $('#pErr').textContent = 'Choose the agency this counsellor belongs to. If it is not on the list, create the partner agency first.';
+        $('#pErr').style.display = 'block';
+        return;
+      }
+    }
     btn.disabled = true;
     const editing = EDITING;
     btn.textContent = editing ? 'Saving…' : 'Creating…';
@@ -4458,7 +4480,20 @@ function syncRole() {
   const note = $('#pStudentNote');
   if (note) note.style.display = role === 'student' ? '' : 'none';
   const pn = $('#pPartnerNote');
-  if (pn) pn.style.display = role === 'partner' ? '' : 'none';
+  const sub = $('#pRole').value === 'partner-sub';
+  if (pn) pn.style.display = role === 'partner' && !sub ? '' : 'none';
+  /* Patch 289: a B2B counsellor login needs its agency. */
+  const ab = $('#pAgencyBox');
+  if (ab) {
+    ab.style.display = sub ? '' : 'none';
+    if (sub) {
+      const ags = (PEOPLE || []).filter(p => p.role === 'partner' && !p.agencyId);
+      $('#pAgency').innerHTML = ags.length
+        ? ags.map(p => '<option value="' + p.id + '"' + ((p.b2bCounsellors || 0) >= 10 ? ' disabled' : '') + '>'
+            + esc(p.name) + ' \u2014 ' + (p.b2bCounsellors || 0) + ' of 10 counsellor logins</option>').join('')
+        : '<option value="">No partner agency yet \u2014 create the agency first</option>';
+    }
+  }
 }
 $('#pRole').addEventListener('change', () => { syncRole(); syncLevel(); });
 

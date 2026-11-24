@@ -608,6 +608,14 @@ function sqliteDriver(file) {
       into one field will have to be undone the first time a partner sends
       somebody Glovels has to work on directly. */
    'ALTER TABLE students ADD COLUMN partner_id INTEGER',
+   /* Patch 289: WHICH LOGIN AT THE AGENCY holds this student. An agency now
+      has one admin and up to ten counsellors; a counsellor sees the students
+      they hold, the admin sees them all and can move one to another
+      counsellor. NULL means the agency's admin holds it — which is every
+      student added before this existed. Only meaningful on a student row
+      whose partner_id is set; it always names a partner login of that same
+      agency. */
+   'ALTER TABLE students ADD COLUMN partner_owner_id INTEGER',
    /* A partner's own mark, shown in their portal in place of the Glovels one.
       Held as a data URL rather than a file so there is no second upload path
       to authorise, and capped small — this is a logo, not an asset library. */
@@ -3441,6 +3449,17 @@ function open(dir) {
         Number(partnerId)).length
       : 0),
 
+    /* Patch 289: who at the agency holds a student (null = the agency's admin). */
+    setPartnerOwner(studentId, ownerId) {
+      db.run('UPDATE students SET partner_owner_id = ? WHERE id = ?',
+        ownerId ? Number(ownerId) : null, Number(studentId));
+    },
+    /* A counsellor login is going away: what they held goes back to the admin. */
+    releasePartnerOwner(ownerId) {
+      const n = db.all("SELECT id FROM students WHERE role = 'student' AND partner_owner_id = ?", Number(ownerId)).length;
+      db.run('UPDATE students SET partner_owner_id = NULL WHERE partner_owner_id = ?', Number(ownerId));
+      return n;
+    },
     setPartner(studentId, partnerId) {
       db.run('UPDATE students SET partner_id = ? WHERE id = ?',
         partnerId ? Number(partnerId) : null, Number(studentId));

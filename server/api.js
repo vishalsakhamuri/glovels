@@ -5770,6 +5770,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
          point; a phone number for that person is how the office stops being
          the single door it was asked to be. */
       counsellor: c ? c.name : '',
+      /* Patch 289: who at the AGENCY holds this student — one of its
+         counsellor logins, or null for the agency's admin. */
+      heldBy: (() => {
+        const o = Number(st.partner_owner_id) ? db.studentById(Number(st.partner_owner_id)) : null;
+        return o && o.role === 'partner' && Number(o.partner_id) === Number(st.partner_id) ? { id: o.id, name: o.name } : null;
+      })(),
       package: packageOf(orders).package,
       addOns: packageOf(orders).addOns,
       destination: profile.g_country || profile.destination || '',
@@ -5820,6 +5826,36 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
    */
   const agencyOf = s => Number(s.partner_id) || Number(s.id);
 
+  /*
+   * Patch 289: ONE ADMIN AND UP TO TEN COUNSELLORS, each with their own book.
+   *
+   * Owner, 24 Nov: "every B2B customer is asking for a main admin and
+   * counsellors. We can have up to 10 counsellors and one admin in B2B. The
+   * B2B admin can see the list of all students, and also do what the current
+   * B2B login can do. He will ask our main admin to create sub-logins for
+   * his counsellors. A counsellor can upload students. The B2B admin can see
+   * total students and a counsellor can see his uploaded students. The admin
+   * can move students from one counsellor to another and the data also
+   * moves."
+   *
+   * So "two people at the same agency see one book" is no longer true. The
+   * account that owns the agency is its ADMIN and sees everything; every
+   * other login is a COUNSELLOR and sees the students they hold — the ones
+   * they added, and the ones the admin moved to them. A student is one record
+   * (profile, documents, shortlist, applications), so moving it moves all of
+   * it. Counsellor logins are made by a Glovels administrator on the
+   * Organisation screen, never by the agency itself.
+   */
+  const MAX_PARTNER_COUNSELLORS = 10;
+  const isAgencyAdmin = s => !Number(s.partner_id);
+  const agencyTeam = agencyId => db.partners().filter(p => Number(p.partner_id) === Number(agencyId));
+  /* The students this login may see: all of the agency's for its admin, the
+     ones they hold for a counsellor. */
+  const bookOf = s => {
+    const all = db.partnerStudents(agencyOf(s));
+    return isAgencyAdmin(s) ? all : all.filter(st => Number(st.partner_owner_id) === Number(s.id));
+  };
+
   /* And the only gate on a student. A partner reaching for an id that is not
      theirs gets the same answer as one reaching for an id that does not
      exist — there is no way to learn from this endpoint that a student is
@@ -5828,11 +5864,14 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const st = db.studentById(Number(id));
     if (!st || st.role !== 'student') return null;
     if (Number(st.partner_id) !== agencyOf(s)) return null;
+    /* Patch 289: a counsellor reaching for a colleague's student gets the same
+       answer as for a student that does not exist. */
+    if (!isAgencyAdmin(s) && Number(st.partner_owner_id) !== Number(s.id)) return null;
     return st;
   };
 
   route('GET', '/api/partner/me', partnerOnly(async (req, res, s) => {
-    const mine = db.partnerStudents(agencyOf(s));
+    const mine = bookOf(s);
     const owner = Number(s.partner_id) ? db.studentById(Number(s.partner_id)) : s;
     return json(res, 200, {
       partner: {
@@ -5844,6 +5883,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         /* Only the account that owns the agency may add colleagues to it, and
            the screen has to know which one it is looking at. */
         isOwner: !Number(s.partner_id),
+        /* Patch 289 */
+        role: isAgencyAdmin(s) ? 'admin' : 'counsellor',
       },
       counts: {
         students: mine.length,
@@ -5854,7 +5895,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   }));
 
   route('GET', '/api/partner/students', partnerOnly(async (req, res, s) =>
-    json(res, 200, { students: db.partnerStudents(agencyOf(s)).map(forPartner) })));
+    json(res, 200, { students: bookOf(s).map(forPartner) })));
 
   /* One student, opened. The profile they typed, every document with its
      state, and the shortlist by name — the same three things the student's own
@@ -6074,18 +6115,74 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
 
   route('GET', '/api/partner/team', partnerOnly(async (req, res, s) => {
     const owner = agencyOf(s);
+    /* Patch 289: the admin sees the team and how many students each holds; a
+       counsellor sees only themself. */
+    if (!isAgencyAdmin(s)) {
+      return json(res, 200, { team: [{ id: s.id, name: s.name, email: s.email, owner: false, me: true,
+        students: bookOf(s).length }], isOwner: false, max: MAX_PARTNER_COUNSELLORS });
+    }
     const rows = db.partners().filter(p => Number(p.id) === owner
       || Number(p.partner_id) === owner);
+    const all = db.partnerStudents(owner);
+    const teamIds = new Set(rows.filter(p => Number(p.partner_id)).map(p => Number(p.id)));
     return json(res, 200, {
       team: rows.map(p => ({
         id: p.id, name: p.name, email: p.email,
         owner: !Number(p.partner_id), me: Number(p.id) === Number(s.id),
+        /* The admin holds everything nobody else does — including whatever
+           points at a login that has since gone. */
+        students: Number(p.partner_id)
+          ? all.filter(st => Number(st.partner_owner_id) === Number(p.id)).length
+          : all.filter(st => !teamIds.has(Number(st.partner_owner_id))).length,
       })),
-      isOwner: !Number(s.partner_id),
+      isOwner: true, max: MAX_PARTNER_COUNSELLORS,
+      counsellors: teamIds.size, total: all.length,
     });
   }));
 
+  /* Patch 289: move students to another login at the same agency — the
+     admin's alone. `ownerId` null (or the admin's own id) takes them back. */
+  route('PUT', '/api/partner/students/owner', partnerOnly(async (req, res, s) => {
+    if (!isAgencyAdmin(s)) {
+      return json(res, 403, { error: 'Only the agency\u2019s admin can move students between counsellors.' });
+    }
+    const b = await readJson(req);
+    const ids = (Array.isArray(b.ids) ? b.ids : [b.id]).map(Number).filter(n => n > 0);
+    if (!ids.length) return json(res, 422, { error: 'Choose at least one student to move.' });
+    if (ids.length > 500) return json(res, 422, { error: 'Move up to 500 students at a time.' });
+    let target = null;
+    const want = Number(b.ownerId) || 0;
+    if (want && want !== Number(s.id)) {
+      target = db.studentById(want);
+      if (!target || target.role !== 'partner' || Number(target.partner_id) !== Number(s.id)) {
+        return json(res, 404, { error: 'That is not one of your counsellors.' });
+      }
+    }
+    const moved = [];
+    for (const id of ids) {
+      const st = theirStudent(s, id);
+      if (!st) return json(res, 404, { error: 'No such student', id });
+      if (Number(st.partner_owner_id || 0) === (target ? Number(target.id) : 0)) continue;
+      db.setPartnerOwner(st.id, target ? target.id : null);
+      moved.push(st.id);
+    }
+    if (moved.length) {
+      db.log(s.email, 'partner moved students', s.name + ' moved ' + moved.length + ' student(s) to '
+        + (target ? target.name : 'themself (admin)'));
+    }
+    return json(res, 200, { moved, to: target ? { id: target.id, name: target.name } : null });
+  }));
+
   route('POST', '/api/partner/team', partnerOnly(async (req, res, s) => {
+    /* Patch 289: counsellor logins are made by Glovels, on request — "he will
+       ask our main admin to create sub-logins for his counsellors so that we
+       can give access". The agency's own door is shut. */
+    return json(res, 403, {
+      /* No name of ours: the partner screen is white label (booktest). */
+      error: 'Counsellor logins are created for you on request. Ask your account manager to add one (up to '
+        + MAX_PARTNER_COUNSELLORS + ' per agency).',
+    });
+    /* eslint-disable-next-line no-unreachable */
     if (Number(s.partner_id)) {
       return json(res, 403, {
         error: 'Only the account that owns this agency can add colleagues.',
@@ -6137,8 +6234,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     }
     const out = db.deletePerson(id);
     if (out.error) return json(res, 409, { error: out.error });
-    db.log(s.email, 'partner removed a colleague', s.name + ' \u2192 ' + who.name);
-    return json(res, 200, { ok: true });
+    /* Patch 289: what they held goes back to the admin. */
+    let back = 0;
+    try { back = db.releasePartnerOwner(id); } catch (e) { back = 0; }
+    db.log(s.email, 'partner removed a colleague', s.name + ' \u2192 ' + who.name
+      + (back ? ' \u2014 ' + back + ' student(s) back with the admin' : ''));
+    return json(res, 200, { ok: true, returned: back });
   }));
 
   /*
@@ -6210,7 +6311,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         return rejected.push({
           at, who: name,
           why: Number(existing.partner_id) === agencyOf(s)
-            ? 'already on your list'
+            ? (isAgencyAdmin(s) || Number(existing.partner_owner_id) === Number(s.id)
+                ? 'already on your list' : 'already on your agency\u2019s list')
             : 'already registered on the platform',
         });
       }
@@ -6222,6 +6324,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
          signed-in account — a colleague's students belong to the agency, not
          to whichever colleague happened to type them in. */
       db.setPartner(person.id, agencyOf(s));
+      /* Patch 289: a counsellor's upload is theirs to see; the admin's stays
+         with the admin until it is moved. */
+      if (!isAgencyAdmin(s)) db.setPartnerOwner(person.id, s.id);
       try {
         db.putProfile(person.id, {
           g_country: destination,
@@ -10624,7 +10729,16 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         /* Patch 177 (item 12): a counsellor's caseload is their OPEN files
            (store.openFile) — the same number the overview's team card and
            the counsellor picker show; `closedFiles` says the rest. */
-        caseload: p.role === 'partner'
+        /* Patch 289: a B2B counsellor login belongs to an agency; the agency's
+           own row says how many counsellor logins it has (of ten). */
+        agencyId: p.role === 'partner' && Number(p.partner_id) ? Number(p.partner_id) : null,
+        agency: p.role === 'partner' && Number(p.partner_id) ? ((db.studentById(Number(p.partner_id)) || {}).name || '') : '',
+        b2bRole: p.role !== 'partner' ? '' : Number(p.partner_id) ? 'counsellor' : 'admin',
+        b2bCounsellors: p.role === 'partner' && !Number(p.partner_id)
+          ? db.partners().filter(x => Number(x.partner_id) === Number(p.id)).length : 0,
+        caseload: p.role === 'partner' && Number(p.partner_id)
+          ? db.partnerStudents(Number(p.partner_id)).filter(st => Number(st.partner_owner_id) === Number(p.id)).length
+          : p.role === 'partner'
           ? db.partnerStudentCount(p.id)
           : db.allStudents().filter(st => Number(st.counsellor_id) === p.id && db.openFile(st)).length,
         closedFiles: p.role === 'partner' ? 0
@@ -10663,6 +10777,21 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     if (db.studentByEmail(email)) {
       return json(res, 409, { error: 'Somebody already has that email address on this site' });
     }
+    /* Patch 289: a B2B COUNSELLOR login, made here for an agency that asked
+       for one. `agencyId` is the agency's own (admin) account; ten at most. */
+    let agency = null;
+    if (b.agencyId != null && b.agencyId !== '') {
+      if (role !== 'partner') return json(res, 422, { error: 'Only a B2B login can belong to an agency.' });
+      agency = db.studentById(Number(b.agencyId));
+      if (!agency || agency.role !== 'partner' || Number(agency.partner_id)) {
+        return json(res, 404, { error: 'That is not a B2B agency. Choose the agency\u2019s admin account.' });
+      }
+      const have = db.partners().filter(x => Number(x.partner_id) === Number(agency.id)).length;
+      if (have >= MAX_PARTNER_COUNSELLORS) {
+        return json(res, 409, { error: agency.name + ' already has ' + MAX_PARTNER_COUNSELLORS
+          + ' counsellor logins, which is the most an agency can have. Remove one first.' });
+      }
+    }
 
     /* A password nobody has chosen, shown once. An admin inventing passwords
        for their staff is how "Glovels@123" ends up on four accounts. */
@@ -10698,6 +10827,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
        is decided by their role and their own students, and a permission
        granted here would be one nobody thought about. */
     if (role === 'partner') perms = [];
+    /* Patch 289: tie the counsellor login to its agency. */
+    if (agency) {
+      db.setPartner(person.id, agency.id);
+      db.log(s.name, 'B2B counsellor login created', agency.name + ' \u2192 ' + name + ' (' + email + ')');
+    }
     if (role !== 'admin') db.setPerms(person.id, perms);
     /* Patch 201: what they are and where they work. */
     if (role !== 'student') {
@@ -10841,9 +10975,23 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       }
     }
 
+    /* Patch 289: an agency that still has counsellor logins keeps its admin. */
+    if (person.role === 'partner' && !Number(person.partner_id)) {
+      const logins = db.partners().filter(x => Number(x.partner_id) === Number(id)).length;
+      if (logins) {
+        return json(res, 409, { error: person.name + ' has ' + logins + ' counsellor login' + (logins === 1 ? '' : 's')
+          + '. Remove ' + (logins === 1 ? 'it' : 'them') + ' first.' });
+      }
+    }
     const caseload = db.countStudentsOf(id);
     const out = db.deletePerson(id);
     if (out.error) return json(res, 409, { error: out.error });
+    /* Patch 289: a B2B counsellor's students go back to the agency's admin. */
+    if (person.role === 'partner' && Number(person.partner_id)) {
+      let back = 0;
+      try { back = db.releasePartnerOwner(id); } catch (e) { back = 0; }
+      if (back) db.log(s.name, 'B2B counsellor removed', person.name + ' \u2014 ' + back + ' student(s) back with the agency admin');
+    }
     db.log(s.name, 'account deleted',
       person.name + ' (' + person.email + ')'
       + (caseload ? ' \u2014 ' + caseload + ' student(s) are now unassigned' : ''));

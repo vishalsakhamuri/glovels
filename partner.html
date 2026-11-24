@@ -1050,6 +1050,24 @@ select.assign.none:hover{border-color:#a5342b}
 
       <div class="dests" id="dests"></div>
 
+      <div class="p-sec" id="b2bTeam" style="min-width:0" hidden>
+        <div class="p-sec-head"><h2>Your counsellors <span id="b2bCount" style="font:600 12.6px/1 var(--sans);color:var(--muted);margin-left:6px"></span></h2></div>
+        <div class="p-card">
+          <div id="b2bChips" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          <div id="b2bMove" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line,#e6e9ee)">
+            <span style="font:700 12.6px/1.4 var(--sans);color:var(--navy-800)">Move every student held by</span>
+            <select id="b2bFrom" style="padding:7px 9px;font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px"></select>
+            <span style="font:700 12.6px/1.4 var(--sans);color:var(--navy-800)">to</span>
+            <select id="b2bTo" style="padding:7px 9px;font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="b2bMoveAll">Move them</button>
+          </div>
+          <p style="margin:11px 0 0;font-size:12.2px;color:var(--muted);line-height:1.6">
+            A counsellor sees only the students they hold: the ones they add, and the ones you move to them.
+            You see everyone. To move one student, open the student and change “Held by”.
+            To add or remove a counsellor login (up to 10), ask your account manager.</p>
+        </div>
+      </div>
+
       <div class="p-sec" style="min-width:0">
         <div class="p-sec-head"><h2>Your students</h2>
           <button type="button" class="btn btn-primary btn-sm" id="openAdd"
@@ -2466,7 +2484,11 @@ function row(s) {
   return '<tr class="prow' + (s.closed ? ' shut' : '') + '" data-open="' + s.id + '">'
     + '<td><b>' + esc(s.name) + '</b>'
       + '<span style="display:block;font-size:11.6px;color:var(--muted)">'
-      + esc(s.email) + (s.phone ? ' · ' + esc(s.phone) : '') + '</span></td>'
+      + esc(s.email) + (s.phone ? ' · ' + esc(s.phone) : '') + '</span>'
+      /* Patch 289: which of the agency's logins holds this student. */
+      + (ME && ME.isOwner && TEAM.some(t => !t.owner)
+          ? '<span class="heldby" style="display:block;margin-top:3px;font-size:11.4px;color:var(--navy-800)">Held by '
+            + esc(s.heldBy ? s.heldBy.name : 'you (admin)') + '</span>' : '') + '</td>'
     + '<td style="font-size:12.4px">'
       + (destOf(s) ? '<b>' + esc(destOf(s)) + '</b>'
           : '<span style="color:var(--muted)">not decided</span>')
@@ -2529,6 +2551,7 @@ function paint() {
   const list = book.filter(s => {
     if (!t.test(s)) return false;
     if (dest && (destOf(s) || 'Not decided') !== dest) return false;
+    if (held !== '' && heldId(s) !== held) return false;
     if (!q) return true;
     return (s.name + ' ' + s.email + ' ' + s.shortlist.map(u => u.university).join(' '))
       .toLowerCase().includes(q);
@@ -2590,7 +2613,18 @@ function head(s) {
         ? '<p style="margin:12px 0 0;font-size:12.4px;color:var(--muted)">The counsellor '
           + 'on this file is <b>' + esc(s.counsellor) + '</b>.</p>'
         : '<p style="margin:12px 0 0;font-size:12.4px;color:#8a6d1f">No counsellor has '
-          + 'been assigned to this student yet. Nothing is needed from you.</p>');
+          + 'been assigned to this student yet. Nothing is needed from you.</p>')
+    /* Patch 289: the admin moves a student to another of the agency's logins.
+       The student is one record, so everything on it goes too. */
+    + (ME && ME.isOwner && TEAM.some(t => !t.owner)
+        ? '<div class="heldmove" style="margin:12px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.6px">'
+          + '<label for="heldSel" style="font-weight:700;color:var(--navy-800)">Held by</label>'
+          + '<select id="heldSel" data-student="' + s.id + '" style="padding:7px 9px;font:400 12.8px/1.4 var(--sans);border:1.5px solid #d8dde4;border-radius:9px">'
+          + '<option value="0"' + (s.heldBy ? '' : ' selected') + '>You (admin)</option>'
+          + TEAM.filter(t => !t.owner).map(t => '<option value="' + t.id + '"' + (s.heldBy && Number(s.heldBy.id) === Number(t.id) ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('')
+          + '</select><button type="button" class="btn btn-ghost btn-sm" id="heldSave">Move</button>'
+          + '<span style="color:var(--muted)">Their profile, documents and shortlist move with them.</span></div>'
+        : '');
 }
 
 /* The student's own record, rendered from the same field list their own screen
@@ -2845,9 +2879,44 @@ function setTitle(h, sub) {
   document.title = h + ((ME && ME.agency) ? ' | ' + ME.agency : '');
 }
 
+/* Patch 289: the agency's logins and how many students each holds. `held`
+   narrows the table to one of them ('' everyone, '0' the admin). */
+let TEAM = [], held = '';
+const heldId = s => String((s.heldBy && s.heldBy.id) || 0);
+async function loadB2bTeam() {
+  const box = $('#b2bTeam');
+  if (!box) return;
+  if (!ME || !ME.isOwner) { box.hidden = true; return; }
+  let r;
+  try { r = await api('GET', '/api/partner/team'); } catch (e) { return; }
+  TEAM = r.team || [];
+  const subs = TEAM.filter(t => !t.owner);
+  box.hidden = false;
+  $('#b2bCount').textContent = subs.length + ' of ' + (r.max || 10);
+  const live = openBook();
+  const n = id => live.filter(s => heldId(s) === String(id)).length;
+  const chip = (id, name, count) => '<button type="button" class="dest" data-held="' + id + '" aria-pressed="' + (held === String(id)) + '">'
+    + '<b>' + esc(name) + '</b><span class="n">' + count + '</span></button>';
+  $('#b2bChips').innerHTML = chip('', 'Everyone', live.length) + chip('0', 'With you (admin)', n(0))
+    + subs.map(t => chip(t.id, t.name, n(t.id))).join('')
+    + (subs.length ? '' : '<span style="font-size:12.4px;color:var(--muted);align-self:center">No counsellor logins yet.</span>');
+  const opts = '<option value="0">You (admin)</option>' + subs.map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
+  $('#b2bFrom').innerHTML = opts; $('#b2bTo').innerHTML = opts;
+  if (subs.length) $('#b2bTo').value = String(subs[0].id);
+  $('#b2bMove').style.display = subs.length ? 'flex' : 'none';
+}
+async function moveStudents(ids, ownerId) {
+  const r = await api('PUT', '/api/partner/students/owner', { ids, ownerId: Number(ownerId) || null });
+  await refreshList();
+  return r;
+}
+
 async function refreshList() {
   STUDENTS = (await api('GET', '/api/partner/students')).students;
   paint();
+  await loadB2bTeam();
+  /* the rows say who holds each student, which needs the team */
+  if (ME && ME.isOwner && TEAM.some(t => !t.owner)) paint();
 }
 
 /* ------------------------------------------------------------- adding */
@@ -3015,7 +3084,8 @@ async function saveLogo(url) {
   }
   ME = me.partner;
   $('#staffName').textContent = ME.agency || ME.name;
-  $('#staffRole').textContent = ME.isOwner ? 'Partner agency' : esc(ME.name);
+  /* Patch 289: one admin and up to ten counsellors per agency. */
+  $('#staffRole').textContent = ME.isOwner ? 'Partner agency \u00b7 Admin' : 'Counsellor \u00b7 ' + ME.name;
   $('#staffAv').textContent = (ME.agency || ME.name || '?').trim().charAt(0).toUpperCase();
   showLogo(ME.logo || '');
   /* Only the account that owns the agency changes its mark. A colleague
@@ -3034,6 +3104,34 @@ async function saveLogo(url) {
     filter = e.target.value; PAGE_AT.pstu = 0; paint();
   });
 
+  /* Patch 289: narrow to one counsellor; move one student; move a whole book. */
+  document.addEventListener('click', async e => {
+    const hc = e.target.closest('[data-held]');
+    if (hc) { held = hc.dataset.held; PAGE_AT['pstu'] = 0; paint(); loadB2bTeam(); return; }
+    if (e.target.closest('#heldSave')) {
+      const sel = $('#heldSel'); if (!sel) return;
+      const btn = e.target.closest('#heldSave'); btn.disabled = true;
+      try {
+        const r = await moveStudents([Number(sel.dataset.student)], sel.value);
+        toast(r.moved.length ? 'Moved to ' + (r.to ? r.to.name : 'you (admin)') + '.' : 'Already there.');
+      } catch (err) { toast(err.message || 'That did not move.'); }
+      btn.disabled = false;
+      return;
+    }
+    if (e.target.closest('#b2bMoveAll')) {
+      const from = $('#b2bFrom').value, to = $('#b2bTo').value;
+      if (from === to) { toast('Choose two different people.'); return; }
+      const ids = STUDENTS.filter(s => heldId(s) === String(from)).map(s => s.id);
+      if (!ids.length) { toast('Nobody is held there.'); return; }
+      const btn = e.target.closest('#b2bMoveAll'); btn.disabled = true;
+      try {
+        const r = await moveStudents(ids, to);
+        toast(r.moved.length + (r.moved.length === 1 ? ' student' : ' students') + ' moved to ' + (r.to ? r.to.name : 'you (admin)') + '.');
+      } catch (err) { toast(err.message || 'That did not move.'); }
+      btn.disabled = false;
+      return;
+    }
+  });
   document.addEventListener('click', async e => {
     const d = e.target.closest('[data-dest]');
     if (d) { dest = d.dataset.dest; PAGE_AT.pstu = 0; return paint(); }

@@ -394,12 +394,21 @@ const PW_B = 'partner-beta-4k7d';
     noUpload.status() + '');
 
   /* ------------------------------------------------------- colleagues ---- */
-  const mate = await ctxA.request.post(BASE + '/api/partner/team', {
+  /* Patch 289: one admin and up to ten counsellors. The agency no longer adds
+     its own logins (Glovels does, on request), and a counsellor sees the
+     students they hold rather than the whole book. The rest of this is in
+     b2bteamtest.js; these five are the ones that used to say the opposite. */
+  const selfAdd = await ctxA.request.post(BASE + '/api/partner/team', {
     data: { name: 'Anita ' + stamp, email: 'anita' + stamp + '@agency.example' },
   });
-  check('an agency can add a colleague', mate.ok(), mate.status() + ' '
+  check('an agency cannot add a login itself — Glovels does', selfAdd.status() === 403, selfAdd.status() + '');
+  const matePw = 'a-long-password-mate';
+  const mate = await admin.request.post(BASE + '/api/staff/people', {
+    data: { name: 'Anita ' + stamp, email: 'anita' + stamp + '@agency.example', password: matePw,
+      role: 'partner', agencyId: rowA.id },
+  });
+  check('the main admin adds a counsellor login to the agency', mate.ok(), mate.status() + ' '
     + (mate.ok() ? '' : (await mate.text()).slice(0, 80)));
-  const matePw = mate.ok() ? (await mate.json()).password : '';
 
   const ctxM = await browser.newContext();
   await ctxM.request.post(BASE + '/api/auth/login',
@@ -408,22 +417,21 @@ const PW_B = 'partner-beta-4k7d';
     { data: { current: matePw, password: matePw + 'X' } });
 
   const mateList = await (await ctxM.request.get(BASE + '/api/partner/students')).json();
-  check('a colleague sees the same book, not an empty one',
-    mateList.students && mateList.students.length === mine.length,
+  check('a new counsellor starts with their own, empty, list — not the agency\'s book',
+    mateList.students && mateList.students.length === 0,
     (mateList.students || []).length + ' vs ' + mine.length);
 
-  /* One agency, one book — a colleague's additions belong to the agency and
-     not to whichever colleague happened to type them in. */
+  /* What a counsellor adds is theirs to see, and the agency's to count. */
   await ctxM.request.post(BASE + '/api/partner/students', {
     data: { students: [{ name: 'ByMate' + stamp, email: 'bymate' + stamp + '@ex.example' }] },
   });
   const ownerSees = await (await ctxA.request.get(BASE + '/api/partner/students')).json();
-  check('and what a colleague adds lands on the agency\'s book',
+  check('and what a counsellor adds lands on the agency\'s book',
     ownerSees.students.some(x => /ByMate/.test(x.name)));
 
   const mateTeam = await ctxM.request.post(BASE + '/api/partner/team',
     { data: { name: 'Nope', email: 'nope' + stamp + '@agency.example' } });
-  check('but a colleague cannot add colleagues of their own',
+  check('a counsellor cannot add logins either',
     mateTeam.status() === 403, mateTeam.status() + '');
   const mateLogo = await ctxM.request.put(BASE + '/api/partner/logo', { data: { logo: '' } });
   check('nor change the agency logo', mateLogo.status() === 403, mateLogo.status() + '');
