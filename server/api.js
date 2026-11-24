@@ -6423,6 +6423,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       phase: (() => {
         try { return TASKS.phaseOf(db, st); } catch (e) { return null; }
       })(),
+      /* Patch 286: a documents step closed by exceptional approval — who,
+         when, why, and which documents were missing. {} when none. */
+      docException: (() => { try { return TASKS.docExceptionOf(db, id); } catch (e) { return {}; } })(),
       /* What is owed on this file and by when, brought up to date on open.
          The counsellor's own copy of the office's board, for one student —
          the same rows, with the same dates and the same lateness, so the two
@@ -10141,7 +10144,30 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       if (want === 'done' && String(t.status) !== 'done') {
         let why = '';
         try { why = TASKS.doneBlock(db, db.studentById(t.student_id), t); } catch (e) { why = ''; }
-        if (why) return json(res, 409, { error: why, locked: true });
+        /* Patch 286: "exceptional approval, with some comment" — a documents
+           step may be closed without every required document when the person
+           closing it writes why. Kept on the file with their name, the time
+           and the documents that were missing; written to the audit log. */
+        if (why && b.exception != null && TASKS.DOC_EXC_STEPS.includes(String(t.task_key))) {
+          const st0 = db.studentById(t.student_id);
+          const ex = TASKS.setDocException(db, st0, String(t.task_key), b.exception, s);
+          if (ex.status !== 200) return json(res, ex.status, { error: ex.error });
+          db.log(s.name, 'exceptional approval', (st0 || {}).name + ' — ' + t.title + ' — without: '
+            + ex.exception.missing.join(', ') + ' — “' + ex.exception.note + '”');
+          why = '';
+        } else if (b.exception != null && !TASKS.DOC_EXC_STEPS.includes(String(t.task_key))) {
+          return json(res, 422, { error: 'Exceptional approval is only for the two document steps.' });
+        }
+        if (why) return json(res, 409, { error: why, locked: true,
+          canException: TASKS.DOC_EXC_STEPS.includes(String(t.task_key)) });
+      }
+      /* Reopening a step that was closed by exception withdraws the approval. */
+      if (want !== 'done' && String(t.status) === 'done' && TASKS.DOC_EXC_STEPS.includes(String(t.task_key))) {
+        try {
+          if (TASKS.clearDocException(db, db.studentById(t.student_id), String(t.task_key), s)) {
+            db.log(s.name, 'withdrew an exceptional approval', (db.studentById(t.student_id) || {}).name + ' — ' + t.title);
+          }
+        } catch (e) { /* the reopen still stands */ }
       }
       patch.status = want;
       patch.by = s.id;

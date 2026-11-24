@@ -2538,7 +2538,11 @@ function paintRecord(r) {
       (r.readiness && r.readiness.docs && r.readiness.ok < r.readiness.of
         ? '<div class="docneed" role="status" style="margin:-4px 0 16px;padding:12px 16px;border:1px solid #ecd9a8;background:#fdf8ea;border-radius:14px;font-size:13.5px;line-height:1.55">'
           + '<b style="display:block;margin-bottom:4px">' + (r.readiness.of - r.readiness.ok) + ' required '
-          + (r.readiness.of - r.readiness.ok === 1 ? 'document is' : 'documents are') + ' still needed</b>'
+          + (r.readiness.of - r.readiness.ok === 1 ? 'document is' : 'documents are')
+          + (r.docException && r.docException.profile ? ' not on the file \u2014 moved forward by exceptional approval' : ' still needed') + '</b>'
+          + (r.docException && r.docException.profile ? '<span style="display:block;margin-bottom:6px">'
+            + esc(r.docException.profile.by || 'Staff') + (r.docException.profile.at ? ', ' + esc(dueDay(r.docException.profile.at.slice(0, 10))) : '')
+            + ': \u201c' + esc(r.docException.profile.note) + '\u201d</span>' : '')
           + r.readiness.docs.filter(d => d.status !== 'ok').map(d => '<span style="display:inline-block;margin:3px 8px 3px 0;padding:3px 10px;border-radius:999px;background:#fff;border:1px solid #ecd9a8"><b>'
             + esc(d.name) + '</b> \u00b7 ' + esc(d.status === 'none' ? 'Not uploaded' : d.status === 'wait' ? 'Uploaded, to be checked' : d.status === 'rescan' ? 'Sent back for a scanned copy' : (d.word || 'Not accepted yet')) + '</span>').join('')
           + '</div>' : '') +
@@ -3604,6 +3608,10 @@ function tkcStep(x) {
   if (x.state === 'done') {
     sub = '<small>' + esc(x.derived ? 'Ticked automatically (the applications are past this stage)'
       : 'Done ' + (x.doneAt ? dueDay(x.doneAt) : 'on an unrecorded date') + (x.doneBy ? ' · by ' + x.doneBy : '')) + '</small>';
+    /* Patch 286: closed by exceptional approval — say so, with the reason. */
+    if (x.exception) sub += '<small class="why">Exceptional approval' + (x.exception.by ? ' by ' + esc(x.exception.by) : '')
+      + (x.exception.at ? ' on ' + esc(dueDay(x.exception.at.slice(0, 10))) : '') + ': \u201c' + esc(x.exception.note) + '\u201d'
+      + (x.exception.missing && x.exception.missing.length ? ' \u2014 without: ' + esc(x.exception.missing.join(', ')) : '') + '</small>';
     if (!x.derived) ctl = '<button type="button" class="lnk" data-task-open="' + x.id + '">reopen</button>';
   } else if (x.state === 'locked') {
     sub = '<small class="why">' + esc(x.lockReason) + '</small>' +
@@ -3616,7 +3624,9 @@ function tkcStep(x) {
       (x.block ? '<small class="why">Can’t be ticked yet: ' + esc(x.block) + '</small>' : '');
     ctl = '<button type="button" class="lnk" data-task-done="' + x.id + '"' +
       (x.block ? ' disabled aria-disabled="true"' : '') + '>done</button>' +
-      ' · <button type="button" class="lnk" data-task-stuck="' + x.id + '">stuck</button>';
+      ' · <button type="button" class="lnk" data-task-stuck="' + x.id + '">stuck</button>' +
+      /* Patch 286: a documents step can be moved forward with a written reason. */
+      (x.block && x.canException ? ' · <button type="button" class="lnk" data-task-exc="' + x.id + '">exceptional approval</button>' : '');
   }
   return '<li class="' + x.state + (x.current && x.overdue ? ' over' : '') + '" data-step="' + x.id + '">' +
     '<div class="tlrow"><b>' + esc(x.title) + (x.current ? '<span class="tag">Now</span>' : '') + '</b>' +
@@ -4108,6 +4118,41 @@ document.addEventListener('click', async e => {
       toast(r0.changed ? 'Saved. The student has been told.' : 'Saved.');
       if (openId) open(openId);
     } catch (err) { vds.disabled = false; toast(err.message || 'That did not save.'); }
+    return;
+  }
+  /* Patch 286: exceptional approval — a reason under the step, then the step
+     is closed without the missing documents, in this person's name. */
+  const xo = e.target.closest('[data-task-exc]');
+  if (xo) {
+    const li = xo.closest('tr, li');
+    if (!li) return;
+    const nx = li.nextElementSibling;
+    if (nx && nx.classList.contains('excrow')) { const i0 = nx.querySelector('textarea'); if (i0) i0.focus(); return; }
+    li.insertAdjacentHTML('afterend', '<li class="excrow stuckrow"><div style="background:#fdf8ea;border:1px solid #ecd9a8;padding:10px 12px;border-radius:9px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">' +
+        'Exceptional approval: why can this move forward without the missing documents? ' +
+        'Your name, the time and this reason are kept on the file.</label>' +
+      '<textarea rows="2" maxlength="600" class="excnote" placeholder="For example: English test not needed, medium-of-instruction letter accepted by the university" ' +
+        'style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 9px;margin-bottom:8px"></textarea>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button type="button" class="btn btn-primary btn-sm" data-exc-save="' + xo.dataset.taskExc + '">Approve and move forward</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-stuck-cancel>Cancel</button></div>' +
+      '</div></li>');
+    li.nextElementSibling.querySelector('textarea').focus();
+    return;
+  }
+  const xs = e.target.closest('[data-exc-save]');
+  if (xs) {
+    const row = xs.closest('.excrow');
+    const inp = row && row.querySelector('textarea');
+    const why = inp ? inp.value.trim() : '';
+    if (why.length < 10) { toast('Write the reason first (at least 10 characters).'); if (inp) inp.focus(); return; }
+    xs.disabled = true;
+    try {
+      await api('PUT', '/api/staff/task/' + xs.dataset.excSave, { status: 'done', exception: why.slice(0, 600) });
+      toast('Moved forward by exceptional approval.');
+      if (openId) open(openId);
+    } catch (err) { xs.disabled = false; toast(err.message || 'That did not save.'); }
     return;
   }
   /* CNS-07 (1): "stuck" opens a note field under the task, not a prompt(). */

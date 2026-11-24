@@ -948,6 +948,77 @@ function visaOf(db, sid) {
   };
 }
 
+/*
+ * ============== EXCEPTIONAL APPROVAL ON A DOCUMENTS STEP (patch 286) ======
+ *
+ * Owner, 24 Nov: "counsellor has the option to move it forward in case a few
+ * documents are missing, saying exceptional approval, with some comment —
+ * sometimes a few documents may not be needed."
+ *
+ * The two steps that wait on documents — "Profile completed and documents
+ * collected" and "Application documents assembled" — can be closed without
+ * every required document, by a named person, with a written reason. It is
+ * kept per student and per step: who, when, the comment, and exactly which
+ * documents were missing at that moment, so the file never reads as complete
+ * when it is not. Reopening the step withdraws it. The visa file has no such
+ * door: a consulate does not take a reason in place of a document.
+ */
+const DOC_EXC_KEY = sid => 'docexception:' + Number(sid);
+const DOC_EXC_STEPS = ['profile', 'appdocs'];
+const DOC_EXC_MIN = 10;
+function docExceptionOf(db, sid) {
+  let v = null;
+  try { v = db.content(DOC_EXC_KEY(sid)); } catch (e) { v = null; }
+  const out = {};
+  DOC_EXC_STEPS.forEach(k => {
+    const x = v && typeof v === 'object' ? v[k] : null;
+    if (x && typeof x === 'object' && String(x.note || '').trim()) {
+      out[k] = { note: String(x.note), by: String(x.by || ''), byId: Number(x.byId) || 0,
+        at: String(x.at || ''), missing: Array.isArray(x.missing) ? x.missing.map(String) : [] };
+    }
+  });
+  return out;
+}
+/** The required documents this step is short of right now: [{key, name, status}]. */
+function docsShortFor(db, sid, key) {
+  let R = null;
+  try { R = JOURNEY_().readiness(db, sid); } catch (e) { R = null; }
+  const docs = (R && R.docs) || [];
+  return docs.filter(d => d.status !== 'ok' && (key === 'appdocs' ? APPDOC_KEYS.includes(d.key) : true));
+}
+/** Returns { status, error?, exception? }. `who` is the signed-in member of staff. */
+function setDocException(db, student, key, note, who) {
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st) return { status: 404, error: 'No such student' };
+  if (!DOC_EXC_STEPS.includes(String(key))) {
+    return { status: 422, error: 'Exceptional approval is only for the two document steps.' };
+  }
+  const said = String(note == null ? '' : note).replace(/\s+/g, ' ').trim().slice(0, 600);
+  if (said.length < DOC_EXC_MIN) {
+    return { status: 422, error: 'Write the reason for the exceptional approval (at least ' + DOC_EXC_MIN
+      + ' characters) — which documents are not needed, or why the file can move on without them.' };
+  }
+  const short = docsShortFor(db, st.id, key);
+  if (!short.length) return { status: 409, error: 'Nothing is missing for this step — tick it as usual.' };
+  let all = null;
+  try { all = db.content(DOC_EXC_KEY(st.id)); } catch (e) { all = null; }
+  all = all && typeof all === 'object' ? Object.assign({}, all) : {};
+  all[key] = { note: said, by: String((who && who.name) || ''), byId: Number(who && who.id) || 0,
+    at: new Date().toISOString(), missing: short.map(d => d.name) };
+  db.setContent(DOC_EXC_KEY(st.id), all, String((who && who.name) || ''));
+  return { status: 200, exception: docExceptionOf(db, st.id)[key] };
+}
+function clearDocException(db, student, key, who) {
+  const st = typeof student === 'object' ? student : db.studentById(Number(student));
+  if (!st) return false;
+  let all = null;
+  try { all = db.content(DOC_EXC_KEY(st.id)); } catch (e) { all = null; }
+  if (!all || typeof all !== 'object' || !all[key]) return false;
+  all = Object.assign({}, all); delete all[key];
+  db.setContent(DOC_EXC_KEY(st.id), all, String((who && who.name) || ''));
+  return true;
+}
+
 function factsOf(db, st) {
   const J = JOURNEY_();
   let docs = { ok: 0, of: 10 }, visaDocs = { ok: 0, of: 6 };
@@ -966,7 +1037,9 @@ function factsOf(db, st) {
     const row = list.find(r => String(r.prog_id) === String(a.prog_id)) || {};
     return { progId: String(a.prog_id), university: row.university || '', program: row.program || '' };
   });
-  return { docs, visaDocs, listed: list.length, submitted, offers, enrolled, visa: visaOf(db, st.id) };
+  return { docs, visaDocs, listed: list.length, submitted, offers, enrolled, visa: visaOf(db, st.id),
+    /* Patch 286: a documents step closed by exceptional approval. */
+    docException: docExceptionOf(db, st.id) };
 }
 
 /** " — still needed: A (not uploaded), B (in review)" from a readiness count, or ''. */
@@ -988,7 +1061,8 @@ function evidenceGap(F, key) {
          where the counsellor had accepted everything on it sent the office
          looking for a document to accept; the four missing had never been
          uploaded (owner, 24 Nov). The banner now names each one and why. */
-      return F.docs.ok >= F.docs.of ? ''
+      /* Patch 286: an exceptional approval stands in for the ones missing. */
+      return F.docs.ok >= F.docs.of || (F.docException && F.docException.profile) ? ''
         : F.docs.ok + ' of ' + F.docs.of + ' required documents verified' + docsMissingSaid(F.docs);
     case 'shortlist':
       return F.listed || F.submitted ? '' : 'Nothing is on the shortlist yet';
@@ -1028,6 +1102,8 @@ function doneBlock(db, student, t) {
   if (!st || !t) return '';
   const key = String(t.task_key || t.key || '');
   const J = JOURNEY_();
+  /* Patch 286: approved by exception — the step may be ticked as it stands. */
+  if (DOC_EXC_STEPS.includes(key) && docExceptionOf(db, st.id)[key]) return '';
   if (key === 'profile') {
     const R = J.readiness(db, st.id);
     if (R.ok < R.of) {
@@ -1449,6 +1525,7 @@ function derivedBlock(db, st, r, cache) {
   const J = JOURNEY_();
   const c = cache || {};
   const readiness = () => (c.R = c.R || J.readiness(db, st.id));
+  if (DOC_EXC_STEPS.includes(key) && docExceptionOf(db, st.id)[key]) return '';
   if (key === 'profile') {
     const R = readiness();
     if (R.ok < R.of) return (R.of - R.ok) + ' of ' + R.of + ' required documents are still missing';
@@ -1630,6 +1707,8 @@ function timeline(db, student, now, effRows) {
     || String(a.due_at || '9999').localeCompare(String(b.due_at || '9999'))
     || Number(a.id) - Number(b.id));
 
+  let EXC = {};
+  try { EXC = docExceptionOf(db, st.id); } catch (e) { EXC = {}; }
   const steps = sorted.map(t => {
     const isDone = String(t.status) === 'done';
     const rule = UNLOCK[String(t.task_key)];
@@ -1649,6 +1728,10 @@ function timeline(db, student, now, effRows) {
       doneBy: isDone && !t.derived ? name(t.done_by) : '',
       derived: !!t.derived, derivedWhy: t.derivedWhy || '',
       lockReason, block, waitingOn: t.waitingOn || '',
+      /* Patch 286: this step can be closed by exceptional approval (it waits
+         on documents), and the approval it was closed with, if any. */
+      canException: !!block && DOC_EXC_STEPS.includes(String(t.task_key)),
+      exception: DOC_EXC_STEPS.includes(String(t.task_key)) ? (EXC[String(t.task_key)] || null) : null,
       ownerId: owner, owner: name(owner),
     };
   });
@@ -1701,4 +1784,6 @@ module.exports = {
   holdReview, HELD_KEY,
   /* N17-01 / N17-05 */
   visaOf, setVisa, doneBlock, factsOf, VISA_DECISIONS,
+  /* Patch 286 */
+  docExceptionOf, setDocException, clearDocException, docsShortFor, DOC_EXC_STEPS,
 };
