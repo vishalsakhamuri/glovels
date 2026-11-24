@@ -8054,7 +8054,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
     if (!traffic) return json(res, 503, { error: 'Traffic counting is not set up on this server.' });
     const q = new URL(req.url, 'http://x').searchParams;
-    return json(res, 200, Object.assign({ ok: true }, traffic.summary(q.get('days') || 30)));
+    return json(res, 200, Object.assign({ ok: true }, await traffic.summary(q.get('days') || 30)));
   }));
 
   /*
@@ -8096,9 +8096,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   route('GET', '/api/marketing/report', marketingOnly(async (req, res) => {
     if (!marketing) return json(res, 503, { error: 'Marketing is not set up on this server.' });
     const q = new URL(req.url, 'http://x').searchParams;
-    const r = marketing.report(q.get('days') || 30, { country: q.get('country') || '', channel: q.get('channel') || '' });
+    const r = await marketing.report(q.get('days') || 30, { country: q.get('country') || '', channel: q.get('channel') || '' });
     let ai = null;
-    try { const t = traffic && traffic.summary(r.days); ai = t ? { visits: t.ai, crawls: t.bots.filter(b => b.group === 'ai'), pages: t.aiPages } : null; } catch (e) { ai = null; }
+    try { const t = traffic && await traffic.summary(r.days); ai = t ? { visits: t.ai, crawls: t.bots.filter(b => b.group === 'ai'), pages: t.aiPages } : null; } catch (e) { ai = null; }
     return json(res, 200, Object.assign({ ok: true, ai, spendChannels: MKT.SPEND_CHANNELS,
       connectors: CONN.status() }, r));
   }));

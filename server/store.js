@@ -4261,6 +4261,21 @@ function open(dir) {
       }
       return db.all('SELECT * FROM hits WHERE id > ?', 0).filter(h => h.day >= day && (!ks || ks.includes(h.kind)));
     },
+    /* Patch 307: the visits a slice of the table at a time (server/hitscan.js),
+       so the Traffic and Marketing screens do not hold the server while they
+       count. hitsSpan: the first and last row on or after `day` (null on the
+       JSON driver). hitsSlice: the rows with from <= id < to — read by the
+       row number, not the (day, kind) index, so a slice is never more than
+       its own width of rows and comes back already in order. */
+    hitsSpan: day => {
+      if (db.kind !== 'sqlite') return null;
+      return db.one('SELECT MIN(id) AS a, MAX(id) AS b FROM hits WHERE day >= ?', day) || { a: null, b: null };
+    },
+    hitsSlice: (from, to, day, kinds, lite) => {
+      const ks = Array.isArray(kinds) && kinds.length ? kinds : null;
+      return db.all('SELECT ' + (lite ? 'id, day, kind, visitor' : '*') + ' FROM hits NOT INDEXED WHERE id >= ? AND id < ? AND day >= ?'
+        + (ks ? ' AND kind IN (' + ks.map(() => '?').join(',') + ')' : '') + ' ORDER BY id', Number(from), Number(to), day, ...(ks || []));
+    },
     /* Crawlers per day (patch 275). */
     botDayAdd(day, bot, grp, hits, pages, blocked, last) {
       if (db.kind !== 'sqlite') return;

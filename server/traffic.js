@@ -153,6 +153,8 @@ function sourceOf(ref, query, ownHost, ua) {
   return { source: 'referral', site: host.slice(0, 80), campaign, medium };
 }
 
+const { eachHit } = require('./hitscan.js');
+
 function open({ db, log = console }) {
   /* The salt for the visitor hash, minted once and kept, so a restart in the
      middle of a day does not turn every visitor into a new one. */
@@ -269,12 +271,21 @@ function open({ db, log = console }) {
   const top = (map, n) => Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n)
     .map(([name, count]) => ({ name, count }));
 
-  /** The last `days` days, summarised for the Organisation screen. */
+  /** The last `days` days, summarised for the Organisation screen.
+   *  Patch 307: a promise. The visits are read a slice at a time
+   *  (server/hitscan.js) so the server goes on answering while it counts, and
+   *  two people asking for the same days at once share one count. */
+  const counting = new Map();
   function summary(days) {
     days = Math.max(1, Math.min(180, Number(days) || 30));
+    if (counting.has(days)) return counting.get(days);
+    const p = summarise(days).finally(() => counting.delete(days));
+    counting.set(days, p);
+    return p;
+  }
+  async function summarise(days) {
     const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
     flushBots();
-    const rows = db.hitsSince(since, ['page', 'seen', 'bot']);
     const byDay = {};
     for (let i = 0; i < days; i++) {
       const d = new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10);
@@ -282,7 +293,7 @@ function open({ db, log = console }) {
     }
     /* Patch 275: visitors whose browser ran the page (a person), per day. */
     const seen = new Set(), seenDevice = {}, seenCountry = {};
-    rows.forEach(h => { if (h.kind === 'seen') { seen.add(h.day + '|' + h.visitor); } });
+    await eachHit(db, since, ['seen'], h => { seen.add(h.day + '|' + h.visitor); }, true);
     const sources = {}, aiSites = {}, searchSites = {}, socialSites = {}, referrals = {};
     const pages = {}, campaigns = {}, devices = {}, bots = {}, aiPages = {};
     const devicesPeople = {}, countriesPeople = {};
@@ -299,9 +310,8 @@ function open({ db, log = console }) {
     const folded = new Set();
     let botDays = [];
     try { botDays = db.botDaysSince(since); botDays.forEach(r => { if (r.bot === '~folded') folded.add(r.day); }); } catch (e) { botDays = []; }
-    rows.forEach(h => {
+    await eachHit(db, since, ['page', 'bot'], h => {
       const d = byDay[h.day];
-      if (h.kind === 'seen') return;
       if (h.kind === 'bot' && folded.has(h.day)) return;
       if (h.kind === 'bot') {
         botHits++;

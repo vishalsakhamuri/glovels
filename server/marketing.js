@@ -66,6 +66,8 @@ function cookieOf(req, name) {
   return m ? m[1] : '';
 }
 
+const { eachHit, eachOf } = require('./hitscan.js');
+
 function open({ db, fx, log = console }) {
   let secret = '';
   try {
@@ -226,7 +228,8 @@ function open({ db, fx, log = console }) {
    * The marketing board for the last `days` days (and the same span before,
    * for the change arrows). `f.country` and `f.channel` narrow everything.
    */
-  function report(days, f) {
+  /* Patch 307: a promise — the visits are read a slice at a time. */
+  async function report(days, f) {
     days = Math.max(1, Math.min(180, Number(days) || 30));
     f = f || {};
     /* Patch 283 (team checklist, items 3 and 4): days are India's days (IST),
@@ -263,11 +266,15 @@ function open({ db, fx, log = console }) {
        never shows the page, so it never sends the "seen" beacon (patch 275,
        from 7 Nov). From the first beacon on, a visit counts only when that
        visitor's browser said it was seen that day; before it, as before. */
-    const raw = db.hitsSince(dayAdd(prevSince, -1), ['page', 'seen']);
+    /* Patch 307: read a slice at a time (server/hitscan.js) — first the
+       beacons, then the page rows, keeping only the ones that count. One
+       query for every visit of two windows held the server for seconds. */
+    const from = dayAdd(prevSince, -1);
     const seen = new Set();
     let beaconFrom = '';
-    raw.forEach(h => { if (h.kind === 'seen') { seen.add(h.day + '|' + h.visitor); if (!beaconFrom || h.day < beaconFrom) beaconFrom = h.day; } });
-    const hits = raw.filter(h => h.kind === 'page' && !h.bot && (!beaconFrom || h.day < beaconFrom || seen.has(h.day + '|' + h.visitor)));
+    await eachHit(db, from, ['seen'], h => { seen.add(h.day + '|' + h.visitor); if (!beaconFrom || h.day < beaconFrom) beaconFrom = h.day; }, true);
+    const hits = [];
+    await eachHit(db, from, ['page'], h => { if (!h.bot && (!beaconFrom || h.day < beaconFrom || seen.has(h.day + '|' + h.visitor))) hits.push(h); });
     const events = db.eventsSince(dayAdd(prevSince, -1));
     const attr = db.attributionAll();
     const attrOf = {};
@@ -282,7 +289,7 @@ function open({ db, fx, log = console }) {
     for (let d = since; d <= until; d = dayAdd(d, 1)) byDay[d] = { day: d, visitors: new Set(), leads: 0, signups: 0, paid: 0, clicks: 0 };
 
     /* Visits. */
-    hits.forEach(h => {
+    await eachOf(hits, h => {
       const ch = channelOf(h);
       const country = h.country || '';
       if (!keep(country, ch.channel)) return;
@@ -409,6 +416,12 @@ function open({ db, fx, log = console }) {
     const ISO = require('./countries.js');
     const rank = (a, b) => b.revenue - a.revenue || b.payers - a.payers || b.leads - a.leads || b.visitors - a.visitors;
 
+    /* Patch 307: the pages and sections counted before the answer is put
+       together, a slice at a time. */
+    const nowHits = [];
+    await eachOf(hits, h => { if (h.day >= since && keep(h.country || '', channelOf(h).channel)) nowHits.push(h); });
+    const pagesList = await pagesOf(nowHits, byDayKeys(since, days));
+    const sectionsList = await sectionsOf(nowHits);
     return {
       days, since, until, filter: { country: wantC, channel: wantCh },
       totals: out(cur), previous: out(prev),
@@ -430,8 +443,8 @@ function open({ db, fx, log = console }) {
       landing: list(by.landing).sort((a, b) => b.leads - a.leads || b.visitors - a.visitors).slice(0, 25),
       /* What they open and browse: every page, the site's sections, and what
          they typed into the site's own search boxes. */
-      pages: pagesOf(hits.filter(h => h.day >= since && keep(h.country || '', channelOf(h).channel)), byDayKeys(since, days)),
-      sections: sectionsOf(hits.filter(h => h.day >= since && keep(h.country || '', channelOf(h).channel))),
+      pages: pagesList,
+      sections: sectionsList,
       searches: searchReport(db.searchesSince(since).filter(x => keep(x.country || '', x.channel))),
       devices: list(by.device).sort((a, b) => b.visitors - a.visitors),
       clicks: Object.values(clicksBy).map(x => ({ name: x.name, label: x.label, target: x.target, count: x.count, visitors: x.visitors.size,
@@ -529,9 +542,9 @@ const SECTIONS = [
 const sectionOf = p => { for (const [re, name] of SECTIONS) if (re.test(p)) return name; return 'Other pages'; };
 const byDayKeys = (since, days) => Array.from({ length: days }, (_, i) =>
   new Date(Date.parse(since + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10));
-function pagesOf(hits, dayKeys) {
+async function pagesOf(hits, dayKeys) {
   const m = {};
-  hits.forEach(h => {
+  await eachOf(hits, h => {
     const x = m[h.path] || (m[h.path] = { path: h.path, section: sectionOf(h.path), views: 0, visitors: new Set(), countries: {}, days: {} });
     x.views++; x.visitors.add(h.visitor);
     if (h.country) x.countries[h.country] = (x.countries[h.country] || 0) + 1;
@@ -543,9 +556,9 @@ function pagesOf(hits, dayKeys) {
     trend: dayKeys.map(d => x.days[d] || 0),
   }));
 }
-function sectionsOf(hits) {
+async function sectionsOf(hits) {
   const m = {};
-  hits.forEach(h => {
+  await eachOf(hits, h => {
     const k = sectionOf(h.path);
     const x = m[k] || (m[k] = { name: k, views: 0, visitors: new Set() });
     x.views++; x.visitors.add(h.visitor);

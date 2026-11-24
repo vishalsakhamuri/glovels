@@ -350,6 +350,8 @@ node studentstabtest.js | tail -1 | sed 's/^/  studentstabtest.js /' | tee -a "$
 node wordingtest.js | tail -1 | sed 's/^/  wordingtest.js     /' | tee -a "$REPORT"
 # patch 304: the sitemap offers nothing robots.txt forbids; the log names a slowed crawler — own server (8306).
 node sitemapgatetest.js | tail -1 | sed 's/^/  sitemapgatetest.js /' | tee -a "$REPORT"
+# patch 307: Traffic and Marketing count a slice at a time; the health check answers meanwhile — own server (8309).
+node trafficslicetest.js | tail -1 | sed 's/^/  trafficslicetest.js /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"
