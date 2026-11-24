@@ -148,6 +148,7 @@ const stamp = Date.now();
   await page.fill('#aPhone', '9876500000');
   await page.fill('#aMail', 'walk' + stamp + '@example.com');
   await page.selectOption('#aSource', 'whatsapp');
+  await page.fill('#aDest', 'Canada');
   await page.fill('#aNote', 'Messaged the office WhatsApp about Canada');
   await page.click('#aGo');
   await page.waitForTimeout(1500);

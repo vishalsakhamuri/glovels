@@ -101,6 +101,8 @@ const login = async (email) => {
     await p.click('#addLead'); await p.waitForTimeout(400);
     check('the form has a Status with Converted in it', /Contacted/.test(await p.textContent('#aStatus')) && /Following up/.test(await p.textContent('#aStatus')) && /Converted/.test(await p.textContent('#aStatus')));
     check('and a Counsellor to give it to', /Kavya Menon/.test(await p.textContent('#aOwner')) && /Me/.test(await p.textContent('#aOwner')));
+    await p.click('#aGo'); await p.waitForTimeout(300);
+    check('patch 297: an empty form is stopped at the first box', /name is needed/.test(await p.textContent('#dErr')), await p.textContent('#dErr'));
     await p.fill('#aName', 'Screen Referral'); await p.fill('#aPhone', '9876512345');
     await p.selectOption('#aSource', 'referral'); await p.selectOption('#aStatus', 'converted'); await p.selectOption('#aOwner', String(kv.id));
     await p.waitForTimeout(200);
@@ -109,6 +111,13 @@ const login = async (email) => {
     await p.click('#aGo'); await p.waitForTimeout(500);
     check('without an email it stops and says so', /email address/.test(await p.textContent('#dErr')), await p.textContent('#dErr'));
     await p.fill('#aMail', 'screen.referral@mail.test');
+    await p.click('#aGo'); await p.waitForTimeout(300);
+    check('patch 297: the destination is needed too', /destination is needed/.test(await p.textContent('#dErr')), await p.textContent('#dErr'));
+    await p.fill('#aDest', 'Germany');
+    await p.click('#aGo'); await p.waitForTimeout(300);
+    check('patch 297: and what they want', /what they want/.test(await p.textContent('#dErr')), await p.textContent('#dErr'));
+    check('patch 297: nothing was written while a box was empty', !(await book()).leads.some(l => l.name === 'Screen Referral'));
+    await p.fill('#aNote', 'MS in Data Science, winter intake. Referred by a current student.');
     await p.click('#aGo'); await p.waitForTimeout(1800);
     const pane = await p.textContent('#leadPane');
     check('with one, the lead opens as converted, with the first password shown once', !!(await p.$('#aConvDone')) && /First password/.test(pane) && /screen\.referral@mail\.test/.test(pane), pane.slice(0, 200));

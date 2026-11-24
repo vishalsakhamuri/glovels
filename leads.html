@@ -2385,24 +2385,24 @@ function addForm() {
       + 'margin-bottom:4px">Log a lead</b>'
     + '<p style="margin:0 0 15px;font-size:12.6px;color:var(--muted);line-height:1.6">'
       + 'Somebody who messaged your phone, called the office, or walked in. It goes in the '
-      + 'same book as everything else, so it gets followed up like everything else.</p>'
-    + '<div class="field"><label for="aName">Name</label><input id="aName"></div>'
+      + 'same book as everything else, so it gets followed up like everything else. Every box is needed.</p>'
+    + '<div class="field"><label for="aName">Name <span style="color:#b42318">*</span></label><input id="aName"></div>'
     + '<div class="two">'
-      + '<div class="field"><label for="aPhone">Mobile</label>'
+      + '<div class="field"><label for="aPhone">Mobile <span style="color:#b42318">*</span></label>'
         + '<input id="aPhone" inputmode="numeric" placeholder="10 digits"></div>'
-      + '<div class="field"><label for="aMail">Email</label><input id="aMail" type="email">'
+      + '<div class="field"><label for="aMail">Email <span style="color:#b42318">*</span></label><input id="aMail" type="email">'
       + '</div>'
     + '</div>'
     /* F6: is this person already here? Filled in on leaving either box. */
     + '<div id="aDup" hidden style="margin:0 0 12px"></div>'
     + '<div class="two">'
-      + '<div class="field"><label for="aSource">Where from</label><select id="aSource"><option value="" selected disabled>Choose where they came from</option>'
+      + '<div class="field"><label for="aSource">Where from <span style="color:#b42318">*</span></label><select id="aSource"><option value="" selected disabled>Choose where they came from</option>'
         + ['whatsapp', 'phone', 'facebook', 'instagram', 'google', 'walk-in', 'referral',
            'other'].map(v => opt(v, SOURCE_LABEL[v] || v)).join('') + '</select></div>'
-      + '<div class="field"><label for="aDest">Destination</label>'
+      + '<div class="field"><label for="aDest">Destination <span style="color:#b42318">*</span></label>'
         + '<input id="aDest" placeholder="Germany, Canada…"></div>'
     + '</div>'
-    + '<div class="field"><label for="aNote">What they want</label>'
+    + '<div class="field"><label for="aNote">What they want <span style="color:#b42318">*</span></label>'
       + '<textarea id="aNote" rows="2"></textarea></div>'
     /* Patch 295: the stage it is really at, and whose it is. */
     + '<div class="two">'
@@ -2435,8 +2435,11 @@ function addForm() {
   };
   $('#aGo').onclick = async () => {
     say('');
-    if (!$('#aSource').value) return say('Choose where they came from.');
-    if ($('#aStatus').value === 'converted' && !$('#aMail').value.trim()) return say('A converted lead becomes a student account, and an account needs an email address.');
+    /* Patch 297: every box is filled before a lead goes in the book. */
+    const need = [['#aName', 'Their name is needed.'], ['#aPhone', 'A mobile number is needed.'], ['#aMail', 'An email address is needed.'],
+      ['#aSource', 'Choose where they came from.'], ['#aDest', 'The destination is needed \u2014 the country they want to study in.'],
+      ['#aNote', 'Write what they want, in a line.']];
+    for (const [id, msg] of need) { if (!String($(id).value || '').trim()) { $(id).focus(); return say(msg); } }
     /* And again on save — the warning stands, the lead is still written. */
     await checkDup();
     try {
