@@ -401,6 +401,18 @@ function docTitle(key, said) {
   const t = (hit && hit.name) || said || key;
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+/* Patch 288: open Their file on one document and outline it briefly. */
+function showDoc(key) {
+  const tab = document.querySelector('.tab[data-t="file"]');
+  if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click();
+  setTimeout(() => {
+    const li = [...document.querySelectorAll('#docs .docgroup')].find(x => x.dataset.dockey === String(key));
+    if (!li) return;
+    li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    li.style.boxShadow = '0 0 0 3px #1a4fb4'; li.style.transition = 'box-shadow .3s';
+    setTimeout(() => { li.style.boxShadow = ''; }, 4000);
+  }, 120);
+}
 function docGroups(rows) {
   const order = [], by = {};
   (rows || []).forEach(d => {
@@ -409,6 +421,11 @@ function docGroups(rows) {
   });
   if (!order.length) return '<li><span>Nothing uploaded yet</span></li>';
   const L = {ok: 'Accepted', wait: 'In review', rescan: 'Waiting for a scan', none: 'Not uploaded'};
+  /* Patch 288: what still needs a look comes first — in review, then sent
+     back, then accepted. One file in review sat sixth of twelve, in upload
+     order, under five accepted ones. */
+  const need = k => { const f = by[k]; const st0 = f[0].slot || f[f.length - 1].status; return st0 === 'wait' ? 0 : st0 === 'rescan' ? 1 : 2; };
+  order.sort((a, b) => need(a) - need(b));
   return order.map(key => {
     const files = by[key];
     const st = files[0].slot || files[files.length - 1].status;
@@ -792,6 +809,18 @@ function paintRecord(r) {
           + '</span></div>' +
         '<div><b>' + filled + '</b><span>Profile fields</span></div>' +
       '</div>' +
+      /* Patch 288: documents uploaded and not yet checked, by name, with a
+         button that goes to each one. */
+      (() => {
+        const seen = {}, wait = [];
+        (r.docs || []).forEach(d => { if ((d.slot || d.status) === 'wait' && !seen[d.key]) { seen[d.key] = 1; wait.push(d); } });
+        if (!wait.length) return '';
+        return '<div class="doccheck" role="status" style="margin:-4px 0 16px;padding:12px 16px;border:1px solid #c9d6f2;background:#eef3fd;border-radius:14px;font-size:13.5px;line-height:1.55">'
+          + '<b style="display:block;margin-bottom:4px">' + wait.length + (wait.length === 1 ? ' document is' : ' documents are') + ' waiting to be checked</b>'
+          + wait.map(d => '<button type="button" data-show-doc="' + esc(d.key) + '" style="display:inline-block;margin:3px 8px 3px 0;padding:4px 11px;border-radius:999px;background:#fff;border:1px solid #c9d6f2;font:inherit;font-size:13px;cursor:pointer"><b>'
+            + esc(docTitle(d.key, d.name)) + '</b> \u00b7 show it</button>').join('')
+          + '</div>';
+      })() +
       /* Patch 285: which required documents are still missing, and why --
          "6/10" alone did not say what to chase. */
       (r.readiness && r.readiness.docs && r.readiness.ok < r.readiness.of
@@ -2373,6 +2402,9 @@ document.addEventListener('click', async e => {
     } catch (err) { vds.disabled = false; toast(err.message || 'That did not save.'); }
     return;
   }
+  /* Patch 288: go to a document on Their file, and mark it for a moment. */
+  const sd = e.target.closest('[data-show-doc]');
+  if (sd) { showDoc(sd.dataset.showDoc); return; }
   /* Patch 286: exceptional approval — a reason under the step, then the step
      is closed without the missing documents, in this person's name. */
   const xo = e.target.closest('[data-task-exc]');
@@ -2587,7 +2619,19 @@ staffBoot(async me => {
 
   /* Deep link: /counsellor?student=3 opens straight into that conversation. */
   const want = Number(new URLSearchParams(location.search).get('student'));
-  if (want && STUDENTS.some(s => s.id === want)) open(want);
+  /* Patch 288: …&doc=degcert opens Their file on that document. */
+  const wantDoc = new URLSearchParams(location.search).get('doc') || '';
+  if (want && STUDENTS.some(s => s.id === want)) {
+    const opened = open(want);
+    /* …&tab=file lands on Their file rather than the conversation: "Open file"
+       on the command centre means the file. */
+    const wantTab = new URLSearchParams(location.search).get('tab') || '';
+    if (opened && typeof opened.then === 'function') opened.then(() => {
+      if (wantDoc) return showDoc(wantDoc);
+      const tb = /^(file|tasks|activity|chat)$/.test(wantTab) ? document.querySelector('.tab[data-t="' + wantTab + '"]') : null;
+      if (tb) tb.click();
+    }).catch(() => {});
+  }
   else if (STUDENTS.length === 1) open(STUDENTS[0].id);
 });
 """

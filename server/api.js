@@ -9609,8 +9609,15 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       try { docs = (db.getDocuments(st.id) || []).filter(d => String(d.status) === 'wait'); } catch (e) { docs = []; }
       if (!docs.length) return;
       const oldest = docs.map(d => d.uploaded_at).sort()[0];
-      out.docs.push(clockRow(st, docs.length + (docs.length === 1 ? ' document' : ' documents') + ' to check',
-        oldest, COMMAND_SLA.docs, { count: docs.length }));
+      /* Patch 288: WHICH document. "1 document to check" sent the admin into a
+         file of twelve to find the one still in review (owner, 24 Nov: "when
+         I click open file I don't see one doc to check"). The row names each
+         one, and the link opens the file on it. */
+      const keys = [...new Set(docs.map(d => String(d.doc_key)))];
+      const named = keys.map(k => { let n = k; try { n = DOCSLOTS.nameOf(k) || k; } catch (e) { n = k; } return n.charAt(0).toUpperCase() + n.slice(1); });
+      out.docs.push(clockRow(st, docs.length + (docs.length === 1 ? ' document' : ' documents') + ' to check: '
+        + named.slice(0, 4).join(', ') + (named.length > 4 ? ' and ' + (named.length - 4) + ' more' : ''),
+        oldest, COMMAND_SLA.docs, { count: docs.length, docKey: keys[0] }));
     });
 
     /* Leads nobody has called: new, no follow-up, not the office's own tests. */

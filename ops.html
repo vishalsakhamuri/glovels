@@ -759,7 +759,8 @@ body.open{overflow:hidden}
     $('#dList').innerHTML = shown.length ? shown.map(function (r) {
       var t = timerOf(r);
       var link = r.leadId ? '<a class="go" href="leads.html?lead=' + r.leadId + '">Open lead</a>'
-        : r.studentId ? '<a class="go" href="counsellor.html?student=' + r.studentId + '">Open file</a>' : '';
+        : r.studentId ? '<a class="go" href="counsellor.html?student=' + r.studentId + (r.docKey ? '&doc=' + encodeURIComponent(r.docKey) : '&tab=file') + '">'
+          + (r.docKey ? 'Open the document' : 'Open file') + '</a>' : '';
       var who = r.counsellor && r.counsellor.name ? r.counsellor.name : 'Nobody assigned';
       return '<div class="item"><span class="av" style="background:' + colour(r.studentId || r.leadId) + '">' + esc(initials(r.student)) + '</span>'
         + '<div class="who2"><b>' + esc(r.student || 'Unknown') + '</b><span>' + esc(r.what) + '</span>'
