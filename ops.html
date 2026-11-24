@@ -187,6 +187,33 @@ tr:last-child td{border-bottom:0}
 .cell:disabled{cursor:default;background:none}
 .rowgo{color:var(--mute);font-weight:800}
 .crew tbody tr:hover .rowgo{color:var(--ink)}
+.optabs{display:inline-flex;gap:4px;padding:5px;background:var(--panel);border:1px solid var(--rule);border-radius:999px;margin:0 0 20px}
+.optabs button{border:0;background:transparent;border-radius:999px;padding:9px 18px;font:700 13.5px var(--sans);color:var(--muted);cursor:pointer}
+.optabs button[aria-selected="true"]{background:var(--navy,#0f1f33);color:#fff}
+.optabs button span{font-weight:600;opacity:.75}
+body.vstu .main > :not(.top):not(.optabs):not(#stuView):not(#error){display:none!important}
+.stubar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 12px}
+.stubar input,.stubar select{border:1px solid var(--rule);border-radius:11px;padding:10px 12px;font:500 13.5px var(--sans);background:var(--panel);color:inherit}
+.stubar input{flex:1 1 260px;min-width:200px}
+.stun{margin-left:auto;font:600 12.5px var(--sans);color:var(--muted)}
+.stutbl{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);overflow:auto}
+.stutbl table{width:100%;border-collapse:collapse}
+.stutbl th,.stutbl td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--rule);font:500 13px/1.45 var(--sans);vertical-align:top}
+.stutbl th{font:700 11px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:#f7f9fc;white-space:nowrap}
+.stutbl th[data-ssort]{cursor:pointer}
+.stutbl tbody tr{cursor:pointer}
+.stutbl tbody tr:hover{background:#f4f8fc}
+.stutbl td b{font:700 14px var(--sans);display:block}
+.stutbl td small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.stutbl .cm{max-width:360px;min-width:220px}
+.stutbl .nw{white-space:nowrap}
+.stg{display:inline-block;border-radius:999px;padding:3px 11px;font:700 12px var(--sans);background:#eef2f8;color:#33465f;white-space:nowrap}
+.stg.k-shortlist,.stg.k-writing,.stg.k-applying{background:#e9ecfb;color:#3340a8}
+.stg.k-offers{background:#e3f3ea;color:#1d6b45}
+.stg.k-visa{background:#fbf0d6;color:#8a5a00}
+.stg.k-departed,.stg.k-service{background:#dff3ea;color:#14603a}
+.pw{display:inline-block;border-radius:6px;padding:2px 8px;font:700 11px var(--sans);white-space:nowrap}
+.pw.student{background:#fdecea;color:#a12a22}.pw.counsellor{background:#fde8e8;color:#b42318}.pw.university,.pw.consulate{background:#eef2f8;color:#33465f}.pw.office{background:#fbf0d6;color:#8a5a00}
 .wsum{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}
 .wsum button{border:1px solid var(--rule);border-radius:14px;padding:14px 16px;background:var(--panel);text-align:left;cursor:pointer;font:inherit;color:inherit}
 .wsum button:hover{border-color:var(--navy)}
@@ -354,6 +381,7 @@ body.open{overflow:hidden}
     <div class="who"><b id="meName">…</b><span id="meRole"></span><br><button type="button" id="out">Sign out</button></div>
     <nav class="nav" aria-label="Staff">
       <a href="ops.html" class="on"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Command centre</a>
+      <a href="ops.html#students" id="navStudents"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.6.9 2.7 2.6 3 5.2"/></svg>Students</a>
       <a href="counsellor.html"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/></svg>Conversations</a>
       <a href="chat.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Website chat</a>
       <a href="leads.html"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Leads</a>
@@ -385,6 +413,27 @@ body.open{overflow:hidden}
         <button type="button" class="refresh" id="refresh">Refresh</button>
       </div>
     </div>
+
+    <!-- Patch 298: the Students tab. -->
+    <div class="optabs" id="optabs" role="tablist">
+      <button type="button" role="tab" data-optab="overview" aria-selected="true">Overview</button>
+      <button type="button" role="tab" data-optab="students" aria-selected="false">Students <span id="stuCount"></span></button>
+    </div>
+    <section id="stuView" hidden>
+      <div class="stubar">
+        <input type="search" id="stuQ" placeholder="Search a student, email or university country" aria-label="Search students">
+        <select id="stuStage" aria-label="Stage"><option value="">Every stage</option></select>
+        <select id="stuPend" aria-label="Pending from"><option value="">Pending from anybody</option><option value="student">Pending from the student</option><option value="counsellor">Pending from the counsellor</option><option value="university">Pending from the university</option><option value="consulate">Pending from the consulate</option></select>
+        <select id="stuCoun" aria-label="Counsellor" hidden><option value="">Every counsellor</option></select>
+        <span class="stun" id="stuN"></span>
+      </div>
+      <div class="stutbl"><table>
+        <thead><tr><th data-ssort="name">Student</th><th data-ssort="stage">Stage</th><th>Pending from</th><th data-ssort="steps">Steps done</th><th>Applications</th><th>Latest from the counsellor</th><th data-ssort="counsellor">Counsellor</th><th data-ssort="updated">Updated</th></tr></thead>
+        <tbody id="stuRows"><tr><td colspan="8"><div class="sk" style="height:40px"></div></td></tr></tbody>
+      </table></div>
+      <p class="wnote">"Latest from the counsellor" is the newest thing the counsellor wrote: a message to the student, or a note to the office on the file. Click a student to open the file.</p>
+    </section>
+
 
     <div id="error" class="err" hidden></div>
 
@@ -615,6 +664,69 @@ body.open{overflow:hidden}
     var C = 113.1, col = p >= 90 ? 'var(--ok)' : p >= 70 ? 'var(--soon)' : 'var(--late)';
     return '<span class="ring"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="18" stroke="#eef2f7"/><circle cx="21" cy="21" r="18" stroke="' + col + '" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C - C * p / 100) + '"/></svg><b>' + p + '%</b></span>';
   }
+  /* Patch 298: the Students tab — every open file on one line. */
+  var STU = null, STUSORT = { key: 'updated', dir: -1 };
+  function stuDay(at) {
+    if (!at) return '\u2014';
+    var d = new Date(at), n = new Date();
+    var ist = function (x) { return new Date(x.getTime() + 330 * 60000).toISOString().slice(0, 10); };
+    if (ist(d) === ist(n)) return 'Today';
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }) + (d.getFullYear() !== n.getFullYear() ? ' ' + d.getFullYear() : '');
+  }
+  function paintStudents() {
+    if (!STU) return;
+    var q = $('#stuQ').value.trim().toLowerCase(), sg = $('#stuStage').value, pd = $('#stuPend').value, cn = $('#stuCoun').value;
+    var list = STU.students.filter(function (r) {
+      return (!sg || r.stageKey === sg) && (!pd || r.pendingWith === pd) && (!cn || (cn === '0' ? !r.counsellor : (r.counsellor && String(r.counsellor.id) === cn)))
+        && (!q || (r.name + ' ' + r.email + ' ' + r.destination + ' ' + (r.counsellor ? r.counsellor.name : '')).toLowerCase().indexOf(q) >= 0);
+    });
+    var val = { name: function (r) { return r.name.toLowerCase(); }, stage: function (r) { var i = STU.stages.findIndex(function (x) { return x.key === r.stageKey; }); return i < 0 ? 99 : i; },
+      steps: function (r) { return r.steps.total ? r.steps.done / r.steps.total : -1; }, counsellor: function (r) { return r.counsellor ? r.counsellor.name.toLowerCase() : '~'; }, updated: function (r) { return r.updated; } }[STUSORT.key];
+    list.sort(function (a, b) { var x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * STUSORT.dir; });
+    $('#stuN').textContent = list.length + (list.length === STU.total ? '' : ' of ' + STU.total) + (STU.total === 1 ? ' student' : ' students');
+    $('#stuRows').innerHTML = list.map(function (r) {
+      var c = r.comment, sub = [r.destination, r.intake].filter(Boolean).join(' \u00b7 ');
+      return '<tr data-stu="' + r.id + '"><td><b>' + esc(r.name) + '</b><small>' + esc(sub || r.email) + '</small></td>'
+        + '<td><span class="stg k-' + esc(r.stageKey) + '">' + esc(r.stage || 'Not started') + '</span></td>'
+        + '<td class="cm">' + (r.pendingWith ? '<span class="pw ' + esc(r.pendingWith) + '">' + esc(r.pendingLabel) + '</span><small>' + esc(r.pendingWhat) + '</small>' : '<small>Nothing pending</small>') + '</td>'
+        + '<td class="nw"><b>' + r.steps.done + ' / ' + r.steps.total + '</b>' + (r.steps.late ? '<small style="color:var(--late)">' + r.steps.late + ' late</small>' : '') + '</td>'
+        + '<td class="nw">' + (r.apps.listed ? '<b>' + r.apps.applied + ' / ' + r.apps.listed + '</b><small>applied' + (r.apps.offers ? ' \u00b7 ' + r.apps.offers + (r.apps.offers === 1 ? ' offer' : ' offers') : '') + '</small>' : '<small>No shortlist yet</small>') + '</td>'
+        + '<td class="cm">' + (c ? esc(c.text) + '<small>' + esc(c.by) + ' \u00b7 ' + (c.kind === 'note' ? 'note to the office' : 'message to the student') + ' \u00b7 ' + esc(stuDay(c.at)) + '</small>' : '<small>Nothing written yet</small>') + '</td>'
+        + '<td class="nw">' + (r.counsellor ? esc(r.counsellor.name) : '<span style="color:var(--late)">Nobody assigned</span>') + '</td>'
+        + '<td class="nw">' + esc(stuDay(r.updated)) + '</td></tr>';
+    }).join('') || '<tr><td colspan="8">No student matches.</td></tr>';
+  }
+  function loadStudents() {
+    return api('/api/staff/students/board').then(function (d) {
+      var first = !STU; STU = d;
+      $('#stuCount').textContent = d.total;
+      if (first) {
+        $('#stuStage').insertAdjacentHTML('beforeend', d.stages.map(function (x) { return '<option value="' + esc(x.key) + '">' + esc(x.label) + '</option>'; }).join(''));
+        if (d.admin) { $('#stuCoun').hidden = false; $('#stuCoun').insertAdjacentHTML('beforeend', d.counsellors.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + '</option>'; }).join('') + '<option value="0">Nobody assigned</option>'); }
+      }
+      paintStudents();
+    }).catch(function (e) { if (e.message !== 'signed out') $('#stuRows').innerHTML = '<tr><td colspan="8">' + esc(e.message) + '</td></tr>'; });
+  }
+  function showTab(t) {
+    var stu = t === 'students';
+    document.body.classList.toggle('vstu', stu); $('#stuView').hidden = !stu;
+    [].forEach.call(document.querySelectorAll('#optabs [data-optab]'), function (b) { b.setAttribute('aria-selected', String(b.dataset.optab === t)); });
+    var on = document.querySelector('.nav a.on'); if (on) on.classList.remove('on');
+    var nav = document.querySelector(stu ? '#navStudents' : '.nav a[href="ops.html"]'); if (nav) nav.classList.add('on');
+    if (stu) loadStudents();
+  }
+  function tabFromHash() { showTab(location.hash === '#students' ? 'students' : 'overview'); }
+  window.addEventListener('hashchange', tabFromHash);
+  document.addEventListener('click', function (e) {
+    var tb = e.target.closest('[data-optab]');
+    if (tb) { if (tb.dataset.optab === 'students') location.hash = 'students'; else history.replaceState(null, '', location.pathname + location.search), tabFromHash(); return; }
+    var sh = e.target.closest('.stutbl th[data-ssort]');
+    if (sh) { STUSORT = { key: sh.dataset.ssort, dir: STUSORT.key === sh.dataset.ssort ? -STUSORT.dir : (sh.dataset.ssort === 'updated' ? -1 : 1) }; return paintStudents(); }
+    var sr = e.target.closest('tr[data-stu]');
+    if (sr) location.href = 'counsellor.html?student=' + sr.dataset.stu + '&tab=file';
+  });
+  ['stuQ', 'stuStage', 'stuPend', 'stuCoun'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('input', paintStudents); });
+
   /* Patch 293: the work board. One row a person, one column a kind of work;
      each cell says done of total, and what is left. */
   function wCell(owner, kind, t, cls) {
@@ -1001,6 +1113,7 @@ body.open{overflow:hidden}
     return api('/api/staff/command').then(function (d) {
       DATA = d; $('#error').hidden = true;
       paintTop(d); paintRoute(d); paintPending(d); paintQueues(d); paintWork(d); paintCrew(d); paintLeadW(d.leadWatch);
+      if (document.body.classList.contains('vstu')) loadStudents();
       if (OPEN && OPEN.kind === 'counsellor') openCounsellor(OPEN.key, OPEN.view);
       else if (OPEN && OPEN.kind === 'work') { /* fetched on demand; left as it is */ }
       else if (OPEN && OPEN.kind !== 'sla') { var q = rowsOpen(); if (q) drawRows(q.rows || [], q.total != null ? q.total : q.students); }
@@ -1105,6 +1218,7 @@ body.open{overflow:hidden}
     if (location.hash === '#calls') setTimeout(function () { $('#calls').scrollIntoView({ behavior: 'smooth' }); }, 600);
     tick(); setInterval(tick, 15000);
     load(); setInterval(function () { if (!document.hidden) load(); }, 60000);
+    tabFromHash();
   }).catch(function (e) {
     if (e.message !== 'signed out') { $('#error').textContent = 'This screen is for the Glovels team.'; $('#error').hidden = false; }
   });

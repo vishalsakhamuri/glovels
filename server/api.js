@@ -10326,6 +10326,64 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   route('GET', '/api/staff/command', caseworkOnly(async (req, res, s) =>
     json(res, 200, commandCentre(s, Date.now()))));
 
+  /* Patch 298: the Students tab — every open file on one line: where it
+     stands, whose move it is, and the latest thing the counsellor wrote
+     (their note to the office on the file, or their message to the student,
+     whichever is newer). A counsellor sees their own students; an administrator, all. */
+  route('GET', '/api/staff/students/board', caseworkOnly(async (req, res, s) => {
+    const now = Date.now(), admin = s.role === 'admin';
+    const people = peopleMap();
+    const nameOf = id => (id && people.get(Number(id))) ? people.get(Number(id)).name : '';
+    const files = (db.allStudents() || []).filter(st => st.role === 'student' && db.openFile(st)
+      && (admin || db.canSee(s, Number(st.id))));
+    const clip = t => { const x = String(t || '').replace(/\s+/g, ' ').trim(); return x.length > 180 ? x.slice(0, 177) + '\u2026' : x; };
+    const rows = files.map(st => {
+      const sid = Number(st.id);
+      let S = null, prof = {}, c = null, comment = null, last = String(st.created_at || '');
+      try { S = standingOf(st, now); } catch (e) { S = null; }
+      try { prof = db.getProfile(sid) || {}; } catch (e) { prof = {}; }
+      try { c = db.liveCounsellorOf(st); } catch (e) { c = null; }
+      try {
+        (db.staffNotes(sid) || []).forEach(n => {
+          if (String(n.created_at) > last) last = String(n.created_at);
+          if (!String(n.body || '').trim()) return;
+          /* The office's guidance TO the counsellor is not the counsellor's comment. */
+          let who = null; try { who = db.studentById(Number(n.from_id)); } catch (e) { who = null; }
+          if (!who || String(who.role) !== 'counsellor') return;
+          if (!comment || String(n.created_at) >= comment.at) comment = { text: clip(n.body), by: nameOf(n.from_id) || 'Staff', at: String(n.created_at), kind: 'note' };
+        });
+      } catch (e) { /* no notes */ }
+      try {
+        (db.getMessages(sid) || []).forEach(m => {
+          if (String(m.created_at) > last) last = String(m.created_at);
+          if (String(m.sender) !== 'them' || String(m.kind || 'msg') !== 'msg' || !String(m.author || '').trim() || !String(m.body || '').trim()) return;
+          if (!comment || String(m.created_at) >= comment.at) comment = { text: clip(m.body), by: String(m.author), at: String(m.created_at), kind: 'message' };
+        });
+      } catch (e) { /* no messages */ }
+      let steps = { done: 0, total: 0, late: 0 };
+      try {
+        const raw = db.tasksFor(sid) || [];
+        raw.forEach(t => { const u = String(t.updated_at || t.done_at || ''); if (u > last) last = u; });
+        const eff = TASKS.effectiveAll(db, raw, now).filter(t => String(t.status) !== 'dropped');
+        steps = { total: eff.length, done: eff.filter(t => String(t.status) === 'done').length,
+          late: eff.filter(t => String(t.status) !== 'done' && (TASKS.lateness(t, now) || 0) > 0).length };
+      } catch (e) { /* no tasks */ }
+      const P = S && S.pending;
+      return {
+        id: sid, name: st.name || '', email: st.email || '',
+        destination: prof.g_country || '', intake: prof.g_intake || '',
+        stage: S ? S.stage : '', stageKey: S ? S.key : '',
+        pendingWith: P ? P.with : '', pendingLabel: P ? P.withLabel : '', pendingWhat: P ? P.what : '',
+        apps: S && S.apps ? { listed: S.apps.listed, applied: S.apps.applied, offers: S.apps.offers } : { listed: 0, applied: 0, offers: 0 },
+        counsellor: c ? { id: c.id, name: c.name } : null, steps,
+        comment, updated: last,
+      };
+    }).sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
+    const stages = TASKS.PHASES ? TASKS.PHASES.map(ph => ({ key: ph.key, label: ph.short || ph.label })) : [];
+    json(res, 200, { at: new Date(now).toISOString(), admin, total: rows.length, stages, students: rows,
+      counsellors: admin ? db.activeCaseworkers().map(c => ({ id: c.id, name: c.name })) : [] });
+  }));
+
   /* Patch 293: the pieces of work behind one number on the work board.
      ?owner=<id | 0 for nobody | all>&kind=<key | all>&state=all|open|done|late|week */
   route('GET', '/api/staff/command/work', caseworkOnly(async (req, res, s) => {

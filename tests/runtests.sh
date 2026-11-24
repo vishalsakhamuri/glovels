@@ -342,6 +342,8 @@ node counsellorworktest.js | tail -1 | sed 's/^/  counsellorworktest.js /' | tee
 node leadboardtest.js | tail -1 | sed 's/^/  leadboardtest.js /' | tee -a "$REPORT"
 # patch 295: a lead logged as already converted, and given to a counsellor — own server (8297).
 node leadlogconverttest.js | tail -1 | sed 's/^/  leadlogconverttest.js /' | tee -a "$REPORT"
+# patch 298: the Students tab on the Command centre — own server (8299).
+node studentstabtest.js | tail -1 | sed 's/^/  studentstabtest.js /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"
