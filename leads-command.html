@@ -337,8 +337,9 @@ body.open .drawer{transform:none}
         </div>
 
         <div class="sec gap"><h2 id="crewH">Counsellors</h2><p>Click a person or a number to see the leads behind it. Click a heading to sort.</p></div>
+        <p class="ltot" id="ltot" style="margin:-4px 2px 10px;font:600 13px/1.5 var(--sans)"></p>
         <div class="crew"><table>
-          <thead><tr><th data-sort="name">Counsellor</th><th data-sort="assigned">Assigned</th><th data-sort="open">Open</th><th data-sort="waiting">Waiting</th><th data-sort="overdue">Overdue</th><th data-sort="avgResponseMins">Avg first response</th><th data-sort="inSla">Inside SLA</th><th data-sort="conversions">Converted</th><th data-sort="rate">Rate</th></tr></thead>
+          <thead><tr><th data-sort="name">Counsellor</th><th data-sort="assigned">Leads</th><th data-sort="fresh">New</th><th data-sort="working">Working</th><th data-sort="conversions">Converted</th><th data-sort="lost">Not converted</th><th data-sort="noFollowUp">No follow-up yet</th><th data-sort="followUps">Follow-ups</th><th data-sort="followUpsWeek">Follow-ups, 7 days</th><th data-sort="waiting">Waiting</th><th data-sort="overdue">Overdue</th><th data-sort="avgResponseMins">Avg first response</th><th data-sort="inSla">Inside SLA</th><th data-sort="rate">Conversion rate</th></tr></thead>
           <tbody id="crew"><tr><td colspan="9"><div class="sk" style="height:40px"></div></td></tr></tbody>
         </table></div>
       </div>
@@ -466,7 +467,7 @@ body.open .drawer{transform:none}
       small = st === 'escalated' ? 'ESCALATED · ' + mins(age - S.firstMins) + ' past SLA' : st === 'late' ? mins(age - S.firstMins) + ' past the ' + S.firstMins + '-min SLA' : mins(S.firstMins - age) + ' left of ' + S.firstMins + ' min';
     } else {
       big = q.convertedOn ? 'Converted' : q.status;
-      small = q.responseMins != null ? 'answered in ' + mins(q.responseMins) : q.waiting ? 'not answered yet' : (q.followUps ? q.followUps + ' follow-ups' : '');
+      small = q.lostReason ? 'reason: ' + q.lostReason : q.responseMins != null ? 'answered in ' + mins(q.responseMins) : q.waiting ? 'not answered yet' : (q.followUps ? q.followUps + ' follow-ups' : '');
       st = q.convertedOn ? 'ok' : q.waiting ? 'late' : 'ok';
     }
     var mine = ME && Number(q.ownerId) === Number(ME.id);
@@ -570,18 +571,26 @@ body.open .drawer{transform:none}
       if (th.dataset.sort === SORT.key) th.setAttribute('aria-sort', SORT.dir); else th.removeAttribute('aria-sort');
     });
     var cell = function (c, view, html, n) { return '<button type="button" class="cell" data-cv="' + c.id + '" data-view="' + view + '"' + (n ? '' : ' disabled') + '>' + html + '</button>'; };
+    var T = d.totals;
+    if (T) $('#ltot').innerHTML = '<b>' + T.leads + '</b> leads in all: <b>' + T.fresh + '</b> new, <b>' + T.working + '</b> being worked on, <b style="color:var(--ok)">' + T.converted + '</b> converted, <b>' + T.lost + '</b> not converted'
+      + (T.unassigned ? ' \u00b7 <b style="color:var(--late)">' + T.unassigned + '</b> open with nobody assigned' : '');
     $('#crew').innerHTML = list.map(function (c) {
       var dev = c.id ? '<span class="dev' + (c.devices ? '' : ' none') + '">' + (c.devices ? '● alerts on ' + c.devices + (c.devices === 1 ? ' device' : ' devices') : '○ no phone alerts') + '</span>' : '<small>' + esc(c.email) + '</small>';
       return '<tr data-cid="' + c.id + '" title="Open ' + esc(c.name) + '’s leads"><td><div class="person"><span class="av" style="background:' + (c.id ? colour(c.id) : '#7889a0') + '">' + esc(c.id ? initials(c.name) : '?') + '</span><div><b>' + esc(c.name) + '</b>' + dev + '</div></div></td>'
         + '<td class="num">' + cell(c, 'all', c.assigned, c.assigned) + '</td>'
-        + '<td class="num">' + cell(c, 'open', c.open, c.open) + '</td>'
+        + '<td class="num">' + cell(c, 'fresh', c.fresh, c.fresh) + '</td>'
+        + '<td class="num">' + cell(c, 'working', c.working, c.working) + '</td>'
+        + '<td class="num">' + cell(c, 'wonall', c.conversions, c.conversions) + '</td>'
+        + '<td class="num">' + cell(c, 'lost', c.lost, c.lost) + '</td>'
+        + '<td class="num' + (c.noFollowUp ? ' bad' : '') + '">' + cell(c, 'nofollow', c.noFollowUp, c.noFollowUp) + '</td>'
+        + '<td class="num"><b>' + (c.id ? c.followUps : '\u2014') + '</b></td>'
+        + '<td class="num"><b>' + (c.id ? c.followUpsWeek : '\u2014') + '</b></td>'
         + '<td class="num">' + cell(c, 'waiting', c.waiting, c.waiting) + '</td>'
         + '<td class="num' + (c.overdue ? ' bad' : '') + '">' + cell(c, 'overdue', c.overdue, c.overdue) + '</td>'
         + '<td>' + (c.avgResponseMins == null ? '<span class="muted">—</span>' : '<b' + (c.avgResponseMins > d.settings.firstMins ? ' style="color:var(--late)"' : '') + '>' + mins(c.avgResponseMins) + '</b>') + '</td>'
         + '<td>' + (c.inSla == null ? '<span class="muted">—</span>' : c.inSla + '%') + '</td>'
-        + '<td class="num">' + cell(c, 'won', c.conversions, c.conversions) + '</td>'
         + '<td>' + (c.rate == null ? '<span class="muted">—</span>' : c.rate + '%') + '</td></tr>';
-    }).join('') || '<tr><td colspan="9" class="muted">Nobody on the team yet.</td></tr>';
+    }).join('') || '<tr><td colspan="14" class="muted">Nobody on the team yet.</td></tr>';
   }
 
   /* ------------------------------------------------------------ the drawer */
@@ -600,8 +609,16 @@ body.open .drawer{transform:none}
     if (view === 'overdue') { rows = DATA.queue.filter(function (q) { return owned(q) && (q.state === 'late' || q.state === 'escalated'); }); queue = true; label = 'overdue'; }
     else if (view === 'waiting') { rows = DATA.queue.filter(function (q) { return owned(q) && q.type === 'first'; }); queue = true; label = 'waiting for a first call'; }
     else if (view === 'won') { rows = (DATA.won || []).filter(owned); label = 'converted this month'; }
+    /* Patch 294: where their leads stand. */
+    else if (view === 'wonall') { rows = (DATA.wonAll || []).filter(owned); label = 'converted'; }
+    else if (view === 'lost') { rows = (DATA.lost || []).filter(owned); label = 'not converted'; }
+    else if (view === 'fresh') { rows = (DATA.open || []).filter(function (r) { return owned(r) && r.status === 'new'; }); label = 'new, not worked yet'; }
+    else if (view === 'working') { rows = (DATA.open || []).filter(function (r) { return owned(r) && r.status !== 'new'; }); label = 'being worked on'; }
+    else if (view === 'nofollow') { rows = (DATA.open || []).filter(function (r) { return owned(r) && !r.followUps && r.responseMins == null; }); label = 'open with no follow-up yet'; }
+    else if (view === 'all') { rows = (DATA.open || []).concat(DATA.wonAll || [], DATA.lost || []).filter(owned); label = 'leads in all'; }
     else { rows = (DATA.open || []).filter(owned); label = 'open'; }
-    openList(c.name, rows.length + ' ' + label + ' · ' + c.assigned + ' assigned · ' + c.conversions + ' converted', rows, queue);
+    openList(c.name, rows.length + ' ' + label + ' · ' + c.assigned + ' leads: ' + c.fresh + ' new, ' + c.working + ' being worked on, ' + c.conversions + ' converted, ' + c.lost + ' not converted'
+      + (c.id ? ' · ' + c.followUps + ' follow-ups made (' + c.followUpsWeek + ' in the last 7 days)' : ''), rows, queue);
     OPEN.person = { id: cid, view: view };
   }
   function openTile(key) {

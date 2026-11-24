@@ -11815,8 +11815,21 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     db.activeCaseworkers().forEach(addP);
     (db.staffByRole('admin') || []).filter(a => (a.status || 'active') === 'active').forEach(addP);
     book.forEach(e => { if (e.owner_id && !crew.has(Number(e.owner_id))) crew.set(Number(e.owner_id), { id: Number(e.owner_id), name: ownerName(e.owner_id), email: '', role: '' }); });
+    /* Patch 294: follow-ups by whoever made them — each call, WhatsApp, email,
+       meeting or note recorded on a lead — in all and in seven days. */
+    const weekAgoL = new Date(now - 7 * D).toISOString();
+    const touchesBy = new Map();
+    (db.allLeadNotes() || []).forEach(n => {
+      if (!visible.has(Number(n.lead_id)) || !['call', 'whatsapp', 'email', 'meeting', 'note'].includes(String(n.kind || ''))) return;
+      const k = String(n.who || '');
+      const t = touchesBy.get(k) || { all: 0, week: 0 };
+      t.all++; if (String(n.created_at) >= weekAgoL) t.week++;
+      touchesBy.set(k, t);
+    });
     const board = [...crew.values()].concat([{ id: 0, name: 'Unassigned', email: 'Leads nobody has picked up', role: '' }]).map(p => {
       const mine = book.filter(e => Number(e.owner_id || 0) === p.id);
+      const st = k => mine.filter(e => String(e.status || 'new') === k).length;
+      const tb = p.id ? (touchesBy.get(String(p.name)) || { all: 0, week: 0 }) : { all: 0, week: 0 };
       const rs = mine.filter(e => String(e.consent || '') !== 'staff' && now - new Date(e.created_at).getTime() <= 30 * D).map(respMins).filter(v => v != null);
       const conv = mine.filter(e => String(e.status) === 'converted').length;
       const ov = late.filter(q => Number(q.ownerId || 0) === p.id).length;
@@ -11827,6 +11840,10 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         avgResponseMins: rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length) : null,
         inSla: rs.length ? Math.round(100 * rs.filter(m => m <= S.firstMins).length / rs.length) : null,
         conversions: conv, rate: mine.length ? Math.round(1000 * conv / mine.length) / 10 : null,
+        /* Patch 294: where each of their leads stands, and the follow-ups made. */
+        fresh: st('new'), working: st('contacted') + st('following'), lost: st('lost'),
+        noFollowUp: mine.filter(e => isOpen(e) && !((counts[String(e.id)] || {}).n) && !firstTouch.has(Number(e.id))).length,
+        followUps: tb.all, followUpsWeek: tb.week,
         devices: p.id ? db.countPushSubscriptions(p.id) : null,
       };
     }).filter(r => admin || r.id === 0 || r.id === Number(s.id));
@@ -11860,6 +11877,14 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       settings: S, minuteMs: MINMS, officeOpen: LW ? LW.officeOpen(now) : true,
       kpis, queue: queue.slice(0, 150), channels: Object.values(chan).sort((a, b) => b.leads - a.leads),
       sources: Object.values(src).sort((a, b) => b.leads - a.leads), board, trend, feed, open,
+      /* Patch 294: the leads that did not convert, newest first, with why. */
+      lost: book.filter(e => String(e.status) === 'lost').sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+        .slice(0, 300).map(e => card(e, { lostReason: e.lost_reason || '', followUps: (counts[String(e.id)] || {}).n || 0 })),
+      wonAll: won.slice(0, 300).map(e => card(e, { convertedOn: convDay(e) })),
+      totals: { leads: book.length, fresh: book.filter(e => String(e.status || 'new') === 'new').length,
+        working: book.filter(e => ['contacted', 'following'].includes(String(e.status))).length,
+        converted: won.length, lost: book.filter(e => String(e.status) === 'lost').length,
+        unassigned: book.filter(e => isOpen(e) && !e.owner_id).length },
       won: won.filter(e => convDay(e) >= monthStart).slice(0, 60).map(e => card(e, { convertedOn: convDay(e) })),
       alerting: { team: team.length, withPush: team.filter(p => db.countPushSubscriptions(p.id) > 0).length,
         without: admin ? team.filter(p => !db.countPushSubscriptions(p.id)).map(p => p.name) : [] },
