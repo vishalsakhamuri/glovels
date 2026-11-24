@@ -2686,15 +2686,18 @@ function paintRecord(r) {
       '<section class="pane" id="t-activity">' + activityHtml(r) + '</section>' +
 
       '<section class="pane" id="t-file">' +
-        '<div class="p-cols" style="align-items:start">' +
+        /* Patch 296: the profile runs across the top and the documents sit
+           side by side, so the whole file is checked without scrolling past
+           an empty left half. */
+        '<div class="filewide" style="display:grid;gap:20px">' +
           '<div><h3 style="font-size:14.5px;margin-bottom:10px">Profile</h3>' +
-            '<ul class="doclist">' + facts.map(([k, v]) =>
-              '<li><span style="color:var(--muted);min-width:92px">' + esc(k) + '</span>' +
+            '<ul class="doclist factgrid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 26px">' + facts.map(([k, v]) =>
+              '<li style="padding-bottom:7px;border-bottom:1px solid var(--line)"><span style="color:var(--muted);min-width:92px">' + esc(k) + '</span>' +
               '<span class="st none" style="margin-left:auto;max-width:60%;text-transform:none;' +
               'letter-spacing:0;font-weight:600">' + esc(v) + '</span></li>').join('') + '</ul></div>' +
           '<div><h3 style="font-size:14.5px;margin-bottom:10px">Documents</h3>' +
             /* Patch 172 (N17-02): grouped by document — see docGroups. */
-            '<ul class="doclist" id="docs">' + ((DOCSIG = docSig(r.docs)), docGroups(r.docs)) + '</ul>' +
+            '<ul class="doclist docgrid" id="docs" style="grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px;align-items:start">' + ((DOCSIG = docSig(r.docs)), docGroups(r.docs)) + '</ul>' +
             /*
              * Finished work, handed back.
              *
