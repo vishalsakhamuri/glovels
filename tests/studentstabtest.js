@@ -94,6 +94,11 @@ const login = async (email) => {
     check('and so does the stage', (await p.$$('#stuRows tr[data-stu]')).length === b0.students.filter(r => r.stageKey === r2.stageKey).length);
     await p.selectOption('#stuStage', ''); await p.selectOption('#stuPend', r2.pendingWith); await p.waitForTimeout(200);
     check('and whose move it is', (await p.$$('#stuRows tr[data-stu]')).length === b0.students.filter(r => r.pendingWith === r2.pendingWith).length);
+    await p.selectOption('#stuPend', ''); await p.selectOption('#stuUpd', 'today'); await p.waitForTimeout(200);
+    check('patch 300: "Changed today" keeps the files that moved today', (await p.$$('#stuRows tr[data-stu]')).length === b0.students.length && !!(await p.$('#stuRows tr[data-stu="' + r0.id + '"]')));
+    await p.selectOption('#stuUpd', 'quiet'); await p.waitForTimeout(200);
+    check('patch 300: "No change for 7 days" leaves it out', !(await p.$('#stuRows tr[data-stu="' + r0.id + '"]')));
+    await p.selectOption('#stuUpd', '');
     await p.goto('http://localhost:' + PORT + '/ops.html#students'); await p.waitForTimeout(1500);
     check('the side-menu address opens straight on the tab', await p.isVisible('#stuView') && (await p.$$('#stuRows tr[data-stu]')).length === b0.total);
     await p.click('#stuRows tr[data-stu="' + r0.id + '"]'); await p.waitForTimeout(1500);

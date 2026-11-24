@@ -107,6 +107,11 @@ const login = async (email) => {
     check('with the student, the step and the day it was done', W1.week[0].student && W1.week[0].what === closed.title && /^Done \d{4}-\d{2}-\d{2}/.test(W1.week[0].timer.big), JSON.stringify(W1.week[0].timer));
     check('and whether it was on time', /on time|after its date|no date/.test(W1.week[0].timer.small), W1.week[0].timer.small);
     check('it is no longer among the remaining', !W1.open.some(r => r.taskId === closed.id));
+    /* Patch 300: today and yesterday, for the 10 am call. */
+    check('patch 300: it is counted as completed today, for her and for the company', W1.doneToday === (W0.doneToday || 0) + 1 && b1.work.doneToday === WB.doneToday + 1 && b1.work.people.find(q => /Kavya/.test(q.name)).doneToday >= 1, JSON.stringify([W0.doneToday, W1.doneToday, WB.doneToday, b1.work.doneToday]));
+    check('patch 300: and not as yesterday\'s', b1.work.doneYesterday === WB.doneYesterday && /^\d{4}-\d{2}-\d{2}$/.test(b1.work.today) && b1.work.yesterday < b1.work.today, JSON.stringify([b1.work.today, b1.work.yesterday]));
+    const dT = (await call('/api/staff/command/work?owner=all&kind=all&state=today', { headers: H })).body, dY = (await call('/api/staff/command/work?owner=all&kind=all&state=yesterday', { headers: H })).body;
+    check('patch 300: "completed today" lists it, with the student', dT.total === b1.work.doneToday && dT.rows.some(r => r.taskId === closed.id && r.student) && dY.total === b1.work.doneYesterday, dT.total + ' / ' + dY.total);
     check('the company board moved with it', b1.work.done >= WB.done + 1 && b1.work.total === WB.total && b1.work.doneWeek === WB.doneWeek + 1, b1.work.done + ' vs ' + WB.done);
     /* "once tasks are completed, is it updated in the student's status?" */
     const f1 = (await call('/api/staff/student/' + sid, { headers: H })).body;
@@ -131,7 +136,8 @@ const login = async (email) => {
     await p.goto('http://localhost:' + PORT + '/ops'); await p.waitForTimeout(1500);
     check('the board is on the Command centre, above the queues', /All work in the company/.test(await p.textContent('#workH')));
     const tiles = await p.$$eval('#wsum button', bs => bs.map(x => x.textContent));
-    check('with the totals first: all, done, remaining, late, closed this week', tiles.length === 5 && tiles[0].startsWith(String(WBn.total)) && /Remaining/.test(tiles[2]), tiles.join(' | '));
+    check('patch 300: with completed today and completed yesterday among the totals', tiles.length === 7 && /Completed today/.test(tiles[4]) && tiles[4].startsWith(String(WBn.doneToday)) && /Completed yesterday/.test(tiles[5]), tiles.join(' | '));
+    check('with the totals first: all, done, remaining, late', tiles.length === 7 && tiles[0].startsWith(String(WBn.total)) && /Remaining/.test(tiles[2]), tiles.join(' | '));
     const wh = await p.textContent('#wbHead');
     check('a column for each kind of work', /Applications/.test(wh) && /CV/.test(wh) && /SOP/.test(wh) && /Documents/.test(wh) && /Visa/.test(wh), wh);
     check('a row for each person and one for the whole company', (await p.$$('#wbBody tr[data-wp]')).length === WBn.people.length && /Whole company/.test(await p.textContent('#wbFoot')));
@@ -143,6 +149,11 @@ const login = async (email) => {
     await p.click('#dFilters [data-wstate="open"]'); await p.waitForTimeout(900);
     check('"Remaining" keeps only what is left', (await p.$$('#dList .item')).length === kvn.kinds.applications.remaining);
     await p.click('#dx'); await p.waitForTimeout(400);
+    await p.click('#wsum [data-wk="all|all|today"]'); await p.waitForTimeout(900);
+    check('patch 300: the "Completed today" tile opens what was completed today', (await p.$$('#dList .item')).length === WBn.doneToday && /completed today/.test(await p.textContent('#dTitle')), await p.textContent('#dTitle'));
+    await p.screenshot({ path: '/tmp/cwork-today.png' });
+    await p.click('#dx'); await p.waitForTimeout(400);
+    check('patch 300: each person has Done today and Done yesterday columns', /Done today/.test(await p.textContent('#wbHead')) && /Done yesterday/.test(await p.textContent('#wbHead')));
     const head = await p.$eval('#crew', el => el.closest('table').querySelector('thead').textContent);
     check('the counsellor table has Done, Done in 7 days and Remaining', /Done/.test(head) && /Done, 7 days/.test(head) && /Remaining/.test(head), head);
     const rowTxt = await p.$eval('tr[data-cid="' + c0.id + '"]', tr => [...tr.children].map(td => td.textContent.trim()));

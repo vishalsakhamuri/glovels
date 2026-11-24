@@ -10132,6 +10132,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     /* "Done by": whoever ticked it; a piece with no name on it counts for its owner. */
     const closedBy = (u, cid) => (u.doneBy ? u.doneBy === cid : u.owner === cid);
     const inWeek = u => u.done && !u.derived && u.doneAt && String(u.doneAt) >= weekAgo;
+    /* Patch 300: today and yesterday, by the office's (India) calendar — what
+       the 10 am call looks at. */
+    const dayToday = DAYS.istDay(now), dayYest = DAYS.addDays(dayToday, -1);
+    const onDay = (u, day) => u.done && !u.derived && !!u.doneAt && DAYS.istDay(u.doneAt) === day;
+    const dayCounts = list => ({ doneToday: list.filter(u => onDay(u, dayToday)).length, doneYesterday: list.filter(u => onDay(u, dayYest)).length });
     const unitRow = u => {
       const r = {
         studentId: u.sid, student: u.student, taskId: u.taskId, kind: u.kind,
@@ -10141,6 +10146,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         state: u.done ? 'ok' : u.late ? 'late' : (u.due && u.overDays != null && u.overDays >= -2) ? 'soon' : 'ok',
       };
       if (u.docKey) r.docKey = u.docKey;
+      if (u.derived) r.derived = true;
       if (u.done) {
         r.doneAt = u.doneAt;
         r.timer = { big: u.doneAt ? 'Done ' + String(u.doneAt).slice(0, 10) : 'Done',
@@ -10156,7 +10162,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       const list = units.filter(u => (who === 'all' || Number(u.owner || 0) === Number(who))
         && (kind === 'all' || u.kind === kind)
         && (state === 'all' || (state === 'open' && !u.done) || (state === 'done' && u.done) || (state === 'late' && u.late)
-          || (state === 'week' && inWeek(u))));
+          || (state === 'week' && inWeek(u)) || (state === 'today' && onDay(u, dayToday)) || (state === 'yesterday' && onDay(u, dayYest))));
       const k = WORK_KINDS.find(x => x[0] === kind);
       return {
         who: who === 'all' ? 'Everybody' : Number(who) ? (nameOf(Number(who)) || 'Somebody who has left') : 'Nobody assigned',
@@ -10177,7 +10183,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
           });
         });
       } catch (e) { msgs = 0; }
-      return Object.assign(tally(owned), {
+      return Object.assign(tally(owned), dayCounts(units.filter(u => closedBy(u, cid))), {
         doneWeek: week.length, onTimeWeek: week.filter(onTimeOf).length, messagesWeek: msgs,
         kinds: byKinds(owned),
         /* Handed over: their pieces on somebody else's file, and pieces on
@@ -10192,7 +10198,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const workBoard = (() => {
       const ids = new Set((db.activeCaseworkers() || []).map(c => Number(c.id)));
       units.forEach(u => { if (u.owner) ids.add(u.owner); });
-      const rowOf = (id, name, list) => Object.assign(tally(list), {
+      const rowOf = (id, name, list) => Object.assign(tally(list), dayCounts(list), {
         id, name, kinds: byKinds(list), doneWeek: list.filter(inWeek).length,
         students: new Set(list.map(u => u.sid)).size,
         forOthers: id ? list.filter(u => u.coun && u.coun !== id).length : 0,
@@ -10203,7 +10209,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         .sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name));
       const loose = units.filter(u => !u.owner);
       if (loose.length) rows.push(rowOf(0, 'Nobody assigned', loose));
-      return Object.assign(tally(units), {
+      return Object.assign(tally(units), dayCounts(units), {
+        today: dayToday, yesterday: dayYest,
         kinds: WORK_KINDS.map(k => ({ key: k[0], label: k[1] })), byKind: byKinds(units),
         doneWeek: units.filter(inWeek).length, students: new Set(units.map(u => u.sid)).size, people: rows,
       });
@@ -10376,11 +10383,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         pendingWith: P ? P.with : '', pendingLabel: P ? P.withLabel : '', pendingWhat: P ? P.what : '',
         apps: S && S.apps ? { listed: S.apps.listed, applied: S.apps.applied, offers: S.apps.offers } : { listed: 0, applied: 0, offers: 0 },
         counsellor: c ? { id: c.id, name: c.name } : null, steps,
-        comment, updated: last,
+        comment, updated: last, updatedDay: last ? DAYS.istDay(last) : '',
       };
     }).sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
     const stages = TASKS.PHASES ? TASKS.PHASES.map(ph => ({ key: ph.key, label: ph.short || ph.label })) : [];
     json(res, 200, { at: new Date(now).toISOString(), admin, total: rows.length, stages, students: rows,
+      today: DAYS.istDay(now), yesterday: DAYS.addDays(DAYS.istDay(now), -1),
       counsellors: admin ? db.activeCaseworkers().map(c => ({ id: c.id, name: c.name })) : [] });
   }));
 

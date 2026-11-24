@@ -214,7 +214,7 @@ body.vstu .main > :not(.top):not(.optabs):not(#stuView):not(#error){display:none
 .stg.k-departed,.stg.k-service{background:#dff3ea;color:#14603a}
 .pw{display:inline-block;border-radius:6px;padding:2px 8px;font:700 11px var(--sans);white-space:nowrap}
 .pw.student{background:#fdecea;color:#a12a22}.pw.counsellor{background:#fde8e8;color:#b42318}.pw.university,.pw.consulate{background:#eef2f8;color:#33465f}.pw.office{background:#fbf0d6;color:#8a5a00}
-.wsum{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.wsum{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin:0 0 12px}
 .wsum button{border:1px solid var(--rule);border-radius:14px;padding:14px 16px;background:var(--panel);text-align:left;cursor:pointer;font:inherit;color:inherit}
 .wsum button:hover{border-color:var(--navy)}
 .wsum b{display:block;font:800 28px/1 var(--disp)}
@@ -239,7 +239,9 @@ body.vstu .main > :not(.top):not(.optabs):not(#stuView):not(#error){display:none
 .wbar{display:block;height:4px;border-radius:2px;background:#e6ebf2;margin-top:6px;overflow:hidden}
 .wbar i{display:block;height:100%;background:var(--ok)}
 .wnote{margin:8px 2px 0;font:500 12px/1.5 var(--sans);color:var(--muted)}
+@media (max-width:1250px){.wsum{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:900px){.wsum{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wsum .day{background:#f3f8ff;border-color:#c9dcf5}
 .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 0 10px;flex:0 0 100%;width:100%}
 .kpi{border:1px solid var(--rule);border-radius:12px;padding:10px 12px;cursor:pointer;background:#fff;text-align:left}
 .kpi b{display:block;font:800 22px/1 var(--disp)}
@@ -424,6 +426,7 @@ body.open{overflow:hidden}
         <input type="search" id="stuQ" placeholder="Search a student, email or university country" aria-label="Search students">
         <select id="stuStage" aria-label="Stage"><option value="">Every stage</option></select>
         <select id="stuPend" aria-label="Pending from"><option value="">Pending from anybody</option><option value="student">Pending from the student</option><option value="counsellor">Pending from the counsellor</option><option value="university">Pending from the university</option><option value="consulate">Pending from the consulate</option></select>
+        <select id="stuUpd" aria-label="Updated"><option value="">Updated any time</option><option value="today">Changed today</option><option value="yesterday">Changed yesterday</option><option value="both">Changed yesterday or today</option><option value="quiet">No change for 7 days or more</option></select>
         <select id="stuCoun" aria-label="Counsellor" hidden><option value="">Every counsellor</option></select>
         <span class="stun" id="stuN"></span>
       </div>
@@ -675,9 +678,12 @@ body.open{overflow:hidden}
   }
   function paintStudents() {
     if (!STU) return;
-    var q = $('#stuQ').value.trim().toLowerCase(), sg = $('#stuStage').value, pd = $('#stuPend').value, cn = $('#stuCoun').value;
+    var q = $('#stuQ').value.trim().toLowerCase(), sg = $('#stuStage').value, pd = $('#stuPend').value, cn = $('#stuCoun').value, up = $('#stuUpd').value;
+    var quiet = new Date(Date.now() - 7 * 864e5).toISOString();
+    var upOk = function (r) { return !up || (up === 'today' && r.updatedDay === STU.today) || (up === 'yesterday' && r.updatedDay === STU.yesterday)
+      || (up === 'both' && (r.updatedDay === STU.today || r.updatedDay === STU.yesterday)) || (up === 'quiet' && String(r.updated) < quiet); };
     var list = STU.students.filter(function (r) {
-      return (!sg || r.stageKey === sg) && (!pd || r.pendingWith === pd) && (!cn || (cn === '0' ? !r.counsellor : (r.counsellor && String(r.counsellor.id) === cn)))
+      return upOk(r) && (!sg || r.stageKey === sg) && (!pd || r.pendingWith === pd) && (!cn || (cn === '0' ? !r.counsellor : (r.counsellor && String(r.counsellor.id) === cn)))
         && (!q || (r.name + ' ' + r.email + ' ' + r.destination + ' ' + (r.counsellor ? r.counsellor.name : '')).toLowerCase().indexOf(q) >= 0);
     });
     var val = { name: function (r) { return r.name.toLowerCase(); }, stage: function (r) { var i = STU.stages.findIndex(function (x) { return x.key === r.stageKey; }); return i < 0 ? 99 : i; },
@@ -725,7 +731,7 @@ body.open{overflow:hidden}
     var sr = e.target.closest('tr[data-stu]');
     if (sr) location.href = 'counsellor.html?student=' + sr.dataset.stu + '&tab=file';
   });
-  ['stuQ', 'stuStage', 'stuPend', 'stuCoun'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('input', paintStudents); });
+  ['stuQ', 'stuStage', 'stuPend', 'stuCoun', 'stuUpd'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('input', paintStudents); });
 
   /* Patch 293: the work board. One row a person, one column a kind of work;
      each cell says done of total, and what is left. */
@@ -739,11 +745,12 @@ body.open{overflow:hidden}
     var W = d.work; if (!W) { $('#workSec').hidden = true; return; }
     var pct = W.total ? Math.round(100 * W.done / W.total) : 0;
     $('#wsum').innerHTML = [['all', W.total, 'Pieces of work in all', ''], ['done', W.done, 'Done (' + pct + '%)', 'ok'],
-      ['open', W.remaining, 'Remaining', ''], ['late', W.late, 'Late', W.late ? 'bad' : ''], ['week', W.doneWeek, 'Closed in the last 7 days', '']].map(function (k) {
+      ['open', W.remaining, 'Remaining', ''], ['late', W.late, 'Late', W.late ? 'bad' : ''],
+      ['today', W.doneToday, 'Completed today', 'day'], ['yesterday', W.doneYesterday, 'Completed yesterday', 'day'], ['week', W.doneWeek, 'Completed, last 7 days', '']].map(function (k) {
       return '<button type="button" class="' + k[3] + '" data-wk="all|all|' + k[0] + '"><b>' + k[1] + '</b><span>' + k[2] + '</span></button>';
     }).join('');
     $('#wbHead').innerHTML = '<tr><th>Who holds it</th>' + W.kinds.map(function (k) { return '<th>' + esc(k.label) + '</th>'; }).join('')
-      + '<th>All work</th><th>Remaining</th><th>Late</th><th>Closed, 7 days</th></tr>';
+      + '<th>All work</th><th>Remaining</th><th>Late</th><th>Done today</th><th>Done yesterday</th><th>Done, 7 days</th></tr>';
     $('#wbBody').innerHTML = (W.people || []).map(function (p) {
       var note = [];
       if (p.forOthers) note.push(p.forOthers + ' for other counsellors\u2019 students');
@@ -755,23 +762,26 @@ body.open{overflow:hidden}
         + wCell(p.id, 'all', p, 'all')
         + '<td class="wc' + (p.remaining ? '' : ' none') + '"' + (p.remaining ? ' data-wk="' + p.id + '|all|open"' : '') + '><b>' + p.remaining + '</b></td>'
         + '<td class="wc' + (p.late ? '' : ' none') + '"' + (p.late ? ' data-wk="' + p.id + '|all|late"' : '') + '><b' + (p.late ? ' class="lt"' : '') + '>' + p.late + '</b></td>'
-        + '<td class="wc' + (p.doneWeek ? '' : ' none') + '"' + (p.doneWeek ? ' data-wk="' + p.id + '|all|week"' : '') + '><b>' + p.doneWeek + '</b></td></tr>';
+        + ['today', 'yesterday', 'week'].map(function (k) { var n = k === 'today' ? p.doneToday : k === 'yesterday' ? p.doneYesterday : p.doneWeek;
+            return '<td class="wc' + (n ? '' : ' none') + '"' + (n ? ' data-wk="' + p.id + '|all|' + k + '"' : '') + '><b>' + n + '</b></td>'; }).join('') + '</tr>';
     }).join('') || '<tr><td>No work is open on any file yet.</td></tr>';
     $('#wbFoot').innerHTML = '<tr><td>Whole company \u00b7 ' + W.students + (W.students === 1 ? ' student' : ' students') + '</td>'
       + W.kinds.map(function (k) { return wCell('all', k.key, W.byKind[k.key]); }).join('') + wCell('all', 'all', W, 'all')
-      + '<td>' + W.remaining + '</td><td>' + W.late + '</td><td>' + W.doneWeek + '</td></tr>';
+      + '<td>' + W.remaining + '</td><td>' + W.late + '</td><td>' + W.doneToday + '</td><td>' + W.doneYesterday + '</td><td>' + W.doneWeek + '</td></tr>';
     $('#wnote').textContent = 'Each cell reads done / total. An application is counted once per university on the shortlist and is done when it is submitted. '
       + 'A CV, SOP or LOR is counted once per student who has reached applications. Work sits under whoever the step was given to, otherwise the student\u2019s counsellor.';
   }
-  var WSTATE = { all: 'All', open: 'Remaining', done: 'Done', late: 'Late', week: 'Closed, last 7 days' };
+  var WSTATE = { all: 'All', open: 'Remaining', done: 'Done', late: 'Late', week: 'Completed, last 7 days', today: 'Completed today', yesterday: 'Completed yesterday' };
+  function istDayOf(at) { return new Date(new Date(at).getTime() + 330 * 60000).toISOString().slice(0, 10); }
   function openWork(owner, kind, state) {
     state = state || 'all';
     return api('/api/staff/command/work?owner=' + encodeURIComponent(owner) + '&kind=' + encodeURIComponent(kind) + '&state=all').then(function (all) {
       var pick = function (r) { return state === 'all' || (state === 'open' && r.status !== 'done') || (state === 'done' && r.status === 'done')
-        || (state === 'late' && r.state === 'late') || (state === 'week' && r.status === 'done' && r.doneAt && new Date(r.doneAt).getTime() >= Date.now() - 7 * 864e5 && r.timer && r.timer.small !== ''); };
+        || (state === 'late' && r.state === 'late') || (state === 'week' && r.status === 'done' && r.doneAt && new Date(r.doneAt).getTime() >= Date.now() - 7 * 864e5 && !r.derived)
+        || ((state === 'today' || state === 'yesterday') && r.status === 'done' && r.doneAt && !r.derived && DATA.work && istDayOf(r.doneAt) === DATA.work[state]); };
       var rows = (all.rows || []).filter(pick);
       OPEN = { kind: 'work', owner: owner, wkind: kind, state: state, rows: rows }; FILTER = 'all';
-      $('#dTitle').textContent = all.who + ' \u00b7 ' + all.kind;
+      $('#dTitle').textContent = all.who + ' \u00b7 ' + all.kind + (state === 'today' || state === 'yesterday' || state === 'week' ? ' \u00b7 ' + WSTATE[state].toLowerCase() : '');
       var c = all.counts;
       $('#dSub').innerHTML = '<span class="worksum" style="display:block;font:600 13px/1.55 var(--sans);color:var(--ink)"><b>' + c.total + '</b> in all: <b style="color:var(--ok)">'
         + c.done + ' done</b>, <b>' + c.remaining + ' remaining</b>' + (c.late ? ' (<b style="color:var(--late)">' + c.late + ' late</b>)' : '') + '</span>'
@@ -906,6 +916,7 @@ body.open{overflow:hidden}
       + (W ? '<span class="worksum" style="display:block;margin-top:8px;font:600 13px/1.55 var(--sans);color:var(--ink)">'
           + '<b>' + W.total + '</b> steps in all: <b style="color:var(--ok)">' + W.done + ' done</b>, <b>' + W.remaining + ' remaining</b>'
           + (W.late ? ' (<b style="color:var(--late)">' + W.late + ' late</b>)' : '')
+          + '<br>Today: <b>' + (W.doneToday || 0) + '</b> completed \u00b7 Yesterday: <b>' + (W.doneYesterday || 0) + '</b> completed'
           + '<br>Last 7 days: <b>' + W.doneWeek + '</b> ' + (W.doneWeek === 1 ? 'step' : 'steps') + ' closed'
           + (W.doneWeek ? ' (' + W.onTimeWeek + ' on time)' : '') + ' \u00b7 <b>' + W.messagesWeek + '</b> '
           + (W.messagesWeek === 1 ? 'message' : 'messages') + ' sent to students</span>' : '');
