@@ -348,6 +348,8 @@ node leadlogconverttest.js | tail -1 | sed 's/^/  leadlogconverttest.js /' | tee
 node studentstabtest.js | tail -1 | sed 's/^/  studentstabtest.js /' | tee -a "$REPORT"
 # patch 302: the office can say "Applicant" on its own screens — own server (8305).
 node wordingtest.js | tail -1 | sed 's/^/  wordingtest.js     /' | tee -a "$REPORT"
+# patch 304: the sitemap offers nothing robots.txt forbids; the log names a slowed crawler — own server (8306).
+node sitemapgatetest.js | tail -1 | sed 's/^/  sitemapgatetest.js /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

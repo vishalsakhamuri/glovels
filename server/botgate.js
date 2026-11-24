@@ -63,6 +63,20 @@ function open({ traffic, config = {}, env = process.env, log = console } = {}) {
     return true;
   }
 
+  /* Patch 304: say in the log when a welcome crawler is told to slow down —
+     one line a minute per crawler at most, so "is Google being refused?" can
+     be answered from Render's log. */
+  const slowLog = new Map();   /* bot name → { n, at } */
+  function noteSlowed(name) {
+    const now = Date.now();
+    let s = slowLog.get(name);
+    if (!s) { s = { n: 0, at: 0 }; slowLog.set(name, s); }
+    s.n++;
+    if (now - s.at < 60000) return;
+    try { log.log('crawler slowed  ' + name + '  ' + s.n + ' x 429 since the last line (limit ' + perMin + '/min)'); } catch (e) { /* no log */ }
+    s.n = 0; s.at = now;
+  }
+
   /*
    * check(req, pathname, query) → null to go on, or { code, headers, body }.
    */
@@ -89,6 +103,7 @@ function open({ traffic, config = {}, env = process.env, log = console } = {}) {
     }
     if (!allowRate(bot.bot)) {
       slowed++;
+      noteSlowed(bot.bot);
       return { code: 429, headers: { 'Retry-After': '120', 'Cache-Control': 'no-store' }, body: 'Slow down, please.\n' };
     }
     return null;

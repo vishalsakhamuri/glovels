@@ -1083,15 +1083,11 @@ function sitemapXml(part, partNo) {
   /* The university pages, from the catalogue — every one the office has not
      taken off search. */
   pages.push('university');
-  /* Patch 159: the results page, and one address per destination and per
-     destination-and-level — the searches people type into Google. The
-     page marks any other filter set noindex itself. */
+  /* Patch 159: the results page. Patch 304: its filtered addresses
+     (find-university?country=DE, …&level=master) are no longer listed —
+     since patch 275 robots.txt disallows them and the crawler gate answers
+     403, so Search Console reported 36 "submitted but blocked" addresses. */
   pages.push('find-university');
-  try {
-    /* Patch 179: asked of the database (DISTINCT country, level), not every row mapped. */
-    const cs = typeof db.levelsOnSite === 'function' ? db.levelsOnSite() : {};
-    Object.keys(cs).forEach(c => { pages.push('find-university?country=' + c); cs[c].forEach(l => pages.push('find-university?country=' + c + '&amp;level=' + l)); });
-  } catch (e) { /* no catalogue, no extra addresses */ }
   addedDestinations().forEach(c => pages.push('study-in-' + studySlugOf(c)));
   pages.sort();
   const base = CFG.siteUrl || '';

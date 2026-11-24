@@ -111,7 +111,7 @@ check('chip labels', F.chipLabel('english', 'ielts:6.5') === 'IELTS 6.5' && F.ch
   check('signed-out page names no public university', !/frow locked[\s\S]*?<h3 class="ftitle">[A-Za-z]/.test(html.split('frow locked')[1] || ''));
   check('scripts served', (await fetch(BASE + '/js/find.js')).ok && (await fetch(BASE + '/js/reqs.js')).ok && (await fetch(BASE + '/js/find-page.js')).ok);
   const sm = await (await fetch(BASE + '/sitemap.xml')).text();
-  if (sm.includes('<urlset')) check('sitemap lists the page and a destination address', sm.includes('/find-university</loc>') && sm.includes('/find-university?country=DE</loc>'));
+  if (sm.includes('<urlset')) check('sitemap lists the page but no filtered address (patch 304)', sm.includes('/find-university</loc>') && !sm.includes('/find-university?'));
   else console.log('  (indexing off on this server — sitemap check skipped; run with ALLOW_INDEXING=true to include it)');
   const red = await fetch(BASE + '/find-university.html?country=DE', { redirect: 'manual' });
   check('.html spelling redirects with its query', red.status === 301 && (red.headers.get('location') || '').endsWith('/find-university?country=DE'));
