@@ -39,7 +39,7 @@ function shell(title, bodyHtml, footNote) {
     /* The logo is navy on white, so the header is white with a navy rule under
        it — the same band as the top of every page of the site. */
     ? `<tr><td style="background:#ffffff;padding:16px 26px;border-bottom:4px solid #0b1e31">
-    <img src="${esc(SITE + '/assets/glovels-logo.png')}" alt="Glovels — Education · Visa · Work" width="132" height="59" style="display:block;width:132px;height:59px;border:0;outline:0" />
+    <img src="${esc(SITE + '/assets/glovels-logo.png')}" alt="Glovels — Education · Visa · Work" width="132" height="55" style="display:block;width:132px;height:55px;border:0;outline:0" />
   </td></tr>`
     : `<tr><td style="background:#0b1e31;padding:20px 26px">
     <span style="font:700 19px/1 Georgia,serif;color:#ffffff;letter-spacing:.02em">GLOVELS</span>
