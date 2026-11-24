@@ -969,6 +969,13 @@ function factsOf(db, st) {
   return { docs, visaDocs, listed: list.length, submitted, offers, enrolled, visa: visaOf(db, st.id) };
 }
 
+/** " — still needed: A (not uploaded), B (in review)" from a readiness count, or ''. */
+function docsMissingSaid(R) {
+  const SAID = { none: 'not uploaded', wait: 'uploaded, waiting to be checked', rescan: 'sent back for a scanned copy' };
+  const miss = ((R && R.docs) || []).filter(d => d.status !== 'ok');
+  return miss.length ? ' — still needed: ' + miss.map(d => d.name + ' (' + (SAID[d.status] || 'not accepted yet') + ')').join(', ') : '';
+}
+
 /** '' when the file shows this phase is finished; otherwise what is missing. */
 function evidenceGap(F, key) {
   switch (key) {
@@ -977,8 +984,12 @@ function evidenceGap(F, key) {
          documents — so moving a stage to Submitted on a file with 0 of 10
          verified read "Profile and documents: done". The documents are the
          only evidence for this phase. */
+      /* Patch 285: and WHICH. "6 of 10 required documents verified" on a file
+         where the counsellor had accepted everything on it sent the office
+         looking for a document to accept; the four missing had never been
+         uploaded (owner, 24 Nov). The banner now names each one and why. */
       return F.docs.ok >= F.docs.of ? ''
-        : F.docs.ok + ' of ' + F.docs.of + ' required documents verified';
+        : F.docs.ok + ' of ' + F.docs.of + ' required documents verified' + docsMissingSaid(F.docs);
     case 'shortlist':
       return F.listed || F.submitted ? '' : 'Nothing is on the shortlist yet';
     case 'applying':
@@ -1020,8 +1031,16 @@ function doneBlock(db, student, t) {
   if (key === 'profile') {
     const R = J.readiness(db, st.id);
     if (R.ok < R.of) {
-      return R.ok + ' of ' + R.of + ' required documents are verified. Accept the rest on '
-        + 'Their file → Documents before ticking this.';
+      /* Patch 285: "Accept the rest" read as if the rest were on the file
+         waiting to be accepted. Usually they have not been uploaded at all, so
+         the sentence names each one and says which it is. */
+      const miss = (R.docs || []).filter(d => d.status !== 'ok');
+      const none = miss.filter(d => d.status === 'none').length;
+      return R.ok + ' of ' + R.of + ' required documents are verified' + docsMissingSaid(R) + '. '
+        + (none === miss.length ? 'Ask the student for them, or upload them yourself on Their file → Documents, then accept them'
+          : none ? 'Get the missing ones uploaded and accept the rest on Their file → Documents'
+          : 'Accept the rest on Their file → Documents')
+        + ' before ticking this.';
     }
   }
   /* Round 177 (item 7): the four steps that could be ticked with nothing

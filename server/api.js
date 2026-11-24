@@ -9645,6 +9645,77 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       });
     } catch (e) { /* the rest of the board still stands */ }
 
+    /* Patch 285: "3 / 5 applied" — and which. The board said a student was
+       "waiting on university decisions" without saying which university, how
+       many of the shortlist had been applied to, or what was still to send
+       (owner, 24 Nov). Read once per student from the shortlist and the
+       applications table, the same two the student's file shows:
+         listed  — on the shortlist (the office's, plus any the student saved
+                   that already has an application row)
+         applied — the application has reached "Submitted" or later
+         waiting — applied, and the university has not finished deciding
+         pending — on the shortlist and not yet submitted */
+    const appBook = new Map();
+    const appsOf = sid => {
+      if (appBook.has(sid)) return appBook.get(sid);
+      let list = [], rows = [];
+      try { list = db.getShortlist(sid) || []; } catch (e) { list = []; }
+      try { rows = db.getApplications(sid) || []; } catch (e) { rows = []; }
+      const by = new Map(rows.map(r => [String(r.prog_id), r]));
+      const items = list
+        .filter(r => String(r.added_by) !== 'student' || by.has(String(r.prog_id)))
+        .map(r => {
+          const app = by.get(String(r.prog_id)) || null;
+          const stage = app ? APPS.cleanStage(app.stage) : -1;
+          const applied = stage >= SENT_AT;
+          const oc = APPS.outcomeOf(app ? app.outcome : '');
+          return {
+            university: r.university || '', program: r.program || '',
+            isPublic: !!r.is_public, applied,
+            stage: stage < 0 ? 'Not started' : stageName(stage),
+            outcome: applied ? oc.k : '', outcomeName: applied ? oc.n : '',
+            tone: applied ? (oc.tone || '') : '',
+            waiting: applied && !!oc.open,
+            at: app ? (app.updated_at || '') : '',
+          };
+        });
+      const sum = {
+        listed: items.length,
+        applied: items.filter(x => x.applied).length,
+        waiting: items.filter(x => x.waiting).length,
+        offers: items.filter(x => x.applied && APPS.hadOffer(x.outcome)).length,
+        items: items.sort((x, y) => (y.applied - x.applied) || x.university.localeCompare(y.university)).slice(0, 20),
+      };
+      sum.pending = sum.listed - sum.applied;
+      appBook.set(sid, sum);
+      return sum;
+    };
+    /* A student is "waiting on a university" only once something has been
+       sent. Before that the open "offer" step is not work anybody can do, so
+       it is counted beside the queue (`notYet`) rather than in it. */
+    /* The same holds for every application and visa queue: all of a
+       student's steps are opened on day one, so "Public university
+       applications" listed seventeen students whose documents were not yet
+       verified and who had no shortlist ("why is he shown here if documents
+       not accepted", owner, 24 Nov). A step in those queues is shown once the
+       student's journey has reached its phase, or once its date has passed;
+       until then it is counted in `notYet`. The offer step goes by what has
+       been sent, as above. */
+    const notYet = {};
+    const phaseIdx = new Map(TASKS.PHASES.map((p, i) => [p.key, i]));
+    const tplOf = new Map(TASKS.TEMPLATES.map(t => [t.key, t]));
+    const groupOf = new Map(COMMAND_QUEUES.map(x => [x.key, x.group]));
+    const atCache = new Map();
+    const atOf = st => {
+      const id = Number(st.id);
+      if (!atCache.has(id)) {
+        let ph = null;
+        try { ph = TASKS.phaseOf(db, st, now); } catch (e) { ph = null; }
+        atCache.set(id, ph && phaseIdx.has(ph.key) ? phaseIdx.get(ph.key) : 1e9);
+      }
+      return atCache.get(id);
+    };
+
     /* Task queues: open, not derived, on an open file this reader may see. */
     const pubCache = new Map();
     const isPublicProg = id => {
@@ -9664,6 +9735,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       else q = (COMMAND_QUEUES.find(x => (x.tasks || []).includes(key)) || {}).key || (TEMPLATE_KEYS.has(key) ? null : 'services');
       if (!q) return;
       const over = TASKS.lateness(t, now);            // days past the date; negative = still to come
+      const tpl = tplOf.get(key);
+      if (tpl && q !== 'services' && (groupOf.get(q) === 'apply' || groupOf.get(q) === 'visa')) {
+        const early = key === 'offer' ? !appsOf(sid).applied
+          : (phaseIdx.has(tpl.phase) && phaseIdx.get(tpl.phase) > atOf(st) && !(over > 0));
+        if (early) { notYet[q] = (notYet[q] || 0) + 1; return; }
+      }
       const ownerId = TASKS.ownerOf(db, t);
       let uni = '';
       if (t.prog_id) { try { const p = lookup(t.prog_id); uni = p ? (p.university || '') + (p.name ? ' — ' + p.name : '') : ''; } catch (e) { uni = ''; } }
@@ -9693,8 +9770,13 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
           ? (worst.overHours >= 48 ? Math.round(worst.overHours / 24) + ' days over' : Math.round(worst.overHours) + ' h over')
           : worst.overDays + (worst.overDays === 1 ? ' day' : ' days') + ' over') : '',
         rows: rows.slice(0, 80),
+        /* Patch 285: steps open on files that have not reached this stage. */
+        notYet: notYet[q.key] || 0,
       };
     });
+    /* Patch 285: one applications summary per open file, keyed by student. */
+    const applications = {};
+    files.forEach(st => { applications[Number(st.id)] = appsOf(Number(st.id)); });
 
     /* Counsellors: what they hold, what is late, and how fast they answer. */
     const staff = (db.activeCaseworkers() || []).filter(c => admin || Number(c.id) === Number(s.id));
@@ -9769,7 +9851,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         waitingCounsellor: out.counsellor.length,
         waitingReply: out.messages.length,
       },
-      queues, counsellors, journey,
+      queues, counsellors, journey, applications,
       /* Patch 221: the lead SLA, on the main board too — the tile links to
          the Leads command centre. */
       leadWatch: (() => { try { return leadCommand(s, now, true); } catch (e) { return null; } })(),

@@ -320,6 +320,8 @@ node shrinktest.js | tail -1 | sed 's/^/  shrinktest.js      /' | tee -a "$REPOR
 node viewstest.js | tail -1 | sed 's/^/  viewstest.js       /' | tee -a "$REPORT"
 run e2e.js          8097
 run teamtest.js     8095 SEED_DEMO=false ADMIN_EMAIL=boss@glovels.com ADMIN_PASSWORD=a-long-admin-password-9f2c
+# patch 285: "3 / 5 applied" on the command centre, and which documents are missing — own server (8285).
+node appcounttest.js | tail -1 | sed 's/^/  appcounttest.js    /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

@@ -256,6 +256,24 @@ body.open{overflow:hidden}
 .item .who2 b{display:block;font-size:14px}
 .item .who2 span{display:block;color:var(--ink-2);font-size:12.5px;line-height:1.4;margin-top:2px}
 .item .who2 small{color:var(--mute);font-size:12px}
+/* Patch 285: "3 / 5 applied", and which, under a student's row. */
+.item .who2 .apps{margin-top:6px}
+.apps summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.apps summary::-webkit-details-marker{display:none}
+.apps summary::after{content:"Show";font:700 11.5px var(--sans);color:var(--blue,#1a4fb4);text-decoration:underline}
+.apps details[open] summary::after{content:"Hide"}
+.apps .cnt{display:inline-block;font:800 12px var(--sans);padding:3px 9px;border-radius:999px;background:#e8eef9;color:#12305f;white-space:nowrap}
+.apps .cnt.zero{background:#f3f0e6;color:#6b5a1e}
+.apps .cnt.full{background:#e3f3ea;color:#14603a}
+.apps .aplist{margin:8px 0 2px;padding:0;list-style:none}
+.apps .aplist li{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:5px 0;border-top:1px solid #eef1f6;font-size:12.5px;line-height:1.4}
+.apps .aphead{font:800 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);border-top:0!important;padding-top:8px!important;display:block!important}
+.apps .mark{width:9px;height:9px;border-radius:50%;margin-top:5px;background:#b7c0cf}
+.apps .mark.sent{background:#1a4fb4}.apps .mark.ok{background:var(--ok)}.apps .mark.bad{background:var(--late)}.apps .mark.wait{background:#b9771a}
+.apps .apu{font-weight:700;color:var(--ink)}
+.apps .aps{color:var(--mute)}
+.item .who2 .apps .apu,.item .who2 .apps .app{margin-top:0;font-size:12.5px}
+.item:has(.apps details[open]){align-items:start}
 .timer{text-align:right;white-space:nowrap}
 .timer b{display:block;font:800 14px var(--disp)}
 .timer small{color:var(--mute);font-size:11.5px}
@@ -578,7 +596,11 @@ body.open{overflow:hidden}
     if (!q) return;
     OPEN = { kind: 'queue', key: key }; FILTER = q.late ? 'late' : 'all';
     $('#dTitle').textContent = q.label;
-    $('#dSub').textContent = q.total + ' waiting · SLA ' + q.sla + (q.late ? ' · ' + q.late + ' past it' : '');
+    $('#dSub').textContent = q.total + ' waiting · SLA ' + q.sla + (q.late ? ' · ' + q.late + ' past it' : '')
+      /* Patch 285: an open "offer" step with nothing sent is not in this queue. */
+      + (q.notYet ? ' · ' + q.notYet + ' more ' + (key === 'decisions'
+          ? (q.notYet === 1 ? 'student has' : 'students have') + ' nothing submitted yet'
+          : (q.notYet === 1 ? 'step is' : 'steps are') + ' for students not at this stage yet') : '');
     drawRows(q.rows, q.total);
     document.body.classList.add('open'); drawerPush(); $('#drawer').focus();
   }
@@ -633,6 +655,41 @@ body.open{overflow:hidden}
     var src = OPEN.kind === 'phase' ? DATA.journey : DATA.queues;
     return (src || []).find(function (x) { return x.key === OPEN.key; });
   }
+  /* Patch 285: how many of a student's shortlist have been applied to, and
+     which — the applied ones with where each stands, then what is still to
+     send. Shown wherever the student has a shortlist, and always in the four
+     queues that are about the shortlist and the applications. */
+  var APP_QUEUES = ['shortlist', 'private', 'public', 'decisions'];
+  /* Which students' lists are open, so the minute's refresh does not shut them. */
+  var APP_OPEN = {};
+  document.addEventListener('toggle', function (e) {
+    var d = e.target; if (d && d.matches && d.matches('.apps details')) APP_OPEN[d.getAttribute('data-sid')] = d.open;
+  }, true);
+  function appsBlock(r) {
+    var A = r.studentId && DATA.applications ? DATA.applications[r.studentId] : null;
+    if (!A) return '';
+    var inApps = OPEN && OPEN.kind === 'queue' && APP_QUEUES.indexOf(OPEN.key) >= 0;
+    if (!A.listed) return inApps ? '<div class="apps"><span class="cnt zero">No shortlist yet</span></div>' : '';
+    var bits = [];
+    if (A.pending) bits.push(A.pending + ' pending');
+    if (A.waiting) bits.push(A.waiting + ' waiting to hear');
+    if (A.offers) bits.push(A.offers + (A.offers === 1 ? ' offer' : ' offers'));
+    var li = function (x) {
+      var cls = !x.applied ? '' : x.tone === 'ok' ? 'ok' : x.tone === 'bad' ? 'bad' : x.tone === 'wait' ? 'wait' : 'sent';
+      var said = !x.applied ? x.stage : (x.outcome ? x.outcomeName : x.stage + ' \u00b7 waiting to hear');
+      return '<li><i class="mark ' + cls + '"></i><div><span class="apu">' + esc(x.university || 'University') + '</span>'
+        + (x.program ? '<span class="app">' + esc(x.program) + '</span>' : '') + '<div class="aps">' + esc(said) + '</div></div></li>';
+    };
+    var done = A.items.filter(function (x) { return x.applied; });
+    var todo = A.items.filter(function (x) { return !x.applied; });
+    return '<div class="apps"><details data-sid="' + r.studentId + '"' + (APP_OPEN[r.studentId] ? ' open' : '') + '><summary><span class="cnt' + (A.applied === A.listed ? ' full' : A.applied ? '' : ' zero') + '">'
+      + A.applied + ' / ' + A.listed + ' applied</span>' + (bits.length ? '<span>' + esc(bits.join(' \u00b7 ')) + '</span>' : '') + '</summary>'
+      + '<ul class="aplist">'
+      + (done.length ? '<li class="aphead">Applied (' + A.applied + ')</li>' + done.map(li).join('') : '')
+      + (todo.length ? '<li class="aphead">Pending \u2014 still to apply (' + A.pending + ')</li>' + todo.map(li).join('') : '')
+      + (A.items.length < A.listed ? '<li class="aphead">And ' + (A.listed - A.items.length) + ' more in the file</li>' : '')
+      + '</ul></details></div>';
+  }
   function drawRows(rows, total) {
     var counts = { all: rows.length, late: 0, soon: 0, ok: 0 };
     rows.forEach(function (r) { counts[r.state]++; });
@@ -650,7 +707,8 @@ body.open{overflow:hidden}
         + '<div class="who2"><b>' + esc(r.student || 'Unknown') + '</b><span>' + esc(r.what) + '</span>'
         /* Patch 266: a lead's profile line, when the account has one. */
         + (r.wants ? '<span>Looking for: ' + esc(r.wants) + '</span>' : '')
-        + '<small>' + esc(who) + (r.source ? ' · ' + esc(r.source) : '') + (r.how === 'signup' ? ' · signed up on the website' : '') + '</small></div>'
+        + '<small>' + esc(who) + (r.source ? ' · ' + esc(r.source) : '') + (r.how === 'signup' ? ' · signed up on the website' : '') + '</small>'
+        + appsBlock(r) + '</div>'
         + '<div class="timer ' + r.state + '"><b>' + esc(t.big) + '</b><small>' + esc(t.small) + '</small><br>' + link + '</div></div>';
     }).join('') + (total > rows.length ? '<p class="none">Showing the first ' + rows.length + ' of ' + total + '.</p>' : '')
       : '<div class="none"><b>Nothing here</b>No student in this queue is ' + (FILTER === 'all' ? 'waiting.' : names[FILTER].toLowerCase() + '.') + '</div>';

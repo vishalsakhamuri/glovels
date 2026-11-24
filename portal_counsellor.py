@@ -792,6 +792,15 @@ function paintRecord(r) {
           + '</span></div>' +
         '<div><b>' + filled + '</b><span>Profile fields</span></div>' +
       '</div>' +
+      /* Patch 285: which required documents are still missing, and why --
+         "6/10" alone did not say what to chase. */
+      (r.readiness && r.readiness.docs && r.readiness.ok < r.readiness.of
+        ? '<div class="docneed" role="status" style="margin:-4px 0 16px;padding:12px 16px;border:1px solid #ecd9a8;background:#fdf8ea;border-radius:14px;font-size:13.5px;line-height:1.55">'
+          + '<b style="display:block;margin-bottom:4px">' + (r.readiness.of - r.readiness.ok) + ' required '
+          + (r.readiness.of - r.readiness.ok === 1 ? 'document is' : 'documents are') + ' still needed</b>'
+          + r.readiness.docs.filter(d => d.status !== 'ok').map(d => '<span style="display:inline-block;margin:3px 8px 3px 0;padding:3px 10px;border-radius:999px;background:#fff;border:1px solid #ecd9a8"><b>'
+            + esc(d.name) + '</b> \u00b7 ' + esc(d.status === 'none' ? 'Not uploaded' : d.status === 'wait' ? 'Uploaded, to be checked' : d.status === 'rescan' ? 'Sent back for a scanned copy' : (d.word || 'Not accepted yet')) + '</span>').join('')
+          + '</div>' : '') +
       '<div class="tabs" style="margin-bottom:14px">' +
         '<button class="tab" data-t="chat" aria-selected="true">' + ico('chat') + ' Conversation</button>' +
         '<button class="tab" data-t="file" aria-selected="false">' + ico('user') + ' Their file</button>' +
