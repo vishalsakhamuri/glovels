@@ -346,6 +346,8 @@ node leadboardtest.js | tail -1 | sed 's/^/  leadboardtest.js /' | tee -a "$REPO
 node leadlogconverttest.js | tail -1 | sed 's/^/  leadlogconverttest.js /' | tee -a "$REPORT"
 # patch 298: the Students tab on the Command centre — own server (8299).
 node studentstabtest.js | tail -1 | sed 's/^/  studentstabtest.js /' | tee -a "$REPORT"
+# patch 302: the office can say "Applicant" on its own screens — own server (8305).
+node wordingtest.js | tail -1 | sed 's/^/  wordingtest.js     /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

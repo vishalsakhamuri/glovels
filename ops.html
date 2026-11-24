@@ -375,6 +375,7 @@ body.open{overflow:hidden}
 
 [hidden]{display:none!important}
 </style>
+<script src="/staff-wording.js?v=302" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -411,6 +412,8 @@ body.open{overflow:hidden}
           <svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="gfg" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
           <b id="gnum">—</b>
         </div>
+        <select class="refresh" id="nounSel" hidden data-own-words aria-label="What the office calls the people on its files" style="appearance:auto;padding-right:8px">
+          <option value="student">Say: Student</option><option value="applicant">Say: Applicant</option></select>
         <button type="button" class="refresh" id="slaBtn" hidden>Set SLAs</button>
         <button type="button" class="refresh" id="refresh">Refresh</button>
       </div>
@@ -697,7 +700,7 @@ body.open{overflow:hidden}
         + '<td class="cm">' + (r.pendingWith ? '<span class="pw ' + esc(r.pendingWith) + '">' + esc(r.pendingLabel) + '</span><small>' + esc(r.pendingWhat) + '</small>' : '<small>Nothing pending</small>') + '</td>'
         + '<td class="nw"><b>' + r.steps.done + ' / ' + r.steps.total + '</b>' + (r.steps.late ? '<small style="color:var(--late)">' + r.steps.late + ' late</small>' : '') + '</td>'
         + '<td class="nw">' + (r.apps.listed ? '<b>' + r.apps.applied + ' / ' + r.apps.listed + '</b><small>applied' + (r.apps.offers ? ' \u00b7 ' + r.apps.offers + (r.apps.offers === 1 ? ' offer' : ' offers') : '') + '</small>' : '<small>No shortlist yet</small>') + '</td>'
-        + '<td class="cm">' + (c ? esc(c.text) + '<small>' + esc(c.by) + ' \u00b7 ' + (c.kind === 'note' ? 'note to the office' : 'message to the student') + ' \u00b7 ' + esc(stuDay(c.at)) + '</small>' : '<small>Nothing written yet</small>') + '</td>'
+        + '<td class="cm">' + (c ? '<span data-own-words>' + esc(c.text) + '</span><small>' + esc(c.by) + ' \u00b7 ' + (c.kind === 'note' ? 'note to the office' : 'message to the student') + ' \u00b7 ' + esc(stuDay(c.at)) + '</small>' : '<small>Nothing written yet</small>') + '</td>'
         + '<td class="nw">' + (r.counsellor ? esc(r.counsellor.name) : '<span style="color:var(--late)">Nobody assigned</span>') + '</td>'
         + '<td class="nw">' + esc(stuDay(r.updated)) + '</td></tr>';
     }).join('') || '<tr><td colspan="8">No student matches.</td></tr>';
@@ -1224,6 +1227,17 @@ body.open{overflow:hidden}
     if (pm.indexOf('catalogue') < 0) $('#navCat').hidden = true;
     if (u.role === 'editor') { document.querySelectorAll('.nav a[href="ops.html"],.nav a[href="counsellor.html"],.nav a[href="chat.html"],.nav a[href="leads.html"],.nav a[href="leads-command.html"]').forEach(function (a) { a.hidden = true; }); }
     else if (u.role === 'admin') { $('#slaBtn').hidden = false; $('#slotsBtn').hidden = false; }
+    /* Patch 302: the administrator chooses "Student" or "Applicant" for every staff screen. */
+    if (u.role === 'admin') {
+      var ns = $('#nounSel'); ns.hidden = false;
+      api('/api/staff/wording').then(function (w) { ns.value = w.noun; }).catch(function () {});
+      ns.onchange = function () {
+        send('PUT', '/api/staff/wording', { noun: ns.value }).then(function (w) {
+          flash('Staff screens now say \u201c' + (w.noun === 'applicant' ? 'Applicant' : 'Student') + '\u201d.');
+          if (window.glvSetStaffNoun) window.glvSetStaffNoun(w.noun);
+        }).catch(function (e) { flash(e.message); });
+      };
+    }
     loadCalls(); setInterval(function () { if (!document.hidden) loadCalls(); }, 60000);
     if (location.hash === '#calls') setTimeout(function () { $('#calls').scrollIntoView({ behavior: 'smooth' }); }, 600);
     tick(); setInterval(tick, 15000);

@@ -10368,6 +10368,22 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   route('GET', '/api/staff/command', caseworkOnly(async (req, res, s) =>
     json(res, 200, commandCentre(s, Date.now()))));
 
+  /* Patch 302: what the office calls the people on its files — "student"
+     or "applicant". Every staff screen reads it; the administrator sets it.
+     It changes words on the staff screens only: no data, no address, nothing
+     a student or a visitor sees. */
+  const staffNoun = () => { let v = null; try { v = db.content('staffNoun'); } catch (e) { v = null; }
+    return v && v.noun === 'applicant' ? 'applicant' : 'student'; };
+  route('GET', '/api/staff/wording', staffOnly(async (req, res) => json(res, 200, { noun: staffNoun() })));
+  route('PUT', '/api/staff/wording', staffOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Only an administrator can change the wording.' });
+    const b = await readJson(req);
+    if (!['student', 'applicant'].includes(String(b.noun))) return json(res, 422, { error: 'Choose "student" or "applicant".' });
+    db.setContent('staffNoun', { noun: String(b.noun), by: s.name, at: new Date().toISOString() }, s.name);
+    db.log(s.name, 'changed the staff wording', 'now "' + String(b.noun) + '"');
+    return json(res, 200, { noun: staffNoun() });
+  }));
+
   /* Patch 298: the Students tab — every open file on one line: where it
      stands, whose move it is, and the latest thing the counsellor wrote
      (their note to the office on the file, or their message to the student,
