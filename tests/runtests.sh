@@ -332,6 +332,8 @@ node doccheckshowtest.js | tail -1 | sed 's/^/  doccheckshowtest.js /' | tee -a 
 node b2bteamtest.js | tail -1 | sed 's/^/  b2bteamtest.js     /' | tee -a "$REPORT"
 # patch 290: slow requests and stalls are logged; the backup runs at night — own server (8290).
 node slowlogtest.js | tail -1 | sed 's/^/  slowlogtest.js     /' | tee -a "$REPORT"
+# patch 291: the student file says where the student stands, stage by stage — own server (8291).
+node standingtest.js | tail -1 | sed 's/^/  standingtest.js    /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

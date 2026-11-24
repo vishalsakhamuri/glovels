@@ -401,6 +401,43 @@ function docTitle(key, said) {
   const t = (hit && hit.name) || said || key;
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+/* Patch 291: the status panel at the top of a student's file. */
+function standHtml(S) {
+  if (!S || !S.stages) return '';
+  const C = { done: ['#e3f3ea', '#14603a', 'Done'], now: ['#fdf0d5', '#7a4a00', 'Now'], todo: ['#f1f3f6', '#5b6675', 'Later'] };
+  const PW = { student: ['#fdf0d5', '#7a4a00'], counsellor: ['#fbe3e1', '#8a231b'], office: ['#fbe3e1', '#8a231b'],
+    university: ['#e3ecfb', '#143c8a'], consulate: ['#ece6fa', '#46288a'] };
+  const P = S.pending, A = S.apps || { items: [], listed: 0 };
+  const li = x => '<li style="display:flex;gap:8px;padding:5px 0;border-top:1px solid #eef1f6;font-size:12.8px;line-height:1.45">'
+    + '<span style="flex:0 0 9px;height:9px;border-radius:50%;margin-top:5px;background:'
+    + (!x.applied ? '#b7c0cf' : x.tone === 'ok' ? '#1c8a52' : x.tone === 'bad' ? '#b03a2e' : x.tone === 'wait' ? '#b9771a' : '#1a4fb4') + '"></span>'
+    + '<span><b>' + esc(x.university || 'University') + '</b>' + (x.program ? ' \u00b7 ' + esc(x.program) : '')
+    + '<span style="display:block;color:var(--muted)">' + esc(!x.applied ? x.stage : (x.outcome ? x.outcomeName : x.stage + ' \u00b7 waiting to hear')) + '</span></span></li>';
+  const done = A.items.filter(x => x.applied), todo = A.items.filter(x => !x.applied);
+  return '<section class="standing" aria-label="Where this student stands" style="margin:0 0 16px;padding:14px 16px;border:1px solid var(--line,#e6e9ee);border-radius:16px;background:#fff">'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;margin-bottom:10px">'
+    + '<b style="font:800 14px/1.3 var(--sans);color:var(--navy-900)">Where this student stands</b>'
+    + (S.stage ? '<span style="font-size:12.6px;color:var(--muted)">Now at: <b style="color:var(--navy-800)">' + esc(S.stage) + '</b></span>' : '') + '</div>'
+    + '<div class="stand-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">'
+    + S.stages.map(g => { const c = C[g.state] || C.todo;
+        return '<div class="stand" data-stage="' + esc(g.key) + '" data-state="' + esc(g.state) + '" style="padding:10px 12px;border-radius:12px;background:' + c[0] + ';border:1px solid rgba(0,0,0,.05)">'
+          + '<div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><span style="font:800 10.6px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:' + c[1] + '">' + esc(g.label) + '</span>'
+          + '<span style="font:700 10.4px/1 var(--sans);color:' + c[1] + '">' + c[2] + '</span></div>'
+          + '<b style="display:block;margin:7px 0 3px;font:800 20px/1.1 var(--sans);color:var(--navy-900)">' + esc(g.big) + '</b>'
+          + '<span style="display:block;font-size:11.8px;line-height:1.4;color:var(--navy-800)">' + esc(g.small) + '</span></div>'; }).join('')
+    + '</div>'
+    + (P ? '<p class="stand-pend" style="margin:11px 0 0;font-size:13.2px;line-height:1.5"><span style="display:inline-block;font:800 11px/1 var(--sans);padding:4px 9px;border-radius:999px;margin-right:7px;background:'
+        + (PW[P.with] || PW.counsellor)[0] + ';color:' + (PW[P.with] || PW.counsellor)[1] + '">Pending from ' + esc(P.withLabel) + '</span>' + esc(P.what) + '</p>' : '')
+    + (A.listed ? '<details class="stand-apps" style="margin-top:10px"' + (A.listed <= 6 ? ' open' : '') + '><summary style="cursor:pointer;font:700 12.8px/1.4 var(--sans);color:var(--navy-800)">Applications: '
+        + A.applied + ' of ' + A.listed + ' applied' + (A.pending ? ', ' + A.pending + ' pending' : '') + '</summary>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 22px;margin-top:6px">'
+        + '<div><b style="font:800 10.8px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Applied (' + done.length + ')</b>'
+        + (done.length ? '<ul style="list-style:none;margin:6px 0 0;padding:0">' + done.map(li).join('') + '</ul>' : '<p style="margin:6px 0 0;font-size:12.6px;color:var(--muted)">None yet.</p>') + '</div>'
+        + '<div><b style="font:800 10.8px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Pending, still to apply (' + todo.length + ')</b>'
+        + (todo.length ? '<ul style="list-style:none;margin:6px 0 0;padding:0">' + todo.map(li).join('') + '</ul>' : '<p style="margin:6px 0 0;font-size:12.6px;color:var(--muted)">Nothing left to send.</p>') + '</div>'
+        + '</div></details>' : '')
+    + '</section>';
+}
 /* Patch 288: open Their file on one document and outline it briefly. */
 function showDoc(key) {
   const tab = document.querySelector('.tab[data-t="file"]');
@@ -793,6 +830,9 @@ function paintRecord(r) {
             /* N17-01: what the FILE still lacks for this phase. */
             (r.phase.waitingOn ? ' Waiting on: ' + esc(r.phase.waitingOn) + '.' : '')) +
         '</small></div>' : '') +
+      /* Patch 291: where the student stands, stage by stage, with whose move
+         it is and the applications by name. */
+      standHtml(r.standing) +
       '<div class="out tiles" style="--tiles:4;margin:0 0 16px">' +
         '<div><b>' + r.shortlist.length + '</b><span>Shortlisted</span></div>' +
         '<div><b>' + Object.keys(r.apps).length + '</b><span>Applications</span></div>' +
