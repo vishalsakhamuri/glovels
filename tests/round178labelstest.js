@@ -139,6 +139,10 @@ const between = (s, a, b) => { const i = s.indexOf(a); if (i < 0) return ''; con
   ok('/api/universities/filter: typeLabel "" and feeOnRequest', fu && fu.typeLabel === '' && fu.feeOnRequest === true, fu || r.body);
   r = await req('v', 'GET', '/api/universities/filter?country=CA&q=' + encodeURIComponent('Testmix'));
   const fm = (r.body.universities || []).find(u => u.slug === mslug);
+  r = await req('v', 'GET', '/api/universities/filter?country=DE');
+  const deRows = r.body.universities || [];
+  ok('patch 303: /api/universities/filter: German universities keep Public or Private', deRows.length > 0 && deRows.some(u => u.typeLabel === 'Public' || u.typeLabel === 'Private')
+    && deRows.every(u => !u.typeLabel || u.typeLabel === (u.isPublic ? 'Public' : 'Private')), deRows.slice(0, 3));
   ok('patch 299: /api/universities/filter: a Canadian university carries no label', fm && fm.typeLabel === '' && !fm.feeOnRequest, fm || r.body);
 
   r = await req('v', 'GET', '/api/catalogue');
