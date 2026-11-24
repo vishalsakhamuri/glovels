@@ -336,6 +336,8 @@ node slowlogtest.js | tail -1 | sed 's/^/  slowlogtest.js     /' | tee -a "$REPO
 node standingtest.js | tail -1 | sed 's/^/  standingtest.js    /' | tee -a "$REPORT"
 # patch 292: the handed-over logo, everywhere, at its own shape — own server (8294).
 node logotest.js | tail -1 | sed 's/^/  logotest.js        /' | tee -a "$REPORT"
+# patch 293: what a counsellor has done and what is left — own server (8295).
+node counsellorworktest.js | tail -1 | sed 's/^/  counsellorworktest.js /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

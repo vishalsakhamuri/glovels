@@ -187,7 +187,33 @@ tr:last-child td{border-bottom:0}
 .cell:disabled{cursor:default;background:none}
 .rowgo{color:var(--mute);font-weight:800}
 .crew tbody tr:hover .rowgo{color:var(--ink)}
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 0 10px;flex:0 0 100%;width:100%}
+.wsum{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.wsum button{border:1px solid var(--rule);border-radius:14px;padding:14px 16px;background:var(--panel);text-align:left;cursor:pointer;font:inherit;color:inherit}
+.wsum button:hover{border-color:var(--navy)}
+.wsum b{display:block;font:800 28px/1 var(--disp)}
+.wsum span{display:block;margin-top:6px;font:600 12px/1.3 var(--sans);color:var(--muted)}
+.wsum .ok b{color:var(--ok)}.wsum .bad b{color:var(--late)}
+.wboard{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);overflow:auto}
+.wboard table{width:100%;border-collapse:collapse}
+.wboard th,.wboard td{padding:10px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--rule);font:600 13px/1.3 var(--sans)}
+.wboard th{font-size:11px;letter-spacing:.02em;color:var(--muted);background:#f7f9fc}
+.wboard th:first-child,.wboard td:first-child{text-align:left;min-width:190px;position:sticky;left:0;background:var(--panel)}
+.wboard th:first-child{background:#f7f9fc}
+.wboard td small{display:block;font:500 11px/1.3 var(--sans);color:var(--muted)}
+.wboard td.wc{cursor:pointer}
+.wboard td.wc:hover{background:#f4f8fc}
+.wboard td.wc b{font:800 15px/1 var(--disp)}
+.wboard td.wc .of{color:var(--muted);font-weight:600}
+.wboard td.wc.none{color:#b7c0cc;cursor:default}
+.wboard td.wc .lt{color:var(--late)}
+.wboard td.all{background:#fbfcfe}
+.wboard tfoot td{font-weight:800;background:#f7f9fc;border-bottom:0}
+.wboard tfoot td:first-child{background:#f7f9fc}
+.wbar{display:block;height:4px;border-radius:2px;background:#e6ebf2;margin-top:6px;overflow:hidden}
+.wbar i{display:block;height:100%;background:var(--ok)}
+.wnote{margin:8px 2px 0;font:500 12px/1.5 var(--sans);color:var(--muted)}
+@media (max-width:900px){.wsum{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 0 10px;flex:0 0 100%;width:100%}
 .kpi{border:1px solid var(--rule);border-radius:12px;padding:10px 12px;cursor:pointer;background:#fff;text-align:left}
 .kpi b{display:block;font:800 22px/1 var(--disp)}
 .kpi span{font-size:11.5px;color:var(--mute);font-weight:600}
@@ -376,6 +402,16 @@ body.open{overflow:hidden}
       <div class="pfrom" id="pfrom" hidden></div>
     </section>
 
+    <!-- Patch 293: all the work in the company, by person and by kind. -->
+    <div class="sec" id="workSec"><h2 id="workH">All work in the company</h2><p>Every piece of work on every open student file: who holds it, how much is done and how much is left. Click any number to see the students behind it.</p></div>
+    <div class="wsum" id="wsum"></div>
+    <div class="wboard"><table>
+      <thead id="wbHead"></thead>
+      <tbody id="wbBody"><tr><td><div class="sk" style="height:40px"></div></td></tr></tbody>
+      <tfoot id="wbFoot"></tfoot>
+    </table></div>
+    <p class="wnote" id="wnote"></p>
+
     <div class="sec"><h2>Leads waiting</h2><p>New enquiries, chats and booked calls nobody has answered yet.</p></div>
     <a class="leadw" id="leadW" href="leads-command.html"><span class="big" id="lwN">—</span><span><b id="lwT">Reading the leads…</b><small id="lwS"></small></span><span class="lwgo">Open Leads command →</span></a>
 
@@ -395,8 +431,8 @@ body.open{overflow:hidden}
 
     <div class="sec"><h2 id="crewH">Counsellors</h2><p>Click a person or any number to see the work behind it. Click a heading to sort.</p></div>
     <div class="crew"><table>
-      <thead><tr><th data-sort="name">Counsellor</th><th data-sort="health">Status</th><th data-sort="students">Students</th><th data-sort="open">Open steps</th><th data-sort="late">Late steps</th><th data-sort="oldestLateDays">Oldest late</th><th data-sort="waitingMessages">Replies owed</th><th data-sort="longestWaitHours">Longest wait</th><th data-sort="docs">Docs to check</th><th data-sort="onTime">On time</th></tr></thead>
-      <tbody id="crew"><tr><td colspan="10"><div class="sk" style="height:40px"></div></td></tr></tbody>
+      <thead><tr><th data-sort="name">Counsellor</th><th data-sort="health">Status</th><th data-sort="students">Students</th><th data-sort="doneAll">Done</th><th data-sort="doneWeek">Done, 7 days</th><th data-sort="open">Remaining</th><th data-sort="late">Late steps</th><th data-sort="oldestLateDays">Oldest late</th><th data-sort="waitingMessages">Replies owed</th><th data-sort="longestWaitHours">Longest wait</th><th data-sort="docs">Docs to check</th><th data-sort="onTime">On time</th></tr></thead>
+      <tbody id="crew"><tr><td colspan="12"><div class="sk" style="height:40px"></div></td></tr></tbody>
     </table></div>
   </main>
 </div>
@@ -579,9 +615,68 @@ body.open{overflow:hidden}
     var C = 113.1, col = p >= 90 ? 'var(--ok)' : p >= 70 ? 'var(--soon)' : 'var(--late)';
     return '<span class="ring"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="18" stroke="#eef2f7"/><circle cx="21" cy="21" r="18" stroke="' + col + '" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C - C * p / 100) + '"/></svg><b>' + p + '%</b></span>';
   }
+  /* Patch 293: the work board. One row a person, one column a kind of work;
+     each cell says done of total, and what is left. */
+  function wCell(owner, kind, t, cls) {
+    if (!t || !t.total) return '<td class="wc none' + (cls ? ' ' + cls : '') + '">\u2013</td>';
+    return '<td class="wc' + (cls ? ' ' + cls : '') + '" data-wk="' + owner + '|' + kind + '" title="' + t.done + ' done, ' + t.remaining + ' remaining' + (t.late ? ', ' + t.late + ' late' : '') + '">'
+      + '<b>' + t.done + '</b><span class="of"> / ' + t.total + '</span>'
+      + '<small>' + (t.remaining ? t.remaining + ' left' + (t.late ? ' \u00b7 <span class="lt">' + t.late + ' late</span>' : '') : 'all done') + '</small></td>';
+  }
+  function paintWork(d) {
+    var W = d.work; if (!W) { $('#workSec').hidden = true; return; }
+    var pct = W.total ? Math.round(100 * W.done / W.total) : 0;
+    $('#wsum').innerHTML = [['all', W.total, 'Pieces of work in all', ''], ['done', W.done, 'Done (' + pct + '%)', 'ok'],
+      ['open', W.remaining, 'Remaining', ''], ['late', W.late, 'Late', W.late ? 'bad' : ''], ['week', W.doneWeek, 'Closed in the last 7 days', '']].map(function (k) {
+      return '<button type="button" class="' + k[3] + '" data-wk="all|all|' + k[0] + '"><b>' + k[1] + '</b><span>' + k[2] + '</span></button>';
+    }).join('');
+    $('#wbHead').innerHTML = '<tr><th>Who holds it</th>' + W.kinds.map(function (k) { return '<th>' + esc(k.label) + '</th>'; }).join('')
+      + '<th>All work</th><th>Remaining</th><th>Late</th><th>Closed, 7 days</th></tr>';
+    $('#wbBody').innerHTML = (W.people || []).map(function (p) {
+      var note = [];
+      if (p.forOthers) note.push(p.forOthers + ' for other counsellors\u2019 students');
+      if (p.withOthers) note.push(p.withOthers + ' of their students\u2019 pieces are with somebody else');
+      var bar = p.total ? Math.round(100 * p.done / p.total) : 0;
+      return '<tr data-wp="' + p.id + '"><td><b>' + esc(p.name) + '</b><small>' + p.students + (p.students === 1 ? ' student' : ' students')
+        + (note.length ? ' \u00b7 ' + esc(note.join(' \u00b7 ')) : '') + '</small><span class="wbar"><i style="width:' + bar + '%"></i></span></td>'
+        + W.kinds.map(function (k) { return wCell(p.id, k.key, p.kinds[k.key]); }).join('')
+        + wCell(p.id, 'all', p, 'all')
+        + '<td class="wc' + (p.remaining ? '' : ' none') + '"' + (p.remaining ? ' data-wk="' + p.id + '|all|open"' : '') + '><b>' + p.remaining + '</b></td>'
+        + '<td class="wc' + (p.late ? '' : ' none') + '"' + (p.late ? ' data-wk="' + p.id + '|all|late"' : '') + '><b' + (p.late ? ' class="lt"' : '') + '>' + p.late + '</b></td>'
+        + '<td class="wc' + (p.doneWeek ? '' : ' none') + '"' + (p.doneWeek ? ' data-wk="' + p.id + '|all|week"' : '') + '><b>' + p.doneWeek + '</b></td></tr>';
+    }).join('') || '<tr><td>No work is open on any file yet.</td></tr>';
+    $('#wbFoot').innerHTML = '<tr><td>Whole company \u00b7 ' + W.students + (W.students === 1 ? ' student' : ' students') + '</td>'
+      + W.kinds.map(function (k) { return wCell('all', k.key, W.byKind[k.key]); }).join('') + wCell('all', 'all', W, 'all')
+      + '<td>' + W.remaining + '</td><td>' + W.late + '</td><td>' + W.doneWeek + '</td></tr>';
+    $('#wnote').textContent = 'Each cell reads done / total. An application is counted once per university on the shortlist and is done when it is submitted. '
+      + 'A CV, SOP or LOR is counted once per student who has reached applications. Work sits under whoever the step was given to, otherwise the student\u2019s counsellor.';
+  }
+  var WSTATE = { all: 'All', open: 'Remaining', done: 'Done', late: 'Late', week: 'Closed, last 7 days' };
+  function openWork(owner, kind, state) {
+    state = state || 'all';
+    return api('/api/staff/command/work?owner=' + encodeURIComponent(owner) + '&kind=' + encodeURIComponent(kind) + '&state=all').then(function (all) {
+      var pick = function (r) { return state === 'all' || (state === 'open' && r.status !== 'done') || (state === 'done' && r.status === 'done')
+        || (state === 'late' && r.state === 'late') || (state === 'week' && r.status === 'done' && r.doneAt && new Date(r.doneAt).getTime() >= Date.now() - 7 * 864e5 && r.timer && r.timer.small !== ''); };
+      var rows = (all.rows || []).filter(pick);
+      OPEN = { kind: 'work', owner: owner, wkind: kind, state: state, rows: rows }; FILTER = 'all';
+      $('#dTitle').textContent = all.who + ' \u00b7 ' + all.kind;
+      var c = all.counts;
+      $('#dSub').innerHTML = '<span class="worksum" style="display:block;font:600 13px/1.55 var(--sans);color:var(--ink)"><b>' + c.total + '</b> in all: <b style="color:var(--ok)">'
+        + c.done + ' done</b>, <b>' + c.remaining + ' remaining</b>' + (c.late ? ' (<b style="color:var(--late)">' + c.late + ' late</b>)' : '') + '</span>'
+        + (all.total > (all.rows || []).length ? 'Showing the first ' + all.rows.length + '.' : '');
+      drawRows(rows, rows.length);
+      var n = { all: c.total, open: c.remaining, done: c.done, late: c.late };
+      $('#dFilters').insertAdjacentHTML('afterbegin', '<div class="kpis">' + ['all', 'open', 'done', 'late'].map(function (k) {
+        return '<button type="button" class="kpi' + (k === 'late' && c.late ? ' bad' : '') + '" data-wstate="' + k + '" aria-pressed="' + (state === k) + '"><b>' + n[k] + '</b><span>' + WSTATE[k] + '</span></button>';
+      }).join('') + '</div>');
+      if (!document.body.classList.contains('open')) { document.body.classList.add('open'); drawerPush(); $('#drawer').focus(); }
+    }).catch(function (e) { if (e.message !== 'signed out') flash(e.message); });
+  }
+
   function paintCrew(d) {
     var words = { behind: 'Behind', watch: 'Close', good: 'On track' };
     var list = d.counsellors.slice();
+    list.forEach(function (c) { c.doneAll = c.work ? c.work.done : c.done; c.doneWeek = c.work ? c.work.doneWeek : 0; });
     if (SORT.key) list.sort(function (a, b) {
       var x = a[SORT.key], y = b[SORT.key];
       if (SORT.key === 'health') { var o = { behind: 0, watch: 1, good: 2 }; x = o[x]; y = o[y]; }
@@ -598,14 +693,17 @@ body.open{overflow:hidden}
       return '<tr data-cid="' + c.id + '" title="Open ' + esc(c.name) + '\u2019s work"><td><div class="person"><span class="av" style="background:' + colour(c.id) + '">' + esc(initials(c.name)) + '</span><div><b>' + esc(c.name) + '</b><small>' + esc(c.email || '') + '</small></div></div></td>'
         + '<td><span class="pill ' + c.health + '">' + words[c.health] + '</span></td>'
         + '<td class="num">' + cell(c, 'students', c.students, c.students) + '</td>'
-        + '<td class="num">' + cell(c, 'open', c.open, c.open) + '</td>'
+        /* Patch 293: done in all, done in the last seven days, and what is left. */
+        + '<td class="num">' + (c.work ? c.work.done : c.done) + '</td>'
+        + '<td class="num">' + cell(c, 'week', c.work ? c.work.doneWeek : 0, c.work && c.work.doneWeek) + '</td>'
+        + '<td class="num">' + cell(c, 'open', c.work ? c.work.remaining : c.open, c.work ? c.work.remaining : c.open) + '</td>'
         + '<td class="num' + (c.late ? ' bad' : '') + '">' + cell(c, 'late', c.late, c.late) + '</td>'
         + '<td>' + (c.oldestLateDays ? cell(c, 'late', '<b style="color:var(--late)">' + c.oldestLateDays + (c.oldestLateDays === 1 ? ' day' : ' days') + '</b>', 1) : '<span class="muted">—</span>') + '</td>'
         + '<td class="num' + (c.lateMessages ? ' bad' : '') + '">' + cell(c, 'messages', c.waitingMessages, c.waitingMessages) + '</td>'
         + '<td>' + (c.longestWaitHours ? cell(c, 'messages', '<b' + (c.lateMessages ? ' style="color:var(--late)"' : '') + '>' + hours(c.longestWaitHours) + '</b>', 1) : c.waitingMessages ? cell(c, 'messages', '<b>&lt; 1 h</b>', 1) : '<span class="muted">—</span>') + '</td>'
         + '<td class="num">' + cell(c, 'docs', c.docs, c.docs) + '</td>'
         + '<td>' + ring(c.onTime) + ' <span class="rowgo" aria-hidden="true">\u2192</span></td></tr>';
-    }).join('') : '<tr><td colspan="10" class="none">No counsellors yet. Add one on Organisation.</td></tr>';
+    }).join('') : '<tr><td colspan="12" class="none">No counsellors yet. Add one on Organisation.</td></tr>';
   }
 
   /* Patch 287: whose move each file is. The strip under the journey counts
@@ -669,8 +767,13 @@ body.open{overflow:hidden}
     var from = function (keys) { return Q.filter(function (q) { return keys.indexOf(q.key) >= 0; })
       .reduce(function (a, q) { return a.concat(q.rows.filter(mine)); }, []); };
     var steps = ['welcome', 'profile', 'shortlist', 'writing', 'private', 'public', 'decisions', 'visa', 'departure', 'services'];
+    /* Patch 293: the week's closed steps and every step still to do come from
+       the counsellor's own work list, not from the queues (which only hold
+       what is due at each stage). */
+    var me = (DATA.counsellors || []).find(function (x) { return Number(x.id) === Number(cid); });
+    if (view === 'week') return (me && me.work && me.work.week) || [];
+    if (view === 'open') return (me && me.work && me.work.open) || from(steps);
     if (view === 'late') return from(steps).filter(function (r) { return r.state === 'late'; });
-    if (view === 'open') return from(steps);
     if (view === 'messages') return from(['messages']);
     if (view === 'docs') return from(['docs']);
     /* students: who they hold, from the journey */
@@ -684,10 +787,20 @@ body.open{overflow:hidden}
     view = view || (c.late ? 'late' : c.waitingMessages ? 'messages' : 'students');
     OPEN = { kind: 'counsellor', key: cid, view: view }; FILTER = 'all';
     $('#dTitle').textContent = c.name;
+    var W = c.work || null;
     $('#dSub').innerHTML = esc(c.email || '') + ' \u00b7 ' + c.students + (c.students === 1 ? ' student' : ' students')
-      + (c.onTime != null ? ' \u00b7 ' + c.onTime + '% of steps closed on time' : '');
-    var K = [['late', c.late, 'Late steps', c.late], ['messages', c.waitingMessages, 'Replies owed', c.lateMessages],
+      + (c.onTime != null ? ' \u00b7 ' + c.onTime + '% of steps closed on time' : '')
+      /* Patch 293: done, remaining, and the last seven days, in words. */
+      + (W ? '<span class="worksum" style="display:block;margin-top:8px;font:600 13px/1.55 var(--sans);color:var(--ink)">'
+          + '<b>' + W.total + '</b> steps in all: <b style="color:var(--ok)">' + W.done + ' done</b>, <b>' + W.remaining + ' remaining</b>'
+          + (W.late ? ' (<b style="color:var(--late)">' + W.late + ' late</b>)' : '')
+          + '<br>Last 7 days: <b>' + W.doneWeek + '</b> ' + (W.doneWeek === 1 ? 'step' : 'steps') + ' closed'
+          + (W.doneWeek ? ' (' + W.onTimeWeek + ' on time)' : '') + ' \u00b7 <b>' + W.messagesWeek + '</b> '
+          + (W.messagesWeek === 1 ? 'message' : 'messages') + ' sent to students</span>' : '');
+    var K = [['week', W ? W.doneWeek : 0, 'Done, last 7 days', 0], ['open', W ? W.remaining : c.open, 'Remaining', 0],
+      ['late', c.late, 'Late steps', c.late], ['messages', c.waitingMessages, 'Replies owed', c.lateMessages],
       ['docs', c.docs, 'Docs to check', 0], ['students', c.students, 'Students', 0]];
+    if (view === 'week' && W && !W.doneWeek) { view = c.late ? 'late' : 'open'; OPEN.view = view; }
     var rows = rowsFor(cid, view);
     drawRows(rows, rows.length);
     $('#dFilters').insertAdjacentHTML('afterbegin', '<div class="kpis">' + K.map(function (k) {
@@ -783,6 +896,10 @@ body.open{overflow:hidden}
     if (st) return openPhase(st.dataset.phase);
     var pf = e.target.closest('[data-pend]');
     if (pf) return openPending(pf.dataset.pend);
+    var wk = e.target.closest('[data-wk]');
+    if (wk) { var wp = wk.dataset.wk.split('|'); return openWork(wp[0], wp[1], wp[2]); }
+    var ws = e.target.closest('[data-wstate]');
+    if (ws && OPEN && OPEN.kind === 'work') return openWork(OPEN.owner, OPEN.wkind, ws.dataset.wstate);
     var cv = e.target.closest('[data-cview]');
     if (cv && OPEN && OPEN.kind === 'counsellor') return openCounsellor(OPEN.key, cv.dataset.cview);
     var cl = e.target.closest('[data-cv]');
@@ -794,6 +911,7 @@ body.open{overflow:hidden}
     var f = e.target.closest('[data-f]');
     if (f && OPEN) {
       FILTER = f.dataset.f;
+      if (OPEN.kind === 'work') { var wr = OPEN.rows || []; var wkp = $('#dFilters .kpis'); drawRows(wr, wr.length); if (wkp) $('#dFilters').insertBefore(wkp, $('#dFilters').firstChild); return; }
       if (OPEN.kind === 'counsellor') { var rr = rowsFor(OPEN.key, OPEN.view); var kp = $('#dFilters .kpis'); drawRows(rr, rr.length); if (kp) $('#dFilters').insertBefore(kp, $('#dFilters').firstChild); return; }
       var qq = rowsOpen(); if (qq) drawRows(qq.rows || [], qq.total != null ? qq.total : qq.students);
     }
@@ -882,8 +1000,9 @@ body.open{overflow:hidden}
   function load() {
     return api('/api/staff/command').then(function (d) {
       DATA = d; $('#error').hidden = true;
-      paintTop(d); paintRoute(d); paintPending(d); paintQueues(d); paintCrew(d); paintLeadW(d.leadWatch);
+      paintTop(d); paintRoute(d); paintPending(d); paintQueues(d); paintWork(d); paintCrew(d); paintLeadW(d.leadWatch);
       if (OPEN && OPEN.kind === 'counsellor') openCounsellor(OPEN.key, OPEN.view);
+      else if (OPEN && OPEN.kind === 'work') { /* fetched on demand; left as it is */ }
       else if (OPEN && OPEN.kind !== 'sla') { var q = rowsOpen(); if (q) drawRows(q.rows || [], q.total != null ? q.total : q.students); }
     }).catch(function (e) {
       if (e.message === 'signed out') return;

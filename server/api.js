@@ -9830,7 +9830,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     return { stage: ph ? ph.label : '', key: ph ? ph.key : '', stages, pending, apps: A };
   }
 
-  function commandCentre(s, now) {
+  function commandCentre(s, now, want) {
     const H = 36e5;
     const COMMAND_SLA = commandSlaOf();
     const admin = s.role === 'admin';
@@ -10033,6 +10033,182 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const applications = {};
     files.forEach(st => { applications[Number(st.id)] = appsOf(Number(st.id)); });
 
+    /* Patch 293: WHAT A COUNSELLOR HAS DONE, AND WHAT IS LEFT. "I am unable to
+       understand what counsellor Kanchana has done, how many tasks are
+       remaining, how many completed, last one week's tasks" (owner, 24 Nov).
+       The row said nine late steps and nothing else. For each counsellor, on
+       the open files the reader may see:
+         total / done / remaining / late   every step they own
+         week                              the steps closed in the last seven
+                                           days — by them, on any file — with
+                                           the student, the day, and whether
+                                           it was on time
+         open                              every step still to do, latest first
+         messagesWeek                      messages they wrote to students in
+                                           the last seven days
+       A step the applications closed by themselves is nobody's work and is
+       not counted, as on the scoreboard. Who checked a document is not
+       recorded, so documents are not in the week's count. */
+    const WEEK_MS = 7 * 24 * 3600 * 1000;
+    const weekAgo = new Date(now - WEEK_MS).toISOString();
+    /* Patch 293: all the work in the company, one row per piece of work.
+       A step on a file is one piece. An application is one piece per
+       university on the shortlist (done when it is submitted), so "50
+       applications" reads as 50, not as one step. A CV, SOP or LOR is one
+       piece per student who has reached applications: the step when that
+       service has one, the document slot when it has not.
+       Each piece belongs to whoever the step was given to, else the file's
+       counsellor, so work handed to somebody else shows under their name. */
+    const WORK_KINDS = [['welcome', 'Welcome call'], ['documents', 'Documents'], ['shortlist', 'Shortlist'],
+      ['cv', 'CV'], ['sop', 'SOP'], ['lor', 'LOR'], ['applications', 'Applications'], ['offers', 'Decisions'],
+      ['visa', 'Visa'], ['other', 'Other tasks']];
+    const KIND_OF = { welcome: 'welcome', profile: 'documents', appdocs: 'documents', shortlist: 'shortlist',
+      sop: 'sop', lor: 'lor', offer: 'offers', visadocs: 'visa', visa: 'visa', visadecision: 'visa', predeparture: 'visa' };
+    const stById = new Map(files.map(st => [Number(st.id), st]));
+    const units = [];
+    {
+      const live = tasksAll.filter(t => fileIds.has(Number(t.student_id)) && String(t.status) !== 'dropped');
+      const submitOf = new Map(), appdocsOf = new Map(), hasKey = new Set();
+      const counOf = sid => { const c = counsellorOf(stById.get(sid)); return c ? Number(c.id) : null; };
+      const ownerOfTask = t => { const o = Number(TASKS.ownerOf(db, t)) || null; return o && people.get(o) ? o : counOf(Number(t.student_id)); };
+      const lateOf = t => (t && t.due_at ? (TASKS.lateness(t, now) || 0) : null);
+      live.forEach(t => {
+        const sid = Number(t.student_id), key = String(t.task_key || '');
+        hasKey.add(sid + '|' + key);
+        if (key === 'submit') { submitOf.set(sid + '|' + String(t.prog_id || ''), t); return; }
+        if (key === 'appdocs') appdocsOf.set(sid, t);
+        const done = String(t.status) === 'done', over = lateOf(t);
+        units.push({
+          sid, student: stById.get(sid).name, taskId: t.id, kind: KIND_OF[key] || 'other', owner: ownerOfTask(t), coun: counOf(sid),
+          what: String(t.title || ''), done, derived: !!t.derived, status: String(t.status || ''), due: t.due_at || '',
+          overDays: done ? null : over, late: !done && over > 0, doneAt: done ? String(t.done_at || '') : '',
+          doneBy: Number(t.done_by) || null,
+        });
+      });
+      files.forEach(st => {
+        const sid = Number(st.id);
+        let list = [], rows = [];
+        try { list = db.getShortlist(sid) || []; } catch (e) { list = []; }
+        try { rows = db.getApplications(sid) || []; } catch (e) { rows = []; }
+        const by = new Map(rows.map(r => [String(r.prog_id), r]));
+        list.filter(r => String(r.added_by) !== 'student' || by.has(String(r.prog_id))).forEach(r => {
+          const app = by.get(String(r.prog_id)) || null;
+          const applied = !!app && APPS.cleanStage(app.stage) >= SENT_AT;
+          const sub = submitOf.get(sid + '|' + String(r.prog_id)) || null;
+          const over = applied ? null : lateOf(sub);
+          units.push({
+            sid, student: st.name, taskId: sub ? sub.id : null, kind: 'applications', owner: sub ? ownerOfTask(sub) : counOf(sid), coun: counOf(sid),
+            what: (applied ? 'Applied: ' : 'To apply: ') + (r.university || 'University') + (r.program ? ' — ' + r.program : ''),
+            done: applied, derived: false, status: applied ? 'done' : 'todo', due: sub ? (sub.due_at || '') : '',
+            overDays: over, late: !applied && over > 0,
+            doneAt: applied ? String((sub && sub.done_at) || app.updated_at || '') : '', doneBy: sub ? (Number(sub.done_by) || null) : null,
+          });
+        });
+        const apd = appdocsOf.get(sid);
+        if (!apd) return;
+        let docs = [];
+        try { docs = db.getDocuments(sid) || []; } catch (e) { docs = []; }
+        [['cv', 'CV'], ['sop', 'SOP'], ['lor', 'LOR']].forEach(([k, label]) => {
+          if (hasKey.has(sid + '|' + k)) return;            // the service has its own step
+          const mine = docs.filter(d => String(d.doc_key) === k);
+          const ok = mine.some(d => String(d.status) === 'ok');
+          const done = ok || String(apd.status) === 'done';
+          const over = done ? null : lateOf(apd);
+          units.push({
+            sid, student: st.name, taskId: null, kind: k, owner: ownerOfTask(apd), coun: counOf(sid),
+            what: label + ': ' + (ok ? 'accepted' : done ? 'application documents closed' : mine.length ? 'uploaded, waiting to be checked' : 'not on the file yet'),
+            done, derived: true, status: done ? 'done' : 'todo', due: apd.due_at || '', overDays: over, late: !done && over > 0,
+            doneAt: '', doneBy: null, docKey: !done && mine.length ? k : '',
+          });
+        });
+      });
+    }
+    const tally = list => {
+      const done = list.filter(u => u.done).length, late = list.filter(u => u.late).length;
+      return { total: list.length, done, remaining: list.length - done, late };
+    };
+    const byKinds = list => WORK_KINDS.reduce((o, k) => { o[k[0]] = tally(list.filter(u => u.kind === k[0])); return o; }, {});
+    const onTimeOf = u => (u.due && u.doneAt ? String(u.doneAt).slice(0, 10) <= String(u.due).slice(0, 10) : true);
+    /* "Done by": whoever ticked it; a piece with no name on it counts for its owner. */
+    const closedBy = (u, cid) => (u.doneBy ? u.doneBy === cid : u.owner === cid);
+    const inWeek = u => u.done && !u.derived && u.doneAt && String(u.doneAt) >= weekAgo;
+    const unitRow = u => {
+      const r = {
+        studentId: u.sid, student: u.student, taskId: u.taskId, kind: u.kind,
+        counsellor: u.owner ? { id: u.owner, name: nameOf(u.owner) } : null,
+        what: u.what + (u.owner && u.coun && u.owner !== u.coun ? ' · the file is with ' + nameOf(u.coun) : ''),
+        due: u.due, status: u.done ? 'done' : u.status, overDays: u.overDays,
+        state: u.done ? 'ok' : u.late ? 'late' : (u.due && u.overDays != null && u.overDays >= -2) ? 'soon' : 'ok',
+      };
+      if (u.docKey) r.docKey = u.docKey;
+      if (u.done) {
+        r.doneAt = u.doneAt;
+        r.timer = { big: u.doneAt ? 'Done ' + String(u.doneAt).slice(0, 10) : 'Done',
+          small: !u.doneAt ? '' : !u.due ? 'no date was set' : onTimeOf(u) ? 'on time' : 'after its date (' + String(u.due).slice(0, 10) + ')' };
+      }
+      return r;
+    };
+    const openFirst = (a, b) => (a.done - b.done) || ((b.overDays == null ? -1e9 : b.overDays) - (a.overDays == null ? -1e9 : a.overDays))
+      || String(b.doneAt).localeCompare(String(a.doneAt));
+    /* The rows behind one number on the work board. */
+    if (want) {
+      const who = String(want.owner == null ? 'all' : want.owner), kind = String(want.kind || 'all'), state = String(want.state || 'all');
+      const list = units.filter(u => (who === 'all' || Number(u.owner || 0) === Number(who))
+        && (kind === 'all' || u.kind === kind)
+        && (state === 'all' || (state === 'open' && !u.done) || (state === 'done' && u.done) || (state === 'late' && u.late)
+          || (state === 'week' && inWeek(u))));
+      const k = WORK_KINDS.find(x => x[0] === kind);
+      return {
+        who: who === 'all' ? 'Everybody' : Number(who) ? (nameOf(Number(who)) || 'Somebody who has left') : 'Nobody assigned',
+        kind: k ? k[1] : 'All work', state, counts: tally(list), total: list.length,
+        rows: list.sort(openFirst).slice(0, 300).map(unitRow),
+      };
+    }
+    const workOf = c => {
+      const cid = Number(c.id);
+      const owned = units.filter(u => u.owner === cid);
+      const week = units.filter(u => inWeek(u) && closedBy(u, cid)).sort((a, b) => String(b.doneAt).localeCompare(String(a.doneAt)));
+      let msgs = 0;
+      try {
+        files.filter(st => Number(st.counsellor_id) === cid).forEach(st => {
+          (db.getMessages(st.id) || []).forEach(m => {
+            if (String(m.sender) === 'them' && String(m.kind || 'msg') === 'msg' && String(m.author || '') === String(c.name)
+              && String(m.created_at) >= weekAgo) msgs++;
+          });
+        });
+      } catch (e) { msgs = 0; }
+      return Object.assign(tally(owned), {
+        doneWeek: week.length, onTimeWeek: week.filter(onTimeOf).length, messagesWeek: msgs,
+        kinds: byKinds(owned),
+        /* Handed over: their pieces on somebody else's file, and pieces on
+           their files that somebody else holds. */
+        forOthers: owned.filter(u => u.coun && u.coun !== cid).length,
+        withOthers: units.filter(u => u.coun === cid && u.owner && u.owner !== cid).length,
+        week: week.slice(0, 60).map(unitRow),
+        open: owned.filter(u => !u.done).sort(openFirst).slice(0, 120).map(unitRow),
+      });
+    };
+    /* The board itself: everybody who holds work, and the pieces nobody holds. */
+    const workBoard = (() => {
+      const ids = new Set((db.activeCaseworkers() || []).map(c => Number(c.id)));
+      units.forEach(u => { if (u.owner) ids.add(u.owner); });
+      const rowOf = (id, name, list) => Object.assign(tally(list), {
+        id, name, kinds: byKinds(list), doneWeek: list.filter(inWeek).length,
+        students: new Set(list.map(u => u.sid)).size,
+        forOthers: id ? list.filter(u => u.coun && u.coun !== id).length : 0,
+        withOthers: id ? units.filter(u => u.coun === id && u.owner && u.owner !== id).length : 0,
+      });
+      const rows = [...ids].filter(id => admin || id === Number(s.id) || units.some(u => u.owner === id))
+        .map(id => rowOf(id, nameOf(id) || 'Somebody who has left', units.filter(u => u.owner === id)))
+        .sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name));
+      const loose = units.filter(u => !u.owner);
+      if (loose.length) rows.push(rowOf(0, 'Nobody assigned', loose));
+      return Object.assign(tally(units), {
+        kinds: WORK_KINDS.map(k => ({ key: k[0], label: k[1] })), byKind: byKinds(units),
+        doneWeek: units.filter(inWeek).length, students: new Set(units.map(u => u.sid)).size, people: rows,
+      });
+    })();
+
     /* Counsellors: what they hold, what is late, and how fast they answer. */
     const staff = (db.activeCaseworkers() || []).filter(c => admin || Number(c.id) === Number(s.id));
     const board = scoreboard(tasksAll.filter(t => fileIds.has(Number(t.student_id))), now);
@@ -10050,6 +10226,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         waitingMessages: msgs.length, lateMessages: msgs.filter(r => r.state === 'late').length,
         longestWaitHours: msgs.reduce((m, r) => Math.max(m, r.ageHours || 0), 0),
         docs: mine('docs').reduce((n, r) => n + (r.count || 0), 0),
+        /* Patch 293: what this counsellor has done and what is left. */
+        work: workOf(c),
         health: (lateTasks.length || msgs.some(r => r.state === 'late')) ? 'behind'
           : (mine('messages').some(r => r.state === 'soon') || Object.keys(out).some(k => mine(k).some(r => r.state === 'soon'))) ? 'watch' : 'good',
       };
@@ -10135,6 +10313,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         waitingReply: out.messages.length,
       },
       queues, counsellors, journey, applications,
+      /* Patch 293: all the work in the company, by person and by kind. */
+      work: workBoard,
       /* Patch 287: whose move each file is, and the count by whom. */
       pending, pendingFrom,
       /* Patch 221: the lead SLA, on the main board too — the tile links to
@@ -10145,6 +10325,15 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
 
   route('GET', '/api/staff/command', caseworkOnly(async (req, res, s) =>
     json(res, 200, commandCentre(s, Date.now()))));
+
+  /* Patch 293: the pieces of work behind one number on the work board.
+     ?owner=<id | 0 for nobody | all>&kind=<key | all>&state=all|open|done|late|week */
+  route('GET', '/api/staff/command/work', caseworkOnly(async (req, res, s) => {
+    const q = url.parse(req.url, true).query;
+    json(res, 200, commandCentre(s, Date.now(), {
+      owner: /^\d+$/.test(String(q.owner || '')) ? Number(q.owner) : 'all',
+      kind: String(q.kind || 'all').slice(0, 20), state: String(q.state || 'all').slice(0, 10) }));
+  }));
 
   /* Patch 201: every SLA in one place — the four clocks here, the steps of
      the journey through /api/staff/task-rules. */

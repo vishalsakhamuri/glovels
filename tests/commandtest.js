@@ -117,7 +117,7 @@ const login = async (email) => {
     const row = await p.$('#crew tr[data-cid]');
     if (row) { await row.click(); await p.waitForTimeout(500); }
     check('a counsellor row opens their work', !!row && /Kavya/.test(await p.textContent('#dTitle'))
-      && (await p.$$('#dFilters .kpi')).length === 4, row ? await p.textContent('#dTitle') : 'no row');
+      && (await p.$$('#dFilters .kpi')).length === 6, row ? await p.textContent('#dTitle') : 'no row');
     await p.click('#dFilters .kpi[data-cview="messages"]'); await p.waitForTimeout(400);
     await p.screenshot({ path: '/tmp/ops-kavya.png' });
     check('and its "Replies owed" tile lists the message waiting', /Open file/.test(await p.textContent('#dList'))
