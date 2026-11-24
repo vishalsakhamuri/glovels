@@ -3819,7 +3819,59 @@ function canonicalRedirect(req) {
  * malformed address did (see the decoding block below). Caught here, logged,
  * and answered with a 500 if nothing has been written yet.
  */
+/*
+ * Patch 290: WHAT FROZE IT. The site went down twice on 24 Nov (13:53 and
+ * 16:07 IST): Render's health check timed out after five seconds, the one CPU
+ * was at 100%, memory was a quarter of its limit — and the log held nothing
+ * before the restart, because nothing here says what a request cost. So:
+ *
+ *   slow    any request that takes over a second is logged with its method,
+ *           path (no query string — it can carry an email) and time;
+ *   stall   the event loop is timed every second; a tick that arrives more
+ *           than 1.5 s late means one piece of work held the whole server,
+ *           and it is logged with the requests that were in flight.
+ *
+ * Both are one line each and rate-limited, so a bad minute cannot fill the
+ * log. The next freeze names its cause in the Render log.
+ */
+const SLOW_MS = Number(process.env.SLOW_MS) || 1000;
+const STALL_MS = Number(process.env.STALL_MS) || 1500;
+const inFlight = new Map();
+let reqSeq = 0, slowSaid = 0, slowWindow = 0;
+const sayLimited = line => {
+  const now = Date.now();
+  if (now - slowWindow > 60000) { slowWindow = now; slowSaid = 0; }
+  if (++slowSaid <= 30) console.warn(line);
+  else if (slowSaid === 31) console.warn('  slow   (more this minute, not shown)');
+};
+const pathOnly = u => String(u || '').split('?')[0].slice(0, 120);
+function watchRequest(req, res) {
+  const id = ++reqSeq, at = Date.now();
+  inFlight.set(id, { at, what: req.method + ' ' + pathOnly(req.url) });
+  let done = false;
+  const end = () => {
+    if (done) return; done = true;
+    inFlight.delete(id);
+    const ms = Date.now() - at;
+    /* A live stream is open for as long as the screen is: long, not slow. */
+    if (/event-stream/.test(String(res.getHeader('content-type') || ''))) return;
+    if (ms >= SLOW_MS) sayLimited('  slow   ' + ms + ' ms  ' + res.statusCode + '  ' + req.method + ' ' + pathOnly(req.url));
+  };
+  res.on('finish', end); res.on('close', end);
+}
+let lastTick = Date.now();
+setInterval(() => {
+  const now = Date.now(), late = now - lastTick - 1000;
+  lastTick = now;
+  if (late >= STALL_MS) {
+    const busy = [...inFlight.values()].filter(x => now - x.at < 120000).sort((a, b) => a.at - b.at).slice(0, 6)
+      .map(x => x.what + ' (' + (now - x.at) + ' ms)').join(', ');
+    sayLimited('  stall  the server did nothing else for ' + late + ' ms \u2014 in flight: ' + (busy || 'no request (a timer or a background job)'));
+  }
+}, 1000).unref();
+
 const server = http.createServer((req, res) => {
+  watchRequest(req, res);
   handleRequest(req, res).catch(e => {
     console.error('  request failed', req.method, String(req.url || '').slice(0, 200), e && e.message);
     try {

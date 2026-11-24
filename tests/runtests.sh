@@ -330,6 +330,8 @@ node pendingtest.js | tail -1 | sed 's/^/  pendingtest.js     /' | tee -a "$REPO
 node doccheckshowtest.js | tail -1 | sed 's/^/  doccheckshowtest.js /' | tee -a "$REPORT"
 # patch 289: a B2B agency has one admin and up to ten counsellors — own server (8289).
 node b2bteamtest.js | tail -1 | sed 's/^/  b2bteamtest.js     /' | tee -a "$REPORT"
+# patch 290: slow requests and stalls are logged; the backup runs at night — own server (8290).
+node slowlogtest.js | tail -1 | sed 's/^/  slowlogtest.js     /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"

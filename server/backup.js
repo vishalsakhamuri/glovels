@@ -147,16 +147,41 @@ function open({ db, dataDir, log = console }) {
     return count;
   }
 
-  /** Once soon after start, then every night — whichever host clock says. */
+  /**
+   * Patch 290: AT NIGHT, and not again five minutes after every start.
+   *
+   * It ran five minutes after start and every 24 hours from then — so a
+   * restart at 16:07 IST copied a 251 MB database at 16:12, in the middle of
+   * the working day and on top of the outage that caused the restart, and
+   * every later copy fell at that same hour. Now: 02:30 IST each night
+   * (21:00 UTC), when nobody is on the site. Soon after start only when
+   * there is no copy from the last 26 hours — a server that was down through
+   * the night still gets its copy.
+   */
+  const NIGHT_UTC = { h: 21, m: 0 };              // 02:30 IST
+  const msToNight = now => {
+    const d = new Date(now);
+    const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), NIGHT_UTC.h, NIGHT_UTC.m);
+    return (next > now ? next : next + 24 * 3600 * 1000) - now;
+  };
+  const newestCopyAt = () => {
+    let at = 0;
+    try {
+      fs.readdirSync(dir).filter(f => /^glovels-\d{4}-\d{2}-\d{2}\.(db|json)$/.test(f))
+        .forEach(f => { at = Math.max(at, fs.statSync(path.join(dir, f)).mtimeMs); });
+    } catch (e) { at = 0; }
+    return at;
+  };
   function schedule() {
     const run = () => nightly().then(
       f => log.log('  backup ✓ ' + path.basename(f)),
       e => log.error('  backup ✗ ' + (e && e.message)));
-    setTimeout(run, 5 * 60 * 1000).unref();
-    setInterval(run, 24 * 60 * 60 * 1000).unref();
+    const night = () => { run(); setTimeout(night, msToNight(Date.now() + 60000)).unref(); };
+    setTimeout(night, msToNight(Date.now())).unref();
+    if (Date.now() - newestCopyAt() > 26 * 3600 * 1000) setTimeout(run, 5 * 60 * 1000).unref();
   }
 
-  return { nightly, list, tarTo, schedule, dir };
+  return { nightly, list, tarTo, schedule, dir, msToNight, newestCopyAt };
 }
 
 module.exports = { open, header };
