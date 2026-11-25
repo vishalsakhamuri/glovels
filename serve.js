@@ -813,6 +813,7 @@ function robotsTxt() {
     'Disallow: /leads',
     'Disallow: /leads-command',
     'Disallow: /languages',
+    'Disallow: /finance',
     'Disallow: /acceptance/',
     'Disallow: /login',
     'Disallow: /app/',
@@ -950,7 +951,7 @@ function appleSiteAssociation() {
 const PORTAL_PAGES = new Set(['dashboard', 'profile', 'documents', 'messages', 'services',
   'applications', 'universities', 'scholarships', 'visa', 'admin', 'counsellor',
   'chat', 'home', 'catalogue', 'blog-admin', 'leads', 'partner', 'login', '404', 'ops', 'marketing',
-  'leads-command', 'languages']);
+  'leads-command', 'languages', 'finance']);
 
 /*
  * Round 178 (A): the day a page's WORDS last changed, for <lastmod>.

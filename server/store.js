@@ -1096,6 +1096,36 @@ function sqliteDriver(file) {
       hits INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (day, path)
     )`,
+   /* Patch 309: the Finance screen (server/finance.js). A statement that was
+      uploaded, its lines (money in is positive, money out negative, in the
+      smallest unit of that company's currency), what each line was matched
+      to, and the invoices raised. `company` is IN or DE and nothing is ever
+      read across the two. */
+   `CREATE TABLE IF NOT EXISTS fin_batches (
+      id INTEGER PRIMARY KEY, company TEXT NOT NULL, filename TEXT NOT NULL DEFAULT '', format TEXT NOT NULL DEFAULT '',
+      account TEXT NOT NULL DEFAULT '', d_from TEXT NOT NULL DEFAULT '', d_to TEXT NOT NULL DEFAULT '',
+      n_lines INTEGER NOT NULL DEFAULT 0, n_new INTEGER NOT NULL DEFAULT 0, opening INTEGER, closing INTEGER,
+      by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)`,
+   `CREATE TABLE IF NOT EXISTS fin_lines (
+      id INTEGER PRIMARY KEY, company TEXT NOT NULL, batch_id INTEGER, account TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', ref TEXT NOT NULL DEFAULT '',
+      amount INTEGER NOT NULL, balance INTEGER, hash TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT '', party TEXT NOT NULL DEFAULT '', tax_rate INTEGER NOT NULL DEFAULT 0,
+      note TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+      UNIQUE (company, hash))`,
+   'CREATE INDEX IF NOT EXISTS idx_fin_lines_day ON fin_lines(company, date)',
+   `CREATE TABLE IF NOT EXISTS fin_links (
+      id INTEGER PRIMARY KEY, line_id INTEGER NOT NULL, kind TEXT NOT NULL, order_ref TEXT NOT NULL DEFAULT '',
+      payment_id INTEGER, invoice_id INTEGER, amount INTEGER NOT NULL, by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)`,
+   'CREATE INDEX IF NOT EXISTS idx_fin_links_line ON fin_links(line_id)',
+   `CREATE TABLE IF NOT EXISTS fin_invoices (
+      id INTEGER PRIMARY KEY, company TEXT NOT NULL, number TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'manual',
+      party TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', tax_id TEXT NOT NULL DEFAULT '',
+      student_id INTEGER, order_ref TEXT NOT NULL DEFAULT '', issue_date TEXT NOT NULL, due_date TEXT NOT NULL DEFAULT '',
+      currency TEXT NOT NULL, lines TEXT NOT NULL DEFAULT '[]', net INTEGER NOT NULL DEFAULT 0, tax INTEGER NOT NULL DEFAULT 0,
+      gross INTEGER NOT NULL DEFAULT 0, tax_rate INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'open',
+      note TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+      UNIQUE (company, number))`,
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -4276,6 +4306,13 @@ function open(dir) {
       return db.all('SELECT ' + (lite ? 'id, day, kind, visitor' : '*') + ' FROM hits NOT INDEXED WHERE id >= ? AND id < ? AND day >= ?'
         + (ks ? ' AND kind IN (' + ks.map(() => '?').join(',') + ')' : '') + ' ORDER BY id', Number(from), Number(to), day, ...(ks || []));
     },
+    /* Patch 309: the Finance tables, read and written by server/finance.js
+       and by nothing else. Only the fin_ tables can be named here, and only
+       on the real database (the JSON fallback has no such tables). */
+    fin: (() => {
+      const only = sql => { if (db.kind !== 'sqlite') throw new Error('Finance needs the SQLite database.'); if (!/\bfin_(batches|lines|links|invoices)\b/.test(sql) || /\b(orders|payments|students|users|sessions)\b/i.test(sql)) throw new Error('Finance reads only its own tables.'); return sql; };
+      return { ok: () => db.kind === 'sqlite', all: (sql, ...a) => db.all(only(sql), ...a), one: (sql, ...a) => db.one(only(sql), ...a), run: (sql, ...a) => db.run(only(sql), ...a) };
+    })(),
     /* Crawlers per day (patch 275). */
     botDayAdd(day, bot, grp, hits, pages, blocked, last) {
       if (db.kind !== 'sqlite') return;

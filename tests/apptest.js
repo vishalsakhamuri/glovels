@@ -48,7 +48,7 @@ const ok = (c, m) => { c ? pass++ : (fail++, console.log('  FAIL: ' + m)); };
    different app, installed by different people, and its identity must not
    change or the copies already on counsellors' phones are orphaned. */
 const OFFICE = ['admin.html', 'blog-admin.html', 'catalogue.html', 'chat.html',
-  'counsellor.html', 'home.html', 'leads.html', 'partner.html'];
+  'counsellor.html', 'finance.html', 'home.html', 'leads.html', 'partner.html'];
 
 /*
  * Actually unplugging it.

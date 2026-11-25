@@ -9135,6 +9135,109 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     return { order };
   };
 
+  /* ====================================================================
+   * Patch 309: Finance (server/finance.js) — administrators only, except
+   * that a counsellor may raise and print invoices for a student they can
+   * see ("our counsellors should be able to create multiple invoices for a
+   * student"). Two companies, IN and DE, never read together: every call
+   * names one.
+   * ==================================================================== */
+  const FIN = require('./finance.js');
+  const fin = FIN.open({ db, MONEY, takePayment, log: console });
+  const finAdmin = handler => staffOnly(async (req, res, s, m) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Finance is for administrators only.' });
+    if (!fin.ok()) return json(res, 503, { error: 'Finance needs the SQLite database, which this server is not running on.' });
+    const q = new URL(req.url, 'http://x').searchParams;
+    try { return await handler(req, res, s, m, q); }
+    catch (e) {
+      if (e && e.code && Number(e.code) >= 400 && Number(e.code) < 500) return json(res, Number(e.code), { error: e.message });
+      console.error('  finance ✗ ' + (e && e.stack || e));
+      return json(res, 500, { error: 'That did not work: ' + (e && e.message) });
+    }
+  });
+  const finKinds = () => Object.keys(FIN.KINDS).map(k => Object.assign({ id: k }, FIN.KINDS[k]));
+  const finCompanies = () => Object.keys(FIN.COMPANIES).map(k => { const c = FIN.COMPANIES[k]; return { code: c.code, label: c.label, currency: c.currency, symbol: c.symbol, locale: c.locale, tax: c.tax, rates: c.rates }; });
+
+  route('GET', '/api/staff/finance/books', finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, Object.assign({ ok: true, companies: finCompanies(), kindList: finKinds(), settings: fin.settings()[String(q.get('company') || 'IN').toUpperCase()] || null },
+      fin.books(q.get('company') || 'IN', q.get('year') || '')))));
+  route('GET', '/api/staff/finance/lines', finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, { ok: true, lines: fin.lines(q.get('company'), { from: q.get('from'), to: q.get('to'), dir: q.get('dir'), state: q.get('state'), account: q.get('account') }), batches: fin.batches(q.get('company')), accounts: fin.accounts(q.get('company')) })));
+  route('POST', '/api/staff/finance/statement', finAdmin(async (req, res, s, m, q) => {
+    const ct = req.headers['content-type'] || '';
+    const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+    if (!bm) return json(res, 400, { error: 'Expected a file upload' });
+    const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
+    if (!parsed.file) return json(res, 400, { error: 'No file in that upload' });
+    if (parsed.file.data.length > 10 * 1024 * 1024) return json(res, 413, { error: 'That file is over 10 MB.' });
+    let out;
+    try { out = fin.importStatement(parsed.fields.company || q.get('company'), parsed.file.filename, parsed.file.data, s.name); }
+    catch (e) { if (e && e.code) throw e; return json(res, 422, { error: e.message }); }
+    return json(res, 200, Object.assign({ ok: true }, out));
+  }));
+  route('PUT', /^\/api\/staff\/finance\/line\/(\d+)$/, finAdmin(async (req, res, s, m) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, line: fin.nameLine(b.company, m[1], b, s.name) });
+  }));
+  route('GET', /^\/api\/staff\/finance\/line\/(\d+)\/candidates$/, finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, Object.assign({ ok: true }, fin.candidates(q.get('company'), m[1])))));
+  route('POST', /^\/api\/staff\/finance\/line\/(\d+)\/match$/, finAdmin(async (req, res, s, m) => {
+    const b = await readJson(req);
+    return json(res, 200, Object.assign({ ok: true }, fin.match(b.company, m[1], b.targets, s)));
+  }));
+  route('DELETE', /^\/api\/staff\/finance\/line\/(\d+)\/match\/(\d+)$/, finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, { ok: true, line: fin.unmatch(q.get('company'), m[1], m[2]) })));
+  route('GET', '/api/staff/finance/reconciliation', finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, Object.assign({ ok: true }, fin.reconciliation(q.get('company'))))));
+  route('GET', '/api/staff/finance/invoices', finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, { ok: true, invoices: fin.invoices(q.get('company'), { kind: q.get('kind'), state: q.get('state') }), orders: fin.openOrders(String(q.get('company') || '').toUpperCase()) })));
+  route('POST', '/api/staff/finance/invoice', finAdmin(async (req, res, s) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, invoice: fin.createInvoice(b.company, b, s.name) });
+  }));
+  route('POST', /^\/api\/staff\/finance\/invoice\/(\d+)\/cancel$/, finAdmin(async (req, res, s, m) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, invoice: fin.cancelInvoice(b.company, m[1], s.name) });
+  }));
+  route('PUT', '/api/staff/finance/settings', finAdmin(async (req, res, s) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, settings: fin.saveSettings(b.company, b, s.name) });
+  }));
+
+  /* An invoice as a page. An administrator opens any; a counsellor opens one
+     that belongs to a student they can see. */
+  route('GET', /^\/api\/staff\/finance\/invoice\/(\d+)\/print$/, caseworkOnly(async (req, res, s, m) => {
+    if (!fin.ok()) return json(res, 503, { error: 'Finance is not available on this server.' });
+    const inv = fin.invoiceRaw(m[1]);
+    if (!inv) return json(res, 404, { error: 'No such invoice' });
+    if (s.role !== 'admin' && !(inv.studentId && db.canSee(s, inv.studentId))) return json(res, 403, { error: 'That invoice is not for one of your students.' });
+    const body = FIN.invoiceHtml(inv, inv.company, fin.settings()[inv.company]);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
+    return res.end(body);
+  }));
+  /* A student's invoices, on their file — the counsellor's side of it. */
+  route('GET', /^\/api\/staff\/student\/(\d+)\/invoices$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+    if (!fin.ok()) return json(res, 200, { ok: true, orders: [], invoices: [] });
+    return json(res, 200, Object.assign({ ok: true }, fin.invoicesOfStudent(id)));
+  }));
+  route('POST', /^\/api\/staff\/student\/(\d+)\/invoice$/, caseworkOnly(async (req, res, s, m) => {
+    const id = Number(m[1]);
+    if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
+    if (!fin.ok()) return json(res, 503, { error: 'Finance is not available on this server.' });
+    const b = await readJson(req);
+    const o = db.orderByReference(String(b.orderRef || ''));
+    if (!o || Number(o.student_id) !== id) return json(res, 404, { error: 'That order is not on this student’s file.' });
+    try {
+      const invoice = fin.createInvoice(fin.companyOfOrderRef(o.reference), { kind: 'student', orderRef: o.reference, amount: b.amount, text: b.text, due: b.due, note: b.note, date: b.date }, s.name);
+      return json(res, 200, Object.assign({ ok: true, invoice }, fin.invoicesOfStudent(id)));
+    } catch (e) {
+      if (e && e.code && Number(e.code) >= 400 && Number(e.code) < 500) return json(res, Number(e.code), { error: e.message });
+      throw e;
+    }
+  }));
+
   /* GET /api/staff/order/:ref → { order, payments, plan } */
   route('GET', /^\/api\/staff\/order\/(GLV-\d+)$/, caseworkOnly(async (req, res, s, m) => {
     const got = orderForStaff(s, m[1], false);

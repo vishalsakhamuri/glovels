@@ -354,6 +354,8 @@ node sitemapgatetest.js | tail -1 | sed 's/^/  sitemapgatetest.js /' | tee -a "$
 node trafficslicetest.js | tail -1 | sed 's/^/  trafficslicetest.js /' | tee -a "$REPORT"
 # patch 308: Students is in the side menu of every staff screen — reads the pages, no server.
 node navstudentstest.js | tail -1 | sed 's/^/  navstudentstest.js  /' | tee -a "$REPORT"
+# patch 309: Finance — statements (PDF), matching, invoices, the year's books, two companies — own server (8311).
+node financetest.js | tail -1 | sed 's/^/  financetest.js      /' | tee -a "$REPORT"
 
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"
