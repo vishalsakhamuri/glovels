@@ -1449,7 +1449,7 @@ async function staffBoot(run) {
     admin: me.user.role === 'admin',
     /* Patch 263 (owner, 4 Nov): orders on their own line — "someone is
        paying, we should clearly see it". */
-    finance: me.user.role === 'admin',   // patch 309: the books are the administrators'
+    finance: me.user.role === 'admin' || perms.indexOf('finance') >= 0,   // patch 309, 313: the administrators', and whoever they gave Finance to
     'admin#orders': me.user.role === 'admin',
     'admin#users': me.user.role === 'admin',   // patch 277: the team on its own line
     /* CNS-07 (5): a counsellor reads the catalogue (read-only). */

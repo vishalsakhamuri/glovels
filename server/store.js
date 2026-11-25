@@ -1133,6 +1133,9 @@ function sqliteDriver(file) {
       size INTEGER NOT NULL DEFAULT 0, date TEXT NOT NULL DEFAULT '', party TEXT NOT NULL DEFAULT '', amount INTEGER NOT NULL DEFAULT 0,
       category TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)`,
    'CREATE INDEX IF NOT EXISTS idx_fin_bills_line ON fin_bills(line_id)',
+   /* Patch 313: a line that a LATER statement also contains (two statements
+      that overlap) — so removing the first does not take it from the second. */
+   'CREATE TABLE IF NOT EXISTS fin_seen (batch_id INTEGER NOT NULL, line_id INTEGER NOT NULL, PRIMARY KEY (batch_id, line_id))',
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -1190,7 +1193,7 @@ function jsonDriver(file) {
     'i18n_src', 'i18n_units', 'i18n_pages', 'post_i18n',
     /* Finance (patch 309). Its screens need SQLite and say so on this driver;
        the names are here so the rule above holds for every table. */
-    'fin_batches', 'fin_lines', 'fin_links', 'fin_invoices', 'fin_bills'];
+    'fin_batches', 'fin_lines', 'fin_links', 'fin_invoices', 'fin_bills', 'fin_seen'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1522,13 +1525,13 @@ function open(dir) {
     setPerms(id, perms) {
       const clean = [...new Set((Array.isArray(perms) ? perms : String(perms || '').split(','))
         .map(x => String(x).trim().toLowerCase())
-        .filter(x => x === 'catalogue' || x === 'content' || x === 'marketing'))].sort().join(',');
+        .filter(x => x === 'catalogue' || x === 'content' || x === 'marketing' || x === 'finance'))].sort().join(',');
       db.run('UPDATE students SET perms = ? WHERE id = ?', clean, Number(id));
       return clean;
     },
     permsOf(person) {
       if (!person) return [];
-      if (person.role === 'admin') return ['catalogue', 'content', 'marketing'];
+      if (person.role === 'admin') return ['catalogue', 'content', 'finance', 'marketing'];
       const own = String(person.perms || '').split(',').map(x => x.trim()).filter(Boolean);
       /* Patch 215 (QA): a country admin (a manager with countries) uploads
          their own countries' data — that is the role (owner, patch 211) —
@@ -4320,7 +4323,7 @@ function open(dir) {
        and by nothing else. Only the fin_ tables can be named here, and only
        on the real database (the JSON fallback has no such tables). */
     fin: (() => {
-      const only = sql => { if (db.kind !== 'sqlite') throw new Error('Finance needs the SQLite database.'); if (!/\bfin_(batches|lines|links|invoices|bills)\b/.test(sql) || /\b(orders|payments|students|users|sessions)\b/i.test(sql)) throw new Error('Finance reads only its own tables.'); return sql; };
+      const only = sql => { if (db.kind !== 'sqlite') throw new Error('Finance needs the SQLite database.'); if (!/\bfin_(batches|lines|links|invoices|bills|seen)\b/.test(sql) || /\b(orders|payments|students|users|sessions)\b/i.test(sql)) throw new Error('Finance reads only its own tables.'); return sql; };
       return { ok: () => db.kind === 'sqlite', all: (sql, ...a) => db.all(only(sql), ...a), one: (sql, ...a) => db.one(only(sql), ...a), run: (sql, ...a) => db.run(only(sql), ...a) };
     })(),
     /* Crawlers per day (patch 275). */

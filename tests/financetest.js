@@ -265,7 +265,8 @@ async function sendBill(who, fields, name, buf) {
     const B = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body;
     const gst = n => Math.round(n - n / 1.18);
     const studentIn = 1200000 + 600000 + 1800000;                       /* matched bank money from students */
-    const wantSales = studentIn - gst(1200000) - gst(600000) - gst(1500000) - gst(300000) + 5900000;
+    /* Patch 313: the ₹3,000 typed on the order as cash, which no bank line has claimed, is a cash sale too */
+    const wantSales = studentIn - gst(1200000) - gst(600000) - gst(1500000) - gst(300000) + 5900000 + 300000 - gst(300000);
     const rentNet = 2360000 - gst(2360000);
     const wantCosts = 4000000 + 4000000 + rentNet + 10000 + 1800 + 37900 + 48000;
     check('the screen is given the list of kinds to choose from, apart from the year\u2019s totals by kind', Array.isArray(B.kindList) && B.kindList.some(k => k.id === 'salaries' && k.dir === 'out') && B.kindList.some(k => k.id === 'capital' && k.dir === 'in') && B.kinds.some(k => k.category === 'salaries' && k.amount === 8000000), JSON.stringify((B.kinds || []).slice(0, 2)));
@@ -274,9 +275,9 @@ async function sendBill(who, fields, name, buf) {
     check('costs: everything named as an expense, before the GST on the rent', B.totals.costs === wantCosts, B.totals.costs + ' / ' + wantCosts);
     check('people and office are kept apart', B.totals.people === 8000000 && B.totals.office === wantCosts - 8000000, B.totals.people + ' ' + B.totals.office);
     check('profit is sales less costs; capital is in neither', B.totals.profit === wantSales - wantCosts && B.totals.otherIncome === 0, B.totals.profit);
-    check('GST: collected, less what the landlord charged, is what is owed', B.totals.salesTax === gst(1200000) + gst(600000) + gst(1500000) + gst(300000) && B.totals.costsTax === gst(2360000) && B.totals.taxOwed === B.totals.salesTax - B.totals.costsTax, JSON.stringify([B.totals.salesTax, B.totals.costsTax, B.totals.taxOwed]));
+    check('GST: collected, less what the landlord charged, is what is owed', B.totals.salesTax === gst(1200000) + gst(600000) + gst(1500000) + gst(300000) + gst(300000) && B.totals.costsTax === gst(2360000) && B.totals.taxOwed === B.totals.salesTax - B.totals.costsTax, JSON.stringify([B.totals.salesTax, B.totals.costsTax, B.totals.taxOwed]));
     check('by month: April and May carry it, and add up to the year', B.months[0].month === '2026-04' && B.months.reduce((s, x) => s + x.profit, 0) === B.totals.profit && B.months[1].people === 4000000);
-    check('the sales book lists five receipts, the purchases book seven', B.sales.length === 5 && B.purchases.length === 7, B.sales.length + ' ' + B.purchases.length);
+    check('the sales book lists five bank receipts and the cash one, the purchases book seven', B.sales.length === 6 && B.sales.filter(x => x.kind === 'cash').length === 1 && B.purchases.length === 7, B.sales.length + ' ' + B.purchases.length);
     check('nothing is left to sort', B.todo.lines === 0, JSON.stringify(B.todo));
     check('still owed by students: ₹9,000 on one order', B.owed.students === 900000 && B.owed.nStudents === 1, JSON.stringify(B.owed));
     const SR = name => B.students.rows.find(r => r.name === name) || {};
@@ -428,6 +429,125 @@ async function sendBill(who, fields, name, buf) {
     await req('a', 'DELETE', '/api/staff/finance/statement/' + bX.id + '?company=IN&force=1');
     BLs = (await req('a', 'GET', '/api/staff/finance/bills?company=IN&year=2026')).body;
     check('removing a statement does not lose the bill kept on its line: it stands on its own', BLs.count === 1 && BLs.loose.length === 1 && BLs.loose[0].id === b1.body.bill.id && (await fetch(BASE + '/api/staff/finance/bill/' + b1.body.bill.id + '/file', { headers: { cookie: jars.a } })).status === 200, JSON.stringify(BLs).slice(0, 240));
+
+    /* ---- Patch 313 (owner, 26 Nov): open an invoice with its receipts; matched lines can be found;
+            the office's own names; a sale named without an invoice ---- */
+    const upK = await upload('a', 'IN', 'kinds.pdf', smart([['11/04/2026', ['UPI/WALKIN/coaching'], 1180000], ['12/04/2026', ['POS/PARADISE RESTAURANT'], -240000], ['13/04/2026', ['UPI/ANITA RAO/second'], 800000]], 0));
+    check('a statement for the next checks', upK.status === 200 && upK.body.added === 3, upK.status + ' ' + JSON.stringify(upK.body).slice(0, 120));
+    const LK = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.lines;
+    const lW = LK.find(x => /WALKIN/.test(x.description)), lP = LK.find(x => /PARADISE/.test(x.description)), lA2 = LK.find(x => /ANITA RAO\/second/.test(x.description));
+    const before = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body.totals;
+    check('a counsellor cannot add a name', (await req('c', 'POST', '/api/staff/finance/kind', { label: 'Team lunch', dir: 'out', type: 'Office' })).status === 403);
+    const k1 = await req('a', 'POST', '/api/staff/finance/kind', { label: 'Team lunch', dir: 'out', type: 'Office' });
+    check('the office adds its own name for an expense', k1.status === 200 && /^x-team-lunch-/.test(k1.body.kind.id) && k1.body.kindList.some(k => k.id === k1.body.kind.id && k.custom && k.pl === 'cost' && k.group === 'Office'), k1.status + ' ' + JSON.stringify(k1.body.kind));
+    check('the same name twice is refused; so is one with no name, or no direction', (await req('a', 'POST', '/api/staff/finance/kind', { label: 'team LUNCH', dir: 'out', type: 'Office' })).status === 409 && (await req('a', 'POST', '/api/staff/finance/kind', { label: ' ', dir: 'out', type: 'Office' })).status === 422 && (await req('a', 'POST', '/api/staff/finance/kind', { label: 'Thing', type: 'Office' })).status === 422 && (await req('a', 'POST', '/api/staff/finance/kind', { label: 'Thing', dir: 'in', type: 'Office' })).status === 422);
+    const k2 = await req('a', 'POST', '/api/staff/finance/kind', { label: 'IELTS coaching', dir: 'in', type: 'sale' });
+    check('…and one for a kind of sale', k2.status === 200 && k2.body.kindList.some(k => k.id === k2.body.kind.id && k.pl === 'sale' && k.dir === 'in'), k2.status + ' ' + JSON.stringify(k2.body.kind));
+    let nm = await req('a', 'PUT', '/api/staff/finance/line/' + lP.id, { company: 'IN', category: k1.body.kind.id, party: 'Paradise', taxRate: 0, note: 'lunch for 8' });
+    check('a bank line is given the office’s own name', nm.status === 200 && nm.body.line.category === k1.body.kind.id && nm.body.line.state === 'named', nm.status + ' ' + JSON.stringify(nm.body).slice(0, 160));
+    check('a name for money out is refused on money in', (await req('a', 'PUT', '/api/staff/finance/line/' + lW.id, { company: 'IN', category: k1.body.kind.id })).status === 422);
+    nm = await req('a', 'PUT', '/api/staff/finance/line/' + lW.id, { company: 'IN', category: k2.body.kind.id, party: 'Walk-in student', taxRate: 18 });
+    check('a receipt is named as a sale of the office’s own kind, GST inside', nm.status === 200 && nm.body.line.taxRate === 18, nm.status + ' ' + JSON.stringify(nm.body).slice(0, 160));
+    const BKk = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body;
+    check('the year: sales up by ₹10,000 before GST, GST collected up by ₹1,800, office costs up by ₹2,400', BKk.totals.sales - before.sales === 1000000 && BKk.totals.salesTax - before.salesTax === 180000 && BKk.totals.office - before.office === 240000 && BKk.totals.profit - before.profit === 760000, JSON.stringify({ a: BKk.totals, b: before }));
+    check('…listed under its own name in Purchases and in Sales', BKk.purchases.some(x => x.label === 'Team lunch' && x.gross === 240000 && x.group === 'Office') && BKk.sales.some(x => /IELTS coaching/.test(x.what) && x.gross === 1180000 && x.tax === 180000), JSON.stringify(BKk.sales.slice(0, 2)));
+    check('a name in use cannot be removed, but can be renamed', (await req('a', 'DELETE', '/api/staff/finance/kind/' + k1.body.kind.id)).status === 409 && (await req('a', 'PUT', '/api/staff/finance/kind/' + k1.body.kind.id, { label: 'Team lunches' })).status === 200 && (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body.purchases.some(x => x.label === 'Team lunches'));
+    const k3 = await req('a', 'POST', '/api/staff/finance/kind', { label: 'Unused name', dir: 'out', type: 'People' });
+    const k3d = await req('a', 'DELETE', '/api/staff/finance/kind/' + k3.body.kind.id);
+    check('a name not in use is removed', k3d.status === 200 && !k3d.body.kindList.some(k => k.id === k3.body.kind.id), k3d.status + ' ' + JSON.stringify(k3d.body).slice(0, 100));
+    const sd = await req('a', 'PUT', '/api/staff/finance/line/' + lW.id, { company: 'IN', category: 'sales-direct', taxRate: 0 });
+    check('the built-in "Sale (no invoice raised)" works the same, here at 0%', sd.status === 200 && (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body.totals.sales - before.sales === 1180000);
+    /* the invoice opened on the screen */
+    m = await req('a', 'POST', '/api/staff/finance/line/' + lA2.id + '/match', { company: 'IN', targets: [{ type: 'invoice', id: a1.body.invoice.id, amount: 800000 }] });
+    await req('a', 'POST', '/api/staff/finance/invoice/' + a1.body.invoice.id + '/cash', { company: 'IN', amount: 200000 });
+    const dt = await req('a', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '?company=IN');
+    check('an invoice opens with its lines, the seller, and every receipt: the bank line and the cash', dt.status === 200 && dt.body.invoice.number === a1.body.invoice.number && dt.body.invoice.seller.taxId === '36AALCG2793G1ZA' && dt.body.invoice.receipts.length === 2
+      && dt.body.invoice.receipts.some(r => r.how === 'bank' && r.amount === 800000 && r.date === '2026-04-13' && /ANITA/.test(r.description)) && dt.body.invoice.receipts.some(r => r.how === 'cash' && r.amount === 200000) && dt.body.invoice.paid === 1000000 && dt.body.invoice.outstanding === 1000000, dt.status + ' ' + JSON.stringify(dt.body).slice(0, 400));
+    check('…not for a counsellor, and not from the other company', (await req('c', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '?company=IN')).status === 403 && (await req('a', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '?company=DE')).status === 404);
+    const dn2 = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&state=done')).body.lines;
+    check('matched lines can be listed on their own', dn2.length >= 1 && dn2.every(x => x.state === 'matched' || x.state === 'part') && dn2.some(x => x.id === lA2.id) && !dn2.some(x => x.id === lP.id), dn2.length);
+
+    /* ---- Patch 313 (owner, 26 Nov): Finance as an extra permission an administrator gives ---- */
+    const fc = await req('a', 'POST', '/api/staff/people', { name: 'Fin Counsellor', email: 'finc@glv-sim.in', password: 'Office-12345!', role: 'counsellor', perms: ['finance'] });
+    check('a counsellor is created with Finance ticked', fc.status === 200 && (fc.body.person.perms || []).includes('finance'), fc.status + ' ' + JSON.stringify(fc.body).slice(0, 200));
+    await req('f', 'POST', '/api/auth/login', { email: 'finc@glv-sim.in', password: 'Office-12345!' });
+    await req('f', 'POST', '/api/auth/change', { password: 'Book-keeper-2026!' });
+    const fb1 = await req('f', 'GET', '/api/staff/finance/books?company=IN');
+    check('…and reads the books, the lines and an invoice, and can raise one', fb1.status === 200 && (await req('f', 'GET', '/api/staff/finance/lines?company=IN')).status === 200 && (await req('f', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '?company=IN')).status === 200
+      && (await req('f', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'student', studentId: kiran, amount: 100000, text: 'By the bookkeeper' })).status === 200, fb1.status + ' ' + JSON.stringify(fb1.body).slice(0, 200));
+    check('…but is not an administrator anywhere else', (await req('f', 'PUT', '/api/staff/people/' + fc.body.person.id + '/perms', { perms: ['finance', 'content'] })).status === 403);
+    check('a counsellor without it is still refused', (await req('c', 'GET', '/api/staff/finance/books?company=IN')).status === 403);
+    const off = await req('a', 'PUT', '/api/staff/people/' + fc.body.person.id + '/perms', { perms: [] });
+    check('the administrator takes it away again, at once', off.status === 200 && !off.body.perms.includes('finance') && (await req('f', 'GET', '/api/staff/finance/books?company=IN')).status === 403, off.status + ' ' + JSON.stringify(off.body));
+    const on2 = await req('a', 'PUT', '/api/staff/people/' + fc.body.person.id + '/perms', { perms: ['finance', 'marketing'] });
+    check('…and gives it back beside another permission', on2.status === 200 && on2.body.perms.includes('finance') && on2.body.perms.includes('marketing') && (await req('f', 'GET', '/api/staff/finance/books?company=IN')).status === 200, JSON.stringify(on2.body));
+    const stf = await req('a', 'POST', '/api/staff/people', { name: 'Sneaky Student', email: 'sneak@glv-sim.in', password: 'Office-12345!', role: 'student', perms: ['finance'] });
+    await req('s', 'POST', '/api/auth/login', { email: 'sneak@glv-sim.in', password: 'Office-12345!' });
+    await req('s', 'POST', '/api/auth/change', { password: 'Student-pass-2026!' });
+    const sfb = await req('s', 'GET', '/api/staff/finance/books?company=IN');
+    check('a student cannot be given Finance, by creation or afterwards', !(stf.body.person && (stf.body.person.perms || []).includes('finance')) && sfb.status >= 401 && sfb.status <= 403 && (await req('a', 'PUT', '/api/staff/people/' + stf.body.person.id + '/perms', { perms: ['finance'] })).status === 409 && (await req('s', 'GET', '/api/staff/finance/books?company=IN')).status >= 401, stf.status + ' ' + sfb.status);
+
+    /* ---- Patch 313: what the test agents of 26 Nov found ---- */
+    const inv = b => req('a', 'POST', '/api/staff/finance/invoice', Object.assign({ company: 'IN', kind: 'student', studentId: kiran, text: 'x' }, b));
+    const nInv = async () => (await req('a', 'GET', '/api/staff/finance/invoices?company=IN')).body.invoices.length;
+    const n0 = await nInv();
+    const huge = [9007199254740993, 1e15, 1e30, 'Infinity', '9007199254740993', true, [700], '0x10', -500, 0, 'abc', null];
+    const hs = []; for (const h of huge) hs.push((await inv({ amount: h })).status);
+    check('an absurd, negative or non-numeric amount is refused before anything is written', hs.every(x => x === 422) && (await nInv()) === n0 && (await req('a', 'GET', '/api/staff/finance/books?company=IN')).status === 200, JSON.stringify(hs));
+    check('…on the counsellor’s route and on an edit too', (await req('a', 'POST', '/api/staff/student/' + kiran + '/invoice', { amount: 1e30 })).status === 422 && (await req('a', 'PUT', '/api/staff/finance/invoice/' + a2.body.invoice.id, { company: 'IN', amount: 9007199254740993 })).status === 422);
+    const ds = []; for (const d of ['2026-02-30', '26/11/2026', '2026-13-01', 'yesterday', '1999-01-01', '2099-01-01']) ds.push((await inv({ amount: 100, date: d })).status);
+    check('a date that is not a day, or is in the future, is refused; never quietly replaced by today', ds.every(x => x === 422) && (await inv({ amount: 100, due: '2026-02-31' })).status === 422 && (await nInv()) === n0, JSON.stringify(ds));
+    const man = b => req('a', 'POST', '/api/staff/finance/invoice', Object.assign({ company: 'IN', kind: 'manual', party: 'Some Ltd', taxRate: 18 }, b));
+    check('an invoice line that would be dropped refuses the invoice: a negative line, a line with no words, more than 30, a rate that is not a rate',
+      (await man({ items: [{ text: 'Fee', amount: 100000 }, { text: 'Discount', amount: -20000 }] })).status === 422 && (await man({ items: [{ text: '', amount: 5000 }] })).status === 422
+      && (await man({ items: Array.from({ length: 35 }, (_, i) => ({ text: 'L' + i, amount: 100 })) })).status === 422 && (await man({ taxRate: 'abc', items: [{ text: 'Fee', amount: 100 }] })).status === 422 && (await nInv()) === n0);
+    const upD = await upload('a', 'IN', 'dups.pdf', smart([['20/04/2026', ['UPI/KIRAN DAS/one'], 300000], ['21/04/2026', ['UPI/SOMEONE/two'], 800000]], 0));
+    const LD = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body;
+    const lD1 = LD.lines.find(x => /KIRAN DAS\/one/.test(x.description)), lD2 = LD.lines.find(x => /SOMEONE\/two/.test(x.description));
+    const iD = (await inv({ amount: 300000 })).body.invoice;
+    m = await req('a', 'POST', '/api/staff/finance/line/' + lD2.id + '/match', { company: 'IN', targets: [{ type: 'invoice', id: iD.id, amount: 300000 }, { type: 'invoice', id: iD.id, amount: 300000 }] });
+    check('the same invoice twice in one match is refused, and nothing is paid', m.status === 422 && (await req('a', 'GET', '/api/staff/finance/invoice/' + iD.id + '?company=IN')).body.invoice.paid === 0, m.status + ' ' + JSON.stringify(m.body).slice(0, 120));
+    check('a match with nothing in it, or not a thing, is refused cleanly', (await req('a', 'POST', '/api/staff/finance/line/' + lD2.id + '/match', { company: 'IN', targets: [null] })).status === 422);
+    check('money going out is offered nothing to match', (await req('a', 'GET', '/api/staff/finance/line/' + lP.id + '/candidates?company=IN')).body.invoices.length === 0);
+    const cz = (await req('a', 'GET', '/api/staff/finance/line/' + lD2.id + '/candidates?company=IN')).body.invoices.find(x => x.id === iD.id);
+    const cn = (await req('a', 'GET', '/api/staff/finance/line/' + lD1.id + '/candidates?company=IN')).body.invoices.find(x => x.id === iD.id);
+    check('an invoice is offered ready-typed only when the bank line names its student, never for an equal amount alone', cz && cz.named === false && cn && cn.named === true, JSON.stringify([cz && cz.named, cn && cn.named]));
+    /* a line that raised its own invoice: taken off, the invoice goes with it */
+    const before2 = await nInv();
+    m = await req('a', 'POST', '/api/staff/finance/line/' + lD2.id + '/match', { company: 'IN', targets: [{ type: 'student', studentId: anita, amount: 800000 }] });
+    const autoInv = (await req('a', 'GET', '/api/staff/finance/invoices?company=IN')).body.invoices[0];
+    const um = await req('a', 'DELETE', '/api/staff/finance/line/' + lD2.id + '/match/' + m.body.line.links[0].id + '?company=IN');
+    const autoAfter = (await req('a', 'GET', '/api/staff/finance/invoice/' + autoInv.id + '?company=IN')).body.invoice;
+    check('an invoice a bank line raised for itself is cancelled when that match is taken off, so the student owes nothing they never owed', m.status === 200 && um.status === 200 && autoAfter.status === 'cancelled' && (await nInv()) === before2 + 1, um.status + ' ' + autoAfter.status);
+    /* overlapping statements */
+    const upE = await upload('a', 'IN', 'dups-longer.pdf', smart([['20/04/2026', ['UPI/KIRAN DAS/one'], 300000], ['21/04/2026', ['UPI/SOMEONE/two'], 800000], ['22/04/2026', ['UPI/THIRD/three'], 100000]], 0));
+    const same = await upload('a', 'IN', 'dups-copy.pdf', smart([['20/04/2026', ['UPI/KIRAN DAS/one'], 300000], ['21/04/2026', ['UPI/SOMEONE/two'], 800000]], 0));
+    const BL2 = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.batches;
+    check('a statement that overlaps adds only what is new; one that adds nothing is not listed again', upE.body.added === 1 && same.status === 200 && same.body.added === 0 && !BL2.some(b => b.filename === 'dups-copy.pdf') && BL2.some(b => b.filename === 'dups-longer.pdf'), JSON.stringify([upE.body.added, same.body.added]));
+    m = await req('a', 'POST', '/api/staff/finance/line/' + lD1.id + '/match', { company: 'IN', targets: [{ type: 'invoice', id: iD.id, amount: 300000 }] });
+    const rmD = await req('a', 'DELETE', '/api/staff/finance/statement/' + BL2.find(b => b.filename === 'dups.pdf').id + '?company=IN');
+    const LD2 = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.lines;
+    check('removing the first of two overlapping statements keeps the lines the second also has, with their matches', rmD.status === 200 && rmD.body.removed === 0 && rmD.body.kept === 2 && LD2.some(x => x.id === lD1.id && x.state === 'matched') && (await req('a', 'GET', '/api/staff/finance/invoice/' + iD.id + '?company=IN')).body.invoice.paid === 300000, JSON.stringify(rmD.body));
+    /* cash is a sale, with its GST, on the day it was taken */
+    const cb = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body.totals;
+    const iC = (await inv({ amount: 1180000, taxRate: 18 })).body.invoice;
+    const c1 = await req('a', 'POST', '/api/staff/finance/invoice/' + iC.id + '/cash', { company: 'IN', amount: 590000, date: '2026-05-05' });
+    const c2 = await req('a', 'POST', '/api/staff/finance/invoice/' + iC.id + '/cash', { company: 'IN', amount: 590000, date: '2026-05-06' });
+    const ca = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body;
+    check('cash received on an invoice is in the sales and the GST of its month', c1.status === 200 && c2.status === 200 && ca.totals.sales - cb.sales === 1000000 && ca.totals.salesTax - cb.salesTax === 180000 && ca.months.find(x => x.month === '2026-05').sales >= 1000000 && ca.sales.some(x => x.kind === 'cash' && x.gross === 590000 && x.date === '2026-05-05'), JSON.stringify([ca.totals.sales - cb.sales, ca.totals.salesTax - cb.salesTax]));
+    const dC = (await req('a', 'GET', '/api/staff/finance/invoice/' + iC.id + '?company=IN')).body.invoice;
+    const one = await req('a', 'DELETE', '/api/staff/finance/invoice/' + iC.id + '/cash?company=IN&link=' + dC.receipts[0].linkId);
+    check('one cash entry is taken off without the other', one.status === 200 && one.body.invoice.cash === 590000 && (await req('a', 'POST', '/api/staff/finance/invoice/' + iC.id + '/cash', { company: 'IN', amount: 100, date: '2099-01-01' })).status === 422, one.status + ' ' + JSON.stringify(one.body).slice(0, 120));
+    check('a counsellor’s invoice is the Indian company’s and dated today, whatever is sent', (await (async () => { const kv = (await req('c', 'GET', '/api/staff/students')).body; const mine = (kv.students || kv.rows || [])[0]; if (!mine) return 'no student'; const r = await req('c', 'POST', '/api/staff/student/' + mine.id + '/invoice', { amount: 100000, company: 'DE', date: '2024-01-01' }); return r.status === 200 && /^GCPL\//.test(r.body.invoice.number) && r.body.invoice.currency === 'INR' && r.body.invoice.date !== '2024-01-01' ? 'ok' : JSON.stringify(r.body).slice(0, 200); })()) === 'ok');
+    /* bills: what the file is decides */
+    const lOut = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&dir=out')).body.lines[0];
+    const EXE = Buffer.concat([Buffer.from('MZ'), Buffer.alloc(100, 3)]);
+    check('a program renamed .jpg, text renamed .webp, and a page hidden behind a junk byte are not bills', (await sendBill('a', { company: 'IN', lineId: lOut.id }, 'photo.jpg', EXE)).status === 415 && (await sendBill('a', { company: 'IN', lineId: lOut.id }, 'x.webp', Buffer.from('just some text here'))).status === 415 && (await sendBill('a', { company: 'IN', lineId: lOut.id }, 'x.png', Buffer.from('﻿<html><script>1</script></html>'))).status === 415);
+    const longName = 'a'.repeat(230) + '.pdf';
+    const bl = await sendBill('a', { company: 'IN', lineId: lOut.id }, longName, PDFB);
+    check('a real PDF with a very long name is kept', bl.status === 200, bl.status + ' ' + JSON.stringify(bl.body).slice(0, 120));
+    check('a bill’s edit obeys what its creation obeys: no future date, no absurd amount; and it can be moved off its line and back', (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', date: '2031-01-01' })).status === 422 && (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', amount: 1e30 })).status === 422
+      && (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', lineId: null })).body.bill.lineId === null && (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', lineId: lOut.id })).body.bill.lineId === lOut.id);
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');

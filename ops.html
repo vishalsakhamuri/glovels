@@ -1221,7 +1221,7 @@ body.open{overflow:hidden}
     var u = me.user || me;
     $('#meName').textContent = u.name || ''; $('#meRole').textContent = u.role || '';
     if (u.role !== 'admin' && (u.perms || []).indexOf('marketing') < 0) $('#navMkt').hidden = true;
-    if (u.role !== 'admin') { $('#navOrg').hidden = true; $('#navOrders').hidden = true; if ($('#navFinance')) $('#navFinance').hidden = true; if ($('#navUsers')) $('#navUsers').hidden = true; }
+    if (u.role !== 'admin') { $('#navOrg').hidden = true; $('#navOrders').hidden = true; if ($('#navFinance')) $('#navFinance').hidden = (u.perms || []).indexOf('finance') < 0; if ($('#navUsers')) $('#navUsers').hidden = true; }
     /* Patch 215 (QA): each link only for the permission its screen needs. */
     var pm = u.role === 'admin' ? ['content', 'catalogue', 'marketing'] : (u.perms || []);
     if (pm.indexOf('content') < 0) { $('#navHome').hidden = true; $('#navBlog').hidden = true; $('#navLanguages').hidden = true; }

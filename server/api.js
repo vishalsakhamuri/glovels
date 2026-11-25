@@ -9144,8 +9144,15 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
    * ==================================================================== */
   const FIN = require('./finance.js');
   const fin = FIN.open({ db, MONEY, takePayment, log: console });
+  /* Patch 313 (owner, 26 Nov): "the Finance tab is only available to admin,
+     and this should also be given as an extra role to the user — a few
+     counsellors may have it; we should be able to give it." Finance is the
+     administrators', and anyone on the staff (a counsellor, an editor) an
+     administrator has ticked Finance for on the Organisation screen. Never
+     a partner agency or its counsellors, never a student. */
+  const canFinance = s => !!s && (s.role === 'admin' || ((s.role === 'counsellor' || s.role === 'editor') && db.permsOf(s).includes('finance')));
   const finAdmin = handler => staffOnly(async (req, res, s, m) => {
-    if (s.role !== 'admin') return json(res, 403, { error: 'Finance is for administrators only.' });
+    if (!canFinance(s)) return json(res, 403, { error: 'Finance is for administrators, and for staff an administrator has given Finance to on the Organisation screen.' });
     if (!fin.ok()) return json(res, 503, { error: 'Finance needs the SQLite database, which this server is not running on.' });
     const q = new URL(req.url, 'http://x').searchParams;
     try { return await handler(req, res, s, m, q); }
@@ -9186,12 +9193,18 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
     if (!parsed.file || !parsed.file.data.length) return json(res, 400, { error: 'No file in that upload' });
     if (parsed.file.data.length > 10 * 1024 * 1024) return json(res, 413, { error: 'That file is over 10 MB.' });
-    const ext = (path.extname(parsed.file.filename) || '').toLowerCase();
-    if (!fin.BILL_TYPES[ext]) return json(res, 415, { error: 'A bill is a PDF or a photo (JPG, PNG, WEBP, HEIC).' });
-    /* what it says it is and what it is: a PDF starts %PDF, a photo is not text */
-    const head = parsed.file.data.slice(0, 12);
-    const isPdf = head.slice(0, 5).toString('latin1') === '%PDF-';
-    if ((ext === '.pdf') !== isPdf || (!isPdf && /^\s*</.test(parsed.file.data.slice(0, 200).toString('latin1')))) return json(res, 415, { error: 'That file is not what its name says. Send the PDF or the photo itself.' });
+    /* What the file IS, by its first bytes, decides — not what it is called.
+       (The test of 26 Nov: a program renamed .jpg was kept as a "bill"; a
+       real PDF with a very long name was refused, its extension cut off.) */
+    const d0 = parsed.file.data, h4 = d0.slice(0, 4).toString('hex'), ascii = d0.slice(0, 16).toString('latin1');
+    const is = ascii.slice(0, 5) === '%PDF-' ? '.pdf' : h4.slice(0, 6) === 'ffd8ff' ? '.jpg' : h4 === '89504e47' ? '.png'
+      : (ascii.slice(0, 4) === 'RIFF' && ascii.slice(8, 12) === 'WEBP') ? '.webp' : (ascii.slice(4, 8) === 'ftyp' && /hei[cx]|mif1|msf1|hevc/.test(ascii.slice(8, 12))) ? '.heic' : '';
+    const named = (path.extname(parsed.file.filename) || '').toLowerCase();
+    if (!is) return json(res, 415, { error: 'A bill is a PDF or a photo (JPG, PNG, WEBP, HEIC).' });
+    if (fin.BILL_TYPES[named] && (named === '.jpeg' ? '.jpg' : named) !== is) return json(res, 415, { error: 'That file is not what its name says. Send the PDF or the photo itself.' });
+    if (named && !fin.BILL_TYPES[named] && parsed.file.filename.length < 190) return json(res, 415, { error: 'A bill is a PDF or a photo (JPG, PNG, WEBP, HEIC).' });
+    if (is === '.pdf' && /<\s*(html|script|body)\b/i.test(d0.slice(0, 1024).toString('latin1'))) return json(res, 415, { error: 'That file is not a PDF bill.' });
+    const ext = is;
     const f = parsed.fields, company = String(f.company || q.get('company') || 'IN').toUpperCase() === 'DE' ? 'DE' : 'IN';
     const dir = billDir(company);
     fs.mkdirSync(dir, { recursive: true });
@@ -9231,7 +9244,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     return json(res, 200, { ok: true, invoice: fin.cashOnInvoice(b.company, m[1], b, s.name) });
   }));
   route('DELETE', /^\/api\/staff\/finance\/invoice\/(\d+)\/cash$/, finAdmin(async (req, res, s, m, q) =>
-    json(res, 200, { ok: true, invoice: fin.undoCash(q.get('company'), m[1], s.name) })));
+    json(res, 200, { ok: true, invoice: fin.undoCash(q.get('company'), m[1], s.name, q.get('link')) })));
   route('PUT', /^\/api\/staff\/finance\/line\/(\d+)$/, finAdmin(async (req, res, s, m) => {
     const b = await readJson(req);
     return json(res, 200, { ok: true, line: fin.nameLine(b.company, m[1], b, s.name) });
@@ -9252,6 +9265,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const b = await readJson(req);
     return json(res, 200, { ok: true, invoice: fin.createInvoice(b.company, b, s.name) });
   }));
+  /* Patch 313: the office's own names for kinds of money in and out. */
+  route('POST', '/api/staff/finance/kind', finAdmin(async (req, res, s) => json(res, 200, { ok: true, kind: fin.addKind(await readJson(req), s.name), kindList: finKinds() })));
+  route('PUT', /^\/api\/staff\/finance\/kind\/(x-[a-z0-9-]+)$/, finAdmin(async (req, res, s, m) => json(res, 200, { ok: true, kind: fin.renameKind(m[1], await readJson(req), s.name), kindList: finKinds() })));
+  route('DELETE', /^\/api\/staff\/finance\/kind\/(x-[a-z0-9-]+)$/, finAdmin(async (req, res, s, m) => { const gone = fin.removeKind(m[1], s.name); return json(res, 200, Object.assign({ ok: true }, gone, { kindList: finKinds() })); }));
+  route('GET', /^\/api\/staff\/finance\/invoice\/(\d+)$/, finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, { ok: true, invoice: fin.invoiceDetail(q.get('company'), m[1]) })));
   route('PUT', /^\/api\/staff\/finance\/invoice\/(\d+)$/, finAdmin(async (req, res, s, m) => {
     const b = await readJson(req);
     return json(res, 200, { ok: true, invoice: fin.updateInvoice(b.company, m[1], b, s.name) });
@@ -9271,7 +9290,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     if (!fin.ok()) return json(res, 503, { error: 'Finance is not available on this server.' });
     const inv = fin.invoiceRaw(m[1]);
     if (!inv) return json(res, 404, { error: 'No such invoice' });
-    if (s.role !== 'admin' && !(inv.studentId && db.canSee(s, inv.studentId))) return json(res, 403, { error: 'That invoice is not for one of your students.' });
+    if (!canFinance(s) && !(inv.studentId && db.canSee(s, inv.studentId))) return json(res, 403, { error: 'That invoice is not for one of your students.' });
     const body = FIN.invoiceHtml(inv, inv.company, fin.settings()[inv.company]);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
     return res.end(body);
@@ -9294,8 +9313,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       /* Patch 311: with no order, the invoice is for an amount the
          counsellor agreed with the student — as many as there are instalments. */
       const invoice = o
-        ? fin.createInvoice(fin.companyOfOrderRef(o.reference), { kind: 'student', orderRef: o.reference, amount: b.amount, text: b.text, due: b.due, note: b.note, date: b.date }, s.name)
-        : fin.createInvoice(String(b.company || 'IN').toUpperCase() === 'DE' ? 'DE' : 'IN', { kind: 'student', studentId: id, amount: b.amount, text: b.text, taxRate: b.taxRate, due: b.due, note: b.note, date: b.date }, s.name);
+        ? fin.createInvoice(fin.companyOfOrderRef(o.reference), { kind: 'student', orderRef: o.reference, amount: b.amount, text: b.text, due: b.due, note: b.note, date: canFinance(s) ? b.date : undefined }, s.name)
+        /* (the test of 26 Nov) which company's book, and an earlier date, are
+           for whoever keeps the books; a counsellor's invoice is the Indian
+           company's, dated today */
+        : fin.createInvoice(canFinance(s) && String(b.company || 'IN').toUpperCase() === 'DE' ? 'DE' : 'IN', { kind: 'student', studentId: id, amount: b.amount, text: b.text, taxRate: b.taxRate, due: b.due, note: b.note, date: canFinance(s) ? b.date : undefined }, s.name);
       return json(res, 200, Object.assign({ ok: true, invoice }, fin.invoicesOfStudent(id)));
     } catch (e) {
       if (e && e.code && Number(e.code) >= 400 && Number(e.code) < 500) return json(res, Number(e.code), { error: e.message });
@@ -11687,6 +11709,10 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       });
     }
     const b = await readJson(req);
+    /* the books are not for a partner agency or its counsellors */
+    if (person.role !== 'counsellor' && person.role !== 'editor' && (Array.isArray(b.perms) ? b.perms : String(b.perms || '').split(',')).map(x => String(x).trim().toLowerCase()).includes('finance')) {
+      return json(res, 409, { error: 'Finance can be given to a counsellor or a website editor of the office, not to this account.' });
+    }
     const perms = db.setPerms(id, b.perms);
     db.log(s.name, 'permissions changed',
       person.name + ' may change: ' + (perms || 'nothing'));

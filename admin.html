@@ -1198,6 +1198,11 @@ select.assign.none:hover{border-color:#a5342b}
               <input type="checkbox" id="pPermMarketing" style="margin-top:2px">
               <span>Marketing dashboard &mdash; visitors, channels, campaigns, searches and ad spend
                 (counts only, never a student&rsquo;s name). A counsellor can have this too.</span></label>
+            <label style="display:flex;gap:8px;align-items:flex-start;font:600 12.8px/1.45
+              var(--sans);color:var(--navy-800);margin-top:8px">
+              <input type="checkbox" id="pPermFinance" style="margin-top:2px">
+              <span>Finance &mdash; bank statements, invoices, bills, sales, purchases and the profit and
+                loss, for every student. Give it only to whoever keeps the books.</span></label>
           </div>
           <p style="margin:8px 0 0;font-size:11.8px;color:var(--muted);line-height:1.55">
             A password is generated and shown once, on the next screen. It is stored hashed, so
@@ -2375,7 +2380,7 @@ async function staffBoot(run) {
     admin: me.user.role === 'admin',
     /* Patch 263 (owner, 4 Nov): orders on their own line — "someone is
        paying, we should clearly see it". */
-    finance: me.user.role === 'admin',   // patch 309: the books are the administrators'
+    finance: me.user.role === 'admin' || perms.indexOf('finance') >= 0,   // patch 309, 313: the administrators', and whoever they gave Finance to
     'admin#orders': me.user.role === 'admin',
     'admin#users': me.user.role === 'admin',   // patch 277: the team on its own line
     catalogue: perms.indexOf('catalogue') >= 0,
@@ -2624,7 +2629,7 @@ async function bell(me) {
 let STUDENTS = [], COUNSELLORS = [], PEOPLE = [], ME = 0, filter = '';
 
 /* The two things an account can be trusted with beyond its own students. */
-const PERMS = [['content', 'Home page'], ['catalogue', 'Universities'], ['marketing', 'Marketing']];
+const PERMS = [['content', 'Home page'], ['catalogue', 'Universities'], ['marketing', 'Marketing'], ['finance', 'Finance']];
 
 const inr = p => '₹' + Number(p / 100).toLocaleString('en-IN');
 
@@ -4256,6 +4261,7 @@ function openPersonForm() {
   $('#pPermContent').checked = false;
   $('#pPermCatalogue').checked = false;
   $('#pPermMarketing').checked = false;
+  if ($('#pPermFinance')) $('#pPermFinance').checked = false;
   KIND = 'employee'; SCOPE = [];
   syncRole(); syncLevel(); paintScope();
   $('#personModal').classList.add('on');
@@ -4303,7 +4309,8 @@ document.addEventListener('click', async e => {
       kind: KIND, scope: SCOPE.slice(),
       perms: [$('#pPermContent').checked && 'content',
               $('#pPermCatalogue').checked && 'catalogue',
-              ($('#pPermMarketing').checked || $('#pRole').value === 'marketing') && 'marketing'].filter(Boolean),
+              ($('#pPermMarketing').checked || $('#pRole').value === 'marketing') && 'marketing',
+              $('#pPermFinance') && $('#pPermFinance').checked && 'finance'].filter(Boolean),
     };
     $('#pErr').style.display = 'none';
     /* Patch 289 */
