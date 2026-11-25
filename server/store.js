@@ -1180,7 +1180,10 @@ function jsonDriver(file) {
        there at all and subscribing a device threw rather than registering
        one. Every table the code touches has to be named here. */
     'push_subs', 'payments', 'application_events', 'attribution', 'events', 'ad_spend', 'searches', 'bookings', 'gateway_orders', 'bot_days', 'bot_pages',
-    'i18n_src', 'i18n_units', 'i18n_pages', 'post_i18n'];
+    'i18n_src', 'i18n_units', 'i18n_pages', 'post_i18n',
+    /* Finance (patch 309). Its screens need SQLite and say so on this driver;
+       the names are here so the rule above holds for every table. */
+    'fin_batches', 'fin_lines', 'fin_links', 'fin_invoices'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
