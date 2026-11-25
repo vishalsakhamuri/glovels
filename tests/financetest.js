@@ -199,8 +199,6 @@ async function upload(who, company, name, buf) {
     check('one bank line split across two students', m.status === 200 && m.body.line.state === 'matched' && m.body.line.links.length === 2, m.status + ' ' + JSON.stringify(m.body).slice(0, 200));
     check('…each order moved by its share', (await req('a', 'GET', '/api/staff/order/' + oP.reference)).body.order.outstandingPaise === 300000 && (await req('a', 'GET', '/api/staff/order/' + oR.reference)).body.order.outstandingPaise === 900000);
     const linkId = m.body.line.links[0].id;
-    m = await req('a', 'DELETE', '/api/staff/finance/line/' + l3.id + '/match/' + linkId + '?company=IN');
-    check('a match that recorded a payment cannot be quietly taken off', m.status === 409 && /refund/i.test(m.body.error || ''), m.status + ' ' + m.body.error);
 
     /* ---- a payment typed in on the order, reconciled to its bank line afterwards ---- */
     const typed = await req('a', 'POST', '/api/staff/order/' + oP.reference + '/payment', { amount: 3000, method: 'cash', date: '2026-04-20' });
@@ -320,6 +318,76 @@ async function upload(who, company, name, buf) {
     check('the next German invoice takes the new series and number, at 0% VAT', dn.status === 200 && dn.body.invoice.number === 'GT-0050' && dn.body.invoice.tax === 0, JSON.stringify(dn.body).slice(0, 160));
     check('India’s numbering is untouched', (await req('a', 'GET', '/api/staff/finance/books?company=IN')).body.settings.next === 6);
     check('a number is never given out twice: the counter cannot be set back', (await req('a', 'PUT', '/api/staff/finance/settings', { company: 'DE', next: 1 })).body.settings.next === 51);
+
+    /* ---- Patch 311 (owner, 26 Nov): invoice any student, pay an invoice from a bank line or in cash,
+            edit, take off, and remove a statement uploaded by mistake ---- */
+    const anita = await mk('fin3', 'Anita Rao'), kiran = await mk('fin4', 'Kiran Das');
+    check('the list of students to invoice is for administrators', (await req('c', 'GET', '/api/staff/finance/students')).status === 403 && (await req('a', 'GET', '/api/staff/finance/students')).body.students.some(x => x.name === 'Anita Rao'));
+    let a1 = await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'student', studentId: anita, amount: 2000000, text: 'Germany admission — first instalment', taxRate: 18, due: '2026-01-10' });
+    check('a student with no order is invoiced for an amount', a1.status === 200 && a1.body.invoice.gross === 2000000 && a1.body.invoice.studentId === anita && !a1.body.invoice.orderRef && a1.body.invoice.tax === 305085 && a1.body.invoice.party === 'Anita Rao', a1.status + ' ' + JSON.stringify(a1.body).slice(0, 240));
+    let a2 = await req('a', 'POST', '/api/staff/student/' + anita + '/invoice', { amount: 1000000, text: 'Second instalment', taxRate: 0 });
+    check('…and again from their file, a second instalment, at 0%', a2.status === 200 && a2.body.invoice.gross === 1000000 && a2.body.invoice.tax === 0 && a2.body.invoices.length === 2, a2.status + ' ' + JSON.stringify(a2.body).slice(0, 200));
+    check('an invoice with no amount is refused', (await req('a', 'POST', '/api/staff/student/' + anita + '/invoice', { text: 'x' })).status === 422);
+    let ed = await req('a', 'PUT', '/api/staff/finance/invoice/' + a2.body.invoice.id, { company: 'IN', amount: 800000, due: '2026-12-31', text: 'Second instalment (revised)' });
+    check('an unpaid invoice is edited: amount, due date and wording; the number stays', ed.status === 200 && ed.body.invoice.gross === 800000 && ed.body.invoice.due === '2026-12-31' && ed.body.invoice.number === a2.body.invoice.number && ed.body.invoice.items[0].text === 'Second instalment (revised)', ed.status + ' ' + JSON.stringify(ed.body).slice(0, 200));
+    const rowsC = [['05/04/2026', ['UPI/ANITA RAO/fees'], 1200000], ['06/04/2026', ['NEFT/KIRAN DAS/fees'], 500000], ['07/04/2026', ['ATM CHARGES'], -100]];
+    const upC = await upload('a', 'IN', 'extra.pdf', smart(rowsC, 0));
+    check('a third statement is taken in', upC.status === 200 && upC.body.added === 3, upC.status + ' ' + JSON.stringify(upC.body).slice(0, 160));
+    const LC = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body;
+    const lA = LC.lines.find(x => /ANITA/.test(x.description)), lK = LC.lines.find(x => /KIRAN/.test(x.description));
+    const cand3 = (await req('a', 'GET', '/api/staff/finance/line/' + lA.id + '/candidates?company=IN')).body;
+    check('her invoice is offered for her bank line, first', cand3.invoices.length && cand3.invoices[0].id === a1.body.invoice.id, JSON.stringify(cand3.invoices.slice(0, 2)).slice(0, 200));
+    m = await req('a', 'POST', '/api/staff/finance/line/' + lA.id + '/match', { company: 'IN', targets: [{ type: 'invoice', id: a1.body.invoice.id, amount: 1200000 }] });
+    check('the bank line pays part of the invoice', m.status === 200 && m.body.line.state === 'matched', m.status + ' ' + JSON.stringify(m.body).slice(0, 160));
+    let cs = await req('a', 'POST', '/api/staff/finance/invoice/' + a1.body.invoice.id + '/cash', { company: 'IN', amount: 300000 });
+    check('cash is added on the same invoice', cs.status === 200 && cs.body.invoice.paid === 1500000 && cs.body.invoice.cash === 300000 && cs.body.invoice.outstanding === 500000, cs.status + ' ' + JSON.stringify(cs.body).slice(0, 200));
+    check('more cash than is unpaid is refused', (await req('a', 'POST', '/api/staff/finance/invoice/' + a1.body.invoice.id + '/cash', { company: 'IN', amount: 600000 })).status === 422);
+    check('its amount can no longer be changed, its due date can', (await req('a', 'PUT', '/api/staff/finance/invoice/' + a1.body.invoice.id, { company: 'IN', amount: 100 })).status === 409 && (await req('a', 'PUT', '/api/staff/finance/invoice/' + a1.body.invoice.id, { company: 'IN', due: '2026-01-12' })).body.invoice.due === '2026-01-12');
+    m = await req('a', 'POST', '/api/staff/finance/line/' + lK.id + '/match', { company: 'IN', targets: [{ type: 'student', studentId: kiran, amount: 500000, text: 'Visa file', taxRate: 18 }] });
+    const kInv = (await req('a', 'GET', '/api/staff/student/' + kiran + '/invoices')).body.invoices;
+    check('a bank line from a student with nothing on the books raises their invoice and pays it', m.status === 200 && m.body.line.state === 'matched' && kInv.length === 1 && kInv[0].gross === 500000 && kInv[0].state === 'paid' && kInv[0].date === '2026-04-06', m.status + ' ' + JSON.stringify(kInv).slice(0, 200));
+    check('…a line to a student who is not one is refused', (await req('a', 'POST', '/api/staff/finance/line/' + lA.id + '/match', { company: 'IN', targets: [{ type: 'student', studentId: 999999, amount: 1 }] })).status === 404);
+    let SB = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body.students;
+    const rA = SB.rows.find(r => r.name === 'Anita Rao'), rK = SB.rows.find(r => r.name === 'Kiran Das');
+    check('Anita on the overview: ₹28,000 invoiced, ₹12,000 in the bank, ₹3,000 cash, ₹13,000 pending, overdue', rA && rA.agreed === 2800000 && rA.received === 1500000 && rA.inBank === 1200000 && rA.cash === 300000 && rA.pending === 1300000 && rA.overdue === true && rA.due === '2026-01-12', JSON.stringify(rA));
+    check('Kiran: paid in full through the bank', rK && rK.pending === 0 && rK.inBank === 500000, JSON.stringify(rK));
+    let RC = (await req('a', 'GET', '/api/staff/finance/reconciliation?company=IN')).body;
+    const ri = RC.invoices.rows.find(r => r.id === a1.body.invoice.id);
+    check('reconciliation shows the invoice: bank, cash and unpaid', ri && ri.bank === 1200000 && ri.cash === 300000 && ri.unpaid === 500000, JSON.stringify(ri));
+    cs = await req('a', 'DELETE', '/api/staff/finance/invoice/' + a1.body.invoice.id + '/cash?company=IN');
+    check('cash is taken off again', cs.status === 200 && cs.body.invoice.cash === 0 && cs.body.invoice.paid === 1200000, cs.status + ' ' + JSON.stringify(cs.body).slice(0, 160));
+
+    /* a match to an order comes off; the payment it recorded stays on the order */
+    const paysBefore = (await req('a', 'GET', '/api/staff/order/' + oP.reference)).body.payments.length;
+    const unBefore = RC.payments.unmatched.length;
+    m = await req('a', 'DELETE', '/api/staff/finance/line/' + l3.id + '/match/' + linkId + '?company=IN');
+    RC = (await req('a', 'GET', '/api/staff/finance/reconciliation?company=IN')).body;
+    check('a match to an order is taken off; the payment stays on the order and shows as not found in the bank', m.status === 200 && m.body.line.links.length === 1 && (await req('a', 'GET', '/api/staff/order/' + oP.reference)).body.payments.length === paysBefore && RC.payments.unmatched.length === unBefore + 1, m.status + ' ' + JSON.stringify(m.body).slice(0, 200));
+
+    /* a statement uploaded by mistake */
+    const BL = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.batches;
+    const bC = BL.find(b => b.filename === 'extra.pdf');
+    check('a counsellor cannot remove a statement', (await req('c', 'DELETE', '/api/staff/finance/statement/' + bC.id + '?company=IN')).status === 403);
+    check('nor can it be removed from the other company’s book', (await req('a', 'DELETE', '/api/staff/finance/statement/' + bC.id + '?company=DE')).status === 404);
+    const nBefore = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.lines.length;
+    let rm = await req('a', 'DELETE', '/api/staff/finance/statement/' + bC.id + '?company=IN');
+    const after = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body;
+    check('the statement is removed with its three lines; the others stay', rm.status === 200 && rm.body.removed === 3 && after.lines.length === nBefore - 3 && !after.batches.some(b => b.id === bC.id), rm.status + ' ' + JSON.stringify(rm.body));
+    const aAfter = (await req('a', 'GET', '/api/staff/student/' + anita + '/invoices')).body.invoices.find(i => i.id === a1.body.invoice.id);
+    check('…and the invoice it had paid is unpaid again', aAfter.paid === 0 && aAfter.outstanding === 2000000, JSON.stringify(aAfter).slice(0, 200));
+    let held = null;
+    for (const b of after.batches) { const r = await req('a', 'DELETE', '/api/staff/finance/statement/' + b.id + '?company=IN&dry=1'); if (r.status === 409) { held = { b, r }; break; } if (r.status === 200) break; }
+    check('a statement whose line recorded a payment on an order asks first', held && held.r.body.held >= 1 && /stay|leaves/i.test(held.r.body.error), JSON.stringify(held && held.r.body));
+    if (held) {
+      rm = await req('a', 'DELETE', '/api/staff/finance/statement/' + held.b.id + '?company=IN&force=1');
+      check('…and is removed when told to; the payments stay on the orders', rm.status === 200 && rm.body.removed > 0 && (await req('a', 'GET', '/api/staff/order/' + oP.reference)).body.payments.length === paysBefore, rm.status + ' ' + JSON.stringify(rm.body));
+    }
+    const ST0 = (await req('a', 'GET', '/api/staff/finance/books?company=IN')).body.settings;
+    check('the Indian company\u2019s name, address, GSTIN and CIN come from the site\u2019s legal details', ST0.name === 'Glovels Consultants Private Limited' && ST0.taxId === '36AALCG2793G1ZA' && /Madhapur/.test(ST0.address) && ST0.register === 'U85500TS2024PTC185996', JSON.stringify(ST0));
+    const pr9 = await req('a', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '/print');
+    check('\u2026and are printed on the invoice', /GSTIN 36AALCG2793G1ZA/.test(pr9.body.text || '') && /CIN U85500TS2024PTC185996/.test(pr9.body.text || ''), String(pr9.body.text || '').slice(0, 120));
+    const again = await upload('a', 'IN', 'extra.pdf', smart(rowsC, 0));
+    check('a removed statement can be uploaded again', again.status === 200 && again.body.added === 3, again.status + ' ' + JSON.stringify(again.body).slice(0, 120));
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');

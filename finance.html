@@ -181,7 +181,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
   var api = function (path, opts) {
     opts = opts || {};
     return fetch(path, { method: opts.method || 'GET', credentials: 'same-origin', headers: opts.body ? { 'Content-Type': 'application/json' } : undefined, body: opts.body ? JSON.stringify(opts.body) : undefined })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) { var e = new Error(d.error || 'That did not work.'); e.status = r.status; throw e; } return d; }); });
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) { var e = new Error(d.error || 'That did not work.'); e.status = r.status; e.held = d.held; throw e; } return d; }); });
   };
   var toast = function (t, bad) { var el = $('#toast'); el.textContent = t; el.style.background = bad ? '#a12b2b' : ''; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, bad ? 6000 : 3200); };
   var ME = null, CO = 'IN', YEAR = '', TAB = 'overview', B = null, FILTER = 'todo', OPEN = 0, SFILTER = 'pending', ACCT = '', ACCTS = [];
@@ -194,6 +194,8 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
   var monthName = function (m) { return MON[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4); };
   var q = function () { return 'company=' + CO + (YEAR ? '&year=' + YEAR : ''); };
 
+  var STUDENTS = null, INVS = [];
+  var students = function () { return STUDENTS ? Promise.resolve(STUDENTS) : api('/api/staff/finance/students').then(function (d) { STUDENTS = d.students || []; return STUDENTS; }); };
   function loadBooks() {
     return api('/api/staff/finance/books?' + q()).then(function (d) {
       B = d;
@@ -254,7 +256,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
         kpi(money(t.taxOwed), B.tax + ' still to pay') +
         kpi(money(B.owed.invoices), B.owed.nInvoices + ' other invoice' + (B.owed.nInvoices === 1 ? '' : 's') + ' unpaid') +
       '</div>' +
-      '<div class="card"><h2>Profit and loss by month</h2><p class="sub">By the day money reached or left the bank. ' + B.tax + ' is taken out of both sides. Capital, loans, transfers between your own accounts and tax payments are not profit or loss.</p>' +
+      '<div class="card"><div class="bar" style="margin:0 0 4px"><h2 style="margin:0">Profit and loss by month</h2><span class="spacer"></span><button type="button" class="btn sm" data-dl="pl">Download profit and loss</button><button type="button" class="btn sm" data-dl="tax">Download ' + B.tax + ' summary</button></div><p class="sub">By the day money reached or left the bank. ' + B.tax + ' is taken out of both sides. Capital, loans, transfers between your own accounts and tax payments are not profit or loss.</p>' +
         '<div style="overflow-x:auto"><table><thead><tr><th>Month</th><th class="r">Sales</th><th class="r">Other income</th><th class="r">People</th><th class="r">Office</th><th class="r">For students</th><th class="r">Profit</th><th class="r">' + B.tax + ' collected</th><th class="r">' + B.tax + ' on purchases</th><th class="r">' + B.tax + ' paid</th></tr></thead><tbody>' +
         B.months.map(function (m) { var z = !(m.sales || m.costs || m.otherIncome || m.taxPaid); return '<tr' + (z ? ' class="muted"' : '') + '><td>' + monthName(m.month) + '</td><td class="r">' + money(m.sales) + '</td><td class="r">' + money(m.otherIncome) + '</td><td class="r">' + money(m.people) + '</td><td class="r">' + money(m.office) + '</td><td class="r">' + money(m.students) + '</td><td class="r"><b' + (m.profit < 0 ? ' style="color:var(--late)"' : '') + '>' + money(m.profit) + '</b></td><td class="r">' + money(m.salesTax) + '</td><td class="r">' + money(m.costsTax) + '</td><td class="r">' + money(m.taxPaid) + '</td></tr>'; }).join('') +
         '<tr style="font-weight:800"><td>Year ' + esc(B.yearLabel) + '</td><td class="r">' + money(t.sales) + '</td><td class="r">' + money(t.otherIncome) + '</td><td class="r">' + money(t.people) + '</td><td class="r">' + money(t.office) + '</td><td class="r">' + money(t.students) + '</td><td class="r">' + money(t.profit) + '</td><td class="r">' + money(t.salesTax) + '</td><td class="r">' + money(t.costsTax) + '</td><td class="r">' + money(t.taxPaid) + '</td></tr>' +
@@ -288,8 +290,8 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     if (!ACCTS.length) { box.innerHTML = ''; return; }
     box.innerHTML = '<div class="bar" style="margin:0 0 6px"><b>Bank accounts on this book:</b>' +
       '<select class="sel" id="acctSel"><option value="">All ' + ACCTS.length + ' account' + (ACCTS.length === 1 ? '' : 's') + '</option>' + ACCTS.map(function (a) { return '<option value="' + esc(a.account) + '"' + (ACCT === a.account ? ' selected' : '') + '>Account ' + esc(tail(a.account)) + ' — ' + a.lines + ' lines, ' + esc(a.from) + ' to ' + esc(a.to) + '</option>'; }).join('') + '</select></div>' +
-      '<details style="margin:0 0 4px"><summary class="muted" style="cursor:pointer;font-size:12.5px">Statements uploaded (' + batches.length + ')</summary><table style="margin-top:6px"><thead><tr><th>Uploaded</th><th>File</th><th>Account</th><th>Period</th><th class="r">Lines</th><th class="r">New</th><th>By</th></tr></thead><tbody>' +
-      batches.map(function (b) { return '<tr><td>' + esc(String(b.created_at).slice(0, 10)) + '</td><td style="word-break:break-word">' + esc(b.filename) + '</td><td>' + esc(tail(b.account)) + '</td><td>' + esc(b.d_from) + ' to ' + esc(b.d_to) + '</td><td class="r">' + b.n_lines + '</td><td class="r">' + b.n_new + '</td><td>' + esc(b.by_name) + '</td></tr>'; }).join('') + '</tbody></table></details>';
+      '<details open style="margin:0 0 4px"><summary class="muted" style="cursor:pointer;font-size:12.5px">Statements uploaded (' + batches.length + ') — a wrong one can be removed here</summary><table style="margin-top:6px"><thead><tr><th>Uploaded</th><th>File</th><th>Account</th><th>Period</th><th class="r">Opening balance</th><th class="r">Closing balance</th><th class="r">Lines</th><th class="r">New</th><th>By</th><th></th></tr></thead><tbody>' +
+      batches.map(function (b) { return '<tr><td>' + esc(String(b.created_at).slice(0, 10)) + '</td><td style="word-break:break-word">' + esc(b.filename) + '</td><td>' + esc(tail(b.account)) + '</td><td>' + esc(b.d_from) + ' to ' + esc(b.d_to) + '</td><td class="r">' + (b.opening == null ? '—' : money(b.opening)) + '</td><td class="r">' + (b.closing == null ? '—' : money(b.closing)) + '</td><td class="r">' + b.n_lines + '</td><td class="r">' + b.n_new + '</td><td>' + esc(b.by_name) + '</td><td class="r"><button type="button" class="btn sm" data-rmst="' + b.id + '">Remove</button></td></tr>'; }).join('') + '</tbody></table></details>';
   }
   var pill = function (l) {
     var m = { open: ['pending', 'To sort'], part: ['stale', 'Part matched'], matched: ['checked', 'Matched'], named: ['machine', 'Named'] }[l.state];
@@ -302,7 +304,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       LINES.map(function (l) {
         var what = '';
         if (l.state === 'named') what = '<b>' + esc(kindOf(l.category).label) + '</b>' + (l.party ? ' · ' + esc(l.party) : '') + (l.taxRate ? ' · ' + B.tax + ' ' + l.taxRate + '%' : '') + (l.note ? '<br><span class="muted">' + esc(l.note) + '</span>' : '') + ' <button type="button" class="btn sm" data-edit="' + l.id + '">Change</button>';
-        else if (l.links.length) what = l.links.map(function (k) { return (k.kind === 'invoice' ? 'Invoice' : k.kind === 'payment' ? 'Payment on ' + esc(k.orderRef) : 'Order ' + esc(k.orderRef)) + ' · ' + money(k.amount) + (k.kind !== 'order' ? ' <button type="button" class="btn sm" data-unlink="' + l.id + ':' + k.id + '">Take off</button>' : ''); }).join('<br>') + (l.left ? '<br><button type="button" class="btn sm pri" data-open="' + l.id + '">Match the other ' + money(l.left) + '</button>' : '');
+        else if (l.links.length) what = l.links.map(function (k) { return (k.kind === 'invoice' ? 'Invoice' + (k.invoice && k.invoice.number ? ' ' + esc(k.invoice.number) + ' · ' + esc(k.invoice.party) : '') : k.kind === 'payment' ? 'Payment on ' + esc(k.orderRef) : 'Order ' + esc(k.orderRef)) + ' · ' + money(k.amount) + ' <button type="button" class="btn sm" data-unlink="' + l.id + ':' + k.id + '"' + (k.kind === 'order' ? ' data-order="' + esc(k.orderRef) + '"' : '') + '>Take off</button>'; }).join('<br>') + (l.left ? '<br><button type="button" class="btn sm pri" data-open="' + l.id + '">Match the other ' + money(l.left) + '</button>' : '');
         else what = '<button type="button" class="btn sm pri" data-open="' + l.id + '">' + (l.amount > 0 ? 'Match or name' : 'Name it') + '</button>' + (l.guess ? ' <span class="muted">looks like ' + esc(kindOf(l.guess).label) + '</span>' : '');
         return '<tr id="ln' + l.id + '"><td style="white-space:nowrap">' + esc(l.date) + (ACCTS.length > 1 ? '<br><span class="muted" title="Bank account">' + esc(tail(l.account)) + '</span>' : '') + '</td><td style="max-width:420px;word-break:break-word">' + esc(l.description) + '</td><td class="r" style="white-space:nowrap;font-weight:800;color:' + (l.amount > 0 ? 'var(--ok)' : 'var(--ink)') + '">' + (l.amount > 0 ? '+' : '') + money(l.amount) + '</td><td>' + pill(l) + '</td><td>' + what + '</td></tr>' +
           (OPEN === l.id ? '<tr><td colspan="5" style="background:#f6f9fc" id="panel"></td></tr>' : '');
@@ -335,14 +337,26 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       c.invoices.forEach(function (x) { rows += row('invoice', x.id, x.party, 'Invoice ' + esc(x.number) + ' · ' + esc(x.date), x.outstanding, x.score > 0); });
       p.innerHTML = '<div style="margin-bottom:10px"><b>' + money(left) + ' to match.</b> <span class="muted">Type an amount beside each one it paid for. One line can pay several students.</span></div>' +
         (rows ? '<table style="background:#fff;border-radius:12px"><thead><tr><th>Who</th><th class="r">Owed</th><th class="r">From this line</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="muted">No student order, recorded payment or invoice is waiting for money in this company.</p>') +
-        '<div class="bar" style="margin:10px 0 14px"><span id="pSum" class="muted"></span><span class="spacer"></span>' + (rows ? '<button type="button" class="btn pri" id="pMatch">Match</button>' : '') + '</div>' + nameForm;
+        '<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-top:10px"><b>A student who is not in the list above</b> <span class="muted">— an invoice is raised to them for this money, dated ' + esc(l.date) + ', and marked paid by this line.</span>' +
+        '<div class="bar" style="margin:8px 0 0"><input class="inp" id="pStuFind" placeholder="Search a student by name or email" style="min-width:220px"><select class="sel" id="pStu" style="max-width:340px"><option value="">Loading students…</option></select>' +
+        '<input class="inp" id="pStuText" placeholder="What it is for (optional)" style="flex:1;min-width:160px"><select class="sel" id="pStuRate">' + B.rates.map(function (r) { return '<option value="' + r + '">' + (r ? B.tax + ' ' + r + '%' : 'No ' + B.tax) + '</option>'; }).join('') + '</select>' +
+        '<input class="inp" style="min-width:0;width:120px;text-align:right" inputmode="decimal" data-t="student" id="pStuAmt" placeholder="0.00"></div></div>' +
+        '<div class="bar" style="margin:10px 0 14px"><span id="pSum" class="muted"></span><span class="spacer"></span><button type="button" class="btn pri" id="pMatch">Match</button></div>' + nameForm;
+      students().then(function (list) {
+        var selEl = $('#pStu'); if (!selEl) return;
+        var fill = function () { var f = ($('#pStuFind').value || '').toLowerCase(); selEl.innerHTML = '<option value="">Choose the student…</option>' + list.filter(function (x) { return !f || (x.name + ' ' + x.email).toLowerCase().indexOf(f) >= 0; }).slice(0, 300).map(function (x) { return '<option value="' + x.id + '">' + esc(x.name || x.email) + ' — ' + esc(x.email) + '</option>'; }).join(''); };
+        fill(); $('#pStuFind').oninput = function (ev) { ev.stopPropagation(); fill(); };
+        selEl.onchange = function () { var a = $('#pStuAmt'); if (selEl.value && !a.value) { var s0 = 0; [].forEach.call(p.querySelectorAll('input[data-t]'), function (i) { s0 += toMinor(i.value); }); if (left - s0 > 0) a.value = major(left - s0); sum(); } };
+      }).catch(function () { var selEl = $('#pStu'); if (selEl) selEl.innerHTML = '<option value="">Students could not be loaded</option>'; });
       wirePanel(l);
       var sum = function () { var s = 0; [].forEach.call(p.querySelectorAll('input[data-t]'), function (i) { s += toMinor(i.value); }); var el = $('#pSum'); if (el) { el.textContent = money(s) + ' of ' + money(left) + ' chosen'; el.style.color = s > left ? 'var(--late)' : ''; } return s; };
       p.addEventListener('input', sum); sum();
       var mb = $('#pMatch');
       if (mb) mb.onclick = function () {
         var targets = [], toOrders = 0;
-        [].forEach.call(p.querySelectorAll('input[data-t]'), function (i) { var a = toMinor(i.value); if (a > 0) { targets.push(i.dataset.t === 'order' ? { type: 'order', ref: i.dataset.id, amount: a } : { type: i.dataset.t, id: Number(i.dataset.id), amount: a }); if (i.dataset.t === 'order') toOrders += a; } });
+        var noStu = false;
+        [].forEach.call(p.querySelectorAll('input[data-t]'), function (i) { var a = toMinor(i.value); if (a > 0 && i.dataset.t === 'student') { var sid = Number(($('#pStu') || {}).value); if (!sid) { noStu = true; return; } targets.push({ type: 'student', studentId: sid, amount: a, text: $('#pStuText').value, taxRate: Number($('#pStuRate').value) }); return; } if (a > 0) { targets.push(i.dataset.t === 'order' ? { type: 'order', ref: i.dataset.id, amount: a } : { type: i.dataset.t, id: Number(i.dataset.id), amount: a }); if (i.dataset.t === 'order') toOrders += a; } });
+        if (noStu) return toast('Choose the student this money came from.', true);
         if (!targets.length) return toast('Type an amount beside what this paid for.', true);
         if (toOrders && mb.dataset.sure !== '1') { mb.dataset.sure = '1'; mb.textContent = 'Yes — record ' + money(toOrders) + ' on the student’s order'; mb.style.background = 'var(--ok)'; mb.style.borderColor = 'var(--ok)'; return; }
         mb.disabled = true;
@@ -371,9 +385,18 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       var f = $('#iform');
       if (KIND === 'student') {
         var os = (DATA.orders || []).filter(function (o) { return o.gross > 0; });
-        f.innerHTML = os.length ? '<div class="bar" style="margin:0"><select class="sel" id="iOrder" style="max-width:420px">' + os.map(function (o) { return '<option value="' + esc(o.ref) + '">' + esc(o.name || o.ref) + ' — ' + esc(o.ref) + ' — ' + money(o.gross) + ' (' + money(o.outstanding) + ' owed)</option>'; }).join('') + '</select>' +
-          '<input class="inp" id="iAmt" inputmode="decimal" placeholder="Amount (blank = all not yet invoiced)" style="min-width:250px"><input class="inp" id="iDue" type="date" title="Due date" style="min-width:150px"><button type="button" class="btn pri" id="iGo">Raise it</button></div><p class="muted" style="margin:10px 0 0;font-size:12.5px">An order can have several invoices — one per instalment. Counsellors can also raise these from the student’s file.</p>'
-          : '<p class="muted">No student order is open in this company.</p>';
+        var SL = STUDENTS || [];
+        var opts = function (find) { find = (find || '').toLowerCase(); var hit = function (t) { return !find || t.toLowerCase().indexOf(find) >= 0; };
+          var a = os.filter(function (o) { return hit((o.name || '') + ' ' + o.ref); }).map(function (o) { return '<option value="' + esc(o.ref) + '">' + esc(o.name || o.ref) + ' — ' + esc(o.ref) + ' — ' + money(o.gross) + ' (' + money(o.outstanding) + ' owed)</option>'; }).join('');
+          var b = SL.filter(function (x) { return hit(x.name + ' ' + x.email); }).slice(0, 300).map(function (x) { return '<option value="s:' + x.id + '">' + esc(x.name || x.email) + ' — ' + esc(x.email) + '</option>'; }).join('');
+          return '<option value="">Choose the student…</option>' + (a ? '<optgroup label="Their order on the site">' + a + '</optgroup>' : '') + (b ? '<optgroup label="Any student — invoice an amount">' + b + '</optgroup>' : ''); };
+        f.innerHTML = '<div class="bar" style="margin:0"><input class="inp" id="iFind" placeholder="Search a student" style="min-width:170px"><select class="sel" id="iOrder" style="max-width:420px">' + opts('') + '</select>' +
+          '<input class="inp" id="iAmt" inputmode="decimal" placeholder="Amount" style="min-width:0;width:150px;text-align:right"><input class="inp" id="iDue" type="date" title="Due date" style="min-width:150px"><button type="button" class="btn pri" id="iGo">Raise it</button></div>' +
+          '<div class="bar" id="iLoose" style="margin:10px 0 0;display:none"><input class="inp" id="iText" placeholder="What it is for, e.g. Germany admission services — first instalment" style="flex:1"><select class="sel" id="iSRate">' + B.rates.map(function (r) { return '<option value="' + r + '">' + (r ? B.tax + ' ' + r + '% (inside the amount)' : 'No ' + B.tax + ' (0%) — student abroad') + '</option>'; }).join('') + '</select></div>' +
+          '<p class="muted" style="margin:10px 0 0;font-size:12.5px">Any student can be invoiced, with or without an order on the site, and as many times as there are instalments. For an order, a blank amount means all that is not yet invoiced. Counsellors can also raise these from the student’s file.</p>';
+        $('#iFind').oninput = function () { $('#iOrder').innerHTML = opts(this.value); $('#iLoose').style.display = 'none'; };
+        $('#iOrder').onchange = function () { $('#iLoose').style.display = this.value.indexOf('s:') === 0 ? '' : 'none'; };
+        if (!STUDENTS) students().then(function () { if (KIND === 'student' && $('#iOrder') && !$('#iOrder').value && !$('#iFind').value) form(); }).catch(function () {});
       } else {
         f.innerHTML = '<div class="bar"><input class="inp" id="iParty" placeholder="' + (KIND === 'partner' ? 'University or partner name' : 'Name') + '"><input class="inp" id="iEmail" placeholder="Email (optional)"><input class="inp" id="iTax" placeholder="Their ' + (CO === 'IN' ? 'GSTIN' : 'VAT ID') + ' (optional)" style="min-width:180px"></div>' +
           '<div class="bar"><input class="inp" id="iAddr" placeholder="Address (optional)" style="flex:1"></div>' +
@@ -384,7 +407,13 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       var go = $('#iGo');
       if (go) go.onclick = function () {
         var body = { company: CO, kind: KIND, due: $('#iDue').value };
-        if (KIND === 'student') { body.orderRef = $('#iOrder').value; var a = $('#iAmt').value.trim(); if (a) body.amount = toMinor(a); }
+        if (KIND === 'student') {
+          var pick = $('#iOrder').value, a = $('#iAmt').value.trim();
+          if (!pick) return toast('Choose the student.', true);
+          if (a) body.amount = toMinor(a);
+          if (pick.indexOf('s:') === 0) { if (!(body.amount > 0)) return toast('Type the amount of this invoice.', true); body.studentId = Number(pick.slice(2)); body.text = $('#iText').value; body.taxRate = Number($('#iSRate').value); }
+          else body.orderRef = pick;
+        }
         else {
           body.party = $('#iParty').value; body.email = $('#iEmail').value; body.taxId = $('#iTax').value; body.address = $('#iAddr').value; body.taxRate = Number($('#iRate').value); body.note = $('#iNote').value; body.items = [];
           [].forEach.call(document.querySelectorAll('#iRows .bar'), function (r) { var t = r.querySelector('[data-it="t"]').value.trim(), am = toMinor(r.querySelector('[data-it="a"]').value); if (t && am > 0) body.items.push({ text: t, amount: am }); });
@@ -395,10 +424,10 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     };
     $('#ik').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; KIND = b.dataset.k; [].forEach.call(this.children, function (x) { x.setAttribute('aria-pressed', String(x === b)); }); form(); };
     api('/api/staff/finance/invoices?company=' + CO).then(function (d) {
-      DATA = d; form();
+      DATA = d; INVS = d.invoices; form();
       var st = { paid: ['checked', 'Paid'], part: ['stale', 'Part paid'], unpaid: ['pending', 'Unpaid'], overdue: ['flagged', 'Overdue'], cancelled: ['skip', 'Cancelled'] };
       $('#ilist').innerHTML = d.invoices.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Number</th><th>Date</th><th>To</th><th>Kind</th><th class="r">Total</th><th class="r">' + B.tax + '</th><th class="r">Received</th><th class="r">Unpaid</th><th>Status</th><th></th></tr></thead><tbody>' +
-        d.invoices.map(function (i) { return '<tr><td style="white-space:nowrap"><b>' + esc(i.number) + '</b></td><td style="white-space:nowrap">' + esc(i.date) + '</td><td>' + esc(i.party) + (i.orderRef ? '<br><span class="muted">' + esc(i.orderRef) + '</span>' : '') + '</td><td>' + ({ student: 'Student', partner: 'Partner', manual: 'Other' }[i.kind] || '') + '</td><td class="r">' + money(i.gross) + '</td><td class="r">' + money(i.tax) + '</td><td class="r">' + money(i.paid) + '</td><td class="r">' + money(i.outstanding) + '</td><td><span class="pill ' + st[i.state][0] + '">' + st[i.state][1] + '</span></td><td style="white-space:nowrap"><a class="btn sm" href="/api/staff/finance/invoice/' + i.id + '/print" target="_blank" rel="noopener">Print</a>' + (i.status !== 'cancelled' ? ' <button type="button" class="btn sm" data-cancel="' + i.id + '" data-num="' + esc(i.number) + '">Cancel</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+        d.invoices.map(function (i) { return '<tr><td style="white-space:nowrap"><b>' + esc(i.number) + '</b></td><td style="white-space:nowrap">' + esc(i.date) + '</td><td>' + esc(i.party) + (i.orderRef ? '<br><span class="muted">' + esc(i.orderRef) + '</span>' : '') + '</td><td>' + ({ student: 'Student', partner: 'Partner', manual: 'Other' }[i.kind] || '') + '</td><td class="r">' + money(i.gross) + '</td><td class="r">' + money(i.tax) + '</td><td class="r">' + money(i.paid) + (i.cash ? '<br><span class="muted">cash ' + money(i.cash) + '</span>' : '') + '</td><td class="r">' + money(i.outstanding) + '</td><td><span class="pill ' + st[i.state][0] + '">' + st[i.state][1] + '</span></td><td style="white-space:nowrap"><a class="btn sm" href="/api/staff/finance/invoice/' + i.id + '/print" target="_blank" rel="noopener">Print</a>' + (i.status !== 'cancelled' ? ' <button type="button" class="btn sm" data-iedit="' + i.id + '">Edit</button>' : '') + (i.status !== 'cancelled' && !i.orderRef && i.outstanding > 0 ? ' <button type="button" class="btn sm" data-cash="' + i.id + '" data-owed="' + money(i.outstanding) + '">Paid in cash</button>' : '') + (i.cash ? ' <button type="button" class="btn sm" data-uncash="' + i.id + '">Take cash off</button>' : '') + (i.status !== 'cancelled' ? ' <button type="button" class="btn sm" data-cancel="' + i.id + '" data-num="' + esc(i.number) + '">Cancel</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>'
         : '<p class="muted">No invoices yet in this company.</p>';
     }).catch(function (e) { $('#ilist').innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; });
   }
@@ -434,8 +463,11 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
   function vRecon() {
     $('#view').innerHTML = '<p class="muted">Loading…</p>';
     api('/api/staff/finance/reconciliation?company=' + CO).then(function (r) {
-      var P = r.payments, K = r.bank;
+      var P = r.payments, K = r.bank, I = r.invoices || { rows: [] };
       $('#view').innerHTML = '<div class="kpis"><div class="kpi"><b>' + P.matched + ' / ' + P.total + '</b><span>Student payments found in the bank</span></div><div class="kpi"><b>' + money(P.unmatchedAmount) + '</b><span>Recorded on orders, not yet seen in the bank</span></div><div class="kpi"><b>' + money(K.unmatchedAmount) + '</b><span>In the bank, not yet matched to anything</span></div></div>' +
+        '<div class="card"><h2>Invoices and how each was paid</h2><p class="sub">Invoices that stand on their own (no order on the site behind them). “In the bank” is what a statement line has been matched to; cash is what you marked as cash. Match a line on the Bank tab; mark cash on the Invoices tab.</p>' +
+        (I.rows.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Invoice</th><th>Date</th><th>To</th><th class="r">Total</th><th class="r">In the bank</th><th class="r">Cash</th><th class="r">Unpaid</th><th>Due</th></tr></thead><tbody>' + I.rows.map(function (x) { return '<tr><td style="white-space:nowrap"><b>' + esc(x.number) + '</b></td><td style="white-space:nowrap">' + esc(x.date) + '</td><td>' + esc(x.party) + '</td><td class="r">' + money(x.gross) + '</td><td class="r">' + (x.bank ? '<span class="pill checked">' + money(x.bank) + '</span>' : money(0)) + '</td><td class="r">' + (x.cash ? '<span class="pill stale">' + money(x.cash) + '</span>' : money(0)) + '</td><td class="r">' + (x.unpaid ? '<b style="color:var(--late)">' + money(x.unpaid) + '</b>' : money(0)) + '</td><td style="white-space:nowrap">' + esc(x.due || '') + '</td></tr>'; }).join('') +
+          '<tr><td colspan="3"><b>All</b></td><td class="r"><b>' + money(I.gross) + '</b></td><td class="r"><b>' + money(I.bank) + '</b></td><td class="r"><b>' + money(I.cash) + '</b></td><td class="r"><b>' + money(I.unpaid) + '</b></td><td></td></tr></tbody></table></div>' : '<p class="muted">No invoice of this kind yet.</p>') + '</div>' +
         '<div class="card"><h2>Recorded on a student’s order, not yet found on a statement</h2><p class="sub">Cash and gateway payments will sit here: cash never reaches the bank line by line, and a gateway pays out in lumps. Match a bank line to one of these on the Bank tab when it is the same money.</p>' +
         (P.unmatched.length ? '<table><thead><tr><th>Date</th><th>Student</th><th>Order</th><th>How</th><th>Reference</th><th class="r">Amount</th></tr></thead><tbody>' + P.unmatched.map(function (x) { return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.orderRef) + '</td><td>' + esc(x.method) + '</td><td>' + esc(x.reference) + '</td><td class="r">' + money(x.amount) + '</td></tr>'; }).join('') + '</tbody></table>' : '<p class="muted">Every recorded payment has its bank line.</p>') + '</div>' +
         '<div class="card"><h2>Money in the bank that nothing has claimed</h2>' +
@@ -450,6 +482,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       '<div class="bar"><input class="inp" id="sName" value="' + esc(s.name) + '" placeholder="Company name" style="flex:1"></div>' +
       '<div class="bar"><textarea id="sAddr" rows="3" placeholder="Address" style="flex:1;border:1px solid var(--rule);border-radius:12px;padding:9px 12px">' + esc(s.address) + '</textarea></div>' +
       '<div class="bar"><input class="inp" id="sTax" value="' + esc(s.taxId) + '" placeholder="' + (CO === 'IN' ? 'GSTIN' : 'VAT ID (USt-IdNr.)') + '"><input class="inp" id="sSeries" value="' + esc(s.series) + '" placeholder="Invoice number starts with" style="min-width:200px"><input class="inp" id="sNext" inputmode="numeric" value="' + s.next + '" title="Next invoice number" style="min-width:0;width:110px"></div>' +
+      (s.register ? '<p class="muted" style="margin:0 0 10px;font-size:12.5px">' + (CO === 'IN' ? 'CIN ' : '') + esc(s.register) + ' is printed too. Name, address, ' + (CO === 'IN' ? 'GSTIN and CIN' : 'VAT ID and register entry') + ' start from the site’s Legal details (Organisation → Legal); what you type here is used on invoices instead.</p>' : '<p class="muted" style="margin:0 0 10px;font-size:12.5px">Blank fields start from the site’s Legal details (Organisation → Legal).</p>') +
       '<div class="bar"><textarea id="sBank" rows="3" placeholder="Bank details to print under “Pay to” (optional)" style="flex:1;border:1px solid var(--rule);border-radius:12px;padding:9px 12px">' + esc(s.bank) + '</textarea></div>' +
       '<div class="bar" style="margin:0"><button type="button" class="btn pri" id="sSave">Save</button><span class="muted">The next number can be moved forward, never back.</span></div></div>';
     $('#sSave').onclick = function () {
@@ -460,7 +493,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
 
   /* ---------------- wiring ---------------- */
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-tab],[data-go],[data-f],[data-open],[data-edit],[data-unlink],[data-cancel],[data-jump],[data-year],[data-sf]');
+    var t = e.target.closest('[data-tab],[data-go],[data-f],[data-open],[data-edit],[data-unlink],[data-cancel],[data-jump],[data-year],[data-sf],[data-rmst],[data-cash],[data-uncash],[data-iedit],[data-isave],[data-iclose],[data-dl]');
     if (!t) return;
     if (t.dataset.sf) { SFILTER = t.dataset.sf; return vOverview(); }
     if (t.dataset.year) { YEAR = t.dataset.year; return reload(); }
@@ -471,8 +504,53 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     if (t.dataset.jump) { TAB = 'bank'; FILTER = 'todo'; OPEN = Number(t.dataset.jump); return show(); }
     if (t.dataset.unlink) {
       var ids = t.dataset.unlink.split(':');
-      if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = 'Sure?'; return; }
+      if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = t.dataset.order ? 'Take off? The payment stays on ' + t.dataset.order + ' until refunded there' : 'Sure?'; return; }
       return api('/api/staff/finance/line/' + ids[0] + '/match/' + ids[1] + '?company=' + CO, { method: 'DELETE' }).then(function () { toast('Taken off.'); return loadBooks().then(loadLines); }).catch(function (er) { toast(er.message, true); });
+    }
+    if (t.dataset.dl) {
+      /* Owner, 26 Nov: "profit and loss statement and GST returns should be
+         easy to download". The year's figures as a spreadsheet for the
+         accountant: plain amounts, no currency symbols. */
+      var n2 = function (v) { return major(v); }, T = B.totals;
+      if (t.dataset.dl === 'pl') return csv('glovels-profit-and-loss-' + CO + '-' + B.year + '.csv', ['Month', 'Sales (before ' + B.tax + ')', 'Other income', 'People', 'Office', 'For students', 'All costs (before ' + B.tax + ')', 'Profit'],
+        B.months.map(function (m) { return [monthName(m.month), n2(m.sales), n2(m.otherIncome), n2(m.people), n2(m.office), n2(m.students), n2(m.costs), n2(m.profit)]; }).concat([['Year ' + B.yearLabel, n2(T.sales), n2(T.otherIncome), n2(T.people), n2(T.office), n2(T.students), n2(T.costs), n2(T.profit)]]));
+      return csv('glovels-' + B.tax.toLowerCase() + '-summary-' + CO + '-' + B.year + '.csv', ['Month', 'Sales including ' + B.tax, 'Taxable sales', B.tax + ' collected on sales', 'Purchases before ' + B.tax, B.tax + ' on purchases', 'Net ' + B.tax + ' for the month', B.tax + ' paid to the government'],
+        B.months.map(function (m) { return [monthName(m.month), n2(m.sales + m.salesTax), n2(m.sales), n2(m.salesTax), n2(m.costs), n2(m.costsTax), n2(m.salesTax - m.costsTax), n2(m.taxPaid)]; }).concat([['Year ' + B.yearLabel, n2(T.sales + T.salesTax), n2(T.sales), n2(T.salesTax), n2(T.costs), n2(T.costsTax), n2(T.salesTax - T.costsTax), n2(T.taxPaid)], ['Still to pay', '', '', '', '', '', n2(T.taxOwed), '']]));
+    }
+    if (t.dataset.iclose) { var er0 = document.getElementById('iedit'); if (er0) er0.remove(); return; }
+    if (t.dataset.iedit) {
+      var old = document.getElementById('iedit'); if (old) old.remove();
+      var inv = INVS.filter(function (x) { return String(x.id) === t.dataset.iedit; })[0]; if (!inv) return;
+      var fixed = !!inv.orderRef || inv.paid > 0 || (inv.items || []).length !== 1;
+      var tr = document.createElement('tr'); tr.id = 'iedit';
+      tr.innerHTML = '<td colspan="10" style="background:var(--cream)"><div class="bar" style="margin:0 0 8px"><b>Edit ' + esc(inv.number) + '</b><span class="muted">The number does not change.' + (fixed ? ' The amount is fixed: ' + (inv.orderRef ? 'it is part of order ' + esc(inv.orderRef) + ' (cancel and raise again to change it).' : inv.paid > 0 ? 'money has been received on it.' : 'it has several lines.') : '') + '</span></div>' +
+        '<div class="bar" style="margin:0 0 8px"><input class="inp" id="eParty" value="' + esc(inv.party) + '" placeholder="Invoice to"><input class="inp" id="eEmail" value="' + esc(inv.email) + '" placeholder="Email"><input class="inp" id="eTaxId" value="' + esc(inv.taxId) + '" placeholder="Their ' + (CO === 'IN' ? 'GSTIN' : 'VAT ID') + '" style="min-width:160px"></div>' +
+        '<div class="bar" style="margin:0 0 8px"><input class="inp" id="eAddr" value="' + esc(inv.address) + '" placeholder="Address" style="flex:1"></div>' +
+        '<div class="bar" style="margin:0"><input class="inp" id="eText" value="' + esc(((inv.items || [])[0] || {}).text || '') + '" placeholder="What it is for" style="flex:1">' +
+        '<input class="inp" id="eAmt" inputmode="decimal" value="' + major(inv.gross) + '"' + (fixed ? ' disabled' : '') + ' style="min-width:0;width:130px;text-align:right">' +
+        '<select class="sel" id="eRate"' + (fixed ? ' disabled' : '') + '>' + B.rates.map(function (r) { return '<option value="' + r + '"' + (r === inv.taxRate ? ' selected' : '') + '>' + (r ? B.tax + ' ' + r + '%' : 'No ' + B.tax) + '</option>'; }).join('') + '</select>' +
+        '<input class="inp" id="eDue" type="date" value="' + esc(inv.due) + '" title="Due date" style="min-width:150px"><input class="inp" id="eNote" value="' + esc(inv.note) + '" placeholder="Note" style="min-width:140px">' +
+        '<button type="button" class="btn pri" data-isave="' + inv.id + '">Save</button><button type="button" class="btn" data-iclose="1">Close</button></div></td>';
+      t.closest('tr').after(tr); return;
+    }
+    if (t.dataset.isave) {
+      var bodyE = { company: CO, party: $('#eParty').value, email: $('#eEmail').value, taxId: $('#eTaxId').value, address: $('#eAddr').value, text: $('#eText').value, due: $('#eDue').value, note: $('#eNote').value };
+      if (!$('#eAmt').disabled) { bodyE.amount = toMinor($('#eAmt').value); bodyE.taxRate = Number($('#eRate').value); }
+      return api('/api/staff/finance/invoice/' + t.dataset.isave, { method: 'PUT', body: bodyE }).then(function () { toast('Saved.'); return loadBooks().then(vInvoices); }).catch(function (er) { toast(er.message, true); });
+    }
+    if (t.dataset.rmst) {
+      if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = 'Remove this statement and all its lines?'; t.style.borderColor = 'var(--late)'; t.style.color = 'var(--late)'; return; }
+      t.disabled = true;
+      return api('/api/staff/finance/statement/' + t.dataset.rmst + '?company=' + CO + (t.dataset.force === '1' ? '&force=1' : ''), { method: 'DELETE' }).then(function (d) { toast('Removed: ' + d.removed + ' lines.'); ACCT = ''; OPEN = 0; return loadBooks().then(vBank); })
+        .catch(function (er) { t.disabled = false; if (er.held) { t.dataset.force = '1'; t.textContent = 'Remove anyway — the payments stay on the orders'; } else { t.dataset.sure = ''; t.textContent = 'Remove'; } toast(er.message, true); });
+    }
+    if (t.dataset.cash) {
+      if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = 'Yes — ' + t.dataset.owed + ' received in cash'; return; }
+      return api('/api/staff/finance/invoice/' + t.dataset.cash + '/cash', { method: 'POST', body: { company: CO } }).then(function () { toast('Cash recorded.'); return loadBooks().then(vInvoices); }).catch(function (er) { toast(er.message, true); });
+    }
+    if (t.dataset.uncash) {
+      if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = 'Sure?'; return; }
+      return api('/api/staff/finance/invoice/' + t.dataset.uncash + '/cash?company=' + CO, { method: 'DELETE' }).then(function () { toast('Cash taken off.'); return loadBooks().then(vInvoices); }).catch(function (er) { toast(er.message, true); });
     }
     if (t.dataset.cancel) {
       if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = 'Cancel ' + t.dataset.num + '?'; return; }

@@ -86,7 +86,7 @@ const today = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10
 const isDay = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && !isNaN(Date.parse(d + 'T00:00:00Z'));
 const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 200);
 const taxIn = (amount, rate) => rate > 0 ? Math.round(Math.abs(amount) - Math.abs(amount) / (1 + rate / 100)) : 0;
-const bad = (code, error) => Object.assign(new Error(error), { code });
+const bad = (code, error, more) => Object.assign(new Error(error), { code }, more || {});
 
 function open({ db, MONEY, takePayment, log = console }) {
   const F = db.fin;
@@ -95,14 +95,22 @@ function open({ db, MONEY, takePayment, log = console }) {
   /* ---- each company's own details: name, address, tax number, invoice numbers ---- */
   const settings = () => {
     const s = db.content('finance') || {};
-    const legal = db.content('legal') || {};
+    /* Owner, 26 Nov: "all Glovels company details mentioned in glovels.com,
+       including GST number". The legal pages' own particulars (the Legal
+       tab, with the registered defaults behind it) are what the invoice
+       prints, unless Finance → Company says otherwise for a field. */
+    let legal = {};
+    try { legal = require('./content.js').cleanLegal(db.content('legal') || {}); } catch (e) { legal = db.content('legal') || {}; }
+    const ug = legal.ug || {};
     const out = {};
     Object.keys(COMPANIES).forEach(k => {
       const d = COMPANIES[k].defaults, x = s[k] || {};
       out[k] = {
-        name: str(x.name, 120) || (k === 'IN' ? str(legal.company || legal.name, 120) : '') || d.name,
-        address: String(x.address || (k === 'IN' ? legal.address || '' : '')).slice(0, 400),
-        taxId: str(x.taxId, 40) || (k === 'IN' ? str(legal.gstin, 40) : ''),
+        name: str(x.name, 120) || (k === 'IN' ? str(legal.entity, 120) : str(ug.name, 120)) || d.name,
+        address: String(x.address || (k === 'IN' ? legal.address || '' : ug.address || '')).slice(0, 400),
+        taxId: str(x.taxId, 40) || (k === 'IN' ? str(legal.gstin, 40) : str(ug.vatId, 40)),
+        /* the register entry: CIN in India, the Handelsregister line in Germany */
+        register: k === 'IN' ? str(legal.cin, 60) : str(ug.register, 120),
         series: str(x.series, 40) || (k === 'IN' ? str(legal.invoiceSeries, 40) : '') || d.series,
         next: Math.max(1, Number(x.next) || 1),
         bank: String(x.bank || '').slice(0, 300),
@@ -162,6 +170,34 @@ function open({ db, MONEY, takePayment, log = console }) {
     return { batchId, format: st.format, account: st.account || '', holder: st.holder || '', from: st.from, to: st.to, lines: st.lines.length, added, already: st.lines.length - added,
       opening: st.opening, closing: st.closing, warnings: st.warnings };
   }
+  /* Owner, 26 Nov: "if something is wrong in the bank statement I cannot
+     delete it" — he had uploaded the wrong account's statement. A statement
+     comes off whole: its lines, what they were named, and their matches to
+     invoices and to payments already on the books. One thing stops it: a
+     line that RECORDED a payment on a student's order, because that money is
+     on the student's file and they were told. */
+  function removeStatement(company, batchId, who, force) {
+    const c = co(company);
+    const b = F.one('SELECT * FROM fin_batches WHERE id = ? AND company = ?', Number(batchId), c.code);
+    if (!b) throw bad(404, 'No such statement on this company\u2019s book.');
+    const ids = F.all('SELECT id FROM fin_lines WHERE batch_id = ? AND company = ?', b.id, c.code).map(r => Number(r.id));
+    const lk = linksOf(ids);
+    const held = ids.filter(id => (lk[id] || []).some(k => k.kind === 'order'));
+    if (held.length && !force) {
+      const refs = [...new Set(held.flatMap(id => lk[id].filter(k => k.kind === 'order').map(k => k.order_ref)))];
+      throw bad(409, held.length + ' line' + (held.length === 1 ? '' : 's') + ' of this statement recorded a payment on a student\u2019s order (' + refs.slice(0, 5).join(', ')
+        + '). Removing the statement leaves those payments on the orders, as payments not yet found in the bank.', { held: held.length });
+    }
+    let links = 0;
+    for (let i = 0; i < ids.length; i += 400) {
+      const part = ids.slice(i, i + 400).join(',');
+      links += Number(F.run('DELETE FROM fin_links WHERE line_id IN (' + part + ')').changes) || 0;
+      F.run('DELETE FROM fin_lines WHERE id IN (' + part + ')');
+    }
+    F.run('DELETE FROM fin_batches WHERE id = ?', b.id);
+    try { db.log(who, 'removed a bank statement', c.label + ' \u2014 ' + b.filename + ': ' + ids.length + ' lines, ' + links + ' matches'); } catch (e) { /* it is removed */ }
+    return { removed: ids.length, matches: links, filename: b.filename };
+  }
   /* Owner, 25 Nov: "we can have multiple bank accounts". A company's book is
      all its accounts together; each line remembers which account's
      statement it came from, and the screen can show one account alone. */
@@ -184,7 +220,8 @@ function open({ db, MONEY, takePayment, log = console }) {
     const state = l.category ? 'named' : matched >= size && size > 0 ? 'matched' : matched > 0 ? 'part' : 'open';
     return { id: l.id, date: l.date, description: l.description, ref: l.ref, amount: l.amount, balance: l.balance, account: l.account,
       category: l.category, party: l.party, taxRate: l.tax_rate, note: l.note, state, matched, left: l.category ? 0 : Math.max(0, size - matched),
-      links: (links || []).map(k => ({ id: k.id, kind: k.kind, orderRef: k.order_ref, paymentId: k.payment_id, invoiceId: k.invoice_id, amount: k.amount })),
+      links: (links || []).map(k => ({ id: k.id, kind: k.kind, orderRef: k.order_ref, paymentId: k.payment_id, invoiceId: k.invoice_id, amount: k.amount,
+        invoice: k.invoice_id ? ((F.one('SELECT number, party FROM fin_invoices WHERE id = ?', k.invoice_id) || {})) : null })),
       guess: l.category || matched ? '' : ((GUESS.find(g => g[0].test(l.description) && KINDS[g[1]].dir === (l.amount > 0 ? 'in' : 'out')) || [])[1] || '') };
   };
   function lines(company, q) {
@@ -270,7 +307,20 @@ function open({ db, MONEY, takePayment, log = console }) {
         if (amount > owed) throw bad(422, 'Only ' + fmt(c, owed) + ' is unpaid on invoice ' + inv.number + '.');
         return { type, invoice: inv, amount };
       }
-      throw bad(422, 'Match to an order, a payment or an invoice.');
+      if (type === 'student') {
+        /* Owner, 26 Nov: "I cannot add student payment to the bank line". A
+           student who paid with no order and no invoice on the books: the
+           invoice is raised for this money, dated the day it arrived, and
+           the line is matched to it. */
+        const st = db.studentById(Number(t.studentId));
+        if (!st || st.role !== 'student') throw bad(404, 'Choose a student.');
+        const amount = Math.round(Number(t.amount));
+        if (!(amount > 0)) throw bad(422, 'An amount, more than zero, for ' + st.name + '.');
+        const rate = t.taxRate == null || t.taxRate === '' ? c.rates[0] : Number(t.taxRate);
+        if (!c.rates.includes(rate)) throw bad(422, c.tax + ' is ' + c.rates.join('% or ') + '% here.');
+        return { type, student: st, amount, rate, text: str(t.text, 200) };
+      }
+      throw bad(422, 'Match to an order, a payment, an invoice or a student.');
     });
     const total = plan.reduce((a, p) => a + p.amount, 0);
     if (total > left) throw bad(422, 'That is ' + fmt(c, total) + ', and only ' + fmt(c, left) + ' of this line is still unmatched.');
@@ -284,8 +334,12 @@ function open({ db, MONEY, takePayment, log = console }) {
           reference: l.ref || '', note: 'Bank statement, ' + l.date, staff, partN: null });
         paymentId = got && got.payment ? Number(got.payment.id) : null;
       }
+      if (p.type === 'student') {
+        const made = createInvoice(c.code, { kind: 'student', studentId: p.student.id, amount: p.amount, text: p.text, taxRate: p.rate, date: l.date > today() ? today() : l.date }, staff && staff.name);
+        p.invoice = { id: made.id, number: made.number };
+      }
       F.run('INSERT INTO fin_links (line_id, kind, order_ref, payment_id, invoice_id, amount, by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        l.id, p.type, p.order ? p.order.reference : '', paymentId, p.invoice ? p.invoice.id : null, p.amount, str(staff && staff.name, 80), iso());
+        l.id, p.type === 'student' ? 'invoice' : p.type, p.order ? p.order.reference : '', paymentId, p.invoice ? p.invoice.id : null, p.amount, str(staff && staff.name, 80), iso());
       done.push({ type: p.type, ref: p.order ? p.order.reference : p.invoice ? p.invoice.number : '', amount: p.amount });
     });
     return { line: shape(F.one('SELECT * FROM fin_lines WHERE id = ?', l.id), F.all('SELECT * FROM fin_links WHERE line_id = ? ORDER BY id', l.id)), done };
@@ -297,8 +351,14 @@ function open({ db, MONEY, takePayment, log = console }) {
     const l = lineById(company, id);
     const k = F.one('SELECT * FROM fin_links WHERE id = ? AND line_id = ?', Number(linkId), l.id);
     if (!k) throw bad(404, 'No such match on this line.');
-    if (k.kind === 'order') throw bad(409, 'This match recorded a payment on order ' + k.order_ref + '. Correct it on the order (Orders → the order → refund), not here.');
-    F.run('DELETE FROM fin_links WHERE id = ? AND kind != \'order\'', k.id);
+    /* Owner, 26 Nov: "it cannot be one way". A match to an order comes off
+       like any other. What it recorded on the student's file stays there as
+       a payment not yet found in the bank (Reconciliation lists it), to be
+       tied to the right line or refunded on the order — taking a tick off a
+       bank line must not quietly change what a student has been told they
+       paid. */
+    F.run('DELETE FROM fin_links WHERE id = ?', k.id);
+    if (k.kind === 'order') { try { db.log('finance', 'took a bank match off', k.order_ref + ' \u2014 line of ' + l.date + '; the payment stays on the order'); } catch (e) { /* done */ } }
     return shape(F.one('SELECT * FROM fin_lines WHERE id = ?', l.id), F.all('SELECT * FROM fin_links WHERE line_id = ? ORDER BY id', l.id));
   }
 
@@ -319,7 +379,8 @@ function open({ db, MONEY, takePayment, log = console }) {
     }).filter(p => p.score > 0 || Math.abs(Date.parse(p.date) - Date.parse(l.date)) <= 45 * 86400000);
     const invs = invoices(c.code).filter(i => !i.orderRef && i.status === 'open' && i.outstanding > 0).map(i => Object.assign(i, { score: (i.outstanding === l.amount ? 5 : 0) + near(i.party) * 3 + (words.includes(String(i.number).toLowerCase()) ? 8 : 0) }));
     const top = a => a.sort((x, y) => y.score - x.score || String(y.date).localeCompare(String(x.date))).slice(0, 80);
-    return { orders: top(orders), payments: top(payments), invoices: top(invs) };
+    /* of one party's invoices, the oldest is the one the money is for */
+    return { orders: top(orders), payments: top(payments), invoices: invs.sort((x, y) => y.score - x.score || Number(x.id) - Number(y.id)).slice(0, 80) };
   }
 
   /* ---- invoices ---- */
@@ -342,7 +403,7 @@ function open({ db, MONEY, takePayment, log = console }) {
       }
       return 0;
     }
-    const r = F.one('SELECT COALESCE(SUM(amount), 0) AS s FROM fin_links WHERE kind = \'invoice\' AND invoice_id = ?', inv.id);
+    const r = F.one('SELECT COALESCE(SUM(amount), 0) AS s FROM fin_links WHERE kind IN (\'invoice\', \'cash\') AND invoice_id = ?', inv.id);
     return Number(r && r.s) || 0;
   };
   const invShape = inv => {
@@ -350,6 +411,7 @@ function open({ db, MONEY, takePayment, log = console }) {
     let items = []; try { items = JSON.parse(inv.lines || '[]'); } catch (e) { items = []; }
     return { id: inv.id, number: inv.number, kind: inv.kind, party: inv.party, email: inv.email, address: inv.address, taxId: inv.tax_id, studentId: inv.student_id, orderRef: inv.order_ref,
       date: inv.issue_date, due: inv.due_date, currency: inv.currency, items, net: inv.net, tax: inv.tax, gross: inv.gross, taxRate: inv.tax_rate, note: inv.note,
+      cash: inv.order_ref ? 0 : Number((F.one('SELECT COALESCE(SUM(amount), 0) AS s FROM fin_links WHERE kind = \'cash\' AND invoice_id = ?', inv.id) || {}).s) || 0,
       status: inv.status, paid, outstanding: inv.status === 'cancelled' ? 0 : Math.max(0, inv.gross - paid),
       state: inv.status === 'cancelled' ? 'cancelled' : paid >= inv.gross ? 'paid' : paid > 0 ? 'part' : (inv.due_date && inv.due_date < today() ? 'overdue' : 'unpaid') };
   };
@@ -391,6 +453,19 @@ function open({ db, MONEY, takePayment, log = console }) {
       if (amount > room) throw bad(422, 'Only ' + fmt(c, room) + ' of order ' + o.reference + ' is not yet invoiced.');
       const nth = invoicesOfOrder(o.reference).length + 1;
       items = [{ text: str(b.text, 200) || ((str(o.package, 160) || 'Services') + (amount < total ? ' \u2014 part ' + nth : '')), amount }];
+    } else if (kind === 'student') {
+      /* Owner, 26 Nov: "there is no option to create invoice" — only a
+         student with an order on the site could be invoiced, and most
+         students agree their fee on the phone. Any student can be invoiced
+         for an amount; several invoices, one per instalment, as before. */
+      const st = db.studentById(Number(b.studentId));
+      if (!st || st.role !== 'student') throw bad(422, 'Choose a student.');
+      studentId = st.id; party = party || str(st.name, 160); email = email || str(st.email, 160);
+      rate = b.taxRate == null || b.taxRate === '' ? c.rates[0] : Number(b.taxRate);
+      if (!c.rates.includes(rate)) throw bad(422, c.tax + ' is ' + c.rates.join('% or ') + '% here.');
+      const amount = Math.round(Number(b.amount));
+      if (!(amount > 0)) throw bad(422, 'An amount, more than zero.');
+      items = [{ text: str(b.text, 200) || 'Education consulting services', amount }];
     } else {
       rate = Number(b.taxRate) || 0;
       if (!c.rates.includes(rate)) throw bad(422, c.tax + ' is ' + c.rates.join('% or ') + '% here.');
@@ -413,6 +488,39 @@ function open({ db, MONEY, takePayment, log = console }) {
     try { db.log(who, 'raised an invoice', c.label + ' — ' + number + ' to ' + party + ', ' + fmt(c, gross)); } catch (e) { /* the invoice stands */ }
     return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', Number(r.lastInsertRowid)));
   }
+  /* Owner, 26 Nov: "delete, update, save, edit … proper options". An invoice
+     can be corrected after it is raised: who it is to, what it says, when it
+     is due. Its amount can change only while nothing has been received on
+     it and it is not part of an order (an order's invoice is cancelled and
+     raised again, so the order's total is checked afresh). Its number never
+     changes. */
+  function updateInvoice(company, id, b, who) {
+    const c = co(company), inv = F.one('SELECT * FROM fin_invoices WHERE id = ? AND company = ?', Number(id), c.code);
+    if (!inv) throw bad(404, 'No such invoice.');
+    if (inv.status === 'cancelled') throw bad(409, 'Invoice ' + inv.number + ' is cancelled.');
+    let items = []; try { items = JSON.parse(inv.lines || '[]'); } catch (e) { items = []; }
+    let gross = inv.gross, rate = inv.tax_rate;
+    if (b.text != null && items[0] && str(b.text, 200)) items[0].text = str(b.text, 200);
+    const wantAmount = b.amount != null && b.amount !== '' && Math.round(Number(b.amount)) !== inv.gross;
+    const wantRate = b.taxRate != null && b.taxRate !== '' && Number(b.taxRate) !== inv.tax_rate;
+    if (wantAmount || wantRate) {
+      if (inv.order_ref) throw bad(409, 'This invoice is part of order ' + inv.order_ref + '. To change its amount, cancel it and raise it again.');
+      if (paidOnInvoice(inv) > 0) throw bad(409, 'Money has been received on invoice ' + inv.number + '. Take that off first, then change the amount.');
+      if (wantRate) { rate = Number(b.taxRate); if (!c.rates.includes(rate)) throw bad(422, c.tax + ' is ' + c.rates.join('% or ') + '% here.'); }
+      if (wantAmount) {
+        if (items.length !== 1) throw bad(409, 'This invoice has several lines. Cancel it and raise it again to change the amounts.');
+        gross = Math.round(Number(b.amount)); if (!(gross > 0)) throw bad(422, 'An amount, more than zero.');
+        items[0].amount = gross;
+      }
+    }
+    const tax = taxIn(gross, rate);
+    F.run('UPDATE fin_invoices SET party = ?, email = ?, address = ?, tax_id = ?, due_date = ?, note = ?, lines = ?, net = ?, tax = ?, gross = ?, tax_rate = ? WHERE id = ?',
+      b.party != null && str(b.party, 160) ? str(b.party, 160) : inv.party, b.email != null ? str(b.email, 160) : inv.email, b.address != null ? String(b.address).slice(0, 400) : inv.address,
+      b.taxId != null ? str(b.taxId, 40) : inv.tax_id, b.due != null ? (isDay(b.due) ? b.due : '') : inv.due_date, b.note != null ? str(b.note, 400) : inv.note,
+      JSON.stringify(items), gross - tax, tax, gross, rate, inv.id);
+    try { db.log(who, 'edited an invoice', c.label + ' \u2014 ' + inv.number + (gross !== inv.gross ? ', ' + fmt(c, inv.gross) + ' \u2192 ' + fmt(c, gross) : '')); } catch (e) { /* saved */ }
+    return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', inv.id));
+  }
   function cancelInvoice(company, id, who) {
     const c = co(company), inv = F.one('SELECT * FROM fin_invoices WHERE id = ? AND company = ?', Number(id), c.code);
     if (!inv) throw bad(404, 'No such invoice.');
@@ -421,6 +529,36 @@ function open({ db, MONEY, takePayment, log = console }) {
     try { db.log(who, 'cancelled an invoice', c.label + ' — ' + inv.number); } catch (e) { /* done */ }
     return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', inv.id));
   }
+  /* Owner, 25 Nov: "or paid via cash". Cash against an invoice that has no
+     order behind it (an order's cash is recorded on the order, as before).
+     It settles the invoice and is counted as cash; it is on no bank
+     statement, so it is not in the bank-date profit and loss until the
+     cash is paid in and that deposit is named. */
+  function cashOnInvoice(company, id, b, who) {
+    const c = co(company), inv = F.one('SELECT * FROM fin_invoices WHERE id = ? AND company = ?', Number(id), c.code);
+    if (!inv || inv.status === 'cancelled') throw bad(404, 'No such open invoice.');
+    if (inv.order_ref) throw bad(422, 'That invoice is for an order \u2014 record the cash on the order itself.');
+    const owed = inv.gross - paidOnInvoice(inv);
+    const amount = b.amount == null || b.amount === '' ? owed : Math.round(Number(b.amount));
+    if (!(amount > 0)) throw bad(422, 'An amount, more than zero.');
+    if (amount > owed) throw bad(422, 'Only ' + fmt(c, owed) + ' is unpaid on invoice ' + inv.number + '.');
+    const day = isDay(b.date) && b.date <= today() ? b.date : today();
+    F.run('INSERT INTO fin_links (line_id, kind, order_ref, payment_id, invoice_id, amount, by_name, created_at) VALUES (0, \'cash\', \'\', NULL, ?, ?, ?, ?)',
+      inv.id, amount, str(who, 80), day + 'T00:00:00.000Z');
+    try { db.log(who, 'recorded cash on an invoice', c.label + ' \u2014 ' + inv.number + ', ' + fmt(c, amount)); } catch (e) { /* recorded */ }
+    return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', inv.id));
+  }
+  function undoCash(company, id, who) {
+    const c = co(company), inv = F.one('SELECT * FROM fin_invoices WHERE id = ? AND company = ?', Number(id), c.code);
+    if (!inv) throw bad(404, 'No such invoice.');
+    const n = Number(F.run('DELETE FROM fin_links WHERE kind = \'cash\' AND invoice_id = ?', inv.id).changes) || 0;
+    if (!n) throw bad(409, 'No cash is recorded on invoice ' + inv.number + '.');
+    try { db.log(who, 'took cash off an invoice', c.label + ' \u2014 ' + inv.number); } catch (e) { /* done */ }
+    return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', inv.id));
+  }
+  /* Students who can be invoiced or matched without an order. */
+  const studentList = () => db.allStudents().filter(x => x.role === 'student').map(x => ({ id: x.id, name: x.name || '', email: x.email || '' }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name))).slice(0, 5000);
   /* A student's invoices, and for each of their orders how much is still to
      be invoiced — what the counsellor's screen shows. */
   function invoicesOfStudent(studentId) {
@@ -545,6 +683,21 @@ function open({ db, MONEY, takePayment, log = console }) {
       return { ref: o.ref, studentId: o.studentId, name: o.name, package: o.package, date: o.date, agreed: o.gross, received: o.received, pending: o.outstanding,
         invoiced: invs.reduce((a2, x) => a2 + x.gross, 0), due, dueAmount, overdue: !!(due && due < nowDay && o.outstanding > 0), inBank, cash, notInBank: other, lastPaid: last };
     });
+    /* Patch 311: students invoiced with no order behind the invoice. What is
+       agreed with them is what has been invoiced; bank matches and cash say
+       how it came in. One row per student. */
+    const loose = {};
+    F.all("SELECT * FROM fin_invoices WHERE company = ? AND kind = 'student' AND order_ref = '' AND status != 'cancelled' ORDER BY id", c.code).forEach(inv => {
+      const key = inv.student_id || ('p:' + inv.party);
+      const r = loose[key] || (loose[key] = { ref: '', studentId: inv.student_id || 0, name: inv.party, package: 'By invoice', date: inv.issue_date, agreed: 0, received: 0, pending: 0,
+        invoiced: 0, due: '', dueAmount: 0, overdue: false, inBank: 0, cash: 0, notInBank: 0, lastPaid: '', numbers: [] });
+      const paid = Math.min(inv.gross, paidOnInvoice(inv));
+      const cashPaid = Math.min(paid, Number((F.one("SELECT COALESCE(SUM(amount), 0) AS s FROM fin_links WHERE kind = 'cash' AND invoice_id = ?", inv.id) || {}).s) || 0);
+      r.agreed += inv.gross; r.invoiced += inv.gross; r.received += paid; r.pending += inv.gross - paid; r.cash += cashPaid; r.inBank += paid - cashPaid;
+      r.numbers.push(inv.number);
+      if (paid < inv.gross && inv.due_date && !r.due) { r.due = inv.due_date; r.dueAmount = inv.gross - paid; }
+    });
+    Object.keys(loose).forEach(k => { const r = loose[k]; r.ref = r.numbers.length === 1 ? r.numbers[0] : r.numbers.length + ' invoices'; r.overdue = !!(r.due && r.due < nowDay && r.pending > 0); delete r.numbers; rowsS.push(r); });
     const sumS = k => rowsS.reduce((a2, r) => a2 + r[k], 0);
     const students = {
       orders: rowsS.length, agreed: sumS('agreed'), received: sumS('received'), pending: sumS('pending'),
@@ -554,7 +707,7 @@ function open({ db, MONEY, takePayment, log = console }) {
       rows: rowsS.sort((x, y2) => (y2.overdue - x.overdue) || (y2.pending - x.pending) || String(x.name).localeCompare(String(y2.name))).slice(0, 600),
     };
     const owedOrders = agreedOrders.filter(o => o.outstanding > 0);
-    const owedInv = invoices(c.code).filter(i => !i.orderRef && i.outstanding > 0);
+    const owedInv = invoices(c.code).filter(i => !i.orderRef && i.kind !== 'student' && i.outstanding > 0);
     return { company: c.code, currency: c.currency, symbol: c.symbol, locale: c.locale, tax: c.tax, rates: c.rates, year: y.start, yearLabel: y.label, from: y.from, to: y.to,
       months, totals, kinds: Object.keys(kinds).map(k => ({ category: k, label: KINDS[k].label, group: KINDS[k].group || '', pl: KINDS[k].pl, amount: kinds[k] })).sort((a, b) => b.amount - a.amount),
       sales: sales.reverse(), purchases: purchases.reverse(),
@@ -575,11 +728,20 @@ function open({ db, MONEY, takePayment, log = console }) {
     const unmatched = mine.filter(p => !taken.has(Number(p.id))).map(row).sort((a, b) => b.date.localeCompare(a.date));
     const done = mine.length - unmatched.length;
     const bank = lines(c.code, { dir: 'in', state: 'todo' });
-    return { payments: { total: mine.length, matched: done, unmatched: unmatched.slice(0, 500), unmatchedAmount: unmatched.reduce((a, p) => a + p.amount, 0) },
+    /* Patch 311: invoices that stand on their own (no order behind them) —
+       for each, how much a bank line has paid, how much came as cash, and
+       what is still unpaid. */
+    const bankOn = {}, cashOn = {};
+    F.all("SELECT invoice_id, kind, SUM(amount) AS s FROM fin_links WHERE invoice_id IS NOT NULL AND kind IN ('invoice', 'cash') GROUP BY invoice_id, kind").forEach(r => { (r.kind === 'cash' ? cashOn : bankOn)[Number(r.invoice_id)] = Number(r.s) || 0; });
+    const invRows = F.all("SELECT * FROM fin_invoices WHERE company = ? AND order_ref = '' AND status != 'cancelled' ORDER BY id DESC LIMIT 1000", c.code)
+      .map(i => ({ id: i.id, number: i.number, party: i.party, kind: i.kind, date: i.issue_date, due: i.due_date, gross: i.gross, bank: bankOn[i.id] || 0, cash: cashOn[i.id] || 0, unpaid: Math.max(0, i.gross - (bankOn[i.id] || 0) - (cashOn[i.id] || 0)) }));
+    const sumI = k => invRows.reduce((a, r) => a + r[k], 0);
+    return { invoices: { rows: invRows.slice(0, 500), gross: sumI('gross'), bank: sumI('bank'), cash: sumI('cash'), unpaid: sumI('unpaid') },
+      payments: { total: mine.length, matched: done, unmatched: unmatched.slice(0, 500), unmatchedAmount: unmatched.reduce((a, p) => a + p.amount, 0) },
       bank: { unmatched: bank.slice(0, 500), unmatchedAmount: bank.reduce((a, l) => a + l.left, 0) } };
   }
 
-  return { ok: () => !!(F && F.ok()), settings, saveSettings, importStatement, batches, accounts, lines, nameLine, match, unmatch, candidates,
+  return { ok: () => !!(F && F.ok()), settings, saveSettings, importStatement, removeStatement, updateInvoice, cashOnInvoice, undoCash, studentList, batches, accounts, lines, nameLine, match, unmatch, candidates,
     invoices, createInvoice, cancelInvoice, invoiceById, invoicesOfStudent, companyOfOrderRef, invoiceRaw, openOrders, books, reconciliation, fmt: (company, minor) => fmt(co(company), minor) };
 }
 
@@ -603,7 +765,7 @@ function invoiceHtml(inv, company, me) {
     + '@media print{body{background:#fff}.sheet{margin:0;padding:0;border-radius:0}.bar{display:none}}'
     + '</style></head><body><div class="bar"><button type="button" onclick="window.print()">Print or save as PDF</button></div><div class="sheet">'
     + '<div class="top"><div><h1>' + (inv.status === 'cancelled' ? 'Cancelled invoice' : (c.code === 'IN' && inv.tax > 0 ? 'Tax invoice' : 'Invoice')) + '</h1><div class="mute">No. ' + esc(inv.number) + '</div></div>'
-    + '<div class="r"><b>' + esc(me.name) + '</b><br><span class="mute">' + nl(me.address) + (me.taxId ? '<br>' + (c.code === 'IN' ? 'GSTIN ' : 'VAT ID ') + esc(me.taxId) : '') + '</span></div></div>'
+    + '<div class="r"><b>' + esc(me.name) + '</b><br><span class="mute">' + nl(me.address) + (me.register ? '<br>' + (c.code === 'IN' ? 'CIN ' : '') + esc(me.register) : '') + (me.taxId ? '<br>' + (c.code === 'IN' ? 'GSTIN ' : 'VAT ID ') + esc(me.taxId) : '') + '</span></div></div>'
     + '<div class="top" style="margin-top:28px"><div><span class="mute">Billed to</span><br><b>' + esc(inv.party) + '</b>' + (inv.address ? '<br>' + nl(inv.address) : '') + (inv.email ? '<br>' + esc(inv.email) : '')
     + (inv.taxId ? '<br>' + (c.code === 'IN' ? 'GSTIN ' : 'VAT ID ') + esc(inv.taxId) : '') + '</div>'
     + '<div class="r"><span class="mute">Date</span> ' + esc(inv.date) + (inv.due ? '<br><span class="mute">Due</span> ' + esc(inv.due) : '') + (inv.orderRef ? '<br><span class="mute">Order</span> ' + esc(inv.orderRef) : '')

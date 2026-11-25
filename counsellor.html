@@ -4560,7 +4560,6 @@ if (location.protocol === 'file:') {
   var say = function (t, bad) { try { toast(t, bad ? 'bad' : undefined); } catch (x) { /* no toast on this screen */ } };
   var ST = { paid: ['ok', 'Paid'], part: ['rescan', 'Part paid'], unpaid: ['none', 'Unpaid'], overdue: ['rescan', 'Overdue'], cancelled: ['none', 'Cancelled'] };
   function paint(box, sid, d) {
-    if (!d.orders.length && !d.invoices.length) { box.innerHTML = ''; return; }
     var by = {}; d.orders.forEach(function (o) { by[o.ref] = o; });
     box.innerHTML = '<h3 style="font-size:14.5px;margin:0 0 10px">Invoices</h3>' +
       d.orders.map(function (o) {
@@ -4572,6 +4571,15 @@ if (location.protocol === 'file:') {
             : '<span style="margin-left:auto;font:600 12px/1.4 var(--sans);color:var(--muted)">Invoiced in full</span>') +
           '</div>';
       }).join('') +
+      /* Patch 311: any student can be invoiced for an amount, with or without
+         an order on the site; one invoice per instalment. */
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px;background:var(--paper)">' +
+        '<span style="font:600 12.6px/1.4 var(--sans)">Invoice an amount' + (d.orders.length ? ' outside an order' : '') + '</span>' +
+        '<input id="invLText" placeholder="What it is for" style="flex:1;min-width:160px;padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;font:500 13px var(--sans)">' +
+        '<input id="invLAmt" inputmode="decimal" placeholder="Amount ₹" style="width:110px;padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;font:500 13px var(--sans);text-align:right">' +
+        '<select id="invLRate" title="GST" style="padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;font:500 13px var(--sans)"><option value="18">GST 18% inside</option><option value="0">No GST (abroad)</option></select>' +
+        '<input id="invLDue" type="date" title="Due date" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:9px;font:500 13px var(--sans)">' +
+        '<button type="button" class="btn btn-primary btn-sm" data-invgo="">Raise an invoice</button></div>' +
       (d.invoices.length ? '<ul class="doclist" style="margin:0">' + d.invoices.map(function (i) {
         return '<li style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span><b>' + e(i.number) + '</b> · ' + e(i.date) + (i.orderRef ? ' · ' + e(i.orderRef) : '') + ' · ' + m(i, i.gross) + (i.paid && i.state !== 'paid' ? ' (' + m(i, i.paid) + ' received)' : '') + '</span>' +
           '<span class="st ' + ST[i.state][0] + '" style="margin-left:auto">' + ST[i.state][1] + '</span>' +
@@ -4596,6 +4604,11 @@ if (location.protocol === 'file:') {
     var box = document.getElementById('invBox');
     var inp = box.querySelector('[data-invamt="' + b.dataset.invgo + '"]');
     var body = { orderRef: b.dataset.invgo };
+    if (!b.dataset.invgo) {
+      inp = box.querySelector('#invLAmt');
+      body = { text: box.querySelector('#invLText').value, taxRate: Number(box.querySelector('#invLRate').value), due: box.querySelector('#invLDue').value };
+      if (!inp.value.trim()) return say('Type the amount of this invoice.', true);
+    }
     var raw = inp ? inp.value.trim() : '';
     if (raw) { var n = Number(raw.replace(/[^0-9.]/g, '')); if (!(n > 0)) return say('An amount, more than zero.', true); body.amount = Math.round(n * 100); }
     b.disabled = true;

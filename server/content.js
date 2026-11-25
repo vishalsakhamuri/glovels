@@ -1025,4 +1025,4 @@ function makeContent({ db, file }) {
   };
 }
 
-module.exports = { SOCIAL, makeContent, KEYS, SHEETS, cleanWriting };
+module.exports = { SOCIAL, makeContent, KEYS, SHEETS, cleanWriting, cleanLegal };

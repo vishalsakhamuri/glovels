@@ -9150,7 +9150,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const q = new URL(req.url, 'http://x').searchParams;
     try { return await handler(req, res, s, m, q); }
     catch (e) {
-      if (e && e.code && Number(e.code) >= 400 && Number(e.code) < 500) return json(res, Number(e.code), { error: e.message });
+      if (e && e.code && Number(e.code) >= 400 && Number(e.code) < 500) return json(res, Number(e.code), Object.assign({ error: e.message }, e.held ? { held: e.held } : {}));
       console.error('  finance ✗ ' + (e && e.stack || e));
       return json(res, 500, { error: 'That did not work: ' + (e && e.message) });
     }
@@ -9175,6 +9175,16 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     catch (e) { if (e && e.code) throw e; return json(res, 422, { error: e.message }); }
     return json(res, 200, Object.assign({ ok: true }, out));
   }));
+  /* Patch 311: a statement uploaded by mistake comes off whole. */
+  route('DELETE', /^\/api\/staff\/finance\/statement\/(\d+)$/, finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, Object.assign({ ok: true }, fin.removeStatement(q.get('company'), m[1], s.name, q.get('force') === '1')))));
+  route('GET', '/api/staff/finance/students', finAdmin(async (req, res) => json(res, 200, { ok: true, students: fin.studentList() })));
+  route('POST', /^\/api\/staff\/finance\/invoice\/(\d+)\/cash$/, finAdmin(async (req, res, s, m) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, invoice: fin.cashOnInvoice(b.company, m[1], b, s.name) });
+  }));
+  route('DELETE', /^\/api\/staff\/finance\/invoice\/(\d+)\/cash$/, finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, { ok: true, invoice: fin.undoCash(q.get('company'), m[1], s.name) })));
   route('PUT', /^\/api\/staff\/finance\/line\/(\d+)$/, finAdmin(async (req, res, s, m) => {
     const b = await readJson(req);
     return json(res, 200, { ok: true, line: fin.nameLine(b.company, m[1], b, s.name) });
@@ -9194,6 +9204,10 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   route('POST', '/api/staff/finance/invoice', finAdmin(async (req, res, s) => {
     const b = await readJson(req);
     return json(res, 200, { ok: true, invoice: fin.createInvoice(b.company, b, s.name) });
+  }));
+  route('PUT', /^\/api\/staff\/finance\/invoice\/(\d+)$/, finAdmin(async (req, res, s, m) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, invoice: fin.updateInvoice(b.company, m[1], b, s.name) });
   }));
   route('POST', /^\/api\/staff\/finance\/invoice\/(\d+)\/cancel$/, finAdmin(async (req, res, s, m) => {
     const b = await readJson(req);
@@ -9227,10 +9241,14 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     if (!db.canSee(s, id)) return json(res, 403, { error: 'That student is not assigned to you' });
     if (!fin.ok()) return json(res, 503, { error: 'Finance is not available on this server.' });
     const b = await readJson(req);
-    const o = db.orderByReference(String(b.orderRef || ''));
-    if (!o || Number(o.student_id) !== id) return json(res, 404, { error: 'That order is not on this student’s file.' });
+    const o = b.orderRef ? db.orderByReference(String(b.orderRef)) : null;
+    if (b.orderRef && (!o || Number(o.student_id) !== id)) return json(res, 404, { error: 'That order is not on this student’s file.' });
     try {
-      const invoice = fin.createInvoice(fin.companyOfOrderRef(o.reference), { kind: 'student', orderRef: o.reference, amount: b.amount, text: b.text, due: b.due, note: b.note, date: b.date }, s.name);
+      /* Patch 311: with no order, the invoice is for an amount the
+         counsellor agreed with the student — as many as there are instalments. */
+      const invoice = o
+        ? fin.createInvoice(fin.companyOfOrderRef(o.reference), { kind: 'student', orderRef: o.reference, amount: b.amount, text: b.text, due: b.due, note: b.note, date: b.date }, s.name)
+        : fin.createInvoice(String(b.company || 'IN').toUpperCase() === 'DE' ? 'DE' : 'IN', { kind: 'student', studentId: id, amount: b.amount, text: b.text, taxRate: b.taxRate, due: b.due, note: b.note, date: b.date }, s.name);
       return json(res, 200, Object.assign({ ok: true, invoice }, fin.invoicesOfStudent(id)));
     } catch (e) {
       if (e && e.code && Number(e.code) >= 400 && Number(e.code) < 500) return json(res, Number(e.code), { error: e.message });
