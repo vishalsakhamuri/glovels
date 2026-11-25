@@ -192,6 +192,8 @@ function open({ db, MONEY, takePayment, log = console }) {
     for (let i = 0; i < ids.length; i += 400) {
       const part = ids.slice(i, i + 400).join(',');
       links += Number(F.run('DELETE FROM fin_links WHERE line_id IN (' + part + ')').changes) || 0;
+      /* a bill kept against one of these lines is not lost with the statement: it stands on its own */
+      try { F.run('UPDATE fin_bills SET line_id = NULL WHERE line_id IN (' + part + ')'); } catch (e) { /* no bills table yet */ }
       F.run('DELETE FROM fin_lines WHERE id IN (' + part + ')');
     }
     F.run('DELETE FROM fin_batches WHERE id = ?', b.id);
@@ -556,6 +558,61 @@ function open({ db, MONEY, takePayment, log = console }) {
     try { db.log(who, 'took cash off an invoice', c.label + ' \u2014 ' + inv.number); } catch (e) { /* done */ }
     return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', inv.id));
   }
+  /*
+   * Bills (owner, 26 Nov: "upload purchase invoices we pay — we buy a table
+   * or go for a team lunch — we should be able to upload the bill and save
+   * it so that we can see it in future"). A bill is the supplier's paper for
+   * a purchase: kept against the bank line that paid it, or on its own when
+   * it was paid in cash and no line exists. The file itself is written by
+   * the caller; this is the record of it.
+   */
+  const BILL_TYPES = { '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.heic': 'image/heic' };
+  const billShape = b => ({ id: b.id, lineId: b.line_id || null, filename: b.filename, size: b.size, date: b.date, party: b.party, amount: b.amount,
+    category: b.category, label: b.category && KINDS[b.category] ? KINDS[b.category].label : '', note: b.note, by: b.by_name, at: b.created_at });
+  function addBill(company, b, who) {
+    const c = co(company);
+    let lineId = null, date = isDay(b.date) ? b.date : '', party = str(b.party, 120), amount = Math.max(0, Math.round(Number(b.amount) || 0)), category = '';
+    if (b.lineId) {
+      const l = lineById(c.code, b.lineId);
+      if (!(l.amount < 0)) throw bad(422, 'A bill is kept against money going out.');
+      lineId = l.id; date = date || l.date; party = party || l.party; amount = amount || Math.abs(l.amount); category = l.category || '';
+    } else {
+      if (!date) throw bad(422, 'The date on the bill.');
+      if (date > today()) throw bad(422, 'The bill\u2019s date cannot be in the future.');
+      if (!party) throw bad(422, 'Who the bill is from.');
+      if (!(amount > 0)) throw bad(422, 'The amount on the bill.');
+      category = String(b.category || '');
+      if (category && !(KINDS[category] && KINDS[category].dir === 'out')) throw bad(422, 'Choose a kind of cost from the list.');
+    }
+    const r = F.run('INSERT INTO fin_bills (company, line_id, filename, stored, size, date, party, amount, category, note, by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      c.code, lineId, str(b.filename, 160), String(b.stored), Number(b.size) || 0, date, party, amount, category, str(b.note, 300), str(who, 80), iso());
+    try { db.log(who, 'kept a bill', c.label + ' \u2014 ' + str(b.filename, 80) + (party ? ', ' + party : '') + ', ' + fmt(c, amount)); } catch (e) { /* kept */ }
+    return billShape(F.one('SELECT * FROM fin_bills WHERE id = ?', Number(r.lastInsertRowid)));
+  }
+  const billRaw = (company, id) => F.one('SELECT * FROM fin_bills WHERE id = ? AND company = ?', Number(id), co(company).code);
+  const billAny = id => F.one('SELECT * FROM fin_bills WHERE id = ?', Number(id));
+  function bills(company, year) {
+    const c = co(company), y = yearOf(c, year);
+    const all = F.all('SELECT * FROM fin_bills WHERE company = ? ORDER BY date DESC, id DESC LIMIT 5000', c.code);
+    const byLine = {}; all.forEach(b => { if (b.line_id) (byLine[b.line_id] || (byLine[b.line_id] = [])).push(billShape(b)); });
+    const loose = all.filter(b => !b.line_id && b.date >= y.from && b.date <= y.to).map(billShape);
+    return { byLine, loose, looseTotal: loose.reduce((a, b) => a + b.amount, 0), count: all.length };
+  }
+  function updateBill(company, id, b, who) {
+    const row = billRaw(company, id); if (!row) throw bad(404, 'No such bill.');
+    const date = b.date != null && isDay(b.date) ? b.date : row.date;
+    const category = b.category != null ? String(b.category) : row.category;
+    if (category && !(KINDS[category] && KINDS[category].dir === 'out')) throw bad(422, 'Choose a kind of cost from the list.');
+    F.run('UPDATE fin_bills SET date = ?, party = ?, amount = ?, category = ?, note = ? WHERE id = ?', date, b.party != null ? str(b.party, 120) : row.party,
+      b.amount != null && Math.round(Number(b.amount)) > 0 ? Math.round(Number(b.amount)) : row.amount, category, b.note != null ? str(b.note, 300) : row.note, row.id);
+    return billShape(F.one('SELECT * FROM fin_bills WHERE id = ?', row.id));
+  }
+  function removeBill(company, id, who) {
+    const row = billRaw(company, id); if (!row) throw bad(404, 'No such bill.');
+    F.run('DELETE FROM fin_bills WHERE id = ?', row.id);
+    try { db.log(who, 'removed a bill', co(company).label + ' \u2014 ' + row.filename); } catch (e) { /* removed */ }
+    return { stored: row.stored, filename: row.filename };
+  }
   /* Students who can be invoiced or matched without an order. */
   const studentList = () => db.allStudents().filter(x => x.role === 'student').map(x => ({ id: x.id, name: x.name || '', email: x.email || '' }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name))).slice(0, 5000);
@@ -741,7 +798,7 @@ function open({ db, MONEY, takePayment, log = console }) {
       bank: { unmatched: bank.slice(0, 500), unmatchedAmount: bank.reduce((a, l) => a + l.left, 0) } };
   }
 
-  return { ok: () => !!(F && F.ok()), settings, saveSettings, importStatement, removeStatement, updateInvoice, cashOnInvoice, undoCash, studentList, batches, accounts, lines, nameLine, match, unmatch, candidates,
+  return { ok: () => !!(F && F.ok()), settings, saveSettings, importStatement, removeStatement, updateInvoice, BILL_TYPES, addBill, bills, billRaw, billAny, updateBill, removeBill, cashOnInvoice, undoCash, studentList, batches, accounts, lines, nameLine, match, unmatch, candidates,
     invoices, createInvoice, cancelInvoice, invoiceById, invoicesOfStudent, companyOfOrderRef, invoiceRaw, openOrders, books, reconciliation, fmt: (company, minor) => fmt(co(company), minor) };
 }
 

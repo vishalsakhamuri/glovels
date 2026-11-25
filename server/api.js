@@ -9175,6 +9175,53 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     catch (e) { if (e && e.code) throw e; return json(res, 422, { error: e.message }); }
     return json(res, 200, Object.assign({ ok: true }, out));
   }));
+  /* Patch 312: the supplier's bill for a purchase, kept as a file. */
+  const billDir = company => path.join(uploadDir, 'finance-bills', String(company).toUpperCase() === 'DE' ? 'DE' : 'IN');
+  route('GET', '/api/staff/finance/bills', finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, Object.assign({ ok: true }, fin.bills(q.get('company') || 'IN', q.get('year') || '')))));
+  route('POST', '/api/staff/finance/bill', finAdmin(async (req, res, s, m, q) => {
+    const ct = req.headers['content-type'] || '';
+    const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+    if (!bm) return json(res, 400, { error: 'Expected a file upload' });
+    const parsed = parseMultipart(await readBody(req), (bm[1] || bm[2]).trim());
+    if (!parsed.file || !parsed.file.data.length) return json(res, 400, { error: 'No file in that upload' });
+    if (parsed.file.data.length > 10 * 1024 * 1024) return json(res, 413, { error: 'That file is over 10 MB.' });
+    const ext = (path.extname(parsed.file.filename) || '').toLowerCase();
+    if (!fin.BILL_TYPES[ext]) return json(res, 415, { error: 'A bill is a PDF or a photo (JPG, PNG, WEBP, HEIC).' });
+    /* what it says it is and what it is: a PDF starts %PDF, a photo is not text */
+    const head = parsed.file.data.slice(0, 12);
+    const isPdf = head.slice(0, 5).toString('latin1') === '%PDF-';
+    if ((ext === '.pdf') !== isPdf || (!isPdf && /^\s*</.test(parsed.file.data.slice(0, 200).toString('latin1')))) return json(res, 415, { error: 'That file is not what its name says. Send the PDF or the photo itself.' });
+    const f = parsed.fields, company = String(f.company || q.get('company') || 'IN').toUpperCase() === 'DE' ? 'DE' : 'IN';
+    const dir = billDir(company);
+    fs.mkdirSync(dir, { recursive: true });
+    const stored = 'bill-' + Date.now() + '-' + crypto.randomInt(1000, 9999) + ext;
+    fs.writeFileSync(path.join(dir, stored), parsed.file.data);
+    try {
+      const bill = fin.addBill(company, { lineId: f.lineId ? Number(f.lineId) : null, filename: parsed.file.filename, stored, size: parsed.file.data.length,
+        date: f.date, party: f.party, amount: f.amount, category: f.category, note: f.note }, s.name);
+      return json(res, 200, { ok: true, bill });
+    } catch (e) { try { fs.unlinkSync(path.join(dir, stored)); } catch (x) { /* nothing to tidy */ } throw e; }
+  }));
+  route('GET', /^\/api\/staff\/finance\/bill\/(\d+)\/file$/, finAdmin(async (req, res, s, m) => {
+    const b = fin.billAny(m[1]);
+    if (!b) return json(res, 404, { error: 'No such bill' });
+    const file = path.join(billDir(b.company), path.basename(b.stored));
+    if (!fs.existsSync(file)) return json(res, 410, { error: 'The file for that bill is no longer on the server.' });
+    const type = fin.BILL_TYPES[path.extname(b.stored).toLowerCase()] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': type, 'Content-Disposition': 'inline; filename="' + String(b.filename).replace(/[^A-Za-z0-9._ -]/g, '_') + '"',
+      'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow' });
+    return fs.createReadStream(file).pipe(res);
+  }));
+  route('PUT', /^\/api\/staff\/finance\/bill\/(\d+)$/, finAdmin(async (req, res, s, m) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, bill: fin.updateBill(b.company, m[1], b, s.name) });
+  }));
+  route('DELETE', /^\/api\/staff\/finance\/bill\/(\d+)$/, finAdmin(async (req, res, s, m, q) => {
+    const gone = fin.removeBill(q.get('company'), m[1], s.name);
+    try { fs.unlinkSync(path.join(billDir(q.get('company')), path.basename(gone.stored))); } catch (e) { /* the record is gone either way */ }
+    return json(res, 200, { ok: true, removed: gone.filename });
+  }));
   /* Patch 311: a statement uploaded by mistake comes off whole. */
   route('DELETE', /^\/api\/staff\/finance\/statement\/(\d+)$/, finAdmin(async (req, res, s, m, q) =>
     json(res, 200, Object.assign({ ok: true }, fin.removeStatement(q.get('company'), m[1], s.name, q.get('force') === '1')))));

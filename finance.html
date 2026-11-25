@@ -29,7 +29,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 [hidden]{display:none!important}
 
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
-.rail{background:var(--rail);color:#c7d4e3;padding:22px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:22px}
+.rail{background:var(--rail);color:#c7d4e3;padding:22px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:22px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .brand{display:flex;align-items:center;gap:10px;padding:4px 10px;font:800 19px/1 var(--disp);color:#fff;text-decoration:none}
 .brand{background:#fff;border-radius:14px;padding:8px 14px;align-self:flex-start;box-shadow:0 6px 18px rgba(0,0,0,.18)}.brand img{display:block;height:44px;width:auto}@media (max-width:860px){.brand{padding:5px 10px;border-radius:10px}.brand img{height:30px}}
 .who{padding:12px;border-radius:var(--r-md);background:rgba(255,255,255,.06)}
@@ -391,7 +391,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
           var b = SL.filter(function (x) { return hit(x.name + ' ' + x.email); }).slice(0, 300).map(function (x) { return '<option value="s:' + x.id + '">' + esc(x.name || x.email) + ' — ' + esc(x.email) + '</option>'; }).join('');
           return '<option value="">Choose the student…</option>' + (a ? '<optgroup label="Their order on the site">' + a + '</optgroup>' : '') + (b ? '<optgroup label="Any student — invoice an amount">' + b + '</optgroup>' : ''); };
         f.innerHTML = '<div class="bar" style="margin:0"><input class="inp" id="iFind" placeholder="Search a student" style="min-width:170px"><select class="sel" id="iOrder" style="max-width:420px">' + opts('') + '</select>' +
-          '<input class="inp" id="iAmt" inputmode="decimal" placeholder="Amount" style="min-width:0;width:150px;text-align:right"><input class="inp" id="iDue" type="date" title="Due date" style="min-width:150px"><button type="button" class="btn pri" id="iGo">Raise it</button></div>' +
+          '<input class="inp" id="iAmt" inputmode="decimal" placeholder="Amount" style="min-width:0;width:150px;text-align:right"><label class="muted" style="font-size:12px">Invoice date <input class="inp" id="iDate" type="date" title="Invoice date — today if left blank; an earlier date for an invoice of a past month or year" style="min-width:150px"></label><label class="muted" style="font-size:12px">Due <input class="inp" id="iDue" type="date" title="Due date" style="min-width:150px"></label><button type="button" class="btn pri" id="iGo">Raise it</button></div>' +
           '<div class="bar" id="iLoose" style="margin:10px 0 0;display:none"><input class="inp" id="iText" placeholder="What it is for, e.g. Germany admission services — first instalment" style="flex:1"><select class="sel" id="iSRate">' + B.rates.map(function (r) { return '<option value="' + r + '">' + (r ? B.tax + ' ' + r + '% (inside the amount)' : 'No ' + B.tax + ' (0%) — student abroad') + '</option>'; }).join('') + '</select></div>' +
           '<p class="muted" style="margin:10px 0 0;font-size:12.5px">Any student can be invoiced, with or without an order on the site, and as many times as there are instalments. For an order, a blank amount means all that is not yet invoiced. Counsellors can also raise these from the student’s file.</p>';
         $('#iFind').oninput = function () { $('#iOrder').innerHTML = opts(this.value); $('#iLoose').style.display = 'none'; };
@@ -401,12 +401,12 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
         f.innerHTML = '<div class="bar"><input class="inp" id="iParty" placeholder="' + (KIND === 'partner' ? 'University or partner name' : 'Name') + '"><input class="inp" id="iEmail" placeholder="Email (optional)"><input class="inp" id="iTax" placeholder="Their ' + (CO === 'IN' ? 'GSTIN' : 'VAT ID') + ' (optional)" style="min-width:180px"></div>' +
           '<div class="bar"><input class="inp" id="iAddr" placeholder="Address (optional)" style="flex:1"></div>' +
           '<div id="iRows">' + [0, 1, 2].map(function (i) { return '<div class="bar"><input class="inp" data-it="t" placeholder="' + (i ? 'Another line (optional)' : 'What it is for') + '" style="flex:1"><input class="inp" data-it="a" inputmode="decimal" placeholder="Amount" style="min-width:0;width:140px;text-align:right"></div>'; }).join('') + '</div>' +
-          '<div class="bar" style="margin:0"><select class="sel" id="iRate">' + B.rates.map(function (r) { return '<option value="' + r + '">' + (r ? B.tax + ' ' + r + '% (inside the amount)' : 'No ' + B.tax + ' (0%)') + '</option>'; }).join('') + '</select><input class="inp" id="iDue" type="date" title="Due date" style="min-width:150px"><input class="inp" id="iNote" placeholder="Note on the invoice (optional)" style="flex:1"><button type="button" class="btn pri" id="iGo">Raise it</button></div>';
+          '<div class="bar" style="margin:0"><select class="sel" id="iRate">' + B.rates.map(function (r) { return '<option value="' + r + '">' + (r ? B.tax + ' ' + r + '% (inside the amount)' : 'No ' + B.tax + ' (0%)') + '</option>'; }).join('') + '</select><label class="muted" style="font-size:12px">Invoice date <input class="inp" id="iDate" type="date" title="Invoice date — today if left blank; an earlier date for an invoice of a past month or year" style="min-width:150px"></label><label class="muted" style="font-size:12px">Due <input class="inp" id="iDue" type="date" title="Due date" style="min-width:150px"></label><input class="inp" id="iNote" placeholder="Note on the invoice (optional)" style="flex:1"><button type="button" class="btn pri" id="iGo">Raise it</button></div>';
         if (CO === 'DE') $('#iRate').value = '0';
       }
       var go = $('#iGo');
       if (go) go.onclick = function () {
-        var body = { company: CO, kind: KIND, due: $('#iDue').value };
+        var body = { company: CO, kind: KIND, due: $('#iDue').value }; if ($('#iDate').value) body.date = $('#iDate').value;
         if (KIND === 'student') {
           var pick = $('#iOrder').value, a = $('#iAmt').value.trim();
           if (!pick) return toast('Choose the student.', true);
@@ -448,16 +448,40 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
   }
   function vPurchases() {
     var p = B.purchases, t = B.totals, groups = ['People', 'Office', 'Students'];
-    $('#view').innerHTML = '<div class="kpis"><div class="kpi"><b>' + money(t.people) + '</b><span>People: salaries, freelancers</span></div><div class="kpi"><b>' + money(t.office) + '</b><span>Office: rent, software, marketing…</span></div><div class="kpi"><b>' + money(t.students) + '</b><span>Paid on students’ behalf</span></div><div class="kpi"><b>' + money(t.costsTax) + '</b><span>' + B.tax + ' inside these, to claim back</span></div></div>' +
-      '<div class="card"><div class="bar"><div><h2 style="margin:0">Purchases, year ' + esc(B.yearLabel) + '</h2><p class="sub" style="margin:4px 0 0">Money that left the bank and was named as a cost on the Bank tab.</p></div><span class="spacer"></span><button type="button" class="btn" id="dl">Download for the accountant</button></div>' +
-      (p.length ? groups.map(function (g) {
-        var rows = p.filter(function (x) { return x.group === g; });
-        if (!rows.length) return '';
-        return '<h2 style="margin:18px 0 6px;font-size:15px">' + g + '</h2><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Kind</th><th>Paid to</th><th>What the bank says</th><th class="r">Paid</th><th class="r">' + B.tax + '</th><th class="r">Before ' + B.tax + '</th></tr></thead><tbody>' +
-          rows.map(function (x) { return '<tr><td style="white-space:nowrap">' + esc(x.date) + '</td><td>' + esc(x.label) + '</td><td>' + esc(x.who) + '</td><td class="muted" style="max-width:320px;word-break:break-word">' + esc(x.what) + (x.note ? '<br>' + esc(x.note) : '') + '</td><td class="r">' + money(x.gross) + '</td><td class="r">' + money(x.tax) + (x.rate ? ' <span class="muted">' + x.rate + '%</span>' : '') + '</td><td class="r">' + money(x.net) + '</td></tr>'; }).join('') + '</tbody></table></div>';
-      }).join('') : '<p class="muted">Nothing named as a cost yet in this year.</p>') + '</div>';
-    $('#dl').onclick = function () { csv('glovels-purchases-' + CO + '-' + B.year + '.csv', ['Date', 'Group', 'Kind', 'Paid to', 'Bank narration', 'Paid', B.tax, 'Rate %', 'Before ' + B.tax, 'Note'], p.map(function (x) { return [x.date, x.group, x.label, x.who, x.what, major(x.gross), major(x.tax), x.rate, major(x.net), x.note]; })); };
+    var view = $('#view'); view.innerHTML = '<p class="muted">Loading…</p>';
+    api('/api/staff/finance/bills?' + q()).then(function (BL) {
+      var billLinks = function (list, lineId) {
+        return (list || []).map(function (b) { return '<a class="btn sm" target="_blank" rel="noopener" href="/api/staff/finance/bill/' + b.id + '/file" title="' + esc(b.filename) + '">View bill</a> <button type="button" class="btn sm" data-rmbill="' + b.id + '" title="Remove ' + esc(b.filename) + '">×</button>'; }).join(' ') +
+          (lineId ? ' <label class="btn sm' + ((list || []).length ? '' : ' pri') + '" style="cursor:pointer">' + ((list || []).length ? 'Add another' : 'Upload bill') + '<input type="file" data-billline="' + lineId + '" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*" hidden></label>' : '');
+      };
+      var kindOpts = B.kindList.filter(function (k) { return k.dir === 'out'; }).map(function (k) { return '<option value="' + k.id + '">' + esc(k.label) + '</option>'; }).join('');
+      var have = p.filter(function (x) { return (BL.byLine[x.lineId] || []).length; }).length;
+      view.innerHTML = '<div class="kpis"><div class="kpi"><b>' + money(t.people) + '</b><span>People: salaries, freelancers</span></div><div class="kpi"><b>' + money(t.office) + '</b><span>Office: rent, software, marketing…</span></div><div class="kpi"><b>' + money(t.students) + '</b><span>Paid on students’ behalf</span></div><div class="kpi"><b>' + money(t.costsTax) + '</b><span>' + B.tax + ' inside these, to claim back</span></div><div class="kpi"><b>' + have + ' / ' + p.length + '</b><span>Purchases with their bill kept</span></div></div>' +
+        '<div class="card"><div class="bar"><div><h2 style="margin:0">Purchases, year ' + esc(B.yearLabel) + '</h2><p class="sub" style="margin:4px 0 0">Money that left the bank and was named as a cost on the Bank tab. Keep the supplier’s bill beside each: a PDF or a photo.</p></div><span class="spacer"></span><button type="button" class="btn" id="dl">Download for the accountant</button></div>' +
+        (p.length ? groups.map(function (g) {
+          var rows = p.filter(function (x) { return x.group === g; });
+          if (!rows.length) return '';
+          return '<h2 style="margin:18px 0 6px;font-size:15px">' + g + '</h2><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Kind</th><th>Paid to</th><th>What the bank says</th><th class="r">Paid</th><th class="r">' + B.tax + '</th><th class="r">Before ' + B.tax + '</th><th>Bill</th></tr></thead><tbody>' +
+            rows.map(function (x) { return '<tr><td style="white-space:nowrap">' + esc(x.date) + '</td><td>' + esc(x.label) + '</td><td>' + esc(x.who) + '</td><td class="muted" style="max-width:320px;word-break:break-word">' + esc(x.what) + (x.note ? '<br>' + esc(x.note) : '') + '</td><td class="r">' + money(x.gross) + '</td><td class="r">' + money(x.tax) + (x.rate ? ' <span class="muted">' + x.rate + '%</span>' : '') + '</td><td class="r">' + money(x.net) + '</td><td style="white-space:nowrap">' + billLinks(BL.byLine[x.lineId], x.lineId) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+        }).join('') : '<p class="muted">Nothing named as a cost yet in this year.</p>') + '</div>' +
+        '<div class="card"><h2>Bills with no bank line</h2><p class="sub">Something paid in cash, or a bill you want kept before its statement is uploaded: a table, a team lunch. It is saved with its date, who it is from and the amount. It is a record: the profit and loss counts a cost when the bank line (or the cash withdrawal) is named.</p>' +
+        '<div class="bar"><input class="inp" id="bDate" type="date" title="Date on the bill" style="min-width:150px"><input class="inp" id="bParty" placeholder="From whom, e.g. the restaurant or shop" style="flex:1;min-width:180px"><input class="inp" id="bAmt" inputmode="decimal" placeholder="Amount" style="min-width:0;width:130px;text-align:right"><select class="sel" id="bKind"><option value="">What kind of cost…</option>' + kindOpts + '</select></div>' +
+        '<div class="bar"><input class="inp" id="bNote" placeholder="Note, e.g. team lunch for 8, new office table" style="flex:1"><label class="btn pri" style="cursor:pointer">Choose the bill and save<input type="file" id="bFile" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*" hidden></label></div>' +
+        (BL.loose.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>From</th><th>Kind</th><th>Note</th><th class="r">Amount</th><th>Saved by</th><th>Bill</th></tr></thead><tbody>' + BL.loose.map(function (b) { return '<tr><td style="white-space:nowrap">' + esc(b.date) + '</td><td>' + esc(b.party) + '</td><td>' + esc(b.label) + '</td><td class="muted">' + esc(b.note) + '</td><td class="r">' + money(b.amount) + '</td><td>' + esc(b.by) + '</td><td style="white-space:nowrap">' + billLinks([b], 0) + '</td></tr>'; }).join('') +
+          '<tr><td colspan="4"><b>All, year ' + esc(B.yearLabel) + '</b></td><td class="r"><b>' + money(BL.looseTotal) + '</b></td><td></td><td></td></tr></tbody></table></div>' : '<p class="muted" style="margin:0">None kept for this year yet.</p>') + '</div>';
+      $('#dl').onclick = function () { csv('glovels-purchases-' + CO + '-' + B.year + '.csv', ['Date', 'Group', 'Kind', 'Paid to', 'Bank narration', 'Paid', B.tax, 'Rate %', 'Before ' + B.tax, 'Note', 'Bills kept'], p.map(function (x) { return [x.date, x.group, x.label, x.who, x.what, major(x.gross), major(x.tax), x.rate, major(x.net), x.note, (BL.byLine[x.lineId] || []).map(function (b) { return b.filename; }).join('; ')]; })); };
+    }).catch(function (e) { view.innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; });
   }
+  var sendBill = function (file, fields) {
+    if (!file) return Promise.resolve();
+    if (file.size > 10 * 1024 * 1024) { toast('That file is over 10 MB.', true); return Promise.resolve(); }
+    var form = new FormData(); form.append('company', CO);
+    Object.keys(fields).forEach(function (k) { if (fields[k] != null && fields[k] !== '') form.append(k, fields[k]); });
+    form.append('file', file, file.name);
+    toast('Saving ' + file.name + '…');
+    return fetch('/api/staff/finance/bill', { method: 'POST', credentials: 'same-origin', body: form }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || 'That did not go through.'); return d; }); })
+      .then(function () { toast('Bill saved.'); return vPurchases(); }).catch(function (er) { toast(er.message, true); });
+  };
 
   /* ---------------- reconciliation ---------------- */
   function vRecon() {
@@ -493,7 +517,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
 
   /* ---------------- wiring ---------------- */
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-tab],[data-go],[data-f],[data-open],[data-edit],[data-unlink],[data-cancel],[data-jump],[data-year],[data-sf],[data-rmst],[data-cash],[data-uncash],[data-iedit],[data-isave],[data-iclose],[data-dl]');
+    var t = e.target.closest('[data-tab],[data-go],[data-f],[data-open],[data-edit],[data-unlink],[data-cancel],[data-jump],[data-year],[data-sf],[data-rmst],[data-cash],[data-uncash],[data-iedit],[data-isave],[data-iclose],[data-dl],[data-rmbill]');
     if (!t) return;
     if (t.dataset.sf) { SFILTER = t.dataset.sf; return vOverview(); }
     if (t.dataset.year) { YEAR = t.dataset.year; return reload(); }
@@ -506,6 +530,10 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       var ids = t.dataset.unlink.split(':');
       if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = t.dataset.order ? 'Take off? The payment stays on ' + t.dataset.order + ' until refunded there' : 'Sure?'; return; }
       return api('/api/staff/finance/line/' + ids[0] + '/match/' + ids[1] + '?company=' + CO, { method: 'DELETE' }).then(function () { toast('Taken off.'); return loadBooks().then(loadLines); }).catch(function (er) { toast(er.message, true); });
+    }
+    if (t.dataset.rmbill) {
+      if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = 'Remove this bill?'; return; }
+      return api('/api/staff/finance/bill/' + t.dataset.rmbill + '?company=' + CO, { method: 'DELETE' }).then(function () { toast('Bill removed.'); return vPurchases(); }).catch(function (er) { toast(er.message, true); });
     }
     if (t.dataset.dl) {
       /* Owner, 26 Nov: "profit and loss statement and GST returns should be
@@ -561,6 +589,15 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     if (e.target.id === 'company') { CO = e.target.value; YEAR = ''; OPEN = 0; ACCT = ''; return reload(); }
     if (e.target.id === 'year') { YEAR = e.target.value; return reload(); }
     if (e.target.id === 'acctSel') { ACCT = e.target.value; OPEN = 0; return loadLines(); }
+    if (e.target.dataset && e.target.dataset.billline) { var bf = e.target.files && e.target.files[0]; e.target.value = ''; return sendBill(bf, { lineId: e.target.dataset.billline }); }
+    if (e.target.id === 'bFile') {
+      var cf = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!cf) return;
+      if (!$('#bDate').value) return toast('The date on the bill first.', true);
+      if (!$('#bParty').value.trim()) return toast('Who the bill is from.', true);
+      if (!(toMinor($('#bAmt').value) > 0)) return toast('The amount on the bill.', true);
+      return sendBill(cf, { date: $('#bDate').value, party: $('#bParty').value.trim(), amount: toMinor($('#bAmt').value), category: $('#bKind').value, note: $('#bNote').value });
+    }
     if (e.target.id === 'stFile') {
       var f = e.target.files && e.target.files[0]; e.target.value = '';
       if (!f) return;

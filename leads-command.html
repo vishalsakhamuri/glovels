@@ -32,7 +32,7 @@ button{font:inherit;color:inherit}
 
 /* ---------------------------------------------------------------- shell */
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
-.rail{background:var(--rail);color:#c7d4e3;padding:22px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:22px}
+.rail{background:var(--rail);color:#c7d4e3;padding:22px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:22px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .brand{display:flex;align-items:center;text-decoration:none;background:#fff;border-radius:14px;padding:8px 14px;align-self:flex-start;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .brand img{display:block;height:44px;width:auto}
 .who{padding:12px;border-radius:var(--r-md);background:rgba(255,255,255,.06)}

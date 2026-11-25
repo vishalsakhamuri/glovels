@@ -1126,6 +1126,13 @@ function sqliteDriver(file) {
       gross INTEGER NOT NULL DEFAULT 0, tax_rate INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'open',
       note TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
       UNIQUE (company, number))`,
+   /* Patch 312: the supplier's bill for a purchase — the file is on disk,
+      this is what it is and which bank line (if any) paid it. */
+   `CREATE TABLE IF NOT EXISTS fin_bills (
+      id INTEGER PRIMARY KEY, company TEXT NOT NULL, line_id INTEGER, filename TEXT NOT NULL DEFAULT '', stored TEXT NOT NULL,
+      size INTEGER NOT NULL DEFAULT 0, date TEXT NOT NULL DEFAULT '', party TEXT NOT NULL DEFAULT '', amount INTEGER NOT NULL DEFAULT 0,
+      category TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)`,
+   'CREATE INDEX IF NOT EXISTS idx_fin_bills_line ON fin_bills(line_id)',
   ].forEach(sql => { try { db.exec(sql); } catch (e) { /* already applied */ } });
 
   const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -1183,7 +1190,7 @@ function jsonDriver(file) {
     'i18n_src', 'i18n_units', 'i18n_pages', 'post_i18n',
     /* Finance (patch 309). Its screens need SQLite and say so on this driver;
        the names are here so the rule above holds for every table. */
-    'fin_batches', 'fin_lines', 'fin_links', 'fin_invoices'];
+    'fin_batches', 'fin_lines', 'fin_links', 'fin_invoices', 'fin_bills'];
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -4313,7 +4320,7 @@ function open(dir) {
        and by nothing else. Only the fin_ tables can be named here, and only
        on the real database (the JSON fallback has no such tables). */
     fin: (() => {
-      const only = sql => { if (db.kind !== 'sqlite') throw new Error('Finance needs the SQLite database.'); if (!/\bfin_(batches|lines|links|invoices)\b/.test(sql) || /\b(orders|payments|students|users|sessions)\b/i.test(sql)) throw new Error('Finance reads only its own tables.'); return sql; };
+      const only = sql => { if (db.kind !== 'sqlite') throw new Error('Finance needs the SQLite database.'); if (!/\bfin_(batches|lines|links|invoices|bills)\b/.test(sql) || /\b(orders|payments|students|users|sessions)\b/i.test(sql)) throw new Error('Finance reads only its own tables.'); return sql; };
       return { ok: () => db.kind === 'sqlite', all: (sql, ...a) => db.all(only(sql), ...a), one: (sql, ...a) => db.one(only(sql), ...a), run: (sql, ...a) => db.run(only(sql), ...a) };
     })(),
     /* Crawlers per day (patch 275). */

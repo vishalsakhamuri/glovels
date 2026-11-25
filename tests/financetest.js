@@ -94,6 +94,14 @@ async function upload(who, company, name, buf) {
   let j = {}; try { j = await r.json(); } catch (e) { j = {}; }
   return { status: r.status, body: j };
 }
+async function sendBill(who, fields, name, buf) {
+  const fd = new FormData();
+  Object.keys(fields).forEach(k => fd.append(k, String(fields[k])));
+  fd.append('file', new Blob([buf]), name);
+  const r = await fetch(BASE + '/api/staff/finance/bill', { method: 'POST', headers: { cookie: jars[who] }, body: fd });
+  let j = {}; try { j = await r.json(); } catch (e) { j = {}; }
+  return { status: r.status, body: j };
+}
 
 (async () => {
   /* ---- the reader, on its own ---- */
@@ -388,6 +396,38 @@ async function upload(who, company, name, buf) {
     check('\u2026and are printed on the invoice', /GSTIN 36AALCG2793G1ZA/.test(pr9.body.text || '') && /CIN U85500TS2024PTC185996/.test(pr9.body.text || ''), String(pr9.body.text || '').slice(0, 120));
     const again = await upload('a', 'IN', 'extra.pdf', smart(rowsC, 0));
     check('a removed statement can be uploaded again', again.status === 200 && again.body.added === 3, again.status + ' ' + JSON.stringify(again.body).slice(0, 120));
+
+    const past = await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'student', studentId: kiran, amount: 700000, text: 'Last year\u2019s fee', taxRate: 18, date: '2025-06-15' });
+    check('an invoice of an earlier year is raised with its own date; a future date is refused', past.status === 200 && past.body.invoice.date === '2025-06-15' && (await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'student', studentId: kiran, amount: 100, date: '2099-01-01' })).status === 422, past.status + ' ' + JSON.stringify(past.body).slice(0, 160));
+    /* ---- Patch 312 (owner, 26 Nov): the supplier's bill kept for a purchase ---- */
+    const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 7)]);
+    const PDFB = pdf([[[40, 700, 'Tax invoice: one office table']]]);
+    const lATM = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.lines.find(x => /ATM CHARGES/.test(x.description));
+    check('a counsellor cannot keep a bill', (await sendBill('c', { company: 'IN', lineId: lATM.id }, 'table.pdf', PDFB)).status === 403);
+    let b1 = await sendBill('a', { company: 'IN', lineId: lATM.id }, 'table.pdf', PDFB);
+    check('a bill is kept against the bank line that paid it; date and amount come from the line', b1.status === 200 && b1.body.bill.lineId === lATM.id && b1.body.bill.amount === 100 && b1.body.bill.date === '2026-04-07' && b1.body.bill.filename === 'table.pdf', b1.status + ' ' + JSON.stringify(b1.body));
+    check('a web page is not a bill', (await sendBill('a', { company: 'IN', lineId: lATM.id }, 'bill.html', Buffer.from('<html><script>1</script></html>'))).status === 415);
+    check('nor is a page renamed .pdf, or a PDF renamed .png', (await sendBill('a', { company: 'IN', lineId: lATM.id }, 'bill.pdf', Buffer.from('<html></html>'))).status === 415 && (await sendBill('a', { company: 'IN', lineId: lATM.id }, 'bill.png', PDFB)).status === 415);
+    check('a bill is not kept against money coming in', (await sendBill('a', { company: 'IN', lineId: lA.id }, 'x.pdf', PDFB)).status !== 200);
+    check('a bill with no bank line needs its date, who it is from and the amount', (await sendBill('a', { company: 'IN', party: 'Paradise', amount: 240000 }, 'lunch.png', PNG)).status === 422 && (await sendBill('a', { company: 'IN', date: '2026-04-09', amount: 240000 }, 'lunch.png', PNG)).status === 422 && (await sendBill('a', { company: 'IN', date: '2026-04-09', party: 'Paradise' }, 'lunch.png', PNG)).status === 422);
+    const outKind = (await req('a', 'GET', '/api/staff/finance/books?company=IN')).body.kindList.find(k => k.dir === 'out').id;
+    let b2 = await sendBill('a', { company: 'IN', date: '2026-04-09', party: 'Paradise Restaurant', amount: 240000, category: outKind, note: 'team lunch for 8' }, 'lunch.png', PNG);
+    check('a cash bill (a team lunch) is kept on its own', b2.status === 200 && b2.body.bill.lineId === null && b2.body.bill.amount === 240000 && b2.body.bill.label, b2.status + ' ' + JSON.stringify(b2.body));
+    let BLs = (await req('a', 'GET', '/api/staff/finance/bills?company=IN&year=2026')).body;
+    check('both are listed: one beside its purchase, one on its own', (BLs.byLine[lATM.id] || []).length === 1 && BLs.loose.length === 1 && BLs.looseTotal === 240000 && BLs.count === 2, JSON.stringify(BLs).slice(0, 300));
+    check('Germany’s book has none of them', (await req('a', 'GET', '/api/staff/finance/bills?company=DE&year=2026')).body.count === 0);
+    const fr = await fetch(BASE + '/api/staff/finance/bill/' + b1.body.bill.id + '/file', { headers: { cookie: jars.a } });
+    const fb = Buffer.from(await fr.arrayBuffer());
+    check('the file comes back as it went in, as a PDF and nothing else', fr.status === 200 && fr.headers.get('content-type') === 'application/pdf' && fr.headers.get('x-content-type-options') === 'nosniff' && fb.equals(PDFB), fr.status + ' ' + fr.headers.get('content-type') + ' ' + fb.length);
+    check('…and not for a counsellor', (await fetch(BASE + '/api/staff/finance/bill/' + b1.body.bill.id + '/file', { headers: { cookie: jars.c } })).status === 403);
+    const be = await req('a', 'PUT', '/api/staff/finance/bill/' + b2.body.bill.id, { company: 'IN', note: 'team lunch for 9', amount: 250000 });
+    check('a bill’s details are corrected', be.status === 200 && be.body.bill.note === 'team lunch for 9' && be.body.bill.amount === 250000, be.status + ' ' + JSON.stringify(be.body));
+    const bd = await req('a', 'DELETE', '/api/staff/finance/bill/' + b2.body.bill.id + '?company=IN');
+    check('a bill is removed, file and all', bd.status === 200 && (await fetch(BASE + '/api/staff/finance/bill/' + b2.body.bill.id + '/file', { headers: { cookie: jars.a } })).status === 404, bd.status + ' ' + JSON.stringify(bd.body));
+    const bX = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.batches.find(b => b.filename === 'extra.pdf');
+    await req('a', 'DELETE', '/api/staff/finance/statement/' + bX.id + '?company=IN&force=1');
+    BLs = (await req('a', 'GET', '/api/staff/finance/bills?company=IN&year=2026')).body;
+    check('removing a statement does not lose the bill kept on its line: it stands on its own', BLs.count === 1 && BLs.loose.length === 1 && BLs.loose[0].id === b1.body.bill.id && (await fetch(BASE + '/api/staff/finance/bill/' + b1.body.bill.id + '/file', { headers: { cookie: jars.a } })).status === 200, JSON.stringify(BLs).slice(0, 240));
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');

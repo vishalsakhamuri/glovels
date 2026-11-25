@@ -32,6 +32,15 @@ pages.forEach(f => {
 });
 check('it is the same picture everywhere', icons.size === 1, icons.size + ' different');
 
+/* Patch 312 (owner, 26 Nov: "unable to scroll down … unable to see last option"):
+   the menu is pinned to the height of the window, and with Students and
+   Finance in it it is taller than a laptop screen. Where it is pinned it
+   scrolls by itself. */
+['ops.html', 'leads-command.html', 'marketing.html', 'languages.html', 'finance.html'].forEach(f => {
+  const css = (fs.readFileSync(path.join(ROOT, f), 'utf8').match(/\.rail\{[^}]*\}/) || [''])[0];
+  check(f + ': a menu taller than the window scrolls', /height:100vh/.test(css) && /overflow-y:auto/.test(css), css.slice(0, 80));
+});
+
 bad.forEach(b => console.log('FAIL  ' + b));
 console.log(ok.length + ' passed, ' + bad.length + ' failed');
 process.exit(bad.length ? 1 : 0);
