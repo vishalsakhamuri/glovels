@@ -356,6 +356,8 @@ node trafficslicetest.js | tail -1 | sed 's/^/  trafficslicetest.js /' | tee -a 
 node heavytest.js | tail -1 | sed 's/^/  heavytest.js        /' | tee -a "$REPORT"
 # patch 318: guide pages rebuilt behind the ones being served, hand-added universities ranked on the second thread, the download in slices — own two servers (8318, 8319).
 node guiderebuildtest.js | tail -1 | sed 's/^/  guiderebuildtest.js /' | tee -a "$REPORT"
+# patch 325: WhatsApp and Instagram messages become chats and leads — own server (8325) and a stand-in for Meta (8326).
+node whatsappleadtest.js | tail -1 | sed 's/^/  whatsappleadtest.js /' | tee -a "$REPORT"
 # patch 308: Students is in the side menu of every staff screen — reads the pages, no server.
 node navstudentstest.js | tail -1 | sed 's/^/  navstudentstest.js  /' | tee -a "$REPORT"
 # patch 309: Finance — statements (PDF), matching, invoices, the year's books, two companies — own server (8311).

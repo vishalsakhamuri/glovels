@@ -1901,7 +1901,7 @@ function paintList() {
     const wait = needsReply(c);
     return '<li data-chat="' + Number(c.id) + '" class="' + (wait ? 'wait' : '') +
         (c.id === openId ? ' on' : '') + '">' + avatar(c.name) +
-      '<span class="body"><span class="top"><b>' + esc(c.name) + '</b>' +
+      '<span class="body"><span class="top"><b>' + esc(c.name) + '</b>' + (c.channel === 'whatsapp' ? '<span class="st" style="background:#dcf8c6;color:#075e54" title="This conversation is on WhatsApp">WhatsApp</span>' : c.channel === 'instagram' ? '<span class="st" style="background:#fde7f3;color:#a0236b" title="This conversation is on Instagram">Instagram</span>' : '') +
         (wait ? '<span class="st wait">Needs a reply</span>' : '') + whenTag(c.lastAt) + '</span>' +
       '<span class="contact">' + esc(c.phone || c.email || 'no number given') + '</span>' +
       (c.preview ? '<span class="prev">' + (c.lastFrom === 'me' ? '' : '<i>You: </i>') +
@@ -1937,7 +1937,7 @@ function paintChat(c) {
   $('#chatPane').innerHTML =
       '<div class="wc-head">' + avatar(c.name) +
         '<div class="who"><b>' + esc(c.name) + '</b>' +
-          '<small>' + (c.ref ? '<b title="Enquiry number — the visitor can quote it">' + esc(c.ref) + '</b> · ' : '') + 'Started ' + whenTag(c.at) + (waiting ? ' · <span class="st wait">Needs a reply</span>' : '') +
+          '<small>' + (c.channel === 'whatsapp' ? '<b style="color:#075e54">On WhatsApp</b> · your reply goes to their WhatsApp · ' : c.channel === 'instagram' ? '<b style="color:#a0236b">On Instagram</b> · your reply goes to their Instagram · ' : '') + (c.ref ? '<b title="Enquiry number — the visitor can quote it">' + esc(c.ref) + '</b> · ' : '') + 'Started ' + whenTag(c.at) + (waiting ? ' · <span class="st wait">Needs a reply</span>' : '') +
           '</small></div>' +
         '<div class="acts">' +
           (c.phone ? '<a class="btn btn-ghost btn-sm" href="' + esc(telHref(c.phone)) + '">Call</a>' : '') +

@@ -428,7 +428,7 @@ function parseMultipart(buf, boundary) {
 
 /* ------------------------------------------------------------------- routes */
 
-function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, live, push, siteUrl, config, content, backup, traffic, golive, i18n, translator }) {
+function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageDir, catalogue, countries, universityRows, bakedIds, mail, notify, instagram, live, push, siteUrl, config, content, backup, traffic, golive, i18n, translator }) {
   /* Razorpay, or a stand-in that reports itself off. Off is a working state:
      the order is recorded and a counsellor collects, which is how this site
      ran before there was a gateway at all. */
@@ -4315,7 +4315,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   const chatShape = c => ({
     id: c.id, name: c.name, phone: c.phone, email: c.email,
     ref: (() => { try { const l = leadForChat(c); return l ? enqRef(l.id) : ''; } catch (e) { return ''; } })(),
-    status: c.status, at: c.created_at, lastAt: c.last_at,
+    status: c.status, at: c.created_at, lastAt: c.last_at, channel: String(c.token || '').indexOf('wa:') === 0 ? 'whatsapp' : String(c.token || '').indexOf('ig:') === 0 ? 'instagram' : 'site',
     messages: db.chatMessages(c.id).map(m => ({
       who: m.sender, t: m.body, name: m.who, at: m.created_at,
     })),
@@ -11900,7 +11900,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
           id: c.id, name: c.name, phone: c.phone, email: c.email,
           ref: (() => { try { const l = leadForChat(c); return l ? enqRef(l.id) : ''; } catch (e) { return ''; } })(),
           status: c.status, at: c.created_at, lastAt: c.last_at,
-          page: c.page, messages: msgs.length,
+          page: c.page, messages: msgs.length, channel: isWaChat(c) ? 'whatsapp' : isIgChat(c) ? 'instagram' : 'site',
           unseen: unseen[c.id] || 0,
           preview: last ? last.body.slice(0, 90) : '',
           lastFrom: last ? last.sender : '',
@@ -12135,6 +12135,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   /* The open lead a website chat filed: same phone (last ten) or email. */
   function leadForChat(c) {
     if (!c) return null;
+    /* Patch 325: the lead this conversation filed, while it is still open —
+       an Instagram message has no phone or email to find it by. */
+    if (c.lead_id) {
+      const own = db.allEnquiries().find(e => Number(e.id) === Number(c.lead_id));
+      if (own && !['converted', 'lost'].includes(String(own.status || 'new'))) return own;
+    }
     const d = String(c.phone || '').replace(/\D/g, '').slice(-10);
     const m = String(c.email || '').trim().toLowerCase();
     if (d.length !== 10 && !m) return null;
@@ -12875,13 +12881,27 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const body = String(b.body || '').trim().slice(0, 2000);
     if (!body) return json(res, 422, { error: 'Nothing to send' });
 
+    /* Patch 325: a WhatsApp chat is answered on WhatsApp. Meta allows a
+       free reply within 24 hours of their last message; after that it
+       refuses, and the screen says so rather than pretending it went. */
+    if (isIgChat(c)) {
+      const sent = instagram ? await instagram.send(String(c.token).slice(3), body.slice(0, 1000)) : { ok: false, error: 'not connected' };
+      if (!sent || !sent.ok) return json(res, 502, { error: 'Instagram did not take this reply' + (sent && sent.error ? ' (' + String(sent.error).slice(0, 160) + ')' : '') + '. Instagram only allows a reply within 24 hours of their last message; after that, answer from the Instagram app.' });
+    }
+    if (isWaChat(c)) {
+      if (!notify.whatsappReady) return json(res, 503, { error: 'WhatsApp sending is not connected on this server yet (WHATSAPP_TOKEN and WHATSAPP_PHONE_ID). Reply from the WhatsApp app for now.' });
+      const sent = await notify.whatsappText(c.phone, body);
+      if (!sent || !sent.ok) return json(res, 502, { error: 'WhatsApp did not take this reply' + (sent && sent.error ? ' (' + String(sent.error).slice(0, 160) + ')' : '') + '. WhatsApp only allows a free reply within 24 hours of their last message; after that, reply from the WhatsApp app or call them.' });
+    }
     const msg = db.addChatMessage(c.id, 'them', body, s.name);
-    /* Straight down the visitor's open stream. This is the half that makes it a
-       chat rather than a contact form with extra steps. */
-    live.toGuest(c.token, 'chat', { who: 'them', t: body, name: s.name, at: msg.created_at });
-    /* Patch 282: on screen now, or emailed in five minutes if not seen. */
-    const onScreen = !!(live && live.isGuestOnline && live.isGuestOnline(c.token));
-    if (onScreen) chatSeenAt.set(c.id, Date.now()); else chatMailLater(c, s.name, Date.parse(msg.created_at) || Date.now());
+    if (!isWaChat(c) && !isIgChat(c)) {
+      /* Straight down the visitor's open stream. This is the half that makes it a
+         chat rather than a contact form with extra steps. */
+      live.toGuest(c.token, 'chat', { who: 'them', t: body, name: s.name, at: msg.created_at });
+      /* Patch 282: on screen now, or emailed in five minutes if not seen. */
+      const onScreen = !!(live && live.isGuestOnline && live.isGuestOnline(c.token));
+      if (onScreen) chatSeenAt.set(c.id, Date.now()); else chatMailLater(c, s.name, Date.parse(msg.created_at) || Date.now());
+    }
     live.toAllStaff('chat', { id: c.id, kind: 'replied', at: msg.created_at });
     db.log(s.name, 'chat replied', c.name + (c.phone ? ' (' + c.phone + ')' : ''));
     /* Patch 221: a reply in the chat IS the first response. The lead the chat
@@ -12890,13 +12910,13 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     try {
       const lead = leadForChat(c);
       if (lead && (lead.status || 'new') === 'new') {
-        db.addLeadNote(lead.id, s.name, 'chat', 'Replied in the website chat: \u201c' + body.slice(0, 300) + '\u201d');
+        db.addLeadNote(lead.id, s.name, isWaChat(c) ? 'whatsapp' : 'chat', (isWaChat(c) ? 'Replied on WhatsApp: \u201c' : isIgChat(c) ? 'Replied on Instagram: \u201c' : 'Replied in the website chat: \u201c') + body.slice(0, 300) + '\u201d');
         const row = db.updateEnquiry(lead.id, {
           source: lead.source, campaign: lead.campaign, ownerId: lead.owner_id || s.id,
           status: 'contacted', lostReason: lead.lost_reason, nextAt: lead.next_at,
           studentId: lead.student_id, note: lead.note, destination: lead.destination,
         });
-        leadResponded(row, s.name, 'chat');
+        leadResponded(row, s.name, isWaChat(c) ? 'whatsapp' : 'chat');
       }
     } catch (e) { /* the reply went; the book catches up on the next one */ }
     return json(res, 200, { chat: chatShape(db.chatById(c.id)) });
@@ -15332,6 +15352,137 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
    * unverified body was a way for anybody to put words in a counsellor's
    * mouth. Refused outright when there is no secret to verify with.
    */
+  /*
+   * Patch 325: WHATSAPP CHATS ARE LEADS (owner, 27 Nov: "we are getting leads
+   * in WhatsApp … I want leads to be automated from WhatsApp … chats from
+   * WhatsApp").
+   *
+   * A message to the business number from somebody who is not on the staff:
+   *   - becomes a conversation on the Website chat screen, marked WhatsApp,
+   *     one per number (token "wa:<number>"), the newest message first in
+   *     the list and "Needs a reply" until somebody answers;
+   *   - the first time (or when that person's last lead is finished), files a
+   *     lead in Leads with source WhatsApp, their WhatsApp name and number,
+   *     and what they wrote — through the same rules a website enquiry goes
+   *     through, so the same person on WhatsApp and on the form is one lead,
+   *     and the owner, the SLA clock and the alerts work as for any lead;
+   *   - a reply typed on that screen goes back to them on WhatsApp.
+   * A message the office sent from the WhatsApp app on the same number comes
+   * in as an echo and is shown as the office's reply, so the conversation on
+   * the screen is the whole conversation.
+   */
+  const waSeen = new Set();
+  const waToken = num => 'wa:' + String(num || '').replace(/\D+/g, '');
+  const isWaChat = c => !!c && String(c.token || '').indexOf('wa:') === 0;
+  function waInbound(m) {
+    const num = String(m.from || '').replace(/\D+/g, '');
+    if (num.length < 8) return;
+    const token = waToken(num);
+    let c = db.chatByToken(token);
+    const fresh = !c;
+    const pretty = '+' + num;
+    if (!c) c = db.createChat(token, { name: m.name || pretty, phone: pretty, email: '', page: 'WhatsApp' });
+    if (m.echo) {
+      db.addChatMessage(c.id, 'them', m.text.slice(0, 2000), 'WhatsApp app');
+      live.toAllStaff('chat', { id: c.id, kind: 'replied', at: new Date().toISOString() });
+      return;
+    }
+    /* last time a message from them came in: the 24-hour window for replies starts again */
+    waLastIn.set(c.id, Date.now());
+    /* duplicates that came after a restart: the same words from them a moment ago */
+    const prev = db.chatMessages(c.id).slice(-1)[0];
+    if (prev && prev.sender === 'me' && prev.body === m.text.slice(0, 2000) && Date.now() - Date.parse(prev.created_at) < 10 * 60000) return;
+    if (c.status !== 'open') db.setChatStatus(c.id, 'open');
+    if (m.name && (c.name === pretty || !c.name)) { try { c = db.setChatName(c.id, m.name) || c; } catch (e) { /* the number stands for the name */ } }
+    db.addChatMessage(c.id, 'me', m.text.slice(0, 2000), c.name || m.name || pretty);
+    /* the lead: filed the first time, and again only when their last one is finished */
+    let lead = null;
+    try { lead = leadForChat(c); } catch (e) { lead = null; }
+    if (!lead) {
+      try {
+        lead = db.fileEnquiry({
+          name: m.name || pretty, phone: pretty, email: '', destination: '', consent: 'whatsapp',
+          sourcePage: 'WhatsApp', source: 'whatsapp', campaign: '', referrer: '',
+          note: ('WhatsApp: \u201c' + m.text + '\u201d').slice(0, 2000),
+        });
+      } catch (e) { lead = null; }
+      if (lead && lead.id) { try { db.setChatLead(c.id, lead.id); } catch (e) { /* found by number anyway */ } }
+      leadArrived({ kind: 'chat', row: lead && lead.id ? lead : null, chatId: c.id, name: m.name || pretty });
+      live.toAllStaff('chat', { id: c.id, name: m.name || pretty, at: new Date().toISOString(), kind: 'started' });
+      try { db.log('WhatsApp', fresh ? 'new WhatsApp lead' : 'WhatsApp lead again', (m.name || 'unknown name') + ' (\u2026' + num.slice(-4) + ')'); } catch (e) { /* filed */ }
+    } else {
+      live.toAllStaff('chat', { id: c.id, kind: 'message', at: new Date().toISOString() });
+    }
+  }
+  const waLastIn = new Map();
+
+  /* Patch 325: INSTAGRAM DIRECT MESSAGES ARE LEADS TOO — the same as
+     WhatsApp: a conversation on the Website chat screen marked Instagram,
+     and a lead with source Instagram the first time (and again when their
+     lead is finished). Instagram gives no phone or email, so the lead is
+     tied to the conversation and is named with their Instagram name and
+     @username; the counsellor asks for a number in the chat. */
+  const igSeen = new Set();
+  const isIgChat = c => !!c && String(c.token || '').indexOf('ig:') === 0;
+  async function igInbound(m) {
+    const them = String(m.them || '').replace(/[^0-9A-Za-z_-]/g, '');
+    if (!them) return;
+    const token = 'ig:' + them;
+    let c = db.chatByToken(token);
+    if (m.echo) {
+      if (!c) return;   /* the office starting a conversation is not a lead */
+      const prev = db.chatMessages(c.id).slice(-1)[0];
+      if (prev && prev.sender === 'them' && prev.body === m.text) return;   /* sent from here: already on the screen */
+      db.addChatMessage(c.id, 'them', m.text, 'Instagram app');
+      live.toAllStaff('chat', { id: c.id, kind: 'replied', at: new Date().toISOString() });
+      return;
+    }
+    if (!c) {
+      const p = await instagram.profile(them);
+      const label = p.name ? p.name + (p.username ? ' (@' + p.username + ')' : '') : p.username ? '@' + p.username : 'Instagram user \u2026' + them.slice(-4);
+      c = db.chatByToken(token) || db.createChat(token, { name: label, phone: '', email: '', page: 'Instagram' + (p.username ? ' @' + p.username : '') });
+    }
+    if (c.status !== 'open') db.setChatStatus(c.id, 'open');
+    db.addChatMessage(c.id, 'me', m.text, c.name);
+    let lead = null;
+    try { lead = leadForChat(c); } catch (e) { lead = null; }
+    if (!lead) {
+      try {
+        lead = db.addEnquiry({ name: c.name, phone: '', email: '', destination: '', consent: 'instagram', sourcePage: c.page || 'Instagram',
+          source: 'instagram', campaign: '', referrer: '', note: ('Instagram: \u201c' + m.text + '\u201d').slice(0, 2000) });
+      } catch (e) { lead = null; }
+      if (lead && lead.id) { try { db.setChatLead(c.id, lead.id); } catch (e) { /* the chat stands */ } }
+      leadArrived({ kind: 'chat', row: lead && lead.id ? lead : null, chatId: c.id, name: c.name });
+      live.toAllStaff('chat', { id: c.id, name: c.name, at: new Date().toISOString(), kind: 'started' });
+      try { db.log('Instagram', 'new Instagram lead', c.name); } catch (e) { /* filed */ }
+    } else {
+      live.toAllStaff('chat', { id: c.id, kind: 'message', at: new Date().toISOString() });
+    }
+  }
+  route('GET', '/api/instagram/webhook', async (req, res) => {
+    const q = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+    const v = instagram ? instagram.verifyWebhook(q) : { ok: false };
+    if (!v.ok) return json(res, 403, { error: 'Verification failed' });
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(String(v.challenge || ''));
+    return true;
+  }, { open: true });
+  route('POST', '/api/instagram/webhook', async (req, res) => {
+    const raw = await readRaw(req);
+    if (!instagram || !instagram.webhookReady) return json(res, 503, { error: 'No INSTAGRAM_APP_SECRET is configured, so messages cannot be verified.' });
+    if (!instagram.verifySignature(raw, req.headers['x-hub-signature-256'])) {
+      db.log('system', 'Instagram webhook refused', 'signature did not verify');
+      return json(res, 403, { error: 'Signature did not verify.' });
+    }
+    let b = {};
+    try { b = JSON.parse(raw.toString('utf8') || '{}'); } catch (e) { b = {}; }
+    for (const m of instagram.parse(b)) {
+      if (m.id) { if (igSeen.has(m.id)) continue; igSeen.add(m.id); if (igSeen.size > 5000) igSeen.delete(igSeen.values().next().value); }
+      try { await igInbound(m); } catch (e) { console.log('  instagram \u2717 could not file a message: ' + ((e && e.message) || e)); }
+    }
+    return json(res, 200, { ok: true });
+  }, { open: true });
+
   route('POST', '/api/whatsapp/webhook', async (req, res) => {
     const raw = await readRaw(req);
     if (!notify.webhookReady) {
@@ -15344,11 +15495,14 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     let b = {};
     try { b = JSON.parse(raw.toString('utf8') || '{}'); } catch (e) { b = {}; }
     notify.parseWebhook(b).forEach(m => {
+      /* Patch 325: the same message twice (Meta retries) is filed once. */
+      if (m.id) { if (waSeen.has(m.id)) return; waSeen.add(m.id); if (waSeen.size > 5000) waSeen.delete(waSeen.values().next().value); }
       /* A counsellor replying from their phone: match the sender's number to a
          staff account, and put the reply on the student they last spoke to. */
-      const staff = db.staffByRole('counsellor').concat(db.staffByRole('admin'))
+      const staff = m.echo ? null : db.staffByRole('counsellor').concat(db.staffByRole('admin'))
         .find(c => String(c.phone || '').replace(/\D+/g, '').endsWith(String(m.from).slice(-10)));
-      if (!staff) return;
+      /* Anybody else is a WhatsApp chat — and, the first time, a lead. */
+      if (!staff) { try { waInbound(m); } catch (e) { console.log('  whatsapp ✗ could not file a message from ' + String(m.from).slice(-4) + ': ' + ((e && e.message) || e)); } return; }
       const mine = db.staffStudents(staff);
       const newest = mine
         .map(st => ({ st, last: db.lastMessage(st.id) }))

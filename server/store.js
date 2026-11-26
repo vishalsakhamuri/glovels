@@ -435,6 +435,9 @@ function sqliteDriver(file) {
      one. ALTER TABLE throws when the column is already there — which is the
      signal that this migration has run. */
   ['ALTER TABLE students ADD COLUMN counsellor_id INTEGER',
+   /* Patch 325: the lead a WhatsApp or Instagram conversation filed — an
+      Instagram message carries no phone or email to find it by. */
+   'ALTER TABLE chats ADD COLUMN lead_id INTEGER',
    'ALTER TABLE messages ADD COLUMN read_by_student INTEGER NOT NULL DEFAULT 0',
    'ALTER TABLE messages ADD COLUMN read_by_staff INTEGER NOT NULL DEFAULT 0',
    /* What this person is allowed to change, beyond their own students: a
@@ -1789,6 +1792,14 @@ function open(dir) {
     chats(limit) {
       const rows = db.all("SELECT * FROM chats WHERE token > ? ORDER BY last_at desc", '');
       return rows.slice(0, limit || 60);
+    },
+    setChatLead(id, leadId) {
+      db.run('UPDATE chats SET lead_id = ? WHERE id = ?', leadId == null ? null : Number(leadId), Number(id));
+    },
+    /* Patch 325: a WhatsApp chat opened under the number is given the name WhatsApp sends. */
+    setChatName(id, name) {
+      db.run('UPDATE chats SET name = ? WHERE id = ?', String(name || '').slice(0, 120), Number(id));
+      return db.one('SELECT * FROM chats WHERE id = ?', Number(id));
     },
     setChatStatus(id, status) {
       db.run('UPDATE chats SET status = ? WHERE id = ?', String(status), Number(id));

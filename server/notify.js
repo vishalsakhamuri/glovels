@@ -30,14 +30,16 @@
  */
 
 const https = require('https');
+const http = require('http');
 const crypto = require('crypto');
 
 function post(url, token, payload) {
   return new Promise((resolve, reject) => {
     const body = Buffer.from(JSON.stringify(payload));
     const u = new URL(url);
-    const req = https.request({
-      hostname: u.hostname,
+    /* plain http only for a local test stand-in (WHATSAPP_GRAPH=http://localhost:…) */
+    const req = (u.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(u.hostname) ? http : https).request({
+      hostname: u.hostname, port: u.port || undefined,
       path: u.pathname + u.search,
       method: 'POST',
       headers: {
@@ -71,7 +73,7 @@ function open({ mail, config, siteUrl, log = console }) {
      without it a callback cannot be told from anybody's POST. */
   const appSecret = String(cfg.WHATSAPP_APP_SECRET || '').trim();
   const template = cfg.WHATSAPP_TEMPLATE || 'glovels_new_message';
-  const api = 'https://graph.facebook.com/v21.0/' + cfg.WHATSAPP_PHONE_ID + '/messages';
+  const api = String(cfg.WHATSAPP_GRAPH || 'https://graph.facebook.com').replace(/\/+$/, '') + '/v21.0/' + cfg.WHATSAPP_PHONE_ID + '/messages';
 
   async function whatsappText(to, text) {
     if (!waReady) return { ok: false, skipped: 'whatsapp not configured' };
@@ -162,14 +164,46 @@ function open({ mail, config, siteUrl, log = console }) {
       }
       return { ok: false };
     },
-    /** Pull the plain-text replies out of Meta's callback shape. */
+    /** Pull the messages out of Meta's callback shape.
+     *
+     * Patch 325: every message, not only text — a photo, a voice note or a
+     * document from somebody new is still somebody new, so it is kept as a
+     * line saying what it was. Each comes with Meta's message id (callbacks
+     * are retried, and the same message must not be filed twice), the
+     * sender's WhatsApp name when Meta gives it, and `echo` for a message the
+     * office sent from the WhatsApp Business app on the same number (Meta's
+     * "smb_message_echoes", when the number is connected that way). */
     parseWebhook(body) {
       const out = [];
+      const what = m => {
+        const t = m && m.type;
+        if (t === 'text') return String((m.text || {}).body || '');
+        if (t === 'button') return String((m.button || {}).text || '[button]');
+        if (t === 'interactive') { const i = m.interactive || {}; return String((i.button_reply || i.list_reply || {}).title || '[a choice from a list]'); }
+        if (t === 'image') return '[photo]' + ((m.image || {}).caption ? ' ' + m.image.caption : '');
+        if (t === 'document') return '[document' + ((m.document || {}).filename ? ': ' + m.document.filename : '') + ']' + ((m.document || {}).caption ? ' ' + m.document.caption : '');
+        if (t === 'audio') return '[voice note]';
+        if (t === 'video') return '[video]' + ((m.video || {}).caption ? ' ' + m.video.caption : '');
+        if (t === 'sticker') return '[sticker]';
+        if (t === 'location') return '[location]';
+        if (t === 'contacts') return '[a contact card]';
+        if (t === 'reaction') return '';
+        return t ? '[' + t + ']' : '';
+      };
       try {
         (body.entry || []).forEach(e => (e.changes || []).forEach(c => {
-          (c.value && c.value.messages || []).forEach(m => {
-            if (m.type !== 'text') return;
-            out.push({ from: m.from, text: m.text.body, at: m.timestamp });
+          const v = c.value || {};
+          const names = {};
+          (v.contacts || []).forEach(k => { if (k && k.wa_id) names[String(k.wa_id)] = String((k.profile || {}).name || ''); });
+          (v.messages || []).forEach(m => {
+            const text = what(m);
+            if (!text || !m.from) return;
+            out.push({ id: String(m.id || ''), from: String(m.from), name: names[String(m.from)] || '', text, at: m.timestamp, echo: false });
+          });
+          (v.message_echoes || []).forEach(m => {
+            const text = what(m);
+            if (!text || !m.to) return;
+            out.push({ id: String(m.id || ''), from: String(m.to), name: '', text, at: m.timestamp, echo: true });
           });
         }));
       } catch (e) { /* an unexpected shape is not worth crashing over */ }

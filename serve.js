@@ -243,6 +243,15 @@ function withContact(text) {
   const realSend = mail.send.bind(mail);
   mail.send = m => realSend(Object.assign({}, m, { text: withContact(m && m.text), html: withContact(m && m.html), subject: withContact(m && m.subject) }));
 }
+/* Patch 325: Instagram direct messages — the same file or the environment. */
+const instagram = require('./server/instagram.js').open({ config: (() => {
+  const cfg = {};
+  try { fs.readFileSync(MAIL_CFG, 'utf8').split(/\r?\n/).forEach(l => { const t = l.trim(); const i = t.indexOf('='); if (t && !t.startsWith('#') && i > 0) cfg[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }); } catch (e) { /* no file */ }
+  ['INSTAGRAM_TOKEN', 'INSTAGRAM_ACCOUNT_ID', 'INSTAGRAM_APP_SECRET', 'INSTAGRAM_VERIFY_TOKEN', 'INSTAGRAM_GRAPH'].forEach(k => {
+    const v = String(process.env[k] == null ? '' : process.env[k]).trim(); if (v) cfg[k] = v;
+  });
+  return cfg;
+})() });
 const notify = notifier.open({
   mail,
   config: (() => {
@@ -258,7 +267,7 @@ const notify = notifier.open({
     /* The environment wins, as it does for mail: on a host there is no file,
        there is an Environment tab. */
     ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_TEMPLATE', 'WHATSAPP_LANG',
-      'WHATSAPP_VERIFY_TOKEN', 'WHATSAPP_APP_SECRET'].forEach(k => {
+      'WHATSAPP_VERIFY_TOKEN', 'WHATSAPP_APP_SECRET', 'WHATSAPP_GRAPH'].forEach(k => {
       const v = String(process.env[k] == null ? '' : process.env[k]).trim();
       if (v) cfg[k] = v;
     });
@@ -360,7 +369,7 @@ mail.localize = ({ to, subject, text, html }) => {
 };
 const api = makeApi({ leadwatch, guard, turnstile: TURNSTILE, marketing, db, i18n: I18N, translator: TRANSLATOR, uploadDir: UPLOADS, imageDir: IMAGES_DIR, catalogue: liveCatalogue, countries: liveCountries,
   universityRows, bakedIds,
-  mail, notify, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
+  mail, notify, instagram, live, push, siteUrl: SITE_URL, config: CFG, content, backup, traffic,
   /* Round 176: the go-live readiness report, for /api/staff/golive. */
   golive: () => require('./server/golive.js').report({ cfg: CFG, siteUrl: SITE_URL, mail, content, db, backup, dataDir: DATA, gaId: () => gaId() }) });
 
