@@ -548,6 +548,34 @@ async function sendBill(who, fields, name, buf) {
     check('a real PDF with a very long name is kept', bl.status === 200, bl.status + ' ' + JSON.stringify(bl.body).slice(0, 120));
     check('a bill’s edit obeys what its creation obeys: no future date, no absurd amount; and it can be moved off its line and back', (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', date: '2031-01-01' })).status === 422 && (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', amount: 1e30 })).status === 422
       && (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', lineId: null })).body.bill.lineId === null && (await req('a', 'PUT', '/api/staff/finance/bill/' + bl.body.bill.id, { company: 'IN', lineId: lOut.id })).body.bill.lineId === lOut.id);
+
+    /* ---- Patch 315 (owner, 26 Nov): the accountant; the statement file; the lines with what each was;
+            the book against the bank's balances ---- */
+    const acc = await req('a', 'POST', '/api/staff/people', { name: 'Asha Accountant', email: 'accountant@glv-sim.in', password: 'Office-12345!', role: 'editor', perms: ['finance'] });
+    check('an accountant is a website-only account whose one permission is Finance', acc.status === 200 && JSON.stringify(acc.body.person.perms) === '["finance"]' && ((await req('a', 'GET', '/api/staff/people')).body.people.find(p => p.email === 'accountant@glv-sim.in') || {}).level === 'accountant', acc.status + ' ' + JSON.stringify(acc.body.person || acc.body).slice(0, 200));
+    await req('x', 'POST', '/api/auth/login', { email: 'accountant@glv-sim.in', password: 'Office-12345!' });
+    await req('x', 'POST', '/api/auth/change', { password: 'Accountant-2026!' });
+    check('…who reads the books, the lines, the sales and purchases, an invoice and its printed page', (await req('x', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body.purchases.length > 0 && (await req('x', 'GET', '/api/staff/finance/lines?company=IN')).status === 200
+      && (await req('x', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '?company=IN')).status === 200 && (await req('x', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '/print')).status === 200);
+    check('…and nothing else: no students, no leads, no chats, no people, no website', (await req('x', 'GET', '/api/staff/students')).status === 403 && (await req('x', 'GET', '/api/staff/leads')).status === 403 && (await req('x', 'GET', '/api/staff/chats')).status === 403
+      && (await req('x', 'GET', '/api/staff/people')).status === 403 && (await req('x', 'GET', '/api/staff/student/' + anita)).status === 403 && (await req('x', 'PUT', '/api/staff/programme', { id: 'x' })).status === 403);
+    const upF = await upload('a', 'IN', 'kept.pdf', smart([['25/04/2026', ['UPI/KEPT/one'], 111100]], 0));
+    const bF = (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.batches.find(b => b.filename === 'kept.pdf');
+    const ff = await fetch(BASE + '/api/staff/finance/statement/' + bF.id + '/file', { headers: { cookie: jars.x } });
+    const fbuf = Buffer.from(await ff.arrayBuffer());
+    check('the statement file is kept as the bank gave it, and the accountant downloads it', upF.body.added === 1 && bF.hasFile === true && ff.status === 200 && ff.headers.get('content-type') === 'application/pdf' && /attachment/.test(ff.headers.get('content-disposition') || '') && fbuf.slice(0, 5).toString() === '%PDF-', ff.status + ' ' + fbuf.length);
+    check('…not a counsellor; and an older statement says its file was not kept', (await fetch(BASE + '/api/staff/finance/statement/' + bF.id + '/file', { headers: { cookie: jars.c } })).status === 403 && (await req('a', 'GET', '/api/staff/finance/lines?company=IN')).body.batches.every(b => typeof b.hasFile === 'boolean'));
+    const LL = (await req('x', 'GET', '/api/staff/finance/lines?company=IN')).body.lines;
+    check('a matched line says what kind of invoice paid it (student or partner)', LL.some(l => (l.links || []).some(k => k.invoice && k.invoice.kind === 'student' && k.invoice.number)), JSON.stringify((LL.find(l => (l.links || []).length) || {}).links).slice(0, 200));
+    const RB = (await req('x', 'GET', '/api/staff/finance/reconciliation?company=IN')).body.balances;
+    const kb = RB.flatMap(a => a.statements).find(x => x.filename === 'kept.pdf');
+    check('the book is checked against the bank: opening plus in less out is the bank’s closing balance', kb && kb.opening === 0 && kb.moneyIn === 111100 && kb.moneyOut === 0 && kb.computed === 111100 && kb.closing === 111100 && kb.agrees === true && kb.unsorted === 1 && kb.unsortedAmount === 111100, JSON.stringify(kb));
+    const upG = await upload('a', 'IN', 'later.pdf', smart([['10/06/2026', ['UPI/LATER/two'], 5000]], 999));
+    const RB2 = (await req('x', 'GET', '/api/staff/finance/reconciliation?company=IN')).body.balances;
+    const lb = RB2.flatMap(a => a.statements).find(x => x.filename === 'later.pdf');
+    check('a statement that does not start where the last one ended is flagged', upG.body.added === 1 && lb && lb.follows === false && lb.agrees === true && RB2.find(a => a.statements.some(x => x.id === lb.id)).ok === false, JSON.stringify(lb));
+    const rmF = await req('a', 'DELETE', '/api/staff/finance/statement/' + bF.id + '?company=IN');
+    check('removing a statement removes its kept file', rmF.status === 200 && (await fetch(BASE + '/api/staff/finance/statement/' + bF.id + '/file', { headers: { cookie: jars.a } })).status === 404);
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');

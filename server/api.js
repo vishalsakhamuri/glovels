@@ -5708,7 +5708,12 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     .filter((x, i, a) => a.indexOf(x) === i).slice(0, 40).join(',');
   const levelOf = p => p.role === 'admin' ? (Number(p.super) ? 'super' : 'admin')
     : p.role === 'counsellor' ? (Number(p.manager) ? 'country-admin' : 'counsellor')
-    : p.role === 'editor' && String(p.perms || '').split(',').includes('marketing') ? 'marketing' : p.role;
+    : p.role === 'editor' && String(p.perms || '').split(',').includes('marketing') ? 'marketing'
+    /* Patch 315 (owner, 26 Nov: "can I give access to the accountant — accountant
+       only to Finance?"): a website-only account whose one permission is Finance
+       is the accountant: the books, and nothing else on the site. */
+    : p.role === 'editor' && (l => l.includes('finance') && !l.includes('content') && !l.includes('catalogue'))(String(p.perms || '').split(',')) ? 'accountant'
+    : p.role;
 
   /** For routes that read or write a student's own record. */
   const caseworkOnly = handler => staffOnly(async (req, res, s, m) => {
@@ -9208,7 +9213,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     json(res, 200, Object.assign({ ok: true, companies: finCompanies(), kindList: finKinds(), settings: fin.settings()[String(q.get('company') || 'IN').toUpperCase()] || null },
       fin.books(q.get('company') || 'IN', q.get('year') || '')))));
   route('GET', '/api/staff/finance/lines', finAdmin(async (req, res, s, m, q) =>
-    json(res, 200, { ok: true, lines: fin.lines(q.get('company'), { from: q.get('from'), to: q.get('to'), dir: q.get('dir'), state: q.get('state'), account: q.get('account') }), batches: fin.batches(q.get('company')), accounts: fin.accounts(q.get('company')) })));
+    json(res, 200, { ok: true, lines: fin.lines(q.get('company'), { from: q.get('from'), to: q.get('to'), dir: q.get('dir'), state: q.get('state'), account: q.get('account') }), batches: fin.batches(q.get('company')).map(b => Object.assign({}, b, { hasFile: fs.existsSync(stmtFile(b)) })), accounts: fin.accounts(q.get('company')) })));
   route('POST', '/api/staff/finance/statement', finAdmin(async (req, res, s, m, q) => {
     const ct = req.headers['content-type'] || '';
     const bm = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
@@ -9219,7 +9224,29 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     let out;
     try { out = fin.importStatement(parsed.fields.company || q.get('company'), parsed.file.filename, parsed.file.data, s.name); }
     catch (e) { if (e && e.code) throw e; return json(res, 422, { error: e.message }); }
+    /* Patch 315 (owner, 26 Nov): "give access to the accountant so that he can
+       download the bank statement from it". The file the bank gave is kept as
+       it came, beside what was read from it. */
+    if (out.added > 0 && out.batchId) {
+      try {
+        const b0 = fin.batchById(out.batchId);
+        if (b0) { fs.mkdirSync(stmtDir(b0.company), { recursive: true }); fs.writeFileSync(stmtFile(b0), parsed.file.data); }
+      } catch (e) { console.error('  finance: the statement file was not kept — ' + (e && e.message)); }
+    }
     return json(res, 200, Object.assign({ ok: true }, out));
+  }));
+  const stmtDir = company => path.join(uploadDir, 'finance-statements', String(company).toUpperCase() === 'DE' ? 'DE' : 'IN');
+  const stmtExt = b => { const e = (path.extname(String(b.filename || '')) || '').toLowerCase(); return ['.pdf', '.csv', '.xlsx', '.xls', '.txt'].includes(e) ? e : '.pdf'; };
+  const stmtFile = b => path.join(stmtDir(b.company), 'statement-' + Number(b.id) + stmtExt(b));
+  route('GET', /^\/api\/staff\/finance\/statement\/(\d+)\/file$/, finAdmin(async (req, res, s, m) => {
+    const b0 = fin.batchById(m[1]);
+    if (!b0) return json(res, 404, { error: 'No such statement' });
+    const file = stmtFile(b0);
+    if (!fs.existsSync(file)) return json(res, 410, { error: 'That statement was uploaded before the files were kept. Upload it again to keep the file (nothing is added twice).' });
+    const types = { '.pdf': 'application/pdf', '.csv': 'text/csv; charset=utf-8', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xls': 'application/vnd.ms-excel', '.txt': 'text/plain; charset=utf-8' };
+    res.writeHead(200, { 'Content-Type': types[stmtExt(b0)], 'Content-Disposition': 'attachment; filename="' + (String(b0.filename).replace(/[^A-Za-z0-9._ -]/g, '_') || 'statement' + stmtExt(b0)) + '"',
+      'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow' });
+    return fs.createReadStream(file).pipe(res);
   }));
   /* Patch 312: the supplier's bill for a purchase, kept as a file. */
   const billDir = company => path.join(uploadDir, 'finance-bills', String(company).toUpperCase() === 'DE' ? 'DE' : 'IN');
@@ -9276,7 +9303,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   }));
   /* Patch 311: a statement uploaded by mistake comes off whole. */
   route('DELETE', /^\/api\/staff\/finance\/statement\/(\d+)$/, finAdmin(async (req, res, s, m, q) =>
-    json(res, 200, Object.assign({ ok: true }, fin.removeStatement(q.get('company'), m[1], s.name, q.get('force') === '1')))));
+  { const b0 = fin.batchById(m[1]); const gone = fin.removeStatement(q.get('company'), m[1], s.name, q.get('force') === '1'); if (b0) { try { fs.unlinkSync(stmtFile(b0)); } catch (e) { /* no file was kept */ } } return json(res, 200, Object.assign({ ok: true }, gone)); }));
   route('GET', '/api/staff/finance/students', finAdmin(async (req, res) => json(res, 200, { ok: true, students: fin.studentList() })));
   route('POST', /^\/api\/staff\/finance\/invoice\/(\d+)\/cash$/, finAdmin(async (req, res, s, m) => {
     const b = await readJson(req);
@@ -9325,7 +9352,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
 
   /* An invoice as a page. An administrator opens any; a counsellor opens one
      that belongs to a student they can see. */
-  route('GET', /^\/api\/staff\/finance\/invoice\/(\d+)\/print$/, caseworkOnly(async (req, res, s, m) => {
+  route('GET', /^\/api\/staff\/finance\/invoice\/(\d+)\/print$/, staffOnly(async (req, res, s, m) => {
+    /* whoever keeps the books (the accountant is a website-only account), or the student's own counsellor */
+    if (!canFinance(s) && s.role === 'editor') return json(res, 403, { error: 'That account is for the website only. It cannot open student records.' });
     if (!fin.ok()) return json(res, 503, { error: 'Finance is not available on this server.' });
     const inv = fin.invoiceRaw(m[1]);
     if (!inv) return json(res, 404, { error: 'No such invoice' });

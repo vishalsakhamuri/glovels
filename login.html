@@ -328,7 +328,7 @@ function forgotBox(message, bad){
       if (!u || d.mustChange) return;
       const perms = u.perms || [];
       const home = u.role === 'admin' ? 'ops.html'
-        : u.role === 'editor' ? (perms.indexOf('marketing') >= 0 ? 'marketing.html' : perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
+        : u.role === 'editor' ? (perms.indexOf('marketing') >= 0 ? 'marketing.html' : perms.indexOf('content') >= 0 ? 'home.html' : perms.indexOf('finance') >= 0 ? 'finance.html' : 'catalogue.html')
         : u.role === 'counsellor' ? 'counsellor.html'
         : u.role === 'partner' ? 'partner.html' : 'dashboard.html';
       const next = q.get('next');
@@ -480,7 +480,7 @@ function forgotBox(message, bad){
       const who = d.user && d.user.role;
       const pm = (d.user && d.user.perms) || [];
       location.href = who === 'admin' ? 'ops.html'
-        : who === 'editor' ? (pm.indexOf('marketing') >= 0 ? 'marketing.html' : pm.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
+        : who === 'editor' ? (pm.indexOf('marketing') >= 0 ? 'marketing.html' : pm.indexOf('content') >= 0 ? 'home.html' : pm.indexOf('finance') >= 0 ? 'finance.html' : 'catalogue.html')
         : who === 'counsellor' ? 'counsellor.html'
         : who === 'partner' ? 'partner.html' : 'dashboard.html';
     } catch (err) {
@@ -679,7 +679,7 @@ $('#authForm').addEventListener('submit', async e => {
     const perms = (data.user && data.user.perms) || [];
     const home = role === 'admin' ? 'ops.html'
                : role === 'editor'
-                 ? (perms.indexOf('marketing') >= 0 ? 'marketing.html' : perms.indexOf('content') >= 0 ? 'home.html' : 'catalogue.html')
+                 ? (perms.indexOf('marketing') >= 0 ? 'marketing.html' : perms.indexOf('content') >= 0 ? 'home.html' : perms.indexOf('finance') >= 0 ? 'finance.html' : 'catalogue.html')
                : role === 'counsellor' ? 'counsellor.html'
                : role === 'partner' ? 'partner.html'
                : 'dashboard.html';

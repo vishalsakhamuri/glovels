@@ -289,6 +289,7 @@ function open({ db, MONEY, takePayment, log = console }) {
   const accounts = company => F.all('SELECT account, COUNT(*) AS n, MIN(date) AS d_from, MAX(date) AS d_to FROM fin_lines WHERE company = ? GROUP BY account ORDER BY account', co(company).code)
     .map(a => ({ account: a.account, lines: Number(a.n), from: a.d_from, to: a.d_to }));
   const batches = company => F.all('SELECT * FROM fin_batches WHERE company = ? ORDER BY id DESC LIMIT 60', co(company).code);
+  const batchById = id => F.one('SELECT * FROM fin_batches WHERE id = ?', Number(id));
 
   /* ---- lines, and what each is matched to ---- */
   const linksOf = ids => {
@@ -306,7 +307,7 @@ function open({ db, MONEY, takePayment, log = console }) {
     return { id: l.id, date: l.date, description: l.description, ref: l.ref, amount: l.amount, balance: l.balance, account: l.account,
       category: l.category, party: l.party, taxRate: l.tax_rate, note: l.note, state, matched, left: l.category ? 0 : Math.max(0, size - matched),
       links: (links || []).map(k => ({ id: k.id, kind: k.kind, orderRef: k.order_ref, paymentId: k.payment_id, invoiceId: k.invoice_id, amount: k.amount,
-        invoice: k.invoice_id ? ((F.one('SELECT number, party FROM fin_invoices WHERE id = ?', k.invoice_id) || {})) : null })),
+        invoice: k.invoice_id ? ((F.one('SELECT number, party, kind FROM fin_invoices WHERE id = ?', k.invoice_id) || {})) : null })),
       guess: l.category || matched ? '' : ((GUESS.find(g => g[0].test(l.description) && KINDS[g[1]].dir === (l.amount > 0 ? 'in' : 'out')) || [])[1] || '') };
   };
   function lines(company, q) {
@@ -975,12 +976,48 @@ function open({ db, MONEY, takePayment, log = console }) {
     const invRows = F.all("SELECT * FROM fin_invoices WHERE company = ? AND order_ref = '' AND status != 'cancelled' ORDER BY id DESC LIMIT 1000", c.code)
       .map(i => ({ id: i.id, number: i.number, party: i.party, kind: i.kind, date: i.issue_date, due: i.due_date, gross: i.gross, bank: bankOn[i.id] || 0, cash: cashOn[i.id] || 0, unpaid: Math.max(0, i.gross - (bankOn[i.id] || 0) - (cashOn[i.id] || 0)) }));
     const sumI = k => invRows.reduce((a, r) => a + r[k], 0);
-    return { invoices: { rows: invRows.slice(0, 500), gross: sumI('gross'), bank: sumI('bank'), cash: sumI('cash'), unpaid: sumI('unpaid') },
+    /* Patch 315 (owner, 26 Nov): "in Finance we see opening balance and closing
+       balance and match with the bank statement? … everything should match
+       with the bank statement." For each account, statement by statement in
+       date order: the bank's opening balance, the money in and out that is on
+       the book for those days, and whether that arrives at the bank's own
+       closing balance; whether each statement starts where the one before
+       ended; days no statement covers; and how much is still not sorted. */
+    const dayAfter = d => new Date(Date.parse(d + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+    const byAcct = {};
+    F.all('SELECT * FROM fin_batches WHERE company = ? ORDER BY account, d_from, id', c.code).forEach(b => { (byAcct[b.account || ''] || (byAcct[b.account || ''] = [])).push(b); });
+    const balances = Object.keys(byAcct).sort().map(account => {
+      let prev = null;
+      const statements = byAcct[account].map(b => {
+        /* the statement's own lines: the ones it brought, and the ones an earlier statement had already brought */
+        const ls = F.all('SELECT id, amount, category FROM fin_lines WHERE company = ? AND (batch_id = ? OR id IN (SELECT line_id FROM fin_seen WHERE batch_id = ?))', c.code, b.id, b.id);
+        const lk = linksOf(ls.map(x => Number(x.id)));
+        let moneyIn = 0, moneyOut = 0, unsorted = 0, unsortedAmount = 0;
+        ls.forEach(l => {
+          if (l.amount > 0) moneyIn += l.amount; else moneyOut += -l.amount;
+          const used = (lk[l.id] || []).reduce((a, k) => a + k.amount, 0);
+          if (!l.category && used < Math.abs(l.amount)) { unsorted++; unsortedAmount += Math.abs(l.amount) - used; }
+        });
+        const has = b.opening != null && b.closing != null;
+        const computed = has ? Number(b.opening) + moneyIn - moneyOut : null;
+        const row = { id: b.id, filename: b.filename, from: b.d_from, to: b.d_to, opening: b.opening, moneyIn, moneyOut, closing: b.closing, computed, lines: ls.length,
+          /* fewer lines on the book than the statement had: some were taken off with another statement, so the sum cannot be checked */
+          agrees: has && ls.length >= Number(b.n_lines || 0) ? computed === Number(b.closing) : null, difference: has ? computed - Number(b.closing) : null, short: ls.length < Number(b.n_lines || 0),
+          /* does it start where the one before ended? */
+          follows: prev && prev.closing != null && b.opening != null ? Number(prev.closing) === Number(b.opening) : null,
+          gapFrom: prev && b.d_from > dayAfter(prev.d_to) ? dayAfter(prev.d_to) : '', gapTo: prev && b.d_from > dayAfter(prev.d_to) ? new Date(Date.parse(b.d_from + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10) : '',
+          unsorted, unsortedAmount };
+        prev = b;
+        return row;
+      });
+      return { account, statements, ok: statements.every(x => x.agrees !== false && x.follows !== false && !x.gapFrom), sorted: statements.every(x => !x.unsorted) };
+    });
+    return { balances, invoices: { rows: invRows.slice(0, 500), gross: sumI('gross'), bank: sumI('bank'), cash: sumI('cash'), unpaid: sumI('unpaid') },
       payments: { total: mine.length, matched: done, unmatched: unmatched.slice(0, 500), unmatchedAmount: unmatched.reduce((a, p) => a + p.amount, 0) },
       bank: { unmatched: bank.slice(0, 500), unmatchedAmount: bank.reduce((a, l) => a + l.left, 0) } };
   }
 
-  return { ok: () => !!(F && F.ok()), settings, saveSettings, importStatement, removeStatement, updateInvoice, invoiceDetail, addKind, renameKind, removeKind, kindUse, BILL_TYPES, addBill, bills, billRaw, billAny, updateBill, removeBill, cashOnInvoice, undoCash, studentList, batches, accounts, lines, nameLine, match, unmatch, candidates,
+  return { ok: () => !!(F && F.ok()), settings, saveSettings, importStatement, removeStatement, updateInvoice, invoiceDetail, batchById, addKind, renameKind, removeKind, kindUse, BILL_TYPES, addBill, bills, billRaw, billAny, updateBill, removeBill, cashOnInvoice, undoCash, studentList, batches, accounts, lines, nameLine, match, unmatch, candidates,
     invoices, createInvoice, cancelInvoice, invoiceById, invoicesOfStudent, companyOfOrderRef, invoiceRaw, openOrders, books, reconciliation, fmt: (company, minor) => fmt(co(company), minor) };
 }
 

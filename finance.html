@@ -284,7 +284,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       '<div class="card"><h2>Upload a bank statement</h2><p class="sub">The monthly PDF from Axis internet banking (a downloaded statement, not a scan or a photo), one file per account per month — as many accounts as the company has. Uploading the same month twice adds nothing twice. This goes on <b>' + esc(B.settings.name) + '</b>’s book.</p>' +
         '<div class="bar" style="margin:0"><label class="btn pri" style="cursor:pointer">Choose the PDF<input type="file" id="stFile" accept=".pdf,.csv,.xlsx,application/pdf" hidden></label><span id="stSaid" class="muted"></span></div><div id="stOut" style="margin-top:12px"></div></div>' +
       '<div class="card"><div class="bar"><h2 style="margin:0">Statement lines</h2><span class="spacer"></span>' +
-        '<div class="tabs" style="margin:0" id="lf">' + [['todo', 'To sort'], ['done', 'Matched'], ['in', 'Money in'], ['out', 'Money out'], ['all', 'All']].map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (FILTER === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div></div>' +
+        '<div class="tabs" style="margin:0" id="lf">' + [['todo', 'To sort'], ['done', 'Matched'], ['in', 'Money in'], ['out', 'Money out'], ['all', 'All']].map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (FILTER === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div><button type="button" class="btn sm" data-dl="lines" title="Every bank line of the year on screen, with what each one was: expense, student invoice, partner invoice…">Download the lines, with what each was</button></div>' +
         '<div id="accts"></div><div id="lines"><p class="muted">Loading…</p></div></div>';
     loadLines();
   }
@@ -300,7 +300,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     box.innerHTML = '<div class="bar" style="margin:0 0 6px"><b>Bank accounts on this book:</b>' +
       '<select class="sel" id="acctSel"><option value="">All ' + ACCTS.length + ' account' + (ACCTS.length === 1 ? '' : 's') + '</option>' + ACCTS.map(function (a) { return '<option value="' + esc(a.account) + '"' + (ACCT === a.account ? ' selected' : '') + '>Account ' + esc(tail(a.account)) + ' — ' + a.lines + ' lines, ' + esc(a.from) + ' to ' + esc(a.to) + '</option>'; }).join('') + '</select></div>' +
       '<details open style="margin:0 0 4px"><summary class="muted" style="cursor:pointer;font-size:12.5px">Statements uploaded (' + batches.length + ') — a wrong one can be removed here</summary><div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>Uploaded</th><th>File</th><th>Account</th><th>Period</th><th class="r">Opening balance</th><th class="r">Closing balance</th><th class="r">Lines</th><th class="r">New</th><th>By</th><th></th></tr></thead><tbody>' +
-      batches.map(function (b) { return '<tr><td>' + esc(new Date(new Date(b.created_at).getTime() + 330 * 60000).toISOString().slice(0, 10)) + '</td><td style="word-break:break-word">' + esc(b.filename) + '</td><td>' + esc(tail(b.account)) + '</td><td>' + esc(b.d_from) + ' to ' + esc(b.d_to) + '</td><td class="r">' + (b.opening == null ? '—' : money(b.opening)) + '</td><td class="r">' + (b.closing == null ? '—' : money(b.closing)) + '</td><td class="r">' + b.n_lines + '</td><td class="r">' + b.n_new + '</td><td>' + esc(b.by_name) + '</td><td class="r"><button type="button" class="btn sm" data-rmst="' + b.id + '">Remove</button></td></tr>'; }).join('') + '</tbody></table></div></details>';
+      batches.map(function (b) { return '<tr><td>' + esc(new Date(new Date(b.created_at).getTime() + 330 * 60000).toISOString().slice(0, 10)) + '</td><td style="word-break:break-word">' + (b.hasFile ? '<a href="/api/staff/finance/statement/' + b.id + '/file" title="Download the file as the bank gave it">' + esc(b.filename) + '</a>' : esc(b.filename) + ' <span class="muted" title="Uploaded before files were kept. Upload it again to keep the file; nothing is added twice.">(file not kept)</span>') + '</td><td>' + esc(tail(b.account)) + '</td><td>' + esc(b.d_from) + ' to ' + esc(b.d_to) + '</td><td class="r">' + (b.opening == null ? '—' : money(b.opening)) + '</td><td class="r">' + (b.closing == null ? '—' : money(b.closing)) + '</td><td class="r">' + b.n_lines + '</td><td class="r">' + b.n_new + '</td><td>' + esc(b.by_name) + '</td><td class="r"><button type="button" class="btn sm" data-rmst="' + b.id + '">Remove</button></td></tr>'; }).join('') + '</tbody></table></div></details>';
   }
   var pill = function (l) {
     var m = { open: ['pending', 'To sort'], part: ['stale', 'Part matched'], matched: ['checked', 'Matched'], named: ['machine', 'Named'] }[l.state];
@@ -531,6 +531,20 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     api('/api/staff/finance/reconciliation?company=' + CO).then(function (r) {
       var P = r.payments, K = r.bank, I = r.invoices || { rows: [] };
       $('#view').innerHTML = '<div class="kpis"><div class="kpi"><b>' + P.matched + ' / ' + P.total + '</b><span>Student payments found in the bank</span></div><div class="kpi"><b>' + money(P.unmatchedAmount) + '</b><span>Recorded on orders, not yet seen in the bank</span></div><div class="kpi"><b>' + money(K.unmatchedAmount) + '</b><span>In the bank, not yet matched to anything</span></div></div>' +
+        '<div class="card"><h2>Does the book agree with the bank?</h2><p class="sub">Each statement, in date order for each account: the bank’s opening balance, plus the money in and less the money out that is on this book for those days, has to arrive at the bank’s own closing balance. Each statement has to start where the one before ended, with no days missing between them.</p>' +
+        ((r.balances || []).length ? r.balances.map(function (a) {
+          return '<h2 style="margin:14px 0 6px;font-size:15px">Account ••' + esc(String(a.account || '').slice(-4) || '—') + ' ' + (a.ok ? '<span class="pill checked">Agrees with the bank</span>' : '<span class="pill flagged">Look at the rows marked below</span>') + (a.sorted ? ' <span class="pill checked">Every line sorted</span>' : ' <span class="pill stale">Lines still to sort</span>') + '</h2>' +
+            '<div style="overflow-x:auto"><table><thead><tr><th>Statement</th><th>Period</th><th class="r">Opening</th><th class="r">Money in</th><th class="r">Money out</th><th class="r">Should close at</th><th class="r">Bank’s closing</th><th>Check</th><th class="r">Not sorted</th></tr></thead><tbody>' +
+            a.statements.map(function (x) {
+              var notes = [];
+              if (x.gapFrom) notes.push('<span class="pill flagged">No statement for ' + esc(x.gapFrom) + (x.gapTo !== x.gapFrom ? ' to ' + esc(x.gapTo) : '') + '</span>');
+              if (x.follows === false) notes.push('<span class="pill flagged">Does not start where the last one ended</span>');
+              if (x.agrees === false) notes.push('<span class="pill flagged">Out by ' + money(Math.abs(x.difference)) + '</span>');
+              if (x.agrees === null) notes.push('<span class="pill pending">' + (x.short ? 'Some of its lines are no longer on the book: upload it again to check' : 'The bank printed no balance') + '</span>');
+              if (!notes.length) notes.push('<span class="pill checked">Agrees</span>');
+              return '<tr><td style="word-break:break-word">' + esc(x.filename) + '</td><td style="white-space:nowrap">' + esc(x.from) + ' to ' + esc(x.to) + '</td><td class="r">' + (x.opening == null ? '—' : money(x.opening)) + '</td><td class="r">' + money(x.moneyIn) + '</td><td class="r">' + money(x.moneyOut) + '</td><td class="r">' + (x.computed == null ? '—' : money(x.computed)) + '</td><td class="r"><b>' + (x.closing == null ? '—' : money(x.closing)) + '</b></td><td>' + notes.join(' ') + '</td><td class="r">' + (x.unsorted ? '<b style="color:var(--late)">' + x.unsorted + ' line' + (x.unsorted === 1 ? '' : 's') + ' · ' + money(x.unsortedAmount) + '</b>' : '0') + '</td></tr>';
+            }).join('') + '</tbody></table></div>';
+        }).join('') : '<p class="muted" style="margin:0">No statement uploaded yet.</p>') + '</div>' +
         '<div class="card"><h2>Invoices and how each was paid</h2><p class="sub">Invoices that stand on their own (no order on the site behind them). “In the bank” is what a statement line has been matched to; cash is what you marked as cash. Match a line on the Bank tab; mark cash on the Invoices tab.</p>' +
         (I.rows.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Invoice</th><th>Date</th><th>To</th><th class="r">Total</th><th class="r">In the bank</th><th class="r">Cash</th><th class="r">Unpaid</th><th>Due</th></tr></thead><tbody>' + I.rows.map(function (x) { return '<tr><td style="white-space:nowrap"><button type="button" data-iview="' + x.id + '" style="border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);text-decoration:underline;cursor:pointer">' + esc(x.number) + '</button></td><td style="white-space:nowrap">' + esc(x.date) + '</td><td>' + esc(x.party) + '</td><td class="r">' + money(x.gross) + '</td><td class="r">' + (x.bank ? '<span class="pill checked">' + money(x.bank) + '</span>' : money(0)) + '</td><td class="r">' + (x.cash ? '<span class="pill stale">' + money(x.cash) + '</span>' : money(0)) + '</td><td class="r">' + (x.unpaid ? '<b style="color:var(--late)">' + money(x.unpaid) + '</b>' : money(0)) + '</td><td style="white-space:nowrap">' + esc(x.due || '') + '</td></tr>'; }).join('') +
           '<tr><td colspan="3"><b>All</b></td><td class="r"><b>' + money(I.gross) + '</b></td><td class="r"><b>' + money(I.bank) + '</b></td><td class="r"><b>' + money(I.cash) + '</b></td><td class="r"><b>' + money(I.unpaid) + '</b></td><td></td></tr></tbody></table></div>' : '<p class="muted">No invoice of this kind yet.</p>') + '</div>' +
@@ -593,6 +607,28 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     if (t.dataset.rmbill) {
       if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.textContent = 'Remove this bill?'; return; }
       return api('/api/staff/finance/bill/' + t.dataset.rmbill + '?company=' + CO, { method: 'DELETE' }).then(function () { toast('Bill removed.'); return vPurchases(); }).catch(function (er) { toast(er.message, true); });
+    }
+    if (t.dataset.dl === 'lines') {
+      /* Owner, 26 Nov: the accountant should "check each line what it is —
+         expenses, student invoice or B2B invoice". Every line of the year on
+         screen, as the bank wrote it, with what the office said it was. */
+      t.disabled = true;
+      return Promise.all([api('/api/staff/finance/lines?company=' + CO + '&from=' + B.from + '&to=' + B.to), api('/api/staff/finance/bills?' + q())]).then(function (r) {
+        var L = r[0].lines.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id; }), BL = r[1].byLine || {};
+        var type = function (l) {
+          if (l.category) { var k = kindOf(l.category); return k.pl === 'sale' ? 'Sale (no invoice)' : k.pl === 'income' ? 'Other income' : String(k.pl || '').indexOf('cost') === 0 ? 'Expense' : l.amount > 0 ? 'Not income' : 'Not an expense'; }
+          if (!(l.links || []).length) return 'Not sorted yet';
+          var kinds = l.links.map(function (x) { return x.kind === 'invoice' ? (x.invoice && x.invoice.kind === 'partner' ? 'B2B / partner invoice' : x.invoice && x.invoice.kind === 'student' ? 'Student invoice' : 'Other invoice') : 'Student payment (order)'; });
+          return kinds.filter(function (x, i) { return kinds.indexOf(x) === i; }).join(' + ') + (l.state === 'part' ? ' (part matched)' : '');
+        };
+        var what = function (l) {
+          if (l.category) return kindOf(l.category).label;
+          return (l.links || []).map(function (x) { return (x.kind === 'invoice' ? 'Invoice ' + ((x.invoice && x.invoice.number) || '') + ((x.invoice && x.invoice.party) ? ' ' + x.invoice.party : '') : (x.kind === 'payment' ? 'Payment on ' : 'Order ') + x.orderRef) + ' ' + major(x.amount); }).join('; ');
+        };
+        csv('glovels-bank-lines-' + CO + '-' + B.year + '.csv', ['Date', 'Account', 'What the bank says', 'Reference', 'Money in', 'Money out', 'Balance', 'Type', 'What it was', 'Who', B.tax + ' %', 'Note', 'Bills kept'],
+          L.map(function (l) { return [l.date, l.account, l.description, l.ref, l.amount > 0 ? major(l.amount) : '', l.amount < 0 ? major(-l.amount) : '', l.balance == null ? '' : major(l.balance), type(l), what(l), l.party, l.category && l.taxRate ? l.taxRate : '', l.note, (BL[l.id] || []).map(function (b) { return b.filename; }).join('; ')]; }));
+        t.disabled = false;
+      }).catch(function (er) { t.disabled = false; toast(er.message, true); });
     }
     if (t.dataset.dl) {
       /* Owner, 26 Nov: "profit and loss statement and GST returns should be
@@ -688,7 +724,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     ME = me.user || me;
     var perms = ME.perms || [];
     $('#meName').textContent = ME.name || '';
-    $('#meRole').textContent = ME.role === 'admin' ? 'Administrator' : ME.role === 'editor' ? 'Website editor' : 'Counsellor';
+    $('#meRole').textContent = ME.role === 'admin' ? 'Administrator' : ME.role === 'editor' ? (perms.indexOf('finance') >= 0 && perms.indexOf('content') < 0 && perms.indexOf('marketing') < 0 ? 'Accountant' : 'Website editor') : 'Counsellor';
     [].forEach.call(document.querySelectorAll('[data-need]'), function (a) {
       var need = a.dataset.need;
       var ok = ME.role === 'admin' || (need === 'staff' && ME.role !== 'editor') || (need === 'casework' && ME.role !== 'editor') || perms.indexOf(need) >= 0;
