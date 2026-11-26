@@ -2430,6 +2430,24 @@ function open(dir) {
       return db.all('SELECT * FROM programmes WHERE uni_slug = ?', String(slug));
     },
     /** Live rows in these countries — what the matcher works from. */
+    /* Patch 318: rowsForCountries(codes) a slice at a time — the row numbers
+       first (the same statement, so the same rows in the same order), then
+       the rows behind any few hundred of them. For the reader that must let
+       the server answer between slices (server/guides.js). */
+    rowNumbersForCountries(codes) {
+      if (db.kind !== 'sqlite') return null;
+      const cs = [...new Set((codes || []).map(c => String(c || '').toUpperCase()).filter(Boolean))];
+      const w = ['active = 1']; const a = [];
+      if (cs.length) { w.push('country IN (' + cs.map(() => '?').join(',') + ')'); a.push(...cs); }
+      return db.all('SELECT rowid AS n FROM programmes WHERE ' + w.join(' AND '), ...a).map(r => r.n);
+    },
+    rowsByNumbers(numbers) {
+      const ns = (numbers || []).map(Number).filter(Number.isFinite);
+      if (db.kind !== 'sqlite' || !ns.length) return [];
+      const got = new Map(db.all('SELECT rowid AS _n, * FROM programmes WHERE rowid IN (' + ns.map(() => '?').join(',') + ')', ...ns)
+        .map(r => { const n = r._n; delete r._n; return [n, r]; }));
+      return ns.map(n => got.get(n)).filter(Boolean);
+    },
     rowsForCountries(codes, opts) {
       const cs = [...new Set((codes || []).map(c => String(c || '').toUpperCase()).filter(Boolean))];
       /* Patch 179: `levels` narrows to those catalogue levels (lower case) —
@@ -2753,6 +2771,12 @@ function open(dir) {
     },
     /** Every row of one country (or all), for the sheet download. */
     /** Patch 179: one country's rows a slice at a time, in rowsAll's order — the CSV download. */
+    /* Patch 318: every row number of a country in the download's order,
+       read once — rowsAllPage sorted the country again for every slice. */
+    rowNumbersAll(country) {
+      if (db.kind !== 'sqlite') return null;
+      return db.all('SELECT rowid AS n FROM programmes WHERE country = ? ORDER BY university ASC, program ASC, id ASC', String(country)).map(r => r.n);
+    },
     rowsAllPage(country, offset, limit) {
       if (db.kind !== 'sqlite') return this.rowsAll(country).slice(offset, offset + limit);
       return db.all('SELECT * FROM programmes WHERE country = ? ORDER BY university ASC, program ASC, id ASC LIMIT ? OFFSET ?',

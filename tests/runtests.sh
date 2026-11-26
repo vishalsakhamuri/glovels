@@ -354,6 +354,8 @@ node sitemapgatetest.js | tail -1 | sed 's/^/  sitemapgatetest.js /' | tee -a "$
 node trafficslicetest.js | tail -1 | sed 's/^/  trafficslicetest.js /' | tee -a "$REPORT"
 # patch 316: tag searches and the fit test run on a second thread, with the old answers — own two servers (8316, 8317).
 node heavytest.js | tail -1 | sed 's/^/  heavytest.js        /' | tee -a "$REPORT"
+# patch 318: guide pages rebuilt behind the ones being served, hand-added universities ranked on the second thread, the download in slices — own two servers (8318, 8319).
+node guiderebuildtest.js | tail -1 | sed 's/^/  guiderebuildtest.js /' | tee -a "$REPORT"
 # patch 308: Students is in the side menu of every staff screen — reads the pages, no server.
 node navstudentstest.js | tail -1 | sed 's/^/  navstudentstest.js  /' | tee -a "$REPORT"
 # patch 309: Finance — statements (PDF), matching, invoices, the year's books, two companies — own server (8311).

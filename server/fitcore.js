@@ -37,4 +37,4 @@ function rowsSpec(profile) {
   return { countries: cs, levels: levels || null, onSite: false };
 }
 
-module.exports = { compute, rowsSpec };
+module.exports = { compute, rowsSpec, MATCHES };

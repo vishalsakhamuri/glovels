@@ -1466,12 +1466,27 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
      the same one-per-university order the machine's own picks are numbered
      in — or, when the matcher would not pick it, after everything the
      machine delivers. `after` is how many the machine picked this time. */
-  function rankOfficeRows(studentId, profile, catalogue, dismissed, after) {
+  /* Patch 318: the same ordering with the matcher's lists made by the second
+     reader (server/heavy.js) — reading the student's countries here was a
+     second in which the site answered nobody, each time a counsellor added a
+     university by hand. When the reader cannot take it on a big catalogue
+     the row keeps the place it has: the order is cosmetic, the pause is not. */
+  async function rankOfficeRowsOff(studentId, profile, dismissed, after) {
+    const rows = db.getShortlist(studentId).filter(r => r.added_by === 'office');
+    if (!rows.length) return;
+    const kinds = [...new Set(rows.map(r => (r.is_public ? 'public' : 'private')))];
+    const got = await heavyDo('rank', { type: 'rank', prof: profile, kinds, dismissed: (dismissed || []).map(String),
+      countries: JSON.parse(JSON.stringify(countryMap() || {})), rows: FITCORE.rowsSpec(profile) }, () => null);
+    if (got.busy) return;
+    if (!got.value) return rankOfficeRows(studentId, profile, rowsFor(profile), dismissed, after);
+    return rankOfficeRows(studentId, profile, null, dismissed, after, got.value);
+  }
+  function rankOfficeRows(studentId, profile, catalogue, dismissed, after, lists) {
     const rows = db.getShortlist(studentId).filter(r => r.added_by === 'office');
     if (!rows.length) return;
     const skip = new Set((dismissed || []).map(String));
-    const cat = (catalogue || []).filter(p => !skip.has(String(p.id)));
-    const strict = {};
+    const cat = lists ? [] : (catalogue || []).filter(p => !skip.has(String(p.id)));
+    const strict = lists ? Object.assign({}, lists) : {};
     const rankIn = (kind, row) => {
       if (!strict[kind]) {
         try { strict[kind] = MATCHES.pick(cat, profile, 10000, kind, [], countryMap()); } catch (e) { strict[kind] = []; }
@@ -6696,7 +6711,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
          profile, or after the machine's picks (round 165). */
       try {
         const prof = db.getProfile(id);
-        rankOfficeRows(id, prof, rowsFor(prof), typeof db.dismissedFor === 'function' ? db.dismissedFor(id) : [],
+        await rankOfficeRowsOff(id, prof, typeof db.dismissedFor === 'function' ? db.dismissedFor(id) : [],
           db.getShortlist(id).filter(x => x.added_by === 'matched').length);
       } catch (e) { /* the row is on the list; the order is cosmetic */ }
       if (!already) {
@@ -13959,7 +13974,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
        the UK's 34,000 peaked at 500 MB and held the server for seconds — and
        the same rows come back as a CSV file, which Excel opens, instead of a
        page of JSON the office's download link showed raw. */
-    const asCsv = m[1] === 'csv' || n > 20000;
+    /* Patch 318: 3,000 now. An Excel file is built whole, in one go, on the
+       thread that answers every visitor; above a few thousand rows that is a
+       pause the whole site feels. The CSV below is written a slice at a time
+       with the server answering between slices, and Excel opens it. */
+    const asCsv = m[1] === 'csv' || n > 3000;
     /* The whole catalogue as CSV: written one country at a time, so only one
        country's rows are ever in memory. */
     if (asCsv && typeof db.rowsAllPage === 'function') {
@@ -13968,18 +13987,30 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
         'Content-Disposition': `attachment; filename="glovels-catalogue-${stamp}.csv"`,
         'Cache-Control': 'no-store',
       });
-      /* 3,000 rows at a time, a country at a time: the header once, then
-         each slice's lines. Nothing larger than a slice is ever in memory. */
+      /* 400 rows at a time, a country at a time: the header once, then each
+         slice's lines. Nothing larger than a slice is ever in memory.
+         Patch 318: and between slices the server answers whoever is waiting —
+         the whole catalogue was eight seconds of 3,000-row slices back to
+         back, in which nobody else was answered. A download given up halfway
+         stops being written. */
       const codes = country ? [country] : Object.keys(db.countByCountry()).sort();
       res.write(SHEET.writeCsv(headers, []));
+      const STEP = 400;
       for (const code of codes) {
-        for (let off = 0; ; off += 3000) {
-          const slice = db.rowsAllPage(code, off, 3000);
+        /* The country's rows in order, by number, once; then a slice of them at a time. */
+        const numbers = typeof db.rowNumbersAll === 'function' ? db.rowNumbersAll(code) : null;
+        for (let off = 0; ; off += STEP) {
+          if (res.destroyed || res.writableEnded) return;
+          const slice = numbers ? db.rowsByNumbers(numbers.slice(off, off + STEP)) : db.rowsAllPage(code, off, STEP);
           if (!slice.length) break;
           const part = SHEET.writeCsv(headers, sheetRows(code, slice));
           const i = part.indexOf('\r\n');
-          if (i >= 0) res.write(part.slice(i));
-          if (slice.length < 3000) break;
+          const more = i >= 0 ? res.write(part.slice(i)) : true;
+          if (!more) await new Promise(r => { res.once('drain', r); res.once('close', r); });
+          /* Always, not only when the write went straight through: "drain"
+             can come back without the server ever turning to anyone else. */
+          await new Promise(r => setImmediate(r));
+          if (slice.length < STEP) break;
         }
       }
       return res.end();

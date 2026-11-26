@@ -175,9 +175,65 @@ function makeGuides(d) {
   /* -------------------------------------------------- the catalogue */
 
   let CACHE = null;
+  /* Patch 318: THE REBUILD NO VISITOR WAITS FOR.
+   *
+   * These pages were rebuilt on whichever visitor's request came first after
+   * a catalogue change, or after five minutes: every German row read, grouped
+   * and tested, two to three and a half seconds in which the site answered
+   * nobody (six times on 26 Nov, by Render's log). Now the pages already
+   * built go on being served while the new ones are made a slice at a time —
+   * a few hundred rows, then the server answers whoever is waiting, then the
+   * next slice — and the new set takes over when it is whole. Only the very
+   * first build after a start is done in one go (serve.js does it before the
+   * site takes visitors). The slices give the same pages as the one go:
+   * tests/guiderebuildtest.js holds them to it.
+   */
+  let rebuilding = null;
+  const breath = () => new Promise(r => setImmediate(r));
+  async function catalogueSliced(v) {
+    const numbers = typeof db.rowNumbersForCountries === 'function' ? db.rowNumbersForCountries(['DE']) : null;
+    if (!numbers || typeof db.rowsByNumbers !== 'function') return null;   // the file store: built in one go
+    const stamp = new Map(); const by = new Map(); let n = 0;
+    for (let i = 0; i < numbers.length; i += 400) {
+      for (const r of db.rowsByNumbers(numbers.slice(i, i + 400))) {
+        stamp.set(String(r.id), String(r.updated_at || ''));
+        const p = UNIS.fromRow(r);
+        if (String(p.level || '').toLowerCase() === 'master') tagSet(p);   // the row's tags, once, here rather than all at once later
+        UNIS.groupAdd(by, p); n++;
+      }
+      await breath();
+    }
+    let k = 0;
+    for (const u of by.values()) { UNIS.groupFinish(u); if (++k % 20 === 0) await breath(); }
+    const hidden = d.hiddenUniversitySlugs ? d.hiddenUniversitySlugs() : new Set();
+    const unis = UNIS.groupEnd(by).filter(u => !hidden.has(u.slug));
+    const cat = { v, at: Date.now(), unis, stamp, countries: d.liveCountries(), pages: null };
+    cat.pages = await buildPagesSliced(cat);
+    return cat;
+  }
+  let restUntil = 0;
+  function refreshLater(v) {
+    if (rebuilding || Date.now() < restUntil) return;
+    rebuilding = catalogueSliced(v).then(cat => {
+      rebuilding = null;
+      if (cat) CACHE = cat; else CACHE = buildNow(v);
+    }, e => { rebuilding = null; restUntil = Date.now() + 60000;   /* tried again in a minute */
+      try { console.log('guides  the rebuild failed and the pages already built stay: ' + ((e && e.message) || e)); } catch (e2) { /* */ } });
+  }
+  /** For the start (serve.js) and the tests: wait for a rebuild under way. */
+  const settled = () => (rebuilding ? rebuilding.then(() => true, () => true) : Promise.resolve(false));
   function catalogue() {
     const v = typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0;
     if (CACHE && CACHE.v === v && Date.now() - CACHE.at < 5 * 60 * 1000) return CACHE;
+    /* Something is built already: it is served, and the new set is made behind it. */
+    /* A small catalogue is rebuilt in one go as before — it takes no time,
+       and the page then shows the change at once. */
+    const how = String(process.env.GUIDES_REBUILD || '').toLowerCase();
+    if (CACHE && typeof db.rowNumbersForCountries === 'function' && db.kind === 'sqlite'
+      && how !== 'inline' && (how === 'sliced' || CACHE.stamp.size > 5000)) { refreshLater(v); return CACHE; }
+    return buildNow(v);
+  }
+  function buildNow(v) {
     /* Patch 179 (memory): the guides are about Germany, so only Germany's
        rows are read and held. This read every live row in every country —
        seventy thousand once the UK and USA came in — on the first page view
@@ -273,6 +329,22 @@ function makeGuides(d) {
       ['Which universities accept ' + b.short + ' graduates?', 'The universities on this page, in cities such as ' + x.cities + '. A counsellor checks the subjects each programme asks for against your marksheets.'],
     ] }));
 
+  async function buildPagesSliced(cat) {
+    const de = cat.unis.filter(u => String(u.country).toUpperCase() === 'DE');
+    const c = cat.countries.DE || { name: 'Germany' };
+    const out = new Map();
+    for (const g of GUIDE_PAGES) {
+      const hits = []; let k = 0;
+      for (const u of de) {
+        const rows = u.programmes.filter(p => String(p.level || '').toLowerCase() === 'master' && g.test(p, cat.countries));
+        if (rows.length) hits.push({ u, rows });
+        if (++k % 60 === 0) await breath();
+      }
+      out.set(g.path, { g, hits, c, lastmod: lastmodOf(cat, hits.flatMap(h => h.rows)) });
+      await breath();
+    }
+    return out;
+  }
   function buildPages(cat) {
     const de = cat.unis.filter(u => String(u.country).toUpperCase() === 'DE');
     const c = cat.countries.DE || { name: 'Germany' };
@@ -771,7 +843,7 @@ function makeGuides(d) {
     live.forEach(p => out.push({ path: p.g.path, lastmod: p.lastmod }));
     return out;
   }
-  return { css: GUIDE_CSS, route, rebuild, sitemapEntries, sitemapEntriesAsync, guideSitemapEntries, withLinks, progTitleLink, progPath, slugTable, uniAnswer, uniFaq, llmsLines,
+  return { css: GUIDE_CSS, route, rebuild, sitemapEntries, sitemapEntriesAsync, guideSitemapEntries, withLinks, warm: () => { try { catalogue(); } catch (e) { /* no catalogue yet */ } }, settled, progTitleLink, progPath, slugTable, uniAnswer, uniFaq, llmsLines,
     GUIDE_PAGES, isHiddenRow, isLockedUni, landingPage, hubPage, programmePage };
 }
 

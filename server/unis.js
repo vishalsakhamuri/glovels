@@ -99,122 +99,130 @@ const AGGREGATORS = new Set(['daad.de', 'mastersportal.com', 'studyportals.com',
  * The catalogue as universities. Rows the office has switched off are already
  * absent from the catalogue handed in. Sorted by name within country.
  */
+/* Patch 318: the same grouping in three steps — a row added (groupAdd), a
+   university finished (groupFinish), the list put in order (groupEnd) — so a
+   caller with 60,000 rows can do it a slice at a time and let the server
+   answer between slices (server/guides.js). group() is those steps in one go. */
 function group(catalogue) {
   const by = new Map();
-  for (const p of catalogue || []) {
-    if (!p || !p.university) continue;
-    const slug = slugOf(p.university);
-    if (!slug) continue;
-    let u = by.get(slug);
-    if (!u) {
-      u = { slug, name: String(p.university).trim(), shortName: '', city: '', country: p.country || '',
-        isPublic: !!p.isPublic, feeModel: '', url: '', logo: '', programmes: [] };
-      by.set(slug, u);
-    }
-    if (!u.shortName && p.shortName) u.shortName = String(p.shortName).trim();
-    if (!u.city && p.city) u.city = String(p.city).trim();
-    /* Its logo, when logos/ has one — '' otherwise, and the pages draw the
-       initials tile they always did (server/logos.js). */
-    if (!u.logo) u.logo = LOGOS.logoFor(u.name, u.shortName);
-    if (/^https?:\/\//i.test(String(p.url || ''))) {
-      /* Round 169 (WEB-05): counted, not first-come. The university's own
-         site is the registrable domain MOST of its course pages sit on —
-         RWTH's first programme link was femp.org, a joint programme's site,
-         and "fewest dots" chose it over www.rwth-aachen.de. */
-      try {
-        const o = new URL(p.url);
-        const d = registrableDomain(o.hostname);
-        if (d && !AGGREGATORS.has(d)) {
-          u._sites = u._sites || new Map();
-          const s = u._sites.get(d) || { n: 0, origins: new Map() };
-          s.n++;
-          s.origins.set(o.origin, (s.origins.get(o.origin) || 0) + 1);
-          u._sites.set(d, s);
-        }
-      } catch (e) { /* leave it */ }
-    }
-    const fm = p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel
-      : (p.isPublic ? 'package' : 'free');
-    if (!u.feeModel) u.feeModel = fm;
-    u.programmes.push(p);
+  for (const p of catalogue || []) groupAdd(by, p);
+  for (const u of by.values()) groupFinish(u);
+  return groupEnd(by);
+}
+function groupAdd(by, p) {
+  if (!p || !p.university) return;
+  const slug = slugOf(p.university);
+  if (!slug) return;
+  let u = by.get(slug);
+  if (!u) {
+    u = { slug, name: String(p.university).trim(), shortName: '', city: '', country: p.country || '',
+      isPublic: !!p.isPublic, feeModel: '', url: '', logo: '', programmes: [] };
+    by.set(slug, u);
   }
-  const out = [...by.values()];
-  for (const u of out) {
-    /* The most common domain; on a tie, the one whose name shares a word with
-       the university's. Within it, the plainest address — www.x.de over
-       mathinf.x.de — as the home page. */
-    if (u._sites) {
-      /* A domain that carries the university's own name (or its initials —
-         kit.edu, fau.eu, hhu.de) beats a busier one that does not: Bremen
-         UAS lists more courses on a joint-degree site than on hs-bremen.de. */
-      const words = String(u.name + ' ' + u.shortName).replace(/\([^)]*\)/g, ' ').normalize('NFKD').replace(/[̀-ͯ]/g, '')
-        .split(/[^A-Za-z0-9]+/).filter(Boolean);
-      const nameToks = new Set(words.map(w => w.toLowerCase()).filter(w => w.length > 2));
-      const sig = words.filter(w => !/^(of|the|and|for|in|at|de|der|die|des|fur|und|am)$/i.test(w));
-      if (sig.length >= 2) {
-        nameToks.add(sig.map(w => w[0]).join('').toLowerCase());
-        nameToks.add(sig.slice(0, -1).map(w => w[0]).join('').toLowerCase());
+  if (!u.shortName && p.shortName) u.shortName = String(p.shortName).trim();
+  if (!u.city && p.city) u.city = String(p.city).trim();
+  /* Its logo, when logos/ has one — '' otherwise, and the pages draw the
+     initials tile they always did (server/logos.js). */
+  if (!u.logo) u.logo = LOGOS.logoFor(u.name, u.shortName);
+  if (/^https?:\/\//i.test(String(p.url || ''))) {
+    /* Round 169 (WEB-05): counted, not first-come. The university's own
+       site is the registrable domain MOST of its course pages sit on —
+       RWTH's first programme link was femp.org, a joint programme's site,
+       and "fewest dots" chose it over www.rwth-aachen.de. */
+    try {
+      const o = new URL(p.url);
+      const d = registrableDomain(o.hostname);
+      if (d && !AGGREGATORS.has(d)) {
+        u._sites = u._sites || new Map();
+        const s = u._sites.get(d) || { n: 0, origins: new Map() };
+        s.n++;
+        s.origins.set(o.origin, (s.origins.get(o.origin) || 0) + 1);
+        u._sites.set(d, s);
       }
-      /* koeln = köln: umlauts typed out, folded both sides. */
-      const ue = w => w.replace(/ue/g, 'u').replace(/oe/g, 'o').replace(/ae/g, 'a');
-      [...nameToks].forEach(w => nameToks.add(ue(w)));
-      const looksLike = d => d.split(/[.-]/).some(w => nameToks.has(w) || nameToks.has(ue(w))) ? 1 : 0;
-      const [dom, s] = [...u._sites.entries()].sort((a, b) => looksLike(b[0]) - looksLike(a[0]) || b[1].n - a[1].n || a[0].localeCompare(b[0]))[0];
-      const plain = h => { const host = new URL(h).hostname; return host === dom || host === 'www.' + dom ? 0 : (host.match(/\./g) || []).length; };
-      const origin = [...s.origins.keys()].sort((a, b) => plain(a) - plain(b) || a.localeCompare(b))[0];
-      const host = new URL(origin).hostname;
-      /* The home page, not a department's: www.kit.edu, not www.agw.kit.edu. */
-      u.url = host === dom || host === 'www.' + dom ? origin : new URL(origin).protocol + '//www.' + dom;
-      delete u._sites;
-    }
-    /* 22 Oct: a shipped home page beats the guess from the course links;
-       the office's own address (serve.js, x.website) still beats both. */
-    if (builtinWebsite(u.slug)) u.url = builtinWebsite(u.slug);
-    /* The main campus, not the first row's city (patch 145): TUM showed as
-       "Public university in Straubing", WHU as Düsseldorf, TH Köln as
-       Gummersbach. A city named in the university's own name wins; otherwise
-       the city most of its programmes are in. */
-    {
-      const n = new Map();
-      u.programmes.forEach(p => { const c = String(p.city || '').trim(); if (c) n.set(c, (n.get(c) || 0) + 1); });
-      const nameLc = u.name.toLowerCase();
-      const named = [...n.keys()].find(c => nameLc.includes(c.toLowerCase().split(/[\s,(/]/)[0]));
-      const most = [...n.entries()].sort((a, b) => b[1] - a[1])[0];
-      if (named) u.city = named; else if (most) u.city = most[0];
-    }
-    /* On the site — in the finder and on the lists — if ANY of its programmes
-       is. A university whose every programme is search-only is reached from
-       Google and the search box, and from nowhere else. */
-    u.listed = u.programmes.some(p => !p.searchOnly);
-    /* Round 178: an agent-portal import (every row's fee indicative) is
-       stored non-public only so its name is not locked — whether it IS
-       public or private is not known, and no page says either (typeLabel).
-       Its fees are a counsellor's: `feeOnRequest`. */
-    u.typeKnown = u.programmes.some(p => !indicativeRow(p));
-    u.feeOnRequest = !u.typeKnown;
-    if (u.typeKnown) u.isPublic = !!u.programmes.find(p => !indicativeRow(p)).isPublic;
-    /* Round 30 Sep (issue 1): a PRIVATE programme with no fee entered is not
-       free — it is unknown. It is left out of the range, so EBS is not
-       "no tuition on some programmes". */
-    /* Round 178: an indicative (agent-portal) or withheld fee is not a
-       known one — it never reaches the range a public page prints. */
-    const known = u.programmes.filter(p => !p.feeIndicative && !p.feeHidden
-      && (p.isPublic || Number(p.totalInr) > 0 || (p.reqs && p.reqs.tuitionEurSem === 0)));
-    const fees = known.map(p => Number(p.totalInr) || 0);
-    u.feeMin = fees.length ? Math.min(...fees) : null;
-    u.feeMax = fees.length ? Math.max(...fees) : null;
-    u.tuitionFree = known.length ? fees.some(f => f === 0) : false;
-    u.levels = [...new Set(u.programmes.map(p => levelOf(p.level)))];
-    u.fields = [...new Set(u.programmes.map(p => p.field).filter(Boolean))];
-    u.seasons = [...new Set(u.programmes.flatMap(p => (p.intakes || [])
-      .map(i => i && i.season).filter(Boolean)))];
-    const cg = u.programmes.map(p => p.minCgpa).filter(x => x != null && !isNaN(x));
-    u.minCgpa = cg.length ? Math.min(...cg) : null;
-    const gg = u.programmes.map(p => p.germanGpa).filter(x => x != null && !isNaN(x));
-    u.germanGpa = gg.length ? Math.max(...gg) : null;
-    u.programmes.sort((a, b) => String(a.program).localeCompare(String(b.program)));
+    } catch (e) { /* leave it */ }
   }
-  return out.sort((a, b) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name));
+  const fm = p.feeModel === 'free' || p.feeModel === 'package' ? p.feeModel
+    : (p.isPublic ? 'package' : 'free');
+  if (!u.feeModel) u.feeModel = fm;
+  u.programmes.push(p);
+}
+function groupFinish(u) {
+  /* The most common domain; on a tie, the one whose name shares a word with
+     the university's. Within it, the plainest address — www.x.de over
+     mathinf.x.de — as the home page. */
+  if (u._sites) {
+    /* A domain that carries the university's own name (or its initials —
+       kit.edu, fau.eu, hhu.de) beats a busier one that does not: Bremen
+       UAS lists more courses on a joint-degree site than on hs-bremen.de. */
+    const words = String(u.name + ' ' + u.shortName).replace(/\([^)]*\)/g, ' ').normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .split(/[^A-Za-z0-9]+/).filter(Boolean);
+    const nameToks = new Set(words.map(w => w.toLowerCase()).filter(w => w.length > 2));
+    const sig = words.filter(w => !/^(of|the|and|for|in|at|de|der|die|des|fur|und|am)$/i.test(w));
+    if (sig.length >= 2) {
+      nameToks.add(sig.map(w => w[0]).join('').toLowerCase());
+      nameToks.add(sig.slice(0, -1).map(w => w[0]).join('').toLowerCase());
+    }
+    /* koeln = köln: umlauts typed out, folded both sides. */
+    const ue = w => w.replace(/ue/g, 'u').replace(/oe/g, 'o').replace(/ae/g, 'a');
+    [...nameToks].forEach(w => nameToks.add(ue(w)));
+    const looksLike = d => d.split(/[.-]/).some(w => nameToks.has(w) || nameToks.has(ue(w))) ? 1 : 0;
+    const [dom, s] = [...u._sites.entries()].sort((a, b) => looksLike(b[0]) - looksLike(a[0]) || b[1].n - a[1].n || a[0].localeCompare(b[0]))[0];
+    const plain = h => { const host = new URL(h).hostname; return host === dom || host === 'www.' + dom ? 0 : (host.match(/\./g) || []).length; };
+    const origin = [...s.origins.keys()].sort((a, b) => plain(a) - plain(b) || a.localeCompare(b))[0];
+    const host = new URL(origin).hostname;
+    /* The home page, not a department's: www.kit.edu, not www.agw.kit.edu. */
+    u.url = host === dom || host === 'www.' + dom ? origin : new URL(origin).protocol + '//www.' + dom;
+    delete u._sites;
+  }
+  /* 22 Oct: a shipped home page beats the guess from the course links;
+     the office's own address (serve.js, x.website) still beats both. */
+  if (builtinWebsite(u.slug)) u.url = builtinWebsite(u.slug);
+  /* The main campus, not the first row's city (patch 145): TUM showed as
+     "Public university in Straubing", WHU as Düsseldorf, TH Köln as
+     Gummersbach. A city named in the university's own name wins; otherwise
+     the city most of its programmes are in. */
+  {
+    const n = new Map();
+    u.programmes.forEach(p => { const c = String(p.city || '').trim(); if (c) n.set(c, (n.get(c) || 0) + 1); });
+    const nameLc = u.name.toLowerCase();
+    const named = [...n.keys()].find(c => nameLc.includes(c.toLowerCase().split(/[\s,(/]/)[0]));
+    const most = [...n.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (named) u.city = named; else if (most) u.city = most[0];
+  }
+  /* On the site — in the finder and on the lists — if ANY of its programmes
+     is. A university whose every programme is search-only is reached from
+     Google and the search box, and from nowhere else. */
+  u.listed = u.programmes.some(p => !p.searchOnly);
+  /* Round 178: an agent-portal import (every row's fee indicative) is
+     stored non-public only so its name is not locked — whether it IS
+     public or private is not known, and no page says either (typeLabel).
+     Its fees are a counsellor's: `feeOnRequest`. */
+  u.typeKnown = u.programmes.some(p => !indicativeRow(p));
+  u.feeOnRequest = !u.typeKnown;
+  if (u.typeKnown) u.isPublic = !!u.programmes.find(p => !indicativeRow(p)).isPublic;
+  /* Round 30 Sep (issue 1): a PRIVATE programme with no fee entered is not
+     free — it is unknown. It is left out of the range, so EBS is not
+     "no tuition on some programmes". */
+  /* Round 178: an indicative (agent-portal) or withheld fee is not a
+     known one — it never reaches the range a public page prints. */
+  const known = u.programmes.filter(p => !p.feeIndicative && !p.feeHidden
+    && (p.isPublic || Number(p.totalInr) > 0 || (p.reqs && p.reqs.tuitionEurSem === 0)));
+  const fees = known.map(p => Number(p.totalInr) || 0);
+  u.feeMin = fees.length ? Math.min(...fees) : null;
+  u.feeMax = fees.length ? Math.max(...fees) : null;
+  u.tuitionFree = known.length ? fees.some(f => f === 0) : false;
+  u.levels = [...new Set(u.programmes.map(p => levelOf(p.level)))];
+  u.fields = [...new Set(u.programmes.map(p => p.field).filter(Boolean))];
+  u.seasons = [...new Set(u.programmes.flatMap(p => (p.intakes || [])
+    .map(i => i && i.season).filter(Boolean)))];
+  const cg = u.programmes.map(p => p.minCgpa).filter(x => x != null && !isNaN(x));
+  u.minCgpa = cg.length ? Math.min(...cg) : null;
+  const gg = u.programmes.map(p => p.germanGpa).filter(x => x != null && !isNaN(x));
+  u.germanGpa = gg.length ? Math.max(...gg) : null;
+  u.programmes.sort((a, b) => String(a.program).localeCompare(String(b.program)));
+}
+function groupEnd(by) {
+  return [...by.values()].sort((a, b) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name));
 }
 
 const find = (catalogue, slug) => group(catalogue).find(u => u.slug === String(slug)) || null;
@@ -336,4 +344,4 @@ function typeLabel(x) {
   return (x.isPublic || x.is_public) ? 'Public' : 'Private';
 }
 
-module.exports = { usualIntakes, USUAL_INTAKES, slugOf, group, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf, spaceDegree, publicFee, typeLabel, indicativeRow };
+module.exports = { usualIntakes, USUAL_INTAKES, slugOf, group, groupAdd, groupFinish, groupEnd, find, cleanExtras, nextOn, levelOf, money, LEVELS, fromRow, uKeyOf, spaceDegree, publicFee, typeLabel, indicativeRow };

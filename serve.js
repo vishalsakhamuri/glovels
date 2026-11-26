@@ -4465,6 +4465,10 @@ server.keepAliveTimeout = 125 * 1000;
 server.headersTimeout = 126 * 1000;
 server.requestTimeout = 5 * 60 * 1000;
 
+/* Patch 318: the guide pages are built once here, before the site takes its
+   first visitor, so that no visitor's request is the one that builds them.
+   After this they are rebuilt behind the pages already being served. */
+try { if (typeof GUIDES.warm === 'function') GUIDES.warm(); } catch (e) { /* no catalogue yet */ }
 server.listen(PORT, CFG.host, () => {
   backup.schedule();
   /* The real path, not a hard-coded "data/". On a host DATA_DIR is a mounted

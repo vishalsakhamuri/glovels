@@ -109,9 +109,24 @@ function fit(job) {
   return FITCORE.compute(cat, job.prof, job.opts, job.parts, job.countries);
 }
 
+/* The matcher's strict order for a student, per kind — what the office's
+   hand-added rows are ranked against (api.js rankOfficeRows). Only what the
+   ranking reads of each row is sent back. */
+function rank(job) {
+  const skip = new Set((job.dismissed || []).map(String));
+  const cat = rowsFor(job.rows).map(UNIS.fromRow).filter(p => !skip.has(String(p.id)));
+  const out = {};
+  for (const kind of job.kinds || []) {
+    let list = [];
+    try { list = FITCORE.MATCHES.pick(cat, job.prof, 10000, kind, [], job.countries); } catch (e) { list = []; }
+    out[kind] = list.map(p => ({ id: p.id, university: p.university, uKey: p.uKey, city: p.city, isPublic: !!p.isPublic }));
+  }
+  return out;
+}
+
 /* ---------------------------------------------------------------- jobs */
 
-const JOBS = { tags, fit, warm: job => ensureIndex(job.v), ping: () => ({ rows: (all('SELECT COUNT(*) AS n FROM programmes')[0] || {}).n || 0 }) };
+const JOBS = { tags, fit, rank, warm: job => ensureIndex(job.v), ping: () => ({ rows: (all('SELECT COUNT(*) AS n FROM programmes')[0] || {}).n || 0 }) };
 
 parentPort.on('message', m => {
   const at = Date.now();
