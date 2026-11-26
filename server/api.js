@@ -9384,6 +9384,19 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     json(res, 200, { ok: true, line: fin.unmatch(q.get('company'), m[1], m[2]) })));
   route('GET', '/api/staff/finance/reconciliation', finAdmin(async (req, res, s, m, q) =>
     json(res, 200, Object.assign({ ok: true }, fin.reconciliation(q.get('company'))))));
+  /* Patch 322: the customers invoices are raised to. */
+  route('GET', '/api/staff/finance/customers', finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, { ok: true, customers: fin.customers(q.get('company') || 'IN') })));
+  route('POST', '/api/staff/finance/customer', finAdmin(async (req, res, s) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, customer: fin.saveCustomer(b.company || 'IN', null, b, s.name) });
+  }));
+  route('PUT', /^\/api\/staff\/finance\/customer\/(\d+)$/, finAdmin(async (req, res, s, m) => {
+    const b = await readJson(req);
+    return json(res, 200, { ok: true, customer: fin.saveCustomer(b.company || 'IN', m[1], b, s.name) });
+  }));
+  route('DELETE', /^\/api\/staff\/finance\/customer\/(\d+)$/, finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, Object.assign({ ok: true }, fin.removeCustomer(q.get('company') || 'IN', m[1], s.name)))));
   route('GET', '/api/staff/finance/invoices', finAdmin(async (req, res, s, m, q) =>
     json(res, 200, { ok: true, invoices: fin.invoices(q.get('company'), { kind: q.get('kind'), state: q.get('state') }), orders: fin.openOrders(String(q.get('company') || '').toUpperCase()) })));
   route('POST', '/api/staff/finance/invoice', finAdmin(async (req, res, s) => {

@@ -207,7 +207,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
   var monthName = function (m) { return MON[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4); };
   var q = function () { return 'company=' + CO + (YEAR ? '&year=' + YEAR : ''); };
 
-  var STUDENTS = null, INVS = [];
+  var STUDENTS = null, INVS = [], CUSTS = [];
   var students = function () { return STUDENTS ? Promise.resolve(STUDENTS) : api('/api/staff/finance/students').then(function (d) { STUDENTS = d.students || []; return STUDENTS; }); };
   function loadBooks() {
     return api('/api/staff/finance/books?' + q()).then(function (d) {
@@ -506,11 +506,55 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
         $('#iOrder').onchange = function () { $('#iLoose').style.display = this.value.indexOf('s:') === 0 ? '' : 'none'; };
         if (!STUDENTS) students().then(function () { if (KIND === 'student' && $('#iOrder') && !$('#iOrder').value && !$('#iFind').value) form(); }).catch(function () {});
       } else {
-        f.innerHTML = '<div class="bar"><input class="inp" id="iParty" placeholder="' + (KIND === 'partner' ? 'University or partner name' : 'Name') + '"><input class="inp" id="iEmail" placeholder="Email (optional)"><input class="inp" id="iTax" placeholder="Their ' + (CO === 'IN' ? 'GSTIN' : 'VAT ID') + ' (optional)" style="min-width:180px"></div>' +
-          '<div class="bar"><input class="inp" id="iAddr" placeholder="Address (optional)" style="flex:1"></div>' +
+        /* Patch 322: a saved customer fills the invoice; a new one is made in the block under the list. */
+        var kindsOf = { university: 'University', company: 'Company', person: 'Person' };
+        var curSel = function (id, val) { return '<select class="sel" id="' + id + '"><option value="">' + esc(B.currency) + ' \u2014 the book\u2019s own</option>' + (B.fx || []).map(function (x) { return '<option value="' + x.code + '"' + (x.code === val ? ' selected' : '') + '>' + x.code + '</option>'; }).join('') + '</select>'; };
+        f.innerHTML = '<div class="bar"><select class="sel" id="iCust" style="max-width:440px"><option value="">' + (CUSTS.length ? 'Choose a saved customer\u2026 (' + CUSTS.length + ')' : 'No customer saved yet \u2014 add one, or just type below') + '</option>' +
+            CUSTS.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + (x.country ? ' \u2014 ' + esc(x.country) : '') + (x.currency ? ' \u2014 ' + esc(x.currency) : '') + '</option>'; }).join('') + '</select>' +
+            '<button type="button" class="btn sm" id="iCustNew">New customer</button><button type="button" class="btn sm" id="iCustEdit" style="display:none">Change this customer</button></div>' +
+          '<div id="iCustBox" style="display:none;background:#f4f7fb;border-radius:12px;padding:14px 16px;margin:0 0 12px">' +
+            '<b id="cTitle">New customer</b> <span class="muted" style="font-size:12.5px">\u2014 kept for ' + esc(B.settings.name) + '; pick them next time and the invoice fills itself.</span>' +
+            '<div class="bar" style="margin:10px 0 0"><input class="inp" id="cName" placeholder="Name, as it should stand on the invoice" style="flex:2;min-width:240px"><select class="sel" id="cKind">' + Object.keys(kindsOf).map(function (k) { return '<option value="' + k + '">' + kindsOf[k] + '</option>'; }).join('') + '</select><input class="inp" id="cCountry" placeholder="Country" style="min-width:140px"></div>' +
+            '<div class="bar" style="margin:8px 0 0"><textarea class="inp" id="cAddr" rows="4" placeholder="Address \u2014 one line under another, as it should be printed" style="flex:1;min-height:92px;resize:vertical;font:inherit;padding:10px 14px;border-radius:14px"></textarea></div>' +
+            '<div class="bar" style="margin:8px 0 0"><input class="inp" id="cContact" placeholder="Contact person (optional)"><input class="inp" id="cEmail" placeholder="Email for invoices (optional)"><input class="inp" id="cPhone" placeholder="Phone (optional)" style="min-width:150px"></div>' +
+            '<div class="bar" style="margin:8px 0 0"><input class="inp" id="cTax" placeholder="Their tax number: GSTIN, VAT ID\u2026 (optional)" style="min-width:230px"><label class="muted" style="font-size:12px">Invoiced in ' + curSel('cCur', '') + '</label><input class="inp" id="cNote" placeholder="Note for the office, not printed (optional)" style="flex:1"></div>' +
+            '<div class="bar" style="margin:10px 0 0"><button type="button" class="btn pri" id="cSave">Save customer</button><button type="button" class="btn" id="cClose">Close</button><span class="spacer"></span><button type="button" class="btn" id="cDel" style="display:none">Remove this customer</button></div></div>' +
+          '<div class="bar"><input class="inp" id="iParty" placeholder="' + (KIND === 'partner' ? 'University or partner name' : 'Name') + '"><input class="inp" id="iEmail" placeholder="Email (optional)"><input class="inp" id="iTax" placeholder="Their ' + (CO === 'IN' ? 'GSTIN' : 'VAT ID') + ' (optional)" style="min-width:180px"></div>' +
+          '<div class="bar"><textarea class="inp" id="iAddr" rows="2" placeholder="Address (optional) \u2014 one line under another" style="flex:1;min-height:58px;resize:vertical;font:inherit;padding:10px 14px;border-radius:14px"></textarea></div>' +
           '<div id="iRows">' + [0, 1, 2].map(function (i) { return '<div class="bar"><input class="inp" data-it="t" placeholder="' + (i ? 'Another line (optional)' : 'What it is for') + '" style="flex:1"><input class="inp" data-it="a" inputmode="decimal" placeholder="Amount" style="min-width:0;width:140px;text-align:right"></div>'; }).join('') + '</div>' +
           '<div class="bar" style="margin:0"><select class="sel" id="iRate">' + B.rates.map(function (r) { return '<option value="' + r + '">' + (r ? B.tax + ' ' + r + '% (inside the amount)' : 'No ' + B.tax + ' (0%)') + '</option>'; }).join('') + '</select><label class="muted" style="font-size:12px">Invoice date <input class="inp" id="iDate" type="date" title="Invoice date — today if left blank; an earlier date for an invoice of a past month or year" style="min-width:150px"></label><label class="muted" style="font-size:12px">Due <input class="inp" id="iDue" type="date" title="Due date" style="min-width:150px"></label><input class="inp" id="iNote" placeholder="Note on the invoice (optional)" style="flex:1"><button type="button" class="btn pri" id="iGo">Raise it</button></div>';
         if (CO === 'DE') $('#iRate').value = '0';
+        var CEDIT = 0;
+        var byId = function (id) { return CUSTS.filter(function (x) { return String(x.id) === String(id); })[0]; };
+        var setCur = function (code) { var sel = $('#iCur'); if (!sel) return; sel.value = code || ''; sel.onchange(); };
+        var box = function (cu) {
+          CEDIT = cu ? cu.id : 0; $('#iCustBox').style.display = ''; $('#cTitle').textContent = cu ? 'Change ' + cu.name : 'New customer'; $('#cDel').style.display = cu ? '' : 'none';
+          $('#cName').value = cu ? cu.name : $('#iParty').value; $('#cKind').value = cu ? cu.kind : (KIND === 'partner' ? 'university' : 'company'); $('#cCountry').value = cu ? cu.country : '';
+          $('#cAddr').value = cu ? cu.address : $('#iAddr').value; $('#cContact').value = cu ? cu.contact : ''; $('#cEmail').value = cu ? cu.email : $('#iEmail').value; $('#cPhone').value = cu ? cu.phone : '';
+          $('#cTax').value = cu ? cu.taxId : $('#iTax').value; $('#cCur').value = cu ? cu.currency : ($('#iCur') ? $('#iCur').value : ''); $('#cNote').value = cu ? cu.note : ''; $('#cName').focus();
+        };
+        var pickCust = function (id) {
+          var cu = byId(id); $('#iCust').value = cu ? String(cu.id) : ''; $('#iCustEdit').style.display = cu ? '' : 'none';
+          if (!cu) return;
+          $('#iParty').value = cu.name; $('#iEmail').value = cu.email; $('#iTax').value = cu.taxId; $('#iAddr').value = cu.address + (cu.country && cu.address.toLowerCase().indexOf(cu.country.toLowerCase()) < 0 ? (cu.address ? '\n' : '') + cu.country : ''); setCur(cu.currency);
+        };
+        $('#iCust').onchange = function () { $('#iCustBox').style.display = 'none'; pickCust(this.value); };
+        $('#iCustNew').onclick = function () { box(null); };
+        $('#iCustEdit').onclick = function () { box(byId($('#iCust').value)); };
+        $('#cClose').onclick = function () { $('#iCustBox').style.display = 'none'; };
+        $('#cSave').onclick = function () {
+          var b = { company: CO, name: $('#cName').value, kind: $('#cKind').value, country: $('#cCountry').value, address: $('#cAddr').value, contact: $('#cContact').value, email: $('#cEmail').value, phone: $('#cPhone').value, taxId: $('#cTax').value, currency: $('#cCur').value, note: $('#cNote').value };
+          if (!b.name.trim()) return toast('Type the customer\u2019s name.', true);
+          var btn = this; btn.disabled = true;
+          api(CEDIT ? '/api/staff/finance/customer/' + CEDIT : '/api/staff/finance/customer', { method: CEDIT ? 'PUT' : 'POST', body: b }).then(function (d) {
+            toast(d.customer.name + ' saved.'); return api('/api/staff/finance/customers?company=' + CO).then(function (l) { CUSTS = l.customers || []; form(); pickCust(d.customer.id); });
+          }).catch(function (e) { btn.disabled = false; toast(e.message, true); });
+        };
+        $('#cDel').onclick = function () {
+          var cu = byId(CEDIT); if (!cu) return;
+          if (this.dataset.sure !== '1') { this.dataset.sure = '1'; this.textContent = 'Remove ' + cu.name + '? Press again' + (cu.invoices ? ' \u2014 their ' + cu.invoices + ' invoice' + (cu.invoices === 1 ? ' stays' : 's stay') : ''); return; }
+          api('/api/staff/finance/customer/' + cu.id + '?company=' + CO, { method: 'DELETE' }).then(function () { toast(cu.name + ' removed from the customers.'); return api('/api/staff/finance/customers?company=' + CO).then(function (l) { CUSTS = l.customers || []; form(); }); }).catch(function (e) { toast(e.message, true); });
+        };
       }
       var go = $('#iGo');
       if (go) go.onclick = function () {
@@ -523,6 +567,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
           else body.orderRef = pick;
         }
         else {
+          if ($('#iCust') && $('#iCust').value) body.customerId = Number($('#iCust').value);
           body.party = $('#iParty').value; body.email = $('#iEmail').value; body.taxId = $('#iTax').value; body.address = $('#iAddr').value; body.taxRate = Number($('#iRate').value); body.note = $('#iNote').value; body.items = [];
           [].forEach.call(document.querySelectorAll('#iRows .bar'), function (r) { var t = r.querySelector('[data-it="t"]').value.trim(), am = toMinor(r.querySelector('[data-it="a"]').value); if (t && am > 0) body.items.push({ text: t, amount: am }); });
         }
@@ -540,6 +585,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
     $('#ik').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; KIND = b.dataset.k; [].forEach.call(this.children, function (x) { x.setAttribute('aria-pressed', String(x === b)); }); form(); };
     api('/api/staff/finance/invoices?company=' + CO).then(function (d) {
       DATA = d; INVS = d.invoices; form();
+      api('/api/staff/finance/customers?company=' + CO).then(function (l) { CUSTS = l.customers || []; if (KIND !== 'student') form(); }).catch(function () { /* the form works without the list */ });
       var st = { paid: ['checked', 'Paid'], part: ['stale', 'Part paid'], unpaid: ['pending', 'Unpaid'], overdue: ['flagged', 'Overdue'], cancelled: ['skip', 'Cancelled'] };
       $('#ilist').innerHTML = d.invoices.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Number</th><th>Date</th><th>To</th><th>Kind</th><th class="r">Total</th><th class="r">' + B.tax + '</th><th class="r">Received</th><th class="r">Unpaid</th><th>Status</th><th></th></tr></thead><tbody>' +
         d.invoices.map(function (i) { return '<tr><td style="white-space:nowrap"><button type="button" data-iview="' + i.id + '" title="Open this invoice" style="border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);text-decoration:underline;cursor:pointer">' + esc(i.number) + '</button></td><td style="white-space:nowrap">' + esc(i.date) + '</td><td>' + esc(i.party) + (i.orderRef ? '<br><span class="muted">' + esc(i.orderRef) + '</span>' : '') + '</td><td>' + ({ student: 'Student', partner: 'Partner', manual: 'Other' }[i.kind] || '') + '</td><td class="r">' + (i.fx ? fxm(i.fx.currency, i.fx.gross) + '<br><span class="muted" style="font-weight:400">' + (i.adjust ? 'came as ' + money(i.gross + i.adjust) : 'about ' + money(i.gross)) + '</span>' : money(i.gross)) + '</td><td class="r">' + money(i.tax) + '</td><td class="r">' + money(i.paid) + (i.cash ? '<br><span class="muted">cash ' + money(i.cash) + '</span>' : '') + '</td><td class="r">' + money(i.outstanding) + '</td><td><span class="pill ' + st[i.state][0] + '">' + st[i.state][1] + '</span></td><td style="min-width:190px;line-height:2.5"><button type="button" class="btn sm pri" data-iview="' + i.id + '">Open</button> <a class="btn sm" href="/api/staff/finance/invoice/' + i.id + '/print" target="_blank" rel="noopener">Print</a>' + (i.status !== 'cancelled' ? ' <button type="button" class="btn sm" data-iedit="' + i.id + '">Edit</button>' : '') + (i.status !== 'cancelled' && !i.orderRef && i.outstanding > 0 ? ' <button type="button" class="btn sm" data-cash="' + i.id + '" data-owed="' + money(i.outstanding) + '">Paid in cash</button>' : '') + (i.cash ? ' <button type="button" class="btn sm" data-uncash="' + i.id + '">Take cash off</button>' : '') + (i.status !== 'cancelled' ? ' <button type="button" class="btn sm" data-cancel="' + i.id + '" data-num="' + esc(i.number) + '">Cancel</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>'

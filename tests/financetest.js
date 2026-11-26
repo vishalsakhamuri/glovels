@@ -682,6 +682,28 @@ async function sendBill(who, fields, name, buf) {
     const inr = await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'manual', party: 'Plain Rupee Buyer', taxRate: 18, items: [{ text: 'x', amount: 118000 }] });
     check('an invoice in rupees is as before: no foreign amounts', inr.status === 200 && inr.body.invoice.fx === null && inr.body.invoice.adjust === 0 && inr.body.invoice.gross === 118000);
     check('the screen has the currency choice and the settle tick', /id="iCur"/.test(fh) && /data-settle=/.test(fh) && /settles the/.test(fh));
+
+    /* ---- Patch 322: customers, kept once and picked when an invoice is raised ---- */
+    const cu1 = await req('a', 'POST', '/api/staff/finance/customer', { company: 'IN', name: 'Kingsbridge University', kind: 'university', country: 'United Kingdom', address: 'Finance Office\n12 College Road\nLeeds LS2 9JT', contact: 'Ms A. Patel', email: 'ap@kingsbridge.example', phone: '+44 113 000 0000', taxId: 'gb123456789', currency: 'GBP', note: 'pays 30 days' });
+    const C1 = cu1.body.customer || {};
+    check('a customer is saved with name, address, contact, tax number and currency', cu1.status === 200 && C1.id > 0 && C1.name === 'Kingsbridge University' && C1.address.split('\n').length === 3 && C1.taxId === 'GB123456789' && C1.currency === 'GBP' && C1.kind === 'university' && C1.invoices === 0, cu1.status + ' ' + JSON.stringify(cu1.body).slice(0, 200));
+    check('the same name twice is refused, and a name is needed', (await req('a', 'POST', '/api/staff/finance/customer', { company: 'IN', name: 'kingsbridge university' })).status === 409 && (await req('a', 'POST', '/api/staff/finance/customer', { company: 'IN', name: '  ' })).status === 422 && (await req('a', 'POST', '/api/staff/finance/customer', { company: 'IN', name: 'Bad Mail Ltd', email: 'not-an-email' })).status === 422);
+    check('customers are kept per company', (await req('a', 'GET', '/api/staff/finance/customers?company=IN')).body.customers.some(x => x.id === C1.id) && !(await req('a', 'GET', '/api/staff/finance/customers?company=DE')).body.customers.some(x => x.id === C1.id));
+    const ci = await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'partner', customerId: C1.id, taxRate: 0, fxRate: 110, items: [{ text: 'Commission, January intake', amount: 300000 }] });
+    const CI = ci.body.invoice || {};
+    check('an invoice raised to them takes their name, address, tax number and currency from the record', ci.status === 200 && CI.party === 'Kingsbridge University' && /12 College Road/.test(CI.address) && CI.taxId === 'GB123456789' && CI.email === 'ap@kingsbridge.example' && CI.fx && CI.fx.currency === 'GBP' && CI.fx.gross === 300000 && CI.gross === 33000000, ci.status + ' ' + JSON.stringify(ci.body).slice(0, 260));
+    const cip = (await rawGet('a', '/api/staff/finance/invoice/' + CI.id + '/print')).buf.toString();
+    check('and prints the address line under line', /Finance Office<br>12 College Road<br>Leeds LS2 9JT/.test(cip) && /Tax ID GB123456789/.test(cip));
+    const cu2 = await req('a', 'PUT', '/api/staff/finance/customer/' + C1.id, { company: 'IN', name: 'Kingsbridge University', kind: 'university', address: 'New Building\n1 High Street\nLeeds', currency: 'GBP' });
+    const CIafter = ((await req('a', 'GET', '/api/staff/finance/invoices?company=IN')).body.invoices || []).find(i => i.id === CI.id);
+    check('changing the customer later does not rewrite the invoice already raised', cu2.status === 200 && cu2.body.customer.address.indexOf('New Building') === 0 && cu2.body.customer.invoices === 1 && /12 College Road/.test(CIafter.address));
+    check('what is typed on the invoice wins over the record', ((await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'partner', customerId: C1.id, party: 'Kingsbridge University (Leeds campus)', currency: 'INR', taxRate: 18, items: [{ text: 'Workshop', amount: 118000 }] })).body.invoice || {}).party === 'Kingsbridge University (Leeds campus)');
+    check('the accountant sees the customers and cannot change them; a counsellor without Finance sees none', (await req('x', 'GET', '/api/staff/finance/customers?company=IN')).status === 200 && (await req('x', 'POST', '/api/staff/finance/customer', { company: 'IN', name: 'Nope' })).status === 403 && (await req('x', 'DELETE', '/api/staff/finance/customer/' + C1.id + '?company=IN')).status === 403 && (await req('c', 'GET', '/api/staff/finance/customers?company=IN')).status === 403);
+    const cdel = await req('a', 'DELETE', '/api/staff/finance/customer/' + C1.id + '?company=IN');
+    check('a customer can be removed; their invoices stay', cdel.status === 200 && !(await req('a', 'GET', '/api/staff/finance/customers?company=IN')).body.customers.some(x => x.id === C1.id) && ((await req('a', 'GET', '/api/staff/finance/invoices?company=IN')).body.invoices || []).some(i => i.id === CI.id && i.party === 'Kingsbridge University'));
+    check('an invoice to a customer who is gone is refused, not raised to nobody', (await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'partner', customerId: C1.id, taxRate: 0, items: [{ text: 'x', amount: 100 }] })).status === 404);
+    const fh2 = fs.readFileSync(path.join(__dirname, '..', 'finance.html'), 'utf8');
+    check('the screen has the customer picker and the block to add one', /id="iCust"/.test(fh2) && /id="iCustBox"/.test(fh2) && /id="cAddr"/.test(fh2) && /Save customer/.test(fh2));
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');

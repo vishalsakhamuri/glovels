@@ -579,7 +579,7 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
    * is kept as the exchange difference (`adjust`, signed). Take the match
    * off and the estimate stands again.
    */
-  ['fx_currency TEXT NOT NULL DEFAULT \'\'', 'fx_rate REAL NOT NULL DEFAULT 0', 'fx_gross INTEGER NOT NULL DEFAULT 0', 'adjust INTEGER NOT NULL DEFAULT 0']
+  ['customer_id INTEGER', 'fx_currency TEXT NOT NULL DEFAULT \'\'', 'fx_rate REAL NOT NULL DEFAULT 0', 'fx_gross INTEGER NOT NULL DEFAULT 0', 'adjust INTEGER NOT NULL DEFAULT 0']
     .forEach(col => { try { F.run('ALTER TABLE fin_invoices ADD COLUMN ' + col); } catch (e) { /* there already */ } });
   /* What an invoice is to bring in, in the book's currency: its total, moved by any exchange difference it was closed with. */
   const dueOf = inv => Number(inv.gross) + (Number(inv.adjust) || 0);
@@ -611,10 +611,61 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
    *   kind 'student' with orderRef → the order's own name, amount and tax;
    *   kind 'partner' or 'manual'   → party and lines as typed.
    */
+  /* ---- customers (patch 322) ----
+     Owner, 27 Nov: "we should be able to add customer name, address and
+     other details and raise it — a block where we can create a customer."
+     A customer is kept once per company: who they are, where invoices go,
+     their tax number, the currency they are invoiced in. Picking one fills
+     the invoice; the invoice keeps its own copy, so changing a customer
+     later never rewrites an invoice already sent. */
+  const CUSTOMER_KINDS = ['university', 'company', 'person'];
+  const custShape = r => ({ id: r.id, name: r.name, kind: r.kind, contact: r.contact, email: r.email, phone: r.phone, address: r.address, country: r.country,
+    taxId: r.tax_id, currency: r.currency, note: r.note,
+    invoices: Number((F.one('SELECT COUNT(*) AS n FROM fin_invoices WHERE customer_id = ?', r.id) || {}).n) || 0 });
+  const customers = company => F.all('SELECT * FROM fin_customers WHERE company = ? ORDER BY name COLLATE NOCASE', co(company).code).map(custShape);
+  function saveCustomer(company, id, b, who) {
+    const c = co(company);
+    const had = id ? F.one('SELECT * FROM fin_customers WHERE id = ? AND company = ?', Number(id), c.code) : null;
+    if (id && !had) throw bad(404, 'No such customer.');
+    const name = str(b.name, 160);
+    if (!name) throw bad(422, 'The customer\u2019s name is needed.');
+    const twin = F.one('SELECT id FROM fin_customers WHERE company = ? AND LOWER(name) = LOWER(?) AND id != ?', c.code, name, had ? had.id : 0);
+    if (twin) throw bad(409, name + ' is already in the customers of ' + c.label + '.');
+    const email = str(b.email, 160);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad(422, 'That email address does not look right.');
+    const cur = String(b.currency || '').toUpperCase().trim();
+    if (cur && !FX_CURRENCIES.includes(cur)) throw bad(422, 'Invoices can be raised in ' + FX_CURRENCIES.join(', ') + '.');
+    const v = [name, CUSTOMER_KINDS.includes(b.kind) ? b.kind : 'company', str(b.contact, 120), email, str(b.phone, 40), String(b.address || '').trim().slice(0, 400),
+      str(b.country, 60), str(b.taxId, 40).toUpperCase(), cur === c.currency ? '' : cur, String(b.note || '').trim().slice(0, 400)];
+    let rowId;
+    if (had) { F.run('UPDATE fin_customers SET name = ?, kind = ?, contact = ?, email = ?, phone = ?, address = ?, country = ?, tax_id = ?, currency = ?, note = ?, updated_at = ? WHERE id = ?', ...v, iso(), had.id); rowId = had.id; }
+    else rowId = Number(F.run('INSERT INTO fin_customers (company, name, kind, contact, email, phone, address, country, tax_id, currency, note, by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', c.code, ...v, str(who, 80), iso()).lastInsertRowid);
+    try { db.log(who, had ? 'changed a customer' : 'added a customer', c.label + ' \u2014 ' + name); } catch (e) { /* saved */ }
+    return custShape(F.one('SELECT * FROM fin_customers WHERE id = ?', rowId));
+  }
+  function removeCustomer(company, id, who) {
+    const c = co(company), had = F.one('SELECT * FROM fin_customers WHERE id = ? AND company = ?', Number(id), c.code);
+    if (!had) throw bad(404, 'No such customer.');
+    /* their invoices keep their own copy of the name and address, and stay */
+    F.run('UPDATE fin_invoices SET customer_id = NULL WHERE customer_id = ?', had.id);
+    F.run('DELETE FROM fin_customers WHERE id = ?', had.id);
+    try { db.log(who, 'removed a customer', c.label + ' \u2014 ' + had.name + ' (their invoices stay)'); } catch (e) { /* removed */ }
+    return { removed: true };
+  }
+
   function createInvoice(company, b, who) {
     const c = co(company);
     const kind = ['student', 'partner', 'manual'].includes(b.kind) ? b.kind : 'manual';
     let party = str(b.party, 160), email = str(b.email, 160), address = String(b.address || '').slice(0, 400), taxId = str(b.taxId, 40);
+    /* Patch 322: raised to a saved customer — whatever was not typed on the
+       invoice is taken from their record, the currency included. */
+    let customerId = null;
+    if (b.customerId != null && b.customerId !== '') {
+      const cu = F.one('SELECT * FROM fin_customers WHERE id = ? AND company = ?', Number(b.customerId), c.code);
+      if (!cu) throw bad(404, 'That customer is not in the list any more.');
+      customerId = cu.id; party = party || cu.name; email = email || cu.email; address = address || cu.address; taxId = taxId || cu.tax_id;
+      if ((b.currency == null || b.currency === '') && cu.currency) b = Object.assign({}, b, { currency: cu.currency });
+    }
     let items, rate, studentId = null, orderRef = '';
     if (kind === 'student' && b.orderRef) {
       const o = db.orderByReference(String(b.orderRef));
@@ -684,6 +735,7 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
     const r = F.run(`INSERT INTO fin_invoices (company, number, kind, party, email, address, tax_id, student_id, order_ref, issue_date, due_date, currency, lines, net, tax, gross, tax_rate, status, note, by_name, created_at, fx_currency, fx_rate, fx_gross)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`, c.code, number, kind, party, email, address, taxId, studentId, orderRef, date,
       due, c.currency, JSON.stringify(items), gross - tax, tax, gross, rate, str(b.note, 400), str(who, 80), iso(), fxCur, fxRateUsed, fxGross);
+    if (customerId) F.run('UPDATE fin_invoices SET customer_id = ? WHERE id = ?', customerId, Number(r.lastInsertRowid));
     all[c.code] = Object.assign({}, s, { next: n });
     db.setContent('finance', all, who || 'staff');
     try { db.log(who, 'raised an invoice', c.label + ' — ' + number + ' to ' + party + ', ' + (fxCur ? fxMoney(fxCur, fxGross) + ' (about ' + fmt(c, gross) + ' at ' + fxRateUsed + ')' : fmt(c, gross))); } catch (e) { /* the invoice stands */ }
@@ -1106,7 +1158,7 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
       bank: { unmatched: bank.slice(0, 500), unmatchedAmount: bank.reduce((a, l) => a + l.left, 0) } };
   }
 
-  return { ok: () => !!(F && F.ok()), settings, saveSettings, importStatement, removeStatement, updateInvoice, invoiceDetail, batchById, addKind, renameKind, removeKind, kindUse, BILL_TYPES, addBill, bills, billRaw, billAny, updateBill, removeBill, cashOnInvoice, undoCash, studentList, batches, accounts, lines, nameLine, match, unmatch, candidates,
+  return { ok: () => !!(F && F.ok()), customers, saveCustomer, removeCustomer, settings, saveSettings, importStatement, removeStatement, updateInvoice, invoiceDetail, batchById, addKind, renameKind, removeKind, kindUse, BILL_TYPES, addBill, bills, billRaw, billAny, updateBill, removeBill, cashOnInvoice, undoCash, studentList, batches, accounts, lines, nameLine, match, unmatch, candidates,
     invoices, createInvoice, cancelInvoice, invoiceById, invoicesOfStudent, companyOfOrderRef, invoiceRaw, openOrders, books, reconciliation, fmt: (company, minor) => fmt(co(company), minor) };
 }
 
