@@ -43,7 +43,18 @@ const num = v => (v === null || v === undefined || v === '' ? null : (Number.isF
 const reqsOf = p => (p && p.reqs && typeof p.reqs === 'object') ? p.reqs : {};
 const storedTags = p => (Array.isArray(p && p.tags) ? p.tags : []).map(t => T.fold(t));
 const hasStored = (p, tag) => storedTags(p).includes(T.fold(tag));
-const tagSet = p => { try { return new Set(T.tagsOf(p).map(t => T.fold(t))); } catch (e) { return new Set(); } };
+/* Patch 317: a row's tags, worked out once per row. Every "master's after
+   B.Tech in …" page asked each of 60,000 rows for its tags again — the same
+   answer, a dozen times over — and that was most of the two to three seconds
+   the site paused whenever these pages were rebuilt. The rows are made new
+   with each rebuild, so nothing is remembered past its time. */
+const TAGSETS = new WeakMap();
+const tagSet = p => {
+  if (p && typeof p === 'object') { const had = TAGSETS.get(p); if (had) return had; }
+  let s; try { s = new Set(T.tagsOf(p).map(t => T.fold(t))); } catch (e) { s = new Set(); }
+  if (p && typeof p === 'object') TAGSETS.set(p, s);
+  return s;
+};
 
 /* The fee the public may see (find.js owns the flag; the fallback reads the
    same fields, so a missing export never shows an agent's fee). */
