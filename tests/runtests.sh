@@ -359,6 +359,7 @@ node navstudentstest.js | tail -1 | sed 's/^/  navstudentstest.js  /' | tee -a "
 # patch 309: Finance — statements (PDF), matching, invoices, the year's books, two companies — own server (8311).
 node financetest.js | tail -1 | sed 's/^/  financetest.js      /' | tee -a "$REPORT"
 
+node catalogueviewtest.js | tail -1 | sed 's/^/  catalogueviewtest.js /' | tee -a "$REPORT"
 echo "" | tee -a "$REPORT"
 echo "$PASS suite(s) green, $FAIL red" | tee -a "$REPORT"
 exit $FAIL

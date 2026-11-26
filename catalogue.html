@@ -1610,7 +1610,7 @@ async function staffBoot(run) {
     'admin#orders': me.user.role === 'admin',
     'admin#users': me.user.role === 'admin',   // patch 277: the team on its own line
     /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
-    catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',
+    catalogue: perms.indexOf('catalogue') >= 0 || perms.indexOf('catalogue-view') >= 0,
     home: perms.indexOf('content') >= 0,
     'blog-admin': perms.indexOf('content') >= 0,
     languages: perms.indexOf('content') >= 0,
@@ -3224,6 +3224,17 @@ staffBoot(async me => {
    */
   const mayEdit = (me.user.perms || []).indexOf('catalogue') >= 0
     || me.user.role === 'admin';
+  /* Patch 314 (owner, 26 Nov): looking and changing are two tick boxes.
+     With neither, this screen says so and loads nothing. (Shortlisting
+     inside a student's file does not come through here and is untouched.) */
+  const mayView = mayEdit || (me.user.perms || []).indexOf('catalogue-view') >= 0;
+  if (!mayView) {
+    const main0 = document.querySelector('.p-main');
+    if (main0) main0.innerHTML = '<p class="ro-note" style="margin-top:40px"><b>The catalogue is not switched on for your account.</b> '
+      + 'An administrator can give you \u201cUniversities: view\u201d to look things up here, or \u201cUniversities: edit\u201d to change them, '
+      + 'on the Organisation screen.</p>';
+    return;
+  }
   if (!mayEdit) {
     document.body.classList.add('read-only');
     const tab = document.querySelector('.tab[data-t="sheet"]');
@@ -3234,8 +3245,8 @@ staffBoot(async me => {
       note.className = 'ro-note';
       note.innerHTML = 'You can look anything up here. <b>Changing the catalogue</b> \u2014 '
         + 'adding a programme, editing one, or working from the spreadsheet \u2014 needs '
-        + 'permission from an administrator, which is a tick box beside your name on the '
-        + 'Organisation screen.';
+        + '\u201cUniversities: edit\u201d, which an administrator switches on beside your name on the '
+        + 'Organisation screen. You have \u201cUniversities: view\u201d.';
       head.insertBefore(note, head.firstChild);
     }
   }

@@ -1225,7 +1225,7 @@ body.open{overflow:hidden}
     /* Patch 215 (QA): each link only for the permission its screen needs. */
     var pm = u.role === 'admin' ? ['content', 'catalogue', 'marketing'] : (u.perms || []);
     if (pm.indexOf('content') < 0) { $('#navHome').hidden = true; $('#navBlog').hidden = true; $('#navLanguages').hidden = true; }
-    if (pm.indexOf('catalogue') < 0) $('#navCat').hidden = true;
+    if (pm.indexOf('catalogue') < 0 && pm.indexOf('catalogue-view') < 0) $('#navCat').hidden = true;
     if (u.role === 'editor') { document.querySelectorAll('.nav a[href="ops.html"],.nav a[href="counsellor.html"],.nav a[href="chat.html"],.nav a[href="leads.html"],.nav a[href="leads-command.html"]').forEach(function (a) { a.hidden = true; }); }
     else if (u.role === 'admin') { $('#slaBtn').hidden = false; $('#slotsBtn').hidden = false; }
     /* Patch 302: the administrator chooses "Student" or "Applicant" for every staff screen. */

@@ -811,7 +811,7 @@ body.open .drawer{transform:none}
     if (u.role !== 'admin') { $('#navOrg').hidden = true; $('#navOrders').hidden = true; if ($('#navFinance')) $('#navFinance').hidden = (u.perms || []).indexOf('finance') < 0; if ($('#navUsers')) $('#navUsers').hidden = true; }
     var pm = u.role === 'admin' ? ['content', 'catalogue', 'marketing'] : (u.perms || []);
     if (pm.indexOf('content') < 0) { $('#navHome').hidden = true; $('#navBlog').hidden = true; $('#navLanguages').hidden = true; }
-    if (pm.indexOf('catalogue') < 0 && u.role !== 'counsellor') $('#navCat').hidden = true;
+    if (pm.indexOf('catalogue') < 0 && pm.indexOf('catalogue-view') < 0) $('#navCat').hidden = true;
     if (u.role === 'admin') $('#slaBtn').hidden = false;
     paintChime(); paintNotif();
     tick(); setInterval(tick, 15000);

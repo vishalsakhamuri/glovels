@@ -1528,7 +1528,7 @@ async function staffBoot(run) {
     'admin#orders': me.user.role === 'admin',
     'admin#users': me.user.role === 'admin',   // patch 277: the team on its own line
     /* CNS-07 (5): a counsellor reads the catalogue (read-only). */
-    catalogue: perms.indexOf('catalogue') >= 0 || me.user.role === 'counsellor',
+    catalogue: perms.indexOf('catalogue') >= 0 || perms.indexOf('catalogue-view') >= 0,
     home: perms.indexOf('content') >= 0,
     'blog-admin': perms.indexOf('content') >= 0,
     languages: perms.indexOf('content') >= 0,

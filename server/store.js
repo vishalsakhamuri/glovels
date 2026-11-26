@@ -1527,18 +1527,42 @@ function open(dir) {
     setPerms(id, perms) {
       const clean = [...new Set((Array.isArray(perms) ? perms : String(perms || '').split(','))
         .map(x => String(x).trim().toLowerCase())
-        .filter(x => x === 'catalogue' || x === 'content' || x === 'marketing' || x === 'finance'))].sort().join(',');
-      db.run('UPDATE students SET perms = ? WHERE id = ?', clean, Number(id));
-      return clean;
+        .filter(x => x === 'catalogue' || x === 'catalogue-view' || x === 'content' || x === 'marketing' || x === 'finance'))];
+      /* Patch 314 (owner, 26 Nov): "university view and edit should be
+         different roles — they should be able to view, search but cannot
+         edit." Two permissions now: catalogue-view opens the Catalogue screen
+         to look things up; catalogue changes it. Whoever may change it may
+         see it, so edit always carries view. */
+      if (clean.includes('catalogue') && !clean.includes('catalogue-view')) clean.push('catalogue-view');
+      const out = clean.sort().join(',');
+      db.run('UPDATE students SET perms = ? WHERE id = ?', out, Number(id));
+      return out;
+    },
+    /* Until patch 314 every counsellor could open the Catalogue screen to look
+       things up, with no tick box for it. So that nobody loses that on the day
+       the tick box arrives, each counsellor is given "view" once; from then on
+       an administrator can take it away or give it like any other. */
+    migrateCatalogueView() {
+      const flags = this.content('migrations') || {};
+      if (flags.catalogueView314) return 0;
+      let n = 0;
+      db.all("SELECT id, perms FROM students WHERE role = 'counsellor'").forEach(r => {
+        const own = String(r.perms || '').split(',').map(x => x.trim()).filter(Boolean);
+        if (!own.includes('catalogue-view')) { own.push('catalogue-view'); db.run('UPDATE students SET perms = ? WHERE id = ?', own.sort().join(','), Number(r.id)); n++; }
+      });
+      flags.catalogueView314 = new Date().toISOString();
+      this.setContent('migrations', flags, 'system');
+      return n;
     },
     permsOf(person) {
       if (!person) return [];
-      if (person.role === 'admin') return ['catalogue', 'content', 'finance', 'marketing'];
+      if (person.role === 'admin') return ['catalogue', 'catalogue-view', 'content', 'finance', 'marketing'];
       const own = String(person.perms || '').split(',').map(x => x.trim()).filter(Boolean);
       /* Patch 215 (QA): a country admin (a manager with countries) uploads
          their own countries' data — that is the role (owner, patch 211) —
          so the catalogue comes with it; the scope still limits what changes. */
       if (Number(person.manager) === 1 && this.scopeOf(person).length && !own.includes('catalogue')) own.push('catalogue');
+      if (own.includes('catalogue') && !own.includes('catalogue-view')) own.push('catalogue-view');
       return own;
     },
     setRole(id, role) {

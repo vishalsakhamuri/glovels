@@ -1190,9 +1190,14 @@ select.assign.none:hover{border-color:#a5342b}
                 stories and the wording</span></label>
             <label style="display:flex;gap:8px;align-items:flex-start;font:600 12.8px/1.45
               var(--sans);color:var(--navy-800)">
+              <input type="checkbox" id="pPermCatalogueView" style="margin-top:2px" checked>
+              <span>Universities: view &mdash; open the Catalogue screen to look up and search
+                universities and programmes, without changing anything</span></label>
+            <label style="display:flex;gap:8px;align-items:flex-start;font:600 12.8px/1.45
+              var(--sans);color:var(--navy-800);margin-top:8px">
               <input type="checkbox" id="pPermCatalogue" style="margin-top:2px">
-              <span>Universities and destinations &mdash; adding, editing and removing what the
-                finder offers</span></label>
+              <span>Universities: edit &mdash; adding, editing and removing what the
+                finder offers (view comes with it)</span></label>
             <label style="display:flex;gap:8px;align-items:flex-start;font:600 12.8px/1.45
               var(--sans);color:var(--navy-800);margin-top:8px">
               <input type="checkbox" id="pPermMarketing" style="margin-top:2px">
@@ -2383,7 +2388,7 @@ async function staffBoot(run) {
     finance: me.user.role === 'admin' || perms.indexOf('finance') >= 0,   // patch 309, 313: the administrators', and whoever they gave Finance to
     'admin#orders': me.user.role === 'admin',
     'admin#users': me.user.role === 'admin',   // patch 277: the team on its own line
-    catalogue: perms.indexOf('catalogue') >= 0,
+    catalogue: perms.indexOf('catalogue') >= 0 || perms.indexOf('catalogue-view') >= 0,
     home: perms.indexOf('content') >= 0,
     'blog-admin': perms.indexOf('content') >= 0,
     languages: perms.indexOf('content') >= 0,
@@ -2629,7 +2634,8 @@ async function bell(me) {
 let STUDENTS = [], COUNSELLORS = [], PEOPLE = [], ME = 0, filter = '';
 
 /* The two things an account can be trusted with beyond its own students. */
-const PERMS = [['content', 'Home page'], ['catalogue', 'Universities'], ['marketing', 'Marketing'], ['finance', 'Finance']];
+/* Patch 314: looking at the universities and changing them are two switches. */
+const PERMS = [['content', 'Home page'], ['catalogue-view', 'Universities: view'], ['catalogue', 'Universities: edit'], ['marketing', 'Marketing'], ['finance', 'Finance']];
 
 const inr = p => '₹' + Number(p / 100).toLocaleString('en-IN');
 
@@ -4260,6 +4266,7 @@ function openPersonForm() {
   $('#pRole').value = 'counsellor';
   $('#pPermContent').checked = false;
   $('#pPermCatalogue').checked = false;
+  if ($('#pPermCatalogueView')) $('#pPermCatalogueView').checked = true;
   $('#pPermMarketing').checked = false;
   if ($('#pPermFinance')) $('#pPermFinance').checked = false;
   KIND = 'employee'; SCOPE = [];
@@ -4309,6 +4316,7 @@ document.addEventListener('click', async e => {
       kind: KIND, scope: SCOPE.slice(),
       perms: [$('#pPermContent').checked && 'content',
               $('#pPermCatalogue').checked && 'catalogue',
+              $('#pPermCatalogueView') && $('#pPermCatalogueView').checked && 'catalogue-view',
               ($('#pPermMarketing').checked || $('#pRole').value === 'marketing') && 'marketing',
               $('#pPermFinance') && $('#pPermFinance').checked && 'finance'].filter(Boolean),
     };
@@ -4411,13 +4419,20 @@ document.addEventListener('click', async e => {
   if (pm) {
     const p = PEOPLE.find(x => x.id === Number(pm.dataset.perm));
     const key = pm.dataset.key;
-    const next = pm.dataset.on === '1'
+    let next = pm.dataset.on === '1'
       ? p.perms.filter(x => x !== key)
       : p.perms.concat([key]);
+    /* whoever may change the universities may see them: edit on brings view; view off takes edit */
+    if (key === 'catalogue' && pm.dataset.on !== '1' && next.indexOf('catalogue-view') < 0) next = next.concat(['catalogue-view']);
+    if (key === 'catalogue-view' && pm.dataset.on === '1') next = next.filter(x => x !== 'catalogue');
     try {
       await api('PUT', '/api/staff/people/' + p.id + '/perms', { perms: next });
       await paintPeople();
-      toast(key === 'marketing'
+      toast(key === 'catalogue-view'
+        ? p.name + (next.indexOf(key) >= 0 ? ' can now look up and search the universities, and not change them.' : ' can no longer open the Catalogue screen.')
+        : key === 'finance'
+        ? p.name + (next.indexOf(key) >= 0 ? ' can now open Finance.' : ' can no longer open Finance.')
+        : key === 'marketing'
         ? p.name + (next.indexOf(key) >= 0 ? ' can now open Marketing.' : ' can no longer open Marketing.')
         : p.name + (next.indexOf(key) >= 0 ? ' can now change ' : ' can no longer change ') +
           (key === 'content' ? 'the home page.' : 'the universities.'));

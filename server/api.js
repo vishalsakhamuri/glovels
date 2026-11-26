@@ -5664,6 +5664,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
    * given, which starts as nothing.
    */
   const can = (s, perm) => db.permsOf(s).includes(perm);
+  /* after start-up has finished (the first-run seed adds its people before this runs) */
+  setImmediate(() => { try { const moved = db.migrateCatalogueView(); if (moved) console.log('  catalogue: ' + moved + ' counsellor(s) given "Universities: view", which they had without a tick box until now'); } catch (e) { console.error('  catalogue view migration ✗ ' + (e && e.message)); } });
 
   /*
    * Patch 201: who is what.
@@ -11431,6 +11433,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
        the one the role exists for. */
     let perms = Array.isArray(b.perms) ? b.perms : [];
     if (role === 'editor' && !perms.length) perms = ['content'];
+    /* Patch 314: a counsellor looks universities up as part of the work; when nothing is said, they can */
+    if (role === 'counsellor' && !Array.isArray(b.perms)) perms = ['catalogue-view'];
     if (role === 'student') perms = [];
     /* A partner has no permissions inside Glovels at all. Not an empty list
        by accident — an empty list on purpose, because everything they can do
