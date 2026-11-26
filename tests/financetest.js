@@ -733,6 +733,15 @@ async function sendBill(who, fields, name, buf) {
     check('named once, the same payee next month is offered the same name and who it was', nk.status === 200 && k2b.guess === 'salaries' && k2b.guessParty === 'R Karthik' && k2b.guessFrom === 'before' && k2b.category === '', JSON.stringify({ g: k2b.guess, p: k2b.guessParty, f: k2b.guessFrom }));
     check('offered, not applied; and somebody new is still nobody', k2b.state === 'open' && knb.guess === '' && !knb.guessFrom);
     }
+
+    /* ---- Patch 324: the year list runs to 2035 ---- */
+    {
+      const b35 = await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2035');
+      check('the books open for year 2035\u201336, empty and without complaint', b35.status === 200 && b35.body.year === 2035 && b35.body.from === '2035-04-01' && b35.body.to === '2036-03-31' && b35.body.totals.sales === 0, b35.status + ' ' + JSON.stringify({ y: b35.body.year, f: b35.body.from, t: b35.body.to }));
+      const p35 = await req('a', 'GET', '/api/staff/finance/pack?company=IN&year=2035');
+      check('and so does the accountant\u2019s pack for it', p35.status === 200 && p35.body.ready === false && p35.body.months.length === 12);
+      check('the screen lists the years up to 2035', /Math\.max\(now \+ 1, 2035\)/.test(fs.readFileSync(path.join(__dirname, '..', 'finance.html'), 'utf8')));
+    }
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');

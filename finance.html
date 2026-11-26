@@ -224,7 +224,8 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       sel.innerHTML = d.companies.map(function (c) { return '<option value="' + c.code + '"' + (c.code === CO ? ' selected' : '') + '>' + esc(c.label) + ' — ' + c.currency + ', ' + c.tax + '</option>'; }).join('');
       var ys = [], now = new Date().getFullYear();
       var first = Math.min(now - 4, d.statement.from ? Number(d.statement.from.slice(0, 4)) - 1 : now);
-      for (var y = now + 1; y >= first; y--) ys.push(y);
+      /* Patch 324 (owner, 27 Nov: "have this until 2035"): the years run to 2035, and a year past it as the calendar gets there. */
+      for (var y = Math.max(now + 1, 2035); y >= first; y--) ys.push(y);
       $('#year').innerHTML = ys.map(function (y) { var lab = d.company === 'IN' ? y + '–' + String(y + 1).slice(2) : String(y); return '<option value="' + y + '"' + (y === d.year ? ' selected' : '') + '>' + (d.company === 'IN' ? 'Year ' : '') + lab + '</option>'; }).join('');
       YEAR = d.year;
       $('#nTodo').textContent = d.todo.lines ? '(' + d.todo.lines + ')' : '';
