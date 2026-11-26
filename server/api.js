@@ -9202,7 +9202,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
    * names one.
    * ==================================================================== */
   const FIN = require('./finance.js');
-  const fin = FIN.open({ db, MONEY, takePayment, log: console });
+  /* Patch 321: the day's rate for an invoice in another currency — how many of
+     the book's currency one of the other is worth, from the site's own rates
+     (FX.rates(): rupees per unit). The office can type its own over it. */
+  const finFxRate = (cur, book) => { const r = FX.rates() || {}; const a = Number(r[cur]), b = Number(r[book]); return a > 0 && b > 0 ? Math.round(a / b * 10000) / 10000 : 0; };
+  const fin = FIN.open({ db, MONEY, takePayment, log: console, fxRate: finFxRate });
   /* Patch 313 (owner, 26 Nov): "the Finance tab is only available to admin,
      and this should also be given as an extra role to the user — a few
      counsellors may have it; we should be able to give it." Finance is the
@@ -9233,7 +9237,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   const finCompanies = () => Object.keys(FIN.COMPANIES).map(k => { const c = FIN.COMPANIES[k]; return { code: c.code, label: c.label, currency: c.currency, symbol: c.symbol, locale: c.locale, tax: c.tax, rates: c.rates }; });
 
   route('GET', '/api/staff/finance/books', finAdmin(async (req, res, s, m, q) =>
-    json(res, 200, Object.assign({ ok: true, readOnly: isAccountant(s), companies: finCompanies(), kindList: finKinds(), settings: fin.settings()[String(q.get('company') || 'IN').toUpperCase()] || null },
+    json(res, 200, Object.assign({ ok: true, readOnly: isAccountant(s), fx: (c0 => FIN.FX_CURRENCIES.filter(x => x !== c0).map(x => ({ code: x, rate: finFxRate(x, c0) })))(FIN.COMPANIES[String(q.get('company') || 'IN').toUpperCase() === 'DE' ? 'DE' : 'IN'].currency), companies: finCompanies(), kindList: finKinds(), settings: fin.settings()[String(q.get('company') || 'IN').toUpperCase()] || null },
       fin.books(q.get('company') || 'IN', q.get('year') || '')))));
   route('GET', '/api/staff/finance/lines', finAdmin(async (req, res, s, m, q) =>
     json(res, 200, { ok: true, lines: fin.lines(q.get('company'), { from: q.get('from'), to: q.get('to'), dir: q.get('dir'), state: q.get('state'), account: q.get('account') }), batches: fin.batches(q.get('company')).map(b => Object.assign({}, b, { hasFile: fs.existsSync(stmtFile(b)) })), accounts: fin.accounts(q.get('company')) })));

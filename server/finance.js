@@ -71,6 +71,10 @@ const KINDS = {
   'transfer-out': { dir: 'out', label: 'Transfer to our own account', pl: '' },
 };
 /* A first guess from the bank's words, offered and never applied without a click. */
+/* Patch 321: the currencies an invoice can be written in besides the book's own. */
+const FX_CURRENCIES = ['INR', 'EUR', 'GBP', 'USD', 'AUD', 'CAD', 'CHF', 'SGD', 'AED', 'NZD'];
+const FX_SYMBOL = { INR: '\u20b9', EUR: '\u20ac', GBP: '\u00a3', USD: 'US$', AUD: 'A$', CAD: 'C$', CHF: 'CHF ', SGD: 'S$', AED: 'AED ', NZD: 'NZ$' };
+const fxMoney = (cur, minor) => (FX_SYMBOL[cur] || cur + ' ') + (Math.round(minor) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 /* Words in a name that do not tell one customer from another. */
 const COMMON_WORDS = new Set(('private limited pvt ltd llp company corp corporation india indian services service solutions consultants consultancy consulting technologies technology enterprises enterprise traders trading '
   + 'international global group associates agency agencies education educational overseas academy institute foundation trust loans finance financial payments payment forex bank '
@@ -114,7 +118,7 @@ const amt = (v, what) => {
 /* a date the caller typed: the day itself, or a refusal — never silently today */
 const dayOr = (v, what, fallback) => { if (v == null || v === '') return fallback; if (!isDay(v)) throw bad(422, what + ' is not a date. Use the calendar, or YYYY-MM-DD.'); return String(v); };
 
-function open({ db, MONEY, takePayment, log = console }) {
+function open({ db, MONEY, takePayment, log = console, fxRate }) {
   const F = db.fin;
   const co = c => { const x = COMPANIES[String(c || '').toUpperCase()]; if (!x) throw bad(422, 'Choose the company: India or Germany.'); return x; };
 
@@ -281,6 +285,7 @@ function open({ db, MONEY, takePayment, log = console }) {
       /* a bill kept against one of these lines is not lost with the statement: it stands on its own */
       try { F.run('UPDATE fin_bills SET line_id = NULL WHERE line_id IN (' + part + ')'); } catch (e) { /* no bills table yet */ }
       F.run('DELETE FROM fin_lines WHERE id IN (' + part + ')');
+      reopenFx();
     }
     kept.forEach(id => { F.run('UPDATE fin_lines SET batch_id = ? WHERE id = ?', keep[id], id); F.run('DELETE FROM fin_seen WHERE batch_id = ? AND line_id = ?', keep[id], id); });
     F.run('DELETE FROM fin_seen WHERE batch_id = ?', b.id);
@@ -397,10 +402,15 @@ function open({ db, MONEY, takePayment, log = console }) {
         const inv = F.one('SELECT * FROM fin_invoices WHERE id = ? AND company = ?', Number(t.id), c.code);
         if (!inv || inv.status === 'cancelled') throw bad(404, 'No such open invoice.');
         if (inv.order_ref) throw bad(422, 'That invoice is for a student’s order — match the money to the order itself.');
-        const owed = inv.gross - paidOnInvoice(inv);
+        const owed = dueOf(inv) - paidOnInvoice(inv);
         const amount = amt(t.amount, 'The amount for invoice ' + inv.number);
-        if (amount > owed) throw bad(422, 'Only ' + fmt(c, owed) + ' is unpaid on invoice ' + inv.number + '.');
-        return { type, invoice: inv, amount };
+        /* A foreign-currency invoice is closed by what the bank credited,
+           more or less than the estimate: `settle` says this money is all of it. */
+        const settle = !!inv.fx_currency && t.settle === true;
+        if (settle && owed <= 0) throw bad(409, 'Invoice ' + inv.number + ' is already paid in full.');
+        if (!settle && amount > owed) throw bad(422, 'Only ' + fmt(c, owed) + ' is unpaid on invoice ' + inv.number + '.'
+          + (inv.fx_currency ? ' If this money is the whole of the ' + inv.fx_currency + ' invoice, tick \u201cthis settles it in full\u201d.' : ''));
+        return { type, invoice: inv, amount, settle };
       }
       if (type === 'student') {
         /* Owner, 26 Nov: "I cannot add student payment to the bank line". A
@@ -439,6 +449,12 @@ function open({ db, MONEY, takePayment, log = console }) {
       }
       F.run('INSERT INTO fin_links (line_id, kind, order_ref, payment_id, invoice_id, amount, by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         l.id, p.type === 'student' ? 'invoice' : p.type, p.order ? p.order.reference : '', paymentId, p.invoice ? p.invoice.id : null, p.amount, str(staff && staff.name, 80), iso());
+      /* Patch 321: a foreign-currency invoice closed by this money — what the
+         bank credited is the conversion; the difference from the estimate is kept. */
+      if (p.settle && p.invoice) {
+        const row = F.one('SELECT * FROM fin_invoices WHERE id = ?', p.invoice.id);
+        F.run('UPDATE fin_invoices SET adjust = ? WHERE id = ?', paidOnInvoice(row) - Number(row.gross), row.id);
+      }
       done.push({ type: p.type, ref: p.order ? p.order.reference : p.invoice ? p.invoice.number : '', amount: p.amount });
     });
     return { line: shape(F.one('SELECT * FROM fin_lines WHERE id = ?', l.id), F.all('SELECT * FROM fin_links WHERE line_id = ? ORDER BY id', l.id)), done };
@@ -447,6 +463,10 @@ function open({ db, MONEY, takePayment, log = console }) {
      money. When the match is taken off, or the statement removed, and nothing
      else has been received on it, it is cancelled rather than left as a debt
      the student never had. Its number is not reused. */
+  /* A foreign invoice whose closing money has been taken away (a match taken
+     off, a statement removed, cash undone) is open again at its estimate:
+     an exchange difference only exists while the money that made it does. */
+  const reopenFx = () => { try { F.run("UPDATE fin_invoices SET adjust = 0 WHERE adjust != 0 AND (gross + adjust) != (SELECT COALESCE(SUM(amount), 0) FROM fin_links WHERE invoice_id = fin_invoices.id AND kind IN ('invoice', 'cash'))"); } catch (e) { /* nothing to reopen */ } };
   const AUTO_NOTE = 'Raised for the bank receipt of ';
   const autoCancel = (invoiceIds, who) => {
     (invoiceIds || []).forEach(id => {
@@ -471,6 +491,7 @@ function open({ db, MONEY, takePayment, log = console }) {
        bank line must not quietly change what a student has been told they
        paid. */
     F.run('DELETE FROM fin_links WHERE id = ?', k.id);
+    reopenFx();
     if (k.kind === 'invoice' && k.invoice_id) autoCancel([Number(k.invoice_id)], 'finance');
     if (k.kind === 'order') { try { db.log('finance', 'took a bank match off', k.order_ref + ' \u2014 line of ' + l.date + '; the payment stays on the order'); } catch (e) { /* done */ } }
     return shape(F.one('SELECT * FROM fin_lines WHERE id = ?', l.id), F.all('SELECT * FROM fin_links WHERE line_id = ? ORDER BY id', l.id));
@@ -544,14 +565,37 @@ function open({ db, MONEY, takePayment, log = console }) {
     const r = F.one('SELECT COALESCE(SUM(amount), 0) AS s FROM fin_links WHERE kind IN (\'invoice\', \'cash\') AND invoice_id = ?', inv.id);
     return Number(r && r.s) || 0;
   };
+  /* Patch 321: AN INVOICE IN POUNDS, EUROS OR DOLLARS (owner, 27 Nov: "we also
+   * need to raise invoice in GBP, EUR, USD … we may receive in INR … we need
+   * to reconcile the same … once you reconcile, currency conversion is
+   * automatically done").
+   *
+   * The invoice is written in the buyer's currency; the book stays in the
+   * company's. Each line keeps both amounts: what was invoiced (fx, in the
+   * foreign currency) and its value in the book's currency at the day's rate
+   * — an estimate until the money comes. When the bank line that paid it is
+   * matched, what the bank actually credited IS the conversion: the invoice
+   * is closed in full at that figure, and the difference from the estimate
+   * is kept as the exchange difference (`adjust`, signed). Take the match
+   * off and the estimate stands again.
+   */
+  ['fx_currency TEXT NOT NULL DEFAULT \'\'', 'fx_rate REAL NOT NULL DEFAULT 0', 'fx_gross INTEGER NOT NULL DEFAULT 0', 'adjust INTEGER NOT NULL DEFAULT 0']
+    .forEach(col => { try { F.run('ALTER TABLE fin_invoices ADD COLUMN ' + col); } catch (e) { /* there already */ } });
+  /* What an invoice is to bring in, in the book's currency: its total, moved by any exchange difference it was closed with. */
+  const dueOf = inv => Number(inv.gross) + (Number(inv.adjust) || 0);
+  const fxOf = inv => (inv.fx_currency ? { currency: inv.fx_currency, rate: Number(inv.fx_rate) || 0, gross: Number(inv.fx_gross) || 0,
+    tax: taxIn(Number(inv.fx_gross) || 0, inv.tax_rate), net: (Number(inv.fx_gross) || 0) - taxIn(Number(inv.fx_gross) || 0, inv.tax_rate) } : null);
   const invShape = inv => {
     const paid = paidOnInvoice(inv);
     let items = []; try { items = JSON.parse(inv.lines || '[]'); } catch (e) { items = []; }
     return { id: inv.id, number: inv.number, kind: inv.kind, party: inv.party, email: inv.email, address: inv.address, taxId: inv.tax_id, studentId: inv.student_id, orderRef: inv.order_ref,
       date: inv.issue_date, due: inv.due_date, currency: inv.currency, items, net: inv.net, tax: inv.tax, gross: inv.gross, taxRate: inv.tax_rate, note: inv.note,
       cash: inv.order_ref ? 0 : Number((F.one('SELECT COALESCE(SUM(amount), 0) AS s FROM fin_links WHERE kind = \'cash\' AND invoice_id = ?', inv.id) || {}).s) || 0,
-      status: inv.status, paid, outstanding: inv.status === 'cancelled' ? 0 : Math.max(0, inv.gross - paid),
-      state: inv.status === 'cancelled' ? 'cancelled' : paid >= inv.gross ? 'paid' : paid > 0 ? 'part' : (inv.due_date && inv.due_date < today() ? 'overdue' : 'unpaid') };
+      fx: fxOf(inv), adjust: Number(inv.adjust) || 0,
+      /* the rate the money actually came at, once it has: received ÷ invoiced */
+      fxRealised: inv.fx_currency && Number(inv.adjust) && Number(inv.fx_gross) ? Math.round(dueOf(inv) / Number(inv.fx_gross) * 10000) / 10000 : 0,
+      status: inv.status, paid, outstanding: inv.status === 'cancelled' ? 0 : Math.max(0, dueOf(inv) - paid),
+      state: inv.status === 'cancelled' ? 'cancelled' : paid >= dueOf(inv) ? 'paid' : paid > 0 ? 'part' : (inv.due_date && inv.due_date < today() ? 'overdue' : 'unpaid') };
   };
   function invoices(company, q) {
     const c = co(company); q = q || {};
@@ -613,6 +657,21 @@ function open({ db, MONEY, takePayment, log = console }) {
       if (!items.length) throw bad(422, 'At least one line: what it is for, and the amount.');
       if (!party) throw bad(422, 'Who is the invoice to?');
     }
+    /* Patch 321: in another currency. The amounts typed are in that currency;
+       each line is valued in the book's currency at the rate given (or the
+       site's rate for the day), so the lines add up to the total in both. */
+    let fxCur = '', fxRateUsed = 0, fxGross = 0;
+    const wantCur = String(b.currency || '').toUpperCase().trim();
+    if (wantCur && wantCur !== c.currency) {
+      if (orderRef) throw bad(422, 'An order\u2019s invoice is in the order\u2019s own currency.');
+      if (!FX_CURRENCIES.includes(wantCur)) throw bad(422, 'Invoices can be raised in ' + c.currency + ', ' + FX_CURRENCIES.filter(x => x !== c.currency).join(', ') + '.');
+      let r = Number(b.fxRate);
+      if (!(r > 0)) { try { r = Number(typeof fxRate === 'function' ? fxRate(wantCur, c.currency) : 0); } catch (e) { r = 0; } }
+      if (!(r > 0) || r > 100000) throw bad(422, 'Give the rate: how many ' + c.currency + ' one ' + wantCur + ' is worth today.');
+      fxCur = wantCur; fxRateUsed = Math.round(r * 10000) / 10000;
+      items = items.map(i => ({ text: i.text, amount: Math.round(i.amount * fxRateUsed), fx: i.amount }));
+      fxGross = items.reduce((a, i) => a + i.fx, 0);
+    }
     const gross = items.reduce((a, i) => a + i.amount, 0);
     const tax = taxIn(gross, rate);
     const date = dayOr(b.date, 'The invoice date', today());
@@ -622,12 +681,12 @@ function open({ db, MONEY, takePayment, log = console }) {
     const all = db.content('finance') || {}, s = settings()[c.code];
     let n = s.next, number;
     do { number = s.series + String(n).padStart(4, '0'); n++; } while (F.one('SELECT 1 AS x FROM fin_invoices WHERE company = ? AND number = ?', c.code, number));
-    const r = F.run(`INSERT INTO fin_invoices (company, number, kind, party, email, address, tax_id, student_id, order_ref, issue_date, due_date, currency, lines, net, tax, gross, tax_rate, status, note, by_name, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`, c.code, number, kind, party, email, address, taxId, studentId, orderRef, date,
-      due, c.currency, JSON.stringify(items), gross - tax, tax, gross, rate, str(b.note, 400), str(who, 80), iso());
+    const r = F.run(`INSERT INTO fin_invoices (company, number, kind, party, email, address, tax_id, student_id, order_ref, issue_date, due_date, currency, lines, net, tax, gross, tax_rate, status, note, by_name, created_at, fx_currency, fx_rate, fx_gross)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`, c.code, number, kind, party, email, address, taxId, studentId, orderRef, date,
+      due, c.currency, JSON.stringify(items), gross - tax, tax, gross, rate, str(b.note, 400), str(who, 80), iso(), fxCur, fxRateUsed, fxGross);
     all[c.code] = Object.assign({}, s, { next: n });
     db.setContent('finance', all, who || 'staff');
-    try { db.log(who, 'raised an invoice', c.label + ' — ' + number + ' to ' + party + ', ' + fmt(c, gross)); } catch (e) { /* the invoice stands */ }
+    try { db.log(who, 'raised an invoice', c.label + ' — ' + number + ' to ' + party + ', ' + (fxCur ? fxMoney(fxCur, fxGross) + ' (about ' + fmt(c, gross) + ' at ' + fxRateUsed + ')' : fmt(c, gross))); } catch (e) { /* the invoice stands */ }
     return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', Number(r.lastInsertRowid)));
   }
   /* Owner, 26 Nov: "delete, update, save, edit … proper options". An invoice
@@ -643,6 +702,7 @@ function open({ db, MONEY, takePayment, log = console }) {
     let items = []; try { items = JSON.parse(inv.lines || '[]'); } catch (e) { items = []; }
     let gross = inv.gross, rate = inv.tax_rate;
     if (b.text != null && items[0] && str(b.text, 200)) items[0].text = str(b.text, 200);
+    if (inv.fx_currency && b.amount != null && b.amount !== '' ) throw bad(409, 'This invoice is in ' + inv.fx_currency + '. To change its amount, cancel it and raise it again.');
     const newAmount = b.amount != null && b.amount !== '' ? amt(b.amount) : inv.gross;
     const wantAmount = newAmount !== inv.gross;
     const newDate = dayOr(b.date, 'The invoice date', inv.issue_date);
@@ -714,7 +774,7 @@ function open({ db, MONEY, takePayment, log = console }) {
     const c = co(company), inv = F.one('SELECT * FROM fin_invoices WHERE id = ? AND company = ?', Number(id), c.code);
     if (!inv || inv.status === 'cancelled') throw bad(404, 'No such open invoice.');
     if (inv.order_ref) throw bad(422, 'That invoice is for an order \u2014 record the cash on the order itself.');
-    const owed = inv.gross - paidOnInvoice(inv);
+    const owed = dueOf(inv) - paidOnInvoice(inv);
     if (owed <= 0) throw bad(409, 'Invoice ' + inv.number + ' is already paid in full.');
     const amount = b.amount == null || b.amount === '' ? owed : amt(b.amount);
     if (amount > owed) throw bad(422, 'Only ' + fmt(c, owed) + ' is unpaid on invoice ' + inv.number + '.');
@@ -731,6 +791,7 @@ function open({ db, MONEY, takePayment, log = console }) {
     /* one entry when the caller says which; every cash entry on it otherwise */
     const n = Number((linkId ? F.run('DELETE FROM fin_links WHERE kind = \'cash\' AND invoice_id = ? AND id = ?', inv.id, Number(linkId)) : F.run('DELETE FROM fin_links WHERE kind = \'cash\' AND invoice_id = ?', inv.id)).changes) || 0;
     if (!n) throw bad(409, 'No cash is recorded on invoice ' + inv.number + '.');
+    reopenFx();
     try { db.log(who, 'took cash off an invoice', c.label + ' \u2014 ' + inv.number); } catch (e) { /* done */ }
     return invShape(F.one('SELECT * FROM fin_invoices WHERE id = ?', inv.id));
   }
@@ -959,10 +1020,10 @@ function open({ db, MONEY, takePayment, log = console }) {
         invoiced: 0, due: '', dueAmount: 0, overdue: false, inBank: 0, cash: 0, notInBank: 0, lastPaid: '', numbers: [] });
       const paid = Math.min(inv.gross, paidOnInvoice(inv));
       const cashPaid = Math.min(paid, Number((F.one("SELECT COALESCE(SUM(amount), 0) AS s FROM fin_links WHERE kind = 'cash' AND invoice_id = ?", inv.id) || {}).s) || 0);
-      r.agreed += inv.gross; r.invoiced += inv.gross; r.received += paid; r.pending += inv.gross - paid; r.cash += cashPaid; r.inBank += paid - cashPaid;
+      r.agreed += dueOf(inv); r.invoiced += dueOf(inv); r.received += paid; r.pending += dueOf(inv) - paid; r.cash += cashPaid; r.inBank += paid - cashPaid;
       r.numbers.push(inv.number);
-      if (paid < inv.gross && inv.due_date && !r.due) { r.due = inv.due_date; r.dueAmount = inv.gross - paid; }
-      if (paid < inv.gross && inv.due_date && inv.due_date < nowDay) r.overdueAmount = (r.overdueAmount || 0) + inv.gross - paid;
+      if (paid < dueOf(inv) && inv.due_date && !r.due) { r.due = inv.due_date; r.dueAmount = dueOf(inv) - paid; }
+      if (paid < dueOf(inv) && inv.due_date && inv.due_date < nowDay) r.overdueAmount = (r.overdueAmount || 0) + dueOf(inv) - paid;
     });
     Object.keys(loose).forEach(k => { const r = loose[k]; r.ref = r.numbers.length === 1 ? r.numbers[0] : r.numbers.length + ' invoices'; r.overdue = !!(r.due && r.due < nowDay && r.pending > 0); delete r.numbers; rowsS.push(r); });
     const sumS = k => rowsS.reduce((a2, r) => a2 + r[k], 0);
@@ -1058,6 +1119,10 @@ function invoiceHtml(inv, company, me) {
   const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
   const m = n => c.symbol + (Math.round(n) / 100).toLocaleString(c.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const nl = v => esc(v).replace(/\n/g, '<br>');
+  /* Patch 321: an invoice in another currency is printed in that currency,
+     with its value in the book's currency and the rate said underneath. */
+  const X = inv.fx && inv.fx.currency ? inv.fx : null;
+  const f = n => (X ? fxMoney(X.currency, n) : m(n));
   const stateWord = { paid: 'Paid', part: 'Part paid', unpaid: 'Unpaid', overdue: 'Overdue', cancelled: 'Cancelled' }[inv.state] || '';
   return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
     + '<meta name="robots" content="noindex, nofollow"><title>Invoice ' + esc(inv.number) + '</title><style>'
@@ -1077,17 +1142,21 @@ function invoiceHtml(inv, company, me) {
     + '<div class="r"><span class="mute">Date</span> ' + esc(inv.date) + (inv.due ? '<br><span class="mute">Due</span> ' + esc(inv.due) : '') + (inv.orderRef ? '<br><span class="mute">Order</span> ' + esc(inv.orderRef) : '')
     + (stateWord ? '<br><span class="tag">' + stateWord + '</span>' : '') + '</div></div>'
     + '<table><thead><tr><th>For</th><th class="r">Amount</th></tr></thead><tbody>'
-    + inv.items.map(i => '<tr><td>' + esc(i.text) + '</td><td class="r">' + m(i.amount) + '</td></tr>').join('') + '</tbody></table>'
+    + inv.items.map(i => '<tr><td>' + esc(i.text) + '</td><td class="r">' + (X ? f(i.fx) : m(i.amount)) + '</td></tr>').join('') + '</tbody></table>'
     + '<table class="tot" style="margin-top:8px;width:auto;margin-left:auto"><tbody>'
-    + '<tr><td class="mute">Before ' + c.tax + '</td><td class="r">' + m(inv.net) + '</td></tr>'
-    + '<tr><td class="mute">' + c.tax + ' ' + inv.taxRate + '%</td><td class="r">' + m(inv.tax) + '</td></tr>'
-    + '<tr class="g"><td>Total</td><td class="r">' + m(inv.gross) + '</td></tr>'
-    + (inv.paid > 0 ? '<tr><td class="mute">Received</td><td class="r">' + m(inv.paid) + '</td></tr><tr><td class="mute">Still to pay</td><td class="r">' + m(inv.outstanding) + '</td></tr>' : '')
+    + '<tr><td class="mute">Before ' + c.tax + '</td><td class="r">' + (X ? f(X.net) : m(inv.net)) + '</td></tr>'
+    + '<tr><td class="mute">' + c.tax + ' ' + inv.taxRate + '%</td><td class="r">' + (X ? f(X.tax) : m(inv.tax)) + '</td></tr>'
+    + '<tr class="g"><td>Total' + (X ? ' (' + esc(X.currency) + ')' : '') + '</td><td class="r">' + (X ? f(X.gross) : m(inv.gross)) + '</td></tr>'
+    + (!X && inv.paid > 0 ? '<tr><td class="mute">Received</td><td class="r">' + m(inv.paid) + '</td></tr><tr><td class="mute">Still to pay</td><td class="r">' + m(inv.outstanding) + '</td></tr>' : '')
+    + (X && inv.paid > 0 ? '<tr><td class="mute">Received, in ' + esc(c.currency) + '</td><td class="r">' + m(inv.paid) + '</td></tr>' + (inv.outstanding > 0 ? '<tr><td class="mute">Still to pay, about</td><td class="r">' + m(inv.outstanding) + '</td></tr>' : '') : '')
     + '</tbody></table>'
+    + (X ? '<p class="mute" style="margin-top:14px">Invoiced in ' + esc(X.currency) + '. Value in ' + esc(c.currency) + ' on ' + esc(inv.date) + ' at ' + esc(c.currency) + ' ' + X.rate + ' to 1 ' + esc(X.currency) + ': <b style="color:#0b1e31">' + m(inv.gross) + '</b>'
+        + (inv.tax > 0 ? ' (' + c.tax + ' ' + m(inv.tax) + ')' : '') + '.'
+        + (inv.adjust ? ' Settled in full by ' + m(inv.gross + inv.adjust) + ' received; exchange difference ' + (inv.adjust > 0 ? '+' : '\u2212') + m(Math.abs(inv.adjust)) + '.' : '') + '</p>' : '')
     + (inv.taxRate === 0 ? '<p class="mute" style="margin-top:22px">No ' + c.tax + ' is charged on this invoice.</p>' : '')
     + (inv.note ? '<p style="margin-top:18px">' + nl(inv.note) + '</p>' : '')
     + (me.bank ? '<p class="mute" style="margin-top:22px"><b style="color:#0b1e31">Pay to</b><br>' + nl(me.bank) + '</p>' : '')
     + '</div></body></html>';
 }
 
-module.exports = { open, COMPANIES, KINDS, taxIn, invoiceHtml, isGstin };
+module.exports = { open, COMPANIES, KINDS, taxIn, invoiceHtml, isGstin, FX_CURRENCIES, fxMoney };

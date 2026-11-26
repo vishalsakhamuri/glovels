@@ -648,6 +648,40 @@ async function sendBill(who, fields, name, buf) {
     check('a sale received without an invoice is in the GST to pay beside the invoices', nm7.status === 200 && pk7.tax.invoiced.uninvoiced.count === 1 && pk7.tax.invoiced.uninvoiced.gross === 500000 && pk7.tax.invoiced.outputAll === pk7.tax.invoiced.output + pk7.tax.invoiced.uninvoiced.tax && pk7.tax.invoiced.uninvoiced.tax === 76271, nm7.status + ' ' + JSON.stringify(pk7.tax && pk7.tax.invoiced && pk7.tax.invoiced.uninvoiced));
     const g7 = (await rawGet('a', '/api/staff/finance/pack/report/gst?company=IN&month=2026-07')).buf.toString();
     check('and the printed report says so', /received without an invoice/.test(g7) && /on sales without an invoice/.test(g7));
+
+    /* ---- Patch 321: an invoice in pounds, received in rupees, reconciled ---- */
+    const bfx = (await req('a', 'GET', '/api/staff/finance/books?company=IN')).body.fx || [];
+    check('the screen is given the currencies an invoice can be in, with the day\u2019s rate', ['GBP', 'EUR', 'USD'].every(k => bfx.some(x => x.code === k)) && !bfx.some(x => x.code === 'INR'), JSON.stringify(bfx).slice(0, 200));
+    const gb = await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'partner', party: 'Northfield University', taxRate: 0, date: '2026-08-03', currency: 'GBP', fxRate: 106.5, items: [{ text: 'Commission, autumn intake', amount: 150000 }, { text: 'Marketing support', amount: 50000 }] });
+    const G1 = gb.body.invoice || {};
+    check('an invoice is raised in pounds: \u00a32,000.00, valued at \u20b92,13,000.00 at 106.5', gb.status === 200 && G1.fx && G1.fx.currency === 'GBP' && G1.fx.gross === 200000 && G1.fx.rate === 106.5 && G1.gross === 21300000 && G1.outstanding === 21300000 && G1.items[0].fx === 150000 && G1.items[0].amount === 15975000, gb.status + ' ' + JSON.stringify(gb.body).slice(0, 260));
+    const gp = (await rawGet('a', '/api/staff/finance/invoice/' + G1.id + '/print')).buf.toString();
+    check('it prints in pounds, with its value in rupees and the rate underneath', gp.includes('\u00a31,500.00') && gp.includes('\u00a32,000.00') && /Invoiced in GBP/.test(gp) && gp.includes('106.5') && gp.includes('2,13,000.00'), gp.slice(gp.indexOf('<table'), gp.indexOf('<table') + 200));
+    check('a currency the tool does not know, or no usable rate, is refused', (await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'manual', party: 'X', taxRate: 0, currency: 'XXX', fxRate: 2, items: [{ text: 'x', amount: 100 }] })).status === 422
+      && (await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'manual', party: 'X', taxRate: 0, currency: 'GBP', fxRate: -3, items: [{ text: 'x', amount: 100 }] })).status !== 500);
+    const upX = await upload('a', 'IN', 'fx.pdf', smart([['20/08/2026', ['NEFT/CITIN1/NORTHFIELD UNIVERSITY/CITI/INV'], 21184500], ['21/08/2026', ['NEFT/CITIN2/NORTHFIELD UNIVERSITY/CITI/second'], 100000]], 0));
+    const LX = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&from=2026-08-01&to=2026-08-31')).body.lines;
+    const lx = LX.find(l => /CITIN1/.test(l.description)), lx2 = LX.find(l => /CITIN2/.test(l.description));
+    const cx = (await req('a', 'GET', '/api/staff/finance/line/' + lx.id + '/candidates?company=IN')).body;
+    check('the bank line that paid it offers the pound invoice, named', upX.body.added === 2 && cx.invoices.some(i => i.id === G1.id && i.named && i.fx && i.fx.currency === 'GBP'));
+    const over = await req('a', 'POST', '/api/staff/finance/line/' + lx2.id + '/match', { company: 'IN', targets: [{ type: 'invoice', id: G1.id, amount: 100000 }] });
+    check('a part of it can still be matched the ordinary way', over.status === 200 && (await req('a', 'GET', '/api/staff/finance/invoice/' + G1.id + '?company=IN')).status === 200);
+    const mx = await req('a', 'POST', '/api/staff/finance/line/' + lx.id + '/match', { company: 'IN', targets: [{ type: 'invoice', id: G1.id, amount: 21184500, settle: true }] });
+    const G2 = ((await req('a', 'GET', '/api/staff/finance/invoices?company=IN')).body.invoices || []).find(i => i.id === G1.id);
+    check('matched as settling it: the invoice is paid in full by what the bank credited, and the difference is kept', mx.status === 200 && G2.state === 'paid' && G2.outstanding === 0 && G2.paid === 21284500 && G2.adjust === -15500 && G2.fxRealised > 106.4 && G2.fxRealised < 106.5, mx.status + ' ' + JSON.stringify({ s: G2.state, o: G2.outstanding, p: G2.paid, a: G2.adjust, r: G2.fxRealised }) + ' ' + JSON.stringify(mx.body).slice(0, 160));
+    const bkx = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body;
+    const aug = bkx.months.find(m => m.month === '2026-08');
+    check('the book counts the rupees that came, not the estimate', aug && aug.sales === 21284500, aug && aug.sales);
+    const regx = (await rawGet('a', '/api/staff/finance/pack/register/invoices.csv?company=IN&month=2026-08')).buf.toString();
+    check('the invoices register carries the currency, the amount, the rate and the exchange difference', /Invoiced in,Amount in that currency,Rate used,Exchange difference/.test(regx) && /GBP,2000\.00,106\.5,-155\.00/.test(regx), regx.slice(0, 400));
+    const offx = await req('a', 'DELETE', '/api/staff/finance/line/' + lx.id + '/match/' + ((mx.body.line.links || []).slice(-1)[0] || {}).id + '?company=IN');
+    const G3 = ((await req('a', 'GET', '/api/staff/finance/invoices?company=IN')).body.invoices || []).find(i => i.id === G1.id);
+    check('taken off again, the invoice is open at its estimate', offx.status === 200 && G3.adjust === 0 && G3.state === 'part' && G3.outstanding === 21300000 - 100000, offx.status + ' ' + JSON.stringify({ a: G3.adjust, s: G3.state, o: G3.outstanding }));
+    const tooMuch = await req('a', 'POST', '/api/staff/finance/line/' + lx.id + '/match', { company: 'IN', targets: [{ type: 'invoice', id: G1.id, amount: 21284500 }] });
+    check('without saying it settles the invoice, more than is owed is still refused', tooMuch.status === 422, tooMuch.status);
+    const inr = await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'manual', party: 'Plain Rupee Buyer', taxRate: 18, items: [{ text: 'x', amount: 118000 }] });
+    check('an invoice in rupees is as before: no foreign amounts', inr.status === 200 && inr.body.invoice.fx === null && inr.body.invoice.adjust === 0 && inr.body.invoice.gross === 118000);
+    check('the screen has the currency choice and the settle tick', /id="iCur"/.test(fh) && /data-settle=/.test(fh) && /settles the/.test(fh));
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');
