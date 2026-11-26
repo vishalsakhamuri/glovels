@@ -1095,6 +1095,10 @@ select.cc{appearance:auto;padding:0 6px 0 10px;cursor:pointer;max-width:110px;fo
 .cform h3{font-size:18px;margin-bottom:4px}
 .cform p.small{font-size:12.6px;color:var(--muted);margin:0 0 16px}
 /* Patch 206: Schedule a call — its own section, its own form */
+.cwhen{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:6px 0 14px;border-radius:12px;background:#eef2f7}
+.cwhen button{border:0;border-radius:9px;padding:10px 8px;font:800 14px var(--sans);color:#46586c;background:transparent;cursor:pointer}
+.cwhen button[aria-selected="true"]{background:#fff;color:#0b1f3a;box-shadow:0 1px 4px rgba(11,31,58,.14)}
+.cform #book{scroll-margin-top:90px}
 .book{display:grid;grid-template-columns:.9fr 1.1fr;border-radius:20px;overflow:hidden;border:1px solid var(--line,#e2e7ee);background:#fff;box-shadow:0 18px 40px rgba(11,31,58,.08)}
 .bleft{padding:32px;background:linear-gradient(160deg,#f7f2e4,#fffaf0);border-right:1px solid #efe4c6}
 .bleft h2{font-size:clamp(23px,2.5vw,31px);line-height:1.16;margin:8px 0 10px}
@@ -1765,24 +1769,57 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
   </div>
 </section>
 
-<section class="block" id="book">
+<section class="block" id="counsel">
   <div class="wrap">
-    <div class="book">
-      <div class="bleft">
-        <span class="eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg> Schedule a call</span>
-        <h2>Book a time with a counsellor</h2>
-        <p>Choose the day and time that suits you. Your counsellor calls you on video or phone at
-          exactly that time — no waiting for a call back.</p>
+    <div class="counsel">
+      <div class="cleft">
+        <span class="eyebrow" style="color:var(--gold-soft)"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Free counselling</span>
+        <h2>Talk to a counsellor</h2>
+        <p>Free, and no obligation to buy a package afterwards. Your marksheets read properly and an
+          honest answer about where you stand — on a call back, or at a time you pick.</p>
         <ul class="cl-list">
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Times shown in your own time zone</span></li>
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>30 minutes, one-to-one, with the counsellor who will handle your file</span></li>
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>A video link is emailed to you before the call</span></li>
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Need another time? Just reply to the confirmation email</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Which public universities your CGPA actually opens</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>What the whole thing costs — tuition, blocked account, living</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Whether your intake is realistic, or the next one is</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>One-to-one with the counsellor who will handle your file — online, or at the Hyderabad office</span></li>
         </ul>
       </div>
-      <div class="bright">
-        <h3>Pick your time</h3>
-        <p class="small">Free, no obligation.</p>
+      <div class="cform">
+        <h3>Book your free session</h3>
+        <div class="cwhen" role="tablist" aria-label="How you would like to talk">
+          <button type="button" role="tab" id="tabCall" aria-controls="callPanel" aria-selected="true">Call me back</button>
+          <button type="button" role="tab" id="tabBook" aria-controls="book" aria-selected="false">Pick a time</button>
+        </div>
+        <div id="callPanel" role="tabpanel" aria-labelledby="tabCall">
+        
+        <p class="small">Mon–Sat, 9:30am–7:30pm IST. A counsellor calls you back within one working day.</p>
+        <form id="cForm" novalidate>
+          <div class="fld"><label for="cName">Full name <span class="req" aria-hidden="true">*</span></label>
+            <input id="cName" autocomplete="name" placeholder="Your name"><span class="err"></span></div>
+          <div class="fld"><label for="cPhone">Mobile number <span class="req" aria-hidden="true">*</span></label>
+            <input id="cPhone" inputmode="tel" autocomplete="tel" placeholder="Mobile number">
+            <span class="err"></span></div>
+          <div class="fld"><label for="cMail">Email <span class="req" aria-hidden="true">*</span></label>
+            <input id="cMail" inputmode="email" autocomplete="email"><span class="err"></span></div>
+          <div class="fld"><label for="cDest">Where are you thinking of going?</label>
+            <select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="FR">🇫🇷 France</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>
+          <label for="cHoney" class="sr">Leave this field empty</label>
+          <input type="text" id="cHoney" name="website" tabindex="-1" autocomplete="off"
+            style="position:absolute;left:-9999px;width:1px;height:1px">
+          <label class="consent"><input type="checkbox" id="cOk">
+            <span>I agree that Glovels may contact me about my enquiry. I can ask for my details to
+              be deleted at any time.</span></label>
+          <span class="err" id="cOkErr">Please tick the box so we can call you back.</span>
+          <button class="btn btn-green" id="cGo" type="submit" style="width:100%">
+            Book Free Counselling</button>
+          <div id="cFail" class="formfail"></div>
+          <p class="formnote"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span>We call you — we never send marketing blasts.
+            Your details are not shared with any university without your say.</span></p>
+        </form>
+        </div>
+        <div id="book" role="tabpanel" aria-labelledby="tabBook" hidden>
+        
+        <p class="small">Choose the day and time — shown in your own time zone. Your counsellor calls you on video or phone at exactly that time, and the link is emailed to you.</p>
         <form id="bForm" novalidate>
           <div class="slotbox" id="slotBox">
             <div class="sl-h"><span>Day and time</span><small id="slTz"></small></div>
@@ -1810,53 +1847,7 @@ if (location.protocol === 'file:') document.documentElement.className += ' revie
           <button class="btn btn-gold" id="bGo" type="submit" style="width:100%" data-track="cta" data-track-label="Schedule a call">Pick a time above</button>
           <div id="bFail" class="formfail"></div>
         </form>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="block" id="counsel">
-  <div class="wrap">
-    <div class="counsel">
-      <div class="cleft">
-        <span class="eyebrow" style="color:var(--gold-soft)"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg> Free counselling</span>
-        <h2>Talk to a counsellor</h2>
-        <p>Forty-five minutes, your marksheets read properly, and an honest answer about where you
-          stand. No obligation to buy a package afterwards.</p>
-        <ul class="cl-list">
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Which public universities your CGPA actually opens</span></li>
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>What the whole thing costs — tuition, blocked account, living</span></li>
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Whether your intake is realistic, or the next one is</span></li>
-          <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Online, or at the Hyderabad office</span></li>
-        </ul>
-      </div>
-      <div class="cform">
-        <h3>Book your free session</h3>
-        <p class="small">Mon–Sat, 9:30am–7:30pm IST. A counsellor calls you back within one
-          working day.</p>
-        <form id="cForm" novalidate>
-          <div class="fld"><label for="cName">Full name <span class="req" aria-hidden="true">*</span></label>
-            <input id="cName" autocomplete="name" placeholder="Your name"><span class="err"></span></div>
-          <div class="fld"><label for="cPhone">Mobile number <span class="req" aria-hidden="true">*</span></label>
-            <input id="cPhone" inputmode="tel" autocomplete="tel" placeholder="Mobile number">
-            <span class="err"></span></div>
-          <div class="fld"><label for="cMail">Email <span class="req" aria-hidden="true">*</span></label>
-            <input id="cMail" inputmode="email" autocomplete="email"><span class="err"></span></div>
-          <div class="fld"><label for="cDest">Where are you thinking of going?</label>
-            <select id="cDest"><option value="">Not sure yet</option><option value="DE">🇩🇪 Germany</option><option value="FR">🇫🇷 France</option><option value="CA">🇨🇦 Canada</option><option value="GB">🇬🇧 United Kingdom</option><option value="IE">🇮🇪 Ireland</option><option value="PL">🇵🇱 Poland</option><option value="ES">🇪🇸 Spain</option><option value="IT">🇮🇹 Italy</option></select></div>
-          <label for="cHoney" class="sr">Leave this field empty</label>
-          <input type="text" id="cHoney" name="website" tabindex="-1" autocomplete="off"
-            style="position:absolute;left:-9999px;width:1px;height:1px">
-          <label class="consent"><input type="checkbox" id="cOk">
-            <span>I agree that Glovels may contact me about my enquiry. I can ask for my details to
-              be deleted at any time.</span></label>
-          <span class="err" id="cOkErr">Please tick the box so we can call you back.</span>
-          <button class="btn btn-green" id="cGo" type="submit" style="width:100%">
-            Book Free Counselling</button>
-          <div id="cFail" class="formfail"></div>
-          <p class="formnote"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span>We call you — we never send marketing blasts.
-            Your details are not shared with any university without your say.</span></p>
-        </form>
+        </div>
       </div>
     </div>
   </div>
@@ -6214,10 +6205,37 @@ const PHONE = "+917093314089";
   document.addEventListener('change', e => {
     if (e.target && e.target.id === 'slDaySel') { SLOT.day = Number(e.target.value); SLOT.at = ''; $('#bGo').textContent = 'Pick a time above'; paint(); }
   });
+  /* Patch 326: one section, two ways — a call back, or a time they pick.
+     /#book (links on other pages) opens "Pick a time". */
+  function showWhen(which) {
+    const book = which === 'book', tb = document.getElementById('tabBook'), tc = document.getElementById('tabCall');
+    if (!tb || !tc) return;
+    if (book && tb.hidden) return showWhen('call');
+    tc.setAttribute('aria-selected', String(!book)); tb.setAttribute('aria-selected', String(book));
+    document.getElementById('callPanel').hidden = book; document.getElementById('book').hidden = !book;
+  }
+  function bookingOff() {
+    const tb = document.getElementById('tabBook'); if (tb) tb.hidden = true;
+    const w = document.querySelector('.cwhen'); if (w) w.style.display = 'none';
+    showWhen('call');
+  }
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('.cwhen [role="tab"]');
+    if (t) showWhen(t.id === 'tabBook' ? 'book' : 'call');
+    const a = e.target.closest && e.target.closest('a[href="#book"], a[href="/#book"], a[href="index.html#book"]');
+    if (a && document.getElementById('book')) { e.preventDefault(); showWhen('book'); document.getElementById('counsel').scrollIntoView({ behavior: 'smooth' }); history.replaceState(null, '', '#book'); }
+  });
+  const fromHash = () => { if (location.hash === '#book') { showWhen('book'); const sec = document.getElementById('counsel'); if (sec) setTimeout(() => sec.scrollIntoView(), 30); } };
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+  /* the page grows as it loads (pictures, the finder): brought into view again once it has */
+  let movedByHand = false;
+  ['wheel', 'touchstart', 'keydown'].forEach(ev => window.addEventListener(ev, () => { movedByHand = true; }, { passive: true, once: true }));
+  window.addEventListener('load', () => [250, 900, 1800].forEach(ms => setTimeout(() => { if (!movedByHand) fromHash(); }, ms)));
   async function load() {
     try {
       const d = await (await fetch('/api/booking/slots', { headers: { Accept: 'application/json' } })).json();
-      if (!d.on || !d.days || !d.days.length) { const sec = document.getElementById('book'); if (sec) sec.hidden = true; return; }
+      if (!d.on || !d.days || !d.days.length) { bookingOff(); return; }
       /* Patch 215 (QA): reloading after "that time was just taken" keeps the
          day they were looking at, if it still has a free time. */
       const had = SLOT.data && SLOT.data.days[SLOT.day] ? SLOT.data.days[SLOT.day].date : '';
@@ -6226,7 +6244,7 @@ const PHONE = "+917093314089";
       const first = d.days.findIndex(x => x.slots.some(s => s.free));
       SLOT.day = keep >= 0 ? keep : first < 0 ? 0 : first;
       paint();
-    } catch (e) { const sec = document.getElementById('book'); if (sec) sec.hidden = true; }
+    } catch (e) { bookingOff(); }
   }
   document.addEventListener('click', e => {
 
