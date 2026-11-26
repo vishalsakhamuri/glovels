@@ -71,7 +71,13 @@ const KINDS = {
   'transfer-out': { dir: 'out', label: 'Transfer to our own account', pl: '' },
 };
 /* A first guess from the bank's words, offered and never applied without a click. */
+/* Words in a name that do not tell one customer from another. */
+const COMMON_WORDS = new Set(('private limited pvt ltd llp company corp corporation india indian services service solutions consultants consultancy consulting technologies technology enterprises enterprise traders trading '
+  + 'international global group associates agency agencies education educational overseas academy institute foundation trust loans finance financial payments payment forex bank '
+  + 'kumar kumari devi reddy naidu rao sharma singh lakshmi laxmi venkata venkat srinivas srinivasa sri shri sai siva shiva krishna rama ram mohan prasad babu raju varma verma gupta patel khan mohammed mohammad syed shaik sheikh '
+  + 'gmbh mbh und the and for from with transfer neft imps rtgs upi').split(/\s+/));
 const GUESS = [
+  [/google\s*workspace|g\s*suite|gsuite/i, 'software'],   // before "google" below, which is the ads
   [/service\s*ch|monthly service|sms charg|charges|gst @|razorpay.*fee|stripe.*fee|kontoführung|entgelt/i, 'bank-charges'],
   [/salary|sal\b|payroll|gehalt|lohn/i, 'salaries'],
   [/\brent\b|miete|electricity|broadband|internet|airtel|jio|act fibernet|strom/i, 'rent'],
@@ -322,6 +328,7 @@ function open({ db, MONEY, takePayment, log = console }) {
     let out = rows.map(r => shape(r, lk[r.id]));
     if (q.state === 'todo') out = out.filter(l => l.state === 'open' || l.state === 'part');
     else if (q.state === 'done') out = out.filter(l => l.state === 'matched' || l.state === 'part');
+    else if (q.state === 'named') out = out.filter(l => l.state === 'named');
     else if (q.state) out = out.filter(l => l.state === q.state);
     return out;
   }
@@ -475,7 +482,24 @@ function open({ db, MONEY, takePayment, log = console }) {
     const c = co(company), l = lineById(company, id);
     if (!(l.amount > 0)) return { orders: [], payments: [], invoices: [] };
     const words = l.description.toLowerCase();
-    const near = (name) => String(name || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4 && words.includes(w)).length;
+    /* Patch 320 (the reconciler's findings): a bank line "names" a party only
+       by a word that is THEIRS — a whole word, and not one half the customers
+       share. "TRF FROM … GLOVELS CONSULTANTS PRIVATE LIMITED" used to name
+       FinEdu Loans Private Limited by "private" and "limited", and one click
+       would have booked the company's own transfer as Rs 60,000 of sales;
+       "tejaswi" named Sai Teja; "R NAIDU" named every Naidu. */
+    const tokens = new Set(words.split(/[^a-z0-9]+/).filter(Boolean));
+    /* A statement breaks a long narration across lines, sometimes inside a
+       name ("RO / HAN VERMA"): a word of five letters or more is also looked
+       for with the breaks closed up. */
+    const squashed = words.replace(/[^a-z]+/g, '');
+    const near = (name) => String(name || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4 && !COMMON_WORDS.has(w) && (tokens.has(w) || (w.length >= 5 && squashed.includes(w) && ![...tokens].some(t => t.length > w.length && (t.startsWith(w) || t.endsWith(w)))))).length;   /* …but "rohit" is not in "rohith" */
+    /* Money moved between the company's own accounts is nobody's payment:
+       nothing is offered for it, and the screen says to name it a transfer. */
+    const me = String((settings()[c.code] || {}).name || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4 && !COMMON_WORDS.has(w));
+    const ownAccounts = F.all('SELECT DISTINCT account FROM fin_batches WHERE company = ?', c.code).map(r => String(r.account || '')).filter(a => a.length >= 8);
+    if ((me.length && me.every(w => tokens.has(w))) || ownAccounts.some(a => words.includes(a)))
+      return { orders: [], payments: [], invoices: [], ownTransfer: true };
     const found = {}; F.all('SELECT payment_id, SUM(amount) AS s FROM fin_links WHERE payment_id IS NOT NULL GROUP BY payment_id').forEach(r => { found[Number(r.payment_id)] = Number(r.s) || 0; });
     const orders = openOrders(c.code).filter(o => o.outstanding > 0).map(o => Object.assign(o, { score: (o.outstanding === l.amount ? 5 : 0) + near(o.name) * 3, named: near(o.name) > 0 }));
     const byRef = {}; db.allOrders().forEach(o => { byRef[o.reference] = o; });
@@ -488,6 +512,10 @@ function open({ db, MONEY, takePayment, log = console }) {
     const invs = invoices(c.code).filter(i => !i.orderRef && i.status === 'open' && i.outstanding > 0).map(i => Object.assign(i, { score: (i.outstanding === l.amount ? 5 : 0) + near(i.party) * 3 + (words.includes(String(i.number).toLowerCase()) ? 8 : 0),
       /* the bank's own words name them (or the invoice number): only then is an amount offered ready-typed */
       named: near(i.party) > 0 || words.includes(String(i.number).toLowerCase()) }));
+    /* Two different people named by the same word ("SAI TEJA" — Goud, or
+       Kumar?) is nobody named: the amounts are left for a person to type. */
+    const who = new Set(orders.filter(o => o.named).map(o => String(o.name || '').toLowerCase()).concat(invs.filter(i => i.named && !words.includes(String(i.number).toLowerCase())).map(i => String(i.party || '').toLowerCase())));
+    if (who.size > 1) { orders.forEach(o => { o.named = false; }); invs.forEach(i => { if (!words.includes(String(i.number).toLowerCase())) i.named = false; }); }
     const top = a => a.sort((x, y) => y.score - x.score || String(y.date).localeCompare(String(x.date))).slice(0, 80);
     /* of one party's invoices, the oldest is the one the money is for */
     return { orders: top(orders), payments: top(payments), invoices: invs.sort((x, y) => y.score - x.score || Number(x.id) - Number(y.id)).slice(0, 80) };
@@ -1023,6 +1051,8 @@ function open({ db, MONEY, takePayment, log = console }) {
 
 /* An invoice as a page to print or save as PDF. Plain, one sheet, the
    company's own details at the top; nothing is fetched from anywhere. */
+/* A GSTIN: two digits of the state, the ten of the PAN, an entity number, Z, a check character. */
+const isGstin = v => /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(v || '').toUpperCase().replace(/\s+/g, ''));
 function invoiceHtml(inv, company, me) {
   const c = COMPANIES[company];
   const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -1043,7 +1073,7 @@ function invoiceHtml(inv, company, me) {
     + '<div class="top"><div><h1>' + (inv.status === 'cancelled' ? 'Cancelled invoice' : (c.code === 'IN' && inv.tax > 0 ? 'Tax invoice' : 'Invoice')) + '</h1><div class="mute">No. ' + esc(inv.number) + '</div></div>'
     + '<div class="r"><b>' + esc(me.name) + '</b><br><span class="mute">' + nl(me.address) + (me.register ? '<br>' + (c.code === 'IN' ? 'CIN ' : '') + esc(me.register) : '') + (me.taxId ? '<br>' + (c.code === 'IN' ? 'GSTIN ' : 'VAT ID ') + esc(me.taxId) : '') + '</span></div></div>'
     + '<div class="top" style="margin-top:28px"><div><span class="mute">Billed to</span><br><b>' + esc(inv.party) + '</b>' + (inv.address ? '<br>' + nl(inv.address) : '') + (inv.email ? '<br>' + esc(inv.email) : '')
-    + (inv.taxId ? '<br>' + (c.code === 'IN' ? 'GSTIN ' : 'VAT ID ') + esc(inv.taxId) : '') + '</div>'
+    + (inv.taxId ? '<br>' + (c.code === 'IN' ? (isGstin(inv.taxId) ? 'GSTIN ' : 'Tax ID ') : 'VAT ID ') + esc(inv.taxId) : '') + '</div>'
     + '<div class="r"><span class="mute">Date</span> ' + esc(inv.date) + (inv.due ? '<br><span class="mute">Due</span> ' + esc(inv.due) : '') + (inv.orderRef ? '<br><span class="mute">Order</span> ' + esc(inv.orderRef) : '')
     + (stateWord ? '<br><span class="tag">' + stateWord + '</span>' : '') + '</div></div>'
     + '<table><thead><tr><th>For</th><th class="r">Amount</th></tr></thead><tbody>'
@@ -1060,4 +1090,4 @@ function invoiceHtml(inv, company, me) {
     + '</div></body></html>';
 }
 
-module.exports = { open, COMPANIES, KINDS, taxIn, invoiceHtml };
+module.exports = { open, COMPANIES, KINDS, taxIn, invoiceHtml, isGstin };

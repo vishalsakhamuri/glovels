@@ -209,6 +209,14 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
   function loadBooks() {
     return api('/api/staff/finance/books?' + q()).then(function (d) {
       B = d;
+      /* Patch 320: an accountant's account looks and downloads. It opens on
+         "For the accountant", and is told why a change is refused before trying one. */
+      if (d.readOnly && !$('#roNote')) {
+        var rn = document.createElement('div'); rn.id = 'roNote'; rn.className = 'note';
+        rn.textContent = 'You are signed in as the accountant: you can look at everything here and download it. Changes to the books are made by the office.';
+        var vw = $('#view'); vw.parentNode.insertBefore(rn, vw);
+        if (!/\/[a-z]/.test(location.hash || '')) TAB = 'pack';
+      }
       var sel = $('#company');
       sel.innerHTML = d.companies.map(function (c) { return '<option value="' + c.code + '"' + (c.code === CO ? ' selected' : '') + '>' + esc(c.label) + ' — ' + c.currency + ', ' + c.tax + '</option>'; }).join('');
       var ys = [], now = new Date().getFullYear();
@@ -265,14 +273,14 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
           (P.ready ? '' : '<p class="sub" style="margin:10px 0 0">Finish these on the <b>Bank</b> tab, then come back. The downloads below work now, and each report says on its first page that the period is not reconciled.</p>') +
         '</div>' +
         '<div class="card"><h2>' + esc(c.tax) + ' for ' + esc(P.period.label) + '</h2>' +
-          '<p class="sub">By the day the money reached the bank or was taken in cash \u2014 how this book counts. The accountant decides what is filed.</p>' +
-          '<div class="kpis">' +
-            '<div class="kpi"><b>' + money(R.output) + '</b><span>' + esc(c.tax) + ' on sales received (on ' + money(R.taxable) + ')</span></div>' +
+          '<p class="sub">Worked from the invoices raised in the period, which is what a return is made from. The accountant decides what is filed.</p>' +
+          (function () { var due = I.outputAll - R.input; return '<div class="kpis">' +
+            '<div class="kpi"><b>' + money(I.outputAll) + '</b><span>' + esc(c.tax) + ' on ' + I.count + ' invoice' + (I.count === 1 ? '' : 's') + ' raised' + (I.uninvoiced.count ? ' and ' + I.uninvoiced.count + ' sale' + (I.uninvoiced.count === 1 ? '' : 's') + ' without an invoice' : '') + '</span></div>' +
             '<div class="kpi"><b>' + money(R.input) + '</b><span>' + esc(c.tax) + ' on purchases paid (on ' + money(R.purchases) + ')</span></div>' +
-            '<div class="kpi"><b style="color:' + (R.net > 0 ? 'var(--late)' : 'var(--ok)') + '">' + money(Math.abs(R.net)) + '</b><span>' + (R.net >= 0 ? esc(c.tax) + ' to pay for this period' : 'More ' + esc(c.tax) + ' on purchases than on sales') + '</span></div>' +
-            '<div class="kpi"><b>' + money(R.paid) + '</b><span>' + esc(c.tax) + ' paid from the bank in this period (may be for an earlier one)</span></div>' +
-          '</div>' +
-          '<p class="sub" style="margin:0">By the date on the invoices raised: <b>' + I.count + '</b> invoice' + (I.count === 1 ? '' : 's') + ', taxable <b>' + money(I.taxable) + '</b>, ' + esc(c.tax) + ' <b>' + money(I.output) + '</b>' + (I.cancelled ? ' (' + I.cancelled + ' cancelled, left out)' : '') + '. The report shows both, rate by rate.</p>' +
+            '<div class="kpi"><b style="color:' + (due > 0 ? 'var(--late)' : 'var(--ok)') + '">' + money(Math.abs(due)) + '</b><span>' + (due >= 0 ? esc(c.tax) + ' to pay for this period, by invoices raised' : 'More ' + esc(c.tax) + ' on purchases than on invoices') + '</span></div>' +
+            '<div class="kpi"><b>' + money(R.paid) + '</b><span>' + esc(c.tax) + ' paid from the bank in this period (usually for the period before)</span></div>' +
+          '</div>'; })() +
+          '<p class="sub" style="margin:0">For comparison, by the day the money actually came in: ' + esc(c.tax) + ' inside money received <b>' + money(R.output) + '</b>, less purchases <b>' + money(R.input) + '</b> = <b>' + money(R.net) + '</b>. The two differ by invoices not yet paid and by money received for earlier invoices.' + (I.cancelled ? ' ' + I.cancelled + ' cancelled invoice' + (I.cancelled === 1 ? ' is' : 's are') + ' left out.' : '') + '</p>' +
         '</div>' +
         '<div class="card"><h2>Everything for the accountant</h2>' +
           '<p style="margin:0 0 14px"><a class="btn" href="/api/staff/finance/pack.zip?' + pq() + '">Download everything in one ZIP</a> <span class="muted">\u2014 the four reports, four spreadsheets, ' + P.counts.statementFiles + ' bank statement file' + (P.counts.statementFiles === 1 ? '' : 's') + ' and ' + P.counts.bills + ' bill' + (P.counts.bills === 1 ? '' : 's') + '</span></p>' +
@@ -357,12 +365,12 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       '<div class="card"><h2>Upload a bank statement</h2><p class="sub">The monthly PDF from Axis internet banking (a downloaded statement, not a scan or a photo), one file per account per month — as many accounts as the company has. Uploading the same month twice adds nothing twice. This goes on <b>' + esc(B.settings.name) + '</b>’s book.</p>' +
         '<div class="bar" style="margin:0"><label class="btn pri" style="cursor:pointer">Choose the PDF<input type="file" id="stFile" accept=".pdf,.csv,.xlsx,application/pdf" hidden></label><span id="stSaid" class="muted"></span></div><div id="stOut" style="margin-top:12px"></div></div>' +
       '<div class="card"><div class="bar"><h2 style="margin:0">Statement lines</h2><span class="spacer"></span>' +
-        '<div class="tabs" style="margin:0" id="lf">' + [['todo', 'To sort'], ['done', 'Matched'], ['in', 'Money in'], ['out', 'Money out'], ['all', 'All']].map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (FILTER === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div><button type="button" class="btn sm" data-dl="lines" title="Every bank line of the year on screen, with what each one was: expense, student invoice, partner invoice…">Download the lines, with what each was</button></div>' +
+        '<div class="tabs" style="margin:0" id="lf">' + [['todo', 'To sort'], ['done', 'Matched'], ['named', 'Named'], ['in', 'Money in'], ['out', 'Money out'], ['all', 'All']].map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (FILTER === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div><button type="button" class="btn sm" data-dl="lines" title="Every bank line of the year on screen, with what each one was: expense, student invoice, partner invoice…">Download the lines, with what each was</button></div>' +
         '<div id="accts"></div><div id="lines"><p class="muted">Loading…</p></div></div>';
     loadLines();
   }
   function loadLines() {
-    var extra = (FILTER === 'todo' ? '&state=todo' : FILTER === 'done' ? '&state=done' : FILTER === 'in' ? '&dir=in' : FILTER === 'out' ? '&dir=out' : '') + (ACCT ? '&account=' + encodeURIComponent(ACCT) : '');
+    var extra = (FILTER === 'todo' ? '&state=todo' : FILTER === 'done' ? '&state=done' : FILTER === 'named' ? '&state=named' : FILTER === 'in' ? '&dir=in' : FILTER === 'out' ? '&dir=out' : '') + (ACCT ? '&account=' + encodeURIComponent(ACCT) : '');
     return api('/api/staff/finance/lines?company=' + CO + extra).then(function (d) { LINES = d.lines; ACCTS = d.accounts || []; paintAccounts(d.batches || []); paintLines(d.batches); });
   }
   /* Several bank accounts on one company's book: which statements are in, per account, and a way to look at one alone. */
@@ -417,7 +425,8 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       c.orders.forEach(function (o, i) { rows += row('order', o.ref, o.name || o.ref, 'Order ' + esc(o.ref) + ' · ' + esc(o.package) + ' · records the payment on their file', o.outstanding, o.named && i < 3); });
       c.payments.forEach(function (x) { rows += row('payment', x.id, x.name || x.orderRef, 'Already recorded ' + esc(x.date) + ' by ' + esc(x.method) + (x.reference ? ' (' + esc(x.reference) + ')' : '') + ' on ' + esc(x.orderRef) + ' · only ties it to this line', x.amount, x.score >= 5); });
       c.invoices.forEach(function (x) { rows += row('invoice', x.id, x.party, 'Invoice ' + esc(x.number) + ' · ' + esc(x.date), x.outstanding, x.named); });
-      p.innerHTML = '<div style="margin-bottom:10px"><b>' + money(left) + ' to match.</b> <span class="muted">Type an amount beside each one it paid for. One line can pay several students.</span></div>' +
+      p.innerHTML = (c.ownTransfer ? '<div class="note" style="margin-bottom:10px">This line carries your own company\u2019s name or account number, so it looks like money moved between your own accounts. It is not a sale: name it \u201cTransfer from our own account\u201d below.</div>' : '') +
+        '<div style="margin-bottom:10px"><b>' + money(left) + ' to match.</b> <span class="muted">Type an amount beside each one it paid for. One line can pay several students.</span></div>' +
         (rows ? '<div style="overflow-x:auto"><table style="background:#fff;border-radius:12px"><thead><tr><th>Who</th><th class="r">Owed</th><th class="r">From this line</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="muted">No student order, recorded payment or invoice is waiting for money in this company.</p>') +
         '<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-top:10px"><b>A student who is not in the list above</b> <span class="muted">— an invoice is raised to them for this money, dated ' + esc(l.date) + ', and marked paid by this line.</span>' +
         '<div class="bar" style="margin:8px 0 0"><input class="inp" id="pStuFind" placeholder="Search a student by name or email" style="min-width:220px"><select class="sel" id="pStu" style="max-width:340px"><option value="">Loading students…</option></select>' +

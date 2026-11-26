@@ -145,15 +145,24 @@ function open({ fin, FIN, fs, path, billFile, stmtFile }) {
     const ready = checks.filter(x => x.must).every(x => x.ok);
 
     /* ---- GST / VAT ---- */
+    /* Patch 320: a buyer "with a GSTIN" is one whose number IS a GSTIN — a
+       German VAT ID on an Indian invoice is a foreign buyer, not a registered one. */
+    const registered = id => !!id && (c.code !== 'IN' || FIN.isGstin(id));
+    /* Taxable sales that came in without an invoice (named as a sale on the
+       Bank tab): tax is due on them like any other, so they stand beside the
+       invoices in the figure to pay. */
+    const loose = sales.filter(x => x.kind === 'named');
+    const uninvoiced = { count: loose.length, taxable: loose.reduce((a, x) => a + x.net, 0), tax: loose.reduce((a, x) => a + x.tax, 0), gross: loose.reduce((a, x) => a + x.gross, 0) };
     const byRate = {};
-    live.forEach(i => { const k = String(i.taxRate); const r = byRate[k] || (byRate[k] = { rate: i.taxRate, count: 0, taxable: 0, tax: 0, gross: 0, withId: 0, withIdTaxable: 0, withIdTax: 0 }); r.count++; r.taxable += i.net; r.tax += i.tax; r.gross += i.gross; if (i.taxId) { r.withId++; r.withIdTaxable += i.net; r.withIdTax += i.tax; } });
+    live.forEach(i => { const k = String(i.taxRate); const r = byRate[k] || (byRate[k] = { rate: i.taxRate, count: 0, taxable: 0, tax: 0, gross: 0, withId: 0, withIdTaxable: 0, withIdTax: 0 }); r.count++; r.taxable += i.net; r.tax += i.tax; r.gross += i.gross; if (registered(i.taxId)) { r.withId++; r.withIdTaxable += i.net; r.withIdTax += i.tax; } });
     const tax = {
       name: c.tax,
       /* by the day the money reached the bank or was taken as cash — how this book counts */
       received: { taxable: sum('sales'), output: sum('salesTax'), purchases: sum('costs'), input: sum('costsTax'), net: sum('salesTax') - sum('costsTax'), paid: sum('taxPaid') },
       /* by the date on the invoices raised — what a return of invoices is made from */
       invoiced: { count: live.length, taxable: live.reduce((a, i) => a + i.net, 0), output: live.reduce((a, i) => a + i.tax, 0), gross: live.reduce((a, i) => a + i.gross, 0),
-        byRate: Object.keys(byRate).map(k => byRate[k]).sort((a, b) => b.rate - a.rate), cancelled: invoices.length - live.length },
+        byRate: Object.keys(byRate).map(k => byRate[k]).sort((a, b) => b.rate - a.rate), cancelled: invoices.length - live.length, uninvoiced,
+        outputAll: live.reduce((a, i) => a + i.tax, 0) + uninvoiced.tax },
     };
     return { P, c, B, months, lines, accounts, statements, bills, purchases, sales, invoices, live, checks, ready, tax, billsByLine: BL.byLine || {},
       totals: { sales: sum('sales'), otherIncome: sum('otherIncome'), people: sum('people'), office: sum('office'), students: sum('students'), costs: sum('costs'), profit: sum('sales') + sum('otherIncome') - sum('costs') } };
@@ -195,8 +204,9 @@ function open({ fin, FIN, fs, path, billFile, stmtFile }) {
       + '<table><thead><tr><th>Rate</th><th class="r">Invoices</th><th class="r">Taxable value</th><th class="r">' + T + '</th><th class="r">Invoice total</th><th class="r">Of which to buyers with a ' + (G.c.code === 'IN' ? 'GSTIN' : 'VAT ID') + '</th></tr></thead><tbody>'
       + (t.invoiced.byRate.length ? t.invoiced.byRate.map(r => '<tr><td>' + r.rate + '%</td><td class="r">' + r.count + '</td><td class="r">' + money(r.taxable) + '</td><td class="r">' + money(r.tax) + '</td><td class="r">' + money(r.gross) + '</td><td class="r">' + r.withId + ' · ' + money(r.withIdTaxable) + ' · ' + T + ' ' + money(r.withIdTax) + '</td></tr>').join('') : '<tr><td colspan="6" class="mute">No invoice is dated in this period.</td></tr>')
       + '<tr class="b"><td>All</td><td class="r">' + t.invoiced.count + '</td><td class="r">' + money(t.invoiced.taxable) + '</td><td class="r">' + money(t.invoiced.output) + '</td><td class="r">' + money(t.invoiced.gross) + '</td><td></td></tr></tbody></table>'
+      + (t.invoiced.uninvoiced.count ? '<p style="margin:6px 0"><b>Also taxable: ' + t.invoiced.uninvoiced.count + ' sale' + (t.invoiced.uninvoiced.count === 1 ? '' : 's') + ' received without an invoice</b> (named as a sale on the Bank tab) — taxable ' + money(t.invoiced.uninvoiced.taxable) + ', ' + T + ' ' + money(t.invoiced.uninvoiced.tax) + '. An invoice should be raised for each.</p>' : '')
       + (t.invoiced.cancelled ? '<p class="mute">' + t.invoiced.cancelled + ' cancelled invoice' + (t.invoiced.cancelled === 1 ? ' is' : 's are') + ' left out; ' + (t.invoiced.cancelled === 1 ? 'it is' : 'they are') + ' in the list of invoices.</p>' : '')
-      + '<table style="width:auto;margin-left:auto"><tbody><tr><td>' + T + ' on invoices raised</td><td class="r">' + money(t.invoiced.output) + '</td></tr><tr><td>Less ' + T + ' on purchases paid in the period</td><td class="r">' + money(t.received.input) + '</td></tr><tr class="b"><td>' + T + ' to pay for the period</td><td class="r">' + money(t.invoiced.output - t.received.input) + '</td></tr><tr><td class="mute">' + T + ' paid to the government in the period (bank)</td><td class="r">' + money(t.received.paid) + '</td></tr></tbody></table>'
+      + '<table style="width:auto;margin-left:auto"><tbody><tr><td>' + T + ' on invoices raised</td><td class="r">' + money(t.invoiced.output) + '</td></tr>' + (t.invoiced.uninvoiced.count ? '<tr><td>' + T + ' on sales without an invoice</td><td class="r">' + money(t.invoiced.uninvoiced.tax) + '</td></tr>' : '') + '<tr><td>Less ' + T + ' on purchases paid in the period</td><td class="r">' + money(t.received.input) + '</td></tr><tr class="b"><td>' + T + ' to pay for the period</td><td class="r">' + money(t.invoiced.outputAll - t.received.input) + '</td></tr><tr><td class="mute">' + T + ' paid to the government in the period (bank)</td><td class="r">' + money(t.received.paid) + '</td></tr></tbody></table>'
       + '<h2>' + T + ' — by the money received in the period</h2><p class="mute" style="margin:0">How this book counts sales: on the day the money reached the bank, or was taken as cash. It differs from the table above by invoices not yet paid and by money received for earlier invoices.</p>'
       + '<table style="width:auto"><tbody><tr><td>Sales received, before ' + T + '</td><td class="r">' + money(t.received.taxable) + '</td></tr><tr><td>' + T + ' inside the money received</td><td class="r">' + money(t.received.output) + '</td></tr><tr><td>Purchases paid, before ' + T + '</td><td class="r">' + money(t.received.purchases) + '</td></tr><tr><td>' + T + ' inside the purchases paid</td><td class="r">' + money(t.received.input) + '</td></tr><tr class="b"><td>Net</td><td class="r">' + money(t.received.net) + '</td></tr></tbody></table>'
       + '<h2>Invoices raised in the period</h2><table><thead><tr><th>Number</th><th>Date</th><th>To</th><th>Their ' + (G.c.code === 'IN' ? 'GSTIN' : 'VAT ID') + '</th><th>Kind</th><th class="r">Taxable</th><th class="r">Rate</th><th class="r">' + T + '</th><th class="r">Total</th><th>Status</th></tr></thead><tbody>'
@@ -222,7 +232,7 @@ function open({ fin, FIN, fs, path, billFile, stmtFile }) {
   function plHtml(company, q) {
     const G = gather(company, q), me = fin.settings()[G.P.company], T = G.c.tax;
     const kinds = {}; G.purchases.forEach(x => { const k = x.group + ' — ' + x.label; kinds[k] = (kinds[k] || 0) + x.net; });
-    const salesBy = {}; G.sales.forEach(x => { const k = x.kind === 'cash' ? 'Cash sales' : x.kind === 'named' ? 'Sales named without an invoice' : x.kind === 'invoice' ? 'Invoices paid through the bank' : 'Student orders paid through the bank'; salesBy[k] = (salesBy[k] || 0) + x.net; });
+    const salesBy = {}; G.sales.forEach(x => { const k = ({ cash: 'Cash sales', named: 'Sales received without an invoice', refund: 'Refunds to students (taken off sales)', partner: 'Partner invoices paid through the bank', manual: 'Other invoices paid through the bank', student: 'Students paid through the bank' })[x.kind] || 'Other sales'; salesBy[k] = (salesBy[k] || 0) + x.net; });
     return page(G, 'Profit and loss', money => statusBox(G)
       + '<p class="mute">By the day the money reached or left the bank (or was taken as cash). ' + T + ' is taken out of both sides. Capital, loans, transfers between your own accounts and tax payments are neither income nor cost.</p>'
       + '<table><thead><tr><th>Month</th><th class="r">Sales</th><th class="r">Other income</th><th class="r">People</th><th class="r">Office</th><th class="r">For students</th><th class="r">All costs</th><th class="r">Profit</th></tr></thead><tbody>'

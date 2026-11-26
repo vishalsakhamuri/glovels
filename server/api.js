@@ -9210,9 +9210,17 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
      administrator has ticked Finance for on the Organisation screen. Never
      a partner agency or its counsellors, never a student. */
   const canFinance = s => !!s && (s.role === 'admin' || ((s.role === 'counsellor' || s.role === 'editor') && db.permsOf(s).includes('finance')));
+  const isAccountant = s => { const l = db.permsOf(s) || []; return !!s && s.role === 'editor' && l.includes('finance') && !l.includes('content') && !l.includes('catalogue'); };
   const finAdmin = handler => staffOnly(async (req, res, s, m) => {
     if (!canFinance(s)) return json(res, 403, { error: 'Finance is for administrators, and for staff an administrator has given Finance to on the Organisation screen.' });
     if (!fin.ok()) return json(res, 503, { error: 'Finance needs the SQLite database, which this server is not running on.' });
+    /* Patch 320: the accountant looks and downloads; the office changes.
+       "He can check, download … our employee will upload the statement,
+       reconcile and inform the accountant it is done." An accountant's
+       account (levelOf: Finance and nothing else) may read every Finance
+       address and write to none. */
+    if (req.method !== 'GET' && req.method !== 'HEAD' && isAccountant(s))
+      return json(res, 403, { error: 'An accountant\u2019s account can look at the books and download them. Changes are made by the office: an administrator, or a counsellor with Finance.' });
     const q = new URL(req.url, 'http://x').searchParams;
     try { return await handler(req, res, s, m, q); }
     catch (e) {
@@ -9225,7 +9233,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   const finCompanies = () => Object.keys(FIN.COMPANIES).map(k => { const c = FIN.COMPANIES[k]; return { code: c.code, label: c.label, currency: c.currency, symbol: c.symbol, locale: c.locale, tax: c.tax, rates: c.rates }; });
 
   route('GET', '/api/staff/finance/books', finAdmin(async (req, res, s, m, q) =>
-    json(res, 200, Object.assign({ ok: true, companies: finCompanies(), kindList: finKinds(), settings: fin.settings()[String(q.get('company') || 'IN').toUpperCase()] || null },
+    json(res, 200, Object.assign({ ok: true, readOnly: isAccountant(s), companies: finCompanies(), kindList: finKinds(), settings: fin.settings()[String(q.get('company') || 'IN').toUpperCase()] || null },
       fin.books(q.get('company') || 'IN', q.get('year') || '')))));
   route('GET', '/api/staff/finance/lines', finAdmin(async (req, res, s, m, q) =>
     json(res, 200, { ok: true, lines: fin.lines(q.get('company'), { from: q.get('from'), to: q.get('to'), dir: q.get('dir'), state: q.get('state'), account: q.get('account') }), batches: fin.batches(q.get('company')).map(b => Object.assign({}, b, { hasFile: fs.existsSync(stmtFile(b)) })), accounts: fin.accounts(q.get('company')) })));
@@ -13183,7 +13191,18 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     return { rows, ids, total };
   };
 
-  route('GET', '/api/staff/catalogue', staffOnly(async (req, res) => {
+  /* Patch 320: the catalogue is for the people who work with it. The audit
+     found the accountant's account — Finance and nothing else on the screen —
+     could still read every programme from this address. Administrators and
+     counsellors read it as before; anyone else on the staff (an accountant, a
+     blog or marketing account) needs "Universities: view" or "edit". */
+  const catalogueReader = handler => staffOnly(async (req, res, s, m) => {
+    const perms = db.permsOf(s) || [];
+    if (s.role !== 'admin' && s.role !== 'counsellor' && !perms.includes('catalogue') && !perms.includes('catalogue-view'))
+      return json(res, 403, { error: 'The universities are not part of your access. An administrator can give you \u201cUniversities: view\u201d on the Organisation screen.' });
+    return handler(req, res, s, m);
+  });
+  route('GET', '/api/staff/catalogue', catalogueReader(async (req, res) => {
     /* A page of programmes, filtered and searched by the database — the
        screen used to take every row and filter in the browser, which at the
        size the catalogue is heading is a download nobody finishes. */
@@ -13267,7 +13286,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   /* The ids the same filters match — what "select all" in the office covers.
      Capped at what one bulk change takes (2,000), and says how many there
      were in all. */
-  route('GET', '/api/staff/catalogue/ids', staffOnly(async (req, res) => {
+  route('GET', '/api/staff/catalogue/ids', catalogueReader(async (req, res) => {
     const qs = url.parse(req.url, true).query;
     const bars = {};
     db.countries(true).forEach(c => {

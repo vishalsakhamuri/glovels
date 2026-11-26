@@ -612,6 +612,42 @@ async function sendBill(who, fields, name, buf) {
     check('the German company has its own pack, in its own tax', (await req('a', 'GET', '/api/staff/finance/pack?company=DE&year=2026')).body.tax.name === 'VAT' || /USt|VAT|MwSt/.test((await req('a', 'GET', '/api/staff/finance/pack?company=DE&year=2026')).body.tax.name));
     const fh = fs.readFileSync(path.join(__dirname, '..', 'finance.html'), 'utf8');
     check('the Finance screen has the tab, with one button for everything', /data-tab="pack"[^>]*>For the accountant</.test(fh) && /pack\.zip\?/.test(fh) && /Download everything in one ZIP/.test(fh));
+
+    /* ---- Patch 320: what the audit agents found ---- */
+    const FINM = require(path.join(__dirname, '..', 'server', 'finance.js'));
+    check('a GSTIN is told from a foreign VAT number', FINM.isGstin('36AALCG2793G1ZA') === true && FINM.isGstin('DE298471635') === false && FINM.isGstin('') === false);
+    const meName = ((await req('a', 'GET', '/api/staff/finance/books?company=IN')).body.settings || {}).name || 'Glovels Consultants Private Limited';
+    const upT = await upload('a', 'IN', 'own.pdf', smart([
+      ['12/07/2026', ['IFT/IFT975071921/TRF FROM 900000000000001/' + meName.toUpperCase()], 6000000],
+      ['13/07/2026', ['NEFT/YESBN1/WISE PAYMENTS LIMITED/YES BANK'], 4640000],
+      ['14/07/2026', ['UPI/P2A/1/ROHITH NAIDU P/KOTAK/ielts'], 500000]], 0));
+    const LT = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&from=2026-07-01&to=2026-07-31')).body.lines;
+    const lOwn = LT.find(l => /TRF FROM/.test(l.description)), lWise = LT.find(l => /WISE PAYMENTS/.test(l.description)), lRo = LT.find(l => /ROHITH/.test(l.description));
+    const mkInv = async (party) => (await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'manual', party, taxRate: 18, date: '2026-07-01', items: [{ text: 'Commission', amount: 4720000 }] }));
+    const iFin = await mkInv('FinEdu Loans Private Limited'); const iRo = await mkInv('Rohit Sharma');
+    check('the test has its lines and invoices', upT.body.added === 3 && lOwn && lWise && lRo && iFin.status === 200 && iRo.status === 200, upT.status + ' ' + JSON.stringify(upT.body).slice(0, 120) + ' ' + iFin.status + ' ' + JSON.stringify(iFin.body).slice(0, 120));
+    const cOwn = (await req('a', 'GET', '/api/staff/finance/line/' + lOwn.id + '/candidates?company=IN')).body;
+    check('money moved between the company\u2019s own accounts is offered to nobody', cOwn.ownTransfer === true && cOwn.invoices.length === 0 && cOwn.orders.length === 0);
+    const cWise = (await req('a', 'GET', '/api/staff/finance/line/' + lWise.id + '/candidates?company=IN')).body;
+    check('"limited" and "payments" name nobody: no amount is ready-typed for another company', !cWise.ownTransfer && cWise.invoices.length > 0 && cWise.invoices.every(i => !i.named), JSON.stringify(cWise.invoices.filter(i => i.named).map(i => i.party)));
+    const cRo = (await req('a', 'GET', '/api/staff/finance/line/' + lRo.id + '/candidates?company=IN')).body;
+    check('"Rohith" does not name Rohit', cRo.invoices.every(i => !i.named), JSON.stringify(cRo.invoices.filter(i => i.named).map(i => i.party)));
+    check('the Bank tab can list the lines that were named', (await req('a', 'GET', '/api/staff/finance/lines?company=IN&state=named')).body.lines.every(l => l.state === 'named'));
+    /* the accountant: looks, downloads, changes nothing; and sees no catalogue */
+    const bx = await req('x', 'GET', '/api/staff/finance/books?company=IN');
+    check('the accountant\u2019s account is told it is read-only, and reads everything', bx.status === 200 && bx.body.readOnly === true && (await req('a', 'GET', '/api/staff/finance/books?company=IN')).body.readOnly === false);
+    check('the accountant cannot name a line, raise an invoice, add a kind or remove a statement',
+      (await req('x', 'PUT', '/api/staff/finance/line/' + lRo.id, { company: 'IN', category: 'sales-direct' })).status === 403
+      && (await req('x', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'manual', party: 'X', taxRate: 0, items: [{ text: 'x', amount: 100 }] })).status === 403
+      && (await req('x', 'POST', '/api/staff/finance/kind', { company: 'IN', label: 'x', dir: 'out', pl: 'office' })).status === 403
+      && (await req('x', 'DELETE', '/api/staff/finance/statement/' + upT.body.batchId + '?company=IN')).status === 403);
+    check('nor read the universities, which are no part of the books', (await req('x', 'GET', '/api/staff/catalogue')).status === 403 && (await req('x', 'GET', '/api/staff/catalogue/ids')).status === 403 && (await req('a', 'GET', '/api/staff/catalogue')).status === 200 && (await req('c', 'GET', '/api/staff/catalogue')).status === 200);
+    /* GST by invoices raised now carries sales that came in without an invoice */
+    const nm7 = await req('a', 'PUT', '/api/staff/finance/line/' + lRo.id, { company: 'IN', category: 'sales-direct', party: 'Rohith Naidu', taxRate: 18 });
+    const pk7 = (await req('a', 'GET', '/api/staff/finance/pack?company=IN&month=2026-07')).body;
+    check('a sale received without an invoice is in the GST to pay beside the invoices', nm7.status === 200 && pk7.tax.invoiced.uninvoiced.count === 1 && pk7.tax.invoiced.uninvoiced.gross === 500000 && pk7.tax.invoiced.outputAll === pk7.tax.invoiced.output + pk7.tax.invoiced.uninvoiced.tax && pk7.tax.invoiced.uninvoiced.tax === 76271, nm7.status + ' ' + JSON.stringify(pk7.tax && pk7.tax.invoiced && pk7.tax.invoiced.uninvoiced));
+    const g7 = (await rawGet('a', '/api/staff/finance/pack/report/gst?company=IN&month=2026-07')).buf.toString();
+    check('and the printed report says so', /received without an invoice/.test(g7) && /on sales without an invoice/.test(g7));
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');

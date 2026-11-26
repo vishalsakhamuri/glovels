@@ -118,7 +118,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     /* ---- the second reader really is a second thread */
     const src = fs.readFileSync(path.join(ROOT, 'server', 'api.js'), 'utf8');
     const routeOf = name => { const i = src.indexOf(name); return src.slice(i, i + 4200); };
-    check('the catalogue route does not walk the catalogue itself', /await taggedFind\(/.test(routeOf("route('GET', '/api/staff/catalogue', staffOnly")) && !/= taggedScan\(/.test(routeOf("route('GET', '/api/staff/catalogue', staffOnly")));
+    check('the catalogue route does not walk the catalogue itself', /await taggedFind\(/.test(routeOf("route('GET', '/api/staff/catalogue', catalogueReader")) && !/= taggedScan\(/.test(routeOf("route('GET', '/api/staff/catalogue', catalogueReader")));
     check('the fit route waits for the second reader', /await fitRun\(/.test(src) && !/[^t] fitRun\(db\.getProfile/.test(src));
     check('when the reader cannot take it on a big catalogue the screen is told busy — the work does not come back to this thread', /if \(catalogueIsBig\(\)\) return \{ busy: true \}/.test(src));
     const health = []; let stop = false;
