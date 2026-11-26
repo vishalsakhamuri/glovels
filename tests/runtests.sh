@@ -352,6 +352,8 @@ node wordingtest.js | tail -1 | sed 's/^/  wordingtest.js     /' | tee -a "$REPO
 node sitemapgatetest.js | tail -1 | sed 's/^/  sitemapgatetest.js /' | tee -a "$REPORT"
 # patch 307: Traffic and Marketing count a slice at a time; the health check answers meanwhile — own server (8309).
 node trafficslicetest.js | tail -1 | sed 's/^/  trafficslicetest.js /' | tee -a "$REPORT"
+# patch 316: tag searches and the fit test run on a second thread, with the old answers — own two servers (8316, 8317).
+node heavytest.js | tail -1 | sed 's/^/  heavytest.js        /' | tee -a "$REPORT"
 # patch 308: Students is in the side menu of every staff screen — reads the pages, no server.
 node navstudentstest.js | tail -1 | sed 's/^/  navstudentstest.js  /' | tee -a "$REPORT"
 # patch 309: Finance — statements (PDF), matching, invoices, the year's books, two companies — own server (8311).

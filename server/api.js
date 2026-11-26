@@ -60,6 +60,8 @@ const UNIS = require('./unis.js');
 const DAAD = require('./daad.js');
 const REQS = require('./reqs.js');
 const TAGS = require('./tags.js');
+const HEAVYLIB = require('./heavy.js');   // patch 316: long catalogue work, off the web server's thread
+const FITCORE = require('./fitcore.js');
 const FIND = require('./find.js');
 /* CNS-04 (12 Oct): ONE UNIVERSITY, ONE NAME IN A SEARCH.
  * The tag dictionary holds a university under its full name AND its short
@@ -579,6 +581,34 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
      database — not the whole catalogue, which at its planned size is not a
      thing to hold in memory per request. No destination chosen: the rows on
      the site. */
+  /* Patch 316: the second reader (server/heavy.js). Work that reads the
+     whole catalogue — a tag search with no word typed, the fit test — is
+     handed to it, so the thread that answers visitors is never the one
+     doing it. `heavyOk()` is whether it can be used; when it cannot and the
+     catalogue is big, the screen is told "busy" (heavyBusy) rather than the
+     work being done here, which is what took the site down on 26 Nov. */
+  const HEAVY = HEAVYLIB.open({ file: db.dbFile || '', aliases: (() => { try { return uniAliasGroups(); } catch (e) { return []; } })(),
+    log: line => { try { console.log(line); } catch (e) { /* no console */ } } });
+  const HEAVY_SMALL = 8000;   // rows under which the old way is quick enough to be safe
+  const catVer = () => (typeof db.catalogueVersion === 'function' ? db.catalogueVersion() : 0);
+  const catalogueIsBig = () => { try { return (typeof db.countProgrammes === 'function' ? Number(db.countProgrammes()) || 0 : cat().length) > HEAVY_SMALL; } catch (e) { return false; } };
+  const heavyBusy = res => json(res, 503, { error: 'The server is busy working this out for someone else \u2014 please try again in a minute.', busy: true }, { 'Retry-After': '30' });
+  /* Run `job` on the second reader; `inline` is the same work done here.
+     Answers { value } or { busy: true }. */
+  const heavyDo = async (key, job, inline) => {
+    if (HEAVY.possible) {
+      try { return { value: await HEAVY.cached([catVer(), key, job], 120000, () => HEAVY.run(job)) }; }
+      catch (e) {
+        try { console.log('heavy  ' + job.type + ' could not be handed over: ' + ((e && e.message) || e)); } catch (e2) { /* */ }
+        if (catalogueIsBig()) return { busy: true };
+      }
+    } else if (String(process.env.HEAVY || '').toLowerCase() === 'off' && catalogueIsBig()) return { busy: true };
+    return { value: inline() };
+  };
+  /* The tag index is read once the site is up, so the first counsellor to
+     choose a tag does not wait for it. */
+  if (HEAVY.possible) { const t = setTimeout(() => { if (catalogueIsBig()) HEAVY.run({ type: 'warm', v: catVer() }, 180000).catch(() => {}); }, 20000); if (t.unref) t.unref(); }
+
   const rowsFor = profile => {
     const cs = (profile && profile.countries && profile.countries.length) ? profile.countries : null;
     if (typeof db.rowsForCountries !== 'function') return cat();
@@ -6776,10 +6806,23 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     range('w_months', 0, 600, 'Work experience in months');
     return out;
   };
-  const fitRun = (profile, q, owedParts) => {
+  /* Patch 316: the fit test in two parts — what is asked (fitAsk: the
+     profile with the screen's answers over it, and the filters), and the
+     arithmetic (FITCORE.compute), which reads the whole catalogue and so
+     runs on the second reader. fitRun answers { busy: true } when that
+     reader cannot take it and the catalogue is too big to do it here. */
+  const fitRun = async (profile, q, owedParts) => {
+    const ask = fitAsk(profile, q);
+    if (ask.early) return ask.early;
+    const got = await heavyDo('fit', { type: 'fit', prof: ask.prof, opts: ask.opts, parts: owedParts || [],
+      countries: JSON.parse(JSON.stringify(countryMap() || {})), rows: FITCORE.rowsSpec(ask.prof) },
+      () => FITCORE.compute(rowsFor(ask.prof), ask.prof, ask.opts, owedParts || [], countryMap()));
+    /* A remembered answer is shared: the route adds its own lines to a copy. */
+    return got.busy ? got : Object.assign({}, got.value);
+  };
+  const fitAsk = (profile, q) => {
     const prof = Object.assign({}, profile || {});
     FIT_KEYS.forEach(k => { if (q[k] !== undefined) prof[k] = String(q[k]); });
-    const cat = rowsFor(prof);
     const opts = { kind: /^(public|private)$/.test(String(q.kind || '')) ? q.kind : 'any',
       field: String(q.field || '').trim(), q: String(q.q || '').slice(0, 80),
       ceiling: q.ceiling === undefined || q.ceiling === '' ? undefined : Number(q.ceiling) || 0,
@@ -6799,20 +6842,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       if (!w0.level) needs.push('level');
       if (!w0.field && !opts.field) needs.push('field');
       if (needs.length === 2 && !w0.cgpa) {
-        return { profile: prof, usable: false, needs, fits: [], near: [],
-          counts: { looked: 0, fits: 0, near: 0, unknownDates: 0 }, auto: [] };
+        return { early: { profile: prof, usable: false, needs, fits: [], near: [],
+          counts: { looked: 0, fits: 0, near: 0, unknownDates: 0 }, auto: [] } };
       }
     }
-    const found = MATCHES.screen(cat, prof, countryMap(), opts);
-    /* What the machine would deliver — the same call deliverMatches makes. */
-    const auto = (owedParts || []).map(part => {
-      const pl = MATCHES.plan(cat, prof, part.count, part.kind, countryMap());
-      return { kind: part.kind, count: part.count, package: part.package || '',
-        picks: pl.items.map(p => ({ id: p.id, program: p.program, university: p.university, totalInr: p.totalInr })),
-        note: pl.note, short: pl.short };
-    });
-    return { profile: prof, usable: MATCHES.usable(prof), fits: found.fits, near: found.near,
-      counts: found.counts, auto };
+    return { prof, opts };
   };
 
   route('GET', /^\/api\/staff\/student\/(\d+)\/fit$/, caseworkOnly(async (req, res, s, m) => {
@@ -6830,7 +6864,8 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
           package: (p.kind === 'public' ? 'Public University Unlock' : 'Private shortlist of ' + p.count) + ' (not bought)' }));
     const bad = fitErrors(q);
     if (bad.length) return json(res, 422, { error: 'Some answers cannot be right: ' + bad.map(x => x.why).join('; ') + '.', fields: bad });
-    const out = fitRun(db.getProfile(id), q, parts);
+    const out = await fitRun(db.getProfile(id), q, parts);
+    if (out.busy) return heavyBusy(res);
     out.bought = !!(owed.parts && owed.parts.length);
     out.onList = db.getShortlist(id).map(r => String(r.prog_id));
     out.dismissed = typeof db.dismissedFor === 'function' ? db.dismissedFor(id) : [];
@@ -6896,7 +6931,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const sold = MATCHES.partsFor(content);
     const parts = [{ kind: 'public', count: Number(b.publicCount) || sold[0].count, package: 'Public University Unlock' },
       { kind: 'private', count: Number(b.privateCount) || sold[1].count, package: 'Private shortlist of ' + (Number(b.privateCount) || sold[1].count) }];
-    return json(res, 200, fitRun(b.profile || {}, q, parts));
+    const out = await fitRun(b.profile || {}, q, parts);
+    if (out.busy) return heavyBusy(res);
+    return json(res, 200, out);
   }));
 
   route('DELETE', /^\/api\/staff\/student\/(\d+)\/shortlist\/(.+)$/,
@@ -13035,6 +13072,22 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
      reading every matching row in one go (per: 'all') was the whole table —
      70,000 rows, 200 MB — when no destination was chosen. Only the page asked
      for (and up to `keepIds` ids) is kept; the rest is counted and let go. */
+  /* Patch 316: that walk is done by the second reader now (taggedFind) —
+     it was ten seconds on this thread at 70,000 rows, and four of them in a
+     row was the outage of 26 Nov. taggedScan stays for the file store and a
+     small catalogue, where it is quick. */
+  const taggedFind = async (args, tagList, from, to, keepIds) => {
+    let spec = null;
+    try { spec = db.kind === 'sqlite' ? db.programmesPage(Object.assign({}, args, { sqlOnly: true })) : null; } catch (e) { spec = null; }
+    if (!spec || !spec.where) return { value: taggedScan(args, tagList, from, to, keepIds) };
+    const got = await heavyDo('tags', { type: 'tags', v: catVer(), where: spec.where, params: spec.params, order: spec.order,
+      tags: tagList, from, to, keep: keepIds || 0 }, () => null);
+    if (got.busy) return got;
+    if (!got.value) return { value: taggedScan(args, tagList, from, to, keepIds) };
+    /* Only the page asked for is read whole. */
+    const rows = got.value.page.map(id => db.programme(id)).filter(Boolean);
+    return { value: { rows, ids: got.value.ids, total: got.value.total } };
+  };
   const taggedScan = (args, tagList, from, to, keepIds) => {
     let total = 0; const rows = []; const ids = [];
     for (let pg = 1; pg < 1000; pg++) {
@@ -13082,9 +13135,11 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     let page;
     if (tagList.length) {
       const perN = Math.max(1, Math.min(2000, Number(qs.per) || 100)), pageN = Math.max(1, Number(qs.page) || 1);
-      const got = taggedScan({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
+      const found = await taggedFind({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
         type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
         status: qs.status == null ? '' : String(qs.status) }, tagList, (pageN - 1) * perN, pageN * perN, 0);
+      if (found.busy) return heavyBusy(res);
+      const got = found.value;
       page = { rows: got.rows, total: got.total, page: pageN, per: perN };
     } else {
       page = db.programmesPage({ q: qs.q, country: qs.country, level: levelQ, field: qs.field,
@@ -13149,8 +13204,9 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       type: qs.type, band: qs.band, cgpa: qs.cgpa, bars,
       status: qs.status == null ? '' : String(qs.status) };
     if (tagList.length) {
-      const got = taggedScan(args, tagList, 0, 0, 2000);
-      return json(res, 200, { ids: got.ids, total: got.total });
+      const found = await taggedFind(args, tagList, 0, 0, 2000);
+      if (found.busy) return heavyBusy(res);
+      return json(res, 200, { ids: found.value.ids, total: found.value.total });
     }
     const page = db.programmesPage(Object.assign(args, { page: 1, per: 2000 }));
     return json(res, 200, { ids: page.rows.slice(0, 2000).map(r => r.id), total: page.total });

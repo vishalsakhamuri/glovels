@@ -1489,6 +1489,8 @@ function open(dir) {
 
   const store = {
     kind: db.kind,
+    /* Patch 316: where the database is, for the second reader (server/heavy.js). */
+    dbFile: db.kind === 'sqlite' ? path.join(dir, 'glovels.db') : '',
     close: db.close,
     /** A consistent copy of the whole database, written to `toFile`. */
     snapshot: toFile => db.snapshot(toFile),
@@ -2634,7 +2636,7 @@ function open(dir) {
      * The office's list, a page at a time, with its own search. status:
      * '' everything, '1' on the site, '2' search only, '0' hidden.
      */
-    programmesPage({ q, country, level, field, type, band, cgpa, status, page, per, bars }) {
+    programmesPage({ q, country, level, field, type, band, cgpa, status, page, per, bars, sqlOnly }) {
       const w = ['1 = 1']; const a = [];
       if (country) { w.push('country = ?'); a.push(country); }
       if (level) { w.push("LOWER(COALESCE(NULLIF(level, ''), 'master')) = ?"); a.push(String(level).toLowerCase()); }
@@ -2694,6 +2696,9 @@ function open(dir) {
         if (every) return { rows, total: rows.length, page: 1, per: rows.length };
         return { rows: rows.slice((pageN - 1) * perN, pageN * perN), total: rows.length, page: pageN, per: perN };
       }
+      /* Patch 316: the filter itself, for the reader on its own thread
+         (server/heavy.js) — the same WHERE, run there rather than here. */
+      if (sqlOnly) return { where: w.join(' AND '), params: a, order: 'uni_slug ASC, program ASC' };
       if (every) {
         const rows = db.all('SELECT * FROM programmes WHERE ' + w.join(' AND ') + ' ORDER BY uni_slug ASC, program ASC', ...a);
         return { rows, total: rows.length, page: 1, per: rows.length };

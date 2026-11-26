@@ -486,6 +486,36 @@
     return true;
   }
 
+  /* Patch 316 (the outage of 26 Nov): what match() needs of a row, worked
+     out once and kept. Deriving a row's tags is a tenth of a millisecond;
+     asked of 70,000 rows on every tag search with no word typed, it was ten
+     seconds in which the server answered nobody. prep() is the row's part of
+     match(p, tags, '') and matcher(tags) the chosen tags' part; together they
+     give exactly match()'s answer (tests/heavytest.js holds them to it). */
+  function prep(p) {
+    const keys = new Set();
+    tagsOf(p).forEach(t => { keys.add(fold(t)); keys.add(foldUe(t)); });
+    return { moi: !!moiOk(p), pub: !!(p && p.isPublic), restr: reqsOfRow(p).restricted === true || (p && p.restricted) === true,
+      keys: [...keys], hay: storedTags(p) ? '' : ' ' + fold(nameText(p)) + ' ' };
+  }
+  const PREP_FEATURES = new Map([['moi accepted', e => e.moi], ['public university', e => e.pub],
+    ['private university', e => !e.pub], ['restricted admission', e => e.restr], ['moi', e => e.moi]]);
+  function matcher(tags) {
+    const all = (Array.isArray(tags) ? tags : String(tags || '').split(';')).map(t => String(t == null ? '' : t).trim()).filter(Boolean);
+    if (!all.length) return () => true;
+    const feats = all.map(t => PREP_FEATURES.get(fold(t))).filter(Boolean);
+    const list = all.filter(t => !PREP_FEATURES.has(fold(t)));
+    const g = groupChosen(list);
+    return e => {
+      for (const f of feats) if (!f(e)) return false;
+      if (!list.length) return true;
+      const keys = { has: k => e.keys.indexOf(k) >= 0 };
+      for (const t of g.each) if (!hasTag(null, t, keys, e.hay)) return false;
+      for (const alts of g.any) if (!alts.some(t => hasTag(null, t, keys, e.hay))) return false;
+      return true;
+    };
+  }
+
   /**
    * How well a row answers the search, for ordering: a tag hit in the stored
    * or derived tags counts 2, a free-text word in the programme title 2, in
@@ -516,5 +546,5 @@
     return out.slice(0, 120);
   }
 
-  return { TYPES, DESCRIPTIVE, groupChosen, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, memoTagsOf, publicTags, suggest, group, match, score, parseList, fold, setAliases, aliasesOf };
+  return { TYPES, DESCRIPTIVE, groupChosen, IDENTITY, load, loaded, dictionary, lookup, typeOf, derive, tagsOf, memoTagsOf, publicTags, suggest, group, match, prep, matcher, score, parseList, fold, setAliases, aliasesOf };
 });
