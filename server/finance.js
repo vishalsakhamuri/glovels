@@ -143,7 +143,9 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
         register: k === 'IN' ? str(legal.cin, 60) : str(ug.register, 120),
         series: str(x.series, 40) || (k === 'IN' ? str(legal.invoiceSeries, 40) : '') || d.series,
         next: Math.max(1, Number(x.next) || 1),
-        bank: String(x.bank || '').slice(0, 300),
+        bank: String(x.bank || '').slice(0, 600),
+        /* Patch 323: the line under the logo on the invoice — phone, email, site. */
+        contact: str(x.contact, 160) || (k === 'IN' ? [str(legal.phone, 40) || '+91 78393 99999', str(legal.email, 80) || 'info@glovels.com', 'www.glovels.com'].join('  |  ') : ''),
       };
     });
     return out;
@@ -203,7 +205,8 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
     const next = Number(b.next);
     all[c.code] = { name: str(b.name, 120) || cur.name, address: String(b.address == null ? cur.address : b.address).slice(0, 400),
       taxId: str(b.taxId == null ? cur.taxId : b.taxId, 40), series: str(b.series, 40) || cur.series,
-      next: Number.isInteger(next) && next >= cur.next ? next : cur.next, bank: String(b.bank == null ? cur.bank : b.bank).slice(0, 300) };
+      next: Number.isInteger(next) && next >= cur.next ? next : cur.next, bank: String(b.bank == null ? cur.bank : b.bank).slice(0, 600),
+      contact: str(b.contact == null ? cur.contact : b.contact, 160) };
     db.setContent('finance', all, who || 'staff');
     return settings()[c.code];
   };
@@ -311,15 +314,40 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
     }
     return by;
   };
+  /* Patch 323: WHAT IT WAS LAST TIME. The same people are paid every month —
+     eight salaries on the 30th, the landlord, the card machine's deposits —
+     and a bank's narration for them is the same but for its numbers. A line
+     whose words (numbers apart) were named before is offered that name, who
+     it was and the tax rate again; the office confirms it with one press. */
+  const wordsOf = d => String(d || '').toLowerCase().replace(/[0-9]+/g, ' ').replace(/[^a-z]+/g, ' ').trim();
+  let LEARNT = { at: 0, by: {} };
+  const learnt = code => {
+    const now = Date.now();
+    if (now - LEARNT.at > 2000) LEARNT = { at: now, by: {} };
+    if (!LEARNT.by[code]) {
+      const map = new Map();
+      F.all("SELECT description, amount, category, party, tax_rate FROM fin_lines WHERE company = ? AND category != '' ORDER BY date, id", code)
+        .forEach(r => { const k = (r.amount > 0 ? '+' : '-') + wordsOf(r.description); if (k.length > 4) map.set(k, { category: r.category, party: r.party, taxRate: r.tax_rate }); });
+      LEARNT.by[code] = map;
+    }
+    return LEARNT.by[code];
+  };
+  /* Money in by card machine: the bank says only "EDC" and the terminal's numbers. */
+  const hintOf = l => (l.amount > 0 && /^EDC\//i.test(String(l.description || '')) ? 'A card-machine deposit: money a student paid by card. Match it to that student, or to their invoice.' : '');
   const shape = (l, links) => {
     const matched = (links || []).reduce((a, k) => a + Number(k.amount), 0);
     const size = Math.abs(l.amount);
     const state = l.category ? 'named' : matched >= size && size > 0 ? 'matched' : matched > 0 ? 'part' : 'open';
-    return { id: l.id, date: l.date, description: l.description, ref: l.ref, amount: l.amount, balance: l.balance, account: l.account,
+    return Object.assign({ id: l.id, date: l.date, description: l.description, ref: l.ref, amount: l.amount, balance: l.balance, account: l.account,
       category: l.category, party: l.party, taxRate: l.tax_rate, note: l.note, state, matched, left: l.category ? 0 : Math.max(0, size - matched),
       links: (links || []).map(k => ({ id: k.id, kind: k.kind, orderRef: k.order_ref, paymentId: k.payment_id, invoiceId: k.invoice_id, amount: k.amount,
         invoice: k.invoice_id ? ((F.one('SELECT number, party, kind FROM fin_invoices WHERE id = ?', k.invoice_id) || {})) : null })),
-      guess: l.category || matched ? '' : ((GUESS.find(g => g[0].test(l.description) && KINDS[g[1]].dir === (l.amount > 0 ? 'in' : 'out')) || [])[1] || '') };
+      guess: l.category || matched ? '' : ((GUESS.find(g => g[0].test(l.description) && KINDS[g[1]].dir === (l.amount > 0 ? 'in' : 'out')) || [])[1] || ''),
+      hint: l.category || matched ? '' : hintOf(l) }, (() => {
+        if (l.category || matched) return {};
+        const was = learnt(l.company).get((l.amount > 0 ? '+' : '-') + wordsOf(l.description));
+        return was ? { guess: was.category, guessParty: was.party || '', guessRate: Number(was.taxRate) || 0, guessFrom: 'before' } : {};
+      })());
   };
   function lines(company, q) {
     const c = co(company); q = q || {};
@@ -1166,48 +1194,93 @@ function open({ db, MONEY, takePayment, log = console, fxRate }) {
    company's own details at the top; nothing is fetched from anywhere. */
 /* A GSTIN: two digits of the state, the ten of the PAN, an entity number, Z, a check character. */
 const isGstin = v => /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(v || '').toUpperCase().replace(/\s+/g, ''));
+/* The logo on the invoice, carried inside the page so the invoice is whole
+   wherever it is opened — printed from the site, or out of the accountant's ZIP. */
+let LOGO_URI = null;
+const logoUri = () => {
+  if (LOGO_URI !== null) return LOGO_URI;
+  try { LOGO_URI = 'data:image/png;base64,' + require('fs').readFileSync(require('path').join(__dirname, '..', 'assets', 'glovels-logo.png')).toString('base64'); }
+  catch (e) { LOGO_URI = ''; }
+  return LOGO_URI;
+};
+const MONTHS3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dayWords = d => (/^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? String(d).slice(8, 10) + '-' + MONTHS3[Number(String(d).slice(5, 7)) - 1] + '-' + String(d).slice(0, 4) : String(d || ''));
+
+/* An invoice as a page to print or save as PDF.
+ *
+ * Patch 323 (owner, 27 Nov: "normal invoice is ok, I will attach it here" —
+ * the company's own invoice, INV-91260138): laid out as the office's invoice
+ * is. The logo and contact line at the top; "To," with the customer's name
+ * and address on the left, the invoice number and date boxed on the right; a
+ * table of Sr. No., Particulars and Amount in the invoice's currency; the
+ * total; the bank details for payment; "For <company>, Authorised Signatory,
+ * Stamp & Sign" with room to sign; the company's name, address, CIN and GSTIN
+ * at the foot. Tax lines are printed only when tax is charged. What the
+ * office needs and the customer does not — paid or not, the value in the
+ * book's currency — is in a strip above the sheet that is never printed.
+ * Nothing is fetched from anywhere. */
 function invoiceHtml(inv, company, me) {
   const c = COMPANIES[company];
   const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
   const m = n => c.symbol + (Math.round(n) / 100).toLocaleString(c.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const nl = v => esc(v).replace(/\n/g, '<br>');
-  /* Patch 321: an invoice in another currency is printed in that currency,
-     with its value in the book's currency and the rate said underneath. */
   const X = inv.fx && inv.fx.currency ? inv.fx : null;
+  const cur = X ? X.currency : c.currency;
   const f = n => (X ? fxMoney(X.currency, n) : m(n));
+  const net = X ? X.net : inv.net, tax = X ? X.tax : inv.tax, gross = X ? X.gross : inv.gross;
   const stateWord = { paid: 'Paid', part: 'Part paid', unpaid: 'Unpaid', overdue: 'Overdue', cancelled: 'Cancelled' }[inv.state] || '';
+  const title = inv.status === 'cancelled' ? 'Cancelled invoice' : (c.code === 'IN' && inv.tax > 0 ? 'Tax invoice' : 'Invoice');
+  const taxLabel = inv.taxId ? (c.code === 'IN' ? (isGstin(inv.taxId) ? 'GSTIN ' : 'Tax ID ') : 'VAT ID ') + esc(inv.taxId) : '';
+  const logo = logoUri();
+  const blank = '<tr class="sp"><td>&nbsp;</td><td></td><td></td></tr>';
   return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
     + '<meta name="robots" content="noindex, nofollow"><title>Invoice ' + esc(inv.number) + '</title><style>'
-    + 'body{font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#0b1e31;margin:0;background:#eef2f7}'
-    + '.sheet{max-width:760px;margin:24px auto;background:#fff;padding:44px 48px;border-radius:10px}'
-    + 'h1{font-size:26px;margin:0 0 2px}table{width:100%;border-collapse:collapse;margin-top:26px}'
-    + 'th,td{text-align:left;padding:9px 6px;border-bottom:1px solid #dfe6ee;vertical-align:top}th{font-size:12px;color:#5b6b7e;text-transform:uppercase;letter-spacing:.04em}'
-    + '.r{text-align:right}.top{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}.mute{color:#5b6b7e}.tot td{border:0;padding:5px 6px}.tot .g td{font-weight:700;font-size:16px;border-top:2px solid #0b1e31}'
-    + '.tag{display:inline-block;padding:3px 10px;border-radius:99px;background:#eef2f7;font-weight:700;font-size:12px}'
-    + '.bar{max-width:760px;margin:18px auto 0;display:flex;gap:10px;justify-content:flex-end}.bar button{font:inherit;font-weight:700;padding:9px 16px;border-radius:9px;border:0;background:#0b1e31;color:#fff;cursor:pointer}'
-    + '@media print{body{background:#fff}.sheet{margin:0;padding:0;border-radius:0}.bar{display:none}}'
-    + '</style></head><body><div class="bar"><button type="button" onclick="window.print()">Print or save as PDF</button></div><div class="sheet">'
-    + '<div class="top"><div><h1>' + (inv.status === 'cancelled' ? 'Cancelled invoice' : (c.code === 'IN' && inv.tax > 0 ? 'Tax invoice' : 'Invoice')) + '</h1><div class="mute">No. ' + esc(inv.number) + '</div></div>'
-    + '<div class="r"><b>' + esc(me.name) + '</b><br><span class="mute">' + nl(me.address) + (me.register ? '<br>' + (c.code === 'IN' ? 'CIN ' : '') + esc(me.register) : '') + (me.taxId ? '<br>' + (c.code === 'IN' ? 'GSTIN ' : 'VAT ID ') + esc(me.taxId) : '') + '</span></div></div>'
-    + '<div class="top" style="margin-top:28px"><div><span class="mute">Billed to</span><br><b>' + esc(inv.party) + '</b>' + (inv.address ? '<br>' + nl(inv.address) : '') + (inv.email ? '<br>' + esc(inv.email) : '')
-    + (inv.taxId ? '<br>' + (c.code === 'IN' ? (isGstin(inv.taxId) ? 'GSTIN ' : 'Tax ID ') : 'VAT ID ') + esc(inv.taxId) : '') + '</div>'
-    + '<div class="r"><span class="mute">Date</span> ' + esc(inv.date) + (inv.due ? '<br><span class="mute">Due</span> ' + esc(inv.due) : '') + (inv.orderRef ? '<br><span class="mute">Order</span> ' + esc(inv.orderRef) : '')
-    + (stateWord ? '<br><span class="tag">' + stateWord + '</span>' : '') + '</div></div>'
-    + '<table><thead><tr><th>For</th><th class="r">Amount</th></tr></thead><tbody>'
-    + inv.items.map(i => '<tr><td>' + esc(i.text) + '</td><td class="r">' + (X ? f(i.fx) : m(i.amount)) + '</td></tr>').join('') + '</tbody></table>'
-    + '<table class="tot" style="margin-top:8px;width:auto;margin-left:auto"><tbody>'
-    + '<tr><td class="mute">Before ' + c.tax + '</td><td class="r">' + (X ? f(X.net) : m(inv.net)) + '</td></tr>'
-    + '<tr><td class="mute">' + c.tax + ' ' + inv.taxRate + '%</td><td class="r">' + (X ? f(X.tax) : m(inv.tax)) + '</td></tr>'
-    + '<tr class="g"><td>Total' + (X ? ' (' + esc(X.currency) + ')' : '') + '</td><td class="r">' + (X ? f(X.gross) : m(inv.gross)) + '</td></tr>'
-    + (!X && inv.paid > 0 ? '<tr><td class="mute">Received</td><td class="r">' + m(inv.paid) + '</td></tr><tr><td class="mute">Still to pay</td><td class="r">' + m(inv.outstanding) + '</td></tr>' : '')
-    + (X && inv.paid > 0 ? '<tr><td class="mute">Received, in ' + esc(c.currency) + '</td><td class="r">' + m(inv.paid) + '</td></tr>' + (inv.outstanding > 0 ? '<tr><td class="mute">Still to pay, about</td><td class="r">' + m(inv.outstanding) + '</td></tr>' : '') : '')
-    + '</tbody></table>'
-    + (X ? '<p class="mute" style="margin-top:14px">Invoiced in ' + esc(X.currency) + '. Value in ' + esc(c.currency) + ' on ' + esc(inv.date) + ' at ' + esc(c.currency) + ' ' + X.rate + ' to 1 ' + esc(X.currency) + ': <b style="color:#0b1e31">' + m(inv.gross) + '</b>'
-        + (inv.tax > 0 ? ' (' + c.tax + ' ' + m(inv.tax) + ')' : '') + '.'
-        + (inv.adjust ? ' Settled in full by ' + m(inv.gross + inv.adjust) + ' received; exchange difference ' + (inv.adjust > 0 ? '+' : '\u2212') + m(Math.abs(inv.adjust)) + '.' : '') + '</p>' : '')
-    + (inv.taxRate === 0 ? '<p class="mute" style="margin-top:22px">No ' + c.tax + ' is charged on this invoice.</p>' : '')
-    + (inv.note ? '<p style="margin-top:18px">' + nl(inv.note) + '</p>' : '')
-    + (me.bank ? '<p class="mute" style="margin-top:22px"><b style="color:#0b1e31">Pay to</b><br>' + nl(me.bank) + '</p>' : '')
+    + 'body{font:15px/1.45 "Times New Roman",Times,Georgia,serif;color:#111;margin:0;background:#eef2f7}'
+    + '.sheet{max-width:780px;margin:18px auto 28px;background:#fff;padding:34px 46px 26px;border-radius:6px;position:relative}'
+    + '.head{text-align:center;border-bottom:1.5px solid #333;padding-bottom:10px;margin-bottom:34px}.head img{height:92px;display:block;margin:0 auto 4px}'
+    + '.head .co{font:700 26px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;letter-spacing:.02em}.head .ct{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;color:#222;margin-top:4px}'
+    + 'table{width:100%;border-collapse:collapse}.bx td{border:1px solid #333;padding:9px 10px;vertical-align:top}'
+    + '.to{width:54%;font-weight:700;font-size:17px;line-height:1.4}.k{font-weight:700;font-size:17px;white-space:nowrap}.v{font-size:17px;white-space:nowrap}'
+    + '.it{margin-top:28px}.it th,.it td{border:1px solid #333;padding:6px 10px;font-size:17px}.it th{text-align:left;font-weight:700}.it .n{width:70px}.it .a{width:150px;text-align:right;white-space:nowrap}'
+    + '.it .p{text-align:center}.it .tl{text-align:right;font-weight:700}.it .sp td{height:14px;padding:4px 10px}'
+    + '.pay{border:1px solid #333;border-top:0;padding:26px 12px 16px;font-size:17px;font-weight:700;line-height:1.45}.pay .h{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;margin-bottom:18px}'
+    + '.sig{margin-top:56px}.sig .for{font:600 12px system-ui,-apple-system,Segoe UI,sans-serif;color:#1f3f8f;text-transform:uppercase}.sig .room{height:74px}.sig .as{font-weight:700}'
+    + '.note{margin:14px 0 0;font-size:14px}.foot{margin-top:26px;border-top:1.5px solid #333;padding-top:8px;text-align:center;font:12px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#222}.foot b{font-size:12.5px}'
+    + '.void{position:absolute;top:38%;left:0;right:0;text-align:center;font:800 78px system-ui,sans-serif;color:rgba(180,0,0,.16);transform:rotate(-24deg);pointer-events:none}'
+    + '.bar{max-width:780px;margin:16px auto 0;display:flex;gap:10px;align-items:center;justify-content:flex-end;font:14px system-ui,-apple-system,Segoe UI,sans-serif}.bar button{font:inherit;font-weight:700;padding:9px 16px;border-radius:9px;border:0;background:#0b1e31;color:#fff;cursor:pointer}'
+    + '.office{max-width:780px;margin:10px auto 0;padding:10px 14px;background:#fff8e6;border:1px solid #f0d58a;border-radius:8px;font:13.5px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#3b3214;box-sizing:border-box}'
+    + '.tag{display:inline-block;padding:2px 10px;border-radius:99px;background:#0b1e31;color:#fff;font-weight:700;font-size:12px}.mute{color:#5b6b7e}'
+    + '@page{size:A4;margin:12mm}@media print{body{background:#fff}.sheet{margin:0;padding:0;border-radius:0;max-width:none}.bar,.office{display:none}.inv .sheet{page-break-after:always}}'
+    + '</style></head><body><div class="bar"><button type="button" onclick="window.print()">Print or save as PDF</button></div>'
+    /* for the office, never printed */
+    + '<div class="office"><b>For the office — not printed.</b> ' + esc(title) + ' ' + esc(inv.number) + (stateWord ? ' <span class="tag">' + stateWord + '</span>' : '')
+      + (inv.due ? ' · due ' + esc(dayWords(inv.due)) : '') + (inv.orderRef ? ' · order ' + esc(inv.orderRef) : '')
+      + (inv.paid > 0 ? '<br>Received ' + m(inv.paid) + (inv.outstanding > 0 ? ' · still to pay ' + (X ? 'about ' : '') + m(inv.outstanding) : '') : '')
+      + (X ? '<br>Invoiced in ' + esc(X.currency) + '. Value in ' + esc(c.currency) + ' on ' + esc(inv.date) + ' at ' + esc(c.currency) + ' ' + X.rate + ' to 1 ' + esc(X.currency) + ': <b>' + m(inv.gross) + '</b>' + (inv.tax > 0 ? ' (' + c.tax + ' ' + m(inv.tax) + ')' : '') + '.'
+        + (inv.adjust ? ' Settled in full by ' + m(inv.gross + inv.adjust) + ' received; exchange difference ' + (inv.adjust > 0 ? '+' : '−') + m(Math.abs(inv.adjust)) + '.' : '') : '')
+      + '</div>'
+    + '<div class="sheet">'
+    + (inv.status === 'cancelled' ? '<div class="void">CANCELLED</div>' : '')
+    + '<div class="head">' + (logo && c.code === 'IN' ? '<img src="' + logo + '" alt="' + esc(me.name) + '">' : '<div class="co">' + esc(me.name) + '</div>')
+      + (me.contact ? '<div class="ct">' + esc(me.contact) + '</div>' : '') + '</div>'
+    + '<table class="bx"><tbody><tr><td class="to" rowspan="3">To,<br>' + esc(inv.party) + (inv.address ? '<br>' + nl(inv.address) : '') + (inv.email && !inv.address ? '<br><span style="font-weight:400">' + esc(inv.email) + '</span>' : '')
+      + (taxLabel ? '<br><span style="font-weight:400">' + taxLabel + '</span>' : '') + '</td>'
+      + '<td class="k">' + esc(title === 'Invoice' ? 'Invoice' : title) + ' Number: -</td><td class="v">' + esc(inv.number) + '</td></tr>'
+      + '<tr><td class="k">Invoice Date: -</td><td class="v">' + esc(dayWords(inv.date)) + '</td></tr>'
+      + '<tr><td class="k">' + (inv.due ? 'Due Date: -' : '&nbsp;') + '</td><td class="v">' + (inv.due ? esc(dayWords(inv.due)) : '') + '</td></tr></tbody></table>'
+    + '<table class="it"><thead><tr><th class="n">Sr. No.</th><th>Particulars</th><th class="a">Amount (' + esc(cur) + ')</th></tr></thead><tbody>'
+    + inv.items.map((i, n) => '<tr><td class="n">' + (n + 1) + '</td><td class="p">' + esc(i.text) + '</td><td class="a">' + (X ? f(i.fx) : m(i.amount)) + '</td></tr>').join('')
+    + (inv.items.length < 3 ? blank.repeat(3 - inv.items.length) : '')
+    /* tax is printed when tax is charged, and only then */
+    + (inv.tax > 0 ? '<tr><td class="n"></td><td class="tl">Taxable value</td><td class="a">' + f(net) + '</td></tr><tr><td class="n"></td><td class="tl">' + c.tax + ' ' + inv.taxRate + '%</td><td class="a">' + f(tax) + '</td></tr>' : '')
+    + '<tr><td class="n"></td><td class="tl">Total Amount in ' + esc(cur) + '</td><td class="a"><b>' + f(gross) + '</b></td></tr>'
+    + blank + '</tbody></table>'
+    + '<div class="pay">' + (me.bank ? '<div class="h">Affiliated Bank Details for Payment Transfer:</div>' + nl(me.bank) : '')
+      + (inv.note ? '<div class="note" style="font-weight:400">' + nl(inv.note) + '</div>' : '')
+      + (X && inv.tax > 0 ? '<div class="note" style="font-weight:400">Value in ' + esc(c.currency) + ' at ' + X.rate + ' to 1 ' + esc(X.currency) + ': ' + m(inv.gross) + ', of which ' + c.tax + ' ' + m(inv.tax) + '.</div>' : '')
+      + '<div class="sig"><div class="for">For ' + esc(me.name) + '</div><div class="room"></div><div class="as">Authorised Signatory<br>Stamp &amp; Sign</div></div></div>'
+    + '<div class="foot"><b>' + esc(me.name).toUpperCase() + '</b><br>' + esc(String(me.address || '').replace(/\s*\n\s*/g, ', '))
+      + ((me.register || me.taxId) ? '<br>' + [me.register ? (c.code === 'IN' ? 'CIN: ' : '') + esc(me.register) : '', me.taxId ? (c.code === 'IN' ? 'GSTIN: ' : 'VAT ID: ') + esc(me.taxId) : ''].filter(Boolean).join(' &nbsp;|&nbsp; ') : '') + '</div>'
     + '</div></body></html>';
 }
 

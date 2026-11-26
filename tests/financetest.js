@@ -394,7 +394,7 @@ async function sendBill(who, fields, name, buf) {
     const ST0 = (await req('a', 'GET', '/api/staff/finance/books?company=IN')).body.settings;
     check('the Indian company\u2019s name, address, GSTIN and CIN come from the site\u2019s legal details', ST0.name === 'Glovels Consultants Private Limited' && ST0.taxId === '36AALCG2793G1ZA' && /Madhapur/.test(ST0.address) && ST0.register === 'U85500TS2024PTC185996', JSON.stringify(ST0));
     const pr9 = await req('a', 'GET', '/api/staff/finance/invoice/' + a1.body.invoice.id + '/print');
-    check('\u2026and are printed on the invoice', /GSTIN 36AALCG2793G1ZA/.test(pr9.body.text || '') && /CIN U85500TS2024PTC185996/.test(pr9.body.text || ''), String(pr9.body.text || '').slice(0, 120));
+    check('\u2026and are printed on the invoice', /GSTIN:? 36AALCG2793G1ZA/.test(pr9.body.text || '') && /CIN:? U85500TS2024PTC185996/.test(pr9.body.text || ''), String(pr9.body.text || '').slice(0, 120));
     const again = await upload('a', 'IN', 'extra.pdf', smart(rowsC, 0));
     check('a removed statement can be uploaded again', again.status === 200 && again.body.added === 3, again.status + ' ' + JSON.stringify(again.body).slice(0, 120));
 
@@ -704,6 +704,35 @@ async function sendBill(who, fields, name, buf) {
     check('an invoice to a customer who is gone is refused, not raised to nobody', (await req('a', 'POST', '/api/staff/finance/invoice', { company: 'IN', kind: 'partner', customerId: C1.id, taxRate: 0, items: [{ text: 'x', amount: 100 }] })).status === 404);
     const fh2 = fs.readFileSync(path.join(__dirname, '..', 'finance.html'), 'utf8');
     check('the screen has the customer picker and the block to add one', /id="iCust"/.test(fh2) && /id="iCustBox"/.test(fh2) && /id="cAddr"/.test(fh2) && /Save customer/.test(fh2));
+
+    /* ---- Patch 323: the office's own invoice layout; what a line was last time ---- */
+    {
+    const lay = (await rawGet('a', '/api/staff/finance/invoice/' + CI.id + '/print')).buf.toString();
+    check('the invoice is laid out as the office\u2019s own: To, number and date boxed, Sr. No., Particulars, Amount in the currency, total', /To,<br>Kingsbridge University/.test(lay) && /Invoice Number: -/.test(lay) && /Invoice Date: -/.test(lay) && /Sr\. No\./.test(lay) && /Particulars/.test(lay) && /Amount \(GBP\)/.test(lay) && /Total Amount in GBP/.test(lay) && lay.includes('\u00a33,000.00'));
+    check('with the signatory block, the company at the foot, and the logo carried in the page', /Authorised Signatory<br>Stamp &amp; Sign/.test(lay) && /For Glovels Consultants Private Limited/.test(lay) && /CIN: U85500TS2024PTC185996/.test(lay) && /GSTIN: 36AALCG2793G1ZA/.test(lay) && /<img src="data:image\/png;base64,/.test(lay) && !/https?:\/\//.test(lay.replace(/www\.glovels\.com/g, '')));
+    check('no tax lines when no tax is charged; the date reads 12-Nov-2026 style', !/Taxable value/.test(lay) && /\d{2}-[A-Z][a-z]{2}-\d{4}/.test(lay));
+    check('what only the office needs is in a strip that is not printed', /class="office"/.test(lay) && /\.bar,\.office\{display:none\}/.test(lay) && lay.indexOf('class="office"') < lay.indexOf('<div class="sheet">'));
+    const layT = (await rawGet('a', '/api/staff/finance/invoice/' + inr.body.invoice.id + '/print')).buf.toString();
+    check('an invoice with GST prints the taxable value and the GST line, and is headed a tax invoice', /Tax invoice Number: -/.test(layT) && /Taxable value/.test(layT) && /GST 18%/.test(layT) && /Total Amount in INR/.test(layT) && layT.includes('1,180.00') && layT.includes('1,000.00'));
+    const setB = await req('a', 'PUT', '/api/staff/finance/settings', { company: 'IN', bank: 'Account Name: Glovels Consultants Private Limited\nBank Name: Test Bank\nSWIFT / SORT Code: TESTINBB', contact: '+91 00000 00000  |  accounts@example.test  |  www.glovels.com' });
+    const layB = (await rawGet('a', '/api/staff/finance/invoice/' + CI.id + '/print')).buf.toString();
+    check('the bank details and the contact line come from the Company tab', setB.status === 200 && /Affiliated Bank Details for Payment Transfer:/.test(layB) && /Account Name: Glovels Consultants Private Limited<br>Bank Name: Test Bank<br>SWIFT \/ SORT Code: TESTINBB/.test(layB) && /accounts@example\.test/.test(layB));
+    const upL = await upload('a', 'IN', 'learn.pdf', smart([
+      ['28/09/2026', ['INB/NEFT/AXODH12042380056/R KARTHIK/ICICI BANK LIMITED//////'], -4800000],
+      ['29/09/2026', ['EDC/67072-67076-/M037347011950013'], 2000000],
+      ['30/10/2026', ['INB/NEFT/AXODH99042380777/R KARTHIK/ICICI BANK LIMITED//////'], -4800000],
+      ['30/10/2026', ['INB/NEFT/AXODH99042380778/SOMEONE NEW/HDFC BANK//////'], -100000]], 0));
+    let LL3 = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&from=2026-09-01&to=2026-10-31')).body.lines;
+    const k1 = LL3.find(l => /12042380056/.test(l.description)), k2 = LL3.find(l => /99042380777/.test(l.description)), kn = LL3.find(l => /SOMEONE NEW/.test(l.description)), ke = LL3.find(l => /^EDC/.test(l.description));
+    check('before anything is named, nothing is guessed for a person\u2019s name', upL.body.added === 4 && k1.guess === '' && k2.guess === '' && !k2.guessFrom);
+    check('a card-machine deposit carries a hint that it is a student\u2019s card payment', /card-machine deposit/.test(ke.hint || '') && !k1.hint);
+    const nk = await req('a', 'PUT', '/api/staff/finance/line/' + k1.id, { company: 'IN', category: 'salaries', party: 'R Karthik' });
+    await new Promise(r => setTimeout(r, 2200));
+    LL3 = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&from=2026-09-01&to=2026-10-31')).body.lines;
+    const k2b = LL3.find(l => l.id === k2.id), knb = LL3.find(l => l.id === kn.id);
+    check('named once, the same payee next month is offered the same name and who it was', nk.status === 200 && k2b.guess === 'salaries' && k2b.guessParty === 'R Karthik' && k2b.guessFrom === 'before' && k2b.category === '', JSON.stringify({ g: k2b.guess, p: k2b.guessParty, f: k2b.guessFrom }));
+    check('offered, not applied; and somebody new is still nobody', k2b.state === 'open' && knb.guess === '' && !knb.guessFrom);
+    }
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');
