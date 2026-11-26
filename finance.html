@@ -167,6 +167,7 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
       <button type="button" data-tab="sales" aria-pressed="false">Sales</button>
       <button type="button" data-tab="purchases" aria-pressed="false">Purchases</button>
       <button type="button" data-tab="recon" aria-pressed="false">Reconciliation</button>
+      <button type="button" data-tab="pack" aria-pressed="false">For the accountant</button>
       <button type="button" data-tab="settings" aria-pressed="false">Company</button>
     </div>
     <div id="view"></div>
@@ -224,10 +225,82 @@ td textarea{width:100%;min-height:64px;border:1px solid var(--rule);border-radiu
   function show() {
     try { history.replaceState(null, '', '#' + CO + '/' + TAB); } catch (e) { /* fine */ }
     [].forEach.call(document.querySelectorAll('#tabs button'), function (x) { x.setAttribute('aria-pressed', x.dataset.tab === TAB ? 'true' : 'false'); });
-    var f = { overview: vOverview, bank: vBank, invoices: vInvoices, sales: vSales, purchases: vPurchases, recon: vRecon, settings: vSettings }[TAB] || vOverview;
+    var f = { overview: vOverview, bank: vBank, invoices: vInvoices, sales: vSales, purchases: vPurchases, recon: vRecon, pack: vPack, settings: vSettings }[TAB] || vOverview;
     f();
   }
   function reload() { return loadBooks().then(show).catch(function (e) { $('#view').innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; }); }
+
+  /* ---------------- for the accountant (patch 319) ----------------
+     One month, or the year: is it reconciled — said plainly, with what is
+     missing if not — the GST to pay, and everything the accountant is sent:
+     reports to print, registers as spreadsheets, the bank's own statements
+     and the suppliers' bills as the files that were uploaded. One at a time,
+     or all of it in one ZIP. */
+  var PACK_MONTH = null;
+  function vPack() {
+    var v = $('#view');
+    v.innerHTML = '<p class="muted">Putting the month together\u2026</p>';
+    var pq = function () { return 'company=' + CO + (PACK_MONTH && PACK_MONTH !== 'year' ? '&month=' + PACK_MONTH : '&year=' + YEAR); };
+    /* The first look: the last month that is over. */
+    if (PACK_MONTH === null) {
+      var now = new Date(), prev = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1)).toISOString().slice(0, 7);
+      PACK_MONTH = (B.months || []).some(function (m) { return m.month === prev; }) ? prev : 'year';
+    }
+    api('/api/staff/finance/pack?' + pq()).then(function (P) {
+      var c = B.companies.filter(function (x) { return x.code === CO; })[0] || { tax: 'GST' };
+      var tick = function (x) { return x.ok ? '<b style="color:var(--ok)">\u2713</b>' : x.must ? '<b style="color:var(--late)">\u2717</b>' : '<b style="color:var(--stale,#b26b00)">!</b>'; };
+      var T = P.tax, R = T.received, I = T.invoiced;
+      var link = function (href, label, extra) { return '<a class="btn sm" target="_blank" rel="noopener" href="' + href + '"' + (extra || '') + '>' + label + '</a>'; };
+      var row = function (a, b, cta) { return '<tr><td>' + a + '</td><td class="muted">' + b + '</td><td class="r" style="white-space:nowrap">' + cta + '</td></tr>'; };
+      var months = (P.months || []);
+      v.innerHTML =
+        '<div class="bar" style="margin-bottom:12px"><label>Period <select id="pkMonth">' +
+          '<option value="year"' + (PACK_MONTH === 'year' ? ' selected' : '') + '>The whole year ' + esc(P.yearLabel) + '</option>' +
+          months.map(function (m) { return '<option value="' + m + '"' + (m === PACK_MONTH ? ' selected' : '') + '>' + monthName(m) + '</option>'; }).join('') +
+        '</select></label></div>' +
+        '<div class="card" style="border-left:6px solid ' + (P.ready ? 'var(--ok)' : 'var(--late)') + '"><h2 style="color:' + (P.ready ? 'var(--ok)' : 'var(--late)') + '">' +
+          (P.ready ? '\u2713 ' + esc(P.period.label) + (P.period.partial ? ' is reconciled with the bank up to ' + esc(P.period.upTo) + ' \u2014 the year runs to ' + esc(P.period.to) : ' is reconciled with the bank \u2014 ready for the accountant') : '\u2717 ' + esc(P.period.label) + ' is not ready for the accountant yet') + '</h2>' +
+          '<p class="sub">' + esc(P.period.from) + ' to ' + esc(P.period.to) + ' \u00b7 ' + P.counts.lines + ' bank lines on ' + P.counts.statements + ' statement' + (P.counts.statements === 1 ? '' : 's') + '</p>' +
+          '<table><tbody>' + P.checks.map(function (x) { return '<tr><td style="width:28px;font-size:18px">' + tick(x) + '</td><td><b>' + esc(x.title) + '</b><br><span class="muted">' + esc(x.detail) + '</span></td></tr>'; }).join('') + '</tbody></table>' +
+          (P.ready ? '' : '<p class="sub" style="margin:10px 0 0">Finish these on the <b>Bank</b> tab, then come back. The downloads below work now, and each report says on its first page that the period is not reconciled.</p>') +
+        '</div>' +
+        '<div class="card"><h2>' + esc(c.tax) + ' for ' + esc(P.period.label) + '</h2>' +
+          '<p class="sub">By the day the money reached the bank or was taken in cash \u2014 how this book counts. The accountant decides what is filed.</p>' +
+          '<div class="kpis">' +
+            '<div class="kpi"><b>' + money(R.output) + '</b><span>' + esc(c.tax) + ' on sales received (on ' + money(R.taxable) + ')</span></div>' +
+            '<div class="kpi"><b>' + money(R.input) + '</b><span>' + esc(c.tax) + ' on purchases paid (on ' + money(R.purchases) + ')</span></div>' +
+            '<div class="kpi"><b style="color:' + (R.net > 0 ? 'var(--late)' : 'var(--ok)') + '">' + money(Math.abs(R.net)) + '</b><span>' + (R.net >= 0 ? esc(c.tax) + ' to pay for this period' : 'More ' + esc(c.tax) + ' on purchases than on sales') + '</span></div>' +
+            '<div class="kpi"><b>' + money(R.paid) + '</b><span>' + esc(c.tax) + ' paid from the bank in this period (may be for an earlier one)</span></div>' +
+          '</div>' +
+          '<p class="sub" style="margin:0">By the date on the invoices raised: <b>' + I.count + '</b> invoice' + (I.count === 1 ? '' : 's') + ', taxable <b>' + money(I.taxable) + '</b>, ' + esc(c.tax) + ' <b>' + money(I.output) + '</b>' + (I.cancelled ? ' (' + I.cancelled + ' cancelled, left out)' : '') + '. The report shows both, rate by rate.</p>' +
+        '</div>' +
+        '<div class="card"><h2>Everything for the accountant</h2>' +
+          '<p style="margin:0 0 14px"><a class="btn" href="/api/staff/finance/pack.zip?' + pq() + '">Download everything in one ZIP</a> <span class="muted">\u2014 the four reports, four spreadsheets, ' + P.counts.statementFiles + ' bank statement file' + (P.counts.statementFiles === 1 ? '' : 's') + ' and ' + P.counts.bills + ' bill' + (P.counts.bills === 1 ? '' : 's') + '</span></p>' +
+          '<div style="overflow-x:auto"><table><thead><tr><th>What</th><th>What it shows</th><th></th></tr></thead><tbody>' +
+            row('<b>' + esc(c.tax) + ' report</b>', 'Tax on sales and on purchases, rate by rate, and what is to pay', link('/api/staff/finance/pack/report/gst?' + pq(), 'Open to print')) +
+            row('<b>Bank reconciliation</b>', 'Opening balance, every line with what it was, closing balance \u2014 per account', link('/api/staff/finance/pack/report/recon?' + pq(), 'Open to print')) +
+            row('<b>Profit and loss</b>', 'Sales, other income and costs by kind, month by month', link('/api/staff/finance/pack/report/pl?' + pq(), 'Open to print')) +
+            row('<b>Sales invoices</b>', 'All ' + P.counts.invoices + ' invoices of the period, one after another', link('/api/staff/finance/pack/report/invoices?' + pq(), 'Open to print')) +
+            row('Bank lines, with what each was', 'Spreadsheet: ' + P.counts.lines + ' lines', link('/api/staff/finance/pack/register/lines.csv?' + pq(), 'Download')) +
+            row('Sales received', 'Spreadsheet: ' + P.counts.sales + ' receipts', link('/api/staff/finance/pack/register/sales.csv?' + pq(), 'Download')) +
+            row('Purchases paid', 'Spreadsheet: ' + P.counts.purchases + ' payments', link('/api/staff/finance/pack/register/purchases.csv?' + pq(), 'Download')) +
+            row('Invoices raised', 'Spreadsheet: ' + P.counts.invoices + ' invoices', link('/api/staff/finance/pack/register/invoices.csv?' + pq(), 'Download')) +
+          '</tbody></table></div>' +
+        '</div>' +
+        '<div class="card"><h2>The bank\u2019s own statements</h2><p class="sub">The files as they were uploaded.</p>' +
+          (P.statements.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Account</th><th>From</th><th>To</th><th class="r">Opening</th><th class="r">Closing</th><th>File</th><th></th></tr></thead><tbody>' +
+            P.statements.map(function (x) { return '<tr><td>' + esc(x.account ? '\u2026' + String(x.account).slice(-4) : '\u2014') + '</td><td>' + esc(x.from) + '</td><td>' + esc(x.to) + '</td><td class="r">' + (x.opening == null ? '\u2014' : money(x.opening)) + '</td><td class="r">' + (x.closing == null ? '\u2014' : money(x.closing)) + '</td><td>' + esc(x.filename) + '</td><td class="r">' +
+              (x.hasFile ? link('/api/staff/finance/statement/' + x.id + '/file', 'Download') : '<span class="muted">Uploaded before files were kept \u2014 upload it again</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+            : '<p class="muted" style="margin:0">No statement covers ' + esc(P.period.label) + '.</p>') +
+        '</div>' +
+        '<div class="card"><h2>Suppliers\u2019 bills</h2><p class="sub">The real copies, as uploaded on the Purchases tab.</p>' +
+          (P.bills.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Paid to</th><th class="r">Amount</th><th>File</th><th></th></tr></thead><tbody>' +
+            P.bills.map(function (b) { return '<tr><td>' + esc(b.date || '') + '</td><td>' + esc(b.party || '') + '</td><td class="r">' + money(b.amount) + '</td><td>' + esc(b.filename) + '</td><td class="r">' + link('/api/staff/finance/bill/' + b.id + '/file', 'Open') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+            : '<p class="muted" style="margin:0">No bill is kept for ' + esc(P.period.label) + ' yet.</p>') +
+        '</div>';
+      $('#pkMonth').addEventListener('change', function () { PACK_MONTH = this.value; vPack(); });
+    }).catch(function (e) { v.innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; });
+  }
 
   /* ---------------- overview ---------------- */
   function vOverview() {

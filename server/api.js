@@ -9263,6 +9263,38 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow' });
     return fs.createReadStream(file).pipe(res);
   }));
+  /* Patch 319: THE ACCOUNTANT'S PACK (server/finpack.js) — for a month or the
+     year, on one screen: whether the book is reconciled against the bank
+     (and if not, what is missing), the GST to pay, and everything the
+     accountant is sent — the reports as pages to print, the registers as
+     spreadsheets, the bank's own statements and the suppliers' bills as the
+     files that were uploaded — one at a time or all in one ZIP. Reads only. */
+  const FINPACK = require('./finpack.js').open({ fin, FIN, fs, path, stmtFile,
+    billFile: b => path.join(billDir(b.company), path.basename(b.stored)) });
+  const packQ = q => ({ month: q.get('month') || '', year: q.get('year') || '' });
+  route('GET', '/api/staff/finance/pack', finAdmin(async (req, res, s, m, q) =>
+    json(res, 200, Object.assign({ ok: true }, FINPACK.pack(q.get('company') || 'IN', packQ(q))))));
+  route('GET', /^\/api\/staff\/finance\/pack\/report\/(gst|recon|pl|invoices)$/, finAdmin(async (req, res, s, m, q) => {
+    const make = { gst: FINPACK.gstHtml, recon: FINPACK.reconHtml, pl: FINPACK.plHtml, invoices: FINPACK.invoicesHtml }[m[1]];
+    const html = make(q.get('company') || 'IN', packQ(q));
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:" });
+    return res.end(html);
+  }));
+  route('GET', /^\/api\/staff\/finance\/pack\/register\/(lines|sales|purchases|invoices)\.csv$/, finAdmin(async (req, res, s, m, q) => {
+    const R = FINPACK.registers(q.get('company') || 'IN', packQ(q));
+    const P = FINPACK.period(q.get('company') || 'IN', packQ(q));
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'private, no-store',
+      'Content-Disposition': 'attachment; filename="glovels-' + String(P.company).toLowerCase() + '-' + m[1] + '-' + String(P.slug).replace(/[^A-Za-z0-9-]/g, '-') + '.csv"' });
+    return res.end(R[m[1]]);
+  }));
+  route('GET', '/api/staff/finance/pack.zip', finAdmin(async (req, res, s, m, q) => {
+    const z = FINPACK.zipFor(q.get('company') || 'IN', packQ(q));
+    try { db.log(s.name, 'downloaded the accountant\u2019s pack', z.name + ' (' + z.count + ' files)'); } catch (e) { /* the log is not the download */ }
+    res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': z.data.length, 'Cache-Control': 'private, no-store',
+      'Content-Disposition': 'attachment; filename="' + z.name.replace(/[^A-Za-z0-9._ -]/g, '_') + '"', 'X-Robots-Tag': 'noindex, nofollow' });
+    return res.end(z.data);
+  }));
   /* Patch 312: the supplier's bill for a purchase, kept as a file. */
   const billDir = company => path.join(uploadDir, 'finance-bills', String(company).toUpperCase() === 'DE' ? 'DE' : 'IN');
   route('GET', '/api/staff/finance/bills', finAdmin(async (req, res, s, m, q) =>

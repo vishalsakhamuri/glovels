@@ -576,6 +576,42 @@ async function sendBill(who, fields, name, buf) {
     check('a statement that does not start where the last one ended is flagged', upG.body.added === 1 && lb && lb.follows === false && lb.agrees === true && RB2.find(a => a.statements.some(x => x.id === lb.id)).ok === false, JSON.stringify(lb));
     const rmF = await req('a', 'DELETE', '/api/staff/finance/statement/' + bF.id + '?company=IN');
     check('removing a statement removes its kept file', rmF.status === 200 && (await fetch(BASE + '/api/staff/finance/statement/' + bF.id + '/file', { headers: { cookie: jars.a } })).status === 404);
+
+    /* ---- Patch 319: the accountant's pack ---- */
+    const rawGet = async (who, p) => { const r = await fetch(BASE + p, { headers: { cookie: jars[who] } }); return { status: r.status, type: r.headers.get('content-type') || '', buf: Buffer.from(await r.arrayBuffer()) }; };
+    const pkJ = (await req('a', 'GET', '/api/staff/finance/pack?company=IN&month=2026-06')).body;
+    check('the pack for a month says, check by check, whether it is ready', pkJ.ok === true && Array.isArray(pkJ.checks) && pkJ.checks.length === 4 && ['statements', 'balance', 'sorted', 'bills'].every(k => pkJ.checks.some(c => c.key === k)) && typeof pkJ.ready === 'boolean', JSON.stringify(pkJ).slice(0, 200));
+    check('"ready" is exactly: every must-have check passes', pkJ.ready === pkJ.checks.filter(c => c.must).every(c => c.ok));
+    const sortedC = pkJ.checks.find(c => c.key === 'sorted');
+    const juneLines = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&from=2026-06-01&to=2026-06-30')).body.lines;
+    check('a month with a line still to sort is not ready, and says how many', juneLines.some(l => l.state === 'open' || l.state === 'part') ? (sortedC.ok === false && pkJ.ready === false && /still to sort/.test(sortedC.detail)) : sortedC.ok === true, sortedC.detail);
+    const pkE = (await req('a', 'GET', '/api/staff/finance/pack?company=IN&month=2026-08')).body;
+    check('a month with no statement is not ready', pkE.ready === false && pkE.checks.find(c => c.key === 'statements').ok === false && pkE.counts.lines === 0);
+    const pkY = (await req('a', 'GET', '/api/staff/finance/pack?company=IN&year=2026')).body;
+    check('a year still running is held to the last month that is over, and marked so', pkY.period.kind === 'year' && pkY.period.partial === true && pkY.period.upTo < pkY.period.to && pkY.months.length === 12, JSON.stringify(pkY.period));
+    check('the GST figures are there both ways: by money received and by invoices raised', pkY.tax && pkY.tax.received && pkY.tax.invoiced && pkY.tax.received.net === pkY.tax.received.output - pkY.tax.received.input && pkY.tax.invoiced.count >= 0);
+    const bk = (await req('a', 'GET', '/api/staff/finance/books?company=IN&year=2026')).body;
+    check('and they are the book\u2019s own figures for the year', pkY.totals.sales === bk.totals.sales && pkY.totals.costs === bk.totals.costs && pkY.tax.received.output === bk.totals.salesTax, JSON.stringify(pkY.totals) + ' vs ' + JSON.stringify(bk.totals).slice(0, 200));
+    for (const rp of ['gst', 'recon', 'pl', 'invoices']) {
+      const r = await rawGet('a', '/api/staff/finance/pack/report/' + rp + '?company=IN&year=2026');
+      check('the ' + rp + ' report is a page to print, with the company on it', r.status === 200 && /text\/html/.test(r.type) && r.buf.toString().includes('Glovels') && !/<script/i.test(r.buf.toString()), r.status + ' ' + r.type);
+    }
+    for (const rg of ['lines', 'sales', 'purchases', 'invoices']) {
+      const r = await rawGet('a', '/api/staff/finance/pack/register/' + rg + '.csv?company=IN&year=2026');
+      check('the ' + rg + ' register downloads as a spreadsheet', r.status === 200 && /text\/csv/.test(r.type) && r.buf.toString().split('\n').length >= 1, r.status + ' ' + r.type);
+    }
+    const linesCsv = (await rawGet('a', '/api/staff/finance/pack/register/lines.csv?company=IN&year=2026')).buf.toString();
+    const yearLines = (await req('a', 'GET', '/api/staff/finance/lines?company=IN&from=' + pkY.period.from + '&to=' + pkY.period.to)).body.lines;
+    check('one row in the lines register for each bank line of the year', linesCsv.trim().split(/\r?\n/).length === yearLines.length + 1, linesCsv.trim().split(/\r?\n/).length + ' rows for ' + yearLines.length + ' lines');
+    const zp = await rawGet('a', '/api/staff/finance/pack.zip?company=IN&year=2026');
+    const zt = zp.buf.toString('latin1');
+    check('everything in one ZIP: reports, registers, statements, read-me', zp.status === 200 && zp.buf.slice(0, 2).toString() === 'PK' && /application\/zip/.test(zp.type) && ['1 GST report.html', '2 Bank reconciliation.html', '3 Profit and loss.html', '4 Sales invoices.html', 'Registers/', 'READ ME.txt'].every(n => zt.includes(n)), zp.status + ' ' + zp.buf.length);
+    check('the bank\u2019s own statement files are inside it', pkY.counts.statementFiles > 0 ? zt.includes('Bank statements/') : true, pkY.counts.statementFiles);
+    check('the ZIP ends as a ZIP should (a central directory with every file)', zp.buf.readUInt32LE(zp.buf.length - 22) === 0x06054b50 && zp.buf.readUInt16LE(zp.buf.length - 12) >= 9);
+    check('a counsellor without Finance gets none of it', (await req('c', 'GET', '/api/staff/finance/pack?company=IN&year=2026')).status === 403 && (await rawGet('c', '/api/staff/finance/pack.zip?company=IN&year=2026')).status === 403 && (await rawGet('c', '/api/staff/finance/pack/report/gst?company=IN&year=2026')).status === 403);
+    check('the German company has its own pack, in its own tax', (await req('a', 'GET', '/api/staff/finance/pack?company=DE&year=2026')).body.tax.name === 'VAT' || /USt|VAT|MwSt/.test((await req('a', 'GET', '/api/staff/finance/pack?company=DE&year=2026')).body.tax.name));
+    const fh = fs.readFileSync(path.join(__dirname, '..', 'finance.html'), 'utf8');
+    check('the Finance screen has the tab, with one button for everything', /data-tab="pack"[^>]*>For the accountant</.test(fh) && /pack\.zip\?/.test(fh) && /Download everything in one ZIP/.test(fh));
   } catch (e) { fail++; console.log('  ✗ test crashed — ' + (e && e.stack || e)); }
   try { process.kill(-child.pid); } catch (e) { /* gone */ }
   console.log(pass + ' passed, ' + fail + ' failed');
