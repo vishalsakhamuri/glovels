@@ -104,7 +104,8 @@ const find = (rows, name) => (rows || []).find(r => r.name === name);
   r = await fetch(BASE + '/admin', { headers: { Cookie: admin } });
   html = await r.text();
   check('nor on the office screens', !/googletagmanager/.test(html));
-  check('the office screen has the Traffic tab', /data-o="traffic"/.test(html) && /id="trChart"/.test(html) && /id="gaId"/.test(html));
+  /* Patch 327: traffic is on Analytics; the tags form moved to Organisation → Settings. */
+  check('the office screen has the tags form under Settings, no Traffic tab', !/data-o="traffic"/.test(html) && /id="o-settings"[\s\S]*id="gaId"/.test(html));
   r = await fetch(BASE + '/api/staff/analytics', { method: 'PUT', headers: { Cookie: admin, 'Content-Type': 'application/json' }, body: JSON.stringify({ gaId: '' }) });
   check('an empty box takes the tag off', r.status === 200 && (await r.json()).gaId === '');
 

@@ -45,10 +45,14 @@ const S = Date.now();
 
     /* ---- Organisation */
     await p.goto(BASE + '/admin.html', { waitUntil: 'networkidle' }); await p.waitForTimeout(1200);
-    check('Organisation: the counts and the tabs show', await visible('#kTiles') && await visible('.otabs'));
+    /* Patch 327: no counts here (Command centre and Students have them), and only the tabs that live nowhere else. */
+    check('Organisation: the tabs show, the duplicate counts do not', !(await visible('#kTiles')) && await visible('.otabs'));
+    const otabs = await p.$$eval('.otab', t => t.map(x => x.dataset.o));
+    check('Organisation: tabs are Tasks, Email, Mobile app, Success stories, Settings', otabs.join(',') === 'tasks,email,app,stories,settings', otabs.join(','));
+    check('Organisation: opens on Tasks', await visible('#o-tasks') && !(await visible('#o-students')));
     check('Organisation: the team is not on it', !(await visible('#teamBlock')));
     check('Organisation: the menu says Organisation', JSON.stringify(await on()) === '["Organisation"]', JSON.stringify(await on()));
-    check('Organisation: its Orders tab still works', await p.evaluate(() => { showTab('orders'); return true; }) && await visible('#o-orders'));
+    check('Organisation: the marketing tags form is under Settings', await p.evaluate(() => { showTab('settings'); return true; }) && await visible('#gaCard'));
 
     /* ---- Orders, from the menu */
     await p.click('.p-nav a[href="admin.html#orders"]'); await p.waitForTimeout(900);
@@ -78,7 +82,7 @@ const S = Date.now();
 
     /* ---- back to Organisation */
     await p.click('.p-nav a[href="admin.html"]'); await p.waitForLoadState('networkidle'); await p.waitForTimeout(900);
-    check('Organisation again from the menu', await visible('#kTiles') && !(await visible('#teamBlock')));
+    check('Organisation again from the menu', await visible('.otabs') && !(await visible('#teamBlock')) && !(await visible('#o-orders')));
 
     /* ---- the menu everywhere has Users for an admin */
     for (const pg of ['counsellor.html', 'ops.html', 'leads.html', 'marketing.html', 'catalogue.html']) {

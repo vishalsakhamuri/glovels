@@ -65,9 +65,8 @@ const stamp = Date.now();
 
   /* ==================================================== the order book ==== */
   const page = await staff.newPage();
-  await page.goto(BASE + '/admin.html');
-  await page.waitForSelector('.otab[data-o="orders"]');
-  await page.click('.otab[data-o="orders"]');
+  /* Patch 327: the order book is the Orders screen, not a tab of Organisation. */
+  await page.goto(BASE + '/admin.html#orders');
   await page.waitForSelector('#ordRows tr');
   await page.waitForTimeout(300);
 
@@ -96,15 +95,15 @@ const stamp = Date.now();
       mine && Number(mine.counsellorId) === Number(counsellor.id),
       mine ? 'counsellorId=' + mine.counsellorId : 'order not found');
 
-    /* The same student on the student list, which is the other tab. It must
-       not need a reload to agree with what was just done. */
-    await page.click('.otab[data-o="students"]');
-    await page.waitForTimeout(250);
-    const stuValue = await page.$eval(
-      '#o-students tr:has-text("Buyer ' + stamp + '") select[data-assign]',
-      s => s.value).catch(() => '');
-    check('and the student list agrees without a reload',
-      String(stuValue) === String(counsellor.id), 'value=' + stuValue);
+    /* The same student on the Students page agrees (patch 327: the student
+       list lives there now, and an admin can change the counsellor on it). */
+    const sp = await staff.newPage();
+    await sp.goto(BASE + '/ops.html#students');
+    await sp.waitForSelector('#stuRows tr[data-stu]');
+    await sp.waitForTimeout(500);
+    const stuValue = await sp.$eval('#stuRows tr:has-text("Buyer ' + stamp + '") select[data-scoun]', s => s.value).catch(() => '');
+    check('and the Students page agrees', String(stuValue) === String(counsellor.id), 'value=' + stuValue);
+    await sp.close();
   }
 
   /* --------------------- an order nobody is on, said out loud ------------ */
@@ -115,9 +114,7 @@ const stamp = Date.now();
       { data: { counsellorId: null } });
 
     const p2 = await staff.newPage();
-    await p2.goto(BASE + '/admin.html');
-    await p2.waitForSelector('.otab[data-o="orders"]');
-    await p2.click('.otab[data-o="orders"]');
+    await p2.goto(BASE + '/admin.html#orders');
     await p2.waitForSelector('#ordRows tr');
     await p2.waitForTimeout(700);
 
@@ -138,29 +135,29 @@ const stamp = Date.now();
       { data: { counsellorId: counsellor.id } });
   }
 
-  /* ================================================== the conversations === */
-  await page.click('.otab[data-o="chats"]');
-  await page.waitForTimeout(400);
-  const convSel = await page.$$('#convRows select[data-assign]');
-  check('a conversation can be handed to somebody from its row', convSel.length > 0,
-    convSel.length + ' selects');
-
-  /* On a cold load. The conversations and the list of counsellors are fetched
-     side by side, and whichever answered first used to decide whether these
-     selects knew any names at all — so a thread with a counsellor could render
-     as "unassigned" directly under a summary card counting it against them. */
-  const fresh = await staff.newPage();
-  await fresh.goto(BASE + '/admin.html');
-  await fresh.waitForSelector('.otab[data-o="chats"]');
-  await fresh.click('.otab[data-o="chats"]');
-  await fresh.waitForSelector('#convRows select[data-assign]');
-  await fresh.waitForTimeout(700);
-  const convValue = await fresh.$eval(
-    '#convRows tr:has-text("Buyer ' + stamp + '") select[data-assign]', s => s.value)
-    .catch(() => '');
-  check('a thread that has a counsellor says so on a cold load',
-    String(convValue) === String(counsellor.id), 'value=' + convValue);
-  await fresh.close();
+  /* ============================== the Students page (patch 327) ========== */
+  {
+    const od = await (await staff.request.get(BASE + '/api/staff/orders')).json();
+    const one = (od.orders || []).find(o => o.email === email) || (od.orders || []).find(o => o.studentId);
+    const other = (people.counsellors || []).find(c => Number(c.id) !== Number(counsellor.id));
+    const sp = await staff.newPage();
+    sp.on('dialog', d => d.accept());
+    await sp.goto(BASE + '/ops.html#students');
+    await sp.waitForSelector('#stuRows select[data-scoun]');
+    const sel2 = await sp.$('#stuRows select[data-scoun="' + one.studentId + '"]');
+    check('an admin can change the counsellor on the Students page', !!sel2);
+    if (sel2 && other) {
+      await sel2.selectOption(String(other.id));
+      await sp.waitForTimeout(900);
+      const st = await (await staff.request.get(BASE + '/api/staff/students/board')).json();
+      const row = (st.students || []).find(x => Number(x.id) === Number(one.studentId));
+      check('and it reaches the server', row && row.counsellor && Number(row.counsellor.id) === Number(other.id),
+        row ? JSON.stringify(row.counsellor) : 'no row');
+      check('without opening the file', /\/ops(\.html)?#students$/.test(sp.url()), sp.url());
+      await staff.request.put(BASE + '/api/staff/student/' + one.studentId + '/counsellor', { data: { counsellorId: counsellor.id } });
+    }
+    await sp.close();
+  }
 
   /* ========================================================= the leads ==== */
   const lead = await page.context().newPage();

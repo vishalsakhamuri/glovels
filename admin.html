@@ -925,7 +925,7 @@ select.assign.none:hover{border-color:#a5342b}
     <div class="bell-panel" id="bellPanel" hidden role="dialog"
       aria-label="What needs doing"></div>
     <div class="p-top">
-      <div><h1 id="viewTitle">Organisation</h1><p id="viewLead">Every student, who is looking after them, and what is waiting on someone.</p></div>
+      <div><h1 id="viewTitle">Organisation</h1><p id="viewLead">The counsellors&rsquo; work, email, the app, success stories and settings.</p></div>
     </div>
 
     <div id="pushBar" hidden style="display:flex;gap:11px;align-items:center;flex-wrap:wrap;
@@ -1012,6 +1012,10 @@ select.assign.none:hover{border-color:#a5342b}
       body[data-view="users"] #kTiles, body[data-view="users"] .otabs, body[data-view="users"] .opane,
       body[data-view="orders"] #kTiles, body[data-view="orders"] #teamBlock, body[data-view="orders"] .otabs,
       body[data-view="orders"] .opane, body[data-view="org"] #teamBlock { display:none !important }
+      /* Patch 327: shown elsewhere — Students, Orders, Finance, Conversations, Analytics, Command centre. */
+      #kTiles, body[data-view="org"] #o-students, body[data-view="org"] #o-orders,
+      body[data-view="org"] #o-money, body[data-view="org"] #o-chats, body[data-view="org"] #o-traffic,
+      #funnelSec { display:none !important }
       body[data-view="orders"] #o-orders, body[data-view="orders"] #o-money { display:block !important }
       body[data-view="orders"] #o-money { margin-top:26px }
       body[data-view="users"] #teamBlock { margin-top:4px }
@@ -1278,30 +1282,26 @@ select.assign.none:hover{border-color:#a5342b}
     <!-- Four full tables on one page was thirty-four screens of scrolling at a
          hundred and thirty students, and the fourth one may as well not have
          existed. One at a time, with the true count on each tab. -->
+    <!-- Patch 327 (owner, 27 Nov): "review organisations and have it properly
+         so that we do not have same info in multiple places". Students are on
+         Students, orders on Orders, money on Finance, conversations on
+         Conversations and traffic on Analytics — so they are not here twice.
+         What is left is what exists nowhere else. The panes for orders and
+         money stay in the page: the Orders screen is this page with them shown. -->
     <div class="otabs" role="tablist">
-      <button class="otab" role="tab" data-o="students" aria-selected="true">
-        Every student <span class="n">0</span></button>
-      <button class="otab" role="tab" data-o="orders" aria-selected="false">
-        Orders <span class="n">0</span></button>
-      <button class="otab" role="tab" data-o="money" aria-selected="false">
-        Money</button>
+      <button class="otab" role="tab" data-o="tasks" aria-selected="true">
+        Tasks <span class="n">0</span></button>
       <button class="otab" role="tab" data-o="email" aria-selected="false">
         Email</button>
-      <button class="otab" role="tab" data-o="tasks" aria-selected="false">
-        Tasks <span class="n">0</span></button>
-      <button class="otab" role="tab" data-o="chats" aria-selected="false">
-        Conversations <span class="n">0</span></button>
       <button class="otab" role="tab" data-o="app" aria-selected="false">
         Mobile app</button>
-      <button class="otab" role="tab" data-o="traffic" aria-selected="false">
-        Traffic</button>
       <button class="otab" role="tab" data-o="stories" aria-selected="false">
         Success stories <span class="n" id="ssTabN">0</span></button>
       <button class="otab" role="tab" data-o="settings" aria-selected="false">
         Settings <span class="n" id="glTabN" hidden>0</span></button>
     </div>
 
-    <div class="opane active" id="o-students">
+    <div class="opane" id="o-students">
     <div class="p-sec">
       <div class="p-sec-head"><h2 id="everyStudent">Every student</h2>
         <span id="onlyChip" hidden class="st wait" style="text-transform:none;letter-spacing:0;
@@ -1539,8 +1539,8 @@ select.assign.none:hover{border-color:#a5342b}
          is behind", not "what is task 447". The list is second, and it opens
          filtered to what is late, because a board that opens showing four
          hundred rows in good order is a board nobody reads twice. -->
-    <div class="opane" id="o-tasks">
-    <div class="p-sec">
+    <div class="opane active" id="o-tasks">
+    <div class="p-sec" id="funnelSec">
       <div class="p-sec-head"><h2 id="funnelCard">Where everybody has got to</h2>
         <span id="fnChip" hidden class="st wait" style="text-transform:none;
           letter-spacing:0;cursor:pointer" title="Show every phase again"></span></div>
@@ -1905,7 +1905,26 @@ select.assign.none:hover{border-color:#a5342b}
       <!-- Patch 267: every tag the marketing team uses, on one card. IDs
            only — nobody here needs their logins. Each tag is off until its
            box is filled, and on every public page from the next page served. -->
-      <div class="p-card" id="gaCard" style="margin-top:14px">
+
+    </div>
+    </div><!-- /o-traffic — patch 276: this closing tag was missing, which put the
+         whole Organisation pane (go-live, backups, test data) inside Traffic -->
+
+    <!-- Round 176 (go-live): the readiness card, the backups, and the QA
+         clean-up. Everything an office would otherwise have to ask a
+         developer for on launch day, in one place and in plain words. -->
+    <div class="opane" id="o-settings">
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Go-live readiness</h2>
+        <button type="button" class="btn btn-ghost btn-sm" id="glRefresh" style="margin-left:auto">Check again</button></div>
+      <div class="p-card" id="goliveCard">
+        <p id="glSays" style="margin:0 0 10px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">Checking&hellip;</p>
+        <ul class="doclist" id="glList" style="margin:0"></ul>
+      </div>
+    </div>
+    <div class="p-sec">
+      <div class="p-sec-head"><h2>Marketing tags</h2></div>
+      <div class="p-card" id="gaCard" >
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <h3 style="margin:0;font-size:15px">Marketing tags &amp; conversions</h3>
           <span class="st" id="gaMode">checking&hellip;</span>
@@ -1923,7 +1942,7 @@ select.assign.none:hover{border-color:#a5342b}
           (amount and order reference, also from this server so a payment counts even when
           the browser dies at the gateway), <b>InitiateCheckout</b>, and <b>Contact</b>
           (WhatsApp, phone and email clicks). The portal and these office screens are never tagged.</p>
-        <div class="two" style="margin-top:14px">
+        <div class="two" >
           <div class="field"><label for="gaId">Google Analytics 4 &mdash; measurement ID</label>
             <input id="gaId" placeholder="G-XXXXXXXXXX" autocomplete="off" spellcheck="false"></div>
           <div class="field"><label for="gtmId">Google Tag Manager &mdash; container ID</label>
@@ -1958,21 +1977,6 @@ select.assign.none:hover{border-color:#a5342b}
         </div>
         <details style="margin-top:12px"><summary style="cursor:pointer;font-size:12.6px;color:var(--navy-800)">What this server sent recently (Conversions API, IndexNow)</summary>
           <ul class="tr-list" id="tagSent" style="margin-top:8px"></ul></details>
-      </div>
-    </div>
-    </div><!-- /o-traffic — patch 276: this closing tag was missing, which put the
-         whole Organisation pane (go-live, backups, test data) inside Traffic -->
-
-    <!-- Round 176 (go-live): the readiness card, the backups, and the QA
-         clean-up. Everything an office would otherwise have to ask a
-         developer for on launch day, in one place and in plain words. -->
-    <div class="opane" id="o-settings">
-    <div class="p-sec">
-      <div class="p-sec-head"><h2>Go-live readiness</h2>
-        <button type="button" class="btn btn-ghost btn-sm" id="glRefresh" style="margin-left:auto">Check again</button></div>
-      <div class="p-card" id="goliveCard">
-        <p id="glSays" style="margin:0 0 10px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">Checking&hellip;</p>
-        <ul class="doclist" id="glList" style="margin:0"></ul>
       </div>
     </div>
     <div class="p-sec">
@@ -2828,12 +2832,16 @@ document.addEventListener('click', e => {
 });
 
 /* ------------------------------------------------------------------- tabs */
+var gaPainted = false;
 function showTab(which) {
   $$('.otab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.o === which)));
   /* Patch 263: the rail says Orders when that is the tab open. */
   $$('.opane').forEach(pn => pn.classList.toggle('active', pn.id === 'o-' + which));
   if (which === 'traffic' && typeof trOpen === 'function') trOpen();
   if (which === 'tasks' && typeof tkOpen === 'function') tkOpen();
+  /* Patch 327: the marketing tags form moved here from Traffic. Before glOpen,
+     which cannot run until its own line further down has been reached. */
+  if (which === 'settings' && !gaPainted) { gaPainted = true; setTimeout(() => paintGa().catch(() => {}), 0); }
   if (which === 'settings' && typeof glOpen === 'function') glOpen();
   /* Where the tab bar is, not where the page happens to be scrolled. Switching
      tab and landing half way down the new one reads as a broken click. */
@@ -2850,13 +2858,21 @@ document.addEventListener('click', e => {
 /* A link that points at something on this screen opens the tab it is on.
    `admin.html#theMoney` used to scroll; a section inside a closed pane cannot
    be scrolled to, so it would have done nothing at all. */
-const TAB_OF = { everyStudent: 'students', everyOrder: 'orders',
-  theMoney: 'money', mailCard: 'email', everyChat: 'chats', appCard: 'app',
-  trafficCard: 'traffic', gaCard: 'traffic', storiesCard: 'stories',
-  goliveCard: 'settings', backupCard: 'settings', qaCard: 'settings' };
+const TAB_OF = { mailCard: 'email', appCard: 'app', storiesCard: 'stories',
+  gaCard: 'settings', goliveCard: 'settings', backupCard: 'settings', qaCard: 'settings',
+  funnelCard: 'tasks', tasksCard: 'tasks', qCard: 'tasks' };
+/* Patch 327: these moved off this screen; an old link or bookmark still lands. */
+const MOVED = { students: 'ops.html#students', everyStudent: 'ops.html#students',
+  chats: 'counsellor.html', everyChat: 'counsellor.html',
+  traffic: 'marketing.html', trafficCard: 'marketing.html',
+  money: 'admin.html#orders', theMoney: 'admin.html#orders' };
+(function () {
+  const h = (location.hash || '').replace(/^#/, '');
+  if (MOVED[h]) location.replace(MOVED[h]);
+})();
 /* Patch 277: which of the three screens — Organisation, Orders, Users. */
 const VIEWS = {
-  org:    ['Organisation', 'Every student, who is looking after them, and what is waiting on someone.'],
+  org:    ['Organisation', 'The counsellors\u2019 work, email, the app, success stories and settings.'],
   orders: ['Orders & payments', 'Every order, what was agreed and what has arrived — then every payment, refund and the money owed.'],
   users:  ['Users', 'Everybody who signs in to the office: admins, counsellors, external counsellors and B2B partners.'],
 };
@@ -2893,6 +2909,8 @@ function tabForHash() {
   return pane ? pane.id.replace(/^o-/, '') : '';
 }
 addEventListener('hashchange', () => {
+  const mv = MOVED[(location.hash || '').replace(/^#/, '')];
+  if (mv) { location.href = mv; return; }
   const v = viewForHash();
   setView(v);
   if (v !== 'org') return;
@@ -2906,7 +2924,7 @@ addEventListener('hashchange', () => {
 try {
   const asked = tabForHash();
   const back = asked || sessionStorage.getItem('gv-admin-tab');
-  if (back && $('#o-' + back)) showTab(back);
+  if (back && $('#o-' + back) && $('.otab[data-o="' + back + '"]')) showTab(back);
   /* Patch 263: arriving from the rail's Orders link lands on the book, not
      on the team list above it. */
   if (asked && viewForHash() === 'org') setTimeout(() => { const bar = $('.otabs'); if (bar) bar.scrollIntoView({ block: 'start' }); }, 400);
@@ -5018,7 +5036,7 @@ $('#gaSave').addEventListener('click', async () => {
 /* Painted when the tab is opened rather than on every visit to this screen —
    it reads every visit of the period. */
 let trPainted = false;
-function trOpen() { if (!trPainted) { trPainted = true; paintTraffic(); paintGa(); } }
+function trOpen() { if (!trPainted) { trPainted = true; paintTraffic(); } }
 if ($('#o-traffic') && $('#o-traffic').classList.contains('active')) trOpen();
 
 /* ============================================================ go-live (176) */

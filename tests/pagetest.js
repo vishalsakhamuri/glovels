@@ -69,67 +69,23 @@ const check = (n, p, note) => (p ? ok : bad).push(n + (note ? ' — ' + note : '
   const height = await page.evaluate(() => document.body.scrollHeight);
   check('the screen is a screen, not a scroll', height < 6000, height + 'px');
 
+  /* Patch 327: students, orders, money, conversations and traffic each have
+     their own screen, so Organisation keeps only what lives nowhere else. */
   const tabs = await page.$$eval('.otab', e => e.map(x => x.dataset.o));
-  check('the four tables are on four tabs',
-    ['students', 'orders', 'money', 'chats'].every(t => tabs.includes(t)), tabs.join(','));
+  check('Organisation keeps only its own tabs',
+    tabs.join(',') === 'tasks,email,app,stories,settings', tabs.join(','));
   check('only one is showing at a time',
     (await page.$$eval('.opane.active', e => e.length)) === 1);
 
-  const pagerText = () => page.textContent('#stuPager');
-  check('the pager counts every student, not the ones drawn',
-    (await pagerText()).includes('of ' + students.length),
-    (await pagerText()).replace(/\s+/g, ' ').trim());
-  check('and draws a page of them',
-    (await page.$$eval('#rows tr', e => e.length)) === 25,
-    await page.$$eval('#rows tr', e => e.length));
-
-  /* The last page, and the remainder on it. */
-  const pages = Math.ceil(students.length / 25);
-  await page.click('#stuPager .pgb[data-pg=\"stu|' + (pages - 1) + '\"]');
-  await page.waitForTimeout(500);
-  const lastRows = await page.$$eval('#rows tr', e => e.length);
-  check('the last page holds the remainder',
-    lastRows === (students.length % 25 || 25), lastRows + ' rows, ' + pages + ' pages');
-
-  /* THE paging bug: search while standing on the last page. */
-  await page.fill('#findStudent', 'Student 01');
-  await page.waitForTimeout(600);
-  const found = await page.$$eval('#rows tr', e => e.length);
-  check('searching from the last page shows results, not an empty table',
-    found > 0 && found <= 25, found + ' rows');
-  check('and the pager is back on page one',
-    (await pagerText()).trim() === '' || /^1–/.test((await pagerText()).trim()),
-    (await pagerText()).replace(/\s+/g, ' ').trim() || 'no pager — everything fits');
-  await page.fill('#findStudent', '');
-  await page.waitForTimeout(500);
-
-  /* A counter that filters the table has to open the tab the table is on. */
-  await page.click('.otab[data-o="money"]');
-  await page.waitForTimeout(400);
-  await page.click('[data-go="unassigned"]');
-  await page.waitForTimeout(700);
-  check('the Unassigned counter brings the student tab back with it',
-    await page.getAttribute('.otab[data-o="students"]', 'aria-selected') === 'true');
-  /* Every buyer is given a counsellor now, so the honest expectation is that
-     this filter finds nobody and says so — not that it renders some rows. */
-  const unassigned = await page.textContent('#rows');
-  check('and the table under it is the filtered one',
-    /Everybody has a counsellor/.test(unassigned)
-    || (await page.$$eval('#rows tr[data-row]', e => e.length)) > 0,
-    unassigned.replace(/\s+/g, ' ').trim().slice(0, 80));
-  await page.click('[data-go="all"]');
-  await page.waitForTimeout(600);
-
-  /* Orders and Conversations page too. */
-  await page.click('.otab[data-o="orders"]');
-  await page.waitForTimeout(500);
+  /* The orders book pages on the Orders screen. */
+  await page.goto(BASE + '/admin.html#orders', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
   check('the orders table pages', /of \d+ orders/.test(await page.textContent('#ordPager')),
     (await page.textContent('#ordPager')).replace(/\s+/g, ' ').trim());
-  await page.click('.otab[data-o="chats"]');
-  await page.waitForTimeout(500);
-  check('and so does the conversation list',
-    /of \d+ conversations/.test(await page.textContent('#convPager')),
-    (await page.textContent('#convPager')).replace(/\s+/g, ' ').trim());
+  /* An old link to the student table lands on Students. */
+  await page.goto(BASE + '/admin.html#everyStudent', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1500);
+  check('an old Every student link opens Students', /ops(\.html)?#students$/.test(page.url()), page.url());
   check('no errors on the Organisation screen', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   /* ================================================== the enquiries screen */

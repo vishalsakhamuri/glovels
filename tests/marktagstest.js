@@ -223,12 +223,12 @@ const page = (path, headers) => call(path, { headers: Object.assign({ Accept: 't
     await actx.addCookies([{ name: admin.split('=')[0], value: admin.split('=')[1], domain: 'localhost', path: '/' }]);
     const ap = await actx.newPage();
     const aerrs = []; ap.on('pageerror', e => aerrs.push(String(e)));
-    await ap.goto(BASE + '/admin#o-traffic', { waitUntil: 'networkidle' });
-    await ap.evaluate(() => { const b = document.querySelector('[data-opane="o-traffic"],[data-tab="o-traffic"],a[href="#o-traffic"]'); if (b) b.click(); });
+    /* Patch 327: the tags form is under Organisation → Settings now. */
+    await ap.goto(BASE + '/admin#gaCard', { waitUntil: 'networkidle' });
     await ap.waitForTimeout(1200);
     const vals = await ap.evaluate(() => ({ ga: document.querySelector('#gaId') && document.querySelector('#gaId').value, px: document.querySelector('#pixelId') && document.querySelector('#pixelId').value,
       tok: document.querySelector('#capiToken') && document.querySelector('#capiToken').value, mode: document.querySelector('#gaMode') && document.querySelector('#gaMode').textContent, key: document.querySelector('#inKey') && document.querySelector('#inKey').textContent }));
-    check('Organisation → Traffic shows the saved IDs, the masked token and the key file', vals.ga === 'G-ABCDEF1234' && vals.px === '123456789012345' && /^••••/.test(vals.tok || '') && /GA4/.test(vals.mode || '') && /\.txt$/.test(vals.key || ''), JSON.stringify(vals));
+    check('Organisation → Settings shows the saved IDs, the masked token and the key file', vals.ga === 'G-ABCDEF1234' && vals.px === '123456789012345' && /^••••/.test(vals.tok || '') && /GA4/.test(vals.mode || '') && /\.txt$/.test(vals.key || ''), JSON.stringify(vals));
     check('no script errors on the admin screen', aerrs.length === 0, aerrs.join(' | '));
   } catch (e) {
     bad.push('crashed: ' + (e.stack || e));

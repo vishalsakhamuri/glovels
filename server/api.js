@@ -6568,7 +6568,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     db.markRead(id, 'staff');
     const c = st.counsellor_id ? db.studentById(st.counsellor_id) : null;
     return json(res, 200, {
-      student: { id: st.id, name: st.name, email: st.email, phone: st.phone, joined: st.created_at },
+      student: { id: st.id, name: st.name, email: st.email, phone: st.phone, joined: st.created_at, status: st.status || 'active' },
       /* Patch 177 (item 5): "Referred by <agency>" on the file header. */
       partner: partnerOf(st),
       source: studentSourceOf(st),
@@ -10722,7 +10722,10 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const now = Date.now(), admin = s.role === 'admin';
     const people = peopleMap();
     const nameOf = id => (id && people.get(Number(id))) ? people.get(Number(id)).name : '';
-    const files = (db.allStudents() || []).filter(st => st.role === 'student' && db.openFile(st)
+    /* Patch 327: an admin can list the closed files too, to reopen one — the
+       student table on Organisation, which used to be the only place, is gone. */
+    const closed = admin && String((url.parse(req.url, true).query || {}).closed || '') === '1';
+    const files = (db.allStudents() || []).filter(st => st.role === 'student' && (closed ? !db.openFile(st) : db.openFile(st))
       && (admin || db.canSee(s, Number(st.id))));
     const clip = t => { const x = String(t || '').replace(/\s+/g, ' ').trim(); return x.length > 180 ? x.slice(0, 177) + '\u2026' : x; };
     const rows = files.map(st => {
@@ -10758,7 +10761,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       } catch (e) { /* no tasks */ }
       const P = S && S.pending;
       return {
-        id: sid, name: st.name || '', email: st.email || '',
+        id: sid, name: st.name || '', email: st.email || '', status: st.status || 'active',
         destination: prof.g_country || '', intake: prof.g_intake || '',
         stage: S ? S.stage : '', stageKey: S ? S.key : '',
         pendingWith: P ? P.with : '', pendingLabel: P ? P.withLabel : '', pendingWhat: P ? P.what : '',
@@ -10768,7 +10771,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
       };
     }).sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
     const stages = TASKS.PHASES ? TASKS.PHASES.map(ph => ({ key: ph.key, label: ph.short || ph.label })) : [];
-    json(res, 200, { at: new Date(now).toISOString(), admin, total: rows.length, stages, students: rows,
+    json(res, 200, { at: new Date(now).toISOString(), admin, closed, total: rows.length, stages, students: rows,
       today: DAYS.istDay(now), yesterday: DAYS.addDays(DAYS.istDay(now), -1),
       counsellors: admin ? db.activeCaseworkers().map(c => ({ id: c.id, name: c.name })) : [] });
   }));

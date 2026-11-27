@@ -76,28 +76,30 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
   /* Conversations is a tab of its own now — four full tables stacked on one
      page was thirty-four screens of scrolling once the site had customers, so
      the link says which one it wants. */
-  await page.goto(BASE + '/admin#everyChat', { waitUntil: 'domcontentloaded' });
+  await page.goto(BASE + '/ops', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2800);
+  /* Patch 327: it opens on the ones waiting on us; this suite looks at all of them. */
+  await page.uncheck('#cvOnly'); await page.waitForTimeout(300);
 
-  check('the conversations are on the Organisation screen',
-    (await page.$$('#convRows tr[class], #convRows tr')).length >= 1);
+  check('the conversations are on the Command centre',
+    (await page.$$('#cvRows tr[class], #cvRows tr')).length >= 1);
   /* This student's row, not the first row. The list carries every student now,
      including the ones nobody has written to — they sort to the top, because a
      student nobody has started is the most urgent thing on the screen — so
      "the first row" is no longer this one, and clicking it guides somebody
      else's counsellor. */
-  const myRow = page.locator('#convRows tr', { hasText: 'Prasad' });
+  const myRow = page.locator('#cvRows tr', { hasText: 'Prasad' });
   const rowText = await myRow.first().textContent();
   check('naming the student and the counsellor',
     rowText.includes('Prasad') && rowText.includes('Kavya'), rowText.slice(0, 80));
   check('and saying it is waiting rather than answered',
     !/answered/.test(rowText), rowText.replace(/\s+/g, ' ').slice(0, 140));
   check('a student nobody has written to is on the list too, not filtered out',
-    (await page.textContent('#convRows')).includes('Nothing said yet')
+    (await page.textContent('#cvRows')).includes('Nothing said yet')
       || (list.conversations || []).every(c => c.messages > 0),
     'silent=' + list.summary.silent);
   check('the by-counsellor summary is drawn',
-    (await page.$$('#convWho .cw')).length >= 1);
+    (await page.$$('#cvWho button')).length >= 1);
   check('there is a way to read the whole thread',
     (await page.$$('a[href^="counsellor.html?student="]')).length >= 1);
 
@@ -111,15 +113,15 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
    *
    * They filter the list under them now, the way the partner counters do. */
   check('each counsellor card is a control, not a label',
-    (await page.$$eval('#convWho .cw', cs => cs.every(c => c.tagName === 'BUTTON'))),
-    (await page.$$eval('#convWho .cw', cs => cs.map(c => c.tagName).join(','))));
-  const everyone = (await page.$$('#convRows tr')).length;
+    (await page.$$eval('#cvWho button', cs => cs.every(c => c.tagName === 'BUTTON'))),
+    (await page.$$eval('#cvWho button', cs => cs.map(c => c.tagName).join(','))));
+  const everyone = (await page.$$('#cvRows tr')).length;
   /* A named counsellor rather than the first card, and the count is checked
      against what the summary itself promised — "fewer rows than before" passes
      on its own when the fixture has one conversation in it, which is a check
      that cannot fail dressed up as one that can. */
-  const cards = await page.$$eval('#convWho .cw', cs => cs.map(c => ({
-    key: c.dataset.cw,
+  const cards = await page.$$eval('#cvWho button', cs => cs.map(c => ({
+    key: c.dataset.cvw,
     name: c.querySelector('b').textContent,
     threads: Number((c.querySelector('span').textContent.match(/^(\d+) thread/) || [])[1] || 0),
   })));
@@ -132,38 +134,36 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
     check('pressing one shows exactly the threads that card counted', false,
       'the cards carry no data-cw — they are not controls');
   } else {
-  await page.click('#convWho .cw[data-cw="' + pick.key + '"]');
+  await page.click('#cvWho [data-cvw="' + pick.key + '"]');
   await page.waitForTimeout(500);
-  const slice = (await page.$$('#convRows tr')).length;
+  const slice = (await page.$$('#cvRows tr')).length;
   check('pressing one shows exactly the threads that card counted',
     slice === pick.threads, pick.name + ': card says ' + pick.threads
       + ', list shows ' + slice + ' (of ' + everyone + ')');
   check('and every row on it is theirs',
-    (await page.$$eval('#convRows tr', (rs, who) =>
+    (await page.$$eval('#cvRows tr', (rs, who) =>
       rs.every(r => r.cells[1] && r.cells[1].textContent.includes(who)), pick.name)),
     pick.name);
   check('and it shows as pressed',
-    (await page.$eval('#convWho .cw[data-cw="' + pick.key + '"]',
+    (await page.$eval('#cvWho [data-cvw="' + pick.key + '"]',
       c => c.getAttribute('aria-pressed'))) === 'true');
-  check('and the screen says which slice it is showing',
-    /Showing /.test(await page.textContent('#convChip')));
   /* A filter with no way out is a screen that has broken, as far as anybody
      using it can tell. There are two ways out here and both are checked. */
-  await page.click('[data-cw-all]');
+  await page.click('#cvWho [data-cvw="' + pick.key + '"]');
   await page.waitForTimeout(450);
   check('there is a way back to everyone',
-    (await page.$$('#convRows tr')).length === everyone);
-  await page.click('#convWho .cw[data-cw="' + pick.key + '"]');
+    (await page.$$('#cvRows tr')).length === everyone);
+  await page.click('#cvWho [data-cvw="' + pick.key + '"]');
   await page.waitForTimeout(400);
-  await page.click('#convWho .cw[data-cw="' + pick.key + '"]');
+  await page.click('#cvWho [data-cvw="' + pick.key + '"]');
   await page.waitForTimeout(400);
   check('and pressing the same card again is the other one',
-    (await page.$$('#convRows tr')).length === everyone);
+    (await page.$$('#cvRows tr')).length === everyone);
   }
 
   /* ------------------------------------------------------------- guiding */
-  check('and a way to guide the counsellor', (await page.$$('[data-guide]')).length >= 1);
-  await page.click('[data-guide="' + me.user.id + '"]');
+  check('and a way to guide the counsellor', (await page.$$('[data-cvguide]')).length >= 1);
+  await page.click('[data-cvguide="' + me.user.id + '"]');
   await page.waitForTimeout(1800);
   const after = await (await admin.request.get(BASE + '/api/staff/conversations')).json();
   const row = (after.conversations || []).find(c => c.id === me.user.id);
@@ -186,32 +186,33 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
   const pp = await phone.newPage();
   const perrs = [];
   pp.on('pageerror', e => perrs.push(String(e)));
-  await pp.goto(BASE + '/admin#everyChat', { waitUntil: 'domcontentloaded' });
-  await pp.waitForSelector('#convRows tr', { timeout: 15000 });
+  await pp.goto(BASE + '/ops', { waitUntil: 'domcontentloaded' });
+  await pp.waitForSelector('#cvRows tr', { timeout: 15000 });
+  await pp.uncheck('#cvOnly');
   await pp.waitForTimeout(1800);
 
   /* The cards first, because pressing the name navigates away. */
-  const phoneAll = (await pp.$$('#convRows tr')).length;
-  const phoneCard = await pp.$$eval('#convWho .cw', cs => {
-    const c = cs.find(x => x.dataset.cw && x.dataset.cw !== 'none') || cs[0];
-    if (!c || !c.dataset.cw) return null;
-    return { key: c.dataset.cw,
+  const phoneAll = (await pp.$$('#cvRows tr')).length;
+  const phoneCard = await pp.$$eval('#cvWho button', cs => {
+    const c = cs.find(x => x.dataset.cvw && x.dataset.cvw !== 'none') || cs[0];
+    if (!c || !c.dataset.cvw) return null;
+    return { key: c.dataset.cvw,
       threads: Number((c.querySelector('span').textContent.match(/^(\d+) thread/) || [])[1] || 0) };
   });
   if (!phoneCard) {
     check('the counsellor cards press on a phone too', false, 'they are not controls');
   } else {
-    await pp.click('#convWho .cw[data-cw="' + phoneCard.key + '"]');
+    await pp.click('#cvWho [data-cvw="' + phoneCard.key + '"]');
     await pp.waitForTimeout(500);
-    const phoneSlice = (await pp.$$('#convRows tr')).length;
+    const phoneSlice = (await pp.$$('#cvRows tr')).length;
     check('the counsellor cards press on a phone too',
       phoneSlice === phoneCard.threads,
       'card says ' + phoneCard.threads + ', list shows ' + phoneSlice
         + ' (of ' + phoneAll + ')');
-    await pp.click('[data-cw-all]');
+    await pp.click('#cvWho [data-cvw="' + phoneCard.key + '"]');
     await pp.waitForTimeout(450);
     check('  · and the way back works there as well',
-      (await pp.$$('#convRows tr')).length === phoneAll);
+      (await pp.$$('#cvRows tr')).length === phoneAll);
   }
 
   /* ---- a row is a card on a phone ----
@@ -224,14 +225,14 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
    * The check is that the CELL IS ON THE SCREEN, not that it exists — off to
    * the right of a scrolling box is exactly where they were before. */
   const card = await pp.evaluate(() => {
-    const tr = document.querySelector('#convRows tr');
-    const tbl = document.querySelector('.cvtbl');
+    const tr = document.querySelector('#cvRows tr');
+    const tbl = document.querySelector('#cvSec table');
     /* Null-safe on purpose. On a tree without these classes the evaluate
        THREW, which ends the run — so the checks after it never reported and
        the log was a stack trace instead of a list of what is wrong. */
     if (!tr || !tbl) return { missing: true, display: '', headerHidden: false,
       boxScrolls: true, offscreen: ['the card layout is not there'], labels: [] };
-    const box = tbl.closest('.p-card') || tbl;
+    const box = tbl.closest('.crew') || tbl;
     const vw = document.documentElement.clientWidth;
     return {
       display: getComputedStyle(tr).display,
@@ -248,14 +249,14 @@ const SECRET = 'Answer within the day and use their name — ' + stamp;
     card.display === 'block', card.display);
   check('  · the column headers step aside', card.headerHidden);
   check('  · and each value says which column it is',
-    ['Counsellor', 'Last said', 'Waiting', 'Balance'].every(l => card.labels.includes(l)),
+    ['Counsellor', 'Last said', 'Waiting', 'From us / them'].every(l => card.labels.includes(l)),
     card.labels.join(', '));
   check('  · nothing is off the right-hand edge any more',
     card.offscreen.length === 0, card.offscreen.join(', '));
   check('  · so the list no longer needs a sideways scroll at all',
     !card.boxScrolls);
 
-  const opener = await pp.$('#convRows .cvopen');
+  const opener = await pp.$('#cvRows .cvopen');
   check('on a phone the student name opens the conversation', !!opener);
   if (opener) {
     const box = await opener.boundingBox();

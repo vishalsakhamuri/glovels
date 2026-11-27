@@ -300,8 +300,8 @@ const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toI
     ok('ADM-08 (1): the Tasks badge reads the real count before the tab is opened', badge === String(counts.late || counts.open || 0), badge + ' vs ' + J(counts));
 
     /* ADM-04: the sheet keeps the minus sign and says so. */
-    await page.click('.otab[data-o="orders"]');
-    await page.waitForTimeout(800);
+    await page.goto(BASE + '/admin.html#orders');   // patch 327: Orders is its own screen
+    await page.waitForTimeout(1500);
     const payBtn = await page.$('[data-pay="' + ref1 + '"]');
     if (payBtn) {
       await payBtn.click();
@@ -323,8 +323,7 @@ const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toI
 
     /* ADM-06: the Link button exists on an unlinked order. */
     r = await req('g2', 'POST', '/api/orders', { packageId: 'pkg-offer', name: 'Guest Two', email: 'admin@glovels.com', phone: '9000169003', acceptedTerms: true });
-    await page.reload(); await page.waitForTimeout(600);
-    await page.click('.otab[data-o="orders"]'); await page.waitForTimeout(800);
+    await page.reload(); await page.waitForTimeout(1500);
     ok('ADM-06: an unlinked order offers "Link to a student"', !!(await page.$('[data-olink="' + r.body.reference + '"]')));
 
     /* CNS-03: Move / Keep on the lead owner. */

@@ -28,7 +28,7 @@ const names = page => page.$$eval('#rows tr',
     && !/ERR_TUNNEL|fonts\.googleapis|favicon/.test(m.text()) && errs.push(m.text()));
 
   await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#rows tr', { timeout: 15000 });
+  await page.waitForSelector('.otabs', { timeout: 15000 });
 
   /* ------------------------------------------------- make a student here */
   /* Patch 277: the team and its Add someone button are on the Users screen. */
@@ -60,73 +60,30 @@ const names = page => page.$$eval('#rows tr',
   /* Signing in as them replaced the session cookie on this context. */
   await ctx.request.post(BASE + '/api/auth/login',
     { data: { email: 'admin@glovels.com', password: 'glovels123' } });
+  /* Patch 327: the student list is the Students page; Organisation no longer
+     repeats it (nor the counters, which Command centre and Students show). */
   await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#rows tr', { timeout: 15000 });
+  await page.waitForTimeout(1500);
+  check('Organisation has no student table or counters of its own',
+    !(await page.isVisible('#rows')) && !(await page.isVisible('#kTiles')));
 
-  check('they appear in Every student',
-    (await names(page)).some(n => /Walk In Student/.test(n)),
-    (await names(page)).join(' | '));
-
-  /* ------------------------------------------------------- the counters */
-  const all = await names(page);
-  check('the table starts with everybody', all.length >= 2, all.length + ' rows');
-
-  check('and the view you are in is marked on the counter',
-    await page.$eval('[data-go="all"]', el => el.classList.contains('on')));
-
-  await page.click('[data-go="unassigned"]');
-  await page.waitForTimeout(700);
-  check('the mark follows the filter',
-    await page.$eval('[data-go="unassigned"]', el => el.classList.contains('on'))
-    && !(await page.$eval('[data-go="all"]', el => el.classList.contains('on'))));
-  const unassigned = await names(page);
-  check('Unassigned narrows the table', unassigned.length < all.length,
-    all.length + ' -> ' + unassigned.length);
-  check('and says what it is showing',
-    /Unassigned only/.test(await page.textContent('#onlyChip')),
-    await page.textContent('#onlyChip'));
-  check('a student an administrator created is in it',
-    unassigned.some(n => /Walk In Student/.test(n)), unassigned.join(' | '));
-
-  await page.click('#onlyChip');
-  await page.waitForTimeout(600);
-  check('the chip clears the filter', (await names(page)).length === all.length,
-    (await names(page)).length);
-
-  await page.click('[data-go="docs"]');
-  await page.waitForTimeout(700);
-  check('Docs to review filters too',
-    /Waiting on documents/.test(await page.textContent('#onlyChip')),
-    await page.textContent('#onlyChip'));
-
-  await page.click('[data-go="all"]');
-  await page.waitForTimeout(700);
-  check('Students shows everybody again', (await names(page)).length === all.length,
-    (await names(page)).length);
-
-  /* -------------------------------------------------- out to another screen */
-  await page.click('[data-go="enquiries"]');
-  await page.waitForTimeout(2500);
-  /* It used to land on the chat screen's second tab. Every enquiry, from every
-     source, is one book now, and that is where the counter goes. */
-  check('Enquiries leaves for the lead book', /\/leads/.test(page.url()), page.url());
-  check('and the leads are listed there',
-    (await page.$$('#leadRows tr')).length > 0, page.url());
-
-  /* ------------------------ the one with nowhere to go is not a button */
-  await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#rows tr', { timeout: 15000 });
-  /* It used to be a plain number BECAUSE there was no order book to open. There
-     is one now, so it leads there — and the person who reported the counters as
-     broken was pressing this one. */
-  check('"Orders placed" now leads to the order book',
-    (await page.$$('[data-go="orders"]')).length === 1);
-  await page.click('[data-go="orders"]');
-  await page.waitForTimeout(900);
-  check('and the order book is on the screen', await page.isVisible('#ordRows'));
-  check('it says how many orders there are, not just a rupee total',
-    /^\d+$/.test((await page.textContent('#kRev')).trim()),
-    await page.textContent('#kRev'));
+  await page.goto(BASE + '/ops.html#students', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#stuRows tr[data-stu]', { timeout: 15000 });
+  const stuNames = () => page.$$eval('#stuRows tr[data-stu] td:first-child b', e => e.map(x => x.textContent.trim()));
+  const all = await stuNames();
+  check('they appear on the Students page', all.some(n => /Walk In Student/.test(n)), all.join(' | '));
+  await page.selectOption('#stuCoun', '0');
+  await page.waitForTimeout(500);
+  const loose = await stuNames();
+  check('Nobody assigned narrows the list to them', loose.length < all.length && loose.some(n => /Walk In Student/.test(n)),
+    all.length + ' -> ' + loose.join(' | '));
+  check('and an admin can pick their counsellor right there',
+    (await page.$$('#stuRows tr:has-text("Walk In Student") select[data-scoun]')).length === 1);
+  await page.selectOption('#stuCoun', '');
+  await page.selectOption('#stuOpen', '1');
+  await page.waitForTimeout(1200);
+  check('closed files can be listed too, to reopen one',
+    !(await stuNames()).some(n => /Walk In Student/.test(n)));
 
   check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 

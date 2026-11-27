@@ -46,22 +46,29 @@ const stamp = Date.now();
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
   page.on('dialog', async d => { await d.accept(); });
-  await page.goto(BASE + '/admin', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(3000);
-
-  const row = page.locator('tr', { hasText: 'Locked Out ' + stamp });
-  check('the student is on the roster', await row.count() >= 1);
-  check('with a way to reset their password',
-    await row.locator('[data-pwreset]').count() >= 1);
-
-  await row.locator('[data-pwreset]').first().click();
+  /* Patch 327: from the student's own file (the roster on Organisation is gone). */
+  await page.goto(BASE + '/counsellor.html?student=' + made.person.id + '&tab=file', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3500);
+  check('the file offers an admin a way to reset their password', await page.isVisible('#pwReset'));
+  check('and to send a sign-in link, and to close the file', await page.isVisible('#inviteLink') && await page.isVisible('#fileState'));
+  await page.click('#pwReset');
   await page.waitForTimeout(2400);
-
-  const note = await row.locator('[data-pw-note]').textContent().catch(() => '');
-  check('and it says whether anything was emailed', /Emailed to|not connected/.test(note),
+  const note = await page.textContent('#pwOut').catch(() => '');
+  check('and it says whether anything was emailed', /Sent to|Nothing was emailed/.test(note),
     (note || '').replace(/\s+/g, ' ').slice(0, 80));
-  const fresh = await row.locator('[data-pw-note] input').first().inputValue();
+  const fresh = (await page.textContent('#pwOut code').catch(() => '')).trim();
   check('the new password is on the screen to read out', !!fresh && fresh.length > 6, fresh);
+  await page.click('#inviteLink');
+  await page.waitForTimeout(1500);
+  check('the sign-in link is sent, or shown to copy', /Emailed to|Send them this link/.test(await page.textContent('#pwOut')));
+  await page.selectOption('#fileState', 'completed');
+  await page.waitForTimeout(1800);
+  const closedNow = await (await admin.request.get(BASE + '/api/staff/students/board?closed=1')).json();
+  check('closing the file from the file works', (closedNow.students || []).some(x => Number(x.id) === Number(made.person.id) && x.status === 'completed'));
+  await page.selectOption('#fileState', 'active');
+  await page.waitForTimeout(1800);
+  const openNow = await (await admin.request.get(BASE + '/api/staff/students/board')).json();
+  check('and reopening it', (openNow.students || []).some(x => Number(x.id) === Number(made.person.id)));
   check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   /* ------------------------------------------------ and it actually works */
