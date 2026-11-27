@@ -15336,6 +15336,153 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
   }));
 
   /* -------------------------------------------------------- whatsapp hook */
+  /*
+   * Patch 328: CONNECTIONS — WhatsApp and Instagram, typed on Organisation →
+   * Settings (owner, 27 Nov: "where is it … all connections should go into
+   * settings").
+   *
+   * What is typed there is laid over what the server's environment says, so
+   * nothing has to be set on Render. A secret is written, never read back:
+   * the screen shows the last four characters. Each card says whether it is
+   * connected, when the last message came in, and when Meta last knocked with
+   * something that did not verify — the usual sign of a wrong app secret.
+   *
+   * An Instagram token lasts 60 days. One typed here is renewed by the site a
+   * week after it was last renewed, so it never runs out.
+   */
+  const CONN_KEYS = {
+    wa: { token: 'WHATSAPP_TOKEN', phoneId: 'WHATSAPP_PHONE_ID', appSecret: 'WHATSAPP_APP_SECRET', verify: 'WHATSAPP_VERIFY_TOKEN' },
+    ig: { token: 'INSTAGRAM_TOKEN', accountId: 'INSTAGRAM_ACCOUNT_ID', appSecret: 'INSTAGRAM_APP_SECRET', verify: 'INSTAGRAM_VERIFY_TOKEN' },
+  };
+  const CONN_SECRET = { token: true, appSecret: true };
+  const connSaved = () => { let v = null; try { v = db.content('connections'); } catch (e) { v = null; } return v && typeof v === 'object' ? v : {}; };
+  const connEnv = (saved, side) => {
+    const o = {}, part = (saved && saved[side]) || {};
+    Object.keys(CONN_KEYS[side]).forEach(k => { if (part[k]) o[CONN_KEYS[side][k]] = part[k]; });
+    return o;
+  };
+  function connApply() {
+    const saved = connSaved();
+    try { if (notify && notify.configure) notify.configure(connEnv(saved, 'wa')); } catch (e) { /* the file's settings stand */ }
+    try { if (instagram && instagram.configure) instagram.configure(connEnv(saved, 'ig')); } catch (e) { /* the file's settings stand */ }
+  }
+  connApply();
+  const connSeenAll = () => { let v = null; try { v = db.content('connectionsSeen'); } catch (e) { v = null; } return v && typeof v === 'object' ? v : {}; };
+  /* Written at most once a minute per kind, so a busy number is not a write per message. */
+  const connSeenAt = {};
+  function connSeen(kind, detail) {
+    const now = Date.now();
+    if (connSeenAt[kind] && now - connSeenAt[kind] < 60000) return;
+    connSeenAt[kind] = now;
+    try { const all = connSeenAll(); all[kind] = { at: new Date(now).toISOString(), detail: String(detail || '').slice(0, 120) }; db.setContent('connectionsSeen', all, 'system'); } catch (e) { /* only a note */ }
+  }
+  const last4 = v => (v ? '••••' + String(v).slice(-4) : '');
+  function connShown(req) {
+    const base = baseFor(req);
+    const seen = connSeenAll(), saved = connSaved();
+    const wa = notify && notify.describe ? notify.describe() : {};
+    const ig = instagram && instagram.describe ? instagram.describe() : {};
+    const igSaved = saved.ig || {};
+    return {
+      whatsapp: {
+        connected: !!(notify && notify.whatsappReady), verified: !!(notify && notify.webhookReady),
+        token: last4(wa.token), phoneId: wa.phoneId || '', appSecret: last4(wa.appSecret), verify: wa.verify || 'glovels',
+        from: wa.from || {}, webhook: base + '/api/whatsapp/webhook',
+        number: (saved.wa && saved.wa.number) || '', name: (saved.wa && saved.wa.name) || '',
+        checkOk: saved.wa ? saved.wa.checkOk : undefined, checkSaid: (saved.wa && saved.wa.checkSaid) || '', checkAt: (saved.wa && saved.wa.checkAt) || null,
+        lastIn: seen.waIn || null, lastBad: seen.waBad || null, lastHello: seen.waHello || null,
+      },
+      instagram: {
+        connected: !!(instagram && instagram.ready), verified: !!(instagram && instagram.webhookReady),
+        token: last4(ig.token), accountId: ig.accountId || '', appSecret: last4(ig.appSecret), verify: ig.verify || 'glovels',
+        from: ig.from || {}, webhook: base + '/api/instagram/webhook',
+        checkOk: saved.ig ? igSaved.checkOk : undefined, checkSaid: igSaved.checkSaid || '', checkAt: igSaved.checkAt || null,
+        username: igSaved.username || '', expiresAt: igSaved.expiresAt || null, renewedAt: igSaved.renewedAt || null, renewError: igSaved.renewError || '',
+        lastIn: seen.igIn || null, lastBad: seen.igBad || null, lastHello: seen.igHello || null,
+      },
+      by: saved.by || '', at: saved.at || null,
+    };
+  }
+  route('GET', '/api/staff/connections', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    return json(res, 200, connShown(req));
+  }));
+  route('PUT', '/api/staff/connections', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const b = await readJson(req);
+    const side = b.side === 'instagram' ? 'ig' : b.side === 'whatsapp' ? 'wa' : '';
+    if (!side) return json(res, 400, { error: 'Say which: whatsapp or instagram.' });
+    const saved = connSaved();
+    const was = Object.assign({}, saved[side] || {});
+    const next = Object.assign({}, was);
+    for (const k of Object.keys(CONN_KEYS[side])) {
+      if (b[k] === undefined) continue;
+      let v = String(b[k] == null ? '' : b[k]).trim();
+      if (/^\u2022+/.test(v)) continue;                    /* the masked value shown back: unchanged */
+      if (v.toLowerCase() === 'remove') { delete next[k]; continue; }
+      if (!v && CONN_SECRET[k]) continue;                  /* an empty secret box keeps the secret */
+      if (!v) { delete next[k]; continue; }
+      if ((k === 'phoneId' || k === 'accountId') && !/^\d{5,30}$/.test(v)) {
+        return json(res, 422, { error: (k === 'phoneId' ? 'The phone number ID' : 'The Instagram account ID') + ' is a long number \u2014 digits only. It is not the phone number itself.', field: k });
+      }
+      if (/\s/.test(v)) return json(res, 422, { error: 'There is a space in what was pasted. Paste it again without spaces.', field: k });
+      next[k] = v.slice(0, 600);
+    }
+    /* a new Instagram token: it is renewed from now */
+    if (side === 'ig' && next.token !== was.token) { delete next.expiresAt; delete next.renewedAt; delete next.renewError; delete next.username; next.typedAt = new Date().toISOString(); }
+    saved[side] = next;
+    saved.by = s.name || s.email; saved.at = new Date().toISOString();
+    db.setContent('connections', saved, s.name || s.email);
+    connApply();
+    /* Ask Meta whether what was typed works, and say so. */
+    let check = { ok: false, said: '' };
+    try {
+      if (side === 'wa' && notify && notify.whatsappReady) {
+        const r = await notify.check();
+        check = { ok: true, said: [r.display_phone_number, r.verified_name].filter(Boolean).join(' · ') };
+        saved.wa = Object.assign({}, saved.wa, { number: r.display_phone_number || '', name: r.verified_name || '' });
+        db.setContent('connections', saved, s.name || s.email);
+      } else if (side === 'ig' && instagram && instagram.ready) {
+        const r = await instagram.me();
+        check = { ok: true, said: r.username ? '@' + r.username : (r.name || 'connected') };
+        saved.ig = Object.assign({}, saved.ig, { username: r.username || '' });
+        db.setContent('connections', saved, s.name || s.email);
+      } else check = { ok: false, said: side === 'wa' ? 'Needs the access token and the phone number ID to send.' : 'Needs the access token and the account ID to reply.' };
+    } catch (e) { check = { ok: false, said: String((e && e.message) || e).replace(/access_token=[^&\s"]+/g, 'access_token=…').slice(0, 240) }; }
+    /* remembered, so the card says whether it worked the last time anybody checked */
+    saved[side] = Object.assign({}, saved[side], { checkOk: !!check.ok, checkSaid: check.said, checkAt: new Date().toISOString() });
+    db.setContent('connections', saved, s.name || s.email);
+    db.log(s.name || s.email, (side === 'wa' ? 'WhatsApp' : 'Instagram') + ' connection saved', check.ok ? 'works: ' + check.said : 'not working yet');
+    return json(res, 200, Object.assign(connShown(req), { check }));
+  }));
+  /* Instagram: renew a token typed here a week after it was last renewed. */
+  async function igRenew(force) {
+    const saved = connSaved(), ig = saved.ig || {};
+    if (!ig.token || !instagram || !instagram.refresh) return { ok: false, said: 'No Instagram token typed on Settings.' };
+    const since = Date.parse(ig.renewedAt || ig.typedAt || 0) || 0;
+    if (!force && Date.now() - since < 7 * 86400000) return { ok: true, said: 'not due' };
+    try {
+      const r = await instagram.refresh(ig.token);
+      if (!r.access_token) throw new Error('Instagram gave no new token back.');
+      saved.ig = Object.assign({}, ig, { token: r.access_token, renewedAt: new Date().toISOString(), renewError: '',
+        expiresAt: r.expires_in ? new Date(Date.now() + Number(r.expires_in) * 1000).toISOString() : ig.expiresAt || null });
+      db.setContent('connections', saved, 'system');
+      connApply();
+      db.log('system', 'Instagram token renewed', 'good for ' + Math.round(Number(r.expires_in || 0) / 86400) + ' days');
+      return { ok: true, said: 'renewed' };
+    } catch (e) {
+      saved.ig = Object.assign({}, ig, { renewError: String((e && e.message) || e).replace(/access_token=[^&\s"]+/g, 'access_token=…').slice(0, 240), renewTriedAt: new Date().toISOString() });
+      try { db.setContent('connections', saved, 'system'); } catch (x) { /* noted in the log */ }
+      return { ok: false, said: saved.ig.renewError };
+    }
+  }
+  { const t = setInterval(() => { igRenew(false).catch(() => {}); }, 6 * 3600000); if (t.unref) t.unref(); }
+  route('POST', '/api/staff/connections/instagram/renew', caseworkOnly(async (req, res, s) => {
+    if (s.role !== 'admin') return json(res, 403, { error: 'Admins only' });
+    const r = await igRenew(true);
+    return json(res, r.ok ? 200 : 502, Object.assign(connShown(req), { check: r }));
+  }));
+
   /* Meta verifies a webhook by asking for it with a challenge, then POSTs
      messages to the same URL. Both only work once the site is on a public
      HTTPS address — a laptop cannot receive either. */
@@ -15343,6 +15490,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const q = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
     const v = notify.verifyWebhook(q);
     if (!v.ok) return json(res, 403, { error: 'Verification failed' });
+    connSeen('waHello', 'Meta checked the address');
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(String(v.challenge || ''));
     return true;
@@ -15466,6 +15614,7 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     const q = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
     const v = instagram ? instagram.verifyWebhook(q) : { ok: false };
     if (!v.ok) return json(res, 403, { error: 'Verification failed' });
+    connSeen('igHello', 'Meta checked the address');
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(String(v.challenge || ''));
     return true;
@@ -15475,11 +15624,14 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     if (!instagram || !instagram.webhookReady) return json(res, 503, { error: 'No INSTAGRAM_APP_SECRET is configured, so messages cannot be verified.' });
     if (!instagram.verifySignature(raw, req.headers['x-hub-signature-256'])) {
       db.log('system', 'Instagram webhook refused', 'signature did not verify');
+      connSeen('igBad', 'signature did not verify — check the Instagram app secret');
       return json(res, 403, { error: 'Signature did not verify.' });
     }
     let b = {};
     try { b = JSON.parse(raw.toString('utf8') || '{}'); } catch (e) { b = {}; }
-    for (const m of instagram.parse(b)) {
+    const igMsgs = instagram.parse(b);
+    if (igMsgs.some(m => !m.echo)) connSeen('igIn', 'a message came in');
+    for (const m of igMsgs) {
       if (m.id) { if (igSeen.has(m.id)) continue; igSeen.add(m.id); if (igSeen.size > 5000) igSeen.delete(igSeen.values().next().value); }
       try { await igInbound(m); } catch (e) { console.log('  instagram \u2717 could not file a message: ' + ((e && e.message) || e)); }
     }
@@ -15493,11 +15645,14 @@ function makeApi({ leadwatch, guard, turnstile, marketing, db, uploadDir, imageD
     }
     if (!notify.verifySignature(raw, req.headers['x-hub-signature-256'])) {
       db.log('system', 'WhatsApp webhook refused', 'signature did not verify');
+      connSeen('waBad', 'signature did not verify — check the WhatsApp app secret');
       return json(res, 403, { error: 'Signature did not verify.' });
     }
     let b = {};
     try { b = JSON.parse(raw.toString('utf8') || '{}'); } catch (e) { b = {}; }
-    notify.parseWebhook(b).forEach(m => {
+    const waMsgs = notify.parseWebhook(b);
+    if (waMsgs.some(m => !m.echo)) connSeen('waIn', 'a message came in');
+    waMsgs.forEach(m => {
       /* Patch 325: the same message twice (Meta retries) is filed once. */
       if (m.id) { if (waSeen.has(m.id)) return; waSeen.add(m.id); if (waSeen.size > 5000) waSeen.delete(waSeen.values().next().value); }
       /* A counsellor replying from their phone: match the sender's number to a

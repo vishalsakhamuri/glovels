@@ -3252,7 +3252,7 @@ function scriptFile(name) {
 
 /*
  * The Google Analytics tag, on the public pages only, when the office has
- * typed a measurement ID on Organisation → Traffic. Read on every page, so a
+ * typed a measurement ID on Organisation → Settings. Read on every page, so a
  * change lands on the next one without a redeploy. The office's visitors are never
  * tagged: the portal and the admin screens go without.
  *

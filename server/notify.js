@@ -62,18 +62,46 @@ function post(url, token, payload) {
   });
 }
 
+/* Patch 328: a GET with the token, to prove a token and phone number ID work. */
+function get(url, token) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = (u.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(u.hostname) ? http : https).request({
+      hostname: u.hostname, port: u.port || undefined, path: u.pathname + u.search, method: 'GET',
+      headers: { Authorization: 'Bearer ' + token }, timeout: 10000,
+    }, res => {
+      let out = '';
+      res.on('data', c => { out += c; });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) { try { return resolve(JSON.parse(out || '{}')); } catch (e) { return resolve({}); } }
+        reject(new Error('WhatsApp API ' + res.statusCode + ': ' + out.slice(0, 300)));
+      });
+    });
+    req.on('timeout', () => { req.destroy(new Error('WhatsApp API timed out')); });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 /** Meta wants digits only, with country code and no plus. */
 const waNumber = phone => String(phone || '').replace(/\D+/g, '').replace(/^0+/, '');
 
 function open({ mail, config, siteUrl, log = console }) {
-  const cfg = config || {};
-  const waReady = !!(cfg.WHATSAPP_TOKEN && cfg.WHATSAPP_PHONE_ID);
-  /* The app secret from Meta's developer console, App settings → Basic. Meta
-     signs every callback with it (X-Hub-Signature-256 over the raw body);
-     without it a callback cannot be told from anybody's POST. */
-  const appSecret = String(cfg.WHATSAPP_APP_SECRET || '').trim();
-  const template = cfg.WHATSAPP_TEMPLATE || 'glovels_new_message';
-  const api = String(cfg.WHATSAPP_GRAPH || 'https://graph.facebook.com').replace(/\/+$/, '') + '/v21.0/' + cfg.WHATSAPP_PHONE_ID + '/messages';
+  /* Patch 327: the settings from the file and the environment (`base`), with
+     what an administrator typed on Organisation → Settings → Connections
+     laid over them (`configure`). Changing them there takes effect at once. */
+  const base = Object.assign({}, config || {});
+  let cfg = base, waReady = false, appSecret = '', template = '', api = '';
+  const recompute = () => {
+    waReady = !!(cfg.WHATSAPP_TOKEN && cfg.WHATSAPP_PHONE_ID);
+    /* The app secret from Meta's developer console, App settings → Basic. Meta
+       signs every callback with it (X-Hub-Signature-256 over the raw body);
+       without it a callback cannot be told from anybody's POST. */
+    appSecret = String(cfg.WHATSAPP_APP_SECRET || '').trim();
+    template = cfg.WHATSAPP_TEMPLATE || 'glovels_new_message';
+    api = String(cfg.WHATSAPP_GRAPH || 'https://graph.facebook.com').replace(/\/+$/, '') + '/v21.0/' + cfg.WHATSAPP_PHONE_ID + '/messages';
+  };
+  recompute();
 
   async function whatsappText(to, text) {
     if (!waReady) return { ok: false, skipped: 'whatsapp not configured' };
@@ -137,8 +165,27 @@ function open({ mail, config, siteUrl, log = console }) {
     notify,
     whatsappText,
     whatsappTemplate,
-    whatsappReady: waReady,
-    webhookReady: !!appSecret,
+    get whatsappReady() { return waReady; },
+    get webhookReady() { return !!appSecret; },
+    /** Patch 327: lay the admin panel's values over the file's; an empty one falls back to it. */
+    configure(over) {
+      const o = {};
+      Object.keys(over || {}).forEach(k => { const v = String(over[k] == null ? '' : over[k]).trim(); if (v) o[k] = v; });
+      cfg = Object.assign({}, base, o);
+      recompute();
+    },
+    /** Patch 328: does this token reach this phone number? Says the number and the name Meta shows. */
+    async check() {
+      if (!waReady) throw new Error('No token and phone number ID yet.');
+      return get(String(cfg.WHATSAPP_GRAPH || 'https://graph.facebook.com').replace(/\/+$/, '') + '/v21.0/' + encodeURIComponent(cfg.WHATSAPP_PHONE_ID) + '?fields=display_phone_number,verified_name', cfg.WHATSAPP_TOKEN);
+    },
+    /** Patch 327: what the settings are, and where each came from — never the secret itself. */
+    describe() {
+      const pick = k => String(cfg[k] || ''), from = k => (cfg[k] && cfg[k] === base[k] ? 'server' : cfg[k] ? 'panel' : '');
+      return { token: pick('WHATSAPP_TOKEN'), phoneId: pick('WHATSAPP_PHONE_ID'), appSecret: pick('WHATSAPP_APP_SECRET'), verify: pick('WHATSAPP_VERIFY_TOKEN') || 'glovels',
+        from: { token: from('WHATSAPP_TOKEN'), phoneId: from('WHATSAPP_PHONE_ID'), appSecret: from('WHATSAPP_APP_SECRET'), verify: from('WHATSAPP_VERIFY_TOKEN') },
+        graph: String(cfg.WHATSAPP_GRAPH || 'https://graph.facebook.com').replace(/\/+$/, '') };
+    },
     /** Meta's signature over the raw callback body: "sha256=<hex hmac>". */
     verifySignature(raw, header) {
       if (!appSecret) return false;

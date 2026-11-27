@@ -2,7 +2,7 @@
 /*
  * Patch 267: the marketing team's tags, and the events the site sends them.
  *
- * The office pastes IDs on Organisation → Traffic — nobody here needs their
+ * The office pastes IDs on Organisation → Settings — nobody here needs their
  * logins. Each tag is off until its ID is typed and on every public page
  * from the next page served once it is. The portal and the office screens
  * are never tagged (serve.js only calls `head()` for public pages).

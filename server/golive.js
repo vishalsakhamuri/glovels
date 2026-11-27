@@ -110,7 +110,7 @@ function report(deps) {
   let ga = '';
   try { ga = deps.gaId ? deps.gaId() : ''; } catch (e) { ga = ''; }
   add('analytics', ga ? 'ok' : 'warn', 'Google Analytics', ga ? 'tag on the public pages (' + ga + ')' : 'no GA id',
-    ga ? '' : 'Paste the G-XXXXXXXXXX id on Organisation → Traffic, or set GA_ID on Render.');
+    ga ? '' : 'Paste the G-XXXXXXXXXX id on Organisation → Settings, or set GA_ID on Render.');
 
   /* Legal */
   const missing = legalMissing(content);

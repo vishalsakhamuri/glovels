@@ -50,12 +50,18 @@ function call(method, url, token, payload) {
 }
 
 function open({ config, log = console }) {
-  const cfg = config || {};
-  const token = String(cfg.INSTAGRAM_TOKEN || '').trim();
-  const account = String(cfg.INSTAGRAM_ACCOUNT_ID || '').trim();
-  const secret = String(cfg.INSTAGRAM_APP_SECRET || '').trim();
-  const base = String(cfg.INSTAGRAM_GRAPH || 'https://graph.instagram.com').replace(/\/+$/, '') + '/' + VERSION;
-  const ready = !!(token && account);
+  /* Patch 327: as notify.js — the file's settings with the admin panel's over them. */
+  const start = Object.assign({}, config || {});
+  let cfg = start, token = '', account = '', secret = '', host = '', base = '', ready = false;
+  const recompute = () => {
+    token = String(cfg.INSTAGRAM_TOKEN || '').trim();
+    account = String(cfg.INSTAGRAM_ACCOUNT_ID || '').trim();
+    secret = String(cfg.INSTAGRAM_APP_SECRET || '').trim();
+    host = String(cfg.INSTAGRAM_GRAPH || 'https://graph.instagram.com').replace(/\/+$/, '');
+    base = host + '/' + VERSION;
+    ready = !!(token && account);
+  };
+  recompute();
 
   /* What a message was, as one line: the words, or what was sent instead. */
   const what = msg => {
@@ -70,8 +76,28 @@ function open({ config, log = console }) {
   };
 
   return {
-    ready,
-    webhookReady: !!secret,
+    get ready() { return ready; },
+    get webhookReady() { return !!secret; },
+    configure(over) {
+      const o = {};
+      Object.keys(over || {}).forEach(k => { const v = String(over[k] == null ? '' : over[k]).trim(); if (v) o[k] = v; });
+      cfg = Object.assign({}, start, o);
+      recompute();
+    },
+    describe() {
+      const pick = k => String(cfg[k] || ''), from = k => (cfg[k] && cfg[k] === start[k] ? 'server' : cfg[k] ? 'panel' : '');
+      return { token: pick('INSTAGRAM_TOKEN'), accountId: pick('INSTAGRAM_ACCOUNT_ID'), appSecret: pick('INSTAGRAM_APP_SECRET'), verify: pick('INSTAGRAM_VERIFY_TOKEN') || 'glovels',
+        from: { token: from('INSTAGRAM_TOKEN'), accountId: from('INSTAGRAM_ACCOUNT_ID'), appSecret: from('INSTAGRAM_APP_SECRET'), verify: from('INSTAGRAM_VERIFY_TOKEN') } };
+    },
+    /* Who the token belongs to: proves it works, and gives the account ID. */
+    async me(tok) {
+      return call('GET', base + '/me?fields=user_id,username,name', String(tok || token));
+    },
+    /* A long-lived token lasts 60 days and can be renewed once it is a day
+       old; renewed, it lasts 60 days from then. */
+    async refresh(tok) {
+      return call('GET', host + '/refresh_access_token?grant_type=ig_refresh_token&access_token=' + encodeURIComponent(String(tok || token)), String(tok || token));
+    },
     status() {
       return ready ? (secret ? 'connected' : 'off — set INSTAGRAM_APP_SECRET so messages from Meta can be verified')
         : 'off — needs INSTAGRAM_TOKEN and INSTAGRAM_ACCOUNT_ID';

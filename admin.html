@@ -719,6 +719,18 @@ footer .logo-img,.flogo .logo-img{width:99px;height:44px}
   text-transform:uppercase;color:#a3302a;background:#fdecea;border-radius:5px;padding:4px 6px}
 .field.bad input,.field.bad select,.field.bad textarea{border-color:#c0392b;
   box-shadow:0 0 0 4px rgba(192,57,43,.13)}
+.conn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+.conn .conn-h{display:flex;align-items:center;gap:10px}.conn h3{margin:0;font-size:15px}
+.conn-who{margin:8px 0 0;font:600 13px/1.5 var(--sans);color:var(--navy-900)}
+.conn-seen{list-style:none;margin:8px 0 10px;padding:0;font-size:12.4px;line-height:1.7;color:var(--muted)}
+.conn-seen .bad{color:#a3302a;font-weight:700}
+.conn-how{margin:0 0 12px;font-size:12.4px;line-height:1.6;color:var(--navy-800)}
+.conn-how summary{cursor:pointer;font-weight:700;color:var(--blue-deep)}
+.conn-how ol{margin:8px 0 0;padding-left:18px}.conn-how li{margin:0 0 6px}
+.conn-copy{margin:0 0 10px}.conn-copy label{display:block;font:800 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 5px}
+.conn-copy div{display:flex;gap:6px}.conn-copy input{flex:1;min-width:0;padding:7px 9px;font:400 12px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.conn .field{margin:0 0 12px}
+.conn-act{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:12.4px}
 .ferr{margin:6px 0 0;font:600 12px/1.5 var(--sans);color:#a3302a}
 
 /* The cells that used to carry these as inline styles. Inline beats a
@@ -1922,6 +1934,58 @@ select.assign.none:hover{border-color:#a5342b}
         <ul class="doclist" id="glList" style="margin:0"></ul>
       </div>
     </div>
+    <!-- Patch 328: WhatsApp and Instagram, set up here rather than on Render. -->
+    <div class="p-sec" id="connSec">
+      <div class="p-sec-head"><h2 id="connCard">Connections</h2>
+        <button type="button" class="btn btn-ghost btn-sm" id="connRefresh" style="margin-left:auto">Check again</button></div>
+      <p style="margin:0 0 12px;font-size:12.6px;line-height:1.65;color:var(--navy-800)">
+        Messages to the business WhatsApp number and to the Instagram account come into
+        <b>Website chat</b>, and the first message from somebody new becomes a lead in <b>Leads</b>.
+        Paste what Meta gives you below. Secrets are kept on the server and shown here only as the last four characters.</p>
+      <div class="conn-grid">
+        <div class="p-card conn" id="connWa">
+          <div class="conn-h"><h3>WhatsApp</h3><span class="st" id="cwaSt">checking&hellip;</span></div>
+          <p class="conn-who" id="cwaWho"></p>
+          <ul class="conn-seen" id="cwaSeen"></ul>
+          <details class="conn-how"><summary>Where to find these in Meta</summary>
+            <ol>
+              <li>Open <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a> &rarr; your app &rarr; <b>WhatsApp &rarr; API Setup</b>. Copy the <b>Phone number ID</b> (a long number, not the phone number).</li>
+              <li><b>Access token</b>: make a permanent one in <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noopener">Business settings &rarr; System users</a> &rarr; Generate token, with <i>whatsapp_business_messaging</i> and <i>whatsapp_business_management</i>. The one on API Setup lasts only 24 hours.</li>
+              <li><b>App secret</b>: App settings &rarr; Basic &rarr; App secret &rarr; Show.</li>
+              <li>WhatsApp &rarr; <b>Configuration</b> &rarr; Webhook &rarr; Edit: paste the <b>Callback URL</b> and <b>Verify token</b> below, Verify and save, then subscribe to <b>messages</b> (and <b>smb_message_echoes</b> if the WhatsApp Business app is used on the same number).</li>
+            </ol></details>
+          <div class="conn-copy"><label>Callback URL</label><div><input readonly id="cwaHook"><button type="button" class="btn btn-ghost btn-sm" data-ccopy="cwaHook">Copy</button></div></div>
+          <div class="conn-copy"><label>Verify token</label><div><input readonly id="cwaVerifyShow"><button type="button" class="btn btn-ghost btn-sm" data-ccopy="cwaVerifyShow">Copy</button></div></div>
+          <div class="field"><label for="cwaToken">Access token</label><input id="cwaToken" type="password" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="cwaPhone">Phone number ID</label><input id="cwaPhone" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="e.g. 1234567890123456"></div>
+          <div class="field"><label for="cwaSecret">App secret</label><input id="cwaSecret" type="password" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="cwaVerify">Verify token (any word you choose)</label><input id="cwaVerify" autocomplete="off" spellcheck="false" placeholder="glovels"></div>
+          <p class="ferr" id="cwaErr" hidden></p>
+          <div class="conn-act"><button type="button" class="btn btn-primary btn-sm" data-csave="whatsapp">Save and check</button><span id="cwaSaid"></span></div>
+        </div>
+        <div class="p-card conn" id="connIg">
+          <div class="conn-h"><h3>Instagram</h3><span class="st" id="cigSt">checking&hellip;</span></div>
+          <p class="conn-who" id="cigWho"></p>
+          <ul class="conn-seen" id="cigSeen"></ul>
+          <details class="conn-how"><summary>Where to find these in Meta</summary>
+            <ol>
+              <li>The Instagram account must be a <b>Business or Creator</b> account.</li>
+              <li>In your app at <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a>, add <b>Instagram</b> &rarr; <b>API setup with Instagram login</b>. Under <i>Generate access tokens</i>, add the Glovels account and press <b>Generate token</b>: that is the <b>Access token</b>. The number shown next to the account is the <b>Account ID</b>.</li>
+              <li><b>App secret</b>: on the same page, <i>Instagram app secret</i> &rarr; Show.</li>
+              <li><b>Configure webhooks</b>: paste the <b>Callback URL</b> and <b>Verify token</b> below, Verify and save, then subscribe to <b>messages</b>. Finally in the Instagram app: Settings &rarr; Messages and story replies &rarr; Message controls &rarr; <b>Allow access to messages</b>.</li>
+            </ol></details>
+          <div class="conn-copy"><label>Callback URL</label><div><input readonly id="cigHook"><button type="button" class="btn btn-ghost btn-sm" data-ccopy="cigHook">Copy</button></div></div>
+          <div class="conn-copy"><label>Verify token</label><div><input readonly id="cigVerifyShow"><button type="button" class="btn btn-ghost btn-sm" data-ccopy="cigVerifyShow">Copy</button></div></div>
+          <div class="field"><label for="cigToken">Access token</label><input id="cigToken" type="password" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="cigAccount">Instagram account ID</label><input id="cigAccount" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="e.g. 17841400000000000"></div>
+          <div class="field"><label for="cigSecret">Instagram app secret</label><input id="cigSecret" type="password" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="cigVerify">Verify token (any word you choose)</label><input id="cigVerify" autocomplete="off" spellcheck="false" placeholder="glovels"></div>
+          <p class="ferr" id="cigErr" hidden></p>
+          <div class="conn-act"><button type="button" class="btn btn-primary btn-sm" data-csave="instagram">Save and check</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="cigRenew" hidden>Renew token now</button><span id="cigSaid"></span></div>
+        </div>
+      </div>
+    </div>
     <div class="p-sec">
       <div class="p-sec-head"><h2>Marketing tags</h2></div>
       <div class="p-card" id="gaCard" >
@@ -2841,7 +2905,7 @@ function showTab(which) {
   if (which === 'tasks' && typeof tkOpen === 'function') tkOpen();
   /* Patch 327: the marketing tags form moved here from Traffic. Before glOpen,
      which cannot run until its own line further down has been reached. */
-  if (which === 'settings' && !gaPainted) { gaPainted = true; setTimeout(() => paintGa().catch(() => {}), 0); }
+  if (which === 'settings' && !gaPainted) { gaPainted = true; setTimeout(() => { paintGa().catch(() => {}); paintConn().catch(() => {}); }, 0); }
   if (which === 'settings' && typeof glOpen === 'function') glOpen();
   /* Where the tab bar is, not where the page happens to be scrolled. Switching
      tab and landing half way down the new one reads as a broken click. */
@@ -2859,7 +2923,7 @@ document.addEventListener('click', e => {
    `admin.html#theMoney` used to scroll; a section inside a closed pane cannot
    be scrolled to, so it would have done nothing at all. */
 const TAB_OF = { mailCard: 'email', appCard: 'app', storiesCard: 'stories',
-  gaCard: 'settings', goliveCard: 'settings', backupCard: 'settings', qaCard: 'settings',
+  gaCard: 'settings', connCard: 'settings', goliveCard: 'settings', backupCard: 'settings', qaCard: 'settings',
   funnelCard: 'tasks', tasksCard: 'tasks', qCard: 'tasks' };
 /* Patch 327: these moved off this screen; an old link or bookmark still lands. */
 const MOVED = { students: 'ops.html#students', everyStudent: 'ops.html#students',
@@ -5001,6 +5065,79 @@ $$('.tr-range button').forEach(b => b.addEventListener('click', () => {
 
 /* Patch 267: every tag on one card. */
 const TAG_FIELDS = ['gaId', 'gtmId', 'adsId', 'adsLeadLabel', 'adsPurchaseLabel', 'pixelId', 'capiToken', 'clarityId'];
+/* ------------------------------------------------------------ connections
+ * Patch 328: WhatsApp and Instagram, typed here. GET shows what is set (the
+ * secrets as their last four characters), PUT saves one side and asks Meta
+ * whether it works. */
+function connAgo(x) {
+  if (!x || !x.at) return '';
+  const m = Math.floor((Date.now() - new Date(x.at)) / 60000);
+  return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' days ago';
+}
+function connPaintSide(pre, d, isWa) {
+  const st = $('#' + pre + 'St');
+  const ok = d.connected && d.verified && d.checkOk !== false;
+  st.className = 'st ' + (ok ? 'ok' : 'wait');
+  st.textContent = ok ? 'connected' : d.connected && d.checkOk === false ? 'Meta did not accept it' : d.connected || d.verified ? 'half set up' : 'not connected';
+  $('#' + pre + 'Who').textContent = isWa
+    ? (d.number ? d.number + (d.name ? ' · ' + d.name : '') : d.connected ? 'Token and number ID set' : '')
+    : (d.username ? '@' + d.username : d.connected ? 'Token and account ID set' : '');
+  const seen = [];
+  if (d.checkOk === false && d.checkSaid) seen.push('<span class="bad">Last check: ' + esc(d.checkSaid) + '</span>');
+  seen.push(d.lastIn ? 'Last message in: <b>' + connAgo(d.lastIn) + '</b>' : 'No message has come in yet');
+  if (d.lastHello) seen.push('Meta checked the callback address ' + connAgo(d.lastHello));
+  if (d.lastBad && (!d.lastIn || d.lastBad.at > d.lastIn.at)) seen.push('<span class="bad">Meta sent something ' + connAgo(d.lastBad) + ' that did not verify — the app secret here does not match Meta’s.</span>');
+  if (!d.verified) seen.push('<span class="bad">No app secret yet, so incoming messages are refused.</span>');
+  if (!isWa && d.expiresAt) seen.push('Token good until ' + new Date(d.expiresAt).toLocaleDateString('en-GB') + ' — renewed automatically');
+  if (!isWa && d.renewError) seen.push('<span class="bad">Could not renew the token: ' + esc(d.renewError) + '</span>');
+  $('#' + pre + 'Seen').innerHTML = seen.map(x => '<li>' + x + '</li>').join('');
+  $('#' + pre + 'Hook').value = d.webhook || '';
+  $('#' + pre + 'VerifyShow').value = d.verify || 'glovels';
+  const fill = (id, v, from) => { const el = $('#' + id); el.value = ''; el.placeholder = v ? v + (from === 'server' ? '  (set on the server)' : '') : el.dataset.ph || ''; };
+  ['Token', 'Secret'].forEach(k => { const el = $('#' + pre + k); if (!el.dataset.ph) el.dataset.ph = 'paste it here'; });
+  fill(pre + 'Token', d.token, d.from && d.from.token);
+  fill(pre + 'Secret', d.appSecret, d.from && d.from.appSecret);
+  $('#' + pre + (isWa ? 'Phone' : 'Account')).value = isWa ? d.phoneId : d.accountId;
+  $('#' + pre + 'Verify').value = d.from && d.from.verify === 'panel' ? d.verify : '';
+  if (!isWa) $('#cigRenew').hidden = !d.token || !(d.from && d.from.token === 'panel');
+}
+async function paintConn() {
+  try {
+    const d = await api('GET', '/api/staff/connections');
+    connPaintSide('cwa', d.whatsapp, true);
+    connPaintSide('cig', d.instagram, false);
+  } catch (e) { $('#cwaSt').textContent = 'could not read'; $('#cigSt').textContent = 'could not read'; }
+}
+document.addEventListener('click', async e => {
+  const cp = e.target.closest('[data-ccopy]');
+  if (cp) { const el = $('#' + cp.dataset.ccopy); el.select(); try { await navigator.clipboard.writeText(el.value); } catch (x) { document.execCommand('copy'); } cp.textContent = 'Copied'; setTimeout(() => { cp.textContent = 'Copy'; }, 1500); return; }
+  if (e.target.closest('#connRefresh')) { paintConn(); return; }
+  const rn = e.target.closest('#cigRenew');
+  if (rn) {
+    rn.disabled = true;
+    try { const d = await api('POST', '/api/staff/connections/instagram/renew'); connPaintSide('cig', d.instagram, false); $('#cigSaid').textContent = 'Renewed.'; }
+    catch (err) { $('#cigSaid').textContent = err.message; }
+    rn.disabled = false; return;
+  }
+  const sv = e.target.closest('[data-csave]');
+  if (!sv) return;
+  const wa = sv.dataset.csave === 'whatsapp', pre = wa ? 'cwa' : 'cig';
+  const body = wa
+    ? { side: 'whatsapp', token: $('#cwaToken').value, phoneId: $('#cwaPhone').value, appSecret: $('#cwaSecret').value, verify: $('#cwaVerify').value }
+    : { side: 'instagram', token: $('#cigToken').value, accountId: $('#cigAccount').value, appSecret: $('#cigSecret').value, verify: $('#cigVerify').value };
+  const err = $('#' + pre + 'Err'), said = $('#' + pre + 'Said');
+  err.hidden = true; said.textContent = 'Saving and asking Meta…'; sv.disabled = true;
+  try {
+    const d = await api('PUT', '/api/staff/connections', body);
+    connPaintSide('cwa', d.whatsapp, true);
+    connPaintSide('cig', d.instagram, false);
+    said.innerHTML = d.check && d.check.ok
+      ? '<span style="color:#1b7f4b;font-weight:700">Saved — Meta says it works: ' + esc(d.check.said) + '</span>'
+      : '<span style="color:#a3302a;font-weight:700">Saved, but it does not work yet: ' + esc((d.check && d.check.said) || '') + '</span>';
+  } catch (er) { err.textContent = er.message; err.hidden = false; said.textContent = ''; }
+  sv.disabled = false;
+});
+
 async function paintGa() {
   try {
     const a = await api('GET', '/api/staff/analytics');
