@@ -141,6 +141,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await s.waitForSelector('#chatBox', { timeout: 8000 });
 
   /* ------------------------------------------------------ marking it done */
+  await s.click('[data-chatmenu]');   // patch 329: Mark done is in the ⋮ menu
   await s.click('#chatDone');
   await s.waitForTimeout(1200);
   check('it can be marked done', /Reopen/.test(await s.textContent('#chatPane')));
